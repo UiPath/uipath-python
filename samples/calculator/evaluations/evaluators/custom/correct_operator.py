@@ -1,6 +1,7 @@
 import json
 
-from uipath.eval.evaluators import BaseEvaluator, BaseEvaluationCriteria, BaseEvaluatorConfig
+from uipath.eval.evaluators import BaseEvaluationCriteria, BaseEvaluatorConfig
+from uipath.eval.evaluators.base_evaluator import BaseEvaluator
 from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from opentelemetry.sdk.trace import ReadableSpan
 

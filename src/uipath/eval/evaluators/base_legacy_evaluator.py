@@ -16,7 +16,11 @@ from uipath.eval.models.models import (
     LegacyEvaluatorType,
 )
 
-from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
+from .base_evaluator import (
+    BaseEvaluationCriteria,
+    BaseEvaluatorConfig,
+    GenericBaseEvaluator,
+)
 
 
 def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -59,8 +63,8 @@ class LegacyEvaluationCriteria(BaseEvaluationCriteria):
 T = TypeVar("T", bound=LegacyEvaluatorConfig)
 
 
-class LegacyBaseEvaluator(
-    BaseEvaluator[LegacyEvaluationCriteria, T, str], Generic[T], ABC
+class BaseLegacyEvaluator(
+    GenericBaseEvaluator[LegacyEvaluationCriteria, T, str], Generic[T], ABC
 ):
     """Abstract base class for all legacy evaluators.
 
@@ -70,12 +74,15 @@ class LegacyBaseEvaluator(
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # Legacy-specific fields (in addition to inherited fields from BaseEvaluator)
-    target_output_key: str = "*"
-    created_at: str
-    updated_at: str
-    category: LegacyEvaluatorCategory
-    evaluator_type: LegacyEvaluatorType
+    # Required Fields
+    category: LegacyEvaluatorCategory = Field(...)
+    type: LegacyEvaluatorType = Field(...)
+
+    # Optional Fields
+    file_name: str = Field(default="", alias="fileName")
+    target_output_key: str = Field(default="*", alias="targetOutputKey")
+    created_at: str = Field(..., alias="createdAt")
+    updated_at: str = Field(..., alias="updatedAt")
 
     # Note: __init_subclass__ is inherited from BaseEvaluator and handles metrics tracking
 
@@ -92,6 +99,15 @@ class LegacyBaseEvaluator(
         have an 'id' field that identifies them.
         """
         return "legacy-evaluator"
+
+    async def validate_and_evaluate_criteria(
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: LegacyEvaluationCriteria,
+    ) -> EvaluationResult:
+        """Evaluate the given data and return a result from a raw evaluation criteria."""
+        criteria = self.validate_evaluation_criteria(evaluation_criteria)
+        return await self.evaluate(agent_execution, criteria)
 
     @abstractmethod
     async def evaluate(

@@ -6,7 +6,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, SkipValidation, model_validator
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
-from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import EvalItemResult
 
 
@@ -24,7 +24,7 @@ class EvalSetRunCreatedEvent(BaseModel):
     eval_set_run_id: str | None = None
     no_of_evals: int
     # skip validation to avoid abstract class instantiation
-    evaluators: SkipValidation[list[BaseEvaluator[Any, Any, Any]]]
+    evaluators: SkipValidation[list[GenericBaseEvaluator[Any, Any, Any]]]
 
 
 class EvalRunCreatedEvent(BaseModel):

@@ -157,6 +157,7 @@ class BatchTransformReadUriResponse(BaseModel):
         arbitrary_types_allowed=True,
     )
     uri: str
+    is_encrypted: bool = Field(alias="isEncrypted", default=False)
 
 
 class DeepRagCreationResponse(BaseModel):

@@ -15,6 +15,9 @@ from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
+# SourceEnum.Robots = 4 (default for Python SDK / coded agents)
+DEFAULT_SOURCE = 4
+
 
 @dataclass
 class UiPathSpan:
@@ -43,7 +46,7 @@ class UiPathSpan:
     folder_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
-    source: Optional[int] = None
+    source: int = DEFAULT_SOURCE
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
@@ -248,7 +251,10 @@ class _SpanUtils:
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("referenceId")
-        source = attributes_dict.get("source")
+
+        # Source: override via uipath.source attribute, else DEFAULT_SOURCE
+        uipath_source = attributes_dict.get("uipath.source")
+        source = uipath_source if isinstance(uipath_source, int) else DEFAULT_SOURCE
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(

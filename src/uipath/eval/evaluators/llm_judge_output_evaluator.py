@@ -51,6 +51,7 @@ class LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig(LLMJudgeOutputEvaluatorC
 OC = TypeVar("OC", bound=LLMJudgeOutputEvaluatorConfig)
 
 
+# NOTE: This evaluator is only used in coded evaluators
 class BaseLLMOutputEvaluator(
     OutputEvaluator[OutputEvaluationCriteria, OC, str],
     LLMJudgeMixin[OutputEvaluationCriteria, OC],

@@ -1,33 +1,26 @@
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Union
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+from pydantic import ConfigDict, Discriminator, Field, Tag
 
-from uipath.eval.evaluators.base_evaluator import BaseEvaluatorConfig
-from uipath.eval.evaluators.contains_evaluator import ContainsEvaluatorConfig
-from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
-from uipath.eval.evaluators.json_similarity_evaluator import (
-    JsonSimilarityEvaluatorConfig,
+from uipath.eval.evaluators import (
+    BaseLegacyEvaluator,
+    ContainsEvaluator,
+    ExactMatchEvaluator,
+    JsonSimilarityEvaluator,
+    LegacyExactMatchEvaluator,
+    LegacyJsonSimilarityEvaluator,
+    LegacyLlmAsAJudgeEvaluator,
+    LegacyTrajectoryEvaluator,
+    LLMJudgeOutputEvaluator,
+    LLMJudgeStrictJSONSimilarityOutputEvaluator,
+    LLMJudgeTrajectoryEvaluator,
+    LLMJudgeTrajectorySimulationEvaluator,
+    ToolCallArgsEvaluator,
+    ToolCallCountEvaluator,
+    ToolCallOrderEvaluator,
+    ToolCallOutputEvaluator,
 )
-from uipath.eval.evaluators.llm_judge_output_evaluator import (
-    LLMJudgeOutputEvaluatorConfig,
-    LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
-)
-from uipath.eval.evaluators.llm_judge_trajectory_evaluator import (
-    LLMJudgeTrajectoryEvaluatorConfig,
-    LLMJudgeTrajectorySimulationEvaluatorConfig,
-)
-from uipath.eval.evaluators.tool_call_args_evaluator import (
-    ToolCallArgsEvaluatorConfig,
-)
-from uipath.eval.evaluators.tool_call_count_evaluator import (
-    ToolCallCountEvaluatorConfig,
-)
-from uipath.eval.evaluators.tool_call_order_evaluator import (
-    ToolCallOrderEvaluatorConfig,
-)
-from uipath.eval.evaluators.tool_call_output_evaluator import (
-    ToolCallOutputEvaluatorConfig,
-)
+from uipath.eval.evaluators.base_evaluator import BaseEvaluator, BaseEvaluatorConfig
 from uipath.eval.models import (
     EvaluatorType,
     LegacyEvaluatorCategory,
@@ -35,107 +28,8 @@ from uipath.eval.models import (
 )
 
 
-class EvaluatorBaseParams(BaseModel):
-    """Parameters for initializing the base evaluator."""
-
-    id: str
-    name: str
-    description: str
-    evaluator_type: LegacyEvaluatorType = Field(..., alias="type")
-    created_at: str = Field(..., alias="createdAt")
-    updated_at: str = Field(..., alias="updatedAt")
-    target_output_key: str = Field(..., alias="targetOutputKey")
-    file_name: str = Field(..., alias="fileName")
-
-
-class LLMEvaluatorParams(EvaluatorBaseParams):
-    category: Literal[LegacyEvaluatorCategory.LlmAsAJudge] = Field(
-        ..., alias="category"
-    )
-    prompt: str = Field(..., alias="prompt")
-    model: str = Field(..., alias="model")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-class TrajectoryEvaluatorParams(EvaluatorBaseParams):
-    category: Literal[LegacyEvaluatorCategory.Trajectory] = Field(..., alias="category")
-    prompt: str = Field(..., alias="prompt")
-    model: str = Field(..., alias="model")
-
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-class EqualsEvaluatorParams(EvaluatorBaseParams):
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-class JsonSimilarityEvaluatorParams(EvaluatorBaseParams):
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-class UnknownEvaluatorParams(EvaluatorBaseParams):
-    model_config = ConfigDict(
-        validate_by_name=True, validate_by_alias=True, extra="allow"
-    )
-
-
-def evaluator_discriminator(data: Any) -> str:
-    if isinstance(data, dict):
-        category = data.get("category")
-        evaluator_type = data.get("type")
-        match category:
-            case LegacyEvaluatorCategory.LlmAsAJudge:
-                return "LLMEvaluatorParams"
-            case LegacyEvaluatorCategory.Trajectory:
-                return "TrajectoryEvaluatorParams"
-            case LegacyEvaluatorCategory.Deterministic:
-                match evaluator_type:
-                    case LegacyEvaluatorType.Equals:
-                        return "EqualsEvaluatorParams"
-                    case LegacyEvaluatorType.JsonSimilarity:
-                        return "JsonSimilarityEvaluatorParams"
-                    case _:
-                        return "UnknownEvaluatorParams"
-            case _:
-                return "UnknownEvaluatorParams"
-    else:
-        return "UnknownEvaluatorParams"
-
-
-Evaluator = Annotated[
-    Union[
-        Annotated[
-            LLMEvaluatorParams,
-            Tag("LLMEvaluatorParams"),
-        ],
-        Annotated[
-            TrajectoryEvaluatorParams,
-            Tag("TrajectoryEvaluatorParams"),
-        ],
-        Annotated[
-            EqualsEvaluatorParams,
-            Tag("EqualsEvaluatorParams"),
-        ],
-        Annotated[
-            JsonSimilarityEvaluatorParams,
-            Tag("JsonSimilarityEvaluatorParams"),
-        ],
-        Annotated[
-            UnknownEvaluatorParams,
-            Tag("UnknownEvaluatorParams"),
-        ],
-    ],
-    Field(discriminator=Discriminator(evaluator_discriminator)),
-]
+class UnknownLegacyEvaluator(BaseLegacyEvaluator[Any]):
+    pass
 
 
 class UnknownEvaluatorConfig(BaseEvaluatorConfig[Any]):
@@ -144,137 +38,164 @@ class UnknownEvaluatorConfig(BaseEvaluatorConfig[Any]):
     )
 
 
+class UnknownCodedEvaluator(BaseEvaluator[Any, Any, Any]):
+    pass
+
+
 def legacy_evaluator_discriminator(data: Any) -> str:
     if isinstance(data, dict):
         category = data.get("category")
         evaluator_type = data.get("type")
         match category:
             case LegacyEvaluatorCategory.LlmAsAJudge:
-                return "LLMEvaluatorParams"
+                return "LegacyLLMEvaluator"
             case LegacyEvaluatorCategory.Trajectory:
-                return "TrajectoryEvaluatorParams"
+                return "LegacyTrajectoryEvaluator"
             case LegacyEvaluatorCategory.Deterministic:
                 match evaluator_type:
                     case LegacyEvaluatorType.Equals:
-                        return "EqualsEvaluatorParams"
+                        return "LegacyEqualsEvaluator"
                     case LegacyEvaluatorType.JsonSimilarity:
-                        return "JsonSimilarityEvaluatorParams"
+                        return "LegacyJsonSimilarityEvaluator"
                     case _:
-                        return "UnknownEvaluatorParams"
+                        return "LegacyUnknownEvaluator"
             case _:
-                return "UnknownEvaluatorParams"
+                return "LegacyUnknownEvaluator"
     else:
-        return "UnknownEvaluatorParams"
-
-
-def evaluator_config_discriminator(data: Any) -> str:
-    if isinstance(data, dict):
-        evaluator_type_id = data.get("evaluatorTypeId")
-        match evaluator_type_id:
-            case EvaluatorType.CONTAINS:
-                return "ContainsEvaluatorConfig"
-            case EvaluatorType.EXACT_MATCH:
-                return "ExactMatchEvaluatorConfig"
-            case EvaluatorType.JSON_SIMILARITY:
-                return "JsonSimilarityEvaluatorConfig"
-            case EvaluatorType.LLM_JUDGE_OUTPUT_SEMANTIC_SIMILARITY:
-                return "LLMJudgeOutputEvaluatorConfig"
-            case EvaluatorType.LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY:
-                return "LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig"
-            case EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMILARITY:
-                return "LLMJudgeTrajectoryEvaluatorConfig"
-            case EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMULATION:
-                return "LLMJudgeTrajectorySimulationEvaluatorConfig"
-            case EvaluatorType.TOOL_CALL_ARGS:
-                return "ToolCallArgsEvaluatorConfig"
-            case EvaluatorType.TOOL_CALL_COUNT:
-                return "ToolCallCountEvaluatorConfig"
-            case EvaluatorType.TOOL_CALL_ORDER:
-                return "ToolCallOrderEvaluatorConfig"
-            case EvaluatorType.TOOL_CALL_OUTPUT:
-                return "ToolCallOutputEvaluatorConfig"
-            case _:
-                return "UnknownEvaluatorConfig"
-    else:
-        return "UnknownEvaluatorConfig"
+        return "LegacyUnknownLegacyEvaluator"
 
 
 LegacyEvaluator = Annotated[
     Union[
         Annotated[
-            LLMEvaluatorParams,
-            Tag("LLMEvaluatorParams"),
+            LegacyLlmAsAJudgeEvaluator,
+            Tag("LegacyLLMEvaluator"),
         ],
         Annotated[
-            TrajectoryEvaluatorParams,
-            Tag("TrajectoryEvaluatorParams"),
+            LegacyTrajectoryEvaluator,
+            Tag("LegacyTrajectoryEvaluator"),
         ],
         Annotated[
-            EqualsEvaluatorParams,
-            Tag("EqualsEvaluatorParams"),
+            LegacyExactMatchEvaluator,
+            Tag("LegacyEqualsEvaluator"),
         ],
         Annotated[
-            JsonSimilarityEvaluatorParams,
-            Tag("JsonSimilarityEvaluatorParams"),
+            LegacyJsonSimilarityEvaluator,
+            Tag("LegacyJsonSimilarityEvaluator"),
         ],
         Annotated[
-            UnknownEvaluatorParams,
-            Tag("UnknownEvaluatorParams"),
+            UnknownLegacyEvaluator,
+            Tag("LegacyUnknownEvaluator"),
         ],
     ],
     Field(discriminator=Discriminator(legacy_evaluator_discriminator)),
 ]
 
-EvaluatorConfig = Annotated[
+
+def coded_evaluator_discriminator(data: Any) -> str:
+    if isinstance(data, dict):
+        evaluator_type_id = data.get("evaluatorTypeId")
+        match evaluator_type_id:
+            case EvaluatorType.CONTAINS:
+                return "ContainsEvaluator"
+            case EvaluatorType.EXACT_MATCH:
+                return "ExactMatchEvaluator"
+            case EvaluatorType.JSON_SIMILARITY:
+                return "JsonSimilarityEvaluator"
+            case EvaluatorType.LLM_JUDGE_OUTPUT_SEMANTIC_SIMILARITY:
+                return "LLMJudgeOutputEvaluator"
+            case EvaluatorType.LLM_JUDGE_OUTPUT_STRICT_JSON_SIMILARITY:
+                return "LLMJudgeStrictJSONSimilarityOutputEvaluator"
+            case EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMILARITY:
+                return "LLMJudgeTrajectoryEvaluator"
+            case EvaluatorType.LLM_JUDGE_TRAJECTORY_SIMULATION:
+                return "LLMJudgeTrajectorySimulationEvaluator"
+            case EvaluatorType.TOOL_CALL_ARGS:
+                return "ToolCallArgsEvaluator"
+            case EvaluatorType.TOOL_CALL_COUNT:
+                return "ToolCallCountEvaluator"
+            case EvaluatorType.TOOL_CALL_ORDER:
+                return "ToolCallOrderEvaluator"
+            case EvaluatorType.TOOL_CALL_OUTPUT:
+                return "ToolCallOutputEvaluator"
+            case _:
+                return "UnknownEvaluator"
+    else:
+        return "UnknownEvaluator"
+
+
+CodedEvaluator = Annotated[
     Union[
         Annotated[
-            ContainsEvaluatorConfig,
-            Tag("ContainsEvaluatorConfig"),
+            ContainsEvaluator,
+            Tag("ContainsEvaluator"),
         ],
         Annotated[
-            ExactMatchEvaluatorConfig,
-            Tag("ExactMatchEvaluatorConfig"),
+            ExactMatchEvaluator,
+            Tag("ExactMatchEvaluator"),
         ],
         Annotated[
-            JsonSimilarityEvaluatorConfig,
-            Tag("JsonSimilarityEvaluatorConfig"),
+            JsonSimilarityEvaluator,
+            Tag("JsonSimilarityEvaluator"),
         ],
         Annotated[
-            LLMJudgeOutputEvaluatorConfig,
-            Tag("LLMJudgeOutputEvaluatorConfig"),
+            LLMJudgeOutputEvaluator,
+            Tag("LLMJudgeOutputEvaluator"),
         ],
         Annotated[
-            LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig,
-            Tag("LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig"),
+            LLMJudgeStrictJSONSimilarityOutputEvaluator,
+            Tag("LLMJudgeStrictJSONSimilarityOutputEvaluator"),
         ],
         Annotated[
-            LLMJudgeTrajectoryEvaluatorConfig,
-            Tag("LLMJudgeTrajectoryEvaluatorConfig"),
+            LLMJudgeTrajectoryEvaluator,
+            Tag("LLMJudgeTrajectoryEvaluator"),
         ],
         Annotated[
-            ToolCallArgsEvaluatorConfig,
-            Tag("ToolCallArgsEvaluatorConfig"),
+            ToolCallArgsEvaluator,
+            Tag("ToolCallArgsEvaluator"),
         ],
         Annotated[
-            ToolCallCountEvaluatorConfig,
-            Tag("ToolCallCountEvaluatorConfig"),
+            ToolCallCountEvaluator,
+            Tag("ToolCallCountEvaluator"),
         ],
         Annotated[
-            ToolCallOrderEvaluatorConfig,
-            Tag("ToolCallOrderEvaluatorConfig"),
+            ToolCallOrderEvaluator,
+            Tag("ToolCallOrderEvaluator"),
         ],
         Annotated[
-            ToolCallOutputEvaluatorConfig,
-            Tag("ToolCallOutputEvaluatorConfig"),
+            ToolCallOutputEvaluator,
+            Tag("ToolCallOutputEvaluator"),
         ],
         Annotated[
-            LLMJudgeTrajectorySimulationEvaluatorConfig,
-            Tag("LLMJudgeTrajectorySimulationEvaluatorConfig"),
+            LLMJudgeTrajectorySimulationEvaluator,
+            Tag("LLMJudgeTrajectorySimulationEvaluator"),
         ],
         Annotated[
-            UnknownEvaluatorConfig,
-            Tag("UnknownEvaluatorConfig"),
+            UnknownCodedEvaluator,
+            Tag("UnknownEvaluator"),
         ],
     ],
-    Field(discriminator=Discriminator(evaluator_config_discriminator)),
+    Field(discriminator=Discriminator(coded_evaluator_discriminator)),
+]
+
+
+def evaluator_discriminator(data: Any) -> str:
+    if "version" in data:
+        return "CodedEvaluator"
+    else:
+        return "LegacyEvaluator"
+
+
+Evaluator = Annotated[
+    Union[
+        Annotated[
+            LegacyEvaluator,
+            Tag("LegacyEvaluator"),
+        ],
+        Annotated[
+            CodedEvaluator,
+            Tag("CodedEvaluator"),
+        ],
+    ],
+    Field(discriminator=Discriminator(evaluator_discriminator)),
 ]

@@ -31,7 +31,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Prompt should remain unchanged
@@ -53,7 +53,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Check that ExpectedOutput section was added
@@ -89,7 +89,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Check that ActualOutput section was added
@@ -122,7 +122,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Check that both sections were added
@@ -167,7 +167,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Find positions of the sections
@@ -189,7 +189,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Check proper nesting for ActualOutput
@@ -219,7 +219,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Double braces should be preserved
@@ -245,7 +245,7 @@ class TestLLMJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Original prompt should be at the start
@@ -278,7 +278,7 @@ Provide a score from 0-100.
 
         with patch("uipath.platform.UiPath"):
             evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"config": config, "id": str(uuid.uuid4())}
+                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
 
         # Original multiline content should be preserved

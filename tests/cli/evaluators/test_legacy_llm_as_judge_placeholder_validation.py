@@ -4,9 +4,9 @@ Tests that missing {{ActualOutput}} and {{ExpectedOutput}} placeholders are
 automatically added to prompts with XML tags for clear delimitation.
 """
 
+from typing import Any
 from unittest.mock import patch
 
-from uipath._cli._evals._models._evaluator_base_params import EvaluatorBaseParams
 from uipath.eval.evaluators.legacy_llm_as_judge_evaluator import (
     LegacyLlmAsAJudgeEvaluator,
 )
@@ -16,18 +16,18 @@ from uipath.eval.models.models import (
 )
 
 
-def _make_base_params() -> EvaluatorBaseParams:
-    """Create base parameters for LLM judge evaluator."""
-    return EvaluatorBaseParams(
-        id="test",
-        category=LegacyEvaluatorCategory.LlmAsAJudge,
-        evaluator_type=LegacyEvaluatorType.Custom,
-        name="TestEvaluator",
-        description="Test",
-        created_at="2025-01-01T00:00:00Z",
-        updated_at="2025-01-01T00:00:00Z",
-        target_output_key="*",
-    )
+def _make_base_params() -> dict[str, Any]:
+    """Create base parameters for faithfulness evaluator."""
+    return {
+        "id": "test",
+        "category": LegacyEvaluatorCategory.LlmAsAJudge,
+        "type": LegacyEvaluatorType.Custom,
+        "name": "TestEvaluator",
+        "description": "Test",
+        "createdAt": "2025-01-01T00:00:00Z",
+        "updatedAt": "2025-01-01T00:00:00Z",
+        "targetOutputKey": "*",
+    }
 
 
 class TestLegacyLlmAsAJudgePlaceholderValidation:
@@ -43,8 +43,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -62,8 +61,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -92,8 +90,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -119,8 +116,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -158,8 +154,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -177,8 +172,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -202,8 +196,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -221,8 +214,7 @@ class TestLegacyLlmAsAJudgePlaceholderValidation:
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )
@@ -249,8 +241,7 @@ Provide a score from 0-100.
 
         with patch("uipath.platform.UiPath"):
             evaluator = LegacyLlmAsAJudgeEvaluator(
-                **_make_base_params().model_dump(),
-                config={},
+                **_make_base_params(),
                 prompt=original_prompt,
                 model="gpt-4",
             )

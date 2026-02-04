@@ -1464,6 +1464,320 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
         )
 
+    def test_start_batch_transform_with_target_file_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="Emoji",
+                description="Emoji",
+            ),
+            BatchTransformOutputColumn(
+                name="Language",
+                description="The output Language should be loaded from the row",
+            ),
+        ]
+
+        response = service.start_batch_transform(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Extract emojis and language",
+            output_columns=output_columns,
+            target_file_name="size_1KB.csv",
+            enable_web_search_grounding=True,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Extract emojis and language"
+        assert request_data["targetFileGlobPattern"] == "size_1KB.csv"
+        assert request_data["useWebSearchGrounding"] is True
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_start_batch_transform_async_with_target_file_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="Emoji",
+                description="Emoji",
+            ),
+            BatchTransformOutputColumn(
+                name="Language",
+                description="The output Language should be loaded from the row",
+            ),
+        ]
+
+        response = await service.start_batch_transform_async(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Extract emojis and language",
+            output_columns=output_columns,
+            target_file_name="size_1KB.csv",
+            enable_web_search_grounding=True,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Extract emojis and language"
+        assert request_data["targetFileGlobPattern"] == "size_1KB.csv"
+        assert request_data["useWebSearchGrounding"] is True
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
+        )
+
+    def test_start_batch_transform_with_combined_prefix_and_filename(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the document",
+            )
+        ]
+
+        response = service.start_batch_transform(
+            name="my-batch-transform",
+            index_name="test-index",
+            prompt="Summarize the document",
+            output_columns=output_columns,
+            storage_bucket_folder_path_prefix="data",
+            target_file_name="size_1KB.csv",
+            enable_web_search_grounding=False,
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[3].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag"
+            in str(sent_requests[3].url)
+        )
+
+        request_data = json.loads(sent_requests[3].content)
+        assert request_data["name"] == "my-batch-transform"
+        assert request_data["prompt"] == "Summarize the document"
+        # Verify that both prefix and filename are combined
+        assert request_data["targetFileGlobPattern"] == "data/size_1KB.csv"
+        assert request_data["useWebSearchGrounding"] is False
+
+        assert HEADER_USER_AGENT in sent_requests[3].headers
+        assert (
+            sent_requests[3].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform/{version}"
+        )
+
     def test_retrieve_batch_transform(
         self,
         httpx_mock: HTTPXMock,
@@ -1597,6 +1911,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1670,6 +1985,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1741,6 +2057,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1759,6 +2076,68 @@ class TestContextGroundingService:
         assert destination.exists()
         assert destination.read_bytes() == b"col1,col2\nval1,val2"
         assert destination.parent.exists()
+
+    def test_download_batch_transform_result_encrypted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
+                "isEncrypted": True,
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
+            status_code=200,
+            content=b"encrypted,data\nval1,val2",
+        )
+
+        destination = tmp_path / "result_encrypted.csv"
+        service.download_batch_transform_result(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"encrypted,data\nval1,val2"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        # Verify the DownloadBlob endpoint was called with Authorization header
+        download_request = sent_requests[2]
+        assert download_request.method == "GET"
+        assert "/DownloadBlob" in str(download_request.url)
+        assert "Authorization" in download_request.headers
+        assert download_request.headers["Authorization"].startswith("Bearer ")
 
     def test_create_ephemeral_index(
         self,
@@ -1903,6 +2282,7 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "uri": "https://storage.example.com/result.csv",
+                "isEncrypted": False,
             },
         )
 
@@ -1921,3 +2301,124 @@ class TestContextGroundingService:
         assert destination.exists()
         assert destination.read_bytes() == b"col1,col2\nval1,val2"
         assert destination.parent.exists()
+
+    @pytest.mark.anyio
+    async def test_start_deep_rag_ephemeral_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createDeepRag?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = await service.start_deep_rag_ephemeral_async(
+            name="my-ephemeral-deep-rag-task",
+            prompt="Summarize all documents related to financial reports",
+            glob_pattern="*.pdf",
+            citation_mode=CitationMode.INLINE,
+            index_id="ephemeral-index-id",
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "new-deep-rag-task-id"
+        assert response.last_deep_rag_status == "Queued"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert (
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/ephemeral-index-id/createDeepRag"
+            in str(sent_requests[0].url)
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-ephemeral-deep-rag-task"
+        assert (
+            request_data["prompt"]
+            == "Summarize all documents related to financial reports"
+        )
+        assert request_data["globPattern"] == "*.pdf"
+        assert request_data["citationMode"] == "Inline"
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag_ephemeral_async/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_download_batch_transform_result_async_encrypted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        tmp_path,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id",
+            status_code=200,
+            json={
+                "id": "test-batch-id",
+                "name": "test-batch-transform",
+                "lastBatchRagStatus": "Successful",
+                "prompt": "Summarize documents",
+                "targetFileGlobPattern": "**",
+                "useWebSearchGrounding": False,
+                "outputColumns": [
+                    {"name": "summary", "description": "Document summary"}
+                ],
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/GetReadUri",
+            status_code=200,
+            json={
+                "uri": f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
+                "isEncrypted": True,
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchRag/test-batch-id/DownloadBlob",
+            status_code=200,
+            content=b"encrypted,data\nval1,val2",
+        )
+
+        destination = tmp_path / "result_encrypted.csv"
+        await service.download_batch_transform_result_async(
+            id="test-batch-id",
+            destination_path=str(destination),
+        )
+
+        assert destination.exists()
+        assert destination.read_bytes() == b"encrypted,data\nval1,val2"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        # Verify the DownloadBlob endpoint was called with Authorization header
+        download_request = sent_requests[2]
+        assert download_request.method == "GET"
+        assert "/DownloadBlob" in str(download_request.url)
+        assert "Authorization" in download_request.headers
+        assert download_request.headers["Authorization"].startswith("Bearer ")

@@ -1,5 +1,6 @@
 """Trajectory evaluator for analyzing execution paths and decision sequences."""
 
+import logging
 from typing import Any, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
@@ -10,18 +11,23 @@ from uipath.eval.models import EvaluationResult
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ...platform.chat import UiPathLlmChatService
 from ...platform.chat.llm_gateway import RequiredToolChoice
+from .._helpers.helpers import is_empty_value
 from ..models.models import (
     AgentExecution,
     LLMResponse,
     NumericEvaluationResult,
     TrajectoryEvaluationTrace,
+    UiPathEvaluationError,
+    UiPathEvaluationErrorCategory,
 )
-from .legacy_base_evaluator import (
-    LegacyBaseEvaluator,
+from .base_legacy_evaluator import (
+    BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
 )
 from .legacy_llm_helpers import create_evaluation_tool, extract_tool_call_response
+
+logger = logging.getLogger(__name__)
 
 
 class LegacyTrajectoryEvaluatorConfig(LegacyEvaluatorConfig):
@@ -30,7 +36,7 @@ class LegacyTrajectoryEvaluatorConfig(LegacyEvaluatorConfig):
     name: str = "LegacyTrajectoryEvaluator"
 
 
-class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorConfig]):
+class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorConfig]):
     """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
@@ -103,6 +109,19 @@ class LegacyTrajectoryEvaluator(LegacyBaseEvaluator[LegacyTrajectoryEvaluatorCon
         agent_run_history: Any,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
+        # Validate that expected agent behavior is not empty
+        if is_empty_value(expected_agent_behavior):
+            logger.error(
+                "❌ EMPTY_EXPECTED_AGENT_BEHAVIOR: Expected agent behavior is empty or contains only empty values. "
+                f"Received: {repr(expected_agent_behavior)}"
+            )
+            raise UiPathEvaluationError(
+                code="EMPTY_EXPECTED_AGENT_BEHAVIOR",
+                title="Expected agent behavior cannot be empty",
+                detail="The evaluation criteria must contain a non-empty expected agent behavior.",
+                category=UiPathEvaluationErrorCategory.USER,
+            )
+
         formatted_prompt = self.prompt.replace(
             self.expected_agent_behavior_placeholder,
             str(expected_agent_behavior),

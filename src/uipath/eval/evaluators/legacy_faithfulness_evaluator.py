@@ -7,8 +7,8 @@ from uipath.eval.models import NumericEvaluationResult
 from uipath.platform.chat import UiPathLlmChatService
 
 from ..models.models import AgentExecution, EvaluationResult
-from .legacy_base_evaluator import (
-    LegacyBaseEvaluator,
+from .base_legacy_evaluator import (
+    BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
     track_evaluation_metrics,
@@ -27,7 +27,7 @@ class LegacyFaithfulnessEvaluatorConfig(LegacyEvaluatorConfig):
 
 
 class LegacyFaithfulnessEvaluator(
-    LegacyBaseEvaluator[LegacyFaithfulnessEvaluatorConfig]
+    BaseLegacyEvaluator[LegacyFaithfulnessEvaluatorConfig]
 ):
     """Legacy evaluator that assesses faithfulness using an LLM.
 
