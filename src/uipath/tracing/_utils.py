@@ -302,20 +302,17 @@ class _SpanUtils:
         attachments_data = attributes_dict.get("attachments")
         if attachments_data:
             try:
-                if isinstance(attachments_data, str):
-                    attachments_data = json.loads(attachments_data)
-
-                if isinstance(attachments_data, list):
-                    attachments = [
-                        SpanAttachment(
-                            id=att.get("id"),
-                            file_name=att.get("fileName", ""),
-                            mime_type=att.get("mimeType", ""),
-                            provider=att.get("provider", 0),
-                            direction=att.get("direction", 0),
-                        )
-                        for att in attachments_data
-                    ]
+                attachments_list = json.loads(attachments_data)
+                attachments = [
+                    SpanAttachment(
+                        id=att.get("id"),
+                        file_name=att.get("fileName", ""),
+                        mime_type=att.get("mimeType", ""),
+                        provider=att.get("provider", 0),
+                        direction=att.get("direction", 0),
+                    )
+                    for att in attachments_list
+                ]
             except Exception as e:
                 logger.warning(f"Error processing attachments: {e}")
 
