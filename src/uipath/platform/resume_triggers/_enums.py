@@ -24,7 +24,7 @@ class ExternalTriggerType(str, Enum):
     """External trigger types."""
 
     DEEP_RAG = "deepRag"
-    BATCH_TRANSFORM = "batchTransform"
+    BATCH_RAG = "batchRag"
     IXP_EXTRACTION = "ixpExtraction"
     INDEX_INGESTION = "indexIngestion"
     IXP_VS_ESCALATION = "IxpVsEscalation"
