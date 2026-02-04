@@ -103,12 +103,10 @@ class UiPathSpan:
         trace_id_str = str(self.trace_id)
         parent_id_str = str(self.parent_id) if self.parent_id else None
 
-        # Handle attributes serialization
         attributes_out = self.attributes
         if serialize_attributes and isinstance(self.attributes, dict):
             attributes_out = json.dumps(self.attributes)
 
-        # Handle attachments serialization
         attachments_out = None
         if self.attachments is not None:
             attachments_out = [
@@ -300,7 +298,6 @@ class _SpanUtils:
         uipath_source = attributes_dict.get("uipath.source")
         source = uipath_source if isinstance(uipath_source, int) else DEFAULT_SOURCE
 
-        # Process attachments if present
         attachments = None
         attachments_data = attributes_dict.get("attachments")
         if attachments_data:
