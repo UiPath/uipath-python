@@ -84,6 +84,14 @@ console = ConsoleLogger()
     is_flag=True,
     help="Keep the temporary state file even when not resuming and no job id is provided",
 )
+@click.option(
+    "--auto-resume",
+    type=float,
+    default=None,
+    is_flag=False,
+    flag_value=10.0,
+    help="Automatically resume after HITL triggers instead of suspending. Default interval: 10s. Specify custom: --auto-resume=5",
+)
 def run(
     entrypoint: str | None,
     input: str | None,
@@ -96,6 +104,7 @@ def run(
     debug: bool,
     debug_port: int,
     keep_state_file: bool,
+    auto_resume: float | None,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -116,6 +125,7 @@ def run(
         debug=debug,
         debug_port=debug_port,
         keep_state_file=keep_state_file,
+        auto_resume=auto_resume,
     )
 
     if result.error_message:
@@ -214,6 +224,24 @@ def run(
                                 ctx.result = await execute_runtime(
                                     ctx, chat_runtime or runtime
                                 )
+                            elif auto_resume is not None and auto_resume > 0:
+                                # Auto-resume mode: wrap in UiPathDebugRuntime for polling
+                                from uipath.runtime.debug import UiPathDebugRuntime
+
+                                from uipath._cli._debug._silent_bridge import (
+                                    SilentDebugBridge,
+                                )
+
+                                silent_bridge = SilentDebugBridge()
+                                debug_runtime_instance = UiPathDebugRuntime(
+                                    delegate=runtime,
+                                    debug_bridge=silent_bridge,
+                                    trigger_poll_interval=auto_resume,
+                                )
+                                ctx.result = await execute_runtime(
+                                    ctx, debug_runtime_instance
+                                )
+                                await debug_runtime_instance.dispose()
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
