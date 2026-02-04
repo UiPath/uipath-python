@@ -339,7 +339,14 @@ class TasksService(FolderContext, BaseService):
         resource_identifier="app_name",
         folder_identifier="app_folder_path",
     )
-    @traced(name="tasks_create", run_type="uipath")
+    @traced(
+        name="tasks_create",
+        run_type="uipath",
+        output_attributes_callable=lambda created_task: {
+            "taskId": created_task.id,
+            "taskUrl": f"{UiPathConfig.base_url}/actions_/tasks/{created_task.id}",
+        },
+    )
     async def create_async(
         self,
         title: str,
