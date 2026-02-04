@@ -285,7 +285,7 @@ class LlmOpsHttpExporter(SpanExporter):
         result["arguments"] = _safe_parse_json(
             attributes.get("input", attributes.get("input.value", "{}"))
         )
-        result["toolType"] = "Integration"
+        result["toolType"] = result.get("toolType") or "Integration"
         result["result"] = _safe_parse_json(
             attributes.get("output", attributes.get("output.value"))
         )
