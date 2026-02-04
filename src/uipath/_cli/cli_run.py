@@ -205,21 +205,6 @@ def run(
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
-                            # Wrap with auto-resume debug runtime if requested
-                            if auto_resume is not None and auto_resume > 0:
-                                from uipath.runtime.debug import UiPathDebugRuntime
-
-                                from uipath._cli._debug._silent_bridge import (
-                                    SilentDebugBridge,
-                                )
-
-                                silent_bridge = SilentDebugBridge()
-                                runtime = UiPathDebugRuntime(
-                                    delegate=runtime,
-                                    debug_bridge=silent_bridge,
-                                    trigger_poll_interval=auto_resume,
-                                )
-
                             if ctx.job_id:
                                 trace_manager.add_span_processor(
                                     LiveTrackingSpanProcessor(
@@ -240,8 +225,23 @@ def run(
                                     ctx, chat_runtime or runtime
                                 )
                             elif auto_resume is not None and auto_resume > 0:
-                                # Auto-resume mode: UiPathDebugRuntime handles polling and resumption
-                                ctx.result = await execute_runtime(ctx, runtime)
+                                # Auto-resume mode: wrap in UiPathDebugRuntime for polling
+                                from uipath.runtime.debug import UiPathDebugRuntime
+
+                                from uipath._cli._debug._silent_bridge import (
+                                    SilentDebugBridge,
+                                )
+
+                                silent_bridge = SilentDebugBridge()
+                                debug_runtime_instance = UiPathDebugRuntime(
+                                    delegate=runtime,
+                                    debug_bridge=silent_bridge,
+                                    trigger_poll_interval=auto_resume,
+                                )
+                                ctx.result = await execute_runtime(
+                                    ctx, debug_runtime_instance
+                                )
+                                await debug_runtime_instance.dispose()
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
