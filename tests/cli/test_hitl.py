@@ -56,10 +56,7 @@ from uipath.platform.documents import (
     StartExtractionValidationResponse,
     ValidateExtractionAction,
 )
-from uipath.platform.orchestrator import (
-    Job,
-    JobErrorInfo,
-)
+from uipath.platform.orchestrator import Job, JobErrorInfo
 from uipath.platform.resume_triggers import (
     PropertyName,
     TriggerMarker,
@@ -690,6 +687,7 @@ class TestHitlReader:
             action_status=TaskStatus.COMPLETED.name,
             project_id=project_id,
             project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=tag,
             operation_id=operation_id,
             document_type_id="test-doc-type",
@@ -735,6 +733,7 @@ class TestHitlReader:
             action_status=TaskStatus.PENDING.name,
             project_id=project_id,
             project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=tag,
             operation_id=operation_id,
             document_type_id="test-doc-type",
@@ -776,6 +775,7 @@ class TestHitlReader:
             action_status=TaskStatus.UNASSIGNED.name,
             project_id=project_id,
             project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=tag,
             operation_id=operation_id,
             document_type_id="test-doc-type",
@@ -1203,6 +1203,7 @@ class TestHitlProcessor:
             extraction_result=extraction_result,
             project_id=project_id,
             project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=tag,
             document_type_id="doc-type-123",
             data_projection=[

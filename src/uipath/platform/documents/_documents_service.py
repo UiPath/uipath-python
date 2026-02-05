@@ -51,6 +51,7 @@ def _exactly_one_must_be_provided(**kwargs: Any) -> None:
 def _validate_classify_params(
     project_type: ProjectType,
     tag: Optional[str],
+    version: Optional[int],
     project_name: Optional[str],
     file: Optional[FileContent],
     file_path: Optional[str],
@@ -60,16 +61,18 @@ def _validate_classify_params(
         _must_not_be_provided(
             project_name=project_name,
             tag=tag,
+            version=version,
         )
     else:
         _must_be_provided(
             project_name=project_name,
-            tag=tag,
         )
+        _exactly_one_must_be_provided(tag=tag, version=version)
 
 
 def _validate_extract_params_and_get_project_type(
     tag: Optional[str],
+    version: Optional[int],
     project_name: Optional[str],
     file: Optional[FileContent],
     file_path: Optional[str],
@@ -85,21 +88,23 @@ def _validate_extract_params_and_get_project_type(
         )
 
         if project_type == ProjectType.PRETRAINED:
-            _must_not_be_provided(tag=tag, project_name=project_name)
+            _must_not_be_provided(tag=tag, project_name=project_name, version=version)
             _must_be_provided(document_type_name=document_type_name)
         elif project_type == ProjectType.MODERN:
             _must_be_provided(
                 project_name=project_name,
-                tag=tag,
                 document_type_name=document_type_name,
             )
+            _exactly_one_must_be_provided(version=version, tag=tag)
         else:
-            _must_be_provided(project_name=project_name, tag=tag)
+            _must_be_provided(project_name=project_name)
+            _exactly_one_must_be_provided(version=version, tag=tag)
             _must_not_be_provided(document_type_name=document_type_name)
     else:
         _must_be_provided(classification_result=classification_result)
         _must_not_be_provided(
             tag=tag,
+            version=version,
             project_name=project_name,
             project_type=project_type,
             file=file,
@@ -137,9 +142,132 @@ class DocumentsService(FolderContext, BaseService):
             "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
         }
 
-    def _get_project_id_by_name(
-        self, project_name: str, project_type: ProjectType
+    def _get_classifier_id(
+        self, project_type: ProjectType, project_id: str, version: Optional[int]
+    ) -> Optional[str]:
+        if project_type == ProjectType.PRETRAINED:
+            return "ml-classification"
+
+        if version is None:
+            return None
+
+        response = self.request(
+            "GET",
+            url=Endpoint(f"/du_/api/framework/projects/{project_id}/classifiers"),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+        )
+
+        try:
+            return next(
+                classifier["id"]
+                for classifier in response.json().get("classifiers", [])
+                if classifier["projectVersion"] == version
+            )
+        except StopIteration:
+            raise ValueError(f"Classifier for version '{version}' not found.") from None
+
+    async def _get_classifier_id_async(
+        self, project_type: ProjectType, project_id: str, version: Optional[int]
+    ) -> Optional[str]:
+        if project_type == ProjectType.PRETRAINED:
+            return "ml-classification"
+
+        if version is None:
+            return None
+
+        response = await self.request_async(
+            "GET",
+            url=Endpoint(f"/du_/api/framework/projects/{project_id}/classifiers"),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+        )
+
+        try:
+            return next(
+                classifier["id"]
+                for classifier in response.json().get("classifiers", [])
+                if classifier["projectVersion"] == version
+            )
+        except StopIteration:
+            raise ValueError(f"Classifier for version '{version}' not found.") from None
+
+    def _get_extractor_id(
+        self,
+        project_id: str,
+        version: Optional[int],
+        document_type_id: str,
+        project_type: ProjectType,
     ) -> str:
+        if project_type == ProjectType.PRETRAINED:
+            return document_type_id
+
+        if version is None:
+            return None
+
+        response = self.request(
+            "GET",
+            url=Endpoint(f"/du_/api/framework/projects/{project_id}/extractors"),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+        )
+
+        try:
+            return next(
+                extractor["id"]
+                for extractor in response.json().get("extractors", [])
+                if extractor["projectVersion"] == version
+                and extractor["documentTypeId"] == document_type_id
+            )
+        except StopIteration:
+            raise ValueError(
+                f"Extractor for version '{version}' and document type id '{document_type_id}' not found."
+            ) from None
+
+    async def _get_extractor_id_async(
+        self,
+        project_id: str,
+        version: Optional[int],
+        document_type_id: str,
+        project_type: ProjectType,
+    ) -> str:
+        if project_type == ProjectType.PRETRAINED:
+            return document_type_id
+
+        if version is None:
+            return None
+
+        response = await self.request_async(
+            "GET",
+            url=Endpoint(f"/du_/api/framework/projects/{project_id}/extractors"),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+        )
+
+        try:
+            return next(
+                extractor["id"]
+                for extractor in response.json().get("extractors", [])
+                if extractor["projectVersion"] == version
+                and extractor["documentTypeId"] == document_type_id
+            )
+        except StopIteration:
+            raise ValueError(
+                f"Extractor for version '{version}' and document type id '{document_type_id}' not found."
+            ) from None
+
+    def _get_project_id(
+        self,
+        project_type: ProjectType,
+        project_name: Optional[str],
+        classification_result: Optional[ClassificationResult],
+    ) -> str:
+        if project_type == ProjectType.PRETRAINED:
+            return str(UUID(int=0))
+
+        if classification_result is not None:
+            return classification_result.project_id
+
         response = self.request(
             "GET",
             url=Endpoint("/du_/api/framework/projects"),
@@ -156,9 +284,18 @@ class DocumentsService(FolderContext, BaseService):
         except StopIteration:
             raise ValueError(f"Project '{project_name}' not found.") from None
 
-    async def _get_project_id_by_name_async(
-        self, project_name: str, project_type: ProjectType
+    async def _get_project_id_async(
+        self,
+        project_type: ProjectType,
+        project_name: Optional[str],
+        classification_result: Optional[ClassificationResult],
     ) -> str:
+        if project_type == ProjectType.PRETRAINED:
+            return str(UUID(int=0))
+
+        if classification_result is not None:
+            return classification_result.project_id
+
         response = await self.request_async(
             "GET",
             url=Endpoint("/du_/api/framework/projects"),
@@ -237,23 +374,73 @@ class DocumentsService(FolderContext, BaseService):
 
         return document_id
 
-    def _get_project_id_and_tag(
+    def _get_version(
         self,
-        tag: Optional[str],
-        project_name: Optional[str],
-        project_type: Optional[ProjectType],
+        version: Optional[int],
+        project_type: ProjectType,
         classification_result: Optional[ClassificationResult],
-    ) -> Tuple[str, Optional[str]]:
-        if project_name is not None:
-            project_id = self._get_project_id_by_name(
-                project_name,
-                project_type,
+    ) -> Optional[int]:
+        if project_type == ProjectType.PRETRAINED:
+            return None
+
+        if version is not None:
+            return version
+
+        if classification_result is None or classification_result.classifier_id is None:
+            return None
+
+        return self.request(
+            "GET",
+            url=Endpoint(
+                f"/du_/api/framework/projects/{classification_result.project_id}/classifiers/{classification_result.classifier_id}"
+            ),
+            params={"api-version": 1.1},
+            headers=self._get_common_headers(),
+        ).json()["projectVersion"]
+
+    async def _get_version_async(
+        self,
+        version: Optional[int],
+        project_type: ProjectType,
+        classification_result: Optional[ClassificationResult],
+    ) -> Optional[int]:
+        if project_type == ProjectType.PRETRAINED:
+            return None
+
+        if version is not None:
+            return version
+
+        if classification_result is None or classification_result.classifier_id is None:
+            return None
+
+        return (
+            await self.request_async(
+                "GET",
+                url=Endpoint(
+                    f"/du_/api/framework/projects/{classification_result.project_id}/classifiers/{classification_result.classifier_id}"
+                ),
+                params={"api-version": 1.1},
+                headers=self._get_common_headers(),
             )
-        elif project_type == ProjectType.PRETRAINED:
-            return str(UUID(int=0)), None
-        else:
-            project_id = classification_result.project_id
-            tag = classification_result.tag
+        ).json()["projectVersion"]
+
+    def _get_tag(
+        self,
+        project_type: ProjectType,
+        project_id: str,
+        tag: Optional[str],
+        version: Optional[int],
+        project_name: Optional[str],
+        classification_result: Optional[ClassificationResult],
+    ) -> Optional[str]:
+        if project_type == ProjectType.PRETRAINED:
+            return None
+
+        if version is not None:
+            return None
+
+        if classification_result is not None:
+            return classification_result.tag
 
         tags = self._get_project_tags(project_id)
         if tag not in tags:
@@ -261,25 +448,25 @@ class DocumentsService(FolderContext, BaseService):
                 f"Tag '{tag}' not found in project '{project_name}'. Available tags: {tags}"
             )
 
-        return project_id, tag
+        return tag
 
-    async def _get_project_id_and_tag_async(
+    async def _get_tag_async(
         self,
+        project_type: ProjectType,
+        project_id: str,
         tag: Optional[str],
+        version: Optional[int],
         project_name: Optional[str],
-        project_type: Optional[ProjectType],
         classification_result: Optional[ClassificationResult],
-    ) -> Tuple[str, Optional[str]]:
-        if project_name is not None:
-            project_id = await self._get_project_id_by_name_async(
-                project_name,
-                project_type,
-            )
-        elif project_type == ProjectType.PRETRAINED:
-            return str(UUID(int=0)), None
-        else:
-            project_id = classification_result.project_id
-            tag = classification_result.tag
+    ) -> Optional[str]:
+        if project_type == ProjectType.PRETRAINED:
+            return None
+
+        if version is not None:
+            return None
+
+        if classification_result is not None:
+            return classification_result.tag
 
         tags = await self._get_project_tags_async(project_id)
         if tag not in tags:
@@ -287,7 +474,7 @@ class DocumentsService(FolderContext, BaseService):
                 f"Tag '{tag}' not found in project '{project_name}'. Available tags: {tags}"
             )
 
-        return project_id, tag
+        return tag
 
     def _start_digitization(
         self,
@@ -438,14 +625,14 @@ class DocumentsService(FolderContext, BaseService):
     def _start_extraction(
         self,
         project_id: str,
-        project_type: ProjectType,
+        extractor_id: str,
         tag: Optional[str],
         document_type_id: str,
         document_id: str,
     ) -> StartExtractionResponse:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/start"
+                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start"
             )
         else:
             url = Endpoint(
@@ -470,14 +657,14 @@ class DocumentsService(FolderContext, BaseService):
     async def _start_extraction_async(
         self,
         project_id: str,
-        project_type: ProjectType,
+        extractor_id: str,
         tag: Optional[str],
         document_type_id: str,
         document_id: str,
     ) -> StartExtractionResponse:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/start"
+                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start"
             )
         else:
             url = Endpoint(
@@ -558,15 +745,16 @@ class DocumentsService(FolderContext, BaseService):
     def _wait_for_extraction(
         self,
         project_id: str,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
         project_type: ProjectType,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         def result_getter() -> Tuple[str, str, Any]:
-            if project_type == ProjectType.PRETRAINED:
+            if tag is None:
                 url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/result/{operation_id}"
+                    f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}"
                 )
             else:
                 url = Endpoint(
@@ -592,6 +780,7 @@ class DocumentsService(FolderContext, BaseService):
         )
 
         extraction_response["projectId"] = project_id
+        extraction_response["extractorId"] = extractor_id
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = project_type
@@ -604,15 +793,16 @@ class DocumentsService(FolderContext, BaseService):
     async def _wait_for_extraction_async(
         self,
         project_id: str,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
         project_type: ProjectType,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         async def result_getter() -> Tuple[str, str, Any]:
-            if project_type == ProjectType.PRETRAINED:
+            if tag is None:
                 url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/result/{operation_id}"
+                    f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}"
                 )
             else:
                 url = Endpoint(
@@ -640,6 +830,7 @@ class DocumentsService(FolderContext, BaseService):
         )
 
         extraction_response["projectId"] = project_id
+        extraction_response["extractorId"] = extractor_id
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = project_type
@@ -652,13 +843,13 @@ class DocumentsService(FolderContext, BaseService):
     def _start_classification(
         self,
         project_id: str,
-        project_type: ProjectType,
         tag: Optional[str],
+        classifier_id: Optional[str],
         document_id: str,
     ) -> str:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/start"
+                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/start"
             )
         else:
             url = Endpoint(
@@ -676,13 +867,13 @@ class DocumentsService(FolderContext, BaseService):
     async def _start_classification_async(
         self,
         project_id: str,
-        project_type: ProjectType,
         tag: Optional[str],
+        classifier_id: Optional[str],
         document_id: str,
     ) -> str:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/start"
+                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/start"
             )
         else:
             url = Endpoint(
@@ -703,13 +894,14 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_id: str,
         project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         operation_id: str,
     ) -> List[ClassificationResult]:
         def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            if project_type == ProjectType.PRETRAINED:
+            if tag is None:
                 url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/result/{operation_id}"
+                    f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/result/{operation_id}"
                 )
             else:
                 url = Endpoint(
@@ -736,6 +928,7 @@ class DocumentsService(FolderContext, BaseService):
         for classification_result in classification_response["classificationResults"]:
             classification_result["ProjectId"] = project_id
             classification_result["ProjectType"] = project_type
+            classification_result["ClassifierId"] = classifier_id
             classification_result["Tag"] = tag
 
         return ClassificationResponse.model_validate(
@@ -746,13 +939,14 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_id: str,
         project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         operation_id: str,
     ) -> List[ClassificationResult]:
         async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            if project_type == ProjectType.PRETRAINED:
+            if tag is None:
                 url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/result/{operation_id}"
+                    f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/result/{operation_id}"
                 )
             else:
                 url = Endpoint(
@@ -781,6 +975,7 @@ class DocumentsService(FolderContext, BaseService):
         for classification_result in classification_response["classificationResults"]:
             classification_result["ProjectId"] = project_id
             classification_result["ProjectType"] = project_type
+            classification_result["ClassifierId"] = classifier_id
             classification_result["Tag"] = tag
 
         return ClassificationResponse.model_validate(
@@ -792,6 +987,7 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_type: ProjectType,
         tag: Optional[str] = None,
+        version: Optional[int] = None,
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
@@ -802,6 +998,7 @@ class DocumentsService(FolderContext, BaseService):
             project_type (ProjectType): Type of the project.
             project_name (str, optional): Name of the [DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project. Must be provided if `project_type` is not `ProjectType.PRETRAINED`.
             tag (str, optional): Tag of the published project version. Must be provided if `project_type` is not `ProjectType.PRETRAINED`.
+            version (int, optional): Version of the published project. It can be used instead of `tag`.
             file (FileContent, optional): The document file to be classified.
             file_path (str, optional): Path to the document file to be classified.
 
@@ -832,13 +1029,13 @@ class DocumentsService(FolderContext, BaseService):
         _validate_classify_params(
             project_type=project_type,
             tag=tag,
+            version=version,
             project_name=project_name,
             file=file,
             file_path=file_path,
         )
 
-        project_id, tag = self._get_project_id_and_tag(
-            tag=tag,
+        project_id = self._get_project_id(
             project_name=project_name,
             project_type=project_type,
             classification_result=None,
@@ -851,15 +1048,29 @@ class DocumentsService(FolderContext, BaseService):
             classification_result=None,
         )
 
+        classifier_id = self._get_classifier_id(
+            project_type=project_type, project_id=project_id, version=version
+        )
+
+        tag = self._get_tag(
+            project_type=project_type,
+            project_id=project_id,
+            tag=tag,
+            version=version,
+            project_name=project_name,
+            classification_result=None,
+        )
+
         operation_id = self._start_classification(
             project_id=project_id,
-            project_type=project_type,
             tag=tag,
+            classifier_id=classifier_id,
             document_id=document_id,
         )
         return self._wait_for_classification(
             project_id=project_id,
             project_type=project_type,
+            classifier_id=classifier_id,
             tag=tag,
             operation_id=operation_id,
         )
@@ -869,6 +1080,7 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_type: ProjectType,
         tag: Optional[str] = None,
+        version: Optional[int] = None,
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
@@ -877,13 +1089,13 @@ class DocumentsService(FolderContext, BaseService):
         _validate_classify_params(
             project_type=project_type,
             tag=tag,
+            version=version,
             project_name=project_name,
             file=file,
             file_path=file_path,
         )
 
-        project_id, tag = await self._get_project_id_and_tag_async(
-            tag=tag,
+        project_id = await self._get_project_id_async(
             project_name=project_name,
             project_type=project_type,
             classification_result=None,
@@ -896,16 +1108,29 @@ class DocumentsService(FolderContext, BaseService):
             classification_result=None,
         )
 
-        operation_id = await self._start_classification_async(
-            project_id=project_id,
-            project_type=project_type,
-            tag=tag,
-            document_id=document_id,
+        classifier_id = await self._get_classifier_id_async(
+            project_type=project_type, project_id=project_id, version=version
         )
 
+        tag = await self._get_tag_async(
+            project_type=project_type,
+            project_id=project_id,
+            tag=tag,
+            version=version,
+            project_name=project_name,
+            classification_result=None,
+        )
+
+        operation_id = await self._start_classification_async(
+            project_id=project_id,
+            tag=tag,
+            classifier_id=classifier_id,
+            document_id=document_id,
+        )
         return await self._wait_for_classification_async(
             project_id=project_id,
             project_type=project_type,
+            classifier_id=classifier_id,
             tag=tag,
             operation_id=operation_id,
         )
@@ -948,7 +1173,11 @@ class DocumentsService(FolderContext, BaseService):
         """
         _exactly_one_must_be_provided(file=file, file_path=file_path)
 
-        project_id = self._get_project_id_by_name(project_name, ProjectType.IXP)
+        project_id = self._get_project_id(
+            project_type=ProjectType.IXP,
+            project_name=project_name,
+            classification_result=None,
+        )
 
         document_id = self._start_digitization(
             project_id=project_id,
@@ -958,7 +1187,7 @@ class DocumentsService(FolderContext, BaseService):
 
         return self._start_extraction(
             project_id=project_id,
-            project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=tag,
             document_type_id=str(UUID(int=0)),
             document_id=document_id,
@@ -975,8 +1204,10 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronous version of the [`start_ixp_extraction`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction] method."""
         _exactly_one_must_be_provided(file=file, file_path=file_path)
 
-        project_id = await self._get_project_id_by_name_async(
-            project_name, ProjectType.IXP
+        project_id = await self._get_project_id_async(
+            project_type=ProjectType.IXP,
+            project_name=project_name,
+            classification_result=None,
         )
 
         document_id = await self._start_digitization_async(
@@ -987,7 +1218,7 @@ class DocumentsService(FolderContext, BaseService):
 
         return await self._start_extraction_async(
             project_id=project_id,
-            project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=tag,
             document_type_id=str(UUID(int=0)),
             document_id=document_id,
@@ -1105,6 +1336,7 @@ class DocumentsService(FolderContext, BaseService):
         )
 
         extraction_response["projectId"] = project_id
+        extraction_response["extractorId"] = None
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = ProjectType.IXP
@@ -1132,6 +1364,7 @@ class DocumentsService(FolderContext, BaseService):
         )
 
         extraction_response["projectId"] = project_id
+        extraction_response["extractorId"] = None
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = ProjectType.IXP
@@ -1142,6 +1375,7 @@ class DocumentsService(FolderContext, BaseService):
     def extract(
         self,
         tag: Optional[str] = None,
+        version: Optional[int] = None,
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
@@ -1154,6 +1388,7 @@ class DocumentsService(FolderContext, BaseService):
         Args:
             project_name (str, optional): Name of the [IXP](https://docs.uipath.com/ixp/automation-cloud/latest/overview/managing-projects#creating-a-new-project)/[DU Modern](https://docs.uipath.com/document-understanding/automation-cloud/latest/user-guide/about-document-understanding) project. Must be provided if `classification_result` is not provided.
             tag (str): Tag of the published project version. Must be provided if `classification_result` is not provided and `project_type` is not `ProjectType.PRETRAINED`.
+            version (int, optional): Version of the published project. It can be used instead of `tag`.
             file (FileContent, optional): The document file to be processed. Must be provided if `classification_result` is not provided.
             file_path (str, optional): Path to the document file to be processed. Must be provided if `classification_result` is not provided.
             project_type (ProjectType, optional): Type of the project. Must be provided if `project_name` is provided.
@@ -1205,6 +1440,7 @@ class DocumentsService(FolderContext, BaseService):
         """
         project_type = _validate_extract_params_and_get_project_type(
             tag=tag,
+            version=version,
             project_name=project_name,
             file=file,
             file_path=file_path,
@@ -1213,10 +1449,24 @@ class DocumentsService(FolderContext, BaseService):
             document_type_name=document_type_name,
         )
 
-        project_id, tag = self._get_project_id_and_tag(
-            tag=tag,
+        project_id = self._get_project_id(
             project_name=project_name,
             project_type=project_type,
+            classification_result=classification_result,
+        )
+
+        version = self._get_version(
+            version=version,
+            project_type=project_type,
+            classification_result=classification_result,
+        )
+
+        tag = self._get_tag(
+            project_type=project_type,
+            project_id=project_id,
+            tag=tag,
+            version=version,
+            project_name=project_name,
             classification_result=classification_result,
         )
 
@@ -1234,9 +1484,16 @@ class DocumentsService(FolderContext, BaseService):
             classification_result=classification_result,
         )
 
+        extractor_id = self._get_extractor_id(
+            project_id=project_id,
+            version=version,
+            document_type_id=document_type_id,
+            project_type=project_type,
+        )
+
         operation_id = self._start_extraction(
             project_id=project_id,
-            project_type=project_type,
+            extractor_id=extractor_id,
             tag=tag,
             document_type_id=document_type_id,
             document_id=document_id,
@@ -1244,6 +1501,7 @@ class DocumentsService(FolderContext, BaseService):
 
         return self._wait_for_extraction(
             project_id=project_id,
+            extractor_id=extractor_id,
             tag=tag,
             document_type_id=document_type_id,
             operation_id=operation_id,
@@ -1254,6 +1512,7 @@ class DocumentsService(FolderContext, BaseService):
     async def extract_async(
         self,
         tag: Optional[str] = None,
+        version: Optional[int] = None,
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
@@ -1264,6 +1523,7 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronously version of the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method."""
         project_type = _validate_extract_params_and_get_project_type(
             tag=tag,
+            version=version,
             project_name=project_name,
             file=file,
             file_path=file_path,
@@ -1272,10 +1532,24 @@ class DocumentsService(FolderContext, BaseService):
             document_type_name=document_type_name,
         )
 
-        project_id, tag = await self._get_project_id_and_tag_async(
-            tag=tag,
+        project_id = await self._get_project_id_async(
             project_name=project_name,
             project_type=project_type,
+            classification_result=classification_result,
+        )
+
+        version = await self._get_version_async(
+            version=version,
+            project_type=project_type,
+            classification_result=classification_result,
+        )
+
+        tag = await self._get_tag_async(
+            project_type=project_type,
+            project_id=project_id,
+            tag=tag,
+            version=version,
+            project_name=project_name,
             classification_result=classification_result,
         )
 
@@ -1293,10 +1567,17 @@ class DocumentsService(FolderContext, BaseService):
             classification_result=classification_result,
         )
 
+        extractor_id = await self._get_extractor_id_async(
+            project_id=project_id,
+            version=version,
+            document_type_id=document_type_id,
+            project_type=project_type,
+        )
+
         operation_id = (
             await self._start_extraction_async(
                 project_id=project_id,
-                project_type=project_type,
+                extractor_id=extractor_id,
                 tag=tag,
                 document_type_id=document_type_id,
                 document_id=document_id,
@@ -1305,6 +1586,7 @@ class DocumentsService(FolderContext, BaseService):
 
         return await self._wait_for_extraction_async(
             project_id=project_id,
+            extractor_id=extractor_id,
             tag=tag,
             document_type_id=document_type_id,
             operation_id=operation_id,
@@ -1314,7 +1596,7 @@ class DocumentsService(FolderContext, BaseService):
     def _start_classification_validation(
         self,
         project_id: str,
-        project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         classification_results: List[ClassificationResult],
         action_title: str,
@@ -1324,9 +1606,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start"
+                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/start"
             )
         else:
             url = Endpoint(
@@ -1355,7 +1637,7 @@ class DocumentsService(FolderContext, BaseService):
     async def _start_classification_validation_async(
         self,
         project_id: str,
-        project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         classification_results: List[ClassificationResult],
         action_title: str,
@@ -1365,9 +1647,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start"
+                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/start"
             )
         else:
             url = Endpoint(
@@ -1398,7 +1680,7 @@ class DocumentsService(FolderContext, BaseService):
     def _start_extraction_validation(
         self,
         project_id: str,
-        project_type: ProjectType,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         action_title: str,
@@ -1409,9 +1691,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartOperationResponse:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start"
+                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start"
             )
         else:
             url = Endpoint(
@@ -1446,7 +1728,7 @@ class DocumentsService(FolderContext, BaseService):
     async def _start_extraction_validation_async(
         self,
         project_id: str,
-        project_type: ProjectType,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         action_title: str,
@@ -1457,9 +1739,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartOperationResponse:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start"
+                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start"
             )
         else:
             url = Endpoint(
@@ -1534,7 +1816,7 @@ class DocumentsService(FolderContext, BaseService):
         """
         return self._start_extraction_validation(
             project_id=extraction_response.project_id,
-            project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=extraction_response.tag,
             document_type_id=str(UUID(int=0)),
             action_title=action_title,
@@ -1568,7 +1850,7 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronous version of the [`start_ixp_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction_validation] method."""
         return await self._start_extraction_validation_async(
             project_id=extraction_response.project_id,
-            project_type=ProjectType.IXP,
+            extractor_id=None,
             tag=extraction_response.tag,
             document_type_id=str(UUID(int=0)),
             action_title=action_title,
@@ -1637,6 +1919,7 @@ class DocumentsService(FolderContext, BaseService):
 
         result["projectId"] = project_id
         result["projectType"] = ProjectType.IXP
+        result["extractorId"] = None
         result["tag"] = tag
         result["documentTypeId"] = str(UUID(int=0))
         result["operationId"] = operation_id
@@ -1668,6 +1951,7 @@ class DocumentsService(FolderContext, BaseService):
 
         result["projectId"] = project_id
         result["projectType"] = ProjectType.IXP
+        result["extractorId"] = None
         result["tag"] = tag
         result["documentTypeId"] = str(UUID(int=0))
         result["operationId"] = operation_id
@@ -1677,13 +1961,13 @@ class DocumentsService(FolderContext, BaseService):
     def _get_classification_validation_result(
         self,
         project_id: str,
-        project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         operation_id: str,
     ) -> Dict:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}"
+                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}"
             )
         else:
             url = Endpoint(
@@ -1700,13 +1984,13 @@ class DocumentsService(FolderContext, BaseService):
     async def _get_classification_validation_result_async(
         self,
         project_id: str,
-        project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         operation_id: str,
     ) -> Dict:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}"
+                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}"
             )
         else:
             url = Endpoint(
@@ -1725,14 +2009,14 @@ class DocumentsService(FolderContext, BaseService):
     def _get_extraction_validation_result(
         self,
         project_id: str,
-        project_type: ProjectType,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
     ) -> Dict:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}"
+                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}"
             )
         else:
             url = Endpoint(
@@ -1749,14 +2033,14 @@ class DocumentsService(FolderContext, BaseService):
     async def _get_extraction_validation_result_async(
         self,
         project_id: str,
-        project_type: ProjectType,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
     ) -> Dict:
-        if project_type == ProjectType.PRETRAINED:
+        if tag is None:
             url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}"
+                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}"
             )
         else:
             url = Endpoint(
@@ -1776,13 +2060,14 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_id: str,
         project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         operation_id: str,
     ) -> ValidateClassificationAction:
         def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
             result = self._get_classification_validation_result(
                 project_id=project_id,
-                project_type=project_type,
+                classifier_id=classifier_id,
                 tag=tag,
                 operation_id=operation_id,
             )
@@ -1800,6 +2085,7 @@ class DocumentsService(FolderContext, BaseService):
 
         response["projectId"] = project_id
         response["projectType"] = project_type
+        response["classifierId"] = classifier_id
         response["tag"] = tag
         response["operationId"] = operation_id
         return ValidateClassificationAction.model_validate(response)
@@ -1808,13 +2094,14 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_id: str,
         project_type: ProjectType,
+        classifier_id: Optional[str],
         tag: Optional[str],
         operation_id: str,
     ) -> ValidateClassificationAction:
         async def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
             result = await self._get_classification_validation_result_async(
                 project_id=project_id,
-                project_type=project_type,
+                classifier_id=classifier_id,
                 tag=tag,
                 operation_id=operation_id,
             )
@@ -1832,6 +2119,7 @@ class DocumentsService(FolderContext, BaseService):
 
         response["projectId"] = project_id
         response["projectType"] = project_type
+        response["classifierId"] = classifier_id
         response["tag"] = tag
         response["operationId"] = operation_id
         return ValidateClassificationAction.model_validate(response)
@@ -1840,6 +2128,7 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_id: str,
         project_type: ProjectType,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
@@ -1847,7 +2136,7 @@ class DocumentsService(FolderContext, BaseService):
         def result_getter() -> Tuple[Any, Optional[Any], Optional[Any]]:
             result = self._get_extraction_validation_result(
                 project_id=project_id,
-                project_type=project_type,
+                extractor_id=extractor_id,
                 tag=tag,
                 document_type_id=document_type_id,
                 operation_id=operation_id,
@@ -1866,6 +2155,7 @@ class DocumentsService(FolderContext, BaseService):
 
         response["projectId"] = project_id
         response["projectType"] = project_type
+        response["extractorId"] = extractor_id
         response["tag"] = tag
         response["documentTypeId"] = document_type_id
         response["operationId"] = operation_id
@@ -1875,6 +2165,7 @@ class DocumentsService(FolderContext, BaseService):
         self,
         project_id: str,
         project_type: ProjectType,
+        extractor_id: Optional[str],
         tag: Optional[str],
         document_type_id: str,
         operation_id: str,
@@ -1882,7 +2173,7 @@ class DocumentsService(FolderContext, BaseService):
         async def result_getter_async() -> Tuple[Any, Optional[Any], Optional[Any]]:
             result = await self._get_extraction_validation_result_async(
                 project_id=project_id,
-                project_type=project_type,
+                extractor_id=extractor_id,
                 tag=tag,
                 document_type_id=document_type_id,
                 operation_id=operation_id,
@@ -1901,6 +2192,7 @@ class DocumentsService(FolderContext, BaseService):
 
         response["projectId"] = project_id
         response["projectType"] = project_type
+        response["extractorId"] = extractor_id
         response["tag"] = tag
         response["documentTypeId"] = document_type_id
         response["operationId"] = operation_id
@@ -1949,7 +2241,7 @@ class DocumentsService(FolderContext, BaseService):
 
         operation_id = self._start_classification_validation(
             project_id=classification_results[0].project_id,
-            project_type=classification_results[0].project_type,
+            classifier_id=classification_results[0].classifier_id,
             tag=classification_results[0].tag,
             action_title=action_title,
             action_priority=action_priority,
@@ -1963,6 +2255,7 @@ class DocumentsService(FolderContext, BaseService):
         return self._wait_for_create_validate_classification_action(
             project_id=classification_results[0].project_id,
             project_type=classification_results[0].project_type,
+            classifier_id=classification_results[0].classifier_id,
             tag=classification_results[0].tag,
             operation_id=operation_id,
         )
@@ -1984,7 +2277,7 @@ class DocumentsService(FolderContext, BaseService):
 
         operation_id = await self._start_classification_validation_async(
             project_id=classification_results[0].project_id,
-            project_type=classification_results[0].project_type,
+            classifier_id=classification_results[0].classifier_id,
             tag=classification_results[0].tag,
             action_title=action_title,
             action_priority=action_priority,
@@ -1998,6 +2291,7 @@ class DocumentsService(FolderContext, BaseService):
         return await self._wait_for_create_validate_classification_action_async(
             project_id=classification_results[0].project_id,
             project_type=classification_results[0].project_type,
+            classifier_id=classification_results[0].classifier_id,
             tag=classification_results[0].tag,
             operation_id=operation_id,
         )
@@ -2042,7 +2336,7 @@ class DocumentsService(FolderContext, BaseService):
         """
         operation_id = self._start_extraction_validation(
             project_id=extraction_response.project_id,
-            project_type=extraction_response.project_type,
+            extractor_id=extraction_response.extractor_id,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
             action_title=action_title,
@@ -2057,6 +2351,7 @@ class DocumentsService(FolderContext, BaseService):
         return self._wait_for_create_validate_extraction_action(
             project_id=extraction_response.project_id,
             project_type=extraction_response.project_type,
+            extractor_id=extraction_response.extractor_id,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
             operation_id=operation_id,
@@ -2077,7 +2372,7 @@ class DocumentsService(FolderContext, BaseService):
         operation_id = (
             await self._start_extraction_validation_async(
                 project_id=extraction_response.project_id,
-                project_type=extraction_response.project_type,
+                extractor_id=extraction_response.extractor_id,
                 tag=extraction_response.tag,
                 document_type_id=extraction_response.document_type_id,
                 action_title=action_title,
@@ -2093,6 +2388,7 @@ class DocumentsService(FolderContext, BaseService):
         return await self._wait_for_create_validate_extraction_action_async(
             project_id=extraction_response.project_id,
             project_type=extraction_response.project_type,
+            extractor_id=extraction_response.extractor_id,
             tag=extraction_response.tag,
             document_type_id=extraction_response.document_type_id,
             operation_id=operation_id,
@@ -2122,7 +2418,7 @@ class DocumentsService(FolderContext, BaseService):
         def result_getter() -> Tuple[str, None, Any]:
             result = self._get_classification_validation_result(
                 project_id=validation_action.project_id,
-                project_type=validation_action.project_type,
+                classifier_id=validation_action.classifier_id,
                 tag=validation_action.tag,
                 operation_id=validation_action.operation_id,
             )
@@ -2137,6 +2433,7 @@ class DocumentsService(FolderContext, BaseService):
         for cr in response["validatedClassificationResults"]:
             cr["ProjectId"] = validation_action.project_id
             cr["ProjectType"] = validation_action.project_type
+            cr["ClassifierId"] = validation_action.classifier_id
             cr["Tag"] = validation_action.tag
             classification_results.append(ClassificationResult.model_validate(cr))
 
@@ -2153,7 +2450,7 @@ class DocumentsService(FolderContext, BaseService):
         async def result_getter() -> Tuple[str, None, Any]:
             result = await self._get_classification_validation_result_async(
                 project_id=validation_action.project_id,
-                project_type=validation_action.project_type,
+                classifier_id=validation_action.classifier_id,
                 tag=validation_action.tag,
                 operation_id=validation_action.operation_id,
             )
@@ -2168,6 +2465,7 @@ class DocumentsService(FolderContext, BaseService):
         for cr in response["validatedClassificationResults"]:
             cr["ProjectId"] = validation_action.project_id
             cr["ProjectType"] = validation_action.project_type
+            cr["ClassifierId"] = validation_action.classifier_id
             cr["Tag"] = validation_action.tag
             classification_results.append(ClassificationResult.model_validate(cr))
 
@@ -2197,7 +2495,7 @@ class DocumentsService(FolderContext, BaseService):
         def result_getter() -> Tuple[str, None, Any]:
             result = self._get_extraction_validation_result(
                 project_id=validation_action.project_id,
-                project_type=validation_action.project_type,
+                extractor_id=validation_action.extractor_id,
                 tag=validation_action.tag,
                 document_type_id=validation_action.document_type_id,
                 operation_id=validation_action.operation_id,
@@ -2211,6 +2509,7 @@ class DocumentsService(FolderContext, BaseService):
         )
         response["extractionResult"] = response.pop("validatedExtractionResults")
         response["projectId"] = validation_action.project_id
+        response["extractorId"] = validation_action.extractor_id
         response["tag"] = validation_action.tag
         response["documentTypeId"] = validation_action.document_type_id
         response["projectType"] = validation_action.project_type
@@ -2229,7 +2528,7 @@ class DocumentsService(FolderContext, BaseService):
         async def result_getter() -> Tuple[str, None, Any]:
             result = await self._get_extraction_validation_result_async(
                 project_id=validation_action.project_id,
-                project_type=validation_action.project_type,
+                extractor_id=validation_action.extractor_id,
                 tag=validation_action.tag,
                 document_type_id=validation_action.document_type_id,
                 operation_id=validation_action.operation_id,
@@ -2243,6 +2542,7 @@ class DocumentsService(FolderContext, BaseService):
         )
         response["extractionResult"] = response.pop("validatedExtractionResults")
         response["projectId"] = validation_action.project_id
+        response["extractorId"] = validation_action.extractor_id
         response["tag"] = validation_action.tag
         response["documentTypeId"] = validation_action.document_type_id
         response["projectType"] = validation_action.project_type
@@ -2250,4 +2550,5 @@ class DocumentsService(FolderContext, BaseService):
         if validation_action.project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(response)
 
+        return ExtractionResponse.model_validate(response)
         return ExtractionResponse.model_validate(response)
