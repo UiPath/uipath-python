@@ -12,7 +12,6 @@ from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
-    UiPathConversationGenericInterruptStart,
     UiPathConversationInterruptEvent,
     UiPathConversationMessageEvent,
 )
@@ -250,11 +249,8 @@ class SocketIOChatBridge:
         if self._client and self._connected_event.is_set():
             try:
                 interrupts = runtime_result.output
-                if not isinstance(interrupts, dict) or not interrupts:
-                    logger.warning("No interrupts in runtime result output")
-                    return
 
-                # Extract first interrupt (single interrupt support for v1)
+                # Langgraph gives you one interrupt
                 _, interrupt_data = next(iter(interrupts.items()))
 
                 self._cas_interrupt_id = str(uuid.uuid4())
@@ -268,10 +264,7 @@ class SocketIOChatBridge:
                             message_id=self._current_message_id,
                             interrupt=UiPathConversationInterruptEvent(
                                 interrupt_id=self._cas_interrupt_id,
-                                start=UiPathConversationGenericInterruptStart(
-                                    type=self._interrupt_type,
-                                    value=interrupt_data.get("value", {}),
-                                ),
+                                start=interrupt_data,
                             ),
                         ),
                     ),
@@ -336,6 +329,7 @@ class SocketIOChatBridge:
         if error_event:
             logger.error(f"Conversation error: {json.dumps(error_event)}")
 
+        # Navigate to interrupt end event; no-ops for non-interrupt events
         interrupt = event.get("exchange", {}).get("message", {}).get("interrupt", {})
         end_interrupt = interrupt.get("endInterrupt")
         if not end_interrupt:
