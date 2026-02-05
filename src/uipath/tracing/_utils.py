@@ -2,8 +2,6 @@ import inspect
 import json
 import logging
 import os
-import random
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
@@ -52,13 +50,14 @@ class UiPathSpan:
     """Represents a span in the UiPath tracing system.
 
     Note: attributes can be either a JSON string (backwards compatible) or a dict (optimized).
+    IDs are stored as OTEL hex strings (32 chars for trace_id, 16 chars for span_id/parent_id).
     """
 
-    id: uuid.UUID
-    trace_id: uuid.UUID
+    id: str  # 16-char hex (OTEL span ID format)
+    trace_id: str  # 32-char hex (OTEL trace ID format)
     name: str
     attributes: str | Dict[str, Any]  # Support both str (legacy) and dict (optimized)
-    parent_id: Optional[uuid.UUID] = None
+    parent_id: Optional[str] = None  # 16-char hex (OTEL span ID format)
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
     end_time: str = field(default_factory=lambda: datetime.now().isoformat())
     status: int = 1
@@ -98,11 +97,6 @@ class UiPathSpan:
                                  If False, keep attributes as-is (dict or str).
                                  Default True for backwards compatibility.
         """
-        # Cache UUID string conversions to avoid repeated str() calls
-        id_str = str(self.id)
-        trace_id_str = str(self.trace_id)
-        parent_id_str = str(self.parent_id) if self.parent_id else None
-
         attributes_out = self.attributes
         if serialize_attributes and isinstance(self.attributes, dict):
             attributes_out = json.dumps(self.attributes)
@@ -121,9 +115,9 @@ class UiPathSpan:
             ]
 
         return {
-            "Id": id_str,
-            "TraceId": trace_id_str,
-            "ParentId": parent_id_str,
+            "Id": self.id,
+            "TraceId": self.trace_id,
+            "ParentId": self.parent_id,
             "Name": self.name,
             "StartTime": self.start_time,
             "EndTime": self.end_time,
@@ -148,48 +142,34 @@ class UiPathSpan:
 
 class _SpanUtils:
     @staticmethod
-    def span_id_to_uuid4(span_id: int) -> uuid.UUID:
-        """Convert a 64-bit span ID to a valid UUID4 format.
+    def normalize_trace_id(value: str) -> str:
+        """Normalize trace ID to 32-char OTEL hex format.
 
-        Creates a UUID where:
-        - The 64 least significant bits contain the span ID
-        - The UUID version (bits 48-51) is set to 4
-        - The UUID variant (bits 64-65) is set to binary 10
+        Accepts both UUID format (with dashes) and OTEL hex format (32 chars).
+        Returns lowercase 32-char hex string.
         """
-        # Generate deterministic high bits using the span_id as seed
-        temp_random = random.Random(span_id)
-        high_bits = temp_random.getrandbits(64)
-
-        # Combine high bits and span ID into a 128-bit integer
-        combined = (high_bits << 64) | span_id
-
-        # Set version to 4 (UUID4)
-        combined = (combined & ~(0xF << 76)) | (0x4 << 76)
-
-        # Set variant to binary 10
-        combined = (combined & ~(0x3 << 62)) | (2 << 62)
-
-        # Convert to hex string in UUID format
-        hex_str = format(combined, "032x")
-        return uuid.UUID(hex_str)
+        # Remove dashes if UUID format
+        normalized = value.replace("-", "").lower()
+        if len(normalized) != 32:
+            raise ValueError(f"Invalid trace ID format: {value}")
+        return normalized
 
     @staticmethod
-    def trace_id_to_uuid4(trace_id: int) -> uuid.UUID:
-        """Convert a 128-bit trace ID to a valid UUID4 format.
+    def normalize_span_id(value: str) -> str:
+        """Normalize span ID to 16-char OTEL hex format.
 
-        Modifies the trace ID to conform to UUID4 requirements:
-        - The UUID version (bits 48-51) is set to 4
-        - The UUID variant (bits 64-65) is set to binary 10
+        Accepts both UUID format (with dashes, uses last 16 hex chars) and OTEL hex format (16 chars).
+        Returns lowercase 16-char hex string.
         """
-        # Set version to 4 (UUID4)
-        uuid_int = (trace_id & ~(0xF << 76)) | (0x4 << 76)
-
-        # Set variant to binary 10
-        uuid_int = (uuid_int & ~(0x3 << 62)) | (2 << 62)
-
-        # Convert to hex string in UUID format
-        hex_str = format(uuid_int, "032x")
-        return uuid.UUID(hex_str)
+        # Remove dashes if UUID format
+        normalized = value.replace("-", "").lower()
+        if len(normalized) == 32:
+            # UUID format - take last 16 chars (span ID portion)
+            return normalized[16:]
+        elif len(normalized) == 16:
+            return normalized
+        else:
+            raise ValueError(f"Invalid span ID format: {value}")
 
     @staticmethod
     def otel_span_to_uipath_span(
@@ -201,30 +181,31 @@ class _SpanUtils:
 
         Args:
             otel_span: The OpenTelemetry span to convert
-            custom_trace_id: Optional custom trace ID to use
+            custom_trace_id: Optional custom trace ID to use (UUID or OTEL hex format)
             serialize_attributes: If True, serialize attributes to JSON string (backwards compatible).
                                  If False, keep as dict for optimized processing. Default True.
         """
         # Extract the context information from the OTel span
         span_context = otel_span.get_span_context()
 
-        # OTel uses hexadecimal strings, we need to convert to UUID
-        trace_id = _SpanUtils.trace_id_to_uuid4(span_context.trace_id)
-        span_id = _SpanUtils.span_id_to_uuid4(span_context.span_id)
+        # Convert to OTEL hex format (32 chars for trace_id, 16 chars for span_id)
+        trace_id = format(span_context.trace_id, "032x")
+        span_id = format(span_context.span_id, "016x")
 
-        trace_id_str = custom_trace_id or os.environ.get("UIPATH_TRACE_ID")
-        if trace_id_str:
-            trace_id = uuid.UUID(trace_id_str)
+        # Override trace_id if custom or env var provided (supports both UUID and hex format)
+        trace_id_override = custom_trace_id or os.environ.get("UIPATH_TRACE_ID")
+        if trace_id_override:
+            trace_id = _SpanUtils.normalize_trace_id(trace_id_override)
 
         # Get parent span ID if it exists
-        parent_id = None
+        parent_id: Optional[str] = None
         if otel_span.parent is not None:
-            parent_id = _SpanUtils.span_id_to_uuid4(otel_span.parent.span_id)
+            parent_id = format(otel_span.parent.span_id, "016x")
         else:
             # Only set UIPATH_PARENT_SPAN_ID for root spans (spans without a parent)
             parent_span_id_str = env.get("UIPATH_PARENT_SPAN_ID")
             if parent_span_id_str:
-                parent_id = uuid.UUID(parent_span_id_str)
+                parent_id = _SpanUtils.normalize_span_id(parent_span_id_str)
 
         # Build attributes dict efficiently
         # Use the otel attributes as base - we only add new keys, don't modify existing
