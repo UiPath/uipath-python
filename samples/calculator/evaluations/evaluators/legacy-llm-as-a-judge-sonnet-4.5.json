@@ -1,0 +1,14 @@
+{
+  "fileName": "llm-as-a-judge-sonnet-4.5.json",
+  "id": "llm-as-a-judge-sonnet-4.5",
+  "name": "LLMAsAJudge Sonnet 4.5 Evaluator",
+  "description": "An evaluator that judges the agent based on it's run history and expected behavior using Claude Sonnet 4.5",
+  "category": 3,
+  "type": 7,
+  "prompt": "As an expert evaluator, determine how well the agent did on a scale of 0-100. Focus on if the simulation was successful and if the agent behaved according to the expected output accounting for alternative valid expressions, and reasonable variations in language while maintaining high standards for accuracy and completeness. Provide your score with a justification, explaining briefly and concisely why you gave that score.\n----\nUserOrSyntheticInputGivenToAgent:\n{{UserOrSyntheticInput}}\n----\nSimulationInstructions:\n{{SimulationInstructions}}\n----\nExpectedAgentBehavior:\n{{ExpectedAgentBehavior}}\n----\nAgentRunHistory:\n{{AgentRunHistory}}\n",
+  "targetOutputKey": "*",
+  "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+  "maxTokens": 8000,
+  "createdAt": "2026-02-04T00:00:00.000Z",
+  "updatedAt": "2026-02-04T00:00:00.000Z"
+}
