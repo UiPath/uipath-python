@@ -58,7 +58,6 @@ class SocketIOChatBridge:
 
         # Interrupt state for HITL round-trip
         self._cas_interrupt_id: str | None = None
-        self._langgraph_interrupt_id: str | None = None
         self._interrupt_type: str | None = None
         self._interrupt_end_event = asyncio.Event()
         self._interrupt_end_value: dict[str, Any] = {}
@@ -256,10 +255,9 @@ class SocketIOChatBridge:
                     return
 
                 # Extract first interrupt (single interrupt support for v1)
-                langgraph_id, interrupt_data = next(iter(interrupts.items()))
+                _, interrupt_data = next(iter(interrupts.items()))
 
                 self._cas_interrupt_id = str(uuid.uuid4())
-                self._langgraph_interrupt_id = langgraph_id
                 self._interrupt_type = interrupt_data.get("type", "generic")
 
                 interrupt_event = UiPathConversationEvent(
@@ -281,7 +279,12 @@ class SocketIOChatBridge:
                 event_data = interrupt_event.model_dump(
                     mode="json", exclude_none=True, by_alias=True
                 )
-                await self._client.emit("ConversationEvent", event_data)
+                if self._websocket_disabled:
+                    logger.info(
+                        f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                    )
+                else:
+                    await self._client.emit("ConversationEvent", event_data)
             except Exception as e:
                 logger.warning(f"Error sending interrupt event: {e}")
 
@@ -291,16 +294,13 @@ class SocketIOChatBridge:
         Returns:
             Resume data from the interrupt end event
         """
-        if self._websocket_disabled:
-            return {}
-
+        
         self._interrupt_end_event.clear()
         self._interrupt_end_value = {}
 
         await self._interrupt_end_event.wait()
 
         return {
-            "lg_interrupt_id": self._langgraph_interrupt_id,
             "interrupt_type": self._interrupt_type,
             "response": self._interrupt_end_value,
         }
