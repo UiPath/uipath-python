@@ -117,6 +117,7 @@ class ExtractionResponse(BaseModel):
     extraction_result: ExtractionResult = Field(alias="extractionResult")
     project_id: str = Field(alias="projectId")
     project_type: ProjectType = Field(alias="projectType")
+    extractor_id: Optional[str] = Field(alias="extractorId", default=None)
     tag: Optional[str]
     document_type_id: str = Field(alias="documentTypeId")
 
@@ -128,7 +129,10 @@ class ExtractionResponseIXP(ExtractionResponse):
         data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
     """
 
-    data_projection: List[FieldGroupValueProjection] = Field(alias="dataProjection")
+    data_projection: Optional[List[FieldGroupValueProjection]] = Field(
+        alias="dataProjection",
+        default=None,
+    )
 
 
 class ValidationAction(BaseModel):
@@ -159,12 +163,13 @@ class ValidationAction(BaseModel):
 class ValidateClassificationAction(ValidationAction):
     """A model representing a validation action for document classification."""
 
-    pass
+    classifier_id: Optional[str] = Field(alias="classifierId")
 
 
 class ValidateExtractionAction(ValidationAction):
     """A model representing a validation action for document extraction."""
 
+    extractor_id: Optional[str] = Field(alias="extractorId")
     document_type_id: str = Field(alias="documentTypeId")
     validated_extraction_result: Optional[ExtractionResult] = Field(
         alias="validatedExtractionResults", default=None
@@ -233,6 +238,7 @@ class ClassificationResult(BaseModel):
     classifier_name: str = Field(alias="ClassifierName")
     project_id: str = Field(alias="ProjectId")
     project_type: ProjectType = Field(alias="ProjectType")
+    classifier_id: Optional[str] = Field(alias="ClassifierId")
     tag: Optional[str] = Field(alias="Tag")
 
 
