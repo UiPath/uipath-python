@@ -51,7 +51,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
     """Mixin that provides common LLM judge functionality."""
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
-    output_schema: type[BaseModel] = LLMJudgeOutputSchema
+    output_schema: type[BaseModel] = Field(default=LLMJudgeOutputSchema, exclude=True)
     actual_output_placeholder: str = "{{ActualOutput}}"
     expected_output_placeholder: str = "{{ExpectedOutput}}"
     llm_service: Callable[..., Any] | None = Field(
