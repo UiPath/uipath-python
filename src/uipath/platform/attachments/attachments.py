@@ -16,7 +16,7 @@ class AttachmentMode(str, Enum):
 
 
 class Attachment(BaseModel):
-    """Model representing an attachment. Id 'None' is used for uploads."""
+    """Model representing an attachment."""
 
     id: uuid.UUID = Field(..., alias="ID")
     full_name: str = Field(..., alias="FullName")
