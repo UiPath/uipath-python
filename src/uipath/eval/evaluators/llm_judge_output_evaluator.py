@@ -2,7 +2,7 @@
 
 from typing import TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from uipath.eval.models import EvaluatorType
 
@@ -85,7 +85,7 @@ class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConf
     """
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
-    output_schema: type[BaseModel] = LLMJudgeOutputSchema
+    output_schema: type[BaseModel] = Field(default=LLMJudgeOutputSchema, exclude=True)
 
     @classmethod
     def get_evaluator_id(cls) -> str:
@@ -105,7 +105,9 @@ class LLMJudgeStrictJSONSimilarityOutputEvaluator(
     system_prompt: str = (
         LLMJudgePromptTemplates.LLM_JUDGE_STRICT_JSON_SIMILARITY_SYSTEM_PROMPT
     )
-    output_schema: type[BaseModel] = LLMJudgeStrictJSONSimilarityOutputSchema
+    output_schema: type[BaseModel] = Field(
+        default=LLMJudgeStrictJSONSimilarityOutputSchema, exclude=True
+    )
 
     @classmethod
     def get_evaluator_id(cls) -> str:
