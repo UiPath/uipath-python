@@ -56,12 +56,12 @@ class SocketIOChatBridge:
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
-        # Interrupt handling state
-        self._interrupt_id: str | None = None
-        self._lg_interrupt_id: str | None = None
+        # Interrupt state for HITL round-trip
+        self._cas_interrupt_id: str | None = None
+        self._langgraph_interrupt_id: str | None = None
         self._interrupt_type: str | None = None
-        self._interrupt_response_event = asyncio.Event()
-        self._interrupt_resume_data: dict[str, Any] = {}
+        self._interrupt_end_event = asyncio.Event()
+        self._interrupt_end_value: dict[str, Any] = {}
         self._current_message_id: str | None = None
 
         # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
@@ -248,89 +248,61 @@ class SocketIOChatBridge:
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
 
     async def emit_interrupt_event(self, runtime_result: UiPathRuntimeResult):
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+        if self._client and self._connected_event.is_set():
+            try:
+                interrupts = runtime_result.output
+                if not isinstance(interrupts, dict) or not interrupts:
+                    logger.warning("No interrupts in runtime result output")
+                    return
 
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+                # Extract first interrupt (single interrupt support for v1)
+                langgraph_id, interrupt_data = next(iter(interrupts.items()))
 
-        try:
-            interrupt_map = runtime_result.output
-            if not isinstance(interrupt_map, dict) or not interrupt_map:
-                logger.warning("No interrupts in runtime result output")
-                return
+                self._cas_interrupt_id = str(uuid.uuid4())
+                self._langgraph_interrupt_id = langgraph_id
+                self._interrupt_type = interrupt_data.get("type", "generic")
 
-            # Extract first interrupt (single interrupt support for v1)
-            lg_interrupt_id, interrupt_data = next(iter(interrupt_map.items()))
-
-            self._interrupt_id = str(uuid.uuid4())
-            self._lg_interrupt_id = lg_interrupt_id
-            self._interrupt_type = interrupt_data.get("type", "generic")
-
-            if not self._current_message_id:
-                logger.warning("No current message ID set for interrupt event")
-                return
-
-            interrupt_event = UiPathConversationEvent(
-                conversation_id=self.conversation_id,
-                exchange=UiPathConversationExchangeEvent(
-                    exchange_id=self.exchange_id,
-                    message=UiPathConversationMessageEvent(
-                        message_id=self._current_message_id,
-                        interrupt=UiPathConversationInterruptEvent(
-                            interrupt_id=self._interrupt_id,
-                            start=UiPathConversationGenericInterruptStart(
-                                type=self._interrupt_type,
-                                value=interrupt_data.get("value", {}),
+                interrupt_event = UiPathConversationEvent(
+                    conversation_id=self.conversation_id,
+                    exchange=UiPathConversationExchangeEvent(
+                        exchange_id=self.exchange_id,
+                        message=UiPathConversationMessageEvent(
+                            message_id=self._current_message_id,
+                            interrupt=UiPathConversationInterruptEvent(
+                                interrupt_id=self._cas_interrupt_id,
+                                start=UiPathConversationGenericInterruptStart(
+                                    type=self._interrupt_type,
+                                    value=interrupt_data.get("value", {}),
+                                ),
                             ),
                         ),
                     ),
-                ),
-            )
-            event_data = interrupt_event.model_dump(
-                mode="json", exclude_none=True, by_alias=True
-            )
-            if self._websocket_disabled:
-                logger.info(
-                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
-            else:
+                event_data = interrupt_event.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
                 await self._client.emit("ConversationEvent", event_data)
-        except Exception as e:
-            logger.warning(f"Error sending interrupt event: {e}")
+            except Exception as e:
+                logger.warning(f"Error sending interrupt event: {e}")
 
     async def wait_for_resume(self) -> dict[str, Any]:
         """Wait for the interrupt_end event to be received.
 
         Returns:
-            Resume data with interrupt metadata for the runtime to dispatch
-            transformation based on interrupt type.
+            Resume data from the interrupt end event
         """
         if self._websocket_disabled:
-            logger.warning(
-                "SocketIOChatBridge is in debug mode. Returning empty resume data."
-            )
             return {}
 
-        # Clear any previous state and wait for the interrupt response
-        self._interrupt_response_event.clear()
-        self._interrupt_resume_data = {}
+        self._interrupt_end_event.clear()
+        self._interrupt_end_value = {}
 
-        logger.info(f"Waiting for interrupt response for interrupt_id: {self._interrupt_id}")
-        await self._interrupt_response_event.wait()
+        await self._interrupt_end_event.wait()
 
-        resume_data = self._interrupt_resume_data
-        logger.info(f"Received interrupt response: {resume_data}")
-
-        # Clear state after use
-        self._interrupt_response_event.clear()
-        self._interrupt_resume_data = {}
-
-        # Include interrupt metadata so the runtime can dispatch correctly
         return {
-            "lg_interrupt_id": self._lg_interrupt_id,
+            "lg_interrupt_id": self._langgraph_interrupt_id,
             "interrupt_type": self._interrupt_type,
-            "response": resume_data,
+            "response": self._interrupt_end_value,
         }
 
     @property
@@ -360,21 +332,18 @@ class SocketIOChatBridge:
         self, event: dict[str, Any], _sid: str
     ) -> None:
         """Handle received ConversationEvent events."""
-        if error_event := event.get("conversationError"):
+        error_event = event.get("conversationError")
+        if error_event:
             logger.error(f"Conversation error: {json.dumps(error_event)}")
 
-        # Extract interrupt end event via chained gets
         interrupt = event.get("exchange", {}).get("message", {}).get("interrupt", {})
         end_interrupt = interrupt.get("endInterrupt")
         if not end_interrupt:
             return
 
-        interrupt_id = interrupt.get("interruptId")
-        logger.info(f"Received interrupt end event for interrupt_id: {interrupt_id}")
-
-        if interrupt_id == self._interrupt_id:
-            self._interrupt_resume_data = end_interrupt.get("value", {})
-            self._interrupt_response_event.set()
+        if interrupt.get("interruptId") == self._cas_interrupt_id:
+            self._interrupt_end_value = end_interrupt.get("value", {})
+            self._interrupt_end_event.set()
 
     async def _cleanup_client(self) -> None:
         """Clean up client resources."""
