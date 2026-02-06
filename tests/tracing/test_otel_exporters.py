@@ -192,12 +192,6 @@ def test_get_base_url():
                 == "https://cloud.uipath.com/dummyOrg/dummyTennant/llmopstenant_"
             )
 
-    # Test with localhost URL uses llmops_ prefix
-    with patch.dict(os.environ, {"UIPATH_URL": "http://localhost:8080"}, clear=True):
-        with patch("uipath.tracing._otel_exporters.httpx.Client"):
-            exporter = LlmOpsHttpExporter()
-            assert exporter.base_url == "http://localhost:8080/llmops_"
-
     # Test UIPATH_TRACE_BASE_URL takes precedence over UIPATH_URL
     with patch.dict(
         os.environ,

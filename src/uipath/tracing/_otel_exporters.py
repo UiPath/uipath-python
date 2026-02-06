@@ -404,8 +404,6 @@ class LlmOpsHttpExporter(SpanExporter):
 
         uipath_url = uipath_url.rstrip("/")
 
-        if "localhost" in uipath_url:
-            return f"{uipath_url}/llmops_"
         return f"{uipath_url}/llmopstenant_"
 
 
