@@ -507,15 +507,22 @@ class UiPathLlmChatService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
+        # Build request body - Claude models don't support some OpenAI-specific parameters
+        is_claude_model = "claude" in model.lower()
+
         request_body = {
             "messages": converted_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "n": n,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
-            "top_p": top_p,
         }
+
+        # Only add OpenAI-specific parameters for non-Claude models
+        if not is_claude_model:
+            request_body["n"] = n
+            request_body["frequency_penalty"] = frequency_penalty
+            request_body["presence_penalty"] = presence_penalty
+            request_body["top_p"] = top_p
+
         if top_k is not None:
             request_body["top_k"] = top_k
 
@@ -557,7 +564,38 @@ class UiPathLlmChatService(BaseService):
         headers = {
             **DEFAULT_LLM_HEADERS,
             "X-UiPath-LlmGateway-NormalizedApi-ModelName": model,
+            "X-UiPath-LLMGateway-AllowFull4xxResponse": "true",  # Debug: show full error details
         }
+
+        # Log the complete request for debugging
+        import json as json_module
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info("=" * 80)
+        logger.info("📤 LLM Gateway Normalized API Request")
+        logger.info("=" * 80)
+        logger.info(f"Model: {model}")
+        logger.info(f"Endpoint: {endpoint}")
+        logger.info(f"API Version: {NORMALIZED_API_VERSION}")
+        logger.info(f"Is Claude Model: {is_claude_model}")
+        logger.info("-" * 80)
+        logger.info("Headers:")
+        for key, value in headers.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("-" * 80)
+        logger.info("Request Body:")
+        # Create a copy for logging with tools truncated for readability
+        log_body = request_body.copy()
+        if "tools" in log_body and log_body["tools"]:
+            log_body["tools"] = f"[{len(log_body['tools'])} tool(s)]"
+        if "messages" in log_body:
+            log_body["messages"] = [
+                {**msg, "content": msg["content"][:100] + "..." if len(msg.get("content", "")) > 100 else msg["content"]}
+                for msg in log_body["messages"]
+            ]
+        logger.info(json_module.dumps(log_body, indent=2))
+        logger.info("=" * 80)
 
         async with get_llm_semaphore():
             response = await self.request_async(
@@ -568,6 +606,7 @@ class UiPathLlmChatService(BaseService):
                 headers=headers,
             )
 
+        logger.info(f"✅ Response received with status: {response.status_code}")
         return ChatCompletion.model_validate(response.json())
 
     def _convert_tool_to_uipath_format(self, tool: ToolDefinition) -> dict[str, Any]:
