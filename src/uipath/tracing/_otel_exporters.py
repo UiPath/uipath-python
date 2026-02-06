@@ -326,28 +326,32 @@ class LlmOpsHttpExporter(SpanExporter):
         else:
             return
 
-        # Determine SpanType
-        if "openinference.span.kind" in attributes:
+        # Determine SpanType from OpenInference spans
+        is_openinference = "openinference.span.kind" in attributes
+        if is_openinference:
             span_type = attributes["openinference.span.kind"]
             span_data["SpanType"] = self.SPAN_TYPE_MAPPING.get(span_type, span_type)
 
-        # Apply basic attribute mapping
-        for old_key, mapping in self.ATTRIBUTE_MAPPING.items():
-            if old_key in attributes:
-                if isinstance(mapping, tuple):
-                    new_key, func = mapping
-                    attributes[new_key] = func(attributes[old_key])
-                else:
-                    new_key = mapping
-                    attributes[new_key] = attributes[old_key]
+        # Apply basic attribute mapping (only for OpenInference spans)
+        if is_openinference:
+            for old_key, mapping in self.ATTRIBUTE_MAPPING.items():
+                if old_key in attributes:
+                    if isinstance(mapping, tuple):
+                        new_key, func = mapping
+                        attributes[new_key] = func(attributes[old_key])
+                    else:
+                        new_key = mapping
+                        attributes[new_key] = attributes[old_key]
 
-        # Apply detailed mapping based on SpanType
-        # Modify attributes dict in place to avoid allocations
-        span_type = span_data.get("SpanType")
-        if span_type == "completion":
-            self._map_llm_call_attributes(attributes)
-        elif span_type == "toolCall":
-            self._map_tool_call_attributes(attributes)
+        # Apply detailed mapping based on SpanType (only for OpenInference spans)
+        # These mappings convert OpenInference-format attributes to UiPath format.
+        # Agent manual spans (from UiPathTracer) already have correctly formatted attributes.
+        if is_openinference:
+            span_type = span_data.get("SpanType")
+            if span_type == "completion":
+                self._map_llm_call_attributes(attributes)
+            elif span_type == "toolCall":
+                self._map_tool_call_attributes(attributes)
 
         # Parse JSON-encoded strings that should be objects (avoids double-encoding)
         # OTEL only accepts primitives, so agents serialize dicts to JSON strings.

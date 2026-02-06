@@ -276,7 +276,7 @@ class _SpanUtils:
         reference_id = attributes_dict.get("referenceId")
 
         # Source: override via uipath.source attribute, else DEFAULT_SOURCE
-        uipath_source = attributes_dict.get("uipath.source")
+        uipath_source = attributes_dict.get("uipath.source", attributes_dict.get("source"))
         source = uipath_source if isinstance(uipath_source, int) else DEFAULT_SOURCE
 
         attachments = None

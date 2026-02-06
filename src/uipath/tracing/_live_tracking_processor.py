@@ -57,7 +57,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
 
         def _upsert():
             try:
-                if status_override:
+                if status_override is not None:
                     self.exporter.upsert_span(span, status_override=status_override)
                 else:
                     self.exporter.upsert_span(span)
