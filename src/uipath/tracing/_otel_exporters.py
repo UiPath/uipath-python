@@ -134,7 +134,7 @@ class LlmOpsHttpExporter(SpanExporter):
             return SpanExportResult.SUCCESS
 
         logger.debug(
-            f"Exporting {len(spans)} spans to {self.base_url}/llmopstenant_/api/Traces/spans"
+            f"Exporting {len(spans)} spans to {self.base_url}/api/Traces/spans"
         )
 
         # Use optimized path: keep attributes as dict for processing
@@ -369,7 +369,7 @@ class LlmOpsHttpExporter(SpanExporter):
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
         trace_id = str(span_list[0]["TraceId"])
-        return f"{self.base_url}/llmopstenant_/api/Traces/spans?traceId={trace_id}&source=Robots"
+        return f"{self.base_url}/api/Traces/spans?traceId={trace_id}&source=Robots"
 
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
@@ -400,7 +400,9 @@ class LlmOpsHttpExporter(SpanExporter):
 
         uipath_url = uipath_url.rstrip("/")
 
-        return uipath_url
+        if "localhost" in uipath_url:
+            return f"{uipath_url}/llmops_"
+        return f"{uipath_url}/llmopstenant_"
 
 
 class JsonLinesFileExporter(SpanExporter):

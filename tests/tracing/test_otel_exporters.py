@@ -64,7 +64,7 @@ def test_init_with_env_vars(mock_env_vars):
     with patch("uipath.tracing._otel_exporters.httpx.Client"):
         exporter = LlmOpsHttpExporter()
 
-        assert exporter.base_url == "https://test.uipath.com/org/tenant"
+        assert exporter.base_url == "https://test.uipath.com/org/tenant/llmopstenant_"
         assert exporter.auth_token == "test-token"
         assert exporter.headers == {
             "Content-Type": "application/json",
@@ -80,7 +80,10 @@ def test_init_with_default_url():
     ):
         exporter = LlmOpsHttpExporter()
 
-        assert exporter.base_url == "https://cloud.uipath.com/dummyOrg/dummyTennant"
+        assert (
+            exporter.base_url
+            == "https://cloud.uipath.com/dummyOrg/dummyTennant/llmopstenant_"
+        )
         assert exporter.auth_token == "test-token"
 
 
@@ -164,7 +167,10 @@ def test_get_base_url():
     ):
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
-            assert exporter.base_url == "https://custom.uipath.com/org/tenant"
+            assert (
+                exporter.base_url
+                == "https://custom.uipath.com/org/tenant/llmopstenant_"
+            )
 
     # Test with environment variable set but with no trailing slash
     with patch.dict(
@@ -172,13 +178,25 @@ def test_get_base_url():
     ):
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
-            assert exporter.base_url == "https://custom.uipath.com/org/tenant"
+            assert (
+                exporter.base_url
+                == "https://custom.uipath.com/org/tenant/llmopstenant_"
+            )
 
     # Test with no environment variable
     with patch.dict(os.environ, {}, clear=True):
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
-            assert exporter.base_url == "https://cloud.uipath.com/dummyOrg/dummyTennant"
+            assert (
+                exporter.base_url
+                == "https://cloud.uipath.com/dummyOrg/dummyTennant/llmopstenant_"
+            )
+
+    # Test with localhost URL uses llmops_ prefix
+    with patch.dict(os.environ, {"UIPATH_URL": "http://localhost:8080"}, clear=True):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+            assert exporter.base_url == "http://localhost:8080/llmops_"
 
 
 def test_send_with_retries_success():
