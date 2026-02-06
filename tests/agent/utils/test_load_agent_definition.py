@@ -324,3 +324,97 @@ class TestLoadAgentDefinition:
         assert result.id == "test-agent-5"
         assert result.evaluators is None or len(result.evaluators or []) == 0
         assert result.evaluation_sets is None or len(result.evaluation_sets or []) == 0
+
+
+class TestLoadAgentDefinitionErrors:
+    """Error path tests for load_agent_definition."""
+
+    @pytest.fixture
+    def temp_project_dir(self):
+        """Create a temporary project directory for testing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    def test_missing_agent_json_raises(self, temp_project_dir):
+        """Loading from a directory without agent.json raises FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            load_agent_definition(temp_project_dir)
+
+    def test_malformed_json_in_agent_file_raises(self, temp_project_dir):
+        """Invalid JSON in agent.json raises json.JSONDecodeError."""
+        agent_file = temp_project_dir / "agent.json"
+        agent_file.write_text("{ not valid json !!!")
+
+        with pytest.raises(json.JSONDecodeError):
+            load_agent_definition(temp_project_dir)
+
+    def test_malformed_resource_file_is_skipped(self, temp_project_dir):
+        """Malformed resource JSON files are logged and skipped, not fatal."""
+        agent_data = {
+            "id": "test-malformed-resource",
+            "name": "Agent with bad resource file",
+            "version": "1.0.0",
+            "messages": [{"role": "system", "content": "hi"}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 2048,
+                "temperature": 0.7,
+                "engine": "basic-v1",
+            },
+        }
+
+        with open(temp_project_dir / "agent.json", "w") as f:
+            json.dump(agent_data, f)
+
+        # Create resources directory with a malformed JSON file
+        resources_dir = temp_project_dir / "resources"
+        resources_dir.mkdir()
+        (resources_dir / "bad_resource.json").write_text("NOT JSON AT ALL")
+
+        # Should still load successfully (malformed resource is skipped)
+        result = load_agent_definition(temp_project_dir)
+        assert result.id == "test-malformed-resource"
+
+    def test_malformed_evaluator_file_is_skipped(self, temp_project_dir):
+        """Malformed evaluator JSON files are logged and skipped."""
+        agent_data = {
+            "id": "test-malformed-eval",
+            "name": "Agent with bad evaluator file",
+            "version": "1.0.0",
+            "messages": [{"role": "system", "content": "hi"}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 2048,
+                "temperature": 0.7,
+                "engine": "basic-v1",
+            },
+        }
+
+        with open(temp_project_dir / "agent.json", "w") as f:
+            json.dump(agent_data, f)
+
+        # Create evaluators directory with a malformed JSON
+        evals_dir = temp_project_dir / "evaluations" / "evaluators"
+        evals_dir.mkdir(parents=True)
+        (evals_dir / "broken.json").write_text("{invalid")
+
+        # Create eval-sets directory
+        eval_sets_dir = temp_project_dir / "evaluations" / "eval-sets"
+        eval_sets_dir.mkdir(parents=True)
+
+        result = load_agent_definition(temp_project_dir)
+        assert result.id == "test-malformed-eval"
+        # The broken evaluator should be skipped
+        assert result.evaluators is None or len(result.evaluators or []) == 0
+
+    def test_empty_agent_json_raises(self, temp_project_dir):
+        """Empty agent.json (valid JSON but missing required fields) raises."""
+        with open(temp_project_dir / "agent.json", "w") as f:
+            json.dump({}, f)
+
+        with pytest.raises(Exception):
+            load_agent_definition(temp_project_dir)

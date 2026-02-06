@@ -390,3 +390,55 @@ class TestGetUserSettingsTemplate:
         assert json_data["company"] == "Big Corp"
         assert json_data["country"] == "UK"
         assert json_data["timezone"] == "Europe/London"
+
+
+class TestSpecialCharacterHandling:
+    """Test handling of special characters in prompts."""
+
+    def test_unicode_user_name_in_settings(self):
+        """Unicode user names are preserved in user context JSON."""
+        settings = PromptUserSettings(name="日本太郎", email="taro@example.jp")
+        result = _get_user_settings_template(settings)
+
+        assert "USER CONTEXT" in result
+        assert "日本太郎" in result
+
+    def test_emoji_in_user_name(self):
+        """Emoji characters in user names are preserved."""
+        settings = PromptUserSettings(name="Alice 🚀", email="alice@example.com")
+        result = _get_user_settings_template(settings)
+
+        assert "Alice 🚀" in result
+
+    def test_curly_braces_in_system_message_not_replaced(self):
+        """Curly braces in system messages are preserved (template uses {{...}} not {...})."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message="Output JSON like {key: value}",
+            agent_name="Test",
+            user_settings=None,
+        )
+
+        assert "Output JSON like {key: value}" in prompt
+
+    def test_double_curly_braces_in_agent_name(self):
+        """Double curly braces in agent name are rendered literally."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message="Simple prompt",
+            agent_name="Agent {{v2}}",
+            user_settings=None,
+        )
+
+        assert "You are Agent {{v2}}." in prompt
+
+    def test_newlines_in_system_message(self):
+        """Newlines in system message are preserved."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message="Line 1\nLine 2\nLine 3",
+            agent_name="Test",
+            user_settings=None,
+        )
+
+        assert "Line 1\nLine 2\nLine 3" in prompt

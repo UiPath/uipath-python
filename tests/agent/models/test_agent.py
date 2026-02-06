@@ -2755,3 +2755,174 @@ class TestAgentDefinitionIsConversational:
         )
 
         assert config.is_conversational is False
+
+
+class TestAgentDefinitionValidation:
+    """Negative/validation tests for AgentDefinition."""
+
+    _MINIMAL_SETTINGS = {
+        "model": "gpt-4o",
+        "maxTokens": 4096,
+        "temperature": 0,
+        "engine": "basic-v1",
+    }
+
+    def test_missing_settings_raises(self):
+        """AgentDefinition requires settings field."""
+        with pytest.raises(Exception):
+            TypeAdapter(AgentDefinition).validate_python(
+                {
+                    "name": "bad-agent",
+                    "messages": [{"role": "system", "content": "hi"}],
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "outputSchema": {"type": "object", "properties": {}},
+                }
+            )
+
+    def test_missing_messages_raises(self):
+        """AgentDefinition requires messages field."""
+        with pytest.raises(Exception):
+            TypeAdapter(AgentDefinition).validate_python(
+                {
+                    "name": "bad-agent",
+                    "settings": self._MINIMAL_SETTINGS,
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "outputSchema": {"type": "object", "properties": {}},
+                }
+            )
+
+    def test_missing_input_schema_raises(self):
+        """AgentDefinition requires inputSchema field."""
+        with pytest.raises(Exception):
+            TypeAdapter(AgentDefinition).validate_python(
+                {
+                    "name": "bad-agent",
+                    "settings": self._MINIMAL_SETTINGS,
+                    "messages": [{"role": "system", "content": "hi"}],
+                    "outputSchema": {"type": "object", "properties": {}},
+                }
+            )
+
+    def test_missing_output_schema_raises(self):
+        """AgentDefinition requires outputSchema field."""
+        with pytest.raises(Exception):
+            TypeAdapter(AgentDefinition).validate_python(
+                {
+                    "name": "bad-agent",
+                    "settings": self._MINIMAL_SETTINGS,
+                    "messages": [{"role": "system", "content": "hi"}],
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+            )
+
+    def test_empty_resources_list_is_valid(self):
+        """Empty resources list is allowed."""
+        config = TypeAdapter(AgentDefinition).validate_python(
+            {
+                "name": "agent-no-resources",
+                "settings": self._MINIMAL_SETTINGS,
+                "messages": [{"role": "system", "content": "hi"}],
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "resources": [],
+            }
+        )
+        assert config.resources == []
+
+    def test_unknown_resource_type_normalized(self):
+        """Unknown resource types are normalized to 'unknown'."""
+        config = TypeAdapter(AgentDefinition).validate_python(
+            {
+                "name": "agent-unknown-resource",
+                "settings": self._MINIMAL_SETTINGS,
+                "messages": [{"role": "system", "content": "hi"}],
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "resources": [
+                    {
+                        "$resourceType": "futuristic",
+                        "name": "future-tool",
+                        "description": "a future resource",
+                    }
+                ],
+            }
+        )
+        assert len(config.resources) == 1
+        assert isinstance(config.resources[0], AgentUnknownResourceConfig)
+
+    def test_unknown_tool_type_normalized(self):
+        """Unknown tool types are normalized to 'Unknown'."""
+        config = TypeAdapter(AgentDefinition).validate_python(
+            {
+                "name": "agent-unknown-tool-type",
+                "settings": self._MINIMAL_SETTINGS,
+                "messages": [{"role": "system", "content": "hi"}],
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "resources": [
+                    {
+                        "$resourceType": "tool",
+                        "type": "FutureToolType",
+                        "name": "future-tool",
+                        "description": "a future tool",
+                        "inputSchema": {"type": "object", "properties": {}},
+                    }
+                ],
+            }
+        )
+        assert len(config.resources) == 1
+        assert isinstance(config.resources[0], AgentUnknownToolResourceConfig)
+
+    def test_settings_missing_model_raises(self):
+        """Settings must include model."""
+        with pytest.raises(Exception):
+            TypeAdapter(AgentDefinition).validate_python(
+                {
+                    "name": "bad-agent",
+                    "settings": {
+                        "maxTokens": 4096,
+                        "temperature": 0,
+                        "engine": "basic-v1",
+                    },
+                    "messages": [{"role": "system", "content": "hi"}],
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "outputSchema": {"type": "object", "properties": {}},
+                }
+            )
+
+    def test_settings_missing_engine_raises(self):
+        """Settings must include engine."""
+        with pytest.raises(Exception):
+            TypeAdapter(AgentDefinition).validate_python(
+                {
+                    "name": "bad-agent",
+                    "settings": {
+                        "model": "gpt-4o",
+                        "maxTokens": 4096,
+                        "temperature": 0,
+                    },
+                    "messages": [{"role": "system", "content": "hi"}],
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "outputSchema": {"type": "object", "properties": {}},
+                }
+            )
+
+    def test_unknown_guardrail_type_normalized(self):
+        """Unknown guardrail types are wrapped as AgentUnknownGuardrail."""
+        config = TypeAdapter(AgentDefinition).validate_python(
+            {
+                "name": "agent-unknown-guardrail",
+                "settings": self._MINIMAL_SETTINGS,
+                "messages": [{"role": "system", "content": "hi"}],
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "guardrails": [
+                    {
+                        "$guardrailType": "futureGuardrail",
+                        "someField": "someValue",
+                    }
+                ],
+            }
+        )
+        assert len(config.guardrails) == 1
+        assert isinstance(config.guardrails[0], AgentUnknownGuardrail)
