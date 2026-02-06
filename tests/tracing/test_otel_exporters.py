@@ -198,6 +198,29 @@ def test_get_base_url():
             exporter = LlmOpsHttpExporter()
             assert exporter.base_url == "http://localhost:8080/llmops_"
 
+    # Test UIPATH_TRACE_BASE_URL takes precedence over UIPATH_URL
+    with patch.dict(
+        os.environ,
+        {
+            "UIPATH_TRACE_BASE_URL": "https://custom-trace.example.com/my_prefix",
+            "UIPATH_URL": "https://custom.uipath.com/org/tenant",
+        },
+        clear=True,
+    ):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+            assert exporter.base_url == "https://custom-trace.example.com/my_prefix"
+
+    # Test UIPATH_TRACE_BASE_URL strips trailing slash
+    with patch.dict(
+        os.environ,
+        {"UIPATH_TRACE_BASE_URL": "https://custom-trace.example.com/prefix/"},
+        clear=True,
+    ):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+            assert exporter.base_url == "https://custom-trace.example.com/prefix"
+
 
 def test_send_with_retries_success():
     """Test _send_with_retries method with successful response."""

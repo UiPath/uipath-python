@@ -393,6 +393,10 @@ class LlmOpsHttpExporter(SpanExporter):
         return SpanExportResult.FAILURE
 
     def _get_base_url(self) -> str:
+        trace_base_url = os.environ.get("UIPATH_TRACE_BASE_URL")
+        if trace_base_url:
+            return trace_base_url.rstrip("/")
+
         uipath_url = (
             os.environ.get("UIPATH_URL")
             or "https://cloud.uipath.com/dummyOrg/dummyTennant/"
