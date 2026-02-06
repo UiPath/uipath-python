@@ -110,7 +110,7 @@ async def send_ack(ack_socket_path: str, server_socket_path: str) -> None:
     try:
         async with ClientSession(connector=conn) as session:
             async with session.post(
-                "http://localhost/ack",  # placeholder URL for Unix socket
+                "http://localhost/api/python/ack",  # placeholder URL for Unix socket
                 json=ack_message,
             ) as response:
                 if response.status == 200:
