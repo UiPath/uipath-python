@@ -390,3 +390,28 @@ class TestGetUserSettingsTemplate:
         assert json_data["company"] == "Big Corp"
         assert json_data["country"] == "UK"
         assert json_data["timezone"] == "Europe/London"
+
+
+class TestSpecialCharacterHandling:
+    """Test handling of special characters in prompts."""
+
+    def test_unicode_and_emoji_preserved_in_user_context(self):
+        """Unicode and emoji characters in user settings are preserved."""
+        settings = PromptUserSettings(name="日本太郎 🚀", email="taro@example.jp")
+        result = _get_user_settings_template(settings)
+
+        assert "USER CONTEXT" in result
+        assert "日本太郎 🚀" in result
+
+    def test_template_syntax_preserved_in_prompt(self):
+        """Curly braces, double curlies, and newlines pass through the template."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message="Output {key: value}\nLine 2",
+            agent_name="Agent {{v2}}",
+            user_settings=None,
+        )
+
+        assert "Output {key: value}" in prompt
+        assert "You are Agent {{v2}}." in prompt
+        assert "Line 2" in prompt

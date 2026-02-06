@@ -277,3 +277,61 @@ class TestSerializeValue:
         """Test serializing booleans (JSON-style lowercase)."""
         assert serialize_argument(True) == "true"
         assert serialize_argument(False) == "false"
+
+
+class TestBuildStringFromTokensEdgeCases:
+    """Edge case tests for build_string_from_tokens."""
+
+    def test_non_ascii_in_tools_and_input(self):
+        """Non-ASCII characters in tool names and input values resolve correctly."""
+        tokens = [
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Use "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.données"),
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string=" for "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.name"),
+        ]
+        result = build_string_from_tokens(
+            tokens, {"name": "日本語テスト"}, tool_names=["données"]
+        )
+        assert result == "Use données for 日本語テスト"
+
+    def test_unresolved_tool_reference_without_tool_names(self):
+        """Tool references return raw string when tool_names is None or empty."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.search"),
+        ]
+        assert build_string_from_tokens(tokens, {}, tool_names=None) == "tools.search"
+        assert build_string_from_tokens(tokens, {}, tool_names=[]) == "tools.search"
+
+    @pytest.mark.parametrize(
+        "input_data,raw_string,expected",
+        [
+            ({"user": {"email": None}}, "input.user.email", "input.user.email"),
+            ({"name": ""}, "input.name", ""),
+            ({"count": 0}, "input.count", "0"),
+            ({"active": False}, "input.active", "false"),
+        ],
+        ids=["nested-none", "empty-string", "zero", "false"],
+    )
+    def test_falsy_input_values(self, input_data, raw_string, expected):
+        """Falsy values (None, empty, 0, False) are handled distinctly."""
+        tokens = [TextToken(type=TextTokenType.VARIABLE, raw_string=raw_string)]
+        result = build_string_from_tokens(tokens, input_data)
+        assert result == expected
+
+
+class TestSafeGetNestedEdgeCases:
+    """Edge case tests for safe_get_nested."""
+
+    @pytest.mark.parametrize(
+        "data,path,expected",
+        [
+            ({}, "any.path", None),
+            ({"a": "not_a_dict"}, "a.b", None),
+            ({"a": [1, 2, 3]}, "a.0", None),
+        ],
+        ids=["empty-dict", "non-dict-intermediate", "list-intermediate"],
+    )
+    def test_unreachable_paths_return_none(self, data, path, expected):
+        """Paths through non-dict intermediates return None."""
+        assert safe_get_nested(data, path) is expected
