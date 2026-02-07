@@ -102,15 +102,16 @@ def parse_args(args: str | list[str] | None) -> list[str]:
 async def send_ack(ack_socket_path: str, server_socket_path: str) -> None:
     """Send acknowledgment via HTTP POST to the ack socket."""
     ack_message: dict[str, str] = {
+        "type": "Python",
         "status": "ready",
-        "socket": server_socket_path,
+        "data": server_socket_path,
     }
 
     conn = UnixConnector(path=ack_socket_path)
     try:
         async with ClientSession(connector=conn) as session:
             async with session.post(
-                "http://localhost/ack",  # placeholder URL for Unix socket
+                "http://localhost/api/runtime/ack",  # placeholder URL for Unix socket
                 json=ack_message,
             ) as response:
                 if response.status == 200:
