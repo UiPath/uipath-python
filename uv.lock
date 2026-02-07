@@ -686,6 +686,18 @@ wheels = [
 ]
 
 [[package]]
+name = "grandalf"
+version = "0.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/0e/4ac934b416857969f9135dec17ac80660634327e003a870835dd1f382659/grandalf-0.8.tar.gz", hash = "sha256:2813f7aab87f0d20f334a3162ccfbcbf085977134a17a5b516940a93a77ea974", size = 38128, upload-time = "2023-01-26T07:37:06.668Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/30/44c7eb0a952478dbb5f2f67df806686d6a7e4b19f6204e091c4f49dc7c69/grandalf-0.8-py3-none-any.whl", hash = "sha256:793ca254442f4a79252ea9ff1ab998e852c1e071b863593e5383afee906b4185", size = 41802, upload-time = "2023-01-10T15:16:19.753Z" },
+]
+
+[[package]]
 name = "griffe"
 version = "1.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1983,6 +1995,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyparsing"
+version = "3.3.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc", size = 6851574, upload-time = "2026-01-21T03:57:59.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d", size = 122781, upload-time = "2026-01-21T03:57:55.912Z" },
+]
+
+[[package]]
 name = "pysignalr"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2491,7 +2512,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.8.0"
+version = "2.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2510,6 +2531,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "truststore" },
     { name = "uipath-core" },
+    { name = "uipath-graphscii" },
     { name = "uipath-runtime" },
 ]
 
@@ -2560,6 +2582,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.2.3,<0.3.0" },
+    { name = "uipath-graphscii", specifier = ">=0.0.1" },
     { name = "uipath-runtime", specifier = ">=0.6.2,<0.7.0" },
 ]
 
@@ -2604,6 +2627,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c2/b9/36aa58515a024f672666e85b66ac1a4ab10343cb308c25b978a9b7c6c5f9/uipath_core-0.2.3.tar.gz", hash = "sha256:8c85281e4d93efc89080dc6764e58ca1fbf914d67cd6c51f5bcb95fd562d0b56", size = 107516, upload-time = "2026-02-02T09:48:20.287Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c4/05/2ca2be071109fa35f3fdb6235ce0315ee9f598e21f7640e878971492d389/uipath_core-0.2.3-py3-none-any.whl", hash = "sha256:3a14b9c930dd1137e19fe58d9042c855796ae5a20216d092adf4feab457fd0f5", size = 34311, upload-time = "2026-02-02T09:48:18.809Z" },
+]
+
+[[package]]
+name = "uipath-graphscii"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grandalf" },
+    { name = "uipath-runtime" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/1b/3c5e3fab9f24b5ec91fd88f59197ca65f4d42bad88a0f26eb540f1e0f881/uipath_graphscii-0.0.1.tar.gz", hash = "sha256:521e25fd9d1fb8735c99abe1183dd83b0389d06b3e31ce62d1e43a75aa1b9af5", size = 68060, upload-time = "2026-02-07T12:15:05.463Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/0b/ac456adc5ff038981f056fc48086fc9584802c06af11b153e29d4bacba26/uipath_graphscii-0.0.1-py3-none-any.whl", hash = "sha256:53cee20a02ba3ca217d0552530c5ded5a4f9473a083626911356d2a66294fa19", size = 15530, upload-time = "2026-02-07T12:15:03.296Z" },
 ]
 
 [[package]]
