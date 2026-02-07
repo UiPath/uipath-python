@@ -277,3 +277,99 @@ class TestSerializeValue:
         """Test serializing booleans (JSON-style lowercase)."""
         assert serialize_argument(True) == "true"
         assert serialize_argument(False) == "false"
+
+
+class TestBuildStringFromTokensEdgeCases:
+    """Edge case tests for build_string_from_tokens."""
+
+    def test_non_ascii_resource_names(self):
+        """Non-ASCII characters in tool names resolve correctly."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.données"),
+        ]
+        result = build_string_from_tokens(
+            tokens, {}, tool_names=["données"]
+        )
+        assert result == "données"
+
+    def test_non_ascii_input_value(self):
+        """Non-ASCII input values serialize correctly."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.name"),
+        ]
+        result = build_string_from_tokens(tokens, {"name": "日本語テスト"})
+        assert result == "日本語テスト"
+
+    def test_empty_tokens_list(self):
+        """Empty tokens list returns empty string."""
+        result = build_string_from_tokens([], {})
+        assert result == ""
+
+    def test_none_tool_names_returns_raw_string(self):
+        """None tool_names causes tool references to return raw string."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.search"),
+        ]
+        result = build_string_from_tokens(tokens, {}, tool_names=None)
+        assert result == "tools.search"
+
+    def test_empty_tool_names_list_returns_raw_string(self):
+        """Empty tool_names list causes tool references to return raw string."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="tools.search"),
+        ]
+        result = build_string_from_tokens(tokens, {}, tool_names=[])
+        assert result == "tools.search"
+
+    def test_input_value_is_nested_none(self):
+        """Nested None value in input returns raw variable string."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.user.email"),
+        ]
+        result = build_string_from_tokens(tokens, {"user": {"email": None}})
+        assert result == "input.user.email"
+
+    def test_input_value_is_empty_string(self):
+        """Empty string input value is serialized (not treated as missing)."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.name"),
+        ]
+        result = build_string_from_tokens(tokens, {"name": ""})
+        assert result == ""
+
+    def test_input_value_is_zero(self):
+        """Zero value is serialized correctly."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.count"),
+        ]
+        result = build_string_from_tokens(tokens, {"count": 0})
+        assert result == "0"
+
+    def test_input_value_is_false(self):
+        """Boolean false is serialized as JSON 'false'."""
+        tokens = [
+            TextToken(type=TextTokenType.VARIABLE, raw_string="input.active"),
+        ]
+        result = build_string_from_tokens(tokens, {"active": False})
+        assert result == "false"
+
+
+class TestSafeGetNestedEdgeCases:
+    """Edge case tests for safe_get_nested."""
+
+    def test_empty_dict(self):
+        assert safe_get_nested({}, "any.path") is None
+
+    def test_single_segment_path(self):
+        assert safe_get_nested({"key": "val"}, "key") == "val"
+
+    def test_numeric_string_key(self):
+        assert safe_get_nested({"0": "zero"}, "0") == "zero"
+
+    def test_non_dict_intermediate(self):
+        """Non-dict intermediate value returns None."""
+        assert safe_get_nested({"a": "not_a_dict"}, "a.b") is None
+
+    def test_list_intermediate(self):
+        """List as intermediate returns None (not indexable by string key)."""
+        assert safe_get_nested({"a": [1, 2, 3]}, "a.0") is None
