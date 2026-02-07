@@ -15,6 +15,8 @@ from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
     Node,
     Subgraph,
 )
+from uipath.graphscii.renderer import RenderOptions, render
+from uipath.graphscii.themes import DRACULA
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryProtocol,
@@ -324,6 +326,14 @@ def init(no_agents_md_override: bool) -> None:
                     console.success(
                         f"Created {len(mermaid_paths)} mermaid diagram file(s)."
                     )
+
+                for entrypoint_schema in entry_point_schemas:
+                    if not entrypoint_schema.graph or not entrypoint_schema.graph.nodes:
+                        continue
+                    options = RenderOptions(
+                        theme=DRACULA,
+                    )
+                    print(render(entrypoint_schema.graph, options))
 
             except Exception as e:
                 console.error(f"Error during initialization:\n{e}")
