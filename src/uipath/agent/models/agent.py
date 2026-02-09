@@ -20,6 +20,7 @@ from uipath.core.guardrails import (
     UniversalRule,
 )
 
+from uipath.agent.models._legacy import normalize_legacy_format
 from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
@@ -1206,6 +1207,7 @@ class AgentDefinition(BaseModel):
     def _normalize_all(cls, v: Any) -> Any:
         if not isinstance(v, dict):
             return v
+        normalize_legacy_format(v)
         cls._normalize_guardrails(v)
         cls._normalize_resources(v)
         return v
