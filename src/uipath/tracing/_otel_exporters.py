@@ -292,9 +292,9 @@ class LlmOpsHttpExporter(SpanExporter):
 
         return result
 
-    def _determine_status(self, error: Optional[str]) -> int:
+    def _determine_status(self, error: Optional[Any]) -> int:
         if error:
-            if error and error.startswith("GraphInterrupt("):
+            if isinstance(error, str) and error.startswith("GraphInterrupt("):
                 return self.Status.INTERRUPTED
             return self.Status.ERROR
         return self.Status.SUCCESS
