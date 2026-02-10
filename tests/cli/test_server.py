@@ -154,3 +154,55 @@ def main(input: Input) -> str:
 
         assert response["success"] is False
         assert "Invalid JSON" in response["error"]
+
+    def test_rejects_invalid_host_header(self, server):
+        """Test that requests with non-localhost Host header are rejected (DNS rebinding protection)."""
+        port = server
+
+        async def send_with_host(host: str):
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"http://127.0.0.1:{port}/health",
+                    headers={"Host": host},
+                ) as response:
+                    return response.status, await response.json()
+
+        # Attacker-controlled domain should be rejected
+        status, body = asyncio.run(send_with_host("attacker.example.com"))
+        assert status == 403
+        assert "Forbidden" in body["error"]
+
+        # Attacker domain with port should also be rejected
+        status, body = asyncio.run(send_with_host(f"evil.com:{port}"))
+        assert status == 403
+        assert "Forbidden" in body["error"]
+
+    def test_allows_localhost_host_header(self, server):
+        """Test that requests with valid localhost Host headers are accepted."""
+        port = server
+
+        async def send_with_host(host: str):
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"http://127.0.0.1:{port}/health",
+                    headers={"Host": host},
+                ) as response:
+                    return response.status, await response.text()
+
+        # localhost variants should all be accepted
+        for host in [
+            "127.0.0.1",
+            f"127.0.0.1:{port}",
+            "localhost",
+            f"localhost:{port}",
+            "[::1]",
+            f"[::1]:{port}",
+            "LOCALHOST",
+            f"LOCALHOST:{port}",
+            "LocalHost",
+            "127.0.0.1.",
+            f"localhost.:{port}",
+        ]:
+            status, body = asyncio.run(send_with_host(host))
+            assert status == 200, f"Host '{host}' should be allowed but got {status}"
+            assert body == "OK"
