@@ -1,7 +1,6 @@
 """Implementation of UiPath resume trigger protocols."""
 
 import json
-import os
 import uuid
 from typing import Any
 
@@ -301,7 +300,20 @@ class UiPathResumeTriggerReader:
                             f"{e.message}",
                         ) from e
 
-                    return f"Batch transform completed. Modified file available at {os.path.abspath(destination_path)}"
+                    # Upload result as job attachment
+                    result_attachment_id = await uipath.attachments.upload_async(
+                        name=destination_path,
+                        source_path=destination_path,
+                    )
+
+                    mime_type = "text/csv"
+
+                    # Return attachment info
+                    return {
+                        "ID": str(result_attachment_id),
+                        "FullName": destination_path,
+                        "MimeType": mime_type,
+                    }
 
             case UiPathResumeTriggerType.IXP_EXTRACTION:
                 if trigger.item_key:
