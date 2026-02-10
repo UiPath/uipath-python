@@ -40,21 +40,21 @@ class TestPydanticModels:
 
     def test_eval_set_run_output_model(self):
         """Test EvalSetRunOutput model serialization."""
-        output = EvalSetRunOutput(score=85)
+        output = EvalSetRunOutput(score=85.5)
         json_str = output.model_dump_json(by_alias=True)
         data = json.loads(json_str)
 
-        assert data == {"score": 85}
-        assert isinstance(data["score"], (int, float))
+        assert data == {"score": 85.5}
+        assert isinstance(data["score"], float)
 
     def test_evaluation_output_model(self):
         """Test EvaluationOutput model serialization."""
-        output = EvaluationOutput(score=90)
+        output = EvaluationOutput(score=90.5)
         json_str = output.model_dump_json(by_alias=True)
         data = json.loads(json_str)
 
-        assert data == {"score": 90}
-        assert isinstance(data["score"], (int, float))
+        assert data == {"score": 90.5}
+        assert isinstance(data["score"], float)
 
     def test_evaluation_output_span_output_model_with_justification(self):
         """Test EvaluationOutputSpanOutput model with justification."""
