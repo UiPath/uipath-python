@@ -792,7 +792,7 @@ class TestSpanOutputAttributes:
         assert "scores" in output_data
         assert isinstance(output_data["scores"], dict)
         # Verify that scores are in 0-100 range
-        for evaluator_id, score in output_data["scores"].items():
+        for _evaluator_id, score in output_data["scores"].items():
             assert isinstance(score, (int, float))
             assert 0 <= score <= 100
 

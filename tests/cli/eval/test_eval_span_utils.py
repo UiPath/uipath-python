@@ -4,15 +4,12 @@ import json
 from typing import Any, Dict, Optional
 from unittest.mock import MagicMock
 
-import pytest
 from opentelemetry.trace import Status, StatusCode
 
 from uipath._cli._evals._span_utils import (
     EvalSetRunOutput,
     EvaluationOutput,
     EvaluationOutputSpanOutput,
-    configure_eval_set_run_span,
-    configure_evaluation_span,
     extract_evaluator_scores,
     normalize_score_to_100,
     set_eval_set_run_output_and_metadata,
