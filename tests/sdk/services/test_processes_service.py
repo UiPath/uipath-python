@@ -50,6 +50,7 @@ class TestProcessesService:
                         "State": "Running",
                         "StartTime": "2024-01-01T00:00:00Z",
                         "Id": 123,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                     }
                 ]
             },
@@ -62,6 +63,7 @@ class TestProcessesService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -108,6 +110,7 @@ class TestProcessesService:
                         "State": "Running",
                         "StartTime": "2024-01-01T00:00:00Z",
                         "Id": 123,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                     }
                 ]
             },
@@ -120,6 +123,7 @@ class TestProcessesService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -196,6 +200,7 @@ class TestProcessesService:
                         "State": "Running",
                         "StartTime": "2024-01-01T00:00:00Z",
                         "Id": 123,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                     }
                 ]
             },
@@ -208,6 +213,7 @@ class TestProcessesService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         # attachment creation, blob upload, job start
         requests = httpx_mock.get_requests()
@@ -265,6 +271,7 @@ class TestProcessesService:
                         "State": "Running",
                         "StartTime": "2024-01-01T00:00:00Z",
                         "Id": 123,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                     }
                 ]
             },
@@ -277,6 +284,7 @@ class TestProcessesService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -324,6 +332,7 @@ class TestProcessesService:
                         "State": "Running",
                         "StartTime": "2024-01-01T00:00:00Z",
                         "Id": 123,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                     }
                 ]
             },
@@ -336,6 +345,7 @@ class TestProcessesService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         sent_request = httpx_mock.get_request()
         if sent_request is None:
@@ -413,6 +423,7 @@ class TestProcessesService:
                         "State": "Running",
                         "StartTime": "2024-01-01T00:00:00Z",
                         "Id": 123,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                     }
                 ]
             },
@@ -425,6 +436,7 @@ class TestProcessesService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         # attachment creation, blob upload, job start
         requests = httpx_mock.get_requests()

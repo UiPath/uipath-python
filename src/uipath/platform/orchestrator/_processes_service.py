@@ -1,13 +1,23 @@
 import json
 import os
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+from opentelemetry import trace
+from opentelemetry.trace import format_span_id
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 from ...tracing import traced
+from ...tracing._utils import _SpanUtils
 from ..attachments import Attachment
-from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
+from ..common import (
+    BaseService,
+    FolderContext,
+    UiPathApiConfig,
+    UiPathConfig,
+    UiPathExecutionContext,
+)
 from ._attachments_service import AttachmentsService
 from .job import Job
 
@@ -41,6 +51,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
+        **kwargs: Any,
     ) -> Job:
         """Start execution of a process by its name.
 
@@ -87,6 +98,7 @@ class ProcessesService(FolderContext, BaseService):
             input_data=input_data,
             folder_key=folder_key,
             folder_path=folder_path,
+            parent_span_id=kwargs.get("parent_span_id"),
         )
         response = self.request(
             spec.method,
@@ -109,6 +121,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
+        **kwargs: Any,
     ) -> Job:
         """Asynchronously start execution of a process by its name.
 
@@ -150,6 +163,7 @@ class ProcessesService(FolderContext, BaseService):
             input_data=input_data,
             folder_key=folder_key,
             folder_path=folder_path,
+            parent_span_id=kwargs.get("parent_span_id"),
         )
 
         response = await self.request_async(
@@ -266,6 +280,26 @@ class ProcessesService(FolderContext, BaseService):
 
         return result
 
+    @staticmethod
+    def _add_tracing(
+        payload: Dict[str, Any],
+        trace_id: Optional[str] = None,
+        parent_span_id: Optional[Union[str, int]] = None,
+    ) -> None:
+        """Enrich payload with trace context for cross-process correlation."""
+        if not trace_id:
+            return
+
+        payload["TraceId"] = _SpanUtils.normalize_trace_id(trace_id)
+        if not parent_span_id:
+            span_context = trace.get_current_span().get_span_context()
+            if span_context.span_id:
+                parent_span_id = format_span_id(span_context.span_id)
+        if parent_span_id:
+            if isinstance(parent_span_id, int):
+                parent_span_id = format_span_id(parent_span_id)
+            payload["ParentSpanId"] = _SpanUtils.normalize_span_id(parent_span_id)
+
     def _invoke_spec(
         self,
         name: str,
@@ -273,13 +307,17 @@ class ProcessesService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        parent_span_id: Optional[str] = None,
     ) -> RequestSpec:
+        payload: Dict[str, Any] = {"ReleaseName": name, **(input_data or {})}
+        self._add_tracing(payload, UiPathConfig.trace_id, parent_span_id)
+
         request_spec = RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
             ),
-            json={"startInfo": {"ReleaseName": name, **(input_data or {})}},
+            json={"startInfo": payload},
             headers={
                 **header_folder(folder_key, folder_path),
             },

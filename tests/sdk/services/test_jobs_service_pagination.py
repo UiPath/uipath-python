@@ -15,7 +15,16 @@ class TestJobsListPagination:
         """Test that list() returns PagedResult[Job]."""
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24skip=0&%24top=100",
-            json={"value": [{"Key": "job-1", "Id": 1, "State": "Successful"}]},
+            json={
+                "value": [
+                    {
+                        "Key": "job-1",
+                        "Id": 1,
+                        "State": "Successful",
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+                    }
+                ]
+            },
         )
 
         result = jobs_service.list()
@@ -30,7 +39,15 @@ class TestJobsListPagination:
         self, jobs_service, httpx_mock, base_url, org, tenant
     ):
         """Test has_more=True when page is full."""
-        jobs = [{"Key": f"job-{i}", "Id": i, "State": "Successful"} for i in range(100)]
+        jobs = [
+            {
+                "Key": f"job-{i}",
+                "Id": i,
+                "State": "Successful",
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+            }
+            for i in range(100)
+        ]
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24skip=0&%24top=100",
             json={"value": jobs},
@@ -45,7 +62,15 @@ class TestJobsListPagination:
         self, jobs_service, httpx_mock, base_url, org, tenant
     ):
         """Test has_more=False when page is partial."""
-        jobs = [{"Key": f"job-{i}", "Id": i, "State": "Successful"} for i in range(50)]
+        jobs = [
+            {
+                "Key": f"job-{i}",
+                "Id": i,
+                "State": "Successful",
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+            }
+            for i in range(50)
+        ]
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24skip=0&%24top=100",
             json={"value": jobs},
@@ -60,7 +85,16 @@ class TestJobsListPagination:
         """Test list with OData filter."""
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24filter=State+eq+%27Successful%27&%24skip=0&%24top=100",
-            json={"value": [{"Key": "job-1", "Id": 1, "State": "Successful"}]},
+            json={
+                "value": [
+                    {
+                        "Key": "job-1",
+                        "Id": 1,
+                        "State": "Successful",
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+                    }
+                ]
+            },
         )
 
         result = jobs_service.list(filter="State eq 'Successful'")
@@ -75,12 +109,30 @@ class TestJobsListPagination:
         # First page
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24skip=0&%24top=10",
-            json={"value": [{"Key": f"job-{i}", "Id": i} for i in range(10)]},
+            json={
+                "value": [
+                    {
+                        "Key": f"job-{i}",
+                        "Id": i,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+                    }
+                    for i in range(10)
+                ]
+            },
         )
         # Second page
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24skip=10&%24top=10",
-            json={"value": [{"Key": f"job-{i}", "Id": i} for i in range(10, 15)]},
+            json={
+                "value": [
+                    {
+                        "Key": f"job-{i}",
+                        "Id": i,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+                    }
+                    for i in range(10, 15)
+                ]
+            },
         )
 
         # Fetch first page
@@ -152,7 +204,15 @@ class TestJobsListAsync:
         """Test that list_async() returns PagedResult[Job]."""
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs?%24skip=0&%24top=100",
-            json={"value": [{"Key": "job-1", "Id": 1}]},
+            json={
+                "value": [
+                    {
+                        "Key": "job-1",
+                        "Id": 1,
+                        "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
+                    }
+                ]
+            },
         )
 
         result = await jobs_service.list_async()
