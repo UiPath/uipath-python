@@ -275,8 +275,8 @@ The evaluator returns a `NumericEvaluationResult` with:
 
 - **score** (`float`): Value between 0.0 and 1.0
 - **details** (`JsonSimilarityJustification`): Structured justification containing:
-    - `expected_output` (`str`): String representation of the expected output
-    - `actual_output` (`str`): String representation of the actual output
+    - `expected` (`str`): String representation of the expected output
+    - `actual` (`str`): String representation of the actual output
     - `matched_leaves` (`float`): Number of matching leaf nodes
     - `total_leaves` (`float`): Total number of leaf nodes compared
 

@@ -4,6 +4,7 @@ from uipath.eval.evaluators import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
 
@@ -24,7 +25,11 @@ class CSVColumnsEvaluatorConfig(BaseEvaluatorConfig[CSVColumnsEvaluationCriteria
 
 
 class CSVColumnsEvaluator(
-    BaseEvaluator[CSVColumnsEvaluationCriteria, CSVColumnsEvaluatorConfig, str]
+    BaseEvaluator[
+        CSVColumnsEvaluationCriteria,
+        CSVColumnsEvaluatorConfig,
+        BaseEvaluatorJustification,
+    ]
 ):
     """A custom evaluator that checks if the CSV column names are correctly identified."""
 
@@ -46,7 +51,7 @@ class CSVColumnsEvaluator(
         if total_columns == 0:
             return NumericEvaluationResult(
                 score=1.0,
-                details=self.validate_justification("No expected columns to check"),
+                details=self.validate_justification({"expected": "[]", "actual": "[]"}),
             )
 
         # Look for column names in agent traces (where print output is captured)
@@ -82,6 +87,9 @@ class CSVColumnsEvaluator(
         return NumericEvaluationResult(
             score=score,
             details=self.validate_justification(
-                f"Found {len(columns_found)}/{total_columns} expected columns"
+                {
+                    "expected": str(sorted(evaluation_criteria.expected_columns)),
+                    "actual": str(sorted(columns_found)),
+                }
             ),
         )

@@ -3,7 +3,10 @@ import json
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath.eval.evaluators import BaseEvaluationCriteria, BaseEvaluatorConfig
-from uipath.eval.evaluators.base_evaluator import BaseEvaluator
+from uipath.eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    BaseEvaluatorJustification,
+)
 from uipath.eval.models import (
     AgentExecution,
     EvaluationResult,
@@ -31,7 +34,9 @@ class CorrectOperatorEvaluatorConfig(
 
 class CorrectOperatorEvaluator(
     BaseEvaluator[
-        CorrectOperatorEvaluationCriteria, CorrectOperatorEvaluatorConfig, str
+        CorrectOperatorEvaluationCriteria,
+        CorrectOperatorEvaluatorConfig,
+        BaseEvaluatorJustification,
     ]
 ):
     """A custom evaluator that checks if the correct operator is being used by the agent"""
@@ -63,6 +68,9 @@ class CorrectOperatorEvaluator(
         return NumericEvaluationResult(
             score=float(is_expected_operator),
             details=self.validate_justification(
-                f"Expected operator '{evaluation_criteria.operator}', got '{actual_operator}'"
+                {
+                    "expected": evaluation_criteria.operator,
+                    "actual": actual_operator,
+                }
             ),
         )

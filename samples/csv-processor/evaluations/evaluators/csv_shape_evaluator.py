@@ -2,6 +2,7 @@ from uipath.eval.evaluators import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
 
@@ -23,7 +24,11 @@ class CSVShapeEvaluatorConfig(BaseEvaluatorConfig[CSVShapeEvaluationCriteria]):
 
 
 class CSVShapeEvaluator(
-    BaseEvaluator[CSVShapeEvaluationCriteria, CSVShapeEvaluatorConfig, str]
+    BaseEvaluator[
+        CSVShapeEvaluationCriteria,
+        CSVShapeEvaluatorConfig,
+        BaseEvaluatorJustification,
+    ]
 ):
     """A custom evaluator that checks if the CSV shape information is correct in the output attachment."""
 
@@ -74,6 +79,9 @@ class CSVShapeEvaluator(
         return NumericEvaluationResult(
             score=float(shape_found),
             details=self.validate_justification(
-                f"Expected shape {expected_shape} {'found' if shape_found else 'not found'}"
+                {
+                    "expected": expected_shape,
+                    "actual": "found" if shape_found else "not found",
+                }
             ),
         )

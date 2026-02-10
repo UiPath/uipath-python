@@ -2,6 +2,7 @@ from uipath.eval.evaluators import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
 
@@ -25,7 +26,9 @@ class AttachmentCreatedEvaluatorConfig(
 
 class AttachmentCreatedEvaluator(
     BaseEvaluator[
-        AttachmentCreatedEvaluationCriteria, AttachmentCreatedEvaluatorConfig, str
+        AttachmentCreatedEvaluationCriteria,
+        AttachmentCreatedEvaluatorConfig,
+        BaseEvaluatorJustification,
     ]
 ):
     """A custom evaluator that checks if the agent successfully created an output attachment."""
@@ -78,6 +81,9 @@ class AttachmentCreatedEvaluator(
         return NumericEvaluationResult(
             score=float(attachment_created),
             details=self.validate_justification(
-                f"Attachment '{evaluation_criteria.attachment_name}' {'found' if attachment_created else 'not found'}"
+                {
+                    "expected": evaluation_criteria.attachment_name,
+                    "actual": "found" if attachment_created else "not found",
+                }
             ),
         )

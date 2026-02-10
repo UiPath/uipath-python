@@ -16,7 +16,16 @@ from uipath.eval.evaluators import (
     ExactMatchEvaluator,
     JsonSimilarityEvaluator,
     LLMJudgeOutputEvaluator,
+    LLMJudgeStrictJSONSimilarityOutputEvaluator,
     LLMJudgeTrajectoryEvaluator,
+    LLMJudgeTrajectorySimulationEvaluator,
+    ToolCallArgsEvaluator,
+    ToolCallCountEvaluator,
+    ToolCallOrderEvaluator,
+    ToolCallOutputEvaluator,
+)
+from uipath.eval.evaluators.json_similarity_evaluator import (
+    JsonSimilarityJustification,
 )
 from uipath.eval.evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluatorJustification,
@@ -30,8 +39,6 @@ class TestIndexExamples:
     @pytest.mark.asyncio
     async def test_getting_started_example(self) -> None:
         """Test the getting started example from index.md."""
-        from uipath.eval.evaluators import ExactMatchEvaluator
-
         # Sample agent execution (this is what the docs were missing!)
         agent_execution = AgentExecution(
             agent_input={"query": "Greet the world"},
@@ -66,9 +73,6 @@ class TestContainsExamples:
     @pytest.mark.asyncio
     async def test_basic_usage(self) -> None:
         """Test basic usage example."""
-        from uipath.eval.evaluators import ContainsEvaluator
-        from uipath.eval.models import AgentExecution
-
         # Create evaluator - extracts "response" field for comparison
         evaluator = TypeAdapter(ContainsEvaluator).validate_python(
             dict(
@@ -189,9 +193,6 @@ class TestExactMatchExamples:
     @pytest.mark.asyncio
     async def test_basic_usage(self) -> None:
         """Test basic usage example."""
-        from uipath.eval.evaluators import ExactMatchEvaluator
-        from uipath.eval.models import AgentExecution
-
         # agent_output must be a dict
         agent_execution = AgentExecution(
             agent_input={"query": "What is 2+2?"},
@@ -346,9 +347,6 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_basic_json_comparison(self) -> None:
         """Test basic JSON comparison example."""
-        from uipath.eval.evaluators import JsonSimilarityEvaluator
-        from uipath.eval.models import AgentExecution
-
         agent_execution = AgentExecution(
             agent_input={},
             agent_output={"name": "John Doe", "age": 30, "city": "New York"},
@@ -373,9 +371,6 @@ class TestJsonSimilarityExamples:
         )
 
         assert result.score == 1.0
-        from uipath.eval.evaluators.json_similarity_evaluator import (
-            JsonSimilarityJustification,
-        )
 
         assert isinstance(result.details, JsonSimilarityJustification)
         assert result.details.matched_leaves == 3.0
@@ -565,9 +560,6 @@ class TestLLMJudgeOutputExamples:
     @pytest.mark.asyncio
     async def test_basic_semantic_similarity(self, mocker: MockerFixture) -> None:
         """Test basic semantic similarity example."""
-        from uipath.eval.evaluators import LLMJudgeOutputEvaluator
-        from uipath.eval.models import AgentExecution
-
         # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
         mock_tool_call = mocker.MagicMock()
@@ -744,9 +736,6 @@ Support Team"""
     @pytest.mark.asyncio
     async def test_strict_json_similarity(self, mocker: MockerFixture) -> None:
         """Test strict JSON similarity output evaluator example."""
-        from uipath.eval.evaluators import (
-            LLMJudgeStrictJSONSimilarityOutputEvaluator,
-        )
 
         # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
@@ -813,9 +802,6 @@ class TestLLMJudgeTrajectoryExamples:
     @pytest.mark.asyncio
     async def test_basic_trajectory_evaluation(self, mocker: MockerFixture) -> None:
         """Test basic trajectory evaluation example."""
-        from uipath.eval.evaluators import LLMJudgeTrajectoryEvaluator
-        from uipath.eval.models import AgentExecution
-
         # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
         mock_tool_call = mocker.MagicMock()
@@ -931,7 +917,6 @@ class TestLLMJudgeTrajectoryExamples:
     @pytest.mark.asyncio
     async def test_trajectory_simulation(self, mocker: MockerFixture) -> None:
         """Test tool simulation trajectory evaluation example."""
-        from uipath.eval.evaluators import LLMJudgeTrajectorySimulationEvaluator
 
         # Mock the LLM response with tool_call format
         mock_response = mocker.MagicMock()
@@ -1011,8 +996,6 @@ class TestToolCallOrderExamples:
         """Test basic tool call order validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallOrderEvaluator
-
         # Sample agent execution with tool calls in trace (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
@@ -1061,8 +1044,6 @@ class TestToolCallOrderExamples:
     async def test_strict_order_validation(self) -> None:
         """Test strict order validation example."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallOrderEvaluator
 
         # Critical security sequence
         mock_spans = [
@@ -1118,8 +1099,6 @@ class TestToolCallOrderExamples:
         """Test partial credit with LCS example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallOrderEvaluator
-
         # Actual execution (missing "sort")
         mock_spans = [
             ReadableSpan(
@@ -1172,8 +1151,6 @@ class TestToolCallOrderExamples:
     async def test_database_transaction_sequence(self) -> None:
         """Test database transaction sequence example."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallOrderEvaluator
 
         mock_spans = [
             ReadableSpan(
@@ -1234,8 +1211,6 @@ class TestToolCallOrderExamples:
     async def test_api_integration_workflow(self) -> None:
         """Test API integration workflow example."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallOrderEvaluator
 
         mock_spans = [
             ReadableSpan(
@@ -1303,8 +1278,6 @@ class TestToolCallOrderExamples:
         """Test using default criteria example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallOrderEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="init",
@@ -1360,8 +1333,6 @@ class TestToolCallCountExamples:
     async def test_basic_count_validation(self) -> None:
         """Test basic count validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallCountEvaluator
 
         # Sample agent execution with tool calls (this is what was missing in docs!)
         mock_spans = [
@@ -1440,8 +1411,6 @@ class TestToolCallCountExamples:
         """Test using comparison operators example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallCountEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="validate",
@@ -1501,8 +1470,6 @@ class TestToolCallCountExamples:
         """Test strict mode - all or nothing example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallCountEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="authenticate",
@@ -1555,8 +1522,6 @@ class TestToolCallCountExamples:
     async def test_preventing_redundant_calls(self) -> None:
         """Test preventing redundant calls example."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallCountEvaluator
 
         # Only one expensive call
         mock_spans = [
@@ -1621,8 +1586,6 @@ class TestToolCallCountExamples:
         """Test loop validation example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallCountEvaluator
-
         # Create 10 process_item, 10 validate_item, 10 save_result calls
         mock_spans = []
         for i in range(10):
@@ -1685,8 +1648,6 @@ class TestToolCallArgsExamples:
         """Test basic argument validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallArgsEvaluator
-
         # Sample agent execution with tool calls and arguments (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
@@ -1740,8 +1701,6 @@ class TestToolCallArgsExamples:
         """Test strict mode - exact matching example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallArgsEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="send_email",
@@ -1794,8 +1753,6 @@ class TestToolCallArgsExamples:
         """Test subset mode - partial validation example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallArgsEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="create_user",
@@ -1844,8 +1801,6 @@ class TestToolCallArgsExamples:
     async def test_multiple_tool_calls(self) -> None:
         """Test multiple tool calls example."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallArgsEvaluator
 
         mock_spans = [
             ReadableSpan(
@@ -1921,8 +1876,6 @@ class TestToolCallArgsExamples:
         """Test nested arguments example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallArgsEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="evaluatorConfigure_service",
@@ -1977,9 +1930,6 @@ class TestToolCallArgsExamples:
     async def test_non_strict_proportional_scoring(self) -> None:
         """Test non-strict mode with proportional scoring (2/3 tools match)."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallArgsEvaluator
-        from uipath.eval.models import AgentExecution
 
         # Agent called 3 tools, but only 2 match the expected args
         mock_spans = [
@@ -2064,8 +2014,6 @@ class TestToolCallOutputExamples:
         """Test basic output validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallOutputEvaluator
-
         # Sample agent execution with tool calls and outputs (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
@@ -2111,8 +2059,6 @@ class TestToolCallOutputExamples:
         """Test strict mode - exact output matching example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallOutputEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="calculate",
@@ -2156,8 +2102,6 @@ class TestToolCallOutputExamples:
     async def test_multiple_tool_outputs(self) -> None:
         """Test multiple tool outputs example."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallOutputEvaluator
 
         mock_spans = [
             ReadableSpan(
@@ -2210,8 +2154,6 @@ class TestToolCallOutputExamples:
         """Test error handling validation example."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        from uipath.eval.evaluators import ToolCallOutputEvaluator
-
         mock_spans = [
             ReadableSpan(
                 name="validate_input",
@@ -2255,9 +2197,6 @@ class TestToolCallOutputExamples:
     async def test_non_strict_proportional_scoring(self) -> None:
         """Test non-strict mode with proportional scoring (2/3 outputs match)."""
         from opentelemetry.sdk.trace import ReadableSpan
-
-        from uipath.eval.evaluators import ToolCallOutputEvaluator
-        from uipath.eval.models import AgentExecution
 
         # Agent produced 3 outputs, but only 2 match expected
         mock_spans = [

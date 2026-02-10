@@ -15,13 +15,6 @@ from .base_evaluator import (
 )
 
 
-class OutputJustification(BaseEvaluatorJustification):
-    """Justification for output evaluators containing expected and actual output."""
-
-    expected_output: str
-    actual_output: str
-
-
 class OutputEvaluationCriteria(BaseEvaluationCriteria):
     """Base class for all output evaluation criteria."""
 
@@ -45,7 +38,7 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig[T]):
 
 
 C = TypeVar("C", bound=OutputEvaluatorConfig[Any])
-J = TypeVar("J", bound=Union[str, OutputJustification])
+J = TypeVar("J", bound=Union[str, BaseEvaluatorJustification])
 
 
 # NOTE: This evaluator is only used in coded evaluators

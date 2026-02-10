@@ -43,7 +43,8 @@ class BaseEvaluatorConfig(BaseModel, Generic[T]):
 class BaseEvaluatorJustification(BaseModel):
     """Base class for all evaluator justifications."""
 
-    pass
+    expected: str
+    actual: str
 
 
 # Additional type variables for Config and Justification

@@ -18,6 +18,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import ValidationError
 from pytest_mock.plugin import MockerFixture
 
+from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.contains_evaluator import (
     ContainsEvaluationCriteria,
     ContainsEvaluator,
@@ -25,7 +26,9 @@ from uipath.eval.evaluators.contains_evaluator import (
 from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
 from uipath.eval.evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
+    JsonSimilarityJustification,
 )
+from uipath.eval.evaluators.llm_as_judge_evaluator import LLMJudgeJustification
 from uipath.eval.evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluator,
 )
@@ -37,14 +40,17 @@ from uipath.eval.evaluators.output_evaluator import OutputEvaluationCriteria
 from uipath.eval.evaluators.tool_call_args_evaluator import (
     ToolCallArgsEvaluationCriteria,
     ToolCallArgsEvaluator,
+    ToolCallArgsEvaluatorJustification,
 )
 from uipath.eval.evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
+    ToolCallCountEvaluatorJustification,
 )
 from uipath.eval.evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluationCriteria,
     ToolCallOrderEvaluator,
+    ToolCallOrderEvaluatorJustification,
 )
 from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluationCriteria,
@@ -1125,8 +1131,7 @@ class TestJustificationHandling:
     async def test_exact_match_evaluator_justification(
         self, sample_agent_execution: AgentExecution
     ) -> None:
-        """Test that ExactMatchEvaluator provides OutputJustification."""
-        from uipath.eval.evaluators.output_evaluator import OutputJustification
+        """Test that ExactMatchEvaluator provides BaseEvaluatorJustification."""
 
         config = {
             "name": "ExactMatchTest",
@@ -1141,16 +1146,13 @@ class TestJustificationHandling:
 
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        assert isinstance(result.details, OutputJustification)
-        assert result.details.expected_output is not None
-        assert result.details.actual_output is not None
+        assert isinstance(result.details, BaseEvaluatorJustification)
+        assert result.details.expected is not None
+        assert result.details.actual is not None
 
     @pytest.mark.asyncio
     async def test_json_similarity_evaluator_justification(self) -> None:
         """Test that JsonSimilarityEvaluator provides JsonSimilarityJustification."""
-        from uipath.eval.evaluators.json_similarity_evaluator import (
-            JsonSimilarityJustification,
-        )
 
         execution = AgentExecution(
             agent_input={"input": "Test"},
@@ -1180,9 +1182,6 @@ class TestJustificationHandling:
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
         """Test that ToolCallOrderEvaluator provides structured justification."""
-        from uipath.eval.evaluators.tool_call_order_evaluator import (
-            ToolCallOrderEvaluatorJustification,
-        )
 
         config = {
             "name": "ToolOrderTest",
@@ -1206,9 +1205,6 @@ class TestJustificationHandling:
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
         """Test that ToolCallCountEvaluator provides structured justification."""
-        from uipath.eval.evaluators.tool_call_count_evaluator import (
-            ToolCallCountEvaluatorJustification,
-        )
 
         config = {
             "name": "ToolCountTest",
@@ -1232,9 +1228,6 @@ class TestJustificationHandling:
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
         """Test that ToolCallArgsEvaluator provides structured justification."""
-        from uipath.eval.evaluators.tool_call_args_evaluator import (
-            ToolCallArgsEvaluatorJustification,
-        )
 
         config = {
             "name": "ToolArgsTest",
@@ -1335,14 +1328,15 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
-        # Should have string justification in details field
+        # Should have LLMJudgeJustification in details field
+
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.8
         assert hasattr(result, "details")
         # The justification is stored in the details field for LLM evaluators
-        assert isinstance(result.details, str)
+        assert isinstance(result.details, LLMJudgeJustification)
         assert (
-            result.details
+            result.details.justification
             == "The response meets most criteria but could be more detailed"
         )
 
@@ -1393,20 +1387,20 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
-        # Should have string justification in details field (not justification attribute)
+        # Should have LLMJudgeJustification in details field
+
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.85
-        assert isinstance(result.details, str)
+        assert isinstance(result.details, LLMJudgeJustification)
         assert (
-            result.details
+            result.details.justification
             == "The agent trajectory shows good decision making and follows expected behavior patterns"
         )
 
     def test_justification_validation_edge_cases(self, mocker: MockerFixture) -> None:
         """Test edge cases for justification validation."""
-        from uipath.eval.evaluators.output_evaluator import OutputJustification
 
-        # Test OutputJustification type evaluator
+        # Test BaseEvaluatorJustification type evaluator
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
@@ -1415,29 +1409,28 @@ class TestJustificationHandling:
             {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
-        # Valid OutputJustification should pass through
-        justification = OutputJustification(
-            expected_output="expected", actual_output="actual"
-        )
+        # Valid BaseEvaluatorJustification should pass through
+        justification = BaseEvaluatorJustification(expected="expected", actual="actual")
         result = output_evaluator.validate_justification(justification)
-        assert isinstance(result, OutputJustification)
-        assert result.expected_output == "expected"
+        assert isinstance(result, BaseEvaluatorJustification)
+        assert result.expected == "expected"
 
-        # Dict should be validated into OutputJustification
+        # Dict should be validated into BaseEvaluatorJustification
         result = output_evaluator.validate_justification(
-            {"expected_output": "exp", "actual_output": "act"}
+            {"expected": "exp", "actual": "act"}
         )
-        assert isinstance(result, OutputJustification)
-        assert result.expected_output == "exp"
+        assert isinstance(result, BaseEvaluatorJustification)
+        assert result.expected == "exp"
 
-        # Test str type evaluator - need to provide llm_service to avoid authentication
+        # Test LLMJudgeJustification type evaluator - need to provide llm_service to avoid authentication
+
         llm_config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
             "model": "gpt-4o-2024-08-06",
         }
         mock_llm_service = mocker.MagicMock()
-        str_evaluator = LLMJudgeOutputEvaluator.model_validate(
+        llm_evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
                 "evaluatorConfig": llm_config_dict,
                 "llm_service": mock_llm_service,
@@ -1445,43 +1438,28 @@ class TestJustificationHandling:
             }
         )
 
-        # Different inputs should be converted to strings
-        assert str_evaluator.validate_justification("test") == "test"
-        assert str_evaluator.validate_justification("") == ""
-        assert str_evaluator.validate_justification(123) == "123"
-        assert str_evaluator.validate_justification(True) == "True"
-        assert (
-            str_evaluator.validate_justification(None) == ""
-        )  # None becomes empty string
+        # LLMJudgeJustification validation
+        llm_justification = LLMJudgeJustification(
+            expected="expected", actual="actual", justification="test"
+        )
+        llm_result = llm_evaluator.validate_justification(llm_justification)
+        assert isinstance(llm_result, LLMJudgeJustification)
+        assert llm_result.justification == "test"
 
     def test_justification_type_extraction_all_evaluators(self) -> None:
         """Test that all evaluators have correct justification type extraction."""
-        from uipath.eval.evaluators.json_similarity_evaluator import (
-            JsonSimilarityJustification,
-        )
-        from uipath.eval.evaluators.output_evaluator import OutputJustification
 
         # Different evaluators have different justification types
-        assert ExactMatchEvaluator._extract_justification_type() is OutputJustification
+        assert (
+            ExactMatchEvaluator._extract_justification_type()
+            is BaseEvaluatorJustification
+        )
         assert (
             JsonSimilarityEvaluator._extract_justification_type()
             is JsonSimilarityJustification
         )
 
         # Tool call evaluators have their own justification types
-        from uipath.eval.evaluators.tool_call_args_evaluator import (
-            ToolCallArgsEvaluatorJustification,
-        )
-        from uipath.eval.evaluators.tool_call_count_evaluator import (
-            ToolCallCountEvaluatorJustification,
-        )
-        from uipath.eval.evaluators.tool_call_order_evaluator import (
-            ToolCallOrderEvaluatorJustification,
-        )
-        from uipath.eval.evaluators.tool_call_output_evaluator import (
-            ToolCallOutputEvaluatorJustification,
-        )
-
         assert (
             ToolCallOrderEvaluator._extract_justification_type()
             is ToolCallOrderEvaluatorJustification
@@ -1499,9 +1477,15 @@ class TestJustificationHandling:
             is ToolCallOutputEvaluatorJustification
         )
 
-        # LLM evaluators should have str justification type
-        assert LLMJudgeOutputEvaluator._extract_justification_type() is str
-        assert LLMJudgeTrajectoryEvaluator._extract_justification_type() is str
+        # LLM evaluators should have LLMJudgeJustification justification type
+        assert (
+            LLMJudgeOutputEvaluator._extract_justification_type()
+            is LLMJudgeJustification
+        )
+        assert (
+            LLMJudgeTrajectoryEvaluator._extract_justification_type()
+            is LLMJudgeJustification
+        )
 
     @pytest.mark.asyncio
     async def test_llm_judge_omits_max_tokens_when_none(

@@ -6,11 +6,10 @@ from ..models import (
     EvaluatorType,
     NumericEvaluationResult,
 )
-from .base_evaluator import BaseEvaluationCriteria
+from .base_evaluator import BaseEvaluationCriteria, BaseEvaluatorJustification
 from .output_evaluator import (
     BaseOutputEvaluator,
     OutputEvaluatorConfig,
-    OutputJustification,
 )
 
 
@@ -30,7 +29,7 @@ class ContainsEvaluatorConfig(OutputEvaluatorConfig[ContainsEvaluationCriteria])
 
 class ContainsEvaluator(
     BaseOutputEvaluator[
-        ContainsEvaluationCriteria, ContainsEvaluatorConfig, OutputJustification
+        ContainsEvaluationCriteria, ContainsEvaluatorConfig, BaseEvaluatorJustification
     ]
 ):
     """Evaluator that checks if the actual output contains the expected output.
@@ -75,8 +74,8 @@ class ContainsEvaluator(
 
         validated_justification = self.validate_justification(
             {
-                "expected_output": expected_output,
-                "actual_output": actual_output,
+                "expected": expected_output,
+                "actual": actual_output,
             }
         )
         return NumericEvaluationResult(

@@ -9,15 +9,15 @@ from ..models import (
     EvaluatorType,
     NumericEvaluationResult,
 )
+from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,
     OutputEvaluatorConfig,
-    OutputJustification,
 )
 
 
-class JsonSimilarityJustification(OutputJustification):
+class JsonSimilarityJustification(BaseEvaluatorJustification):
     """Justification for the JSON similarity evaluator."""
 
     matched_leaves: float
@@ -89,8 +89,8 @@ class JsonSimilarityEvaluator(
         return (
             max(0.0, min(1.0, sim)),
             {
-                "expected_output": str(expected),
-                "actual_output": str(actual),
+                "expected": str(expected),
+                "actual": str(actual),
                 "matched_leaves": matched_leaves,
                 "total_leaves": total_leaves,
             },

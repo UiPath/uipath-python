@@ -6,11 +6,11 @@ from ..models import (
     EvaluatorType,
     NumericEvaluationResult,
 )
+from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,
     OutputEvaluatorConfig,
-    OutputJustification,
 )
 
 
@@ -24,7 +24,7 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
 
 class ExactMatchEvaluator(
     OutputEvaluator[
-        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, OutputJustification
+        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, BaseEvaluatorJustification
     ]
 ):
     """Evaluator that performs exact structural matching between expected and actual outputs.
@@ -68,8 +68,8 @@ class ExactMatchEvaluator(
 
         validated_justification = self.validate_justification(
             {
-                "expected_output": expected_output,
-                "actual_output": actual_output,
+                "expected": expected_output,
+                "actual": actual_output,
             }
         )
         return NumericEvaluationResult(

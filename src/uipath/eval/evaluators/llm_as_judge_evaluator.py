@@ -24,11 +24,18 @@ from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
 
 logger = logging.getLogger(__name__)
+
+
+class LLMJudgeJustification(BaseEvaluatorJustification):
+    """Justification for LLM judge evaluators."""
+
+    justification: str
 
 
 class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
@@ -47,7 +54,7 @@ class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
 C = TypeVar("C", bound=BaseLLMJudgeEvaluatorConfig[Any])
 
 
-class LLMJudgeMixin(BaseEvaluator[T, C, str]):
+class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
     """Mixin that provides common LLM judge functionality."""
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
@@ -149,7 +156,11 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
 
         llm_response = await self._get_llm_response(evaluation_prompt)
         validated_justification = self.validate_justification(
-            llm_response.justification
+            {
+                "expected": str(self._get_expected_output(evaluation_criteria)),
+                "actual": str(self._get_actual_output(agent_execution)),
+                "justification": llm_response.justification,
+            }
         )
 
         return NumericEvaluationResult(

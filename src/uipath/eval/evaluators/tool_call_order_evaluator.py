@@ -33,8 +33,6 @@ class ToolCallOrderEvaluatorConfig(
 class ToolCallOrderEvaluatorJustification(BaseEvaluatorJustification):
     """Justification for the tool call order evaluator."""
 
-    actual_tool_calls_order: list[str]
-    expected_tool_calls_order: list[str]
     lcs: list[str]
 
 
