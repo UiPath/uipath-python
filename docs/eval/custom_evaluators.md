@@ -94,7 +94,6 @@ Implement the core evaluation logic:
 ```python
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import AgentExecution, NumericEvaluationResult
-import json
 
 class MyCustomEvaluator(
     BaseEvaluator[MyEvaluationCriteria, MyEvaluatorConfig, str]
@@ -140,13 +139,10 @@ class MyCustomEvaluator(
 
         return NumericEvaluationResult(
             score=score,
-            details=json.dumps({
-                "expected": expected_values,
-                "actual": actual_values,
-                "threshold": self.evaluator_config.threshold,
-                "passed": passed,
-                "case_sensitive": self.evaluator_config.case_sensitive,
-            }),
+            details=self.validate_justification(
+                f"Expected: {expected_values}, Actual: {actual_values}, "
+                f"Threshold: {self.evaluator_config.threshold}, Passed: {passed}"
+            ),
         )
 
     def _extract_values(self, agent_execution: AgentExecution) -> list[str]:
@@ -284,7 +280,6 @@ Here's a complete example based on real-world usage that compares data patterns 
 
 ```python
 """Custom evaluator for pattern comparison."""
-import json
 
 from pydantic import Field
 from uipath.eval.evaluators import BaseEvaluator
@@ -360,13 +355,10 @@ class PatternComparisonEvaluator(
 
         return NumericEvaluationResult(
             score=score,
-            details=json.dumps({
-                "expected_patterns": expected_output,
-                "actual_patterns": actual_output,
-                "matching_count": len(set(expected_output).intersection(set(actual_output))),
-                "expected_count": len(expected_output),
-                "actual_count": len(actual_output),
-            }),
+            details=self.validate_justification(
+                f"Matched {len(set(expected_output).intersection(set(actual_output)))} patterns "
+                f"out of {len(expected_output)} expected ({len(actual_output)} actual)"
+            ),
         )
 
     def _extract_patterns(self, agent_execution: AgentExecution) -> list[str]:
@@ -515,24 +507,26 @@ def _compute_score(
 
 ### 5. Detailed Results
 
-Provide detailed information in evaluation results, including config values that were actually used:
+Provide detailed information in evaluation results using `validate_justification()`. This method uses the generic type annotations to coerce your data into the correct justification type:
 
 ```python
-# Calculate what we need for details
-passed = score >= self.evaluator_config.threshold
-
+# For str justification type - pass a descriptive string
 return NumericEvaluationResult(
     score=score,
-    details=json.dumps({
+    details=self.validate_justification(
+        f"Matched {len(matching_items)} of {len(expected_values)} expected values "
+        f"(threshold: {self.evaluator_config.threshold})"
+    ),
+)
+
+# For structured justification type - pass a dict
+# (requires a BaseEvaluatorJustification subclass as J parameter)
+return NumericEvaluationResult(
+    score=score,
+    details=self.validate_justification({
         "expected": expected_values,
         "actual": actual_values,
         "matches": matching_items,
-        "missing": missing_items,
-        "extra": extra_items,
-        "algorithm": "jaccard_similarity",
-        "threshold": self.evaluator_config.threshold,
-        "passed": passed,
-        "case_sensitive": self.evaluator_config.case_sensitive,
     }),
 )
 ```
@@ -546,15 +540,16 @@ class MyEvaluator(BaseEvaluator[T, C, J]):
     """
     T: Evaluation criteria type (subclass of BaseEvaluationCriteria)
     C: Configuration type (subclass of BaseEvaluatorConfig[T])
-    J: Justification type (str, None, or BaseEvaluatorJustification)
+    J: Justification type (str or BaseEvaluatorJustification subclass)
     """
 ```
 
 **Common patterns**:
 
 - `BaseEvaluator[MyCriteria, MyConfig, str]` - Returns string justification
-- `BaseEvaluator[MyCriteria, MyConfig, type(None)]` - No justification (score only)
-- `BaseEvaluator[MyCriteria, MyConfig, MyJustification]` - Structured justification
+- `BaseEvaluator[MyCriteria, MyConfig, MyJustification]` - Structured justification (subclass of `BaseEvaluatorJustification`)
+
+The justification type is resolved at runtime from the generic annotations and used by `validate_justification()` to coerce raw data (strings or dicts) into the correct type. This means evaluators should pass raw data to `self.validate_justification()` rather than manually instantiating justification types.
 
 ## Testing Custom Evaluators
 
@@ -642,10 +637,9 @@ async def evaluate(
     if not self._validate_structure(agent_execution, self.evaluator_config.strict):
         return NumericEvaluationResult(
             score=0.0,
-            details=json.dumps({
-                "error": "Invalid structure",
-                "strict_mode": self.evaluator_config.strict,
-            })
+            details=self.validate_justification(
+                f"Invalid structure (strict_mode: {self.evaluator_config.strict})"
+            ),
         )
 
     # Step 2: Extract data
@@ -659,11 +653,9 @@ async def evaluate(
 
     return NumericEvaluationResult(
         score=score,
-        details=json.dumps({
-            "threshold": self.evaluator_config.threshold,
-            "passed": passed,
-            "strict": self.evaluator_config.strict,
-        })
+        details=self.validate_justification(
+            f"Score: {score}, Threshold: {self.evaluator_config.threshold}, Passed: {passed}"
+        ),
     )
 ```
 

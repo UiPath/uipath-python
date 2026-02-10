@@ -224,15 +224,21 @@ class TestJustificationSchemas:
 
     def test_exact_match_evaluator_justification_schema(self) -> None:
         """Test ExactMatchEvaluator justification schema generation."""
+        from uipath.eval.evaluators.output_evaluator import OutputJustification
+
         # Test justification type extraction
         justification_type = ExactMatchEvaluator._extract_justification_type()
-        assert justification_type is type(None)
+        assert justification_type is OutputJustification
 
     def test_json_similarity_evaluator_justification_schema(self) -> None:
         """Test JsonSimilarityEvaluator justification schema generation."""
-        # Test justification type extraction - JSON similarity provides str justification
+        from uipath.eval.evaluators.json_similarity_evaluator import (
+            JsonSimilarityJustification,
+        )
+
+        # Test justification type extraction - JSON similarity provides structured justification
         justification_type = JsonSimilarityEvaluator._extract_justification_type()
-        assert justification_type is str
+        assert justification_type is JsonSimilarityJustification
 
     def test_tool_call_order_evaluator_justification_schema(self) -> None:
         """Test ToolCallOrderEvaluator justification schema generation."""
@@ -474,8 +480,10 @@ class TestBaseEvaluatorFunctionality:
         assert evaluator.evaluation_criteria_type == OutputEvaluationCriteria
         assert evaluator.config_type.__name__ == "JsonSimilarityEvaluatorConfig"
 
-    def test_justification_validation_none_type(self) -> None:
-        """Test justification validation for evaluators with None justification type."""
+    def test_justification_validation_output_type(self) -> None:
+        """Test justification validation for evaluators with OutputJustification type."""
+        from uipath.eval.evaluators.output_evaluator import OutputJustification
+
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
@@ -484,9 +492,14 @@ class TestBaseEvaluatorFunctionality:
             {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
-        # Test None validation
-        assert evaluator.validate_justification(None) is None
-        assert evaluator.validate_justification("any string") is None
+        # Test OutputJustification validation
+        justification = OutputJustification(
+            expected_output="expected", actual_output="actual"
+        )
+        result = evaluator.validate_justification(justification)
+        assert isinstance(result, OutputJustification)
+        assert result.expected_output == "expected"
+        assert result.actual_output == "actual"
 
     def test_justification_validation_str_type(self, mocker: MockerFixture) -> None:
         """Test justification validation for evaluators with str justification type."""
@@ -514,7 +527,9 @@ class TestBaseEvaluatorFunctionality:
 
     def test_justification_type_consistency(self, mocker: MockerFixture) -> None:
         """Test that justification_type field matches the generic parameter."""
-        # Test None type evaluators
+        from uipath.eval.evaluators.output_evaluator import OutputJustification
+
+        # Test OutputJustification type evaluators
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
@@ -522,7 +537,7 @@ class TestBaseEvaluatorFunctionality:
         exact_match_evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
-        assert exact_match_evaluator.justification_type is type(None)
+        assert exact_match_evaluator.justification_type is OutputJustification
 
         # Test str type evaluators
         llm_config_dict = {

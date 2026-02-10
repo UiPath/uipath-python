@@ -10,6 +10,7 @@ from .base_evaluator import BaseEvaluationCriteria
 from .output_evaluator import (
     BaseOutputEvaluator,
     OutputEvaluatorConfig,
+    OutputJustification,
 )
 
 
@@ -28,7 +29,9 @@ class ContainsEvaluatorConfig(OutputEvaluatorConfig[ContainsEvaluationCriteria])
 
 
 class ContainsEvaluator(
-    BaseOutputEvaluator[ContainsEvaluationCriteria, ContainsEvaluatorConfig, None]
+    BaseOutputEvaluator[
+        ContainsEvaluationCriteria, ContainsEvaluatorConfig, OutputJustification
+    ]
 ):
     """Evaluator that checks if the actual output contains the expected output.
 
@@ -69,8 +72,16 @@ class ContainsEvaluator(
 
         if self.evaluator_config.negated:
             is_contains = not is_contains
+
+        validated_justification = self.validate_justification(
+            {
+                "expected_output": expected_output,
+                "actual_output": actual_output,
+            }
+        )
         return NumericEvaluationResult(
             score=float(is_contains),
+            details=validated_justification,
         )
 
     def _get_expected_output(

@@ -1,9 +1,7 @@
 """Base evaluator abstract class for agent evaluation."""
 
 import json
-import warnings
 from abc import ABC, abstractmethod
-from types import NoneType
 from typing import Any, Generic, TypeVar, Union, cast, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -51,7 +49,7 @@ class BaseEvaluatorJustification(BaseModel):
 # Additional type variables for Config and Justification
 # Note: C must be BaseEvaluatorConfig[T] to ensure type consistency
 C = TypeVar("C", bound=BaseEvaluatorConfig[Any])
-J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
+J = TypeVar("J", bound=Union[str, BaseEvaluatorJustification])
 
 
 class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
@@ -331,58 +329,62 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         """Extract the justification type from Pydantic model fields.
 
         Returns:
-            The justification type (str, None, or BaseEvaluatorJustification subclass)
+            The justification type (str or BaseEvaluatorJustification subclass)
 
-        Note:
-            Unlike the other type extraction methods, this one returns a default (type(None))
-            instead of raising an error, since justification support is optional and
-            defaults to None for evaluators that don't specify a justification type.
+        Raises:
+            UiPathEvaluationError: If no valid justification type can be determined
         """
         try:
-            # Special case: if this is the BaseEvaluator class itself, return type(None)
-            if cls.__name__ == "BaseEvaluator[Any, Any, Any]":
-                return cast(type[J], type(None))
-
             # Check if Pydantic has resolved the justification_type field annotation
             if not (
                 hasattr(cls, "model_fields")
                 and "justification_type" in cls.model_fields
             ):
-                # Default to None if field doesn't exist (justification is optional)
-                return cast(type[J], type(None))
+                raise UiPathEvaluationError(
+                    code="COULD_NOT_FIND_JUSTIFICATION_TYPE_FIELD",
+                    title=f"Could not find justification_type field in {cls.__name__}",
+                    detail="Ensure the class properly inherits from BaseEvaluator with correct Generic parameters.",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
 
             field_info = cls.model_fields["justification_type"]
             if not hasattr(field_info, "annotation"):
-                # Default to None if no annotation (justification is optional)
-                return cast(type[J], type(None))
+                raise UiPathEvaluationError(
+                    code="NO_ANNOTATION_FOUND_FOR_JUSTIFICATION_TYPE_FIELD",
+                    title=f"No annotation found for justification_type field in {cls.__name__}",
+                    detail="Ensure the class properly inherits from BaseEvaluator with correct Generic parameters.",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
 
             # Extract the inner type from type[SomeType]
             annotation = field_info.annotation
             args = get_args(annotation)
             if not args:
-                # Default to None if no type args (justification is optional)
-                return cast(type[J], type(None))
+                raise UiPathEvaluationError(
+                    code="INVALID_ANNOTATION_FOR_JUSTIFICATION_TYPE",
+                    title=f"Invalid annotation for justification_type in {cls.__name__}: {annotation}",
+                    detail="Expected type[str] or type[SomeEvaluatorJustification]",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
+                )
 
             justification_type = args[0]
 
-            # Validate the justification type - must be str, type(None), or BaseEvaluatorJustification subclass
+            # Validate the justification type - must be str or BaseEvaluatorJustification subclass
             if justification_type is str:
                 return cast(type[J], justification_type)
-            elif justification_type is None:
-                return cast(type[J], NoneType)
             elif isinstance(justification_type, type) and issubclass(
                 justification_type, BaseEvaluatorJustification
             ):
                 return cast(type[J], justification_type)
             else:
-                # Invalid justification type - log warning but default to None for robustness
-                warnings.warn(
-                    f"Invalid justification type {justification_type} in {cls.__name__}. "
-                    f"Must be str, None, or subclass of BaseEvaluatorJustification. Defaulting to None.",
-                    UserWarning,
-                    stacklevel=2,
+                raise UiPathEvaluationError(
+                    code="INVALID_JUSTIFICATION_TYPE",
+                    title=f"Invalid justification type {justification_type} in {cls.__name__}",
+                    detail="Must be str or subclass of BaseEvaluatorJustification.",
+                    category=UiPathEvaluationErrorCategory.SYSTEM,
                 )
-                return cast(type[J], type(None))
+        except UiPathEvaluationError:
+            raise
         except Exception as e:
             raise UiPathEvaluationError(
                 code="CANNOT_EXTRACT_JUSTIFICATION_TYPE",
@@ -429,23 +431,14 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         """Validate and convert input to the correct justification type.
 
         Args:
-            justification: The justification to validate (str, None, dict, BaseEvaluatorJustification, or other)
+            justification: The justification to validate (str, dict, BaseEvaluatorJustification, or other)
 
         Returns:
             The validated justification of the correct type
         """
-        # The key insight: J is constrained to be one of str, None, or BaseEvaluatorJustification
-        # At instantiation time, J gets bound to exactly one of these types
-        # We need to handle each case and ensure the return matches the bound type
         try:
-            # Handle None type - when J is bound to None (the literal None type)
-            if self.justification_type is type(None):
-                # When J is None, we can only return None
-                return cast(J, justification if justification is None else None)
-
             # Handle str type - when J is bound to str
             if self.justification_type is str:
-                # When J is str, we must return a str
                 if justification is None:
                     return cast(J, "")
                 return cast(J, str(justification))
@@ -454,7 +447,6 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             if isinstance(self.justification_type, type) and issubclass(
                 self.justification_type, BaseEvaluatorJustification
             ):
-                # When J is a BaseEvaluatorJustification subclass, we must return that type
                 if justification is None:
                     raise ValueError(
                         f"None is not allowed for justification type {self.justification_type}"
@@ -514,9 +506,7 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             The JSON schema for the justification type
         """
         justification_type = cls._extract_justification_type()
-        if justification_type is type(None):
-            return {}
-        elif justification_type is str:
+        if justification_type is str:
             return {"type": "string"}
         elif isinstance(justification_type, type) and issubclass(
             justification_type, BaseEvaluatorJustification
@@ -526,7 +516,7 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             raise UiPathEvaluationError(
                 code="INVALID_JUSTIFICATION_TYPE",
                 title=f"Invalid justification type {justification_type} in {cls.__name__}",
-                detail="Must be str, None, or subclass of BaseEvaluatorJustification",
+                detail="Must be str or subclass of BaseEvaluatorJustification",
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             )
 

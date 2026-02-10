@@ -1125,7 +1125,9 @@ class TestJustificationHandling:
     async def test_exact_match_evaluator_justification(
         self, sample_agent_execution: AgentExecution
     ) -> None:
-        """Test that ExactMatchEvaluator handles None justification correctly."""
+        """Test that ExactMatchEvaluator provides OutputJustification."""
+        from uipath.eval.evaluators.output_evaluator import OutputJustification
+
         config = {
             "name": "ExactMatchTest",
             "case_sensitive": True,
@@ -1137,18 +1139,19 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, OutputJustification)
+        assert result.details.expected_output is not None
+        assert result.details.actual_output is not None
 
     @pytest.mark.asyncio
     async def test_json_similarity_evaluator_justification(self) -> None:
-        """Test that JsonSimilarityEvaluator handles None justification correctly."""
+        """Test that JsonSimilarityEvaluator provides JsonSimilarityJustification."""
+        from uipath.eval.evaluators.json_similarity_evaluator import (
+            JsonSimilarityJustification,
+        )
+
         execution = AgentExecution(
             agent_input={"input": "Test"},
             agent_output={"name": "John", "age": 30, "city": "NYC"},
@@ -1166,20 +1169,21 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(execution, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, JsonSimilarityJustification)
+        assert result.details.matched_leaves == 3.0
+        assert result.details.total_leaves == 3.0
 
     @pytest.mark.asyncio
     async def test_tool_call_order_evaluator_justification(
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
-        """Test that ToolCallOrderEvaluator handles None justification correctly."""
+        """Test that ToolCallOrderEvaluator provides structured justification."""
+        from uipath.eval.evaluators.tool_call_order_evaluator import (
+            ToolCallOrderEvaluatorJustification,
+        )
+
         config = {
             "name": "ToolOrderTest",
             "strict": True,
@@ -1193,20 +1197,19 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, ToolCallOrderEvaluatorJustification)
 
     @pytest.mark.asyncio
     async def test_tool_call_count_evaluator_justification(
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
-        """Test that ToolCallCountEvaluator handles None justification correctly."""
+        """Test that ToolCallCountEvaluator provides structured justification."""
+        from uipath.eval.evaluators.tool_call_count_evaluator import (
+            ToolCallCountEvaluatorJustification,
+        )
+
         config = {
             "name": "ToolCountTest",
             "strict": True,
@@ -1220,20 +1223,19 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, ToolCallCountEvaluatorJustification)
 
     @pytest.mark.asyncio
     async def test_tool_call_args_evaluator_justification(
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
-        """Test that ToolCallArgsEvaluator handles None justification correctly."""
+        """Test that ToolCallArgsEvaluator provides structured justification."""
+        from uipath.eval.evaluators.tool_call_args_evaluator import (
+            ToolCallArgsEvaluatorJustification,
+        )
+
         config = {
             "name": "ToolArgsTest",
             "strict": True,
@@ -1252,14 +1254,9 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, ToolCallArgsEvaluatorJustification)
 
     @pytest.mark.asyncio
     async def test_tool_call_output_evaluator_justification(
@@ -1407,21 +1404,31 @@ class TestJustificationHandling:
 
     def test_justification_validation_edge_cases(self, mocker: MockerFixture) -> None:
         """Test edge cases for justification validation."""
-        # Test None type evaluator
+        from uipath.eval.evaluators.output_evaluator import OutputJustification
+
+        # Test OutputJustification type evaluator
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        none_evaluator = ExactMatchEvaluator.model_validate(
+        output_evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
-        # All inputs should return None for None type evaluators
-        assert none_evaluator.validate_justification(None) is None
-        assert none_evaluator.validate_justification("") is None
-        assert none_evaluator.validate_justification("some text") is None
-        assert none_evaluator.validate_justification(123) is None
-        assert none_evaluator.validate_justification({"key": "value"}) is None
+        # Valid OutputJustification should pass through
+        justification = OutputJustification(
+            expected_output="expected", actual_output="actual"
+        )
+        result = output_evaluator.validate_justification(justification)
+        assert isinstance(result, OutputJustification)
+        assert result.expected_output == "expected"
+
+        # Dict should be validated into OutputJustification
+        result = output_evaluator.validate_justification(
+            {"expected_output": "exp", "actual_output": "act"}
+        )
+        assert isinstance(result, OutputJustification)
+        assert result.expected_output == "exp"
 
         # Test str type evaluator - need to provide llm_service to avoid authentication
         llm_config_dict = {
@@ -1449,13 +1456,17 @@ class TestJustificationHandling:
 
     def test_justification_type_extraction_all_evaluators(self) -> None:
         """Test that all evaluators have correct justification type extraction."""
+        from uipath.eval.evaluators.json_similarity_evaluator import (
+            JsonSimilarityJustification,
+        )
+        from uipath.eval.evaluators.output_evaluator import OutputJustification
+
         # Different evaluators have different justification types
-        assert ExactMatchEvaluator._extract_justification_type() is type(
-            None
-        )  # No justification
+        assert ExactMatchEvaluator._extract_justification_type() is OutputJustification
         assert (
-            JsonSimilarityEvaluator._extract_justification_type() is str
-        )  # String justification
+            JsonSimilarityEvaluator._extract_justification_type()
+            is JsonSimilarityJustification
+        )
 
         # Tool call evaluators have their own justification types
         from uipath.eval.evaluators.tool_call_args_evaluator import (

@@ -83,7 +83,8 @@ result = await evaluator.validate_and_evaluate_criteria(
 )
 
 print(f"Score: {result.score}")  # Output: 1.0 (perfect match)
-print(f"Details: {result.details}")  # Matched leaves: 3, Total leaves: 3
+print(f"Matched: {result.details.matched_leaves}")  # 3.0
+print(f"Total: {result.details.total_leaves}")  # 3.0
 ```
 
 ### Numeric Tolerance
@@ -273,7 +274,11 @@ print(f"Score: {result.score}")  # Output: 1.0
 The evaluator returns a `NumericEvaluationResult` with:
 
 - **score** (`float`): Value between 0.0 and 1.0
-- **details** (`str`): Explanation like "Matched leaves: 8, Total leaves: 10"
+- **details** (`JsonSimilarityJustification`): Structured justification containing:
+    - `expected_output` (`str`): String representation of the expected output
+    - `actual_output` (`str`): String representation of the actual output
+    - `matched_leaves` (`float`): Number of matching leaf nodes
+    - `total_leaves` (`float`): Total number of leaf nodes compared
 
 ### Score Interpretation
 

@@ -373,12 +373,13 @@ class TestJsonSimilarityExamples:
         )
 
         assert result.score == 1.0
-        # The details format may include .0 for integer values
-        assert isinstance(result.details, str)
-        assert (
-            "Matched leaves: 3" in result.details
-            and "Total leaves: 3" in result.details
+        from uipath.eval.evaluators.json_similarity_evaluator import (
+            JsonSimilarityJustification,
         )
+
+        assert isinstance(result.details, JsonSimilarityJustification)
+        assert result.details.matched_leaves == 3.0
+        assert result.details.total_leaves == 3.0
 
     @pytest.mark.asyncio
     async def test_numeric_tolerance(self) -> None:

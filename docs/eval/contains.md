@@ -13,7 +13,7 @@ The Contains Evaluator checks whether the agent's output contains a specific sea
 -   Test that error messages or warnings contain specific text
 -   Validate outputs include required information
 
-**Returns**: Binary score (1.0 if found, 0.0 if not found)
+**Returns**: Binary score (1.0 if found, 0.0 if not found) with `OutputJustification` details containing `expected_output` and `actual_output`
 
 ## Configuration
 
@@ -159,6 +159,15 @@ result = await evaluator.validate_and_evaluate_criteria(
 
 print(f"Score: {result.score}")  # Output: 1.0
 ```
+
+## Result Details
+
+The evaluator returns a `NumericEvaluationResult` with:
+
+- **score** (`float`): 1.0 if search text is found, 0.0 otherwise (inverted when `negated=True`)
+- **details** (`OutputJustification`): Structured justification containing:
+    - `expected_output` (`str`): The search text (after case normalization if applicable)
+    - `actual_output` (`str`): The actual output value (after case normalization if applicable)
 
 ## Best Practices
 

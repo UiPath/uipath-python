@@ -52,7 +52,7 @@ Each evaluator uses specific criteria to define what should be evaluated. Criter
 
 ### Evaluation Results
 
-Evaluators return a score (typically between 0 and 1) along with optional details or justification for the score.
+Evaluators return a score (typically between 0 and 1) along with structured justification details. The justification type is determined by the evaluator's generic type parameter `J` and can be either a string (for LLM judges) or a structured `BaseEvaluatorJustification` subclass (for deterministic evaluators like exact match, contains, and JSON similarity).
 
 ### Configuration
 
@@ -193,7 +193,7 @@ Evaluation sets are JSON files that define test cases and specify which evaluato
 Evaluation results include:
 
 -   **Score**: Numeric score (typically 0.0 to 1.0) or boolean pass/fail
--   **Details**: Additional information about the evaluation (justification, matched items, etc.)
+-   **Details**: Structured justification for the evaluation (e.g., `OutputJustification` with expected/actual outputs, `JsonSimilarityJustification` with matched/total leaves, or string justification from LLM judges)
 -   **Metrics**: Token usage, latency, and other execution metrics
 -   **Trace**: Full execution trace including tool calls and outputs
 
