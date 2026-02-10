@@ -11,6 +11,7 @@ from uipath.runtime import (
     UiPathRuntimeStorageProtocol,
 )
 
+from .debug import UiPathDebugFunctionsRuntime
 from .runtime import UiPathFunctionsRuntime
 
 logger = logging.getLogger(__name__)
@@ -97,4 +98,8 @@ class UiPathFunctionsRuntimeFactory:
         if not full_path.exists():
             raise ValueError(f"File not found: {full_path}")
 
-        return UiPathFunctionsRuntime(str(full_path), function_name, entrypoint)
+        inner = UiPathFunctionsRuntime(str(full_path), function_name, entrypoint)
+        return UiPathDebugFunctionsRuntime(
+            delegate=inner,
+            entrypoint_path=str(full_path),
+        )
