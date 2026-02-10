@@ -1560,7 +1560,8 @@ class TestJustificationHandling:
 
             # Verify evaluation result
             assert result.score == 0.8
-            assert result.details == "Good response"
+            assert isinstance(result.details, LLMJudgeJustification)
+            assert result.details.justification == "Good response"
 
 
 class TestClaude45ModelSupport:
