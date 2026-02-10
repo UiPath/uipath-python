@@ -65,7 +65,7 @@ def extract_evaluator_scores(evaluation_run_results: Any) -> Dict[str, float]:
     Returns:
         Dictionary mapping evaluator IDs to their normalized scores (0-100)
     """
-    scores = {}
+    scores: Dict[str, float] = {}
     if not evaluation_run_results.evaluation_run_results:
         return scores
 
