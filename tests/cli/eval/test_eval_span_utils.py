@@ -45,7 +45,7 @@ class TestPydanticModels:
         data = json.loads(json_str)
 
         assert data == {"score": 85}
-        assert isinstance(data["score"], int)
+        assert isinstance(data["score"], (int, float))
 
     def test_evaluation_output_model(self):
         """Test EvaluationOutput model serialization."""
@@ -54,7 +54,7 @@ class TestPydanticModels:
         data = json.loads(json_str)
 
         assert data == {"score": 90}
-        assert isinstance(data["score"], int)
+        assert isinstance(data["score"], (int, float))
 
     def test_evaluation_output_span_output_model_with_justification(self):
         """Test EvaluationOutputSpanOutput model with justification."""
@@ -150,7 +150,7 @@ class TestSetSpanAttributeFunctions:
         # Check output
         assert "output" in span.attributes
         output_data = json.loads(span.attributes["output"])
-        assert output_data == {"score": 82}
+        assert output_data == {"score": 82.5}
 
         # Check metadata
         assert span.attributes["agentId"] == "exec-123"
@@ -202,7 +202,7 @@ class TestSetSpanAttributeFunctions:
         # Check output
         assert "output" in span.attributes
         output_data = json.loads(span.attributes["output"])
-        assert output_data == {"score": 88}
+        assert output_data == {"score": 88.3}
 
         # Check metadata
         assert span.attributes["agentId"] == "eval-789"
@@ -304,7 +304,7 @@ class TestHighLevelConfigurationFunctions:
 
         # Verify score calculation
         output_data = json.loads(span.attributes["output"])
-        assert output_data["score"] == 85  # (80 + 90) / 2
+        assert output_data["score"] == 85.0  # (80 + 90) / 2
 
         # Verify metadata
         assert span.attributes["agentId"] == "exec-complete"
@@ -377,7 +377,7 @@ class TestHighLevelConfigurationFunctions:
 
         # Verify score calculation
         output_data = json.loads(span.attributes["output"])
-        assert output_data["score"] == 80  # (70 + 90) / 2
+        assert output_data["score"] == 80.0  # (70 + 90) / 2
 
         # Verify metadata
         assert span.attributes["agentId"] == "eval-complete"
@@ -489,7 +489,7 @@ class TestHighLevelConfigurationFunctions:
 
         # Verify output is set
         output_data = json.loads(span.attributes["output"])
-        assert output_data == {"score": 92}
+        assert output_data == {"score": 92.0}
 
         # Verify other attributes
         assert span.attributes["agentId"] == "eval-input-test"

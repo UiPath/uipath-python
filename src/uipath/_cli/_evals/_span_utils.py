@@ -18,7 +18,7 @@ class EvalSetRunOutput(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    score: int = Field(..., alias="score")
+    score: float = Field(..., alias="score")
 
 
 class EvaluationOutput(BaseModel):
@@ -26,7 +26,7 @@ class EvaluationOutput(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    score: int = Field(..., alias="score")
+    score: float = Field(..., alias="score")
 
 
 class EvaluationOutputSpanOutput(BaseModel):
@@ -91,7 +91,7 @@ def set_eval_set_run_output_and_metadata(
         success: Whether the evaluation set run was successful
     """
     # Set span output with overall score using Pydantic model (formatted for UI rendering)
-    output = EvalSetRunOutput(score=int(overall_score))
+    output = EvalSetRunOutput(score=overall_score)
     span.set_attribute("output", output.model_dump_json(by_alias=True, indent=2))
 
     # Set metadata attributes
@@ -139,7 +139,7 @@ def set_evaluation_output_and_metadata(
         error_message: Optional error message if has_error is True
     """
     # Set span output with average score using Pydantic model (formatted for UI rendering)
-    output = EvaluationOutput(score=int(avg_score))
+    output = EvaluationOutput(score=avg_score)
     span.set_attribute("output", output.model_dump_json(by_alias=True, indent=2))
 
     # Set input data if provided (formatted JSON for UI rendering)
