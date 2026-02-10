@@ -18,7 +18,7 @@ class EvalSetRunOutput(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    score: float = Field(..., alias="score")
+    scores: Dict[str, float] = Field(..., alias="scores")
 
 
 class EvaluationOutput(BaseModel):
@@ -26,7 +26,7 @@ class EvaluationOutput(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    score: float = Field(..., alias="score")
+    scores: Dict[str, float] = Field(..., alias="scores")
 
 
 class EvaluationOutputSpanOutput(BaseModel):
@@ -35,46 +35,51 @@ class EvaluationOutputSpanOutput(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     type: int = Field(1, alias="type")
-    value: float = Field(..., alias="value")
+    score: float = Field(..., alias="score")
     evaluator_id: Optional[str] = Field(None, alias="evaluatorId")
     justification: Optional[str] = Field(None, alias="justification")
 
 
-def calculate_overall_score(evaluator_averages: Dict[str, float]) -> float:
-    """Calculate overall average score from evaluator averages.
+def normalize_score_to_100(score: float) -> float:
+    """Normalize score to 0-100 range.
 
     Args:
-        evaluator_averages: Dictionary mapping evaluator IDs to their average scores
+        score: Score value (can be 0-1 or 0-100)
 
     Returns:
-        Overall average score across all evaluators, or 0.0 if no evaluators
+        Score normalized to 0-100 range
     """
-    if not evaluator_averages:
-        return 0.0
-    return sum(evaluator_averages.values()) / len(evaluator_averages)
+    # If score is between 0-1, scale to 0-100
+    if 0 <= score <= 1:
+        return round(score * 100, 2)
+    # Otherwise assume it's already 0-100
+    return round(min(max(score, 0), 100), 2)
 
 
-def calculate_evaluation_average_score(evaluation_run_results: Any) -> float:
-    """Calculate average score from evaluation run results.
+def extract_evaluator_scores(evaluation_run_results: Any) -> Dict[str, float]:
+    """Extract scores per evaluator from evaluation run results.
 
     Args:
         evaluation_run_results: EvaluationRunResult object containing evaluation results
 
     Returns:
-        Average score across all evaluators, or 0.0 if no results
+        Dictionary mapping evaluator IDs to their normalized scores (0-100)
     """
+    scores = {}
     if not evaluation_run_results.evaluation_run_results:
-        return 0.0
+        return scores
 
-    total_score = sum(
-        result.result.score for result in evaluation_run_results.evaluation_run_results
-    )
-    return total_score / len(evaluation_run_results.evaluation_run_results)
+    for result in evaluation_run_results.evaluation_run_results:
+        evaluator_id = result.evaluator_id
+        score = result.result.score
+        scores[evaluator_id] = normalize_score_to_100(score)
+
+    return scores
 
 
 def set_eval_set_run_output_and_metadata(
     span: Span,
-    overall_score: float,
+    evaluator_scores: Dict[str, float],
     execution_id: str,
     input_schema: Optional[Dict[str, Any]],
     output_schema: Optional[Dict[str, Any]],
@@ -84,14 +89,14 @@ def set_eval_set_run_output_and_metadata(
 
     Args:
         span: The OpenTelemetry span to set attributes on
-        overall_score: The overall average score across all evaluators
+        evaluator_scores: Dictionary mapping evaluator IDs to their average scores (0-100)
         execution_id: The execution ID for the evaluation set run
         input_schema: The input schema from the runtime
         output_schema: The output schema from the runtime
         success: Whether the evaluation set run was successful
     """
-    # Set span output with overall score using Pydantic model (formatted for UI rendering)
-    output = EvalSetRunOutput(score=round(overall_score, 2))
+    # Set span output with scores per evaluator using Pydantic model (formatted for UI rendering)
+    output = EvalSetRunOutput(scores=evaluator_scores)
     span.set_attribute("output", output.model_dump_json(by_alias=True, indent=2))
 
     # Set metadata attributes
@@ -122,7 +127,7 @@ def set_eval_set_run_output_and_metadata(
 
 def set_evaluation_output_and_metadata(
     span: Span,
-    avg_score: float,
+    evaluator_scores: Dict[str, float],
     execution_id: str,
     input_data: Optional[Dict[str, Any]] = None,
     has_error: bool = False,
@@ -132,14 +137,14 @@ def set_evaluation_output_and_metadata(
 
     Args:
         span: The OpenTelemetry span to set attributes on
-        avg_score: The average score for this evaluation across all evaluators
+        evaluator_scores: Dictionary mapping evaluator IDs to their scores (0-100)
         execution_id: The execution ID for this evaluation
         input_data: The input data for this evaluation
         has_error: Whether the evaluation had an error
         error_message: Optional error message if has_error is True
     """
-    # Set span output with average score using Pydantic model (formatted for UI rendering)
-    output = EvaluationOutput(score=round(avg_score, 2))
+    # Set span output with scores per evaluator using Pydantic model (formatted for UI rendering)
+    output = EvaluationOutput(scores=evaluator_scores)
     span.set_attribute("output", output.model_dump_json(by_alias=True, indent=2))
 
     # Set input data if provided (formatted JSON for UI rendering)
@@ -170,13 +175,16 @@ def set_evaluation_output_span_output(
 
     Args:
         span: The OpenTelemetry span to set attributes on
-        score: The evaluation score
+        score: The evaluation score (0-100)
         evaluator_id: The ID of the evaluator that produced this score
         justification: Optional justification text for the score
     """
+    # Normalize score to 0-100 range
+    normalized_score = normalize_score_to_100(score)
+
     # Set output using Pydantic model (formatted for UI rendering)
     output = EvaluationOutputSpanOutput(
-        value=score,
+        score=normalized_score,
         evaluator_id=evaluator_id,
         justification=justification,
     )
@@ -198,7 +206,7 @@ async def configure_eval_set_run_span(
     """Configure Evaluation Set Run span with output and metadata.
 
     This high-level function handles:
-    - Calculating overall score from evaluator averages
+    - Normalizing evaluator scores to 0-100 range
     - Getting runtime schemas
     - Setting all span attributes
 
@@ -206,12 +214,14 @@ async def configure_eval_set_run_span(
         span: The OpenTelemetry span to configure
         evaluator_averages: Dictionary mapping evaluator IDs to their average scores
         execution_id: The execution ID for the evaluation set run
-        runtime: The runtime instance
-        get_schema_func: Async function to get schema from runtime
+        schema: The runtime schema
         success: Whether the evaluation set run was successful
     """
-    # Calculate overall score
-    overall_score = calculate_overall_score(evaluator_averages)
+    # Normalize all scores to 0-100 range
+    evaluator_scores = {
+        evaluator_id: normalize_score_to_100(score)
+        for evaluator_id, score in evaluator_averages.items()
+    }
 
     # Get runtime schemas
     try:
@@ -224,7 +234,7 @@ async def configure_eval_set_run_span(
     # Set span output and metadata
     set_eval_set_run_output_and_metadata(
         span=span,
-        overall_score=overall_score,
+        evaluator_scores=evaluator_scores,
         execution_id=execution_id,
         input_schema=input_schema,
         output_schema=output_schema,
@@ -242,7 +252,8 @@ async def configure_evaluation_span(
     """Configure Evaluation span with output and metadata.
 
     This high-level function handles:
-    - Calculating average score from evaluation results
+    - Extracting scores per evaluator from evaluation results
+    - Normalizing scores to 0-100 range
     - Determining error status
     - Setting all span attributes
 
@@ -253,8 +264,8 @@ async def configure_evaluation_span(
         input_data: The input data for this evaluation
         agent_execution_output: Optional agent execution output for error checking
     """
-    # Calculate average score
-    avg_score = calculate_evaluation_average_score(evaluation_run_results)
+    # Extract evaluator scores (already normalized to 0-100)
+    evaluator_scores = extract_evaluator_scores(evaluation_run_results)
 
     # Determine error status
     has_error = False
@@ -270,7 +281,7 @@ async def configure_evaluation_span(
     # Set span output and metadata
     set_evaluation_output_and_metadata(
         span=span,
-        avg_score=avg_score,
+        evaluator_scores=evaluator_scores,
         execution_id=execution_id,
         input_data=input_data,
         has_error=has_error,

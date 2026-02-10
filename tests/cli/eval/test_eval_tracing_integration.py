@@ -789,8 +789,12 @@ class TestSpanOutputAttributes:
         import json
 
         output_data = json.loads(eval_span["attributes"]["output"])
-        assert "score" in output_data
-        assert isinstance(output_data["score"], (int, float))
+        assert "scores" in output_data
+        assert isinstance(output_data["scores"], dict)
+        # Verify that scores are in 0-100 range
+        for evaluator_id, score in output_data["scores"].items():
+            assert isinstance(score, (int, float))
+            assert 0 <= score <= 100
 
     @pytest.mark.asyncio
     async def test_evaluation_span_has_metadata_attributes(
@@ -959,7 +963,7 @@ class TestSpanOutputAttributes:
 
         # Check structure matches EvaluationOutputSpanOutput model
         assert output_data["type"] == 1
-        assert "value" in output_data
-        assert output_data["value"] == 0.92
+        assert "score" in output_data
+        assert output_data["score"] == 92.0  # 0.92 normalized to 0-100 range
         assert "justification" in output_data
         assert output_data["justification"] == "The outputs are semantically equivalent"
