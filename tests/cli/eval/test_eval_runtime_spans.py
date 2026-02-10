@@ -2,7 +2,7 @@
 
 Tests the spans added for eval tracing:
 1. "Evaluation Set Run" - span_type: "eval_set_run"
-2. "Evaluation" - span_type: "evaluation"
+2. "Evaluation" - span_type: "eval"
 3. "Evaluator: {name}" - span_type: "evaluator"
 4. "Evaluation output" - span_type: "evalOutput"
 """
@@ -158,15 +158,15 @@ class TestEvaluationSpan:
 
     def test_span_has_evaluation_span_type(self):
         """Test that span_type attribute is 'evaluation'."""
-        span_attributes = {"span_type": "evaluation"}
-        assert span_attributes["span_type"] == "evaluation"
+        span_attributes = {"span_type": "eval"}
+        assert span_attributes["span_type"] == "eval"
 
     def test_span_includes_execution_id(self):
         """Test that execution.id is included in the span attributes."""
         execution_id = str(uuid.uuid4())
         span_attributes = {
             "execution.id": execution_id,
-            "span_type": "evaluation",
+            "span_type": "eval",
         }
         assert "execution.id" in span_attributes
         assert span_attributes["execution.id"] == execution_id
@@ -175,7 +175,7 @@ class TestEvaluationSpan:
         """Test that eval_item_id is included in the span attributes."""
         eval_item_id = "test-eval-item-123"
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "eval_item_id": eval_item_id,
         }
         assert "eval_item_id" in span_attributes
@@ -185,7 +185,7 @@ class TestEvaluationSpan:
         """Test that eval_item_name is included in the span attributes."""
         eval_item_name = "Test Evaluation Item"
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "eval_item_name": eval_item_name,
         }
         assert "eval_item_name" in span_attributes
@@ -199,7 +199,7 @@ class TestEvaluationSpan:
 
         span_attributes = {
             "execution.id": execution_id,
-            "span_type": "evaluation",
+            "span_type": "eval",
             "eval_item_id": eval_item_id,
             "eval_item_name": eval_item_name,
         }
@@ -218,7 +218,7 @@ class TestEvaluationSpan:
         output_json = json.dumps(output_data)
 
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "output": output_json,
         }
 
@@ -231,7 +231,7 @@ class TestEvaluationSpan:
         """Test that span has agentId metadata attribute."""
         execution_id = "eval-exec-456"
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "agentId": execution_id,
         }
         assert "agentId" in span_attributes
@@ -240,7 +240,7 @@ class TestEvaluationSpan:
     def test_span_has_agent_name(self):
         """Test that span has agentName metadata attribute."""
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "agentName": "N/A",
         }
         assert "agentName" in span_attributes
@@ -252,7 +252,7 @@ class TestEvaluationSpan:
 
         input_schema = {"type": "object"}
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "inputSchema": json.dumps(input_schema),
         }
         assert "inputSchema" in span_attributes
@@ -265,7 +265,7 @@ class TestEvaluationSpan:
 
         output_schema = {"type": "object"}
         span_attributes = {
-            "span_type": "evaluation",
+            "span_type": "eval",
             "outputSchema": json.dumps(output_schema),
         }
         assert "outputSchema" in span_attributes
@@ -344,20 +344,20 @@ class TestSpanHierarchy:
         # This is a conceptual test - in the actual code, the Evaluation span
         # is created inside the context of the Evaluation Set Run span
         parent_span_type = "eval_set_run"
-        child_span_type = "evaluation"
+        child_span_type = "eval"
 
         # The parent-child relationship is enforced by span context nesting
         assert parent_span_type == "eval_set_run"
-        assert child_span_type == "evaluation"
+        assert child_span_type == "eval"
 
     def test_evaluator_span_is_child_of_evaluation(self):
         """Test that Evaluator spans should be children of Evaluation."""
         # This is a conceptual test - in the actual code, the Evaluator span
         # is created inside the context of the Evaluation span
-        parent_span_type = "evaluation"
+        parent_span_type = "eval"
         child_span_type = "evaluator"
 
-        assert parent_span_type == "evaluation"
+        assert parent_span_type == "eval"
         assert child_span_type == "evaluator"
 
 
@@ -366,7 +366,7 @@ class TestSpanAttributeValues:
 
     def test_span_type_values_are_lowercase(self):
         """Test that span_type values are lowercase strings."""
-        span_types = ["eval_set_run", "evaluation", "evaluator"]
+        span_types = ["eval_set_run", "eval", "evaluator"]
 
         for span_type in span_types:
             assert span_type == span_type.lower()
@@ -446,13 +446,13 @@ class TestSpanCreationLogic:
 
         span_attributes = {
             "execution.id": execution_id,
-            "span_type": "evaluation",
+            "span_type": "eval",
             "eval_item_id": eval_item_id,
             "eval_item_name": eval_item_name,
         }
 
         assert span_attributes["execution.id"] == "exec-123"
-        assert span_attributes["span_type"] == "evaluation"
+        assert span_attributes["span_type"] == "eval"
         assert span_attributes["eval_item_id"] == "item-456"
         assert span_attributes["eval_item_name"] == "Test Item"
 
@@ -493,7 +493,7 @@ class TestEvalItemSpanAttributes:
 
         span_attributes = {
             "execution.id": str(uuid.uuid4()),
-            "span_type": "evaluation",
+            "span_type": "eval",
             "eval_item_id": eval_item.id,
             "eval_item_name": eval_item.name,
         }
@@ -521,14 +521,14 @@ class TestSpanTypeConsistency:
 
     def test_all_span_types_are_strings(self):
         """Test that all span_type values are strings."""
-        span_types = ["eval_set_run", "evaluation", "evaluator"]
+        span_types = ["eval_set_run", "eval", "evaluator"]
 
         for span_type in span_types:
             assert isinstance(span_type, str)
 
     def test_span_types_use_snake_case(self):
         """Test that span_type values use snake_case naming."""
-        span_types = ["eval_set_run", "evaluation", "evaluator"]
+        span_types = ["eval_set_run", "eval", "evaluator"]
 
         for span_type in span_types:
             # No uppercase letters
@@ -620,7 +620,7 @@ class TestExecutionIdPropagation:
 
         span_attributes = {
             "execution.id": execution_id,
-            "span_type": "evaluation",
+            "span_type": "eval",
             "eval_item_id": "item-123",
             "eval_item_name": "Test Item",
         }

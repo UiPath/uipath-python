@@ -118,8 +118,8 @@ def assert_evaluation_spans(traces: list[dict[str, Any]]) -> None:
         print(f"    Name: {name}")
 
         # Check span_type attribute
-        assert attrs.get("span_type") == "evaluation", (
-            f"Expected span_type 'evaluation', got '{attrs.get('span_type')}'"
+        assert attrs.get("span_type") == "eval", (
+            f"Expected span_type 'eval', got '{attrs.get('span_type')}'"
         )
         print(f"    span_type: {attrs.get('span_type')}")
 

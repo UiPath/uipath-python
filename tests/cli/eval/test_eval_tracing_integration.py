@@ -298,12 +298,12 @@ class TestEvaluationSpanCreation:
             await runtime._execute_eval(mock_eval_item, [])
 
         # Verify Evaluation span was created
-        evaluation_spans = capturing_tracer.get_spans_by_type("evaluation")
+        evaluation_spans = capturing_tracer.get_spans_by_type("eval")
         assert len(evaluation_spans) == 1
 
         span = evaluation_spans[0]
         assert span["name"] == "Evaluation"
-        assert span["attributes"]["span_type"] == "evaluation"
+        assert span["attributes"]["span_type"] == "eval"
         assert span["attributes"]["eval_item_id"] == "item-123"
         assert span["attributes"]["eval_item_name"] == "Test Evaluation"
         assert "execution.id" in span["attributes"]
@@ -521,7 +521,7 @@ class TestSpanAttributeValues:
                 await runtime._execute_eval(eval_item, [])
 
         # Get execution IDs from spans
-        evaluation_spans = capturing_tracer.get_spans_by_type("evaluation")
+        evaluation_spans = capturing_tracer.get_spans_by_type("eval")
         execution_ids = [s["attributes"]["execution.id"] for s in evaluation_spans]
 
         # All execution IDs should be unique
@@ -779,7 +779,7 @@ class TestSpanOutputAttributes:
                 await runtime._execute_eval(eval_item, [evaluator])
 
         # Check that Evaluation span has output attribute
-        eval_spans = self.capturing_tracer.get_spans_by_type("evaluation")
+        eval_spans = self.capturing_tracer.get_spans_by_type("eval")
         assert len(eval_spans) > 0
 
         eval_span = eval_spans[0]
@@ -857,7 +857,7 @@ class TestSpanOutputAttributes:
                 await runtime._execute_eval(eval_item, [evaluator])
 
         # Check metadata attributes on Evaluation span
-        eval_spans = self.capturing_tracer.get_spans_by_type("evaluation")
+        eval_spans = self.capturing_tracer.get_spans_by_type("eval")
         assert len(eval_spans) > 0
 
         eval_span = eval_spans[0]
