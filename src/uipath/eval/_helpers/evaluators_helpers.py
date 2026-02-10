@@ -299,17 +299,16 @@ def tool_calls_args_score(
                 tool_counters[call.name] += 1
 
                 # Check arguments based on mode
-                # The linter highlights a few problems here due to using lambdas, but they're safe to ignore
-                # Breaking this down into proper functions would unnecessarily make the code more complex
                 if subset:
                     # Subset mode: safely check if all expected args exist and match
+                    # Capture 'call' as a default argument to bind the loop variable
                     args_check = (  # noqa: E731
-                        lambda k, v: k in call.args  # noqa: B023
-                        and call.args[k] == v  # noqa: B023
+                        lambda k, v, call=call: k in call.args and call.args[k] == v
                     )
                 else:
                     # Exact mode: direct access (may raise KeyError)
-                    args_check = lambda k, v: call.args[k] == v  # noqa: E731, B023
+                    # Capture 'call' as a default argument to bind the loop variable
+                    args_check = lambda k, v, call=call: call.args[k] == v  # noqa: E731
 
                 try:
                     args_match = all(
