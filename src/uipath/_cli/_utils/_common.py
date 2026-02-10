@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -78,6 +79,8 @@ def serialize_object(obj):
         return serialize_object(obj.dict())
     elif hasattr(obj, "to_dict"):
         return serialize_object(obj.to_dict())
+    elif isinstance(obj, (datetime, date, time)):
+        return obj.isoformat()
     # Handle dictionaries
     elif isinstance(obj, dict):
         return {k: serialize_object(v) for k, v in obj.items()}
