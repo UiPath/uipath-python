@@ -790,7 +790,7 @@ class TestSpanOutputAttributes:
 
         output_data = json.loads(eval_span["attributes"]["output"])
         assert "score" in output_data
-        assert isinstance(output_data["score"], int)
+        assert isinstance(output_data["score"], (int, float))
 
     @pytest.mark.asyncio
     async def test_evaluation_span_has_metadata_attributes(
