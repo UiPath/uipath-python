@@ -63,16 +63,16 @@ def extract_evaluator_scores(evaluation_run_results: Any) -> Dict[str, float]:
         evaluation_run_results: EvaluationRunResult object containing evaluation results
 
     Returns:
-        Dictionary mapping evaluator IDs to their normalized scores (0-100)
+        Dictionary mapping evaluator names to their normalized scores (0-100)
     """
     scores: Dict[str, float] = {}
     if not evaluation_run_results.evaluation_run_results:
         return scores
 
     for result in evaluation_run_results.evaluation_run_results:
-        evaluator_id = result.evaluator_id
+        evaluator_name = result.evaluator_name
         score = result.result.score
-        scores[evaluator_id] = normalize_score_to_100(score)
+        scores[evaluator_name] = normalize_score_to_100(score)
 
     return scores
 
@@ -89,7 +89,7 @@ def set_eval_set_run_output_and_metadata(
 
     Args:
         span: The OpenTelemetry span to set attributes on
-        evaluator_scores: Dictionary mapping evaluator IDs to their average scores (0-100)
+        evaluator_scores: Dictionary mapping evaluator names to their average scores (0-100)
         execution_id: The execution ID for the evaluation set run
         input_schema: The input schema from the runtime
         output_schema: The output schema from the runtime
@@ -137,7 +137,7 @@ def set_evaluation_output_and_metadata(
 
     Args:
         span: The OpenTelemetry span to set attributes on
-        evaluator_scores: Dictionary mapping evaluator IDs to their scores (0-100)
+        evaluator_scores: Dictionary mapping evaluator names to their scores (0-100)
         execution_id: The execution ID for this evaluation
         input_data: The input data for this evaluation
         has_error: Whether the evaluation had an error
@@ -212,15 +212,15 @@ async def configure_eval_set_run_span(
 
     Args:
         span: The OpenTelemetry span to configure
-        evaluator_averages: Dictionary mapping evaluator IDs to their average scores
+        evaluator_averages: Dictionary mapping evaluator names to their average scores
         execution_id: The execution ID for the evaluation set run
         schema: The runtime schema
         success: Whether the evaluation set run was successful
     """
     # Normalize all scores to 0-100 range
     evaluator_scores = {
-        evaluator_id: normalize_score_to_100(score)
-        for evaluator_id, score in evaluator_averages.items()
+        evaluator_name: normalize_score_to_100(score)
+        for evaluator_name, score in evaluator_averages.items()
     }
 
     # Get runtime schemas

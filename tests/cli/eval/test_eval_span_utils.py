@@ -106,11 +106,11 @@ class TestNormalizationFunctions:
     def test_extract_evaluator_scores(self):
         """Test extracting evaluator scores from results."""
         mock_result1 = MagicMock()
-        mock_result1.evaluator_id = "eval1"
+        mock_result1.evaluator_name = "eval1"
         mock_result1.result.score = 0.8
 
         mock_result2 = MagicMock()
-        mock_result2.evaluator_id = "eval2"
+        mock_result2.evaluator_name = "eval2"
         mock_result2.result.score = 90.0
 
         mock_evaluation_run_results = MagicMock()
