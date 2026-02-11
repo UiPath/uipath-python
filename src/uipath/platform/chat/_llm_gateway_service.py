@@ -515,11 +515,11 @@ class UiPathLlmChatService(BaseService):
             "messages": converted_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "top_p": top_p,
         }
 
         # Only include OpenAI-specific parameters for non-Anthropic models
         if not is_anthropic:
+            request_body["top_p"] = top_p
             request_body["n"] = n
             request_body["frequency_penalty"] = frequency_penalty
             request_body["presence_penalty"] = presence_penalty
