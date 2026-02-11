@@ -568,9 +568,9 @@ class TestUiPathLLMServiceMocked:
         assert request_body["messages"] == messages
         assert request_body["max_tokens"] == 100
         assert request_body["temperature"] == 0
-        assert request_body["top_p"] == 1  # This is universally supported
 
         # These OpenAI-specific parameters should NOT be in the request
+        assert "top_p" not in request_body  # Excluded for Anthropic models
         assert "n" not in request_body
         assert "frequency_penalty" not in request_body
         assert "presence_penalty" not in request_body
