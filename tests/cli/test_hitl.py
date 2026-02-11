@@ -527,12 +527,15 @@ class TestHitlReader:
         mock_download_async = AsyncMock(return_value=None)
         mock_upload_async = AsyncMock(return_value=attachment_id)
 
-        with patch(
-            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.download_batch_transform_result_async",
-            new=mock_download_async,
-        ), patch(
-            "uipath.platform.orchestrator._attachments_service.AttachmentsService.upload_async",
-            new=mock_upload_async,
+        with (
+            patch(
+                "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.download_batch_transform_result_async",
+                new=mock_download_async,
+            ),
+            patch(
+                "uipath.platform.orchestrator._attachments_service.AttachmentsService.upload_async",
+                new=mock_upload_async,
+            ),
         ):
             resume_trigger = UiPathResumeTrigger(
                 trigger_type=UiPathResumeTriggerType.BATCH_RAG,
