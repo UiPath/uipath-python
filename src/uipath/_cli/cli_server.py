@@ -248,9 +248,11 @@ def create_app() -> web.Application:
     return app
 
 
-async def start_unix_server(ack_socket_path: str) -> None:
+async def start_unix_server(
+    ack_socket_path: str, server_socket_path: str | None = None
+) -> None:
     """Start Unix domain socket HTTP server."""
-    server_socket_path = generate_socket_path()
+    server_socket_path = server_socket_path or generate_socket_path()
 
     if os.path.exists(server_socket_path):
         os.unlink(server_socket_path)
@@ -295,10 +297,16 @@ async def start_tcp_server(host: str, port: int) -> None:
 
 @click.command()
 @click.option(
-    "--socket",
+    "--client-socket",
     type=str,
     default=None,
     help=f"Unix socket path to send ready ack to (default: ${SOCKET_ENV_VAR} or {DEFAULT_SOCKET_PATH})",
+)
+@click.option(
+    "--server-socket",
+    type=str,
+    default=None,
+    help="Unix socket path the server listens on (default: auto-generated in tmp dir)",
 )
 @click.option(
     "--port",
@@ -311,10 +319,15 @@ async def start_tcp_server(host: str, port: int) -> None:
     is_flag=True,
     help="Force TCP mode even on Unix systems",
 )
-def server(socket: str | None, port: int | None, tcp: bool) -> None:
+def server(
+    client_socket: str | None,
+    server_socket: str | None,
+    port: int | None,
+    tcp: bool,
+) -> None:
     """Start an HTTP server that forwards commands to run/debug/eval.
 
-    Creates its own socket to listen on and sends an ack to --socket with:
+    Creates its own socket to listen on and sends an ack to --client-socket with:
     {"status": "ready", "socket": "/path/to/server.sock"}
 
     Endpoint: POST /jobs/{job_key}/start
@@ -331,8 +344,8 @@ def server(socket: str | None, port: int | None, tcp: bool) -> None:
             asyncio.run(start_tcp_server("127.0.0.1", port or DEFAULT_PORT))
         else:
             ack_socket_path = (
-                socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
+                client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
             )
-            asyncio.run(start_unix_server(ack_socket_path))
+            asyncio.run(start_unix_server(ack_socket_path, server_socket))
     except KeyboardInterrupt:
         console.info("Shutting down")

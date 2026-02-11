@@ -2457,6 +2457,8 @@ class TestAgentBuilderConfig:
                             "outcomeMapping": None,
                             "recipients": [],
                             "type": "actionCenter",
+                            "taskTitle": "Test IXP Escalation",
+                            "priority": "High",
                             "properties": {
                                 "appName": None,
                                 "appVersion": 1,

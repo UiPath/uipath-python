@@ -1,5 +1,7 @@
 """Document service payload models."""
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import IO, Any, List, Optional, Union
 
@@ -34,6 +36,16 @@ class ActionPriority(str, Enum):
     """High priority"""
     CRITICAL = "Critical"
     """Critical priority"""
+
+    @classmethod
+    def from_str(cls, value: str | None) -> ActionPriority:
+        """Creates an ActionPriority from a string."""
+        if not value:
+            return cls.MEDIUM
+        try:
+            return cls[value.upper()]
+        except (KeyError, AttributeError):
+            return cls.MEDIUM
 
 
 class ProjectType(str, Enum):
