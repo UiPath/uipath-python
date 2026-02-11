@@ -508,3 +508,132 @@ class TestUiPathLLMServiceMocked:
         assert kwargs["json"]["messages"] == messages
         assert kwargs["json"]["max_tokens"] == 100
         assert kwargs["json"]["temperature"] == 0.7
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_anthropic_model_excludes_openai_params(
+        self, mock_request, llm_service
+    ):
+        """Test that Anthropic models don't receive OpenAI-specific parameters."""
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "msg_123",
+            "object": "chat.completion",
+            "created": 1677858242,
+            "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello! How can I help you today?",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 10,
+                "total_tokens": 30,
+                "cache_read_input_tokens": None,
+            },
+        }
+        mock_request.return_value = mock_response
+
+        # Test messages
+        messages = [
+            {"role": "user", "content": "Hello"},
+        ]
+
+        # Call the method with an Anthropic model
+        result = await llm_service.chat_completions(
+            messages=messages,
+            model="anthropic.claude-haiku-4-5-20251001-v1:0",
+            max_tokens=100,
+            temperature=0,
+            n=2,  # OpenAI-specific
+            frequency_penalty=0.5,  # OpenAI-specific
+            presence_penalty=0.3,  # OpenAI-specific
+        )
+
+        # Assertions
+        mock_request.assert_called_once()
+        assert result.id == "msg_123"
+        assert len(result.choices) == 1
+
+        # Verify the request payload EXCLUDES OpenAI-specific params
+        args, kwargs = mock_request.call_args
+        request_body = kwargs["json"]
+        assert request_body["messages"] == messages
+        assert request_body["max_tokens"] == 100
+        assert request_body["temperature"] == 0
+        assert request_body["top_p"] == 1  # This is universally supported
+
+        # These OpenAI-specific parameters should NOT be in the request
+        assert "n" not in request_body
+        assert "frequency_penalty" not in request_body
+        assert "presence_penalty" not in request_body
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_openai_model_includes_all_params(self, mock_request, llm_service):
+        """Test that OpenAI models receive all parameters including OpenAI-specific ones."""
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1677858242,
+            "model": "gpt-4o-mini-2024-07-18",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "Hello! How can I help you today?",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 10,
+                "total_tokens": 30,
+                "cache_read_input_tokens": None,
+            },
+        }
+        mock_request.return_value = mock_response
+
+        # Test messages
+        messages = [
+            {"role": "user", "content": "Hello"},
+        ]
+
+        # Call the method with an OpenAI model
+        result = await llm_service.chat_completions(
+            messages=messages,
+            model=ChatModels.gpt_4o_mini_2024_07_18,
+            max_tokens=100,
+            temperature=0,
+            n=2,
+            frequency_penalty=0.5,
+            presence_penalty=0.3,
+        )
+
+        # Assertions
+        mock_request.assert_called_once()
+        assert result.id == "chatcmpl-123"
+
+        # Verify the request payload INCLUDES all parameters
+        args, kwargs = mock_request.call_args
+        request_body = kwargs["json"]
+        assert request_body["messages"] == messages
+        assert request_body["max_tokens"] == 100
+        assert request_body["temperature"] == 0
+        assert request_body["top_p"] == 1
+
+        # These OpenAI-specific parameters SHOULD be in the request
+        assert request_body["n"] == 2
+        assert request_body["frequency_penalty"] == 0.5
+        assert request_body["presence_penalty"] == 0.3

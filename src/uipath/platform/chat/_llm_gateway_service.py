@@ -507,15 +507,23 @@ class UiPathLlmChatService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
+        # Detect model provider to conditionally include parameters
+        is_anthropic = model.startswith("anthropic.")
+
+        # Base request body with universally supported parameters
         request_body = {
             "messages": converted_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "n": n,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
             "top_p": top_p,
         }
+
+        # Only include OpenAI-specific parameters for non-Anthropic models
+        if not is_anthropic:
+            request_body["n"] = n
+            request_body["frequency_penalty"] = frequency_penalty
+            request_body["presence_penalty"] = presence_penalty
+
         if top_k is not None:
             request_body["top_k"] = top_k
 
