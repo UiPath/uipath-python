@@ -520,15 +520,19 @@ class TestHitlReader:
         setup_test_env: None,
     ) -> None:
         """Test reading a successful batch rag trigger."""
-        import os
-
         task_id = "test-batch-rag-id"
         destination_path = "test/output.xlsx"
+        attachment_id = "test-attachment-id"
+
         mock_download_async = AsyncMock(return_value=None)
+        mock_upload_async = AsyncMock(return_value=attachment_id)
 
         with patch(
             "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.download_batch_transform_result_async",
             new=mock_download_async,
+        ), patch(
+            "uipath.platform.orchestrator._attachments_service.AttachmentsService.upload_async",
+            new=mock_upload_async,
         ):
             resume_trigger = UiPathResumeTrigger(
                 trigger_type=UiPathResumeTriggerType.BATCH_RAG,
@@ -542,15 +546,22 @@ class TestHitlReader:
             )
             reader = UiPathResumeTriggerReader()
             result = await reader.read_trigger(resume_trigger)
-            assert (
-                result
-                == f"Batch transform completed. Modified file available at {os.path.abspath(destination_path)}"
-            )
+
+            # Verify the result is a dictionary with attachment information
+            assert isinstance(result, dict)
+            assert result["ID"] == attachment_id
+            assert result["FullName"] == destination_path
+            assert result["MimeType"] == "text/csv"
+
             mock_download_async.assert_called_once_with(
                 task_id,
                 destination_path,
                 validate_status=True,
                 index_name="test-index",
+            )
+            mock_upload_async.assert_called_once_with(
+                name=destination_path,
+                source_path=destination_path,
             )
 
     @pytest.mark.anyio
