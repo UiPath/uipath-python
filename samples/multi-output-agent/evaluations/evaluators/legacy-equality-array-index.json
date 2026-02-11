@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-equality-array-index.json",
+    "id": "legacy-equality-array-index",
+    "name": "Equality - Array Index (items[0].name)",
+    "description": "Exact match on an array element's nested property: items[0].name",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "items[0].name",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}
