@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "main": "../../samples/multi-output-agent/main.py:main"
+  }
+}
