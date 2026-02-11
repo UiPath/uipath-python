@@ -8,7 +8,9 @@
     "equality-with-target-key",
     "llm-as-a-judge",
     "json-similarity",
-    "trajectory"
+    "trajectory",
+    "llm-as-a-judge-haiku-4.5",
+    "llm-as-a-judge-sonnet-4.5"
   ],
   "evaluations": [
     {
