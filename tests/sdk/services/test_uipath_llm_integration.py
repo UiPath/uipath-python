@@ -577,6 +577,97 @@ class TestUiPathLLMServiceMocked:
 
     @pytest.mark.asyncio
     @patch.object(UiPathLlmChatService, "request_async")
+    async def test_anthropic_model_converts_required_tool_choice(
+        self, mock_request, llm_service
+    ):
+        """Test that Anthropic models convert RequiredToolChoice to 'any'."""
+        from uipath.platform.chat.llm_gateway import (
+            RequiredToolChoice,
+            ToolDefinition,
+            ToolFunctionDefinition,
+            ToolParametersDefinition,
+            ToolPropertyDefinition,
+        )
+
+        # Mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "msg_123",
+            "object": "chat.completion",
+            "created": 1677858242,
+            "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "call_123",
+                                "name": "test_tool",
+                                "arguments": {"score": 95},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 20,
+                "completion_tokens": 10,
+                "total_tokens": 30,
+                "cache_read_input_tokens": None,
+            },
+        }
+        mock_request.return_value = mock_response
+
+        # Test messages
+        messages = [
+            {"role": "user", "content": "Evaluate this response"},
+        ]
+
+        # Define a test tool
+        test_tool = ToolDefinition(
+            type="function",
+            function=ToolFunctionDefinition(
+                name="submit_score",
+                description="Submit evaluation score",
+                parameters=ToolParametersDefinition(
+                    type="object",
+                    properties={
+                        "score": ToolPropertyDefinition(
+                            type="number", description="Score from 0-100"
+                        ),
+                    },
+                    required=["score"],
+                ),
+            ),
+        )
+
+        # Call the method with RequiredToolChoice (OpenAI format)
+        result = await llm_service.chat_completions(
+            messages=messages,
+            model="anthropic.claude-haiku-4-5-20251001-v1:0",
+            max_tokens=100,
+            temperature=0,
+            tools=[test_tool],
+            tool_choice=RequiredToolChoice(),  # This should be converted to "any"
+        )
+
+        # Assertions
+        mock_request.assert_called_once()
+        assert result.id == "msg_123"
+
+        # Verify the request payload converted tool_choice
+        args, kwargs = mock_request.call_args
+        request_body = kwargs["json"]
+
+        # Anthropic should receive "any" instead of {"type": "required"}
+        assert request_body["tool_choice"] == "any"
+        assert request_body["tool_choice"] != {"type": "required"}
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
     async def test_openai_model_includes_all_params(self, mock_request, llm_service):
         """Test that OpenAI models receive all parameters including OpenAI-specific ones."""
         # Mock response

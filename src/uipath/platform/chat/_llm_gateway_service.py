@@ -559,7 +559,13 @@ class UiPathLlmChatService(BaseService):
             elif isinstance(tool_choice, SpecificToolChoice):
                 request_body["tool_choice"] = {"type": "tool", "name": tool_choice.name}
             else:
-                request_body["tool_choice"] = tool_choice.model_dump()
+                # For Anthropic models, convert RequiredToolChoice to "any"
+                # OpenAI uses {"type": "required"}, but Anthropic uses "any"
+                tool_choice_dict = tool_choice.model_dump()
+                if is_anthropic and tool_choice_dict.get("type") == "required":
+                    request_body["tool_choice"] = "any"
+                else:
+                    request_body["tool_choice"] = tool_choice_dict
 
         # Use default headers but update with normalized API specific headers
         headers = {
