@@ -9,7 +9,9 @@ from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
+    Discriminator,
     Field,
+    Tag,
     field_validator,
     model_validator,
 )
@@ -767,10 +769,10 @@ ToolResourceConfig = Annotated[
 
 EscalationResourceConfig = Annotated[
     Union[
-        AgentEscalationResourceConfig,
-        AgentIxpVsEscalationResourceConfig,
+        Annotated[AgentEscalationResourceConfig, Tag(0)],
+        Annotated[AgentIxpVsEscalationResourceConfig, Tag(1)],
     ],
-    Field(discriminator="escalation_type"),
+    Discriminator(lambda v: v.get("escalation_type") or v.get("escalationType") or 0),
 ]
 
 AgentResourceConfig = Annotated[
