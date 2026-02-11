@@ -222,3 +222,4 @@ class WaitDocumentExtractionValidation(BaseModel):
     """Model representing a wait document extraction task creation."""
 
     extraction_validation: StartExtractionValidationResponse
+    task_url: str | None = None
