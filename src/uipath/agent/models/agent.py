@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import (
@@ -38,6 +38,14 @@ def _decapitalize_first_letter(s: str) -> str:
     return s[0].lower() + s[1:]
 
 
+def _match_enum_case_insensitive(enum: type[StrEnum], value: str) -> str:
+    """Find the corresponding enum value, ignoring case."""
+    for enum_value in enum:
+        if enum_value.value.lower() == value.lower():
+            return enum_value.value
+    return value
+
+
 class AgentResourceType(str, Enum):
     """Agent resource type enumeration."""
 
@@ -69,7 +77,7 @@ class AgentInternalToolType(str, Enum):
     BATCH_TRANSFORM = "batch-transform"
 
 
-class AgentEscalationRecipientType(str, Enum):
+class AgentEscalationRecipientType(StrEnum):
     """Agent escalation recipient type enumeration."""
 
     USER_ID = "UserId"
@@ -390,6 +398,10 @@ def _normalize_recipient_type(recipient: Any) -> Any:
             6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
         }
         recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
+    elif isinstance(recipient_type, str):
+        recipient["type"] = _match_enum_case_insensitive(
+            AgentEscalationRecipientType, recipient_type
+        )
 
     return recipient
 
