@@ -28,6 +28,8 @@ from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
 
+EMPTY_SCHEMA = {"type": "object", "properties": {}}
+
 
 def _decapitalize_first_letter(s: str) -> str:
     """Convert first letter to lowercase (e.g., 'SimpleText' -> 'simpleText')."""
@@ -532,7 +534,7 @@ class AgentEscalationChannel(BaseCfg):
     type: str = Field(alias="type")
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
@@ -612,7 +614,7 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
         AgentToolType.API,
         AgentToolType.PROCESS_ORCHESTRATION,
     ]
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     properties: AgentProcessToolProperties
     settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
     arguments: Dict[str, Any] = Field(default_factory=dict)
@@ -632,7 +634,7 @@ class AgentIxpExtractionResourceConfig(BaseAgentToolResourceConfig):
     """Agent ixp extraction tool resource configuration model."""
 
     type: Literal[AgentToolType.IXP] = AgentToolType.IXP
-    output_schema: dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
     properties: AgentIxpExtractionToolProperties
 
@@ -755,7 +757,7 @@ class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
     properties: AgentInternalToolProperties
     settings: Optional[AgentToolSettings] = Field(None)
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
