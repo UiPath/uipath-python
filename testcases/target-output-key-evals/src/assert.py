@@ -51,32 +51,20 @@ def main() -> None:
 
             seen_evaluators.add(evaluator_id)
 
-            # ExactMatch evaluators should score True (1/True)
-            # JsonSimilarity evaluators should score 100.0
-            if "equality" in evaluator_id or "exact" in evaluator_id.lower():
-                if score is True or score == 1:
-                    print(f"    {evaluator_name}: score={score} (exact match pass)")
-                else:
-                    print(
-                        f"    {evaluator_name}: score={score} (FAILED - expected True)"
-                    )
-                    failed_count += 1
-            elif "json-similarity" in evaluator_id:
-                if isinstance(score, (int, float)) and score >= 99.0:
-                    print(f"    {evaluator_name}: score={score:.1f} (similarity pass)")
-                else:
-                    print(
-                        f"    {evaluator_name}: score={score} (FAILED - expected >= 99)"
-                    )
-                    failed_count += 1
+            # Both ExactMatch (serialized as 100.0) and JsonSimilarity
+            # should score 100.0 when outputs match perfectly
+            is_passing = False
+            if score is True:
+                is_passing = True
+            elif isinstance(score, (int, float)) and score >= 99.0:
+                is_passing = True
+
+            if is_passing:
+                display = f"{score:.1f}" if isinstance(score, float) else str(score)
+                print(f"    {evaluator_name}: score={display} (pass)")
             else:
-                if score is not None and score > 0:
-                    print(f"    {evaluator_name}: score={score}")
-                else:
-                    print(
-                        f"    {evaluator_name}: score={score} (FAILED - expected > 0)"
-                    )
-                    failed_count += 1
+                print(f"    {evaluator_name}: score={score} (FAILED - expected >= 99)")
+                failed_count += 1
 
     # Verify all expected evaluators were seen
     missing = EXPECTED_EVALUATORS - seen_evaluators

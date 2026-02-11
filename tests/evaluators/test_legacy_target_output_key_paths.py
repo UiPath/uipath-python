@@ -123,10 +123,10 @@ class TestExactMatchWithNestedPaths:
         evaluator = LegacyExactMatchEvaluator(
             **_make_exact_match_params("summary.status")
         )
-        different_output = {
-            **NESTED_OUTPUT,
-            "summary": {**NESTED_OUTPUT["summary"], "status": "pending"},
-        }
+        original_summary = NESTED_OUTPUT["summary"]
+        assert isinstance(original_summary, dict)
+        modified_summary = {**original_summary, "status": "pending"}
+        different_output = {**NESTED_OUTPUT, "summary": modified_summary}
         result = await evaluator.evaluate(
             AgentExecution(
                 agent_input={}, agent_trace=[], agent_output=different_output

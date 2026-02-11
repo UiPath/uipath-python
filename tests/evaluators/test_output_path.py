@@ -4,6 +4,8 @@ Covers: wildcard, flat key, nested dot notation, array indexing,
 mixed paths, error handling, and edge cases.
 """
 
+from typing import Any
+
 import pytest
 
 from uipath.eval._helpers.output_path import resolve_output_path
@@ -142,7 +144,7 @@ class TestResolveOutputPath:
         assert resolve_output_path(output, "a.b") is None
 
     def test_empty_dict_value(self) -> None:
-        output = {"a": {}}
+        output: dict[str, Any] = {"a": {}}
         assert resolve_output_path(output, "a") == {}
 
     def test_bool_value(self) -> None:
