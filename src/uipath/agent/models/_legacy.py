@@ -1,20 +1,18 @@
 """Legacy backwards compatibility for flat AgentDefinition formats.
 
-Converts legacy flat fields (systemPrompt, userPrompt, tools, contexts,
-escalations) into the unified format (messages, resources,
-features) before Pydantic validation runs.
+Converts legacy flat fields into the unified format before Pydantic validation runs.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 
-def normalize_legacy_format(data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_legacy_format(data: dict[str, Any]) -> dict[str, Any]:
     """Normalize a legacy flat agent definition into the unified format.
 
     Mutates and returns *data*.  Safe to call on already-modern payloads
-    (existing ``messages`` / ``resources`` / ``features`` are never overwritten).
+    (existing messages and resources are never overwritten).
     """
     _normalize_messages(data)
     _normalize_legacy_resources(data)
@@ -22,7 +20,7 @@ def normalize_legacy_format(data: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
-def _normalize_messages(data: Dict[str, Any]) -> None:
+def _normalize_messages(data: dict[str, Any]) -> None:
     messages = data.get("messages")
     if messages:
         return
@@ -33,7 +31,7 @@ def _normalize_messages(data: Dict[str, Any]) -> None:
     if system_prompt is None and user_prompt is None:
         return
 
-    built: list[Dict[str, Any]] = []
+    built: list[dict[str, Any]] = []
 
     if system_prompt is not None:
         if isinstance(system_prompt, dict):
@@ -50,12 +48,12 @@ def _normalize_messages(data: Dict[str, Any]) -> None:
     data["messages"] = built
 
 
-def _normalize_legacy_resources(data: Dict[str, Any]) -> None:
+def _normalize_legacy_resources(data: dict[str, Any]) -> None:
     resources = data.get("resources")
     if resources:
         return
 
-    built: list[Dict[str, Any]] = []
+    built: list[dict[str, Any]] = []
 
     for item in data.get("tools") or []:
         if isinstance(item, dict):
@@ -78,10 +76,16 @@ def _normalize_legacy_resources(data: Dict[str, Any]) -> None:
 
 
 _LEGACY_KEYS = frozenset(
-    ["systemPrompt", "userPrompt", "tools", "contexts", "escalations"]
+    [
+        "systemPrompt",
+        "userPrompt",
+        "tools",
+        "contexts",
+        "escalations",
+    ]
 )
 
 
-def _cleanup_legacy_fields(data: Dict[str, Any]) -> None:
+def _cleanup_legacy_fields(data: dict[str, Any]) -> None:
     for key in _LEGACY_KEYS:
         data.pop(key, None)

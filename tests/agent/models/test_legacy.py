@@ -11,11 +11,6 @@ from uipath.agent.models.agent import (
 )
 from uipath.agent.models.evals import AgentEvalsDefinition
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _MINIMAL_SETTINGS = {
     "engine": "basic-v1",
     "model": "gpt-4o",
@@ -38,11 +33,6 @@ def _base(**overrides):
     }
     d.update(overrides)
     return d
-
-
-# ===================================================================
-# Unit tests — exercise normalize_legacy_format on plain dicts
-# ===================================================================
 
 
 class TestNormalizeLegacyFormatMessages:
@@ -69,14 +59,14 @@ class TestNormalizeLegacyFormatMessages:
         assert "userPrompt" not in data
 
     def test_system_prompt_only(self):
-        data = _base(systemPrompt="sys only")
+        data = _base(systemPrompt={"content": "sys only"})
         normalize_legacy_format(data)
         assert len(data["messages"]) == 1
         assert data["messages"][0]["role"] == "system"
         assert data["messages"][0]["content"] == "sys only"
 
     def test_user_prompt_only(self):
-        data = _base(userPrompt="usr only")
+        data = _base(userPrompt={"content": "usr only"})
         normalize_legacy_format(data)
         assert len(data["messages"]) == 1
         assert data["messages"][0]["role"] == "user"
@@ -94,8 +84,8 @@ class TestNormalizeLegacyFormatMessages:
     def test_existing_messages_not_overwritten(self):
         data = _base(
             messages=[{"role": "system", "content": "keep me"}],
-            systemPrompt="should be ignored",
-            userPrompt="should also be ignored",
+            systemPrompt={"content": "should be ignored"},
+            userPrompt={"content": "should also be ignored"},
         )
         normalize_legacy_format(data)
         assert len(data["messages"]) == 1
@@ -107,7 +97,15 @@ class TestNormalizeLegacyFormatMessages:
 
 class TestNormalizeLegacyFormatResources:
     def test_tools_become_tool_resources(self):
-        tool = {"name": "t1", "description": "d1", "type": "Process", "inputSchema": {}, "outputSchema": {}, "properties": {}, "settings": {}}
+        tool = {
+            "name": "t1",
+            "description": "d1",
+            "type": "Process",
+            "inputSchema": {},
+            "outputSchema": {},
+            "properties": {},
+            "settings": {},
+        }
         data = _base(tools=[tool])
         normalize_legacy_format(data)
         assert len(data["resources"]) == 1
@@ -116,7 +114,13 @@ class TestNormalizeLegacyFormatResources:
         assert "tools" not in data
 
     def test_contexts_become_context_resources(self):
-        ctx = {"name": "c1", "description": "d1", "folderPath": "f", "indexName": "i", "settings": {"resultCount": 3, "retrievalMode": "Semantic"}}
+        ctx = {
+            "name": "c1",
+            "description": "d1",
+            "folderPath": "f",
+            "indexName": "i",
+            "settings": {"resultCount": 3, "retrievalMode": "Semantic"},
+        }
         data = _base(contexts=[ctx])
         normalize_legacy_format(data)
         assert len(data["resources"]) == 1
@@ -159,33 +163,35 @@ class TestNormalizeLegacyFormatResources:
 class TestNormalizeLegacyFormatCleanup:
     def test_legacy_fields_removed(self):
         data = _base(
-            systemPrompt="s",
-            userPrompt="u",
+            systemPrompt={"content": "s"},
+            userPrompt={"content": "u"},
             tools=[],
             contexts=[],
             escalations=[],
         )
         normalize_legacy_format(data)
-        for key in ["systemPrompt", "userPrompt", "tools", "contexts", "escalations"]:
+        legacy_fields = [
+            "systemPrompt",
+            "userPrompt",
+            "tools",
+            "contexts",
+            "escalations",
+        ]
+        for key in legacy_fields:
             assert key not in data
 
 
 class TestNormalizeLegacyFormatIdempotent:
     def test_double_application_is_stable(self):
         data = _base(
-            systemPrompt="sys",
-            userPrompt="usr",
+            systemPrompt={"content": "sys"},
+            userPrompt={"content": "usr"},
             tools=[{"name": "t", "description": "d"}],
         )
         normalize_legacy_format(data)
         snapshot = copy.deepcopy(data)
         normalize_legacy_format(data)
         assert data == snapshot
-
-
-# ===================================================================
-# Integration tests — full AgentDefinition parsing
-# ===================================================================
 
 
 class TestLegacyAgentDefinitionIntegration:
@@ -195,8 +201,8 @@ class TestLegacyAgentDefinitionIntegration:
             "version": "1.0.0",
             "settings": _MINIMAL_SETTINGS,
             **_MINIMAL_SCHEMAS,
-            "systemPrompt": "You are an assistant.",
-            "userPrompt": "Help with {{task}}.",
+            "systemPrompt": {"content": "You are an assistant."},
+            "userPrompt": {"content": "Help with {{task}}."},
         }
         payload.update(extra)
         return payload
@@ -271,8 +277,8 @@ class TestLegacyAgentDefinitionIntegration:
             "version": "1.0.0",
             "settings": _MINIMAL_SETTINGS,
             **_MINIMAL_SCHEMAS,
-            "systemPrompt": "Eval agent prompt",
-            "userPrompt": "Eval user prompt",
+            "systemPrompt": {"content": "Eval agent prompt"},
+            "userPrompt": {"content": "Eval user prompt"},
             "tools": [
                 {
                     "name": "EvalTool",
