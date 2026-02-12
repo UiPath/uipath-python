@@ -1641,7 +1641,8 @@ class TestClaude45ModelSupport:
         # Verify result is correct
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.95
-        assert result.details == "Perfect match"
+        assert isinstance(result.details, LLMJudgeJustification)
+        assert result.details.justification == "Perfect match"
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
