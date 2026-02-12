@@ -2755,3 +2755,53 @@ class TestAgentDefinitionIsConversational:
         )
 
         assert config.is_conversational is False
+
+
+class TestDataFabricContextConfig:
+    """Tests for Data Fabric context resource configuration."""
+
+    def test_datafabric_retrieval_mode_exists(self):
+        """Test that DATA_FABRIC retrieval mode is defined."""
+        assert AgentContextRetrievalMode.DATA_FABRIC == "DataFabric"
+
+    def test_datafabric_context_config_parses(self):
+        """Test that Data Fabric context config parses correctly."""
+        config = {
+            "$resourceType": "context",
+            "name": "Customer Data",
+            "description": "Query customer and order data",
+            "isEnabled": True,
+            "folderPath": "Shared",
+            "indexName": "",
+            "settings": {
+                "retrievalMode": "DataFabric",
+                "resultCount": 100,
+                "entityIdentifiers": ["customers-key", "orders-key"],
+            },
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.name == "Customer Data"
+        assert parsed.settings.retrieval_mode == AgentContextRetrievalMode.DATA_FABRIC
+        assert parsed.settings.entity_identifiers == ["customers-key", "orders-key"]
+
+    def test_datafabric_context_config_without_entity_identifiers(self):
+        """Test that entity_identifiers is optional."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "Test",
+            "isEnabled": True,
+            "folderPath": "Shared",
+            "indexName": "",
+            "settings": {
+                "retrievalMode": "DataFabric",
+                "resultCount": 10,
+            },
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.settings.retrieval_mode == AgentContextRetrievalMode.DATA_FABRIC
+        assert parsed.settings.entity_identifiers is None

@@ -2580,6 +2580,7 @@ dev = [
     { name = "termynal" },
     { name = "tomli-w" },
     { name = "types-toml" },
+    { name = "uipath" },
     { name = "virtualenv" },
 ]
 
@@ -2631,6 +2632,7 @@ dev = [
     { name = "termynal", specifier = ">=0.13.1" },
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "types-toml", specifier = ">=0.10.8" },
+    { name = "uipath", editable = "." },
     { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 

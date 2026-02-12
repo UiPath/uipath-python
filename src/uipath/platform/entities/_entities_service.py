@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from httpx import Response
 
@@ -388,6 +388,95 @@ class EntitiesService(BaseService):
         return [
             EntityRecord.from_data(data=record, model=schema) for record in records_data
         ]
+
+    @traced(name="entity_query_records", run_type="uipath")
+    def query_entity_records(
+        self,
+        sql_query: str,
+        schema: Optional[Type[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Query entity records using a SQL query.
+
+        This method allows executing SQL queries directly against entity data
+        via the Data Fabric query endpoint.
+
+        Args:
+            sql_query (str): The full SQL query to execute. Should be a valid
+                SELECT statement targeting the entity.
+            schema (Optional[Type[Any]]): Optional schema class for validation.
+
+        Returns:
+            List[Dict[str, Any]]: A list of record dictionaries matching the query.
+
+        Examples:
+            Basic query::
+
+                records = entities_service.query_entity_records(
+                    "SELECT * FROM Customers WHERE Status = 'Active' LIMIT 100"
+                )
+
+            Query with specific fields::
+
+                records = entities_service.query_entity_records(
+                    "SELECT OrderId, CustomerName, Amount FROM Orders WHERE Amount > 1000"
+                )
+        """
+        spec = self._query_entity_records_spec(sql_query)
+        headers = {
+            "X-UiPath-Internal-TenantName": self._url.tenant_name,
+            "X-UiPath-Internal-AccountName": self._url.org_name,
+        }
+        # Use absolute URL to bypass scoping since org/tenant are embedded in the path
+        full_url = f"{self._url.base_url}{spec.endpoint}"
+        response = self.request(spec.method, full_url, json=spec.json, headers=headers)
+
+        records_data = response.json().get("results", [])
+        # Return raw dicts for query results - they may not have Id field
+        # if SELECT doesn't include it
+        return records_data
+
+    @traced(name="entity_query_records", run_type="uipath")
+    async def query_entity_records_async(
+        self,
+        sql_query: str,
+        schema: Optional[Type[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Asynchronously query entity records using a SQL query.
+
+        This method allows executing SQL queries directly against entity data
+        via the Data Fabric query endpoint.
+
+        Args:
+            sql_query (str): The full SQL query to execute. Should be a valid
+                SELECT statement targeting the entity.
+            schema (Optional[Type[Any]]): Optional schema class for validation.
+
+        Returns:
+            List[Dict[str, Any]]: A list of record dictionaries matching the query.
+
+        Examples:
+            Basic query::
+
+                records = await entities_service.query_entity_records_async(
+                    "SELECT * FROM Customers WHERE Status = 'Active' LIMIT 100"
+                )
+
+            Query with specific fields::
+
+                records = await entities_service.query_entity_records_async(
+                    "SELECT OrderId, CustomerName, Amount FROM Orders WHERE Amount > 1000"
+                )
+        """
+        spec = self._query_entity_records_spec(sql_query)
+        headers = {
+            "X-UiPath-Internal-TenantName": self._url.tenant_name,
+            "X-UiPath-Internal-AccountName": self._url.org_name,
+        }
+        full_url = f"{self._url.base_url}{spec.endpoint}"
+        response = await self.request_async(spec.method, full_url, json=spec.json, headers=headers)
+
+        records_data = response.json().get("results", [])
+        return records_data
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
@@ -870,6 +959,18 @@ class EntitiesService(BaseService):
                 f"datafabric_/api/EntityService/entity/{entity_key}/read"
             ),
             params=({"start": start, "limit": limit}),
+        )
+
+    def _query_entity_records_spec(
+        self,
+        sql_query: str,
+    ) -> RequestSpec:
+        # Endpoint includes org/tenant in the path: dataservice_/{org}/{tenant}/datafabric_/api/v1/query/execute
+        endpoint = f"/dataservice_/{self._url.org_name}/{self._url.tenant_name}/datafabric_/api/v1/query/execute"
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(endpoint),
+            json={"query": sql_query},
         )
 
     def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
