@@ -1,24 +1,45 @@
 import json
 
-from uipath.eval.evaluators import BaseEvaluationCriteria, BaseEvaluatorConfig
-from uipath.eval.evaluators.base_evaluator import BaseEvaluator
-from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from opentelemetry.sdk.trace import ReadableSpan
+
+from uipath.eval.evaluators import BaseEvaluationCriteria, BaseEvaluatorConfig
+from uipath.eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    BaseEvaluatorJustification,
+)
+from uipath.eval.models import (
+    AgentExecution,
+    EvaluationResult,
+    NumericEvaluationResult,
+)
+
 
 class CorrectOperatorEvaluationCriteria(BaseEvaluationCriteria):
     """Evaluation criteria for the contains evaluator."""
 
     operator: str
 
-class CorrectOperatorEvaluatorConfig(BaseEvaluatorConfig[CorrectOperatorEvaluationCriteria]):
+
+class CorrectOperatorEvaluatorConfig(
+    BaseEvaluatorConfig[CorrectOperatorEvaluationCriteria]
+):
     """Configuration for the contains evaluator."""
 
     name: str = "CorrectOperatorEvaluator"
     negated: bool = False
-    default_evaluation_criteria: CorrectOperatorEvaluationCriteria = CorrectOperatorEvaluationCriteria(operator="+")
+    default_evaluation_criteria: CorrectOperatorEvaluationCriteria = (
+        CorrectOperatorEvaluationCriteria(operator="+")
+    )
 
-class CorrectOperatorEvaluator(BaseEvaluator[CorrectOperatorEvaluationCriteria, CorrectOperatorEvaluatorConfig, None]):
-    """A custom evaluator that checks if the correct operator is being used by the agent """
+
+class CorrectOperatorEvaluator(
+    BaseEvaluator[
+        CorrectOperatorEvaluationCriteria,
+        CorrectOperatorEvaluatorConfig,
+        BaseEvaluatorJustification,
+    ]
+):
+    """A custom evaluator that checks if the correct operator is being used by the agent"""
 
     def extract_operator_from_spans(self, agent_trace: list[ReadableSpan]) -> str:
         for span in agent_trace:
@@ -28,15 +49,17 @@ class CorrectOperatorEvaluator(BaseEvaluator[CorrectOperatorEvaluationCriteria, 
                     assert isinstance(input_value_as_str, str)
                     input_value = json.loads(input_value_as_str)
                     return input_value.get("operator")
-        raise Exception(f"No 'track_operator' span found")
-
+        raise Exception("No 'track_operator' span found")
 
     @classmethod
     def get_evaluator_id(cls) -> str:
         return "CorrectOperatorEvaluator"
 
-
-    async def evaluate(self, agent_execution: AgentExecution, evaluation_criteria: CorrectOperatorEvaluationCriteria) -> EvaluationResult:
+    async def evaluate(
+        self,
+        agent_execution: AgentExecution,
+        evaluation_criteria: CorrectOperatorEvaluationCriteria,
+    ) -> EvaluationResult:
         actual_operator = self.extract_operator_from_spans(agent_execution.agent_trace)
         print(actual_operator)
         is_expected_operator = evaluation_criteria.operator == actual_operator
@@ -44,4 +67,10 @@ class CorrectOperatorEvaluator(BaseEvaluator[CorrectOperatorEvaluationCriteria, 
             is_expected_operator = not is_expected_operator
         return NumericEvaluationResult(
             score=float(is_expected_operator),
+            details=self.validate_justification(
+                {
+                    "expected": evaluation_criteria.operator,
+                    "actual": actual_operator,
+                }
+            ),
         )

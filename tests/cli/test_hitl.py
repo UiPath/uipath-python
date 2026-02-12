@@ -264,7 +264,7 @@ class TestHitlReader:
             with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            assert exc_info.value.args[0] == ErrorCategory.USER
+            assert exc_info.value.category == ErrorCategory.USER
             mock_retrieve_async.assert_called_once_with(
                 job_key,
                 folder_key="test-folder",
@@ -364,7 +364,7 @@ class TestHitlReader:
         with pytest.raises(UiPathFaultedTriggerError) as exc_info:
             reader = UiPathResumeTriggerReader()
             await reader.read_trigger(resume_trigger)
-        assert exc_info.value.args[0] == ErrorCategory.SYSTEM
+        assert exc_info.value.category == ErrorCategory.SYSTEM
 
     @pytest.mark.anyio
     async def test_read_deep_rag_trigger_successful(
@@ -405,7 +405,9 @@ class TestHitlReader:
             )
             reader = UiPathResumeTriggerReader()
             result = await reader.read_trigger(resume_trigger)
-            assert result == content.model_dump()
+            expected_content = content.model_dump()
+            expected_content["deepRagId"] = task_id
+            assert result == expected_content
             mock_retrieve_async.assert_called_once_with(
                 task_id,
                 index_name="test-index",
@@ -476,7 +478,7 @@ class TestHitlReader:
             with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            assert exc_info.value.args[0] == ErrorCategory.USER
+            assert exc_info.value.category == ErrorCategory.USER
 
     @pytest.mark.anyio
     async def test_read_deep_rag_trigger_empty_response(
@@ -673,7 +675,7 @@ class TestHitlReader:
             with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            assert exc_info.value.args[0] == ErrorCategory.USER
+            assert exc_info.value.category == ErrorCategory.USER
 
     @pytest.mark.anyio
     async def test_read_ixp_vs_escalation_trigger_successful(

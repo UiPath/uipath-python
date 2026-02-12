@@ -14,6 +14,7 @@ from ..models.llm_judge_types import (
 )
 from .llm_as_judge_evaluator import (
     BaseLLMJudgeEvaluatorConfig,
+    LLMJudgeJustification,
     LLMJudgeMixin,
 )
 from .output_evaluator import (
@@ -53,7 +54,7 @@ OC = TypeVar("OC", bound=LLMJudgeOutputEvaluatorConfig)
 
 # NOTE: This evaluator is only used in coded evaluators
 class BaseLLMOutputEvaluator(
-    OutputEvaluator[OutputEvaluationCriteria, OC, str],
+    OutputEvaluator[OutputEvaluationCriteria, OC, LLMJudgeJustification],
     LLMJudgeMixin[OutputEvaluationCriteria, OC],
 ):
     """Base class for LLM judge output evaluators that contains all shared functionality.

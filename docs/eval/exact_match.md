@@ -13,7 +13,7 @@ The Exact Match Evaluator performs exact string matching between the agent's out
 -   Ensure precise formatting is maintained
 -   Verify exact data values
 
-**Returns**: Binary score (1.0 if exact match, 0.0 otherwise)
+**Returns**: Binary score (1.0 if exact match, 0.0 otherwise) with `BaseEvaluatorJustification` details containing `expected` and `actual`
 
 ## Configuration
 
@@ -216,6 +216,15 @@ result = await evaluator.validate_and_evaluate_criteria(
 
 print(f"Score: {result.score}")  # Output: 1.0
 ```
+
+## Result Details
+
+The evaluator returns a `NumericEvaluationResult` with:
+
+- **score** (`float`): 1.0 for match, 0.0 for mismatch
+- **details** (`BaseEvaluatorJustification`): Structured justification containing:
+    - `expected` (`str`): The expected output value (after case normalization if applicable)
+    - `actual` (`str`): The actual output value (after case normalization if applicable)
 
 ## Best Practices
 

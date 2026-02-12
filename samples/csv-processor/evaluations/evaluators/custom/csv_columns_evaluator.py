@@ -4,6 +4,7 @@ from uipath.eval.evaluators import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
 
@@ -24,7 +25,11 @@ class CSVColumnsEvaluatorConfig(BaseEvaluatorConfig[CSVColumnsEvaluationCriteria
 
 
 class CSVColumnsEvaluator(
-    BaseEvaluator[CSVColumnsEvaluationCriteria, CSVColumnsEvaluatorConfig, None]
+    BaseEvaluator[
+        CSVColumnsEvaluationCriteria,
+        CSVColumnsEvaluatorConfig,
+        BaseEvaluatorJustification,
+    ]
 ):
     """A custom evaluator that checks if the CSV column names are correctly identified."""
 
@@ -44,7 +49,10 @@ class CSVColumnsEvaluator(
         total_columns = len(evaluation_criteria.expected_columns)
 
         if total_columns == 0:
-            return NumericEvaluationResult(score=1.0)
+            return NumericEvaluationResult(
+                score=1.0,
+                details=self.validate_justification({"expected": "[]", "actual": "[]"}),
+            )
 
         # Look for column names in agent traces (where print output is captured)
         for span in agent_execution.agent_trace:
@@ -57,9 +65,9 @@ class CSVColumnsEvaluator(
                                 columns_found.add(column)
 
             # Check span events (where stdout might be captured)
-            if hasattr(span, 'events') and span.events:
+            if hasattr(span, "events") and span.events:
                 for event in span.events:
-                    if hasattr(event, 'attributes') and event.attributes:
+                    if hasattr(event, "attributes") and event.attributes:
                         for attr_value in event.attributes.values():
                             if isinstance(attr_value, str):
                                 for column in evaluation_criteria.expected_columns:
@@ -78,4 +86,10 @@ class CSVColumnsEvaluator(
 
         return NumericEvaluationResult(
             score=score,
+            details=self.validate_justification(
+                {
+                    "expected": str(sorted(evaluation_criteria.expected_columns)),
+                    "actual": str(sorted(columns_found)),
+                }
+            ),
         )

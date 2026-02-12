@@ -18,6 +18,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import ValidationError
 from pytest_mock.plugin import MockerFixture
 
+from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.contains_evaluator import (
     ContainsEvaluationCriteria,
     ContainsEvaluator,
@@ -25,7 +26,9 @@ from uipath.eval.evaluators.contains_evaluator import (
 from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
 from uipath.eval.evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
+    JsonSimilarityJustification,
 )
+from uipath.eval.evaluators.llm_as_judge_evaluator import LLMJudgeJustification
 from uipath.eval.evaluators.llm_judge_output_evaluator import (
     LLMJudgeOutputEvaluator,
 )
@@ -37,14 +40,17 @@ from uipath.eval.evaluators.output_evaluator import OutputEvaluationCriteria
 from uipath.eval.evaluators.tool_call_args_evaluator import (
     ToolCallArgsEvaluationCriteria,
     ToolCallArgsEvaluator,
+    ToolCallArgsEvaluatorJustification,
 )
 from uipath.eval.evaluators.tool_call_count_evaluator import (
     ToolCallCountEvaluationCriteria,
     ToolCallCountEvaluator,
+    ToolCallCountEvaluatorJustification,
 )
 from uipath.eval.evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluationCriteria,
     ToolCallOrderEvaluator,
+    ToolCallOrderEvaluatorJustification,
 )
 from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluationCriteria,
@@ -1125,7 +1131,8 @@ class TestJustificationHandling:
     async def test_exact_match_evaluator_justification(
         self, sample_agent_execution: AgentExecution
     ) -> None:
-        """Test that ExactMatchEvaluator handles None justification correctly."""
+        """Test that ExactMatchEvaluator provides BaseEvaluatorJustification."""
+
         config = {
             "name": "ExactMatchTest",
             "case_sensitive": True,
@@ -1137,18 +1144,16 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, BaseEvaluatorJustification)
+        assert result.details.expected is not None
+        assert result.details.actual is not None
 
     @pytest.mark.asyncio
     async def test_json_similarity_evaluator_justification(self) -> None:
-        """Test that JsonSimilarityEvaluator handles None justification correctly."""
+        """Test that JsonSimilarityEvaluator provides JsonSimilarityJustification."""
+
         execution = AgentExecution(
             agent_input={"input": "Test"},
             agent_output={"name": "John", "age": 30, "city": "NYC"},
@@ -1166,20 +1171,18 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(execution, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, JsonSimilarityJustification)
+        assert result.details.matched_leaves == 3.0
+        assert result.details.total_leaves == 3.0
 
     @pytest.mark.asyncio
     async def test_tool_call_order_evaluator_justification(
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
-        """Test that ToolCallOrderEvaluator handles None justification correctly."""
+        """Test that ToolCallOrderEvaluator provides structured justification."""
+
         config = {
             "name": "ToolOrderTest",
             "strict": True,
@@ -1193,20 +1196,16 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, ToolCallOrderEvaluatorJustification)
 
     @pytest.mark.asyncio
     async def test_tool_call_count_evaluator_justification(
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
-        """Test that ToolCallCountEvaluator handles None justification correctly."""
+        """Test that ToolCallCountEvaluator provides structured justification."""
+
         config = {
             "name": "ToolCountTest",
             "strict": True,
@@ -1220,20 +1219,16 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, ToolCallCountEvaluatorJustification)
 
     @pytest.mark.asyncio
     async def test_tool_call_args_evaluator_justification(
         self, sample_agent_execution_with_trace: AgentExecution
     ) -> None:
-        """Test that ToolCallArgsEvaluator handles None justification correctly."""
+        """Test that ToolCallArgsEvaluator provides structured justification."""
+
         config = {
             "name": "ToolArgsTest",
             "strict": True,
@@ -1252,14 +1247,9 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution_with_trace, criteria)
 
-        # Should be NumericEvaluationResult with no justification (None)
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        # Justification should be None for non-LLM evaluators
-        assert (
-            not hasattr(result, "justification")
-            or getattr(result, "justification", None) is None
-        )
+        assert isinstance(result.details, ToolCallArgsEvaluatorJustification)
 
     @pytest.mark.asyncio
     async def test_tool_call_output_evaluator_justification(
@@ -1338,14 +1328,15 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
-        # Should have string justification in details field
+        # Should have LLMJudgeJustification in details field
+
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.8
         assert hasattr(result, "details")
         # The justification is stored in the details field for LLM evaluators
-        assert isinstance(result.details, str)
+        assert isinstance(result.details, LLMJudgeJustification)
         assert (
-            result.details
+            result.details.justification
             == "The response meets most criteria but could be more detailed"
         )
 
@@ -1396,41 +1387,50 @@ class TestJustificationHandling:
 
         result = await evaluator.evaluate(sample_agent_execution, criteria)
 
-        # Should have string justification in details field (not justification attribute)
+        # Should have LLMJudgeJustification in details field
+
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 0.85
-        assert isinstance(result.details, str)
+        assert isinstance(result.details, LLMJudgeJustification)
         assert (
-            result.details
+            result.details.justification
             == "The agent trajectory shows good decision making and follows expected behavior patterns"
         )
 
     def test_justification_validation_edge_cases(self, mocker: MockerFixture) -> None:
         """Test edge cases for justification validation."""
-        # Test None type evaluator
+
+        # Test BaseEvaluatorJustification type evaluator
         config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
         }
-        none_evaluator = ExactMatchEvaluator.model_validate(
+        output_evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
 
-        # All inputs should return None for None type evaluators
-        assert none_evaluator.validate_justification(None) is None
-        assert none_evaluator.validate_justification("") is None
-        assert none_evaluator.validate_justification("some text") is None
-        assert none_evaluator.validate_justification(123) is None
-        assert none_evaluator.validate_justification({"key": "value"}) is None
+        # Valid BaseEvaluatorJustification should pass through
+        justification = BaseEvaluatorJustification(expected="expected", actual="actual")
+        result = output_evaluator.validate_justification(justification)
+        assert isinstance(result, BaseEvaluatorJustification)
+        assert result.expected == "expected"
 
-        # Test str type evaluator - need to provide llm_service to avoid authentication
+        # Dict should be validated into BaseEvaluatorJustification
+        result = output_evaluator.validate_justification(
+            {"expected": "exp", "actual": "act"}
+        )
+        assert isinstance(result, BaseEvaluatorJustification)
+        assert result.expected == "exp"
+
+        # Test LLMJudgeJustification type evaluator - need to provide llm_service to avoid authentication
+
         llm_config_dict = {
             "name": "Test",
             "default_evaluation_criteria": {"expected_output": "test"},
             "model": "gpt-4o-2024-08-06",
         }
         mock_llm_service = mocker.MagicMock()
-        str_evaluator = LLMJudgeOutputEvaluator.model_validate(
+        llm_evaluator = LLMJudgeOutputEvaluator.model_validate(
             {
                 "evaluatorConfig": llm_config_dict,
                 "llm_service": mock_llm_service,
@@ -1438,39 +1438,28 @@ class TestJustificationHandling:
             }
         )
 
-        # Different inputs should be converted to strings
-        assert str_evaluator.validate_justification("test") == "test"
-        assert str_evaluator.validate_justification("") == ""
-        assert str_evaluator.validate_justification(123) == "123"
-        assert str_evaluator.validate_justification(True) == "True"
-        assert (
-            str_evaluator.validate_justification(None) == ""
-        )  # None becomes empty string
+        # LLMJudgeJustification validation
+        llm_justification = LLMJudgeJustification(
+            expected="expected", actual="actual", justification="test"
+        )
+        llm_result = llm_evaluator.validate_justification(llm_justification)
+        assert isinstance(llm_result, LLMJudgeJustification)
+        assert llm_result.justification == "test"
 
     def test_justification_type_extraction_all_evaluators(self) -> None:
         """Test that all evaluators have correct justification type extraction."""
+
         # Different evaluators have different justification types
-        assert ExactMatchEvaluator._extract_justification_type() is type(
-            None
-        )  # No justification
         assert (
-            JsonSimilarityEvaluator._extract_justification_type() is str
-        )  # String justification
+            ExactMatchEvaluator._extract_justification_type()
+            is BaseEvaluatorJustification
+        )
+        assert (
+            JsonSimilarityEvaluator._extract_justification_type()
+            is JsonSimilarityJustification
+        )
 
         # Tool call evaluators have their own justification types
-        from uipath.eval.evaluators.tool_call_args_evaluator import (
-            ToolCallArgsEvaluatorJustification,
-        )
-        from uipath.eval.evaluators.tool_call_count_evaluator import (
-            ToolCallCountEvaluatorJustification,
-        )
-        from uipath.eval.evaluators.tool_call_order_evaluator import (
-            ToolCallOrderEvaluatorJustification,
-        )
-        from uipath.eval.evaluators.tool_call_output_evaluator import (
-            ToolCallOutputEvaluatorJustification,
-        )
-
         assert (
             ToolCallOrderEvaluator._extract_justification_type()
             is ToolCallOrderEvaluatorJustification
@@ -1488,9 +1477,15 @@ class TestJustificationHandling:
             is ToolCallOutputEvaluatorJustification
         )
 
-        # LLM evaluators should have str justification type
-        assert LLMJudgeOutputEvaluator._extract_justification_type() is str
-        assert LLMJudgeTrajectoryEvaluator._extract_justification_type() is str
+        # LLM evaluators should have LLMJudgeJustification justification type
+        assert (
+            LLMJudgeOutputEvaluator._extract_justification_type()
+            is LLMJudgeJustification
+        )
+        assert (
+            LLMJudgeTrajectoryEvaluator._extract_justification_type()
+            is LLMJudgeJustification
+        )
 
     @pytest.mark.asyncio
     async def test_llm_judge_omits_max_tokens_when_none(
@@ -1565,4 +1560,197 @@ class TestJustificationHandling:
 
             # Verify evaluation result
             assert result.score == 0.8
-            assert result.details == "Good response"
+            assert isinstance(result.details, LLMJudgeJustification)
+            assert result.details.justification == "Good response"
+
+
+class TestClaude45ModelSupport:
+    """Tests for Claude 4.5 model-specific behavior in LLM evaluators.
+
+    Claude 4.5 models (Haiku, Sonnet) require special handling:
+    - max_tokens must be set (defaults to 8000 when not configured)
+    - Function calling (tools/tool_choice) is used for structured output
+    - OpenAI-specific parameters (n, frequency_penalty, etc.) must NOT be sent
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        ],
+    )
+    async def test_claude_45_evaluator_uses_function_calling(
+        self,
+        model_name: str,
+        sample_agent_execution: AgentExecution,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that Claude 4.5 evaluators use function calling (tools/tool_choice)."""
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 95,
+            "justification": "Perfect match",
+        }
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        captured_request: dict[str, Any] = {}
+
+        async def capture_chat_completions(**kwargs: Any) -> Any:
+            nonlocal captured_request
+            captured_request = kwargs
+            return mock_response
+
+        mock_llm.chat_completions = capture_chat_completions
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": f"Claude45Test-{model_name}",
+            "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": model_name,
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        # Verify function calling is used
+        assert "tools" in captured_request, (
+            "Claude 4.5 models must use function calling"
+        )
+        assert "tool_choice" in captured_request, (
+            "tool_choice must be set for Claude 4.5"
+        )
+        assert captured_request["model"] == model_name
+
+        # Verify result is correct
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.95
+        assert isinstance(result.details, LLMJudgeJustification)
+        assert result.details.justification == "Perfect match"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        ],
+    )
+    async def test_claude_45_sets_default_max_tokens(
+        self,
+        model_name: str,
+        sample_agent_execution: AgentExecution,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that Claude 4.5 models get default max_tokens=8000 when not configured."""
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {"score": 80, "justification": "Good"}
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        captured_request: dict[str, Any] = {}
+
+        async def capture_chat_completions(**kwargs: Any) -> Any:
+            nonlocal captured_request
+            captured_request = kwargs
+            return mock_response
+
+        mock_llm.chat_completions = capture_chat_completions
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+
+        # No max_tokens in config - should default to 8000 for Claude 4.5
+        config = {
+            "name": f"Claude45MaxTokensTest-{model_name}",
+            "prompt": "Rate: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": model_name,
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected")  # pyright: ignore[reportCallIssue]
+        await evaluator.evaluate(sample_agent_execution, criteria)
+
+        assert "max_tokens" in captured_request, (
+            "Claude 4.5 models require max_tokens to be set"
+        )
+        assert captured_request["max_tokens"] == 8000, (
+            "Default max_tokens for Claude 4.5 should be 8000"
+        )
+
+    @pytest.mark.asyncio
+    async def test_claude_45_respects_configured_max_tokens(
+        self,
+        sample_agent_execution: AgentExecution,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that explicitly configured max_tokens overrides the Claude 4.5 default."""
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {"score": 80, "justification": "Good"}
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        captured_request: dict[str, Any] = {}
+
+        async def capture_chat_completions(**kwargs: Any) -> Any:
+            nonlocal captured_request
+            captured_request = kwargs
+            return mock_response
+
+        mock_llm.chat_completions = capture_chat_completions
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": "Claude45CustomMaxTokens",
+            "prompt": "Rate: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "maxTokens": 4096,
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected")  # pyright: ignore[reportCallIssue]
+        await evaluator.evaluate(sample_agent_execution, criteria)
+
+        assert captured_request["max_tokens"] == 4096, (
+            "Configured max_tokens should override the Claude 4.5 default"
+        )
