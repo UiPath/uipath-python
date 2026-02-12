@@ -13,6 +13,7 @@ from typing import Any
 import click
 from aiohttp import ClientSession, UnixConnector, web
 
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .cli_debug import debug
 from .cli_eval import eval
@@ -319,6 +320,7 @@ async def start_tcp_server(host: str, port: int) -> None:
     is_flag=True,
     help="Force TCP mode even on Unix systems",
 )
+@track_command("server")
 def server(
     client_socket: str | None,
     server_socket: str | None,
