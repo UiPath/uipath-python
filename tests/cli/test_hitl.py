@@ -164,6 +164,7 @@ class TestHitlReader:
             key=job_key,
             state=UiPathRuntimeStatus.SUCCESSFUL.value,
             output_arguments=output_args,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -202,6 +203,7 @@ class TestHitlReader:
             key=job_key,
             state=job_state,
             output_arguments="{}",
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -239,7 +241,11 @@ class TestHitlReader:
         job_id = 1234
 
         mock_job = Job(
-            id=job_id, key=job_key, state="Faulted", job_error=job_error_info
+            id=job_id,
+            key=job_key,
+            state="Faulted",
+            job_error=job_error_info,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -281,6 +287,7 @@ class TestHitlReader:
             key=job_key,
             state=UiPathRuntimeStatus.SUCCESSFUL.value,
             output_arguments=output_args,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -875,7 +882,9 @@ class TestHitlProcessor:
             input_arguments={"key": "value"},
         )
 
-        mock_job = Job(id=1234, key=job_key)
+        mock_job = Job(
+            id=1234, key=job_key, folder_key="d0e09040-5997-44e1-93b7-4087689521b7"
+        )
         mock_invoke = AsyncMock(return_value=mock_job)
 
         with patch(
@@ -904,7 +913,9 @@ class TestHitlProcessor:
     ) -> None:
         """Test creating a resume trigger for WaitJob."""
         job_key = "test-job-key"
-        job = Job(id=1234, key=job_key)
+        job = Job(
+            id=1234, key=job_key, folder_key="d0e09040-5997-44e1-93b7-4087689521b7"
+        )
         wait_job = WaitJob(job=job, process_folder_path="/test/path")
 
         processor = UiPathResumeTriggerCreator()

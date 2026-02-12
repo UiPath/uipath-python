@@ -78,4 +78,5 @@ class Job(BaseModel):
     has_errors: Optional[bool] = Field(default=None, alias="HasErrors")
     has_warnings: Optional[bool] = Field(default=None, alias="HasWarnings")
     job_error: Optional[JobErrorInfo] = Field(default=None, alias="JobError")
+    folder_key: str = Field(alias="FolderKey")
     id: int = Field(alias="Id")

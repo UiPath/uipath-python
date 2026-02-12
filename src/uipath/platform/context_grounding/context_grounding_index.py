@@ -72,5 +72,5 @@ class ContextGroundingIndex(BaseModel):
         """Check if the last ingestion is in progress."""
         return (
             self.last_ingestion_status == "Queued"
-            or self.last_ingestion_status == "In Progress"
+            or self.last_ingestion_status == "InProgress"
         )

@@ -110,7 +110,7 @@ async def send_ack(ack_socket_path: str, server_socket_path: str) -> None:
     try:
         async with ClientSession(connector=conn) as session:
             async with session.post(
-                "http://localhost/ack",  # placeholder URL for Unix socket
+                "http://localhost/api/python/ack",  # placeholder URL for Unix socket
                 json=ack_message,
             ) as response:
                 if response.status == 200:
@@ -211,9 +211,38 @@ async def handle_start(request: web.Request) -> web.Response:
         os.environ.update(original_env)
 
 
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+@web.middleware
+async def host_validation_middleware(
+    request: web.Request, handler: Any
+) -> web.StreamResponse:
+    """Validate the Host header to prevent DNS rebinding attacks."""
+    host = request.host
+    if host:
+        host = host.lower()
+        # Strip port from bracketed IPv6 (e.g. "[::1]:8765" -> "[::1]")
+        if host.startswith("["):
+            bracket_end = host.find("]")
+            if bracket_end != -1:
+                host = host[: bracket_end + 1]
+        # Strip port from IPv4/hostname (e.g. "localhost:8765" -> "localhost")
+        elif ":" in host:
+            host = host.rsplit(":", 1)[0]
+        # Strip trailing dot (e.g. "localhost." -> "localhost")
+        host = host.rstrip(".")
+    if host not in ALLOWED_HOSTS:
+        return web.json_response(
+            {"error": "Forbidden: invalid Host header"},
+            status=403,
+        )
+    return await handler(request)
+
+
 def create_app() -> web.Application:
     """Create the aiohttp application."""
-    app = web.Application()
+    app = web.Application(middlewares=[host_validation_middleware])
     app.router.add_get("/health", handle_health)
     app.router.add_post("/jobs/{job_key}/start", handle_start)
     return app

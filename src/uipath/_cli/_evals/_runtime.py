@@ -387,10 +387,10 @@ class UiPathEvalRuntime:
                             any_failed = True
 
                         for result_dto in eval_run_result.evaluation_run_results:
-                            evaluator_averages[result_dto.evaluator_id] += (
+                            evaluator_averages[result_dto.evaluator_name] += (
                                 result_dto.result.score
                             )
-                            evaluator_count[result_dto.evaluator_id] += 1
+                            evaluator_count[result_dto.evaluator_name] += 1
 
                     for eval_id in evaluator_averages:
                         evaluator_averages[eval_id] = (

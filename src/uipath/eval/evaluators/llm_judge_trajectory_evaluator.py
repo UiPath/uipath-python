@@ -2,7 +2,7 @@
 
 from typing import Any, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .._helpers.evaluators_helpers import trace_to_str
 from ..models import (
@@ -57,7 +57,9 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
     including output extraction, prompt formatting, and evaluation criteria handling.
     """
 
-    output_schema: type[BaseModel] = LLMJudgeTrajectoryOutputSchema
+    output_schema: type[BaseModel] = Field(
+        default=LLMJudgeTrajectoryOutputSchema, exclude=True
+    )
     actual_output_placeholder: str = "{{AgentRunHistory}}"
     expected_output_placeholder: str = "{{ExpectedAgentBehavior}}"
     user_input_placeholder: str = "{{UserOrSyntheticInput}}"

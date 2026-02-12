@@ -6,8 +6,12 @@ import os
 import shutil
 import uuid
 from pathlib import Path
+from typing import Any
 
 import click
+from graphtty import RenderOptions, render
+from graphtty.themes import TOKYO_NIGHT
+from graphtty.types import AsciiGraph
 from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
     Chart,
     ChartDir,
@@ -317,6 +321,34 @@ def init(no_agents_md_override: bool) -> None:
                 console.success(
                     f"Created '{entry_points_path}' file with {len(entry_point_schemas)} entrypoint(s)."
                 )
+
+                try:
+                    for entrypoint_schema in entry_point_schemas:
+                        if (
+                            not entrypoint_schema.graph
+                            or not entrypoint_schema.graph.nodes
+                        ):
+                            continue
+                        graph_data = entrypoint_schema.graph.model_dump()
+                        node: dict[str, Any]
+                        for node in graph_data.get("nodes", []):
+                            meta = node.get("metadata") or {}
+                            if not node.get("description"):
+                                if node.get("type") == "model" and "model_name" in meta:
+                                    node["description"] = meta["model_name"]
+                                elif (
+                                    node.get("type") == "tool" and "tool_names" in meta
+                                ):
+                                    names = meta["tool_names"]
+                                    if isinstance(names, list):
+                                        node["description"] = ", ".join(names)
+                                    elif isinstance(names, str):
+                                        node["description"] = names
+                        ascii_graph = AsciiGraph(**graph_data)
+                        options = RenderOptions(theme=TOKYO_NIGHT)
+                        click.echo(render(ascii_graph, options))
+                except Exception:
+                    pass
 
                 # Write mermaid diagrams for each entrypoint
                 mermaid_paths = write_mermaid_files(entry_point_schemas)

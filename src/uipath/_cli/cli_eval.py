@@ -344,22 +344,12 @@ def eval(
                         factory_settings.trace_settings if factory_settings else None
                     )
 
-                    if ctx.job_id:
-                        # Orchestrator live tracking
+                    if ctx.job_id or should_register_progress_reporter:
+                        # Live tracking for Orchestrator or Studio Web
+                        # Uses UIPATH_TRACE_ID from environment for trace correlation
                         trace_manager.add_span_processor(
                             LiveTrackingSpanProcessor(
                                 LlmOpsHttpExporter(),
-                                settings=trace_settings,
-                            )
-                        )
-
-                    if should_register_progress_reporter:
-                        # Studio Web live tracking
-                        trace_manager.add_span_processor(
-                            LiveTrackingSpanProcessor(
-                                LlmOpsHttpExporter(
-                                    trace_id=eval_context.eval_set_run_id
-                                ),
                                 settings=trace_settings,
                             )
                         )

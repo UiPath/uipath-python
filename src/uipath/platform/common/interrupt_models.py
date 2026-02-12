@@ -75,6 +75,8 @@ class WaitTask(BaseModel):
     action: Task
     app_folder_path: str | None = None
     app_folder_key: str | None = None
+    app_name: str | None = None
+    recipient: TaskRecipient | None = None
 
 
 class WaitEscalation(WaitTask):

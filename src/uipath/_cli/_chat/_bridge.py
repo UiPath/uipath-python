@@ -12,11 +12,13 @@ from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
+    UiPathConversationInterruptEndEvent,
     UiPathConversationInterruptEvent,
-    UiPathConversationInterruptStartEvent,
     UiPathConversationMessageEvent,
+    UiPathConversationToolCallConfirmationInterruptStartEvent,
+    UiPathConversationToolCallConfirmationValue,
 )
-from uipath.runtime import UiPathRuntimeResult
+from uipath.runtime import UiPathResumeTrigger
 from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
@@ -55,6 +57,11 @@ class SocketIOChatBridge:
         self.headers = headers
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
+
+        # Interrupt state for HITL round-trip
+        self._interrupt_end_event = asyncio.Event()
+        self._interrupt_end_value: UiPathConversationInterruptEndEvent | None = None
+        self._current_message_id: str | None = None
 
         # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
         # interrupting the debugging session. Events will be logged instead of being sent.
@@ -239,10 +246,23 @@ class SocketIOChatBridge:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
 
-    async def emit_interrupt_event(self, runtime_result: UiPathRuntimeResult):
+    async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
         if self._client and self._connected_event.is_set():
             try:
+                # Clear previous interrupt state and generate new interrupt_id
                 self._interrupt_id = str(uuid.uuid4())
+
+                # Ensure we have a valid message_id
+                if self._current_message_id is None:
+                    raise RuntimeError(
+                        "Cannot emit interrupt event: no current message_id set"
+                    )
+
+                # Ensure api_resume is not None
+                if resume_trigger.api_resume is None:
+                    raise RuntimeError(
+                        "Cannot emit interrupt event: api_resume is None"
+                    )
 
                 interrupt_event = UiPathConversationEvent(
                     conversation_id=self.conversation_id,
@@ -252,14 +272,17 @@ class SocketIOChatBridge:
                             message_id=self._current_message_id,
                             interrupt=UiPathConversationInterruptEvent(
                                 interrupt_id=self._interrupt_id,
-                                start=UiPathConversationInterruptStartEvent(
-                                    type="coded-agent-interrupt",
-                                    value=runtime_result.output,
+                                start=UiPathConversationToolCallConfirmationInterruptStartEvent(
+                                    type="uipath_cas_tool_call_confirmation",
+                                    value=UiPathConversationToolCallConfirmationValue(
+                                        **resume_trigger.api_resume.request
+                                    ),
                                 ),
                             ),
                         ),
                     ),
                 )
+
                 event_data = interrupt_event.model_dump(
                     mode="json", exclude_none=True, by_alias=True
                 )
@@ -278,6 +301,13 @@ class SocketIOChatBridge:
         Returns:
             Resume data from the interrupt end event
         """
+        self._interrupt_end_event.clear()
+        self._interrupt_end_value = None
+
+        await self._interrupt_end_event.wait()
+
+        if self._interrupt_end_value:
+            return self._interrupt_end_value.model_dump(mode="python", by_alias=False)
         return {}
 
     @property
@@ -306,10 +336,25 @@ class SocketIOChatBridge:
     async def _handle_conversation_event(
         self, event: dict[str, Any], _sid: str
     ) -> None:
-        """Handle received ConversationEvent events."""
-        error_event = event.get("conversationError")
-        if error_event:
-            logger.error(f"Conversation error: {json.dumps(error_event)}")
+
+        try:
+            parsed_event = UiPathConversationEvent(**event)
+            if (
+                parsed_event.exchange
+                and parsed_event.exchange.message
+                and parsed_event.exchange.message.interrupt
+                and parsed_event.exchange.message.interrupt.end
+            ):
+                interrupt = parsed_event.exchange.message.interrupt
+
+                if interrupt.interrupt_id == self._interrupt_id:
+                    logger.info(
+                        f"Received endInterrupt for interrupt_id: {self._interrupt_id}"
+                    )
+                    self._interrupt_end_value = interrupt.end
+                    self._interrupt_end_event.set()
+        except Exception as e:
+            logger.warning(f"Error parsing conversation event: {e}")
 
     async def _cleanup_client(self) -> None:
         """Clean up client resources."""
