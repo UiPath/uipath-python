@@ -8,6 +8,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.attachments import Attachment
 from uipath.platform.documents import (
     ActionPriority,
     ClassificationResult,
@@ -3163,6 +3164,78 @@ class TestDocumentsService:
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
+    async def test_start_ixp_extraction_using_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        attachment = Attachment(
+            ID=uuid4(),  # type: ignore
+            FullName="alex.pdf",
+            MimeType="application/pdf",
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            json={
+                "projects": [
+                    {"id": project_id, "name": "TestProjectIXP"},
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/startFromJobAttachment?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={
+                "attachmentId": str(attachment.id),
+                "fileName": attachment.full_name,
+                "mimeType": attachment.mime_type,
+                "folderId": str(UUID(int=0)),
+            },
+            json={"documentId": document_id},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/start?api-version=1.1",
+            status_code=200,
+            match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
+            match_json={"documentId": document_id},
+            json={"operationId": operation_id},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.start_ixp_extraction_async(
+                project_name="TestProjectIXP",
+                tag="staging",
+                attachment=attachment,
+            )
+        else:
+            response = service.start_ixp_extraction(
+                project_name="TestProjectIXP",
+                tag="staging",
+                attachment=attachment,
+            )
+
+        # ASSERT
+        assert response.operation_id == operation_id
+        assert response.document_id == document_id
+        assert response.project_id == project_id
+        assert response.tag == "staging"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
     async def test_start_ixp_extraction_invalid_parameters(
         self,
         service: DocumentsService,
@@ -3171,7 +3244,7 @@ class TestDocumentsService:
         # ACT & ASSERT
         with pytest.raises(
             ValueError,
-            match="Exactly one of `file, file_path` must be provided",
+            match="Exactly one of `file, file_path, attachment` must be provided",
         ):
             if mode == "async":
                 await service.start_ixp_extraction_async(
