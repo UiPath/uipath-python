@@ -16,7 +16,7 @@ There are two variants of LLM Judge Output Evaluators:
 -   Judge output quality based on intent and meaning
 -   Validate structured outputs with flexible criteria
 
-**Returns**: Continuous score from 0.0 to 1.0 with justification
+**Returns**: Continuous score from 0.0 to 1.0 with `LLMJudgeJustification` containing `expected`, `actual`, and `justification` fields
 
 ## LLM Service Integration
 
@@ -136,7 +136,7 @@ result = await evaluator.validate_and_evaluate_criteria(
 )
 
 print(f"Score: {result.score}")  # e.g., 0.95
-print(f"Justification: {result.details}")  # LLM's reasoning
+print(f"Justification: {result.details.justification}")  # LLM's reasoning
 ```
 
 #### Custom Evaluation Prompt
@@ -306,7 +306,11 @@ The LLM returns a structured response:
 # Result structure
 {
     "score": 0.85,  # 0.0 to 1.0 (normalized from 0-100)
-    "details": "The outputs convey the same meaning..."  # LLM justification
+    "details": {
+        "expected": "The expected output...",
+        "actual": "The actual output...",
+        "justification": "The outputs convey the same meaning..."  # LLM justification
+    }
 }
 ```
 

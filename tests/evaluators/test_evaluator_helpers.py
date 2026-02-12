@@ -32,8 +32,8 @@ class TestToolCallsOrderScore:
 
         assert score == 1.0
         assert isinstance(justification, dict)
-        assert "actual_tool_calls_order" in justification
-        assert "expected_tool_calls_order" in justification
+        assert "actual" in justification
+        assert "expected" in justification
         assert "lcs" in justification
         assert justification["lcs"] == []
 
@@ -43,8 +43,8 @@ class TestToolCallsOrderScore:
 
         assert score == 0.0
         assert isinstance(justification, dict)
-        assert justification["actual_tool_calls_order"] == []
-        assert justification["expected_tool_calls_order"] == ["tool1"]
+        assert justification["actual"] == str([])
+        assert justification["expected"] == str(["tool1"])
         assert justification["lcs"] == []
 
     def test_empty_expected_list(self) -> None:
@@ -53,8 +53,8 @@ class TestToolCallsOrderScore:
 
         assert score == 0.0
         assert isinstance(justification, dict)
-        assert justification["actual_tool_calls_order"] == ["tool1"]
-        assert justification["expected_tool_calls_order"] == []
+        assert justification["actual"] == str(["tool1"])
+        assert justification["expected"] == str([])
         assert justification["lcs"] == []
 
     def test_perfect_match_non_strict(self) -> None:
@@ -65,8 +65,8 @@ class TestToolCallsOrderScore:
 
         assert score == 1.0
         assert justification["lcs"] == expected
-        assert justification["actual_tool_calls_order"] == actual
-        assert justification["expected_tool_calls_order"] == expected
+        assert justification["actual"] == str(actual)
+        assert justification["expected"] == str(expected)
 
     def test_perfect_match_strict(self) -> None:
         """Test perfect match in strict mode."""

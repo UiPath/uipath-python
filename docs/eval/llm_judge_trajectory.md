@@ -17,7 +17,7 @@ We provide two variants of LLM Judge Trajectory Evaluators:
 -   Assess agent behavior in complex scenarios
 -   Validate tool simulation accuracy (where tool responses are mocked)
 
-**Returns**: Continuous score from 0.0 to 1.0 with justification
+**Returns**: Continuous score from 0.0 to 1.0 with `LLMJudgeJustification` containing `expected`, `actual`, and `justification` fields
 
 ## LLM Service Integration
 

@@ -3,7 +3,12 @@
 from typing import Any
 
 # Current coded evaluators
-from .base_evaluator import BaseEvaluationCriteria, BaseEvaluator, BaseEvaluatorConfig
+from .base_evaluator import (
+    BaseEvaluationCriteria,
+    BaseEvaluator,
+    BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
+)
 from .base_legacy_evaluator import BaseLegacyEvaluator
 
 # Legacy evaluators
@@ -16,6 +21,7 @@ from .legacy_faithfulness_evaluator import LegacyFaithfulnessEvaluator
 from .legacy_json_similarity_evaluator import LegacyJsonSimilarityEvaluator
 from .legacy_llm_as_judge_evaluator import LegacyLlmAsAJudgeEvaluator
 from .legacy_trajectory_evaluator import LegacyTrajectoryEvaluator
+from .llm_as_judge_evaluator import LLMJudgeJustification
 from .llm_judge_output_evaluator import (
     BaseLLMOutputEvaluator,
     LLMJudgeOutputEvaluator,
@@ -70,4 +76,6 @@ __all__ = [
     "ToolCallOutputEvaluator",
     "BaseEvaluationCriteria",
     "BaseEvaluatorConfig",
+    "BaseEvaluatorJustification",
+    "LLMJudgeJustification",
 ]
