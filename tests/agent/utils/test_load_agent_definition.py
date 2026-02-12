@@ -324,3 +324,69 @@ class TestLoadAgentDefinition:
         assert result.id == "test-agent-5"
         assert result.evaluators is None or len(result.evaluators or []) == 0
         assert result.evaluation_sets is None or len(result.evaluation_sets or []) == 0
+
+
+class TestLoadAgentDefinitionErrors:
+    """Error path tests for load_agent_definition."""
+
+    @pytest.fixture
+    def temp_project_dir(self):
+        """Create a temporary project directory for testing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir)
+
+    def test_missing_agent_json_raises(self, temp_project_dir):
+        """Loading from a directory without agent.json raises FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            load_agent_definition(temp_project_dir)
+
+    def test_malformed_json_in_agent_file_raises(self, temp_project_dir):
+        """Invalid JSON in agent.json raises json.JSONDecodeError."""
+        agent_file = temp_project_dir / "agent.json"
+        agent_file.write_text("{ not valid json !!!")
+
+        with pytest.raises(json.JSONDecodeError):
+            load_agent_definition(temp_project_dir)
+
+    @pytest.mark.parametrize(
+        "subdir,filename",
+        [
+            ("resources", "bad_resource.json"),
+            ("evaluations/evaluators", "broken.json"),
+        ],
+        ids=["malformed-resource", "malformed-evaluator"],
+    )
+    def test_malformed_sidecar_file_is_skipped(
+        self, temp_project_dir, subdir, filename
+    ):
+        """Malformed JSON in resources/ or evaluators/ is skipped, not fatal."""
+        agent_data = {
+            "id": "test-malformed",
+            "name": "Agent with bad sidecar file",
+            "version": "1.0.0",
+            "messages": [{"role": "system", "content": "hi"}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 2048,
+                "temperature": 0.7,
+                "engine": "basic-v1",
+            },
+        }
+
+        with open(temp_project_dir / "agent.json", "w") as f:
+            json.dump(agent_data, f)
+
+        target_dir = temp_project_dir / subdir
+        target_dir.mkdir(parents=True)
+        (target_dir / filename).write_text("NOT JSON AT ALL")
+
+        # Also create eval-sets if testing evaluators (required sibling dir)
+        if "evaluations" in subdir:
+            (temp_project_dir / "evaluations" / "eval-sets").mkdir(
+                parents=True, exist_ok=True
+            )
+
+        result = load_agent_definition(temp_project_dir)
+        assert result.id == "test-malformed"

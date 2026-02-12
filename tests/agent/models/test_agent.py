@@ -1,5 +1,5 @@
 import pytest
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
     AgentBuiltInValidatorGuardrail,
@@ -2757,3 +2757,77 @@ class TestAgentDefinitionIsConversational:
         )
 
         assert config.is_conversational is False
+
+
+class TestAgentDefinitionValidation:
+    """Negative/validation tests for AgentDefinition."""
+
+    _VALID_AGENT = {
+        "name": "test-agent",
+        "settings": {
+            "model": "gpt-4o",
+            "maxTokens": 4096,
+            "temperature": 0,
+            "engine": "basic-v1",
+        },
+        "messages": [{"role": "system", "content": "hi"}],
+        "inputSchema": {"type": "object", "properties": {}},
+        "outputSchema": {"type": "object", "properties": {}},
+    }
+
+    @pytest.mark.parametrize(
+        "omit_key",
+        ["settings", "messages", "inputSchema", "outputSchema"],
+    )
+    def test_missing_required_field_raises(self, omit_key):
+        """AgentDefinition rejects payloads missing any required field."""
+        data = {k: v for k, v in self._VALID_AGENT.items() if k != omit_key}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentDefinition).validate_python(data)
+
+    @pytest.mark.parametrize(
+        "settings_override",
+        [
+            {"maxTokens": 4096, "temperature": 0, "engine": "basic-v1"},
+            {"model": "gpt-4o", "maxTokens": 4096, "temperature": 0},
+        ],
+        ids=["missing-model", "missing-engine"],
+    )
+    def test_settings_missing_required_subfield_raises(self, settings_override):
+        """Settings must include both model and engine."""
+        data = {**self._VALID_AGENT, "settings": settings_override}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentDefinition).validate_python(data)
+
+    def test_unknown_types_normalized_gracefully(self):
+        """Unknown resource, tool, and guardrail types are wrapped, not rejected."""
+        data = {
+            **self._VALID_AGENT,
+            "resources": [
+                {
+                    "$resourceType": "futuristic",
+                    "name": "future-resource",
+                    "description": "unknown resource type",
+                },
+                {
+                    "$resourceType": "tool",
+                    "type": "FutureToolType",
+                    "name": "future-tool",
+                    "description": "unknown tool type",
+                    "inputSchema": {"type": "object", "properties": {}},
+                },
+            ],
+            "guardrails": [
+                {
+                    "$guardrailType": "futureGuardrail",
+                    "someField": "someValue",
+                }
+            ],
+        }
+        config = TypeAdapter(AgentDefinition).validate_python(data)
+
+        assert len(config.resources) == 2
+        assert isinstance(config.resources[0], AgentUnknownResourceConfig)
+        assert isinstance(config.resources[1], AgentUnknownToolResourceConfig)
+        assert len(config.guardrails) == 1
+        assert isinstance(config.guardrails[0], AgentUnknownGuardrail)
