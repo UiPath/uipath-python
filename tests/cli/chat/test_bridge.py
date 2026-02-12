@@ -1,12 +1,14 @@
 """Tests for SocketIOChatBridge and get_chat_bridge."""
 
 import logging
+from datetime import datetime
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
+from uipath._cli._debug._bridge import SignalRDebugBridge
 
 
 class MockRuntimeContext:
@@ -304,3 +306,48 @@ class TestSocketIOChatBridgeConnectionStates:
             await bridge.emit_exchange_end_event()
 
         assert "not connected" in str(exc_info.value).lower()
+
+
+class TestSignalRDebugBridgeSendMethod:
+    """Tests for SignalRDebugBridge."""
+
+    @pytest.mark.anyio
+    async def test_send_with_datetime_does_not_raise(self) -> None:
+        """_send method handles datetime objects without raising exceptions."""
+        bridge = SignalRDebugBridge(
+            hub_url="wss://test.example.com/signalr",
+            access_token="test-token",
+            headers={},
+        )
+
+        mock_client = MagicMock()
+        mock_client.send = AsyncMock()
+        bridge._client = mock_client
+
+        test_data = {
+            "timestamp": datetime(2024, 1, 15, 10, 30, 45),
+            "message": "test message",
+            "nested": {
+                "created_at": datetime(2024, 1, 15, 11, 0, 0),
+            },
+        }
+
+        await bridge._send("TestEvent", test_data)
+
+        assert mock_client.send.called
+        call_args = mock_client.send.call_args
+
+        assert call_args.kwargs["method"] == "SendCommand"
+
+        arguments = call_args.kwargs["arguments"]
+        assert len(arguments) == 2
+        assert arguments[0] == "TestEvent"
+
+        import json
+
+        parsed_data = json.loads(arguments[1])
+        assert "timestamp" in parsed_data
+        assert "message" in parsed_data
+        assert parsed_data["message"] == "test message"
+        assert isinstance(parsed_data["timestamp"], str)
+        assert isinstance(parsed_data["nested"]["created_at"], str)

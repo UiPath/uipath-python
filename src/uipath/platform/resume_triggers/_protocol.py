@@ -240,6 +240,7 @@ class UiPathResumeTriggerReader:
                         }
                     else:
                         trigger_response = trigger_response.model_dump()
+                        trigger_response["deepRagId"] = trigger.item_key
 
                     return trigger_response
 
@@ -701,6 +702,10 @@ class UiPathResumeTriggerCreator:
         resume_trigger.folder_path = resume_trigger.folder_key = None
         if isinstance(value, WaitDocumentExtraction):
             resume_trigger.item_key = value.extraction.operation_id
+            # add project_id and tag to the payload dict (needed when reading the trigger)
+            assert isinstance(resume_trigger.payload, dict)
+            resume_trigger.payload.setdefault("project_id", value.extraction.project_id)
+            resume_trigger.payload.setdefault("tag", value.extraction.tag)
         elif isinstance(value, DocumentExtraction):
             uipath = UiPath()
             document_extraction = await uipath.documents.start_ixp_extraction_async(
@@ -742,6 +747,13 @@ class UiPathResumeTriggerCreator:
 
         if isinstance(value, WaitDocumentExtractionValidation):
             resume_trigger.item_key = value.extraction_validation.operation_id
+
+            # add project_id and tag to the payload dict (needed when reading the trigger)
+            assert isinstance(resume_trigger.payload, dict)
+            resume_trigger.payload.setdefault(
+                "project_id", value.extraction_validation.project_id
+            )
+            resume_trigger.payload.setdefault("tag", value.extraction_validation.tag)
         elif isinstance(value, DocumentExtractionValidation):
             uipath = UiPath()
             extraction_validation = (

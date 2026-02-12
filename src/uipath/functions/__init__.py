@@ -2,6 +2,7 @@
 
 from uipath.runtime import UiPathRuntimeFactoryRegistry
 
+from .debug import UiPathDebugFunctionsRuntime
 from .factory import UiPathFunctionsRuntimeFactory
 from .runtime import UiPathFunctionsRuntime
 
@@ -19,6 +20,7 @@ def register_default_runtime_factory():
 
 
 __all__ = [
+    "UiPathDebugFunctionsRuntime",
     "UiPathFunctionsRuntimeFactory",
     "UiPathFunctionsRuntime",
     "register_default_runtime_factory",

@@ -75,6 +75,8 @@ class WaitTask(BaseModel):
     action: Task
     app_folder_path: str | None = None
     app_folder_key: str | None = None
+    app_name: str | None = None
+    recipient: TaskRecipient | None = None
 
 
 class WaitEscalation(WaitTask):
@@ -220,3 +222,4 @@ class WaitDocumentExtractionValidation(BaseModel):
     """Model representing a wait document extraction task creation."""
 
     extraction_validation: StartExtractionValidationResponse
+    task_url: str | None = None

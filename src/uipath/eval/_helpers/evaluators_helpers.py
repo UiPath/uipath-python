@@ -145,8 +145,8 @@ def tool_calls_order_score(
         tuple[float, dict]: Ratio of the LCS length to the number of expected, and the justification dict
     """
     justification = {
-        "actual_tool_calls_order": list(actual_tool_calls_names),
-        "expected_tool_calls_order": list(expected_tool_calls_names),
+        "actual": str(list(actual_tool_calls_names)),
+        "expected": str(list(expected_tool_calls_names)),
         "lcs": [],
     }
 
@@ -215,19 +215,27 @@ def tool_calls_count_score(
     """
     if not expected_tool_calls_count and not actual_tool_calls_count:
         return 1.0, {
+            "expected": str(dict(expected_tool_calls_count)),
+            "actual": str(dict(actual_tool_calls_count)),
             justification_key: {
                 "_result": "Both expected and actual tool calls are empty"
-            }
+            },
         }
     elif not expected_tool_calls_count or not actual_tool_calls_count:
         return 0.0, {
+            "expected": str(dict(expected_tool_calls_count)),
+            "actual": str(dict(actual_tool_calls_count)),
             justification_key: {
                 "_result": "Either expected or actual tool calls are empty"
-            }
+            },
         }
 
     score = 0.0
-    justifications: dict[str, Any] = {justification_key: {}}
+    justifications: dict[str, Any] = {
+        "expected": str(dict(expected_tool_calls_count)),
+        "actual": str(dict(actual_tool_calls_count)),
+        justification_key: {},
+    }
     for tool_name, (
         expected_comparator,
         expected_count,
@@ -243,9 +251,11 @@ def tool_calls_count_score(
             # When strict is True, if the actual count does not match the expected count, return 0
             # The justification should only include the breaching tool name
             return 0.0, {
+                "expected": str(dict(expected_tool_calls_count)),
+                "actual": str(dict(actual_tool_calls_count)),
                 justification_key: {
                     tool_name: justifications[justification_key][tool_name]
-                }
+                },
             }
         score += to_add
     return score / len(expected_tool_calls_count), justifications
@@ -274,20 +284,28 @@ def tool_calls_args_score(
     """
     if not expected_tool_calls and not actual_tool_calls:
         return 1.0, {
+            "expected": str(expected_tool_calls),
+            "actual": str(actual_tool_calls),
             justification_key: {
                 "_result": "Both expected and actual tool calls are empty"
-            }
+            },
         }
     elif not expected_tool_calls or not actual_tool_calls:
         return 0.0, {
+            "expected": str(expected_tool_calls),
+            "actual": str(actual_tool_calls),
             justification_key: {
                 "_result": "Either expected or actual tool calls are empty"
-            }
+            },
         }
 
     cnt = 0
     visited: set[int] = set()
-    justifications: dict[str, Any] = {justification_key: {}}
+    justifications: dict[str, Any] = {
+        "expected": str(expected_tool_calls),
+        "actual": str(actual_tool_calls),
+        justification_key: {},
+    }
     tool_counters: dict[str, int] = {}
 
     for expected_tool_call in expected_tool_calls:
@@ -299,17 +317,16 @@ def tool_calls_args_score(
                 tool_counters[call.name] += 1
 
                 # Check arguments based on mode
-                # The linter highlights a few problems here due to using lambdas, but they're safe to ignore
-                # Breaking this down into proper functions would unnecessarily make the code more complex
                 if subset:
                     # Subset mode: safely check if all expected args exist and match
+                    # Capture 'call' as a default argument to bind the loop variable
                     args_check = (  # noqa: E731
-                        lambda k, v: k in call.args  # noqa: B023
-                        and call.args[k] == v  # noqa: B023
+                        lambda k, v, call=call: k in call.args and call.args[k] == v
                     )
                 else:
                     # Exact mode: direct access (may raise KeyError)
-                    args_check = lambda k, v: call.args[k] == v  # noqa: E731, B023
+                    # Capture 'call' as a default argument to bind the loop variable
+                    args_check = lambda k, v, call=call: call.args[k] == v  # noqa: E731
 
                 try:
                     args_match = all(
@@ -354,19 +371,27 @@ def tool_calls_output_score(
     """
     if not expected_tool_calls_outputs and not actual_tool_calls_outputs:
         return 1.0, {
+            "expected": str(expected_tool_calls_outputs),
+            "actual": str(actual_tool_calls_outputs),
             justification_key: {
                 "_result": "Both expected and actual tool calls outputs are empty"
-            }
+            },
         }
     elif not expected_tool_calls_outputs or not actual_tool_calls_outputs:
         return 0.0, {
+            "expected": str(expected_tool_calls_outputs),
+            "actual": str(actual_tool_calls_outputs),
             justification_key: {
                 "_result": "Either expected or actual tool calls outputs are empty"
-            }
+            },
         }
 
     cnt = 0.0
-    justifications: dict[str, Any] = {justification_key: {}}
+    justifications: dict[str, Any] = {
+        "expected": str(expected_tool_calls_outputs),
+        "actual": str(actual_tool_calls_outputs),
+        justification_key: {},
+    }
     visited: set[int] = set()
     tool_counters: dict[str, int] = {}
 
@@ -398,9 +423,11 @@ def tool_calls_output_score(
                 elif strict:
                     # In strict mode, any mismatch returns 0 immediately
                     return 0.0, {
+                        "expected": str(expected_tool_calls_outputs),
+                        "actual": str(actual_tool_calls_outputs),
                         justification_key: {
                             tool_key: justifications[justification_key][tool_key]
-                        }
+                        },
                     }
                 # In non-strict mode with mismatch, continue looking for perfect match
                 # DON'T add to visited, DON'T break
@@ -408,9 +435,11 @@ def tool_calls_output_score(
         # If no match found and we're in strict mode, return 0
         if not matched and strict:
             return 0.0, {
+                "expected": str(expected_tool_calls_outputs),
+                "actual": str(actual_tool_calls_outputs),
                 justification_key: {
                     "_result": f"No matching actual tool call found for expected {expected_tool_call_output.name}"
-                }
+                },
             }
 
     return (

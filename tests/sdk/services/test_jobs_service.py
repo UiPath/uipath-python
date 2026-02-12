@@ -119,6 +119,7 @@ class TestJobsService:
                 "State": "Running",
                 "StartTime": "2024-01-01T00:00:00Z",
                 "Id": 123,
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             },
         )
 
@@ -129,6 +130,7 @@ class TestJobsService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         sent_request = httpx_mock.get_request()
         assert sent_request is not None
@@ -163,6 +165,7 @@ class TestJobsService:
                 "State": "Running",
                 "StartTime": "2024-01-01T00:00:00Z",
                 "Id": 123,
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             },
         )
 
@@ -173,6 +176,7 @@ class TestJobsService:
         assert job.state == "Running"
         assert job.start_time == "2024-01-01T00:00:00Z"
         assert job.id == 123
+        assert job.folder_key == "d0e09040-5997-44e1-93b7-4087689521b7"
 
         sent_request = httpx_mock.get_request()
         assert sent_request is not None
@@ -694,6 +698,7 @@ class TestJobsService:
             "State": "Successful",
             "StartTime": "2024-01-01T00:00:00Z",
             "Id": 123,
+            "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             "OutputArguments": '{"result": "small output data", "status": "completed"}',
             "OutputFile": None,
         }
@@ -723,6 +728,7 @@ class TestJobsService:
             "State": "Successful",
             "StartTime": "2024-01-01T00:00:00Z",
             "Id": 123,
+            "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             "OutputArguments": None,
             "OutputFile": attachment_id,
         }
@@ -770,6 +776,7 @@ class TestJobsService:
             "State": "Successful",
             "StartTime": "2024-01-01T00:00:00Z",
             "Id": 123,
+            "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             "OutputArguments": '{"result": "small output data", "status": "completed"}',
             "OutputFile": None,
         }
@@ -800,6 +807,7 @@ class TestJobsService:
             "State": "Successful",
             "StartTime": "2024-01-01T00:00:00Z",
             "Id": 123,
+            "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             "OutputArguments": None,
             "OutputFile": attachment_id,
         }
@@ -846,6 +854,7 @@ class TestJobsService:
             "State": "Successful",
             "StartTime": "2024-01-01T00:00:00Z",
             "Id": 123,
+            "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             "OutputArguments": None,
             "OutputFile": None,
         }
@@ -867,6 +876,7 @@ class TestJobsService:
             "State": "Successful",
             "StartTime": "2024-01-01T00:00:00Z",
             "Id": 123,
+            "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
             "OutputArguments": None,
             "OutputFile": None,
         }
@@ -913,6 +923,7 @@ class TestJobsService:
                 "StartTime": "2024-01-01T00:00:00Z",
                 "EndTime": "2024-01-01T00:05:00Z",
                 "Id": 456,
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                 "OutputArguments": None,  # large output is NOT stored inline
                 "OutputFile": attachment_id,  # large output IS stored as attachment
                 "InputArguments": '{"input": "test"}',  # small input stored inline
@@ -1006,6 +1017,7 @@ class TestJobsService:
                 "StartTime": "2024-01-01T00:00:00Z",
                 "EndTime": "2024-01-01T00:10:00Z",
                 "Id": 789,
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                 "OutputArguments": None,
                 "OutputFile": attachment_id,
                 "InputArguments": None,
@@ -1083,6 +1095,7 @@ class TestJobsService:
                 "State": "Successful",
                 "StartTime": "2024-01-01T00:00:00Z",
                 "Id": 100,
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                 "OutputArguments": small_output,  # small output stored inline
                 "OutputFile": None,  # no attachment needed
                 "InputArguments": '{"input": "test"}',
@@ -1102,6 +1115,7 @@ class TestJobsService:
                 "State": "Successful",
                 "StartTime": "2024-01-01T00:00:00Z",
                 "Id": 200,
+                "FolderKey": "d0e09040-5997-44e1-93b7-4087689521b7",
                 "OutputArguments": None,  # large output NOT stored inline
                 "OutputFile": large_attachment_id,  # large output stored as attachment
                 "InputArguments": '{"input": "test"}',

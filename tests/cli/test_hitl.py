@@ -164,6 +164,7 @@ class TestHitlReader:
             key=job_key,
             state=UiPathRuntimeStatus.SUCCESSFUL.value,
             output_arguments=output_args,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -202,6 +203,7 @@ class TestHitlReader:
             key=job_key,
             state=job_state,
             output_arguments="{}",
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -239,7 +241,11 @@ class TestHitlReader:
         job_id = 1234
 
         mock_job = Job(
-            id=job_id, key=job_key, state="Faulted", job_error=job_error_info
+            id=job_id,
+            key=job_key,
+            state="Faulted",
+            job_error=job_error_info,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -258,7 +264,7 @@ class TestHitlReader:
             with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            assert exc_info.value.args[0] == ErrorCategory.USER
+            assert exc_info.value.category == ErrorCategory.USER
             mock_retrieve_async.assert_called_once_with(
                 job_key,
                 folder_key="test-folder",
@@ -281,6 +287,7 @@ class TestHitlReader:
             key=job_key,
             state=UiPathRuntimeStatus.SUCCESSFUL.value,
             output_arguments=output_args,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_job)
 
@@ -357,7 +364,7 @@ class TestHitlReader:
         with pytest.raises(UiPathFaultedTriggerError) as exc_info:
             reader = UiPathResumeTriggerReader()
             await reader.read_trigger(resume_trigger)
-        assert exc_info.value.args[0] == ErrorCategory.SYSTEM
+        assert exc_info.value.category == ErrorCategory.SYSTEM
 
     @pytest.mark.anyio
     async def test_read_deep_rag_trigger_successful(
@@ -398,7 +405,9 @@ class TestHitlReader:
             )
             reader = UiPathResumeTriggerReader()
             result = await reader.read_trigger(resume_trigger)
-            assert result == content.model_dump()
+            expected_content = content.model_dump()
+            expected_content["deepRagId"] = task_id
+            assert result == expected_content
             mock_retrieve_async.assert_called_once_with(
                 task_id,
                 index_name="test-index",
@@ -469,7 +478,7 @@ class TestHitlReader:
             with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            assert exc_info.value.args[0] == ErrorCategory.USER
+            assert exc_info.value.category == ErrorCategory.USER
 
     @pytest.mark.anyio
     async def test_read_deep_rag_trigger_empty_response(
@@ -666,7 +675,7 @@ class TestHitlReader:
             with pytest.raises(UiPathFaultedTriggerError) as exc_info:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
-            assert exc_info.value.args[0] == ErrorCategory.USER
+            assert exc_info.value.category == ErrorCategory.USER
 
     @pytest.mark.anyio
     async def test_read_ixp_vs_escalation_trigger_successful(
@@ -875,7 +884,9 @@ class TestHitlProcessor:
             input_arguments={"key": "value"},
         )
 
-        mock_job = Job(id=1234, key=job_key)
+        mock_job = Job(
+            id=1234, key=job_key, folder_key="d0e09040-5997-44e1-93b7-4087689521b7"
+        )
         mock_invoke = AsyncMock(return_value=mock_job)
 
         with patch(
@@ -904,7 +915,9 @@ class TestHitlProcessor:
     ) -> None:
         """Test creating a resume trigger for WaitJob."""
         job_key = "test-job-key"
-        job = Job(id=1234, key=job_key)
+        job = Job(
+            id=1234, key=job_key, folder_key="d0e09040-5997-44e1-93b7-4087689521b7"
+        )
         wait_job = WaitJob(job=job, process_folder_path="/test/path")
 
         processor = UiPathResumeTriggerCreator()

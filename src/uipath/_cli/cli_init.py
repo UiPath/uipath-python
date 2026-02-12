@@ -6,8 +6,12 @@ import os
 import shutil
 import uuid
 from pathlib import Path
+from typing import Any
 
 import click
+from graphtty import RenderOptions, render
+from graphtty.themes import TOKYO_NIGHT
+from graphtty.types import AsciiGraph
 from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
     Chart,
     ChartDir,
@@ -36,6 +40,8 @@ console = ConsoleLogger()
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = "uipath.json"
+
+GRAPH_INDENT = "    "
 
 
 def create_telemetry_config_file(target_directory: str) -> None:
@@ -244,6 +250,74 @@ def _add_graph_to_chart(chart: Chart | Subgraph, graph: UiPathRuntimeGraph) -> N
         chart.add_link(link)
 
 
+def _enrich_graph_node_descriptions(graph_data: dict[str, Any]) -> None:
+    """Enrich graph node descriptions with metadata (model names, tool names).
+
+    Args:
+        graph_data: The graph data dict to mutate in-place.
+    """
+    node: dict[str, Any]
+    for node in graph_data.get("nodes", []):
+        meta = node.get("metadata") or {}
+        if not node.get("description"):
+            if node.get("type") == "model" and "model_name" in meta:
+                node["description"] = meta["model_name"]
+            elif node.get("type") == "tool" and "tool_names" in meta:
+                names = meta["tool_names"]
+                if isinstance(names, list):
+                    node["description"] = ", ".join(names)
+                elif isinstance(names, str):
+                    node["description"] = names
+
+
+def _render_graph(rendered: str, indent: str = GRAPH_INDENT) -> str:
+    """Indent every line of the rendered graph for visual containment.
+
+    Args:
+        rendered: The raw rendered graph string.
+        indent: The indent prefix for each line.
+
+    Returns:
+        The indented graph string.
+    """
+    return "\n".join(indent + line for line in rendered.splitlines())
+
+
+def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -> None:
+    """Render and display ASCII graphs for all entrypoints that have graph data.
+
+    Args:
+        entry_point_schemas: List of runtime schemas with optional graph data.
+    """
+    graphs_to_render = [ep for ep in entry_point_schemas if ep.graph and ep.graph.nodes]
+
+    if not graphs_to_render:
+        return
+
+    click.echo()
+
+    for entrypoint_schema in graphs_to_render:
+        if entrypoint_schema.graph is None:
+            continue
+        title = entrypoint_schema.file_path or "Agent"
+        click.echo(click.style(f"  Entrypoint: {title}", fg="cyan", bold=True))
+        click.echo(click.style("  " + "─" * 50, fg="bright_black"))
+        click.echo()
+
+        try:
+            graph_data = entrypoint_schema.graph.model_dump()
+            _enrich_graph_node_descriptions(graph_data)
+
+            ascii_graph = AsciiGraph(**graph_data)
+            options = RenderOptions(theme=TOKYO_NIGHT)
+            rendered = render(ascii_graph, options)
+            click.echo(_render_graph(rendered))
+        except Exception:
+            pass
+
+        click.echo()
+
+
 @click.command()
 @click.option(
     "--no-agents-md-override",
@@ -259,7 +333,7 @@ def init(no_agents_md_override: bool) -> None:
         generate_env_file(current_directory)
         create_telemetry_config_file(current_directory)
 
-        async def initialize() -> None:
+        async def initialize() -> list[UiPathRuntimeSchema]:
             try:
                 # Create uipath.json if it doesn't exist
                 config_path = UiPathConfig.config_file_path
@@ -325,10 +399,13 @@ def init(no_agents_md_override: bool) -> None:
                         f"Created {len(mermaid_paths)} mermaid diagram file(s)."
                     )
 
+                return entry_point_schemas
+
             except Exception as e:
                 console.error(f"Error during initialization:\n{e}")
+                return []
 
-        asyncio.run(initialize())
+        entry_point_schemas = asyncio.run(initialize())
 
         result = Middlewares.next(
             "init",
@@ -346,6 +423,9 @@ def init(no_agents_md_override: bool) -> None:
             console.info(result.info_message)
 
         if not result.should_continue:
+            _display_entrypoint_graphs(entry_point_schemas)
             return
 
         generate_agent_md_files(current_directory, no_agents_md_override)
+
+        _display_entrypoint_graphs(entry_point_schemas)

@@ -418,12 +418,12 @@ print(f"Score: {result.score}")  # 1.0
 
 ## Justification Details
 
-The evaluator returns a `ToolCallOrderEvaluatorJustification` with:
+The evaluator returns a `ToolCallOrderEvaluatorJustification` (inherits from `BaseEvaluatorJustification`) with:
 
 ```python
 {
-    "actual_tool_calls_order": ["tool1", "tool2", "tool3"],  # What the agent called
-    "expected_tool_calls_order": ["tool1", "tool2", "tool3", "tool4"],  # What was expected
+    "expected": "['tool1', 'tool2', 'tool3', 'tool4']",  # What was expected
+    "actual": "['tool1', 'tool2', 'tool3']",  # What the agent called
     "lcs": ["tool1", "tool2", "tool3"]  # Longest common subsequence (non-strict mode)
 }
 ```

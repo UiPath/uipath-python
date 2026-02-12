@@ -9,11 +9,19 @@ from ..models import (
     EvaluatorType,
     NumericEvaluationResult,
 )
+from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,
     OutputEvaluatorConfig,
 )
+
+
+class JsonSimilarityJustification(BaseEvaluatorJustification):
+    """Justification for the JSON similarity evaluator."""
+
+    matched_leaves: float
+    total_leaves: float
 
 
 class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
@@ -23,7 +31,11 @@ class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriter
 
 
 class JsonSimilarityEvaluator(
-    OutputEvaluator[OutputEvaluationCriteria, JsonSimilarityEvaluatorConfig, str]
+    OutputEvaluator[
+        OutputEvaluationCriteria,
+        JsonSimilarityEvaluatorConfig,
+        JsonSimilarityJustification,
+    ]
 ):
     """Deterministic evaluator that scores structural JSON similarity between expected and actual output.
 
@@ -56,9 +68,11 @@ class JsonSimilarityEvaluator(
         Returns:
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
+        expected_output = self._get_expected_output(evaluation_criteria)
+        actual_output = self._get_actual_output(agent_execution)
         score, justification = self._compare_json(
-            self._get_expected_output(evaluation_criteria),
-            self._get_actual_output(agent_execution),
+            expected_output,
+            actual_output,
         )
         validated_justification = self.validate_justification(justification)
         return NumericEvaluationResult(
@@ -66,14 +80,20 @@ class JsonSimilarityEvaluator(
             details=validated_justification,
         )
 
-    def _compare_json(self, expected: Any, actual: Any) -> tuple[float, str]:
+    def _compare_json(self, expected: Any, actual: Any) -> tuple[float, dict[str, Any]]:
         matched_leaves, total_leaves = self._compare_tokens(expected, actual)
         if total_leaves == 0:
-            return 1.0, "Total leaves are 0"
-        sim = matched_leaves / total_leaves
+            sim = 1.0
+        else:
+            sim = matched_leaves / total_leaves
         return (
             max(0.0, min(1.0, sim)),
-            f"Matched leaves: {matched_leaves}, Total leaves: {total_leaves}",
+            {
+                "expected": str(expected),
+                "actual": str(actual),
+                "matched_leaves": matched_leaves,
+                "total_leaves": total_leaves,
+            },
         )
 
     def _compare_tokens(

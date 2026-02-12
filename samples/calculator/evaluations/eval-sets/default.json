@@ -9,7 +9,9 @@
     "LLMJudgeOutputEvaluator",
     "LLMJudgeStrictJSONSimilarityOutputEvaluator",
     "TrajectoryEvaluator",
-    "CorrectOperatorEvaluator"
+    "CorrectOperatorEvaluator",
+    "LLMJudgeHaiku45",
+    "LLMJudgeSonnet45"
   ],
   "evaluations": [
     {
@@ -49,6 +51,16 @@
         },
         "TrajectoryEvaluator": {
           "expectedAgentBehavior": "The agent should correctly parse the multiply operation, perform the calculation 2 * 4, and return the result 8.0"
+        },
+        "LLMJudgeHaiku45": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeSonnet45": {
+          "expectedOutput": {
+            "result": 8.0
+          }
         }
       },
       "mockingStrategy": {
@@ -87,7 +99,9 @@
         "LLMJudgeOutputEvaluator": null,
         "LLMJudgeStrictJSONSimilarityOutputEvaluator": null,
         "TrajectoryEvaluator": null,
-        "CorrectOperatorEvaluator": null
+        "CorrectOperatorEvaluator": null,
+        "LLMJudgeHaiku45": null,
+        "LLMJudgeSonnet45": null
       }
     },
     {
@@ -127,6 +141,16 @@
         },
         "TrajectoryEvaluator": {
           "expectedAgentBehavior": "The agent should correctly parse the multiply operation, perform the calculation 2 * 4, and return the result 8.0"
+        },
+        "LLMJudgeHaiku45": {
+          "expectedOutput": {
+            "result": 8.0
+          }
+        },
+        "LLMJudgeSonnet45": {
+          "expectedOutput": {
+            "result": 8.0
+          }
         }
       }
     },
