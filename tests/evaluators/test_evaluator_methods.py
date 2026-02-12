@@ -1566,3 +1566,194 @@ class TestJustificationHandling:
             # Verify evaluation result
             assert result.score == 0.8
             assert result.details == "Good response"
+
+
+class TestClaude45ModelSupport:
+    """Tests for Claude 4.5 model-specific behavior in LLM evaluators.
+
+    Claude 4.5 models (Haiku, Sonnet) require special handling:
+    - max_tokens must be set (defaults to 8000 when not configured)
+    - Function calling (tools/tool_choice) is used for structured output
+    - OpenAI-specific parameters (n, frequency_penalty, etc.) must NOT be sent
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        ],
+    )
+    async def test_claude_45_evaluator_uses_function_calling(
+        self,
+        model_name: str,
+        sample_agent_execution: AgentExecution,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that Claude 4.5 evaluators use function calling (tools/tool_choice)."""
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 95,
+            "justification": "Perfect match",
+        }
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        captured_request: dict[str, Any] = {}
+
+        async def capture_chat_completions(**kwargs: Any) -> Any:
+            nonlocal captured_request
+            captured_request = kwargs
+            return mock_response
+
+        mock_llm.chat_completions = capture_chat_completions
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": f"Claude45Test-{model_name}",
+            "prompt": "Rate this output: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": model_name,
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected output")  # pyright: ignore[reportCallIssue]
+        result = await evaluator.evaluate(sample_agent_execution, criteria)
+
+        # Verify function calling is used
+        assert "tools" in captured_request, (
+            "Claude 4.5 models must use function calling"
+        )
+        assert "tool_choice" in captured_request, (
+            "tool_choice must be set for Claude 4.5"
+        )
+        assert captured_request["model"] == model_name
+
+        # Verify result is correct
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.95
+        assert result.details == "Perfect match"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        ],
+    )
+    async def test_claude_45_sets_default_max_tokens(
+        self,
+        model_name: str,
+        sample_agent_execution: AgentExecution,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that Claude 4.5 models get default max_tokens=8000 when not configured."""
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {"score": 80, "justification": "Good"}
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        captured_request: dict[str, Any] = {}
+
+        async def capture_chat_completions(**kwargs: Any) -> Any:
+            nonlocal captured_request
+            captured_request = kwargs
+            return mock_response
+
+        mock_llm.chat_completions = capture_chat_completions
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+
+        # No max_tokens in config - should default to 8000 for Claude 4.5
+        config = {
+            "name": f"Claude45MaxTokensTest-{model_name}",
+            "prompt": "Rate: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": model_name,
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected")  # pyright: ignore[reportCallIssue]
+        await evaluator.evaluate(sample_agent_execution, criteria)
+
+        assert "max_tokens" in captured_request, (
+            "Claude 4.5 models require max_tokens to be set"
+        )
+        assert captured_request["max_tokens"] == 8000, (
+            "Default max_tokens for Claude 4.5 should be 8000"
+        )
+
+    @pytest.mark.asyncio
+    async def test_claude_45_respects_configured_max_tokens(
+        self,
+        sample_agent_execution: AgentExecution,
+        mocker: MockerFixture,
+    ) -> None:
+        """Test that explicitly configured max_tokens overrides the Claude 4.5 default."""
+        mock_uipath = mocker.MagicMock()
+        mock_llm = mocker.MagicMock()
+        mock_uipath.llm = mock_llm
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {"score": 80, "justification": "Good"}
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        captured_request: dict[str, Any] = {}
+
+        async def capture_chat_completions(**kwargs: Any) -> Any:
+            nonlocal captured_request
+            captured_request = kwargs
+            return mock_response
+
+        mock_llm.chat_completions = capture_chat_completions
+        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+
+        config = {
+            "name": "Claude45CustomMaxTokens",
+            "prompt": "Rate: {{ActualOutput}} vs {{ExpectedOutput}}",
+            "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "maxTokens": 4096,
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        criteria = OutputEvaluationCriteria(expected_output="Expected")  # pyright: ignore[reportCallIssue]
+        await evaluator.evaluate(sample_agent_execution, criteria)
+
+        assert captured_request["max_tokens"] == 4096, (
+            "Configured max_tokens should override the Claude 4.5 default"
+        )

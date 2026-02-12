@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "id": "LLMJudgeSonnet45",
+  "description": "Uses Claude Sonnet 4.5 to judge semantic similarity between expected and actual output.",
+  "evaluatorTypeId": "uipath-llm-judge-output-semantic-similarity",
+  "evaluatorConfig": {
+    "name": "LLMJudgeSonnet45",
+    "targetOutputKey": "*",
+    "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "prompt": "Compare the following outputs and evaluate their semantic similarity.\n\nActual Output: {{ActualOutput}}\nExpected Output: {{ExpectedOutput}}\n\nProvide a score from 0-100 where 100 means semantically identical and 0 means completely different.",
+    "temperature": 0.0,
+    "maxTokens": 8000,
+    "defaultEvaluationCriteria": {
+      "expectedOutput": {
+        "result": 5.0
+      }
+    }
+  }
+}
