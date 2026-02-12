@@ -405,7 +405,9 @@ class TestHitlReader:
             )
             reader = UiPathResumeTriggerReader()
             result = await reader.read_trigger(resume_trigger)
-            assert result == content.model_dump()
+            expected_content = content.model_dump()
+            expected_content["deepRagId"] = task_id
+            assert result == expected_content
             mock_retrieve_async.assert_called_once_with(
                 task_id,
                 index_name="test-index",
