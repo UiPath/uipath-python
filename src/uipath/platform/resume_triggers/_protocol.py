@@ -240,6 +240,7 @@ class UiPathResumeTriggerReader:
                         }
                     else:
                         trigger_response = trigger_response.model_dump()
+                        trigger_response["deepRagId"] = trigger.item_key
 
                     return trigger_response
 
