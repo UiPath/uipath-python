@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import TypeAdapter
 
@@ -2757,3 +2759,214 @@ class TestAgentDefinitionIsConversational:
         )
 
         assert config.is_conversational is False
+
+
+class TestAgentBuilderConfigResources:
+    """Tests for AgentDefinition resource configuration parsing."""
+
+    def _agent_dict_with_resources(self, resources: list[Any]) -> dict[str, Any]:
+        """Helper method that returns an agent dict with default fields and provided resources."""
+        return {
+            "version": "1.0.0",
+            "id": "test-agent-id",
+            "name": "Test Agent",
+            "metadata": {"isConversational": False, "storageVersion": "22.0.0"},
+            "messages": [
+                {
+                    "role": "System",
+                    "content": "You are a test agent.",
+                }
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "resources": resources,
+        }
+
+    def test_escalation_with_static_group_name_recipient_type(self):
+        """Test that escalation with StaticGroupName recipientType is parsed correctly."""
+        resources = [
+            {
+                "$resourceType": "escalation",
+                "id": "escalation-1",
+                "channels": [
+                    {
+                        "name": "Test Channel",
+                        "description": "Test channel description",
+                        "type": "ActionCenter",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"field": {"type": "string"}},
+                        },
+                        "outputSchema": {"type": "object", "properties": {}},
+                        "outcomeMapping": {"Approve": "continue"},
+                        "properties": {
+                            "appName": "TestApp",
+                            "appVersion": 1,
+                            "folderName": "TestFolder",
+                            "resourceKey": "test-key",
+                        },
+                        "recipients": [
+                            {
+                                "value": "TestGroup",
+                                "type": "staticgroupname",
+                            }
+                        ],
+                        "taskTitle": "Test Task",
+                        "priority": "Medium",
+                    }
+                ],
+                "isAgentMemoryEnabled": False,
+                "escalationType": 0,
+                "name": "Test Escalation",
+                "description": "Test escalation",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        escalation_resource = config.resources[0]
+        assert isinstance(escalation_resource, AgentEscalationResourceConfig)
+        recipient = escalation_resource.channels[0].recipients[0]
+        assert isinstance(recipient, StandardRecipient)
+        assert recipient.type == AgentEscalationRecipientType.GROUP_NAME
+        assert recipient.value == "TestGroup"
+
+    def test_escalation_with_lowercase_userid_recipient_type(self):
+        """Test that escalation with lowercase userid recipientType is parsed correctly."""
+        resources = [
+            {
+                "$resourceType": "escalation",
+                "id": "escalation-2",
+                "channels": [
+                    {
+                        "name": "Test Channel",
+                        "description": "Test channel description",
+                        "type": "ActionCenter",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"field": {"type": "string"}},
+                        },
+                        "outputSchema": {"type": "object", "properties": {}},
+                        "outcomeMapping": {"Approve": "continue"},
+                        "properties": {
+                            "appName": "TestApp",
+                            "appVersion": 1,
+                            "folderName": "TestFolder",
+                            "resourceKey": "test-key",
+                        },
+                        "recipients": [
+                            {
+                                "value": "user-123",
+                                "type": "userid",
+                            }
+                        ],
+                        "taskTitle": "Test Task",
+                        "priority": "Medium",
+                    }
+                ],
+                "isAgentMemoryEnabled": False,
+                "escalationType": 0,
+                "name": "Test Escalation",
+                "description": "Test escalation",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        escalation_resource = config.resources[0]
+        assert isinstance(escalation_resource, AgentEscalationResourceConfig)
+        recipient = escalation_resource.channels[0].recipients[0]
+        assert isinstance(recipient, StandardRecipient)
+        assert recipient.type == AgentEscalationRecipientType.USER_ID
+        assert recipient.value == "user-123"
+
+    def test_process_tool_missing_output_schema(self):
+        """Test that process tool without outputSchema is parsed correctly."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "ProcessOrchestration",
+                "id": "process-tool-1",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                },
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "TestProcess",
+                    "folderPath": "TestFolder",
+                },
+                "name": "Test Process",
+                "description": "Test process tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.output_schema == {"type": "object", "properties": {}}
+
+    def test_escalation_missing_escalation_type_defaults_to_zero(self):
+        """Test that missing escalationType defaults to 0."""
+        resources = [
+            {
+                "$resourceType": "escalation",
+                "id": "escalation-3",
+                "channels": [
+                    {
+                        "name": "Test Channel",
+                        "description": "Test channel description",
+                        "type": "ActionCenter",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"field": {"type": "string"}},
+                        },
+                        "outputSchema": {"type": "object", "properties": {}},
+                        "outcomeMapping": {"Approve": "continue"},
+                        "properties": {
+                            "appName": "TestApp",
+                            "appVersion": 1,
+                            "folderName": "TestFolder",
+                            "resourceKey": "test-key",
+                        },
+                        "recipients": [
+                            {
+                                "value": "user-123",
+                                "type": "UserId",
+                            }
+                        ],
+                        "taskTitle": "Test Task",
+                        "priority": "Medium",
+                    }
+                ],
+                "isAgentMemoryEnabled": False,
+                "name": "Test Escalation",
+                "description": "Test escalation",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        escalation_resource = config.resources[0]
+        assert isinstance(escalation_resource, AgentEscalationResourceConfig)
+        assert escalation_resource.escalation_type == 0
