@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from enum import Enum, StrEnum
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    TypeVar,
+    Union,
+)
 
 from pydantic import (
     BaseModel,
@@ -40,12 +50,15 @@ def _decapitalize_first_letter(s: str) -> str:
     return s[0].lower() + s[1:]
 
 
-def _match_enum_case_insensitive(enum: type[StrEnum], value: str) -> str:
+EnumT = TypeVar("EnumT", bound=StrEnum)
+
+
+def _match_enum_case_insensitive(enum: type[EnumT], value: str) -> EnumT | None:
     """Find the corresponding enum value, ignoring case."""
     for enum_value in enum:
         if enum_value.value.lower() == value.lower():
-            return enum_value.value
-    return value
+            return enum_value
+    return None
 
 
 class AgentResourceType(str, Enum):
@@ -384,26 +397,35 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
 
 
+_RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
+    1: AgentEscalationRecipientType.USER_ID,
+    2: AgentEscalationRecipientType.GROUP_ID,
+    3: AgentEscalationRecipientType.USER_EMAIL,
+    4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+    5: AgentEscalationRecipientType.GROUP_NAME,
+    "staticgroupname": AgentEscalationRecipientType.GROUP_NAME,
+    6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
+}
+
+
 def _normalize_recipient_type(recipient: Any) -> Any:
-    """Normalize recipient type from integer to enum before discrimination."""
+    """Normalize recipient type from integer or string to enum before discrimination."""
     if not isinstance(recipient, dict):
         return recipient
-
     recipient_type = recipient.get("type")
+
+    normalized: AgentEscalationRecipientType | None = None
     if isinstance(recipient_type, int):
-        type_mapping = {
-            1: AgentEscalationRecipientType.USER_ID,
-            2: AgentEscalationRecipientType.GROUP_ID,
-            3: AgentEscalationRecipientType.USER_EMAIL,
-            4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
-            5: AgentEscalationRecipientType.GROUP_NAME,
-            6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
-        }
-        recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
+        normalized = _RECIPIENT_TYPE_NORMALIZED_MAP.get(recipient_type)
     elif isinstance(recipient_type, str):
-        recipient["type"] = _match_enum_case_insensitive(
-            AgentEscalationRecipientType, recipient_type
-        )
+        normalized = _RECIPIENT_TYPE_NORMALIZED_MAP.get(recipient_type.lower())
+        if normalized is None:
+            normalized = _match_enum_case_insensitive(
+                AgentEscalationRecipientType, recipient_type
+            )
+
+    if normalized is not None:
+        recipient["type"] = normalized.value
 
     return recipient
 
