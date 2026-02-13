@@ -525,7 +525,7 @@ class TestHitlReader:
         attachment_id = "test-attachment-id"
 
         mock_download_async = AsyncMock(return_value=None)
-        mock_upload_async = AsyncMock(return_value=attachment_id)
+        mock_create_attachment_async = AsyncMock(return_value=attachment_id)
 
         with (
             patch(
@@ -533,8 +533,8 @@ class TestHitlReader:
                 new=mock_download_async,
             ),
             patch(
-                "uipath.platform.orchestrator._attachments_service.AttachmentsService.upload_async",
-                new=mock_upload_async,
+                "uipath.platform.orchestrator._jobs_service.JobsService.create_attachment_async",
+                new=mock_create_attachment_async,
             ),
         ):
             resume_trigger = UiPathResumeTrigger(
@@ -562,9 +562,10 @@ class TestHitlReader:
                 validate_status=True,
                 index_name="test-index",
             )
-            mock_upload_async.assert_called_once_with(
+            mock_create_attachment_async.assert_called_once_with(
                 name=destination_path,
                 source_path=destination_path,
+                job_key=None,
             )
 
     @pytest.mark.anyio

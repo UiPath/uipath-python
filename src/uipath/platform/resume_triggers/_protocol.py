@@ -300,10 +300,11 @@ class UiPathResumeTriggerReader:
                             f"{e.message}",
                         ) from e
 
-                    # Upload result as job attachment
-                    result_attachment_id = await uipath.attachments.upload_async(
+                    # Upload result as job attachment (automatically links to job if available)
+                    result_attachment_id = await uipath.jobs.create_attachment_async(
                         name=destination_path,
                         source_path=destination_path,
+                        job_key=UiPathConfig.job_key,
                     )
 
                     mime_type = "text/csv"
