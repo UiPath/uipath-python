@@ -22,6 +22,13 @@ from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 
 
+def _ensure_string_value(value: Any) -> str:
+    """Convert any value to a string for use in field Value."""
+    if isinstance(value, str):
+        return value
+    return str(value) if value else ""
+
+
 def _create_spec(
     data: Optional[Dict[str, Any]],
     action_schema: Optional[TaskSchema],
@@ -41,13 +48,14 @@ def _create_spec(
         if action_schema.inputs:
             for input_field in action_schema.inputs:
                 field_name = input_field.name
+                field_value = data.get(field_name, "") if data is not None else ""
                 field_list.append(
                     {
                         "Id": input_field.key,
                         "Name": field_name,
                         "Title": field_name,
                         "Type": "Fact",
-                        "Value": data.get(field_name, "") if data is not None else "",
+                        "Value": _ensure_string_value(field_value),
                     }
                 )
         if action_schema.outputs:
@@ -65,13 +73,14 @@ def _create_spec(
         if action_schema.in_outs:
             for inout_field in action_schema.in_outs:
                 field_name = inout_field.name
+                field_value = data.get(field_name, "") if data is not None else ""
                 field_list.append(
                     {
                         "Id": inout_field.key,
                         "Name": field_name,
                         "Title": field_name,
                         "Type": "Fact",
-                        "Value": data.get(field_name, "") if data is not None else "",
+                        "Value": _ensure_string_value(field_value),
                     }
                 )
         if action_schema.outcomes:
