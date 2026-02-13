@@ -1285,6 +1285,25 @@ def multipart_activity_metadata() -> ActivityMetadata:
             multipart_params=["file_param"],
             body_fields=["description"],
         ),
+        json_body_section="body",
+    )
+
+
+@pytest.fixture
+def multipart_custom_section_metadata() -> ActivityMetadata:
+    """Sample multipart activity metadata with custom json_body_section."""
+    return ActivityMetadata(
+        object_path="/elements/test-connector/rag",
+        method_name="POST",
+        content_type="multipart/form-data",
+        parameter_location_info=ActivityParameterLocationInfo(
+            query_params=[],
+            header_params=[],
+            path_params=[],
+            multipart_params=["file_param"],
+            body_fields=["prompt", "model"],
+        ),
+        json_body_section="RagRequest",
     )
 
 
@@ -1651,3 +1670,106 @@ class TestConnectorActivityInvocation:
         )
 
         assert result == expected_response
+
+    def test_invoke_activity_multipart_custom_json_body_section(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        multipart_custom_section_metadata: ActivityMetadata,
+    ) -> None:
+        """Test multipart request uses custom json_body_section name instead of 'body'."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": b"test file content",
+            "prompt": "Summarize this document",
+            "model": "gpt-4",
+        }
+        expected_response = {"result": "summary text"}
+
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json=expected_response,
+        )
+
+        _ = service.invoke_activity(
+            activity_metadata=multipart_custom_section_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert "multipart/form-data" in sent_request.headers.get("content-type", "")
+
+        # Parse the multipart body to verify part names
+        content_type = sent_request.headers["content-type"]
+        boundary = content_type.split("boundary=")[1]
+        body = sent_request.content.decode("utf-8", errors="replace")
+        parts = body.split(f"--{boundary}")
+
+        # Find the part names in the multipart body
+        part_names = []
+        for part in parts:
+            if 'name="' in part:
+                name = part.split('name="')[1].split('"')[0]
+                part_names.append(name)
+
+        # The JSON body should be in "RagRequest" part, not "body"
+        assert "RagRequest" in part_names
+        assert "body" not in part_names
+        assert "file_param" in part_names
+
+    def test_invoke_activity_multipart_default_json_body_section(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+    ) -> None:
+        """Test multipart request defaults to 'body' when json_body_section is None."""
+        metadata = ActivityMetadata(
+            object_path="/elements/test-connector/upload",
+            method_name="POST",
+            content_type="multipart/form-data",
+            parameter_location_info=ActivityParameterLocationInfo(
+                query_params=[],
+                header_params=[],
+                path_params=[],
+                multipart_params=["file_param"],
+                body_fields=["description"],
+            ),
+            # json_body_section is None (default)
+        )
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": b"file data",
+            "description": "A file",
+        }
+
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        _ = service.invoke_activity(
+            activity_metadata=metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        content_type = sent_request.headers["content-type"]
+        boundary = content_type.split("boundary=")[1]
+        body = sent_request.content.decode("utf-8", errors="replace")
+        parts = body.split(f"--{boundary}")
+
+        part_names = []
+        for part in parts:
+            if 'name="' in part:
+                name = part.split('name="')[1].split('"')[0]
+                part_names.append(name)
+
+        # Should default to "body" when json_body_section is None
+        assert "body" in part_names
+        assert "file_param" in part_names
