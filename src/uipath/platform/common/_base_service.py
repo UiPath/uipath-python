@@ -103,6 +103,8 @@ class BaseService:
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         scoped_url = self._url.scope_url(str(url), scoped)
+        if scoped_url.startswith(("http://", "https://")):
+            self._logger.debug(f"Service URL override active: {scoped_url}")
 
         response = self._client.request(method, scoped_url, **kwargs)
 
@@ -140,6 +142,8 @@ class BaseService:
         )
 
         scoped_url = self._url.scope_url(str(url), scoped)
+        if scoped_url.startswith(("http://", "https://")):
+            self._logger.debug(f"Service URL override active: {scoped_url}")
 
         response = await self._client_async.request(method, scoped_url, **kwargs)
 
