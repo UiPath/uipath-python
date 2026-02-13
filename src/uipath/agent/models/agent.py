@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
-from enum import Enum
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from enum import Enum, StrEnum
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    TypeVar,
+    Union,
+)
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
+    Discriminator,
     Field,
+    Tag,
     field_validator,
     model_validator,
 )
@@ -20,10 +32,13 @@ from uipath.core.guardrails import (
     UniversalRule,
 )
 
+from uipath.agent.models._legacy import normalize_legacy_format
 from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
+
+EMPTY_SCHEMA = {"type": "object", "properties": {}}
 
 
 def _decapitalize_first_letter(s: str) -> str:
@@ -33,6 +48,17 @@ def _decapitalize_first_letter(s: str) -> str:
     if len(s) == 1:
         return s.lower()
     return s[0].lower() + s[1:]
+
+
+EnumT = TypeVar("EnumT", bound=StrEnum)
+
+
+def _match_enum_case_insensitive(enum: type[EnumT], value: str) -> EnumT | None:
+    """Find the corresponding enum value, ignoring case."""
+    for enum_value in enum:
+        if enum_value.value.lower() == value.lower():
+            return enum_value
+    return None
 
 
 class AgentResourceType(str, Enum):
@@ -66,7 +92,7 @@ class AgentInternalToolType(str, Enum):
     BATCH_TRANSFORM = "batch-transform"
 
 
-class AgentEscalationRecipientType(str, Enum):
+class AgentEscalationRecipientType(StrEnum):
     """Agent escalation recipient type enumeration."""
 
     USER_ID = "UserId"
@@ -371,22 +397,35 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
 
 
+_RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
+    1: AgentEscalationRecipientType.USER_ID,
+    2: AgentEscalationRecipientType.GROUP_ID,
+    3: AgentEscalationRecipientType.USER_EMAIL,
+    4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
+    5: AgentEscalationRecipientType.GROUP_NAME,
+    "staticgroupname": AgentEscalationRecipientType.GROUP_NAME,
+    6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
+}
+
+
 def _normalize_recipient_type(recipient: Any) -> Any:
-    """Normalize recipient type from integer to enum before discrimination."""
+    """Normalize recipient type from integer or string to enum before discrimination."""
     if not isinstance(recipient, dict):
         return recipient
-
     recipient_type = recipient.get("type")
+
+    normalized: AgentEscalationRecipientType | None = None
     if isinstance(recipient_type, int):
-        type_mapping = {
-            1: AgentEscalationRecipientType.USER_ID,
-            2: AgentEscalationRecipientType.GROUP_ID,
-            3: AgentEscalationRecipientType.USER_EMAIL,
-            4: AgentEscalationRecipientType.ASSET_USER_EMAIL,
-            5: AgentEscalationRecipientType.GROUP_NAME,
-            6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
-        }
-        recipient["type"] = type_mapping.get(recipient_type, str(recipient_type))
+        normalized = _RECIPIENT_TYPE_NORMALIZED_MAP.get(recipient_type)
+    elif isinstance(recipient_type, str):
+        normalized = _RECIPIENT_TYPE_NORMALIZED_MAP.get(recipient_type.lower())
+        if normalized is None:
+            normalized = _match_enum_case_insensitive(
+                AgentEscalationRecipientType, recipient_type
+            )
+
+    if normalized is not None:
+        recipient["type"] = normalized.value
 
     return recipient
 
@@ -517,7 +556,7 @@ class AgentEscalationChannel(BaseCfg):
     type: str = Field(alias="type")
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
@@ -597,7 +636,7 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
         AgentToolType.API,
         AgentToolType.PROCESS_ORCHESTRATION,
     ]
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     properties: AgentProcessToolProperties
     settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
     arguments: Dict[str, Any] = Field(default_factory=dict)
@@ -617,7 +656,7 @@ class AgentIxpExtractionResourceConfig(BaseAgentToolResourceConfig):
     """Agent ixp extraction tool resource configuration model."""
 
     type: Literal[AgentToolType.IXP] = AgentToolType.IXP
-    output_schema: dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
     properties: AgentIxpExtractionToolProperties
 
@@ -740,7 +779,7 @@ class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
     properties: AgentInternalToolProperties
     settings: Optional[AgentToolSettings] = Field(None)
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    output_schema: Dict[str, Any] = Field(..., alias="outputSchema")
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
@@ -766,10 +805,10 @@ ToolResourceConfig = Annotated[
 
 EscalationResourceConfig = Annotated[
     Union[
-        AgentEscalationResourceConfig,
-        AgentIxpVsEscalationResourceConfig,
+        Annotated[AgentEscalationResourceConfig, Tag(0)],
+        Annotated[AgentIxpVsEscalationResourceConfig, Tag(1)],
     ],
-    Field(discriminator="escalation_type"),
+    Discriminator(lambda v: v.get("escalation_type") or v.get("escalationType") or 0),
 ]
 
 AgentResourceConfig = Annotated[
@@ -1206,6 +1245,7 @@ class AgentDefinition(BaseModel):
     def _normalize_all(cls, v: Any) -> Any:
         if not isinstance(v, dict):
             return v
+        normalize_legacy_format(v)
         cls._normalize_guardrails(v)
         cls._normalize_resources(v)
         return v
