@@ -431,11 +431,10 @@ class EntitiesService(BaseService):
         response = self.request(spec.method, full_url, json=spec.json, headers=headers)
 
         records_data = response.json().get("results", [])
-        # Return raw dicts for query results - they may not have Id field
-        # if SELECT doesn't include it
         return records_data
 
-    @traced(name="entity_query_records", run_type="uipath")
+
+    @traced(name="query_entities_async", run_type="uipath")
     async def query_entity_records_async(
         self,
         sql_query: str,
@@ -965,7 +964,6 @@ class EntitiesService(BaseService):
         self,
         sql_query: str,
     ) -> RequestSpec:
-        # Endpoint includes org/tenant in the path: dataservice_/{org}/{tenant}/datafabric_/api/v1/query/execute
         endpoint = f"/dataservice_/{self._url.org_name}/{self._url.tenant_name}/datafabric_/api/v1/query/execute"
         return RequestSpec(
             method="POST",
