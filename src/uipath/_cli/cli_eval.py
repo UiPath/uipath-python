@@ -243,6 +243,13 @@ def _resolve_model_settings_override(
     default=False,
     help="Resume execution from a previous suspended state",
 )
+@click.option(
+    "--remote-eval",
+    is_flag=True,
+    default=False,
+    help="Run evaluators on the remote Agents backend instead of locally. "
+    "Also enabled by UIPATH_REMOTE_EVAL=true environment variable.",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -258,6 +265,7 @@ def eval(
     max_llm_concurrency: int,
     input_overrides: dict[str, Any],
     resume: bool,
+    remote_eval: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -275,6 +283,7 @@ def eval(
         max_llm_concurrency: Maximum concurrent LLM requests
         input_overrides: Input field overrides mapping (direct field override with deep merge)
         resume: Resume execution from a previous suspended state
+        remote_eval: Run evaluators on the remote Agents backend
     """
     set_llm_concurrency(max_llm_concurrency)
 
@@ -310,6 +319,12 @@ def eval(
         eval_context.report_coverage = report_coverage
         eval_context.input_overrides = input_overrides
         eval_context.resume = resume
+
+        # Enable remote evaluation via flag or environment variable
+        from uipath._utils.constants import ENV_REMOTE_EVAL
+
+        use_remote_eval = remote_eval or os.getenv(ENV_REMOTE_EVAL, "").lower() == "true"
+        eval_context.remote_evaluation = use_remote_eval
 
         try:
 
@@ -398,6 +413,42 @@ def eval(
 
                     # Runtime is not required anymore.
                     await runtime.dispose()
+
+                    # Configure remote evaluation strategy if enabled
+                    if use_remote_eval:
+                        from uipath._cli._evals._evaluation_strategy import (
+                            RemoteEvaluationStrategy,
+                        )
+                        from uipath._cli._evals._remote_evaluator import (
+                            RemoteEvaluationClient,
+                        )
+                        from uipath._utils.constants import ENV_EVAL_BACKEND_URL
+
+                        eval_backend_url = os.getenv(ENV_EVAL_BACKEND_URL)
+                        remote_client = RemoteEvaluationClient(
+                            backend_url=eval_backend_url
+                        )
+
+                        # Determine if evaluators are coded
+                        from uipath.eval.evaluators import BaseLegacyEvaluator
+
+                        is_coded = bool(eval_context.evaluators) and not isinstance(
+                            eval_context.evaluators[0], BaseLegacyEvaluator
+                        )
+
+                        eval_context.evaluation_strategy = RemoteEvaluationStrategy(
+                            client=remote_client,
+                            eval_set_run_id=eval_context.eval_set_run_id
+                            or eval_context.execution_id,
+                            eval_set_id=eval_context.evaluation_set.id,
+                            project_id=project_id or "",
+                            entrypoint=eval_context.entrypoint or "",
+                            is_coded=is_coded,
+                            report_to_studio_web=should_register_progress_reporter,
+                        )
+                        console.info(
+                            "Remote evaluation enabled — evaluators will run on the Agents backend"
+                        )
 
                     try:
                         if project_id:

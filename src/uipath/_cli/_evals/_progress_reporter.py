@@ -710,6 +710,28 @@ class StudioWebProgressReporter:
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
+            if payload.skip_studio_web_reporting:
+                logger.debug(
+                    f"Skipping Studio Web reporting for eval run update "
+                    f"(execution_id={payload.execution_id}) — handled by remote backend"
+                )
+                # Still track scores locally for aggregation
+                for eval_result in payload.eval_results:
+                    evaluator_id = eval_result.evaluator_id
+                    if evaluator_id in self.evaluator_scores:
+                        match eval_result.result.score_type:
+                            case ScoreType.NUMERICAL:
+                                self.evaluator_scores[evaluator_id].append(
+                                    eval_result.result.score
+                                )
+                            case ScoreType.BOOLEAN:
+                                self.evaluator_scores[evaluator_id].append(
+                                    100 if eval_result.result.score else 0
+                                )
+                            case ScoreType.ERROR:
+                                self.evaluator_scores[evaluator_id].append(0)
+                return
+
             logger.info(
                 f"Processing UPDATE_EVAL_RUN event: execution_id={payload.execution_id}, "
                 f"success={payload.success}"
@@ -776,6 +798,13 @@ class StudioWebProgressReporter:
 
     async def handle_update_eval_set_run(self, payload: EvalSetRunUpdatedEvent) -> None:
         try:
+            if payload.skip_studio_web_reporting:
+                logger.debug(
+                    f"Skipping Studio Web reporting for eval set run update "
+                    f"(execution_id={payload.execution_id}) — handled by remote backend"
+                )
+                return
+
             if eval_set_run_id := self.eval_set_run_ids.get(payload.execution_id):
                 # Skip update if eval_set_run_id was provided by user
                 if eval_set_run_id in self.user_provided_eval_set_run_ids:
