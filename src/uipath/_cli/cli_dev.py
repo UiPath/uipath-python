@@ -177,8 +177,6 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
         except KeyboardInterrupt:
             # Already handled by signal handler
             pass
-        finally:
-            console.info("Server stopped.")
 
     else:
         console.error(f"Unknown interface: {interface}")
