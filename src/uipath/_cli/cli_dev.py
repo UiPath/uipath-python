@@ -26,19 +26,6 @@ def _check_dev_dependency(interface: str) -> None:
             "  uv add uipath-dev --dev\n\n"
         )
 
-    if interface == "web":
-        from uipath.dev.server import HAS_EXTRAS  # type: ignore[import-untyped]
-
-        if not HAS_EXTRAS:
-            raise ImportError(
-                "The 'uipath-dev[server]' package is required to use the web interface.\n"
-                "Please install it with the server extras:\n\n"
-                "  # Using pip:\n"
-                "  pip install uipath-dev[server]\n\n"
-                "  # Using uv:\n"
-                '  uv add "uipath-dev[server]" --dev\n\n'
-            )
-
 
 @click.command()
 @click.argument(
@@ -116,7 +103,7 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
     elif interface == "web":
 
         async def run_web() -> None:
-            from uipath.dev.server import (
+            from uipath.dev.server import (  # type: ignore[import-untyped]
                 UiPathDeveloperServer,
             )
 
