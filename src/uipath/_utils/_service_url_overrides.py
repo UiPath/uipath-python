@@ -53,6 +53,49 @@ def get_service_override(endpoint_prefix: str) -> str | None:
     return overrides.get(endpoint_prefix.lower())
 
 
+def resolve_endpoint_override(
+    endpoint: str,
+) -> tuple[str | None, dict[str, str]]:
+    """Resolve a full endpoint path against service URL overrides.
+
+    Given a path like ``agenthub_/llm/raw/vendor/openai/model/gpt-4o/completions``,
+    checks if the service prefix (``agenthub_``) has an override configured.
+    When an override is active, also returns routing headers that would normally
+    be injected by the platform routing layer.
+
+    Args:
+        endpoint: Full endpoint path starting with a service prefix
+            (e.g. ``agenthub_/llm/raw/...``).
+
+    Returns:
+        A tuple of (resolved_url, headers). If no override is configured,
+        resolved_url is ``None`` and headers is empty.
+    """
+    stripped = endpoint.strip("/")
+    if not stripped:
+        return None, {}
+
+    first_segment, _, rest = stripped.partition("/")
+    if not first_segment.endswith("_"):
+        return None, {}
+
+    override_base = get_service_override(first_segment)
+    if override_base is None:
+        return None, {}
+
+    resolved_url = f"{override_base}/{rest}" if rest else override_base
+
+    headers: dict[str, str] = {}
+    tenant_id = os.environ.get("UIPATH_TENANT_ID")
+    organization_id = os.environ.get("UIPATH_ORGANIZATION_ID")
+    if tenant_id:
+        headers["X-UiPath-Internal-TenantId"] = tenant_id
+    if organization_id:
+        headers["X-UiPath-Internal-AccountId"] = organization_id
+
+    return resolved_url, headers
+
+
 def clear_overrides_cache() -> None:
     """Clear the cached overrides. Intended for tests."""
     _load_service_overrides.cache_clear()

@@ -23,7 +23,7 @@ from ..._utils import UiPathUrl, user_agent_value
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import HEADER_USER_AGENT
 from ..errors import EnrichedException
-from ._config import UiPathApiConfig
+from ._config import UiPathApiConfig, UiPathConfig
 from ._execution_context import UiPathExecutionContext
 
 
@@ -105,6 +105,7 @@ class BaseService:
         scoped_url = self._url.scope_url(str(url), scoped)
         if scoped_url.startswith(("http://", "https://")):
             self._logger.debug(f"Service URL override active: {scoped_url}")
+            self._inject_routing_headers(kwargs["headers"])
 
         response = self._client.request(method, scoped_url, **kwargs)
 
@@ -144,6 +145,7 @@ class BaseService:
         scoped_url = self._url.scope_url(str(url), scoped)
         if scoped_url.startswith(("http://", "https://")):
             self._logger.debug(f"Service URL override active: {scoped_url}")
+            self._inject_routing_headers(kwargs["headers"])
 
         response = await self._client_async.request(method, scoped_url, **kwargs)
 
@@ -153,6 +155,17 @@ class BaseService:
             # include the http response in the error message
             raise EnrichedException(e) from e
         return response
+
+    def _inject_routing_headers(self, headers: dict[str, str]) -> None:
+        """Add routing headers that would normally be set by the routing layer.
+
+        When using a local service URL override, the platform routing layer
+        is bypassed, so tenant and account identifiers must be sent explicitly.
+        """
+        if UiPathConfig.tenant_id:
+            headers["X-UiPath-Internal-TenantId"] = UiPathConfig.tenant_id
+        if UiPathConfig.organization_id:
+            headers["X-UiPath-Internal-AccountId"] = UiPathConfig.organization_id
 
     @property
     def default_headers(self) -> dict[str, str]:
