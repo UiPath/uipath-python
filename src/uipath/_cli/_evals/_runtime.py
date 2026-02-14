@@ -47,9 +47,7 @@ from uipath.runtime.errors import (
 from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from uipath._cli._evals._conversational_mapper import (
-    to_conversational_eval_output_schema
-)
+from uipath._cli._evals._conversational_utils import UiPathLegacyEvalChatMessagesMapper
 
 from uipath._cli._evals._span_utils import (
     configure_eval_set_run_span,
@@ -925,12 +923,14 @@ class UiPathEvalRuntime:
             is_conversational = False
         
             if schema.metadata and isinstance(schema.metadata, dict):
+                print("=== Schema metadata: ")
+                print(schema.metadata)
                 engine = schema.metadata.get("settings").get("engine")
                 is_conversational = "conversational" in engine
 
             # print("result.output: " + str(result.output))
             if is_conversational and result.output:
-                converted_output = to_conversational_eval_output_schema(result.output.get("messages"))
+                converted_output = UiPathLegacyEvalChatMessagesMapper.messages_to_legacy_conversational_eval_output(result.output.get("messages"))
                 print("converted_output: " + str(converted_output))
                 result = UiPathRuntimeResult(
                     output=converted_output,
