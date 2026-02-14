@@ -141,7 +141,13 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
                 )
 
                 app = UiPathDeveloperServer(
-                    runtime_factory=factory, trace_manager=trace_manager
+                    runtime_factory=factory,
+                    trace_manager=trace_manager,
+                    factory_creator=lambda: UiPathRuntimeFactoryRegistry.get(
+                        context=UiPathRuntimeContext(
+                            trace_manager=trace_manager, command="dev"
+                        )
+                    ),
                 )
 
                 server_task = asyncio.create_task(app.run_async())
@@ -177,8 +183,6 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
         except KeyboardInterrupt:
             # Already handled by signal handler
             pass
-        finally:
-            console.info("Server stopped.")
 
     else:
         console.error(f"Unknown interface: {interface}")
