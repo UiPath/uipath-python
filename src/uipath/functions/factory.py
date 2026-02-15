@@ -102,4 +102,5 @@ class UiPathFunctionsRuntimeFactory:
         return UiPathDebugFunctionsRuntime(
             delegate=inner,
             entrypoint_path=str(full_path),
+            function_name=function_name,
         )

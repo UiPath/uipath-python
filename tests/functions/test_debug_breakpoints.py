@@ -14,6 +14,7 @@ breakpoint so the full loop completes without human interaction.
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -103,7 +104,9 @@ def _build_stack(
 ) -> tuple[UiPathDebugRuntime, MockDebugBridge]:
     """Build the full debug stack and return (runtime, bridge)."""
     inner = UiPathFunctionsRuntime(str(script), func_name, script.name)
-    debug_fn = UiPathDebugFunctionsRuntime(inner, entrypoint_path=str(script))
+    debug_fn = UiPathDebugFunctionsRuntime(
+        inner, entrypoint_path=str(script), function_name=func_name
+    )
     bridge = MockDebugBridge(breakpoints=breakpoints)
     runtime = UiPathDebugRuntime(delegate=debug_fn, debug_bridge=bridge)
     return runtime, bridge
@@ -113,6 +116,7 @@ def _build_stack(
 def script_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Temp directory used as cwd so BreakpointController treats scripts as project files."""
     monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path)
     return tmp_path
 
 
@@ -457,3 +461,274 @@ class TestBreakpointController:
         assert ctrl._is_project_file(str(script_dir / "main.py"))
         assert not ctrl._is_project_file(str(script_dir / "site-packages" / "lib.py"))
         assert not ctrl._is_project_file("/some/other/path/foo.py")
+
+    def test_is_project_file_rejects_frozen_modules(self, script_dir: Path):
+        """Frozen/built-in module paths must not pass the project-file check."""
+        ctrl = BreakpointController(
+            project_dir=str(script_dir),
+            breakpoints=[],
+        )
+        # os.path.abspath("<frozen importlib._bootstrap>") resolves under cwd
+        frozen_resolved = os.path.abspath("<frozen importlib._bootstrap_external>")
+        assert not ctrl._is_project_file(frozen_resolved)
+
+
+class TestStateEvents:
+    """State events should fire only for call-graph functions."""
+
+    async def test_state_events_emitted_for_graph_functions(self, script_dir: Path):
+        """State events fire for the entrypoint and functions it calls."""
+        _write_script(
+            script_dir,
+            "helpers.py",
+            "def helper(n):\n    return n * 2\n",
+        )
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "from helpers import helper\n"
+            "\n"
+            "def main(input):\n"
+            '    val = input.get("n", 5)\n'
+            "    result = helper(val)\n"  # line 5
+            '    return {"result": result}\n',
+        )
+        # Use step mode so the controller path is active and state events fire
+        runtime, bridge = _build_stack(script, breakpoints="*")
+
+        try:
+            result = await runtime.execute({"n": 3})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 6}
+
+            # State events should include main and helper
+            state_names = [s.node_name for s in bridge.state_updates]
+            assert "main" in state_names
+            assert "helper" in state_names
+        finally:
+            await runtime.dispose()
+
+    async def test_state_events_not_emitted_for_external_functions(
+        self, script_dir: Path
+    ):
+        """Functions from external modules (json, os, etc.) should NOT produce state events."""
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "import json\n"
+            "\n"
+            "def main(input):\n"
+            '    data = json.dumps({"hello": "world"})\n'  # line 4
+            '    return {"data": data}\n',
+        )
+        # Step mode to activate the controller (and state events)
+        runtime, bridge = _build_stack(script, breakpoints="*")
+
+        try:
+            result = await runtime.execute({})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+
+            state_names = [s.node_name for s in bridge.state_updates]
+            # Only main — json.dumps is external
+            assert state_names == ["main"]
+        finally:
+            await runtime.dispose()
+
+    async def test_state_events_carry_locals(self, script_dir: Path):
+        """State event payload should contain the function's arguments."""
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "def helper(x, y):\n"
+            "    return x + y\n"
+            "\n"
+            "def main(input):\n"
+            "    return helper(1, 2)\n",  # line 5
+        )
+        # Use a breakpoint to activate the controller path
+        runtime, bridge = _build_stack(script, breakpoints=["5"])
+
+        try:
+            await runtime.execute({})
+
+            helper_states = [s for s in bridge.state_updates if s.node_name == "helper"]
+            assert len(helper_states) == 1
+            # At call time, x and y should be in the payload
+            assert helper_states[0].payload["x"] == 1
+            assert helper_states[0].payload["y"] == 2
+        finally:
+            await runtime.dispose()
+
+    async def test_state_events_with_breakpoints(self, script_dir: Path):
+        """State events and breakpoints work together."""
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "def helper():\n"
+            "    return 42\n"
+            "\n"
+            "def main(input):\n"
+            "    x = helper()\n"  # line 5
+            '    return {"x": x}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=["5"])
+
+        try:
+            result = await runtime.execute({})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"x": 42}
+
+            # Should have both state updates and breakpoint hits
+            assert len(bridge.breakpoint_hits) == 1
+            state_names = [s.node_name for s in bridge.state_updates]
+            assert "main" in state_names
+        finally:
+            await runtime.dispose()
+
+    async def test_no_state_events_without_function_name(self, script_dir: Path):
+        """When function_name is not provided, no state events fire (even with breakpoints)."""
+        script = _write_script(
+            script_dir,
+            "main.py",
+            'def main(input):\n    x = 1\n    return {"ok": True}\n',
+        )
+        inner = UiPathFunctionsRuntime(str(script), "main", script.name)
+        # No function_name → no graph → no state events
+        debug_fn = UiPathDebugFunctionsRuntime(inner, entrypoint_path=str(script))
+        bridge = MockDebugBridge(breakpoints=["2"])
+        runtime = UiPathDebugRuntime(delegate=debug_fn, debug_bridge=bridge)
+
+        try:
+            result = await runtime.execute({})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert len(bridge.breakpoint_hits) == 1
+            assert len(bridge.state_updates) == 0
+        finally:
+            await runtime.dispose()
+
+    async def test_state_events_emitted_without_breakpoints(self, script_dir: Path):
+        """State events fire even without breakpoints when the call graph exists."""
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "def helper():\n"
+            "    return 42\n"
+            "\n"
+            "def main(input):\n"
+            "    x = helper()\n"
+            '    return {"x": x}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=[])
+
+        try:
+            result = await runtime.execute({})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"x": 42}
+
+            # State events fire even with no breakpoints
+            state_names = [s.node_name for s in bridge.state_updates]
+            assert "main" in state_names
+            assert "helper" in state_names
+            # No breakpoints should have been hit
+            assert len(bridge.breakpoint_hits) == 0
+        finally:
+            await runtime.dispose()
+
+    async def test_multiline_expression_breakpoint_hits_once(self, script_dir: Path):
+        """Breakpoint on a multiline call expression should fire exactly once.
+
+        Python's bytecode bounces back to the call-site line after
+        evaluating nested arguments on deeper lines, e.g.::
+
+            return Wrapper(          # line 5 — LOAD_GLOBAL + CALL
+                result=choice(       # line 6
+                    [1, 2, 3]        # line 7
+                )                    # ← CALL choice → back to line 6
+            )                        # ← CALL Wrapper → back to line 5
+
+        Without deduplication the breakpoint on line 5 fires twice.
+        """
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "import random\n"  # 1
+            "\n"  # 2
+            "async def get_random():\n"  # 3
+            '    """Get a random value."""\n'  # 4
+            "    return dict(\n"  # 5
+            "        value=random.choice(\n"  # 6
+            "            [1, 2, 3]\n"  # 7
+            "        )\n"  # 8
+            "    )\n"  # 9
+            "\n"  # 10
+            "async def main(input):\n"  # 11
+            "    result = await get_random()\n"  # 12
+            '    return {"result": result}\n',  # 13
+        )
+        # Breakpoint on line 5 — the first body line (multiline return)
+        runtime, bridge = _build_stack(script, breakpoints=["main.py:5"])
+
+        try:
+            result = await runtime.execute({})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+
+            # The breakpoint should fire exactly ONCE despite bytecode bouncing
+            bp_nodes = [h.breakpoint_node for h in bridge.breakpoint_hits]
+            assert len(bridge.breakpoint_hits) == 1, (
+                f"Expected 1 breakpoint hit but got {len(bridge.breakpoint_hits)}: {bp_nodes}"
+            )
+        finally:
+            await runtime.dispose()
+
+    async def test_state_events_through_decorator_wrappers(self, script_dir: Path):
+        """State events fire for functions wrapped with functools.wraps decorators.
+
+        Simulates @traced-style decorators where the wrapper (sync_wrapper/
+        async_wrapper) lives in an external module. The trace callback should
+        still fire for the ORIGINAL function called from within the wrapper.
+        """
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "from functools import wraps\n"
+            "\n"
+            "def my_decorator(func):\n"
+            "    @wraps(func)\n"
+            "    def wrapper(*args, **kwargs):\n"
+            "        return func(*args, **kwargs)\n"
+            "    return wrapper\n"
+            "\n"
+            "@my_decorator\n"
+            "def track_operator(op):\n"
+            "    pass\n"
+            "\n"
+            "@my_decorator\n"
+            "def apply_operator(op, a, b):\n"
+            "    return a + b\n"
+            "\n"
+            "def main(input):\n"
+            '    op = input.get("op", "+")\n'
+            "    track_operator(op)\n"
+            '    result = apply_operator(op, input.get("a", 1), input.get("b", 2))\n'
+            '    return {"result": result}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints="*")
+
+        try:
+            result = await runtime.execute({"a": 3, "b": 4})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 7}
+
+            state_names = [s.node_name for s in bridge.state_updates]
+            assert "main" in state_names
+            assert "track_operator" in state_names
+            assert "apply_operator" in state_names
+        finally:
+            await runtime.dispose()

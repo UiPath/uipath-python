@@ -24,6 +24,7 @@ from uipath.runtime.errors import (
 )
 from uipath.runtime.schema import UiPathRuntimeSchema, transform_attachments
 
+from .graph_builder import build_call_graph
 from .schema_gen import get_type_schema
 from .type_conversion import (
     convert_from_class,
@@ -180,12 +181,30 @@ class UiPathFunctionsRuntime:
         # Determine output schema
         raw_output_schema = get_type_schema(hints.get("return"))
         output_schema = transform_attachments(raw_output_schema)
+
+        # Build call graph from AST
+        graph = None
+        try:
+            graph = build_call_graph(
+                str(self.file_path),
+                self.function_name,
+                project_dir=str(self.file_path.parent),
+            )
+        except Exception:
+            logger.debug(
+                "Failed to build call graph for %s:%s",
+                self.file_path,
+                self.function_name,
+                exc_info=True,
+            )
+
         return UiPathRuntimeSchema(
             filePath=self.entrypoint_name,
             uniqueId=str(uuid.uuid4()),
             type="agent",
             input=input_schema,
             output=output_schema,
+            graph=graph,
         )
 
     async def dispose(self) -> None:
