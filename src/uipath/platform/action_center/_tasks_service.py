@@ -264,6 +264,7 @@ async def _resolve_recipient(self, task_recipient: TaskRecipient) -> str:
             scoped="org",
         )
         recipient_value = user_response.json().get("email")
+        task_recipient.display_name = recipient_value
     if task_recipient.type == TaskRecipientType.GROUP_ID:
         group_spec = _resolve_group(task_recipient.value)
         group_response = await self.request_async(
@@ -275,6 +276,7 @@ async def _resolve_recipient(self, task_recipient: TaskRecipient) -> str:
             scoped="org",
         )
         recipient_value = group_response.json().get("displayName")
+        task_recipient.display_name = recipient_value
     return recipient_value
 
 
