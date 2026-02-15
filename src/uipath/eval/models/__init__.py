@@ -15,6 +15,8 @@ from uipath.eval.models.models import (
     ToolCall,
     ToolOutput,
 )
+from uipath.eval.models.reconstructed_span import ReconstructedSpan
+from uipath.eval.models.serializable_span import SerializableSpan
 
 __all__ = [
     "AgentExecution",
@@ -31,4 +33,6 @@ __all__ = [
     "ToolCall",
     "EvaluatorType",
     "ToolOutput",
+    "SerializableSpan",
+    "ReconstructedSpan",
 ]

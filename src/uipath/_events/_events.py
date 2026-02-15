@@ -51,6 +51,7 @@ class EvalRunUpdatedEvent(BaseModel):
     spans: list[ReadableSpan]
     logs: list[logging.LogRecord]
     exception_details: EvalItemExceptionDetails | None = None
+    skip_studio_web_reporting: bool = False
 
     @model_validator(mode="after")
     def validate_exception_details(self):
@@ -63,6 +64,7 @@ class EvalSetRunUpdatedEvent(BaseModel):
     execution_id: str
     evaluator_scores: dict[str, float]
     success: bool = True
+    skip_studio_web_reporting: bool = False
 
 
 ProgressEvent = Union[
