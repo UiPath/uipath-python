@@ -253,28 +253,33 @@ async def _assign_task_spec(
 
 async def _resolve_recipient(self, task_recipient: TaskRecipient) -> str:
     recipient_value = task_recipient.value
+
     if task_recipient.type == TaskRecipientType.USER_ID:
-        user_spec = _resolve_user(task_recipient.value)
-        user_response = await self.request_async(
-            user_spec.method,
-            user_spec.endpoint,
-            json=user_spec.json,
-            content=user_spec.content,
-            headers=user_spec.headers,
+        spec = _resolve_user(task_recipient.value)
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
             scoped="org",
         )
-        recipient_value = user_response.json().get("email")
+        recipient_value = response.json().get("email")
+        task_recipient.display_name = recipient_value
+
     if task_recipient.type == TaskRecipientType.GROUP_ID:
-        group_spec = _resolve_group(task_recipient.value)
-        group_response = await self.request_async(
-            group_spec.method,
-            group_spec.endpoint,
-            json=group_spec.json,
-            content=group_spec.content,
-            headers=group_spec.headers,
+        spec = _resolve_group(task_recipient.value)
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
             scoped="org",
         )
-        recipient_value = group_response.json().get("displayName")
+        recipient_value = response.json().get("displayName")
+        task_recipient.display_name = recipient_value
+
     return recipient_value
 
 
