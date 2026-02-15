@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-json-similarity-nested.json",
+    "id": "legacy-json-similarity-nested",
+    "name": "JSON Similarity - Nested Object (summary)",
+    "description": "JSON similarity on a nested object: summary",
+    "category": 0,
+    "type": 6,
+    "targetOutputKey": "summary",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}
