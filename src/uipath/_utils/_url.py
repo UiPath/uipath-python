@@ -1,6 +1,8 @@
 from typing import Literal
 from urllib.parse import urlparse
 
+from ._service_url_overrides import get_service_override
+
 
 class UiPathUrl:
     """A class that represents a UiPath URL.
@@ -61,12 +63,40 @@ class UiPathUrl:
         if not self._is_relative_url(url):
             return url
 
+        # Check for service-specific URL override
+        override_url = self._resolve_service_override(url)
+        if override_url is not None:
+            return override_url
+
         parts = [self.org_name]
         if scoped == "tenant":
             parts.append(self.tenant_name)
         parts.append(url.strip("/"))
 
         return "/".join(parts)
+
+    def _resolve_service_override(self, url: str) -> str | None:
+        """Return an absolute URL if a service override is configured for *url*.
+
+        Extracts the first path segment.  If it ends with ``_`` (the UiPath
+        service-prefix convention), look up an override.  When found, strip the
+        prefix and return an absolute URL pointing at the override host.
+        """
+        stripped = url.strip("/")
+        if not stripped:
+            return None
+
+        first_segment, _, rest = stripped.partition("/")
+        if not first_segment.endswith("_"):
+            return None
+
+        override_base = get_service_override(first_segment)
+        if override_base is None:
+            return None
+
+        if rest:
+            return f"{override_base}/{rest}"
+        return override_base
 
     @property
     def _org_tenant_names(self):
