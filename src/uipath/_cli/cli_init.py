@@ -309,7 +309,7 @@ def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -
             _enrich_graph_node_descriptions(graph_data)
 
             ascii_graph = AsciiGraph(**graph_data)
-            options = RenderOptions(theme=TOKYO_NIGHT)
+            options = RenderOptions(theme=TOKYO_NIGHT, max_breadth=3, max_depth=5)
             rendered = render(ascii_graph, options)
             click.echo(_render_graph(rendered))
         except Exception:

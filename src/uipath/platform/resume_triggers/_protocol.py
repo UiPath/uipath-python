@@ -174,8 +174,15 @@ class UiPathResumeTriggerReader:
                     faulted_state = JobState.FAULTED.value
                     running_state = JobState.RUNNING.value
                     pending_state = JobState.PENDING.value
+                    resumed_state = JobState.RESUMED.value
+                    suspended_state = JobState.SUSPENDED.value
 
-                    if job_state in (pending_state, running_state):
+                    if job_state in (
+                        pending_state,
+                        running_state,
+                        suspended_state,
+                        resumed_state,
+                    ):
                         raise UiPathPendingTriggerError(
                             ErrorCategory.SYSTEM,
                             f"Job is not finished yet. Current state: {job_state}",
