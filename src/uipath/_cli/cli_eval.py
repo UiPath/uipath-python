@@ -413,7 +413,9 @@ def eval(
                                     event_bus,
                                 )
                         else:
-                            logger.debug("No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites")
+                            logger.debug(
+                                "No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites"
+                            )
                             ctx.result = await evaluate(
                                 runtime_factory,
                                 trace_manager,
