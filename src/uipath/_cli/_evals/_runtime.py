@@ -84,6 +84,7 @@ from ._models._output import (
     UiPathEvalRunExecutionOutput,
     convert_eval_execution_output_to_serializable,
 )
+from ._evaluation_strategy import EvaluationStrategy, LocalEvaluationStrategy
 from ._span_collection import ExecutionSpanCollector
 from .mocks.mocks import (
     cache_manager_context,
@@ -206,6 +207,10 @@ class UiPathEvalContext:
     input_overrides: dict[str, Any] | None = None
     resume: bool = False
     job_id: str | None = None
+
+    # Remote evaluation fields
+    remote_evaluation: bool = False
+    evaluation_strategy: EvaluationStrategy | None = None
 
 
 class UiPathEvalRuntime:
@@ -407,6 +412,7 @@ class UiPathEvalRuntime:
                             execution_id=self.execution_id,
                             evaluator_scores=evaluator_averages,
                             success=not any_failed,
+                            skip_studio_web_reporting=self.context.remote_evaluation,
                         ),
                         wait_for_completion=False,
                     )
@@ -652,41 +658,32 @@ class UiPathEvalRuntime:
                             agent_execution_output
                         )
                     )
-                evaluation_item_results: list[EvalItemResult] = []
 
-                for evaluator in evaluators:
-                    if evaluator.id not in eval_item.evaluation_criterias:
-                        # Skip!
-                        continue
-                    evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
+                # Run evaluators using the configured strategy
+                strategy = self.context.evaluation_strategy or LocalEvaluationStrategy()
+                is_remote = self.context.remote_evaluation
 
-                    evaluation_result = await self.run_evaluator(
-                        evaluator=evaluator,
-                        execution_output=agent_execution_output,
-                        eval_item=eval_item,
-                        # If evaluation criteria is None, validate_and_evaluate defaults to the default
-                        evaluation_criteria=evaluator.evaluation_criteria_type(
-                            **evaluation_criteria
-                        )
-                        if evaluation_criteria
-                        else None,
-                    )
+                evaluation_item_results = await strategy.evaluate(
+                    eval_item=eval_item,
+                    evaluators=evaluators,
+                    execution_output=agent_execution_output,
+                    run_evaluator_fn=self.run_evaluator,
+                )
 
+                # Build DTOs from results
+                # Build a name lookup from evaluators for DTO construction
+                evaluator_name_map = {e.id: e.name for e in evaluators}
+                for item_result in evaluation_item_results:
                     dto_result = EvaluationResultDto.from_evaluation_result(
-                        evaluation_result
+                        item_result.result
                     )
-
                     evaluation_run_results.evaluation_run_results.append(
                         EvaluationRunResultDto(
-                            evaluator_name=evaluator.name,
+                            evaluator_name=evaluator_name_map.get(
+                                item_result.evaluator_id, item_result.evaluator_id
+                            ),
                             result=dto_result,
-                            evaluator_id=evaluator.id,
-                        )
-                    )
-                    evaluation_item_results.append(
-                        EvalItemResult(
-                            evaluator_id=evaluator.id,
-                            result=evaluation_result,
+                            evaluator_id=item_result.evaluator_id,
                         )
                     )
 
@@ -717,6 +714,7 @@ class UiPathEvalRuntime:
                         spans=agent_execution_output.spans,
                         logs=agent_execution_output.logs,
                         exception_details=exception_details,
+                        skip_studio_web_reporting=is_remote,
                     ),
                     wait_for_completion=False,
                 )
