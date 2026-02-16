@@ -8,10 +8,13 @@ import uuid
 from typing import Any
 from urllib.parse import urlparse
 
+from pydantic import ValidationError
+
 from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
+    UiPathConversationGenericInterruptStartEvent,
     UiPathConversationInterruptEndEvent,
     UiPathConversationInterruptEvent,
     UiPathConversationMessageEvent,
@@ -264,6 +267,32 @@ class SocketIOChatBridge:
                         "Cannot emit interrupt event: api_resume is None"
                     )
 
+                # Try to parse as tool call confirmation first
+                try:
+                    start_event = UiPathConversationToolCallConfirmationInterruptStartEvent(
+                        type="uipath_cas_tool_call_confirmation",
+                        value=UiPathConversationToolCallConfirmationValue(
+                            **resume_trigger.api_resume.request
+                        ),
+                    )
+                except Exception:
+                    logger.info(
+                        "Failed to parse as tool call confirmation, using generic interrupt"
+                    )
+
+                    # Wrap request in JSON if it's not already a dict
+                    request_value = resume_trigger.api_resume.request
+                    if not isinstance(request_value, dict):
+                        request_value = {"value": request_value}
+
+                    # Extract type from request
+                    interrupt_type = request_value.get("type", "uipath_cas_generic")
+
+                    start_event = UiPathConversationGenericInterruptStartEvent(
+                        type=interrupt_type,
+                        value=request_value,
+                    )
+
                 interrupt_event = UiPathConversationEvent(
                     conversation_id=self.conversation_id,
                     exchange=UiPathConversationExchangeEvent(
@@ -272,12 +301,7 @@ class SocketIOChatBridge:
                             message_id=self._current_message_id,
                             interrupt=UiPathConversationInterruptEvent(
                                 interrupt_id=self._interrupt_id,
-                                start=UiPathConversationToolCallConfirmationInterruptStartEvent(
-                                    type="uipath_cas_tool_call_confirmation",
-                                    value=UiPathConversationToolCallConfirmationValue(
-                                        **resume_trigger.api_resume.request
-                                    ),
-                                ),
+                                start=start_event,
                             ),
                         ),
                     ),
