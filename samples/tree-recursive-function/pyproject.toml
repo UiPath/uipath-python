@@ -1,7 +1,7 @@
 [project]
-name = "pizza-order-function"
+name = "tree-recursive-function"
 version = "0.0.1"
-description = "pizza-order-function"
+description = "tree-recursive-function"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
     "uipath>=2.8.31, <2.9.0",
