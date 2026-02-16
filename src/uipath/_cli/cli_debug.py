@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import uuid
 from pathlib import Path
 
@@ -38,6 +39,7 @@ from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
+logger = logging.getLogger(__name__)
 
 
 def load_simulation_config() -> MockingContext | None:
@@ -244,6 +246,7 @@ def debug(
                                     options=UiPathExecuteOptions(resume=resume),
                                 )
                         else:
+                            logger.debug("No UIPATH_PROJECT_ID configured, executing without resource overwrites")
                             ctx.result = await debug_runtime.execute(
                                 ctx.get_input(),
                                 options=UiPathExecuteOptions(resume=resume),

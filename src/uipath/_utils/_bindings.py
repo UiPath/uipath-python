@@ -1,5 +1,6 @@
 import functools
 import inspect
+import logging
 from abc import ABC, abstractmethod
 from contextvars import ContextVar, Token
 from typing import (
@@ -14,6 +15,8 @@ from typing import (
 )
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -128,13 +131,31 @@ class ResourceOverwritesContext:
         self.overwrites_count = 0
 
     async def __aenter__(self) -> "ResourceOverwritesContext":
+        existing = _resource_overwrites.get()
+        if existing is not None:
+            logger.warning(
+                "Entering ResourceOverwritesContext while another context is already active (%d existing overwrite(s))",
+                len(existing),
+            )
         overwrites = await self.get_overwrites_callable()
         self._token = _resource_overwrites.set(overwrites)
         self.overwrites_count = len(overwrites)
+        if overwrites:
+            logger.info(
+                "Resource overwrites context entered: %d overwrite(s) loaded, keys=%s",
+                len(overwrites),
+                list(overwrites.keys()),
+            )
+        else:
+            logger.debug("Resource overwrites context entered: no overwrites loaded")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self._token:
+            logger.debug(
+                "Resource overwrites context exited: %d overwrite(s) cleared",
+                self.overwrites_count,
+            )
             _resource_overwrites.reset(self._token)
 
 
@@ -196,6 +217,8 @@ def resource_override(
 
                 # Apply the matched overwrite
                 if matched_overwrite is not None:
+                    old_resource = all_args.get(resource_identifier)
+                    old_folder = all_args.get(folder_identifier)
                     if resource_identifier in sig.parameters:
                         all_args[resource_identifier] = (
                             matched_overwrite.resource_identifier
@@ -204,6 +227,24 @@ def resource_override(
                         all_args[folder_identifier] = (
                             matched_overwrite.folder_identifier
                         )
+                    logger.info(
+                        "Resource overwrite applied for %s on %s: %s='%s' -> '%s', %s='%s' -> '%s'",
+                        resource_type,
+                        func.__name__,
+                        resource_identifier,
+                        old_resource,
+                        matched_overwrite.resource_identifier,
+                        folder_identifier,
+                        old_folder,
+                        matched_overwrite.folder_identifier,
+                    )
+                else:
+                    logger.debug(
+                        "No resource overwrite matched for %s key='%s' on %s",
+                        resource_type,
+                        key,
+                        func.__name__,
+                    )
 
             return all_args
 
