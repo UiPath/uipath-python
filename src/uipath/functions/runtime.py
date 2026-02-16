@@ -98,9 +98,12 @@ class UiPathFunctionsRuntime:
         self, func: Callable[..., Any], input_data: dict[str, Any]
     ) -> dict[str, Any]:
         """Execute function with proper input conversion and error handling."""
-        sig = inspect.signature(func)
+        # Unwrap to inspect the original signature for type-based conversion,
+        # but still call the outer (decorated) func for proper tracing/hooks.
+        unwrapped = inspect.unwrap(func)
+        sig = inspect.signature(unwrapped)
         params = list(sig.parameters.values())
-        is_async = inspect.iscoroutinefunction(func)
+        is_async = inspect.iscoroutinefunction(unwrapped)
 
         # No parameters - call without args
         if not params:
@@ -167,8 +170,12 @@ class UiPathFunctionsRuntime:
     async def get_schema(self) -> UiPathRuntimeSchema:
         """Get schema for the function."""
         func = self._load_function()
-        hints = get_type_hints(func)
-        sig = inspect.signature(func)
+
+        # Unwrap decorated functions to get the original signature and type hints.
+        # This handles decorators (e.g. @traced) that use functools.wraps.
+        unwrapped = inspect.unwrap(func)
+        hints = get_type_hints(unwrapped)
+        sig = inspect.signature(unwrapped)
 
         # Determine input schema
         if not sig.parameters:
