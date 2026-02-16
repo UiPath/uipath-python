@@ -21,6 +21,7 @@ from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._utils._bindings import ResourceOverwritesContext
+from uipath.platform.common import UiPathConfig
 from uipath.tracing import (
     JsonLinesFileExporter,
     LiveTrackingSpanProcessor,
@@ -195,7 +196,7 @@ def run(
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
-                            if ctx.job_id:
+                            if ctx.job_id and UiPathConfig.is_tracing_enabled:
                                 trace_manager.add_span_processor(
                                     LiveTrackingSpanProcessor(
                                         LlmOpsHttpExporter(),
