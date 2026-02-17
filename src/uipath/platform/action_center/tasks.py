@@ -34,6 +34,7 @@ class TaskRecipient(BaseModel):
         TaskRecipientType.GROUP_NAME,
     ] = Field(..., alias="type")
     value: str = Field(..., alias="value")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
 
 
 class Task(BaseModel):

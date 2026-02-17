@@ -22,6 +22,13 @@ from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 
 
+def _ensure_string_value(value: Any) -> str:
+    """Convert any value to a string for use in field Value."""
+    if isinstance(value, str):
+        return value
+    return str(value) if value else ""
+
+
 def _create_spec(
     data: Optional[Dict[str, Any]],
     action_schema: Optional[TaskSchema],
@@ -41,13 +48,14 @@ def _create_spec(
         if action_schema.inputs:
             for input_field in action_schema.inputs:
                 field_name = input_field.name
+                field_value = data.get(field_name, "") if data is not None else ""
                 field_list.append(
                     {
                         "Id": input_field.key,
                         "Name": field_name,
                         "Title": field_name,
                         "Type": "Fact",
-                        "Value": data.get(field_name, "") if data is not None else "",
+                        "Value": _ensure_string_value(field_value),
                     }
                 )
         if action_schema.outputs:
@@ -65,13 +73,14 @@ def _create_spec(
         if action_schema.in_outs:
             for inout_field in action_schema.in_outs:
                 field_name = inout_field.name
+                field_value = data.get(field_name, "") if data is not None else ""
                 field_list.append(
                     {
                         "Id": inout_field.key,
                         "Name": field_name,
                         "Title": field_name,
                         "Type": "Fact",
-                        "Value": data.get(field_name, "") if data is not None else "",
+                        "Value": _ensure_string_value(field_value),
                     }
                 )
         if action_schema.outcomes:
@@ -244,28 +253,33 @@ async def _assign_task_spec(
 
 async def _resolve_recipient(self, task_recipient: TaskRecipient) -> str:
     recipient_value = task_recipient.value
+
     if task_recipient.type == TaskRecipientType.USER_ID:
-        user_spec = _resolve_user(task_recipient.value)
-        user_response = await self.request_async(
-            user_spec.method,
-            user_spec.endpoint,
-            json=user_spec.json,
-            content=user_spec.content,
-            headers=user_spec.headers,
+        spec = _resolve_user(task_recipient.value)
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
             scoped="org",
         )
-        recipient_value = user_response.json().get("email")
+        recipient_value = response.json().get("email")
+        task_recipient.display_name = recipient_value
+
     if task_recipient.type == TaskRecipientType.GROUP_ID:
-        group_spec = _resolve_group(task_recipient.value)
-        group_response = await self.request_async(
-            group_spec.method,
-            group_spec.endpoint,
-            json=group_spec.json,
-            content=group_spec.content,
-            headers=group_spec.headers,
+        spec = _resolve_group(task_recipient.value)
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
             scoped="org",
         )
-        recipient_value = group_response.json().get("displayName")
+        recipient_value = response.json().get("displayName")
+        task_recipient.display_name = recipient_value
+
     return recipient_value
 
 

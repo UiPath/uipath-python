@@ -1,0 +1,33 @@
+{
+  "operation": "add_bulk",
+  "queue_name": "some-random-queue",
+  "items": [
+    {
+      "reference": "ITEM-001",
+      "priority": "High",
+      "specific_content": {
+        "customer_id": "CUST-001",
+        "order_number": "ORD-2024-001",
+        "amount": 150.50
+      }
+    },
+    {
+      "reference": "ITEM-002",
+      "priority": "High",
+      "specific_content": {
+        "customer_id": "CUST-002",
+        "order_number": "ORD-2024-002",
+        "amount": 250.75
+      }
+    },
+    {
+      "reference": "ITEM-003",
+      "priority": "Low",
+      "specific_content": {
+        "customer_id": "CUST-003",
+        "order_number": "ORD-2024-003",
+        "amount": 99.99
+      }
+    }
+  ]
+}

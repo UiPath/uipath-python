@@ -563,6 +563,8 @@ class SignalRDebugBridge:
             {
                 "executionId": state_event.execution_id,
                 "nodeName": state_event.node_name,
+                "qualifiedNodeName": state_event.qualified_node_name,
+                "phase": state_event.phase,
                 "state": state_event.payload,
             },
         )

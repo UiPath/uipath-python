@@ -12,7 +12,7 @@ class QueueItemPriority(Enum):
     """Enumeration for Queue Item Priority levels."""
 
     LOW = "Low"
-    MEDIUM = "Medium"
+    NORMAL = "Normal"
     HIGH = "High"
 
 

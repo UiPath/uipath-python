@@ -24,6 +24,7 @@ from uipath.runtime.errors import (
 )
 from uipath.runtime.schema import UiPathRuntimeSchema, transform_attachments
 
+from .graph_builder import build_call_graph
 from .schema_gen import get_type_schema
 from .type_conversion import (
     convert_from_class,
@@ -97,9 +98,12 @@ class UiPathFunctionsRuntime:
         self, func: Callable[..., Any], input_data: dict[str, Any]
     ) -> dict[str, Any]:
         """Execute function with proper input conversion and error handling."""
-        sig = inspect.signature(func)
+        # Unwrap to inspect the original signature for type-based conversion,
+        # but still call the outer (decorated) func for proper tracing/hooks.
+        unwrapped = inspect.unwrap(func)
+        sig = inspect.signature(unwrapped)
         params = list(sig.parameters.values())
-        is_async = inspect.iscoroutinefunction(func)
+        is_async = inspect.iscoroutinefunction(unwrapped)
 
         # No parameters - call without args
         if not params:
@@ -166,8 +170,12 @@ class UiPathFunctionsRuntime:
     async def get_schema(self) -> UiPathRuntimeSchema:
         """Get schema for the function."""
         func = self._load_function()
-        hints = get_type_hints(func)
-        sig = inspect.signature(func)
+
+        # Unwrap decorated functions to get the original signature and type hints.
+        # This handles decorators (e.g. @traced) that use functools.wraps.
+        unwrapped = inspect.unwrap(func)
+        hints = get_type_hints(unwrapped)
+        sig = inspect.signature(unwrapped)
 
         # Determine input schema
         if not sig.parameters:
@@ -180,12 +188,30 @@ class UiPathFunctionsRuntime:
         # Determine output schema
         raw_output_schema = get_type_schema(hints.get("return"))
         output_schema = transform_attachments(raw_output_schema)
+
+        # Build call graph from AST
+        graph = None
+        try:
+            graph = build_call_graph(
+                str(self.file_path),
+                self.function_name,
+                project_dir=str(self.file_path.parent),
+            )
+        except Exception:
+            logger.debug(
+                "Failed to build call graph for %s:%s",
+                self.file_path,
+                self.function_name,
+                exc_info=True,
+            )
+
         return UiPathRuntimeSchema(
             filePath=self.entrypoint_name,
             uniqueId=str(uuid.uuid4()),
             type="agent",
             input=input_schema,
             output=output_schema,
+            graph=graph,
         )
 
     async def dispose(self) -> None:
