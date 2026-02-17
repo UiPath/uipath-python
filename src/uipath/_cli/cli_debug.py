@@ -207,13 +207,14 @@ def debug(
                             entrypoint, ctx.conversation_id or ctx.job_id or "default"
                         )
 
-                        if ctx.job_id and UiPathConfig.is_tracing_enabled:
-                            trace_manager.add_span_processor(
-                                LiveTrackingSpanProcessor(
-                                    LlmOpsHttpExporter(),
-                                    settings=trace_settings,
+                        if ctx.job_id:
+                            if UiPathConfig.is_tracing_enabled:
+                                trace_manager.add_span_processor(
+                                    LiveTrackingSpanProcessor(
+                                        LlmOpsHttpExporter(),
+                                        settings=trace_settings,
+                                    )
                                 )
-                            )
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
                             )
