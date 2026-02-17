@@ -204,7 +204,14 @@ async def read_resource_overwrites_from_file(
 
     try:
         with open(file_path, "r") as f:
+            import logging
             data = json.load(f)
+            print("loading overwrites...")
+            print(data)
+            logger.info("loading overwrites logger info...")
+            logger.debug("loading overwrites logger debug...")
+            logger.warning("loading overwrites logger warn...")
+
             resource_overwrites = (
                 data.get("runtime", {})
                 .get("internalArguments", {})
