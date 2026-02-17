@@ -25,7 +25,7 @@ from uipath.runtime import (
     UiPathRuntimeStatus,
 )
 from uipath.runtime.debug import UiPathDebugRuntime
-from uipath.runtime.events import UiPathRuntimeStateEvent
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 
 from uipath.functions.debug import BreakpointController, UiPathDebugFunctionsRuntime
 from uipath.functions.runtime import UiPathFunctionsRuntime
@@ -531,8 +531,9 @@ class TestStateEvents:
             assert result.status == UiPathRuntimeStatus.SUCCESSFUL
 
             state_names = [s.node_name for s in bridge.state_updates]
-            # Only main — json.dumps is external
-            assert state_names == ["main"]
+            # Only main — json.dumps is external; 2 events: started + completed
+            assert all(name == "main" for name in state_names)
+            assert len(state_names) == 2
         finally:
             await runtime.dispose()
 
@@ -553,11 +554,23 @@ class TestStateEvents:
         try:
             await runtime.execute({})
 
-            helper_states = [s for s in bridge.state_updates if s.node_name == "helper"]
-            assert len(helper_states) == 1
+            helper_started = [
+                s
+                for s in bridge.state_updates
+                if s.node_name == "helper"
+                and s.phase == UiPathRuntimeStatePhase.STARTED
+            ]
+            helper_completed = [
+                s
+                for s in bridge.state_updates
+                if s.node_name == "helper"
+                and s.phase == UiPathRuntimeStatePhase.COMPLETED
+            ]
+            assert len(helper_started) == 1
+            assert len(helper_completed) == 1
             # At call time, x and y should be in the payload
-            assert helper_states[0].payload["x"] == 1
-            assert helper_states[0].payload["y"] == 2
+            assert helper_started[0].payload["x"] == 1
+            assert helper_started[0].payload["y"] == 2
         finally:
             await runtime.dispose()
 
@@ -732,3 +745,93 @@ class TestStateEvents:
             assert "apply_operator" in state_names
         finally:
             await runtime.dispose()
+
+    async def test_state_events_have_started_and_completed_phases(
+        self, script_dir: Path
+    ):
+        """Each tracked function should emit both STARTED and COMPLETED phase events."""
+        _write_script(
+            script_dir,
+            "phase_helpers.py",
+            "def helper(n):\n    return n * 2\n",
+        )
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "from phase_helpers import helper\n"
+            "\n"
+            "def main(input):\n"
+            '    val = input.get("n", 5)\n'
+            "    result = helper(val)\n"
+            '    return {"result": result}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints="*")
+
+        try:
+            result = await runtime.execute({"n": 3})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 6}
+
+            # Each tracked function (main, helper) should have started + completed
+            for func_name in ("main", "helper"):
+                started = [
+                    s
+                    for s in bridge.state_updates
+                    if s.node_name == func_name
+                    and s.phase == UiPathRuntimeStatePhase.STARTED
+                ]
+                completed = [
+                    s
+                    for s in bridge.state_updates
+                    if s.node_name == func_name
+                    and s.phase == UiPathRuntimeStatePhase.COMPLETED
+                ]
+                assert len(started) == 1, f"{func_name} should have 1 STARTED event"
+                assert len(completed) == 1, f"{func_name} should have 1 COMPLETED event"
+
+            # Completed events should carry __return__ key
+            helper_completed = [
+                s
+                for s in bridge.state_updates
+                if s.node_name == "helper"
+                and s.phase == UiPathRuntimeStatePhase.COMPLETED
+            ]
+            assert "__return__" in helper_completed[0].payload
+        finally:
+            await runtime.dispose()
+
+    async def test_stream_phase_events_from_functions_runtime(self, script_dir: Path):
+        """UiPathFunctionsRuntime.stream() emits STARTED → COMPLETED → result."""
+        script = _write_script(
+            script_dir,
+            "main.py",
+            'def main(input):\n    return {"value": input.get("x", 0) + 1}\n',
+        )
+        inner = UiPathFunctionsRuntime(str(script), "main", script.name)
+
+        try:
+            events = []
+            async for event in inner.stream({"x": 5}):
+                events.append(event)
+
+            # Should be: STARTED state event, COMPLETED state event, result
+            state_events = [e for e in events if isinstance(e, UiPathRuntimeStateEvent)]
+            result_events = [
+                e
+                for e in events
+                if isinstance(e, UiPathRuntimeResult)
+                and not isinstance(e, UiPathBreakpointResult)
+            ]
+
+            assert len(state_events) == 2
+            assert state_events[0].phase == UiPathRuntimeStatePhase.STARTED
+            assert state_events[0].payload == {"x": 5}
+            assert state_events[1].phase == UiPathRuntimeStatePhase.COMPLETED
+            assert state_events[1].payload == {"value": 6}
+
+            assert len(result_events) == 1
+            assert result_events[0].status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result_events[0].output == {"value": 6}
+        finally:
+            await inner.dispose()
