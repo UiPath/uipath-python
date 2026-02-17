@@ -205,27 +205,18 @@ class _BuildContext:
         return None
 
     @staticmethod
-    def _first_body_line(
+    def _last_body_line(
         func_def: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> int:
-        """Return the line number of the first executable statement in the body.
+        """Return the line number of the last statement in the function body.
 
-        Skips leading docstrings so the resulting line sits *inside* the
-        function, not on the ``def`` line.  This matters for breakpoints:
-        a ``def`` line is a module-level statement executed during import,
-        whereas the first body line only fires when the function is called.
+        Using the last body line (rather than the first) means breakpoints
+        derived from graph-node IDs fire at the end of the function where
+        all local variables are visible for inspection.
         """
-        for stmt in func_def.body:
-            # Skip docstring (Expr wrapping a Constant string)
-            if (
-                isinstance(stmt, ast.Expr)
-                and isinstance(stmt.value, ast.Constant)
-                and isinstance(stmt.value.value, str)
-            ):
-                continue
-            return stmt.lineno
-        # Fallback: function has only a docstring (or is empty)
-        return func_def.body[0].lineno if func_def.body else func_def.lineno
+        if func_def.body:
+            return func_def.body[-1].lineno
+        return func_def.lineno
 
     def visit_function(self, abs_file: str, func_name: str, depth: int) -> str | None:
         """Process a function: create its node and recurse into its calls.
@@ -240,7 +231,7 @@ class _BuildContext:
         if func_def is None:
             return None
 
-        node_id = self._node_id(abs_file, self._first_body_line(func_def))
+        node_id = self._node_id(abs_file, self._last_body_line(func_def))
 
         # Add node even if already visited (we need the ID for edges)
         if node_id in self._visited:
