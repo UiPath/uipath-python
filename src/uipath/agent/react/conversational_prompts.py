@@ -83,7 +83,7 @@ WHAT TO CITE:
 - Any information drawn from Context Grounding documents.
 
 CITATION FORMAT (self-closing tag after each sentence with cited information):
-{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationFormatPrompt}}
+<uip:cite title="Document Title" reference="https://url" page_number="1"/>
 
 TOOL RESULT PATTERNS REQUIRING CITATION:
 Tool results containing these fields indicate citable sources:
@@ -97,7 +97,14 @@ RULES:
 - For context grounding: use title, reference, and page_number attributes
 - Never include citations in tool inputs
 
-{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationExamplePrompt}}
+EXAMPLES OF CORRECT USAGE:
+AI adoption is growing rapidly. <uip:cite title="Industry Study" url="https://example.com/study"/>
+The procedure requires manager approval. <uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>
+
+CRITICAL ERRORS TO AVOID:
+<uip:cite/> (missing attributes)
+<uip:cite title=""/> (empty title)
+Putting all citations at the very end of the response instead of after each sentence
 
 =====================================================================
 EXECUTION CHECKLIST
@@ -125,17 +132,6 @@ You have the following information about the user:
 ```json
 {user_settings_json}
 ```"""
-
-_CITATION_FORMAT = '<uip:cite title="Document Title" reference="https://url" page_number="1"/>'
-
-_CITATION_EXAMPLES = """EXAMPLES OF CORRECT USAGE:
-AI adoption is growing rapidly. <uip:cite title="Industry Study" url="https://example.com/study"/>
-The procedure requires manager approval. <uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>
-
-CRITICAL ERRORS TO AVOID:
-<uip:cite/> (missing attributes)
-<uip:cite title=""/> (empty title)
-Putting all citations at the very end of the response instead of after each sentence"""
 
 
 def get_chat_system_prompt(
@@ -177,14 +173,6 @@ def get_chat_system_prompt(
     prompt = prompt.replace(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_userSettingsPrompt}}",
         _get_user_settings_template(user_settings),
-    )
-    prompt = prompt.replace(
-        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationFormatPrompt}}",
-        _CITATION_FORMAT,
-    )
-    prompt = prompt.replace(
-        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationExamplePrompt}}",
-        _CITATION_EXAMPLES,
     )
 
     return prompt
