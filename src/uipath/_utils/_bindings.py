@@ -227,7 +227,7 @@ def resource_override(
                         all_args[folder_identifier] = (
                             matched_overwrite.folder_identifier
                         )
-                    logger.info(
+                    logger.debug(
                         "Resource overwrite applied for %s on %s: %s='%s' -> '%s', %s='%s' -> '%s'",
                         resource_type,
                         func.__name__,

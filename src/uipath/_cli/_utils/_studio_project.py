@@ -585,9 +585,10 @@ class StudioClient:
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         logger.debug(
-            "Loaded %d resource overwrite(s) from Studio API for solution %s",
+            "Loaded %d resource overwrite(s) from Studio API for solution %s: %s",
             len(overwrites),
             solution_id,
+            overwrites,
         )
 
         return overwrites
