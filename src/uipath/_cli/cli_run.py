@@ -196,13 +196,14 @@ def run(
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
-                            if ctx.job_id and UiPathConfig.is_tracing_enabled:
-                                trace_manager.add_span_processor(
-                                    LiveTrackingSpanProcessor(
-                                        LlmOpsHttpExporter(),
-                                        settings=trace_settings,
+                            if ctx.job_id:
+                                if UiPathConfig.is_tracing_enabled:
+                                    trace_manager.add_span_processor(
+                                        LiveTrackingSpanProcessor(
+                                            LlmOpsHttpExporter(),
+                                            settings=trace_settings,
+                                        )
                                     )
-                                )
 
                                 if ctx.conversation_id and ctx.exchange_id:
                                     chat_bridge: UiPathChatProtocol = get_chat_bridge(
