@@ -110,6 +110,7 @@ class AgentContextRetrievalMode(str, Enum):
     STRUCTURED = "Structured"
     DEEP_RAG = "DeepRAG"
     BATCH_TRANSFORM = "BatchTransform"
+    DATA_FABRIC = "DataFabric"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -342,6 +343,7 @@ class AgentContextSettings(BaseCfg):
         AgentContextRetrievalMode.STRUCTURED,
         AgentContextRetrievalMode.DEEP_RAG,
         AgentContextRetrievalMode.BATCH_TRANSFORM,
+        AgentContextRetrievalMode.DATA_FABRIC,
         AgentContextRetrievalMode.UNKNOWN,
     ] = Field(alias="retrievalMode")
     threshold: float = Field(default=0)
@@ -360,6 +362,10 @@ class AgentContextSettings(BaseCfg):
     )
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
+    )
+    # Data Fabric specific settings
+    entity_identifiers: Optional[List[str]] = Field(
+        None, alias="entityIdentifiers"
     )
 
 
@@ -1198,6 +1204,7 @@ class AgentDefinition(BaseModel):
             "structured": "Structured",
             "deeprag": "DeepRAG",
             "batchtransform": "BatchTransform",
+            "datafabric": "DataFabric",
             "unknown": "Unknown",
         }
 
