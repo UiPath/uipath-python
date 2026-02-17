@@ -88,6 +88,7 @@ jobs:
       image: ghcr.io/astral-sh/uv:python3.12-bookworm
       env:
         UIPATH_JOB_KEY: "3a03d5cb-fa21-4021-894d-a8e2eda0afe0"
+        UIPATH_TRACING_ENABLED: false
     permissions:
       contents: read
     strategy:

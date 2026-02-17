@@ -771,13 +771,14 @@ class ConnectionsService(BaseService):
         files: Dict[str, Any] | None = None
 
         # multipart/form-data for file uploads
+        json_section = activity_metadata.json_body_section or "body"
         if "multipart" in activity_metadata.content_type.lower():
             files = {}
 
             for key, val in multipart_params.items():
                 # json body itself appears as a multipart param as well
                 # instead of making assumptions on whether or not it's present, we'll handle it defensively
-                if key == "body":
+                if key == json_section:
                     continue
                 # files not supported yet supported so this will likely not work
                 files[key] = (
@@ -786,7 +787,7 @@ class ConnectionsService(BaseService):
                     None,
                 )  # probably needs to extract content type from val since IS metadata doesn't provide it
 
-            files["body"] = (
+            files[json_section] = (
                 "",
                 json.dumps(body_fields),
                 "application/json",

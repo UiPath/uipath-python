@@ -126,5 +126,11 @@ class ConfigurationManager:
 
         return Path(".uipath", STUDIO_METADATA_FILE)
 
+    @property
+    def is_tracing_enabled(self) -> bool:
+        from uipath._utils.constants import ENV_TRACING_ENABLED
+
+        return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
+
 
 UiPathConfig = ConfigurationManager()

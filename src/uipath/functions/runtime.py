@@ -22,6 +22,7 @@ from uipath.runtime.errors import (
     UiPathErrorContract,
     UiPathRuntimeError,
 )
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 from uipath.runtime.schema import UiPathRuntimeSchema, transform_attachments
 
 from .graph_builder import build_call_graph
@@ -163,8 +164,39 @@ class UiPathFunctionsRuntime:
         input: dict[str, Any] | None = None,
         options: UiPathExecuteOptions | None = None,
     ) -> AsyncGenerator[UiPathRuntimeEvent, None]:
-        """Stream execution results (functions don't support streaming, returns single result)."""
+        """Stream execution results with lifecycle phase events.
+
+        Yields STARTED → COMPLETED/FAULTED → result so consumers can
+        observe the execution lifecycle.
+        """
+        yield UiPathRuntimeStateEvent(
+            node_name=self.function_name,
+            phase=UiPathRuntimeStatePhase.STARTED,
+            payload=input or {},
+        )
+
         result = await self.execute(input, options)
+
+        if result.status == UiPathRuntimeStatus.FAULTED and result.error is not None:
+            yield UiPathRuntimeStateEvent(
+                node_name=self.function_name,
+                phase=UiPathRuntimeStatePhase.FAULTED,
+                payload={"error": result.error.model_dump()},
+            )
+        else:
+            output = result.output
+            if output is None:
+                completed_payload: dict[str, Any] = {}
+            elif isinstance(output, dict):
+                completed_payload = output
+            else:
+                completed_payload = {"output": str(output)}
+            yield UiPathRuntimeStateEvent(
+                node_name=self.function_name,
+                phase=UiPathRuntimeStatePhase.COMPLETED,
+                payload=completed_payload,
+            )
+
         yield result
 
     async def get_schema(self) -> UiPathRuntimeSchema:
