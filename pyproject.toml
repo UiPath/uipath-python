@@ -23,6 +23,7 @@ dependencies = [
   "mermaid-builder==0.0.3",
   "graphtty==0.1.6",
   "applicationinsights>=0.11.10",
+  "sqlparse>=0.4.4",
 ]
 classifiers = [
   "Intended Audience :: Developers",
