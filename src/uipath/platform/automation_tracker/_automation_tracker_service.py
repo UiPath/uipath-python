@@ -15,7 +15,6 @@ from ..._utils.constants import ENV_ORGANIZATION_ID, ENV_TENANT_ID
 from ...tracing import traced
 from ..common import BaseService, UiPathApiConfig, UiPathExecutionContext
 from .automation_tracker import (
-    BusinessObjectPayload,
     OperationPayload,
     OperationStatus,
     TransactionPayload,
@@ -330,56 +329,4 @@ class AutomationTrackerService(BaseService):
         )
         await self._send_async(
             "track/operation/end", payload.model_dump(by_alias=True, mode="json")
-        )
-
-    # ── Business object method ───────────────────────────────────────
-
-    @traced(name="automation_tracker_track_business_object", run_type="uipath")
-    def track_business_object(
-        self,
-        *,
-        operation_id: str,
-        fingerprint: str,
-        type: str,
-        key: str,
-        interaction_type: str,
-        timestamp: Optional[datetime] = None,
-    ) -> None:
-        """Track a business object interaction."""
-        payload = BusinessObjectPayload(
-            organization_id=self._organization_id,
-            tenant_id=self._tenant_id,
-            operation_id=operation_id,
-            timestamp=timestamp or datetime.now(timezone.utc),
-            fingerprint=fingerprint,
-            type=type,
-            key=key,
-            interaction_type=interaction_type,
-        )
-        self._send("track/object", payload.model_dump(by_alias=True, mode="json"))
-
-    @traced(name="automation_tracker_track_business_object", run_type="uipath")
-    async def track_business_object_async(
-        self,
-        *,
-        operation_id: str,
-        fingerprint: str,
-        type: str,
-        key: str,
-        interaction_type: str,
-        timestamp: Optional[datetime] = None,
-    ) -> None:
-        """Track a business object interaction (async)."""
-        payload = BusinessObjectPayload(
-            organization_id=self._organization_id,
-            tenant_id=self._tenant_id,
-            operation_id=operation_id,
-            timestamp=timestamp or datetime.now(timezone.utc),
-            fingerprint=fingerprint,
-            type=type,
-            key=key,
-            interaction_type=interaction_type,
-        )
-        await self._send_async(
-            "track/object", payload.model_dump(by_alias=True, mode="json")
         )
