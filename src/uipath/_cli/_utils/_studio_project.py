@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from enum import Enum
 from functools import wraps
@@ -20,6 +21,8 @@ from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
 from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
+
+logger = logging.getLogger(__name__)
 
 
 class NonCodedAgentProjectException(Exception):
@@ -545,6 +548,10 @@ class StudioClient:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
         if not os.path.exists(UiPathConfig.bindings_file_path):
+            logger.debug(
+                "Bindings file not found at %s, no overwrites to fetch from Studio",
+                UiPathConfig.bindings_file_path,
+            )
             return {}
 
         with open(UiPathConfig.bindings_file_path, "rb") as f:
@@ -576,6 +583,13 @@ class StudioClient:
 
         for key, value in data.items():
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
+
+        logger.debug(
+            "Loaded %d resource overwrite(s) from Studio API for solution %s: %s",
+            len(overwrites),
+            solution_id,
+            overwrites,
+        )
 
         return overwrites
 

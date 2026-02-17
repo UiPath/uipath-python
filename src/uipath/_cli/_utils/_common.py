@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from datetime import date, datetime, time
@@ -19,6 +20,8 @@ from ._studio_project import (
     StudioClient,
     StudioProjectMetadata,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_claim_from_token(claim_name: str) -> str | None:
@@ -210,10 +213,16 @@ async def read_resource_overwrites_from_file(
             for key, value in resource_overwrites.items():
                 overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
 
+            logger.debug(
+                "Loaded %d resource overwrite(s) from file %s",
+                len(overwrites_dict),
+                file_path,
+            )
+
     # Return empty dict if file doesn't exist or invalid json
     except FileNotFoundError:
-        pass
-    except json.JSONDecodeError:
-        pass
+        logger.debug("Resource overwrites config file not found: %s", file_path)
+    except json.JSONDecodeError as e:
+        logger.warning("Failed to parse resource overwrites from %s: %s", file_path, e)
 
     return overwrites_dict
