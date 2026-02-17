@@ -465,8 +465,11 @@ class EntitiesService(BaseService):
         full_url = f"{self._url.base_url}{spec.endpoint}"
         response = self.request(spec.method, full_url, json=spec.json, headers=headers)
 
-        records_data = response.json().get("results", [])
-        return records_data
+        if response.status_code == 200:
+            records_data = response.json().get("results", [])
+            return records_data
+        else:
+            response.raise_for_status()
 
 
     @traced(name="query_multiple_entities_async", run_type="uipath")
@@ -510,8 +513,11 @@ class EntitiesService(BaseService):
         full_url = f"{self._url.base_url}{spec.endpoint}"
         response = await self.request_async(spec.method, full_url, json=spec.json, headers=headers)
 
-        records_data = response.json().get("results", [])
-        return records_data
+        if response.status_code == 200:
+            records_data = response.json().get("results", [])   
+            return records_data
+        else:
+            response.raise_for_status()
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
