@@ -14,7 +14,7 @@ from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.context import UiPathRuntimeContext
 from uipath.runtime.debug import UiPathDebugProtocol
 from uipath.runtime.errors import UiPathRuntimeError
-from uipath.runtime.events import UiPathRuntimeStateEvent
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import ConsoleDebugBridge
@@ -152,7 +152,11 @@ def run(
                         await debug_bridge.emit_execution_completed(event)
                         ctx.result = event
                     elif isinstance(event, UiPathRuntimeStateEvent):
-                        await debug_bridge.emit_state_update(event)
+                        if event.phase in [
+                            UiPathRuntimeStatePhase.UPDATED,
+                            event.phase == UiPathRuntimeStatePhase.FAULTED,
+                        ]:
+                            await debug_bridge.emit_state_update(event)
                 return ctx.result
 
             async def execute() -> None:
