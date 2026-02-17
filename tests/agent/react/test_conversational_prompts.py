@@ -5,8 +5,6 @@ import re
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-import pytest
-
 from uipath.agent.react.conversational_prompts import (
     PromptUserSettings,
     _get_user_settings_template,
@@ -152,7 +150,7 @@ class TestGenerateConversationalAgentSystemPrompt:
 
 
 class TestCitationFormat:
-    """Tests for citation format in generated prompts."""
+    """Tests for citation format"""
 
     def test_citation_format_in_prompt(self):
         """Self-closing citation format appears in prompt."""
@@ -163,10 +161,13 @@ class TestCitationFormat:
             user_settings=None,
         )
 
-        assert '<uip:cite title="Document Title" reference="https://url" page_number="1"/>' in prompt
+        assert (
+            '<uip:cite title="Document Title" reference="https://url" page_number="1"/>'
+            in prompt
+        )
 
-    def test_citation_format_same_for_gpt_models(self):
-        """GPT models use the same citation format."""
+    def test_citation_format_unified_across_models(self):
+        """Citation format is model-agnostic and consistent across GPT, Claude, etc."""
         prompt = get_chat_system_prompt(
             model="gpt-4o",
             system_message=SYSTEM_MESSAGE,
@@ -174,7 +175,10 @@ class TestCitationFormat:
             user_settings=None,
         )
 
-        assert '<uip:cite title="Document Title" reference="https://url" page_number="1"/>' in prompt
+        assert (
+            '<uip:cite title="Document Title" reference="https://url" page_number="1"/>'
+            in prompt
+        )
 
     def test_citation_examples_in_prompt(self):
         """Citation examples appear in prompt."""
@@ -186,8 +190,14 @@ class TestCitationFormat:
         )
 
         assert "EXAMPLES OF CORRECT USAGE:" in prompt
-        assert '<uip:cite title="Industry Study" url="https://example.com/study"/>' in prompt
-        assert '<uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>' in prompt
+        assert (
+            '<uip:cite title="Industry Study" url="https://example.com/study"/>'
+            in prompt
+        )
+        assert (
+            '<uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>'
+            in prompt
+        )
         assert "CRITICAL ERRORS TO AVOID:" in prompt
 
 
