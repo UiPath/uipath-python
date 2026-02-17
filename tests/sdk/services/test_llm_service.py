@@ -382,3 +382,164 @@ class TestOpenAIService:
         # Try to parse it with our Pydantic model to ensure it's completely valid
         article_instance = Article.model_validate(response_json)
         assert article_instance.title is None
+
+
+class TestNormalizedLlmServiceClaudeFiltering:
+    """Test that Claude models correctly filter out OpenAI-specific parameters.
+
+    The UiPath Normalized API gateway passes parameters through to the underlying
+    provider. Claude/Anthropic models do NOT support n, frequency_penalty,
+    presence_penalty, or top_p, and sending them causes 400 errors.
+    """
+
+    @pytest.fixture
+    def config(self):
+        return UiPathApiConfig(base_url="https://example.com", secret="test_secret")
+
+    @pytest.fixture
+    def execution_context(self):
+        return UiPathExecutionContext()
+
+    @pytest.fixture
+    def llm_service(self, config, execution_context):
+        from uipath.platform.chat._llm_gateway_service import UiPathLlmChatService
+
+        return UiPathLlmChatService(config=config, execution_context=execution_context)
+
+    @patch(
+        "uipath.platform.chat._llm_gateway_service.UiPathLlmChatService.request_async"
+    )
+    @pytest.mark.asyncio
+    async def test_claude_model_excludes_openai_params(self, mock_request, llm_service):
+        """Test that Claude models do not include n, frequency_penalty, presence_penalty, top_p."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "anthropic.claude-haiku-4-5-20251001-v1:0",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        mock_request.return_value = mock_response
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="anthropic.claude-haiku-4-5-20251001-v1:0",
+            max_tokens=1000,
+            temperature=0,
+        )
+
+        # Get the request body and headers
+        call_kwargs = mock_request.call_args[1]
+        request_body = call_kwargs["json"]
+        headers = call_kwargs["headers"]
+
+        # Claude models should NOT have these OpenAI-specific params
+        assert "n" not in request_body, "Claude request must not include 'n'"
+        assert "frequency_penalty" not in request_body, (
+            "Claude request must not include 'frequency_penalty'"
+        )
+        assert "presence_penalty" not in request_body, (
+            "Claude request must not include 'presence_penalty'"
+        )
+        assert "top_p" not in request_body, "Claude request must not include 'top_p'"
+
+        # Model is sent in headers, not body (Normalized API pattern)
+        assert (
+            headers["X-UiPath-LlmGateway-NormalizedApi-ModelName"]
+            == "anthropic.claude-haiku-4-5-20251001-v1:0"
+        )
+        # Basic params should still be in the body
+        assert request_body["max_tokens"] == 1000
+        assert request_body["temperature"] == 0
+
+    @patch(
+        "uipath.platform.chat._llm_gateway_service.UiPathLlmChatService.request_async"
+    )
+    @pytest.mark.asyncio
+    async def test_openai_model_includes_all_params(self, mock_request, llm_service):
+        """Test that OpenAI models DO include n, frequency_penalty, presence_penalty."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "gpt-4o-mini-2024-07-18",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        mock_request.return_value = mock_response
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gpt-4o-mini-2024-07-18",
+            max_tokens=1000,
+            temperature=0,
+        )
+
+        call_kwargs = mock_request.call_args[1]
+        request_body = call_kwargs["json"]
+
+        # OpenAI models should have all params
+        assert "n" in request_body, "OpenAI request must include 'n'"
+        assert "frequency_penalty" in request_body, (
+            "OpenAI request must include 'frequency_penalty'"
+        )
+        assert "presence_penalty" in request_body, (
+            "OpenAI request must include 'presence_penalty'"
+        )
+
+    @patch(
+        "uipath.platform.chat._llm_gateway_service.UiPathLlmChatService.request_async"
+    )
+    @pytest.mark.asyncio
+    async def test_claude_sonnet_45_excluded_params(self, mock_request, llm_service):
+        """Test Claude Sonnet 4.5 specifically, since it was failing in production."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        mock_request.return_value = mock_response
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="anthropic.claude-sonnet-4-5-20250929-v1:0",
+            max_tokens=8000,
+            temperature=0,
+        )
+
+        call_kwargs = mock_request.call_args[1]
+        request_body = call_kwargs["json"]
+
+        assert "n" not in request_body
+        assert "frequency_penalty" not in request_body
+        assert "presence_penalty" not in request_body
+        assert "top_p" not in request_body
+        assert request_body["max_tokens"] == 8000

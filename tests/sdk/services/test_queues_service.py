@@ -245,7 +245,7 @@ class TestQueuesService:
             ),
             QueueItem(
                 name="test-queue",
-                priority=QueueItemPriority.MEDIUM,
+                priority=QueueItemPriority.LOW,
                 specific_content={"key2": "value2"},
             ),
         ]
@@ -263,7 +263,7 @@ class TestQueuesService:
                     {
                         "Id": 2,
                         "Name": "test-queue",
-                        "Priority": "Medium",
+                        "Priority": "Low",
                         "SpecificContent": {"key2": "value2"},
                     },
                 ]
@@ -281,7 +281,7 @@ class TestQueuesService:
         assert response["value"][0]["SpecificContent"] == {"key": "value"}
         assert response["value"][1]["Id"] == 2
         assert response["value"][1]["Name"] == "test-queue"
-        assert response["value"][1]["Priority"] == "Medium"
+        assert response["value"][1]["Priority"] == "Low"
         assert response["value"][1]["SpecificContent"] == {"key2": "value2"}
 
         sent_request = httpx_mock.get_request()
@@ -304,7 +304,7 @@ class TestQueuesService:
                 },
                 {
                     "Name": "test-queue",
-                    "Priority": "Medium",
+                    "Priority": "Low",
                     "SpecificContent": {"key2": "value2"},
                 },
             ],
@@ -334,7 +334,7 @@ class TestQueuesService:
             ),
             QueueItem(
                 name="test-queue",
-                priority=QueueItemPriority.MEDIUM,
+                priority=QueueItemPriority.LOW,
                 specific_content={"key2": "value2"},
             ),
         ]
@@ -352,7 +352,7 @@ class TestQueuesService:
                     {
                         "Id": 2,
                         "Name": "test-queue",
-                        "Priority": "Medium",
+                        "Priority": "Low",
                         "SpecificContent": {"key2": "value2"},
                     },
                 ]
@@ -370,7 +370,7 @@ class TestQueuesService:
         assert response["value"][0]["SpecificContent"] == {"key": "value"}
         assert response["value"][1]["Id"] == 2
         assert response["value"][1]["Name"] == "test-queue"
-        assert response["value"][1]["Priority"] == "Medium"
+        assert response["value"][1]["Priority"] == "Low"
         assert response["value"][1]["SpecificContent"] == {"key2": "value2"}
 
         sent_request = httpx_mock.get_request()
@@ -393,7 +393,7 @@ class TestQueuesService:
                 },
                 {
                     "Name": "test-queue",
-                    "Priority": "Medium",
+                    "Priority": "Low",
                     "SpecificContent": {"key2": "value2"},
                 },
             ],

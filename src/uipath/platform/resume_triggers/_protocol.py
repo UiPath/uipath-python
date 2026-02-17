@@ -174,8 +174,15 @@ class UiPathResumeTriggerReader:
                     faulted_state = JobState.FAULTED.value
                     running_state = JobState.RUNNING.value
                     pending_state = JobState.PENDING.value
+                    resumed_state = JobState.RESUMED.value
+                    suspended_state = JobState.SUSPENDED.value
 
-                    if job_state in (pending_state, running_state):
+                    if job_state in (
+                        pending_state,
+                        running_state,
+                        suspended_state,
+                        resumed_state,
+                    ):
                         raise UiPathPendingTriggerError(
                             ErrorCategory.SYSTEM,
                             f"Job is not finished yet. Current state: {job_state}",
@@ -240,6 +247,7 @@ class UiPathResumeTriggerReader:
                         }
                     else:
                         trigger_response = trigger_response.model_dump()
+                        trigger_response["deepRagId"] = trigger.item_key
 
                     return trigger_response
 
@@ -701,6 +709,10 @@ class UiPathResumeTriggerCreator:
         resume_trigger.folder_path = resume_trigger.folder_key = None
         if isinstance(value, WaitDocumentExtraction):
             resume_trigger.item_key = value.extraction.operation_id
+            # add project_id and tag to the payload dict (needed when reading the trigger)
+            assert isinstance(resume_trigger.payload, dict)
+            resume_trigger.payload.setdefault("project_id", value.extraction.project_id)
+            resume_trigger.payload.setdefault("tag", value.extraction.tag)
         elif isinstance(value, DocumentExtraction):
             uipath = UiPath()
             document_extraction = await uipath.documents.start_ixp_extraction_async(
@@ -742,6 +754,13 @@ class UiPathResumeTriggerCreator:
 
         if isinstance(value, WaitDocumentExtractionValidation):
             resume_trigger.item_key = value.extraction_validation.operation_id
+
+            # add project_id and tag to the payload dict (needed when reading the trigger)
+            assert isinstance(resume_trigger.payload, dict)
+            resume_trigger.payload.setdefault(
+                "project_id", value.extraction_validation.project_id
+            )
+            resume_trigger.payload.setdefault("tag", value.extraction_validation.tag)
         elif isinstance(value, DocumentExtractionValidation):
             uipath = UiPath()
             extraction_validation = (

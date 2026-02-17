@@ -24,11 +24,18 @@ from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
 )
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
 
 logger = logging.getLogger(__name__)
+
+
+class LLMJudgeJustification(BaseEvaluatorJustification):
+    """Justification for LLM judge evaluators."""
+
+    justification: str
 
 
 class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
@@ -47,7 +54,7 @@ class BaseLLMJudgeEvaluatorConfig(BaseEvaluatorConfig[T]):
 C = TypeVar("C", bound=BaseLLMJudgeEvaluatorConfig[Any])
 
 
-class LLMJudgeMixin(BaseEvaluator[T, C, str]):
+class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
     """Mixin that provides common LLM judge functionality."""
 
     system_prompt: str = LLMJudgePromptTemplates.LLM_JUDGE_SYSTEM_PROMPT
@@ -149,7 +156,11 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
 
         llm_response = await self._get_llm_response(evaluation_prompt)
         validated_justification = self.validate_justification(
-            llm_response.justification
+            {
+                "expected": str(self._get_expected_output(evaluation_criteria)),
+                "actual": str(self._get_actual_output(agent_execution)),
+                "justification": llm_response.justification,
+            }
         )
 
         return NumericEvaluationResult(
@@ -235,9 +246,16 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             "tool_choice": tool_choice,
         }
 
-        # Only include max_tokens if explicitly set (don't pass None to API)
-        if self.evaluator_config.max_tokens is not None:
-            request_data["max_tokens"] = self.evaluator_config.max_tokens
+        # Set max_tokens - use explicit config value, or default for Claude 4.5 models
+        max_tokens_value = self.evaluator_config.max_tokens
+        if max_tokens_value is None:
+            # Claude 4.5 models require max_tokens, set default to 8000
+            if "claude-haiku-4-5" in model or "claude-sonnet-4-5" in model:
+                max_tokens_value = 8000
+
+        # Only include max_tokens if set (don't pass None to API)
+        if max_tokens_value is not None:
+            request_data["max_tokens"] = max_tokens_value
 
         if self.llm_service is None:
             raise UiPathEvaluationError(
@@ -252,12 +270,28 @@ class LLMJudgeMixin(BaseEvaluator[T, C, str]):
             f"🤖 Calling LLM evaluator with model: {model} (using function calling)"
         )
         max_tokens_str = (
-            str(self.evaluator_config.max_tokens)
-            if self.evaluator_config.max_tokens is not None
-            else "unset"
+            str(max_tokens_value) if max_tokens_value is not None else "unset"
         )
         logger.debug(
             f"Request data: model={model}, max_tokens={max_tokens_str}, temperature={self.evaluator_config.temperature}, tool_choice=required"
+        )
+
+        # Log full request body for debugging
+        import copy
+
+        request_body_for_log = copy.deepcopy(request_data)
+        # Convert tool_choice to dict for logging
+        if "tool_choice" in request_body_for_log:
+            request_body_for_log["tool_choice"] = request_body_for_log[
+                "tool_choice"
+            ].model_dump()
+        # Convert tools to dict for logging
+        if "tools" in request_body_for_log:
+            request_body_for_log["tools"] = [
+                t.model_dump() for t in request_body_for_log["tools"]
+            ]
+        logger.info(
+            f"📤 Full request body:\n{json.dumps(request_body_for_log, indent=2)}"
         )
 
         try:

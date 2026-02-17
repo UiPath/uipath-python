@@ -19,7 +19,7 @@ from .documents import (
     FileContent,
     ProjectType,
     StartExtractionResponse,
-    StartOperationResponse,
+    StartExtractionValidationResponse,
     ValidateClassificationAction,
     ValidateExtractionAction,
 )
@@ -1252,7 +1252,6 @@ class DocumentsService(FolderContext, BaseService):
                 error=response.get("error"),
                 operation_name=operation_name,
             )
-
         return response.get("result")
 
     async def _retrieve_operation_result_async(
@@ -1285,7 +1284,6 @@ class DocumentsService(FolderContext, BaseService):
                 error=response.get("error"),
                 operation_name=operation_name,
             )
-
         return response.get("result")
 
     @traced(name="documents_retrieve_ixp_extraction_result", run_type="uipath")
@@ -1690,7 +1688,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str],
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
-    ) -> StartOperationResponse:
+    ) -> StartExtractionValidationResponse:
         if tag is None:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start"
@@ -1718,7 +1716,7 @@ class DocumentsService(FolderContext, BaseService):
             },
         ).json()["operationId"]
 
-        return StartOperationResponse(
+        return StartExtractionValidationResponse(
             operation_id=operation_id,
             document_id=extraction_response.extraction_result.document_id,
             project_id=project_id,
@@ -1738,7 +1736,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str],
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
-    ) -> StartOperationResponse:
+    ) -> StartExtractionValidationResponse:
         if tag is None:
             url = Endpoint(
                 f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start"
@@ -1768,7 +1766,7 @@ class DocumentsService(FolderContext, BaseService):
             )
         ).json()["operationId"]
 
-        return StartOperationResponse(
+        return StartExtractionValidationResponse(
             operation_id=operation_id,
             document_id=extraction_response.extraction_result.document_id,
             project_id=project_id,
@@ -1785,7 +1783,7 @@ class DocumentsService(FolderContext, BaseService):
         action_folder: Optional[str] = None,
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
-    ) -> StartOperationResponse:
+    ) -> StartExtractionValidationResponse:
         """Start an IXP extraction validation action without waiting for results (non-blocking).
 
         Args:
@@ -1798,7 +1796,7 @@ class DocumentsService(FolderContext, BaseService):
             storage_bucket_directory_path (str, optional): The directory path within the storage bucket.
 
         Returns:
-            StartOperationResponse: Contains the operation_id, document_id, project_id, and tag.
+            StartExtractionValidationResponse: Contains the operation_id, document_id, project_id, and tag.
 
         Examples:
             ```python
@@ -1846,7 +1844,7 @@ class DocumentsService(FolderContext, BaseService):
         action_folder: Optional[str] = None,
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
-    ) -> StartOperationResponse:
+    ) -> StartExtractionValidationResponse:
         """Asynchronous version of the [`start_ixp_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction_validation] method."""
         return await self._start_extraction_validation_async(
             project_id=extraction_response.project_id,
@@ -2550,5 +2548,4 @@ class DocumentsService(FolderContext, BaseService):
         if validation_action.project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(response)
 
-        return ExtractionResponse.model_validate(response)
         return ExtractionResponse.model_validate(response)

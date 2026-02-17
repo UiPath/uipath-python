@@ -456,7 +456,7 @@ class EntitiesService(BaseService):
                 )
         """
         self._validate_sql_query(sql_query)
-        spec = self._query_multiple_records_spec(sql_query)
+        spec = self._query_multiple_entities_spec(sql_query)
         headers = {
             "X-UiPath-Internal-TenantName": self._url.tenant_name,
             "X-UiPath-Internal-AccountName": self._url.org_name,

@@ -211,17 +211,48 @@ async def handle_start(request: web.Request) -> web.Response:
         os.environ.update(original_env)
 
 
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+@web.middleware
+async def host_validation_middleware(
+    request: web.Request, handler: Any
+) -> web.StreamResponse:
+    """Validate the Host header to prevent DNS rebinding attacks."""
+    host = request.host
+    if host:
+        host = host.lower()
+        # Strip port from bracketed IPv6 (e.g. "[::1]:8765" -> "[::1]")
+        if host.startswith("["):
+            bracket_end = host.find("]")
+            if bracket_end != -1:
+                host = host[: bracket_end + 1]
+        # Strip port from IPv4/hostname (e.g. "localhost:8765" -> "localhost")
+        elif ":" in host:
+            host = host.rsplit(":", 1)[0]
+        # Strip trailing dot (e.g. "localhost." -> "localhost")
+        host = host.rstrip(".")
+    if host not in ALLOWED_HOSTS:
+        return web.json_response(
+            {"error": "Forbidden: invalid Host header"},
+            status=403,
+        )
+    return await handler(request)
+
+
 def create_app() -> web.Application:
     """Create the aiohttp application."""
-    app = web.Application()
+    app = web.Application(middlewares=[host_validation_middleware])
     app.router.add_get("/health", handle_health)
     app.router.add_post("/jobs/{job_key}/start", handle_start)
     return app
 
 
-async def start_unix_server(ack_socket_path: str) -> None:
+async def start_unix_server(
+    ack_socket_path: str, server_socket_path: str | None = None
+) -> None:
     """Start Unix domain socket HTTP server."""
-    server_socket_path = generate_socket_path()
+    server_socket_path = server_socket_path or generate_socket_path()
 
     if os.path.exists(server_socket_path):
         os.unlink(server_socket_path)
@@ -266,10 +297,16 @@ async def start_tcp_server(host: str, port: int) -> None:
 
 @click.command()
 @click.option(
-    "--socket",
+    "--client-socket",
     type=str,
     default=None,
     help=f"Unix socket path to send ready ack to (default: ${SOCKET_ENV_VAR} or {DEFAULT_SOCKET_PATH})",
+)
+@click.option(
+    "--server-socket",
+    type=str,
+    default=None,
+    help="Unix socket path the server listens on (default: auto-generated in tmp dir)",
 )
 @click.option(
     "--port",
@@ -282,10 +319,15 @@ async def start_tcp_server(host: str, port: int) -> None:
     is_flag=True,
     help="Force TCP mode even on Unix systems",
 )
-def server(socket: str | None, port: int | None, tcp: bool) -> None:
+def server(
+    client_socket: str | None,
+    server_socket: str | None,
+    port: int | None,
+    tcp: bool,
+) -> None:
     """Start an HTTP server that forwards commands to run/debug/eval.
 
-    Creates its own socket to listen on and sends an ack to --socket with:
+    Creates its own socket to listen on and sends an ack to --client-socket with:
     {"status": "ready", "socket": "/path/to/server.sock"}
 
     Endpoint: POST /jobs/{job_key}/start
@@ -302,8 +344,8 @@ def server(socket: str | None, port: int | None, tcp: bool) -> None:
             asyncio.run(start_tcp_server("127.0.0.1", port or DEFAULT_PORT))
         else:
             ack_socket_path = (
-                socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
+                client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
             )
-            asyncio.run(start_unix_server(ack_socket_path))
+            asyncio.run(start_unix_server(ack_socket_path, server_socket))
     except KeyboardInterrupt:
         console.info("Shutting down")

@@ -1,6 +1,7 @@
 """UiPath resume trigger enums."""
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,6 +19,18 @@ class TriggerMarker(str, Enum):
     """
 
     NO_CONTENT = "NO_CONTENT"
+
+
+def is_no_content_marker(value: Any) -> bool:
+    """Check if a value is a NO_CONTENT trigger marker (dict or string form)."""
+    if isinstance(value, dict):
+        return value.get(PropertyName.INTERNAL.value) == TriggerMarker.NO_CONTENT.value
+    if isinstance(value, str):
+        return (
+            PropertyName.INTERNAL.value in value
+            and TriggerMarker.NO_CONTENT.value in value
+        )
+    return False
 
 
 class ExternalTriggerType(str, Enum):

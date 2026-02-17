@@ -14,6 +14,7 @@ class JobState(str, Enum):
     SUSPENDED = "suspended"
     RUNNING = "running"
     PENDING = "pending"
+    RESUMED = "resumed"
 
 
 class JobErrorInfo(BaseModel):

@@ -1,0 +1,23 @@
+flowchart TB
+  main.py:138(main)
+  main.py:98(compute_price)
+  main.py:64(calculate_base_price)
+  main.py:59(log_step)
+  main.py:71(calculate_topping_surcharge)
+  main.py:79(calculate_crust_surcharge)
+  main.py:86(apply_discount)
+  main.py:114(estimate_prep_time)
+  main.py:127(format_confirmation)
+  main.py:53(generate_order_id)
+  main.py:64 --> main.py:59
+  main.py:98 --> main.py:64
+  main.py:71 --> main.py:59
+  main.py:98 --> main.py:71
+  main.py:79 --> main.py:59
+  main.py:98 --> main.py:79
+  main.py:86 --> main.py:59
+  main.py:98 --> main.py:86
+  main.py:138 --> main.py:98
+  main.py:138 --> main.py:114
+  main.py:138 --> main.py:127
+  main.py:138 --> main.py:53

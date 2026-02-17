@@ -1,0 +1,232 @@
+{
+    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+    "$id": "entry-points.json",
+    "entryPoints": [
+        {
+            "filePath": "main",
+            "uniqueId": "f819caf9-a48a-43fb-9912-f37d56aab48f",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "size": {
+                        "type": "string",
+                        "enum": [
+                            "small",
+                            "medium",
+                            "large"
+                        ]
+                    },
+                    "crust": {
+                        "type": "string",
+                        "enum": [
+                            "thin",
+                            "thick",
+                            "stuffed"
+                        ]
+                    },
+                    "toppings": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "customer_name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "size",
+                    "crust",
+                    "toppings",
+                    "quantity",
+                    "customer_name"
+                ]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string"
+                    },
+                    "price": {
+                        "type": "object",
+                        "properties": {
+                            "base_price": {
+                                "type": "number"
+                            },
+                            "topping_surcharge": {
+                                "type": "number"
+                            },
+                            "crust_surcharge": {
+                                "type": "number"
+                            },
+                            "discount": {
+                                "type": "number"
+                            },
+                            "total": {
+                                "type": "number"
+                            }
+                        },
+                        "required": [
+                            "base_price",
+                            "topping_surcharge",
+                            "crust_surcharge",
+                            "discount",
+                            "total"
+                        ]
+                    },
+                    "estimated_minutes": {
+                        "type": "integer"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "order_id",
+                    "price",
+                    "estimated_minutes",
+                    "message"
+                ]
+            },
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "main.py:138",
+                        "name": "main",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:98",
+                        "name": "compute_price",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:64",
+                        "name": "calculate_base_price",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:59",
+                        "name": "log_step",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:71",
+                        "name": "calculate_topping_surcharge",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:79",
+                        "name": "calculate_crust_surcharge",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:86",
+                        "name": "apply_discount",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:114",
+                        "name": "estimate_prep_time",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:127",
+                        "name": "format_confirmation",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:53",
+                        "name": "generate_order_id",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    }
+                ],
+                "edges": [
+                    {
+                        "source": "main.py:64",
+                        "target": "main.py:59"
+                    },
+                    {
+                        "source": "main.py:98",
+                        "target": "main.py:64"
+                    },
+                    {
+                        "source": "main.py:71",
+                        "target": "main.py:59"
+                    },
+                    {
+                        "source": "main.py:98",
+                        "target": "main.py:71"
+                    },
+                    {
+                        "source": "main.py:79",
+                        "target": "main.py:59"
+                    },
+                    {
+                        "source": "main.py:98",
+                        "target": "main.py:79"
+                    },
+                    {
+                        "source": "main.py:86",
+                        "target": "main.py:59"
+                    },
+                    {
+                        "source": "main.py:98",
+                        "target": "main.py:86"
+                    },
+                    {
+                        "source": "main.py:138",
+                        "target": "main.py:98"
+                    },
+                    {
+                        "source": "main.py:138",
+                        "target": "main.py:114"
+                    },
+                    {
+                        "source": "main.py:138",
+                        "target": "main.py:127"
+                    },
+                    {
+                        "source": "main.py:138",
+                        "target": "main.py:53"
+                    }
+                ]
+            }
+        }
+    ]
+}

@@ -38,7 +38,7 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig[T]):
 
 
 C = TypeVar("C", bound=OutputEvaluatorConfig[Any])
-J = TypeVar("J", bound=Union[str, None, BaseEvaluatorJustification])
+J = TypeVar("J", bound=Union[str, BaseEvaluatorJustification])
 
 
 # NOTE: This evaluator is only used in coded evaluators
