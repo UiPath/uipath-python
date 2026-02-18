@@ -20,7 +20,7 @@ from tenacity import (
 )
 
 from ..._utils import UiPathUrl, user_agent_value
-from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils._http_clients import get_httpx_client_kwargs
 from ..._utils.constants import HEADER_USER_AGENT
 from ..errors import EnrichedException
 from ._config import UiPathApiConfig
@@ -46,11 +46,12 @@ class BaseService:
         self._url = UiPathUrl(self._config.base_url)
 
         default_client_kwargs = get_httpx_client_kwargs()
+        base_headers = default_client_kwargs.pop("headers", {})
 
         client_kwargs = {
             **default_client_kwargs,  # SSL, proxy, timeout, redirects
             "base_url": self._url.base_url,
-            "headers": Headers(self.default_headers),
+            "headers": Headers({**base_headers, **self.default_headers}),
         }
 
         self._client = Client(**client_kwargs)
@@ -103,6 +104,8 @@ class BaseService:
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
 
         scoped_url = self._url.scope_url(str(url), scoped)
+        if scoped_url.startswith(("http://", "https://")):
+            self._logger.debug(f"Service URL override active: {scoped_url}")
 
         response = self._client.request(method, scoped_url, **kwargs)
 
@@ -140,6 +143,8 @@ class BaseService:
         )
 
         scoped_url = self._url.scope_url(str(url), scoped)
+        if scoped_url.startswith(("http://", "https://")):
+            self._logger.debug(f"Service URL override active: {scoped_url}")
 
         response = await self._client_async.request(method, scoped_url, **kwargs)
 

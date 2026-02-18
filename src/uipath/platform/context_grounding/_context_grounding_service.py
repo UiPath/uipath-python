@@ -5,7 +5,7 @@ import httpx
 from pydantic import Field, TypeAdapter
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
-from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils._http_clients import get_httpx_client_kwargs
 from ..._utils.constants import (
     LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,

@@ -6,7 +6,7 @@ from urllib.parse import urlencode, urlparse
 
 import httpx
 
-from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils._http_clients import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
 from ._url_utils import build_service_url

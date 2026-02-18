@@ -11,7 +11,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExportResult,
 )
 
-from uipath._utils._ssl_context import get_httpx_client_kwargs
+from uipath._utils._http_clients import get_httpx_client_kwargs
 
 from ._utils import _SpanUtils
 
@@ -117,12 +117,14 @@ class LlmOpsHttpExporter(SpanExporter):
         super().__init__()
         self.base_url = self._get_base_url()
         self.auth_token = os.environ.get("UIPATH_ACCESS_TOKEN")
+        client_kwargs = get_httpx_client_kwargs()
+        base_headers = client_kwargs.pop("headers", {})
+
         self.headers = {
+            **base_headers,
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.auth_token}",
         }
-
-        client_kwargs = get_httpx_client_kwargs()
 
         self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
         self.trace_id = trace_id

@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Union
 import httpx
 
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
-from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils._http_clients import get_httpx_client_kwargs
 from ..._utils.validation import validate_pagination_params
 from ...tracing import traced
 from ..common import BaseService, FolderContext, UiPathApiConfig, UiPathExecutionContext
