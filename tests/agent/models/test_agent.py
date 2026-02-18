@@ -4,6 +4,8 @@ import pytest
 from pydantic import TypeAdapter
 
 from uipath.agent.models.agent import (
+    AgentBooleanOperator,
+    AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
@@ -16,20 +18,39 @@ from uipath.agent.models.agent import (
     AgentGuardrailActionType,
     AgentGuardrailBlockAction,
     AgentGuardrailEscalateAction,
+    AgentGuardrailLogAction,
+    AgentGuardrailSeverityLevel,
     AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
+    AgentInternalBatchTransformToolProperties,
+    AgentInternalDeepRagToolProperties,
+    AgentInternalToolResourceConfig,
+    AgentInternalToolType,
     AgentIxpExtractionResourceConfig,
     AgentIxpVsEscalationResourceConfig,
     AgentMcpResourceConfig,
+    AgentMessageRole,
+    AgentNumberOperator,
+    AgentNumberRule,
     AgentProcessToolResourceConfig,
     AgentResourceType,
+    AgentToolArgumentPropertiesVariant,
     AgentToolType,
     AgentUnknownGuardrail,
     AgentUnknownResourceConfig,
     AgentUnknownToolResourceConfig,
+    AgentWordOperator,
     AgentWordRule,
     AssetRecipient,
+    BatchTransformFileExtension,
+    BatchTransformWebSearchGrounding,
+    CitationMode,
+    DeepRagFileExtension,
     StandardRecipient,
+    TaskTitleType,
+    TextBuilderTaskTitle,
+    TextToken,
+    TextTokenType,
 )
 from uipath.platform.guardrails import (
     EnumListParameterValue,
@@ -2534,7 +2555,6 @@ class TestAgentBuilderConfig:
         from uipath.agent.models.agent import (
             TaskTitleType,
             TextBuilderTaskTitle,
-            TextToken,
             TextTokenType,
         )
 
@@ -2631,28 +2651,468 @@ class TestAgentBuilderConfig:
 
         assert channel.task_title == "Escalation Task"
 
-    def test_escalation_channel_task_title_v2_unsupported_type_raises_error(self):
-        """Test that unsupported taskTitleV2 type raises NotImplementedError."""
+    def test_case_insensitive_enums(self):
+        """Test that enums with alternative casings are deserialized correctly."""
 
-        channel_data = {
-            "name": "test_channel",
-            "type": "actionCenter",
-            "description": "Test channel",
-            "inputSchema": {"type": "object"},
-            "outputSchema": {"type": "object"},
-            "properties": {
-                "appName": "TestApp",
-                "appVersion": 1,
-                "resourceKey": "test-key",
+        json_data = {
+            "version": "1.0.0",
+            "id": "e0f589ff-469a-44b3-8c5f-085826d8fa55",
+            "name": "Packaged Agent",
+            "metadata": {"isConversational": False, "storageVersion": "22.0.0"},
+            "messages": [
+                {
+                    "role": "System",
+                    "content": "You are an agentic assistant.",
+                    "contentTokens": [
+                        {
+                            "type": "SimpleText",
+                            "rawString": "You are an agentic assistant.",
+                        }
+                    ],
+                },
+                {
+                    "role": "User",
+                    "content": "Use the provided tools. Execute {{task}} the number of {{times}}.",
+                    "contentTokens": [
+                        {
+                            "type": "SimpleText",
+                            "rawString": "Use the provided tools. Execute ",
+                        },
+                        {
+                            "type": "Variable",
+                            "rawString": "input.task",
+                        },
+                        {
+                            "type": "SimpleText",
+                            "rawString": " the number of ",
+                        },
+                        {
+                            "type": "Variable",
+                            "rawString": "input.times",
+                        },
+                        {
+                            "type": "SimpleText",
+                            "rawString": ".",
+                        },
+                    ],
+                },
+            ],
+            "inputSchema": {
+                "type": "object",
+                "required": ["task"],
+                "properties": {"task": {"type": "string"}, "times": {"type": "number"}},
             },
-            "recipients": [],
-            "taskTitleV2": {"type": "unsupported", "someField": "value"},
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "task_summary": {
+                        "type": "string",
+                        "description": "describe the actions you have taken in a concise step by step summary",
+                    }
+                },
+                "title": "Outputs",
+                "required": ["task_summary"],
+            },
+            "settings": {
+                "model": "gpt-5-2025-08-07",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+                "byomProperties": {
+                    "connectionId": "test-byom-connection-id",
+                    "connectorKey": "uipath-openai-openai",
+                },
+            },
+            "resources": [
+                {
+                    "$resourceType": "Escalation",
+                    "id": "be506447-2cf1-47e6-a124-2930e6f0f3d8",
+                    "channels": [
+                        {
+                            "name": "Channel",
+                            "description": "Channel description",
+                            "type": "ActionCenter",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "AgentName": {"type": "string"},
+                                    "Statement": {"type": "string"},
+                                },
+                                "required": ["AgentName", "Statement"],
+                            },
+                            "outputSchema": {
+                                "type": "object",
+                                "properties": {"Reason": {"type": "string"}},
+                            },
+                            "outcomeMapping": {
+                                "Approve": "continue",
+                                "Reject": "continue",
+                            },
+                            "properties": {
+                                "appName": "AgentQuestionApp",
+                                "appVersion": 1,
+                                "folderName": "TestFolder/Complete Solution 30 Sept",
+                                "resourceKey": "b2ecb40b-dcce-4f71-96ae-8fa895905ae2",
+                                "isActionableMessageEnabled": True,
+                                "actionableMessageMetaData": {
+                                    "fieldSet": {
+                                        "type": "fieldSet",
+                                        "id": "3705cfbb-d1fb-4567-b1dd-036107c5c084",
+                                        "fields": [
+                                            {
+                                                "id": "AgentName",
+                                                "name": "AgentName",
+                                                "type": "Fact",
+                                                "placeHolderText": "",
+                                            },
+                                            {
+                                                "id": "Statement",
+                                                "name": "Statement",
+                                                "type": "Fact",
+                                                "placeHolderText": "",
+                                            },
+                                            {
+                                                "id": "Reason",
+                                                "name": "Reason",
+                                                "type": "Input.Text",
+                                                "placeHolderText": "",
+                                            },
+                                        ],
+                                    },
+                                    "actionSet": {
+                                        "type": "actionSet",
+                                        "id": "9ecd2de3-7ac3-47a6-836c-af1eaf67f9ca",
+                                        "actions": [
+                                            {
+                                                "id": "Approve",
+                                                "name": "Approve",
+                                                "title": "Approve",
+                                                "type": "Action.Http",
+                                                "isPrimary": True,
+                                            },
+                                            {
+                                                "id": "Reject",
+                                                "name": "Reject",
+                                                "title": "Reject",
+                                                "type": "Action.Http",
+                                                "isPrimary": True,
+                                            },
+                                        ],
+                                    },
+                                },
+                            },
+                            "recipients": [
+                                {
+                                    "value": "a26a9809-69ee-427a-9f05-ba00623fef80",
+                                    "type": "userid",
+                                }
+                            ],
+                            "taskTitle": "Test Task",
+                            "taskTitleV2": {
+                                "type": "TextBuilder",
+                                "tokens": [
+                                    {
+                                        "type": "SimpleText",
+                                        "rawString": "Test Task",
+                                    }
+                                ],
+                            },
+                            "priority": "Medium",
+                            "labels": ["new", "stuff"],
+                        }
+                    ],
+                    "isAgentMemoryEnabled": True,
+                    "escalationType": 0,
+                    "name": "Human in the Loop App",
+                    "description": "an app for the agent to ask questions for the human",
+                },
+                {
+                    "$resourceType": "Context",
+                    "folderPath": "TestFolder",
+                    "indexName": "MCP Documentation Index",
+                    "settings": {
+                        "threshold": 0,
+                        "resultCount": 3,
+                        "retrievalMode": "semantic",
+                        "query": {
+                            "description": "The query for the Semantic strategy.",
+                            "variant": "dynamic",
+                        },
+                        "folderPathPrefix": {},
+                        "fileExtension": {"value": "All"},
+                    },
+                    "name": "MCP Documentation Index",
+                    "description": "",
+                },
+                {
+                    "$resourceType": "Tool",
+                    "type": "Api",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "To": {"type": "string", "title": "To"},
+                            "Subject": {"type": "string", "title": "Subject"},
+                        },
+                        "required": ["To"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "argumentProperties": {
+                        "To": {
+                            "variant": "Static",
+                            "isSensitive": False,
+                            "value": "test@example.com",
+                        },
+                        "Subject": {
+                            "variant": "TextBuilder",
+                            "isSensitive": False,
+                            "tokens": [{"type": "SimpleText", "rawString": "Hello"}],
+                        },
+                    },
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolPath": "/SendEmail",
+                        "objectName": "SendEmail",
+                        "toolDisplayName": "Send Email",
+                        "toolDescription": "Sends an email message",
+                        "method": "POST",
+                        "bodyStructure": {
+                            "contentType": "multipart",
+                            "jsonBodySection": "body",
+                        },
+                        "connection": {
+                            "id": "cccccccc-0000-0000-0000-000000000004",
+                            "name": "Gmail Connection",
+                            "elementInstanceId": 0,
+                            "apiBaseUri": "",
+                            "state": "enabled",
+                            "isDefault": False,
+                            "connector": {
+                                "key": "uipath-google-gmail",
+                                "name": "Gmail",
+                                "enabled": True,
+                            },
+                            "folder": {"key": "bbbbbbbb-0000-0000-0000-000000000004"},
+                            "solutionProperties": {
+                                "resourceKey": "cccccccc-0000-0000-0000-000000000004"
+                            },
+                        },
+                        "parameters": [
+                            {
+                                "name": "To",
+                                "displayName": "To",
+                                "type": "string",
+                                "fieldLocation": "body",
+                                "value": "{{prompt}}",
+                                "fieldVariant": "Dynamic",
+                                "sortOrder": 1,
+                                "required": True,
+                            },
+                        ],
+                    },
+                    "name": "Send Email",
+                    "description": "Send an email via Gmail",
+                    "isEnabled": True,
+                },
+                {
+                    "$resourceType": "Tool",
+                    "type": "Internal",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolType": "Deep-Rag",
+                        "settings": {
+                            "contextType": "dataService",
+                            "query": {"value": "test query", "variant": "static"},
+                            "citationMode": {"value": "inline"},
+                            "fileExtension": {"value": "PDF"},
+                        },
+                    },
+                    "argumentProperties": {},
+                    "name": "Deep RAG Tool",
+                    "description": "Test deep rag tool",
+                    "isEnabled": True,
+                },
+                {
+                    "$resourceType": "Tool",
+                    "type": "Internal",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolType": "batch-transform",
+                        "settings": {
+                            "contextType": "dataService",
+                            "query": {"value": "batch query", "variant": "static"},
+                            "fileExtension": {"value": "CSV"},
+                            "outputColumns": [
+                                {
+                                    "name": "output1",
+                                    "description": "Test output",
+                                    "required": True,
+                                }
+                            ],
+                            "webSearchGrounding": {"value": "enabled"},
+                        },
+                    },
+                    "argumentProperties": {},
+                    "name": "Batch Transform Tool",
+                    "description": "Test batch transform tool",
+                    "isEnabled": True,
+                },
+            ],
+            "guardrails": [
+                {
+                    "$guardrailType": "custom",
+                    "id": "test-guardrail-1",
+                    "name": "Test Custom Guardrail",
+                    "description": "Test guardrail with various operators",
+                    "selector": {"$selectorType": "universal"},
+                    "rules": [
+                        {
+                            "$ruleType": "word",
+                            "fieldSelector": {"$selectorType": "all"},
+                            "operator": "DoesNotContain",
+                            "value": "forbidden",
+                        },
+                        {
+                            "$ruleType": "number",
+                            "fieldSelector": {"$selectorType": "all"},
+                            "operator": "GreaterThan",
+                            "value": 10,
+                        },
+                        {
+                            "$ruleType": "boolean",
+                            "fieldSelector": {"$selectorType": "all"},
+                            "operator": "Equals",
+                            "value": True,
+                        },
+                    ],
+                    "action": {
+                        "$actionType": "Block",
+                        "reason": "Guardrail triggered",
+                    },
+                },
+                {
+                    "$guardrailType": "custom",
+                    "id": "test-guardrail-2",
+                    "name": "Log Guardrail",
+                    "description": "Test log action with severity",
+                    "selector": {"$selectorType": "universal"},
+                    "rules": [
+                        {
+                            "$ruleType": "word",
+                            "fieldSelector": {"$selectorType": "all"},
+                            "operator": "contains",
+                            "value": "test",
+                        }
+                    ],
+                    "action": {
+                        "$actionType": "log",
+                        "message": "Test log message",
+                        "severityLevel": "Warning",
+                    },
+                },
+            ],
+            "features": [],
         }
 
-        with pytest.raises(NotImplementedError) as exc_info:
-            AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
 
-        assert "unsupported" in str(exc_info.value)
+        assert config.messages[0].role == AgentMessageRole.SYSTEM
+        assert config.messages[1].role == AgentMessageRole.USER
+
+        escalation = config.resources[0]
+        assert isinstance(escalation, AgentEscalationResourceConfig)
+        assert escalation.resource_type == AgentResourceType.ESCALATION
+        channel = escalation.channels[0]
+        assert channel.recipients[0].type == AgentEscalationRecipientType.USER_ID
+        assert isinstance(channel.task_title, TextBuilderTaskTitle)
+        assert channel.task_title.type == TaskTitleType.TEXT_BUILDER
+        assert channel.task_title.tokens[0].type == TextTokenType.SIMPLE_TEXT
+
+        context = config.resources[1]
+        assert isinstance(context, AgentContextResourceConfig)
+        assert context.resource_type == AgentResourceType.CONTEXT
+        assert context.settings.retrieval_mode == AgentContextRetrievalMode.SEMANTIC
+        assert context.settings.query is not None
+        assert (
+            context.settings.query.variant == AgentToolArgumentPropertiesVariant.DYNAMIC
+        )
+
+        api_tool = config.resources[2]
+        assert isinstance(api_tool, AgentProcessToolResourceConfig)
+        assert api_tool.type == AgentToolType.API
+        assert (
+            api_tool.argument_properties["To"].variant
+            == AgentToolArgumentPropertiesVariant.STATIC
+        )
+        assert (
+            api_tool.argument_properties["Subject"].variant
+            == AgentToolArgumentPropertiesVariant.TEXT_BUILDER
+        )
+
+        deep_rag_tool = config.resources[3]
+        assert isinstance(deep_rag_tool, AgentInternalToolResourceConfig)
+        assert isinstance(deep_rag_tool.properties, AgentInternalDeepRagToolProperties)
+        assert deep_rag_tool.properties.tool_type == AgentInternalToolType.DEEP_RAG
+        assert (
+            deep_rag_tool.properties.settings.citation_mode.value == CitationMode.INLINE
+        )
+        assert (
+            deep_rag_tool.properties.settings.file_extension.value
+            == DeepRagFileExtension.PDF
+        )
+
+        batch_tool = config.resources[4]
+        assert isinstance(batch_tool, AgentInternalToolResourceConfig)
+        assert isinstance(
+            batch_tool.properties, AgentInternalBatchTransformToolProperties
+        )
+        assert (
+            batch_tool.properties.settings.file_extension.value
+            == BatchTransformFileExtension.CSV
+        )
+
+        assert (
+            batch_tool.properties.settings.web_search_grounding.value
+            == BatchTransformWebSearchGrounding.ENABLED
+        )
+
+        assert config.guardrails is not None
+        custom_guardrail = config.guardrails[0]
+        assert isinstance(custom_guardrail, AgentCustomGuardrail)
+
+        word_rule = custom_guardrail.rules[0]
+        assert isinstance(word_rule, AgentWordRule)
+        assert word_rule.operator == AgentWordOperator.DOES_NOT_CONTAIN
+
+        number_rule = custom_guardrail.rules[1]
+        assert isinstance(number_rule, AgentNumberRule)
+        assert number_rule.operator == AgentNumberOperator.GREATER_THAN
+
+        boolean_rule = custom_guardrail.rules[2]
+        assert isinstance(boolean_rule, AgentBooleanRule)
+        assert boolean_rule.operator == AgentBooleanOperator.EQUALS
+
+        assert custom_guardrail.action.action_type == AgentGuardrailActionType.BLOCK
+
+        log_guardrail = config.guardrails[1]
+        assert isinstance(log_guardrail, AgentCustomGuardrail)
+        log_action = log_guardrail.action
+        assert isinstance(log_action, AgentGuardrailLogAction)
+        assert log_action.severity_level == AgentGuardrailSeverityLevel.WARNING
 
 
 class TestAgentDefinitionIsConversational:
