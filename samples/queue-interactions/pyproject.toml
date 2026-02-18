@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "UiPath agent to manage queue items via External Application integration with Orchestrator."
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-    "uipath>=2.8.0"
+    "uipath>=2.8.0, <2.9.0",
 ]
 requires-python = ">=3.11"
 

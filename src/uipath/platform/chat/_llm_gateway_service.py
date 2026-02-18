@@ -40,13 +40,6 @@ NORMALIZED_API_VERSION = (
     "2024-08-01-preview"  # API version for UiPath's normalized endpoints
 )
 
-# Common headers used across all LLM Gateway requests
-DEFAULT_LLM_HEADERS = {
-    "X-UIPATH-STREAMING-ENABLED": "false",
-    "X-UiPath-LlmGateway-RequestingProduct": "uipath-python-sdk",
-    "X-UiPath-LlmGateway-RequestingFeature": "langgraph-agent",
-}
-
 
 class ChatModels(object):
     """Available chat models for LLM Gateway services.
@@ -192,13 +185,30 @@ class UiPathOpenAIService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
+        # Prepare headers
+        headers = {
+            "X-UIPATH-STREAMING-ENABLED": "false",
+            "X-UiPath-LlmGateway-RequestingProduct": self._execution_context.requesting_product,
+            "X-UiPath-LlmGateway-RequestingFeature": self._execution_context.requesting_feature,
+        }
+
+        # Add AgentHub config header if specified
+        if self._execution_context.agenthub_config:
+            headers["X-UiPath-AgentHub-Config"] = (
+                self._execution_context.agenthub_config
+            )
+
+        # Add Action ID header if specified (groups related LLM calls)
+        if self._execution_context.action_id:
+            headers["X-UiPath-LlmGateway-ActionId"] = self._execution_context.action_id
+
         async with get_llm_semaphore():
             response = await self.request_async(
                 "POST",
                 endpoint,
                 json={"input": input},
                 params={"api-version": API_VERSION},
-                headers=DEFAULT_LLM_HEADERS,
+                headers=headers,
             )
 
         return TextEmbedding.model_validate(response.json())
@@ -323,13 +333,30 @@ class UiPathOpenAIService(BaseService):
                 # Use provided dictionary format directly
                 request_body["response_format"] = response_format
 
+        # Prepare headers
+        headers = {
+            "X-UIPATH-STREAMING-ENABLED": "false",
+            "X-UiPath-LlmGateway-RequestingProduct": self._execution_context.requesting_product,
+            "X-UiPath-LlmGateway-RequestingFeature": self._execution_context.requesting_feature,
+        }
+
+        # Add AgentHub config header if specified
+        if self._execution_context.agenthub_config:
+            headers["X-UiPath-AgentHub-Config"] = (
+                self._execution_context.agenthub_config
+            )
+
+        # Add Action ID header if specified (groups related LLM calls)
+        if self._execution_context.action_id:
+            headers["X-UiPath-LlmGateway-ActionId"] = self._execution_context.action_id
+
         async with get_llm_semaphore():
             response = await self.request_async(
                 "POST",
                 endpoint,
                 json=request_body,
                 params={"api-version": API_VERSION},
-                headers=DEFAULT_LLM_HEADERS,
+                headers=headers,
             )
 
         return ChatCompletion.model_validate(response.json())
@@ -563,10 +590,22 @@ class UiPathLlmChatService(BaseService):
 
         # Use default headers but update with normalized API specific headers
         headers = {
-            **DEFAULT_LLM_HEADERS,
+            "X-UIPATH-STREAMING-ENABLED": "false",
+            "X-UiPath-LlmGateway-RequestingProduct": self._execution_context.requesting_product,
+            "X-UiPath-LlmGateway-RequestingFeature": self._execution_context.requesting_feature,
             "X-UiPath-LlmGateway-NormalizedApi-ModelName": model,
             "X-UiPath-LLMGateway-AllowFull4xxResponse": "true",  # Debug: show full error details
         }
+
+        # Add AgentHub config header if specified
+        if self._execution_context.agenthub_config:
+            headers["X-UiPath-AgentHub-Config"] = (
+                self._execution_context.agenthub_config
+            )
+
+        # Add Action ID header if specified (groups related LLM calls)
+        if self._execution_context.action_id:
+            headers["X-UiPath-LlmGateway-ActionId"] = self._execution_context.action_id
 
         # Log the complete request for debugging
         import json as json_module

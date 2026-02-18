@@ -36,7 +36,7 @@ from uipath.runtime import (
     UiPathRuntimeResult,
     UiPathStreamOptions,
 )
-from uipath.runtime.events import UiPathRuntimeStateEvent
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 logger = logging.getLogger(__name__)
@@ -222,6 +222,7 @@ class BreakpointController:
                                 "line": frame.f_lineno,
                                 "function": frame.f_code.co_name,
                                 "locals": _capture_frame_locals(frame),
+                                "phase": "started",
                             },
                         )
                     )
@@ -281,6 +282,31 @@ class BreakpointController:
                         return None
 
             elif event == "return":
+                # Emit a "completed" state event for tracked functions
+                if self._is_project_file(filepath) and self._is_tracked_function(
+                    filepath, frame.f_code.co_name
+                ):
+                    locals_snapshot = _capture_frame_locals(frame)
+                    if arg is not None:
+                        try:
+                            import json as _json
+
+                            _json.dumps(arg)
+                            locals_snapshot["__return__"] = arg
+                        except Exception:
+                            locals_snapshot["__return__"] = repr(arg)
+                    self._events.put(
+                        (
+                            "state",
+                            {
+                                "file": filepath,
+                                "line": frame.f_lineno,
+                                "function": frame.f_code.co_name,
+                                "locals": locals_snapshot,
+                                "phase": "completed",
+                            },
+                        )
+                    )
                 # Clean up per-frame tracking when the frame exits.
                 self._hit_lines.pop(id(frame), None)
 
@@ -512,10 +538,12 @@ class UiPathDebugFunctionsRuntime:
     @staticmethod
     def _to_state_event(data: dict[str, Any]) -> UiPathRuntimeStateEvent:
         """Convert a trace state event into a UiPathRuntimeStateEvent."""
+        phase = UiPathRuntimeStatePhase(data.get("phase", "updated"))
         return UiPathRuntimeStateEvent(
             node_name=data["function"],
             qualified_node_name=_format_location(data["file"], data["line"]),
             payload=data["locals"],
+            phase=phase,
         )
 
     def _to_runtime_event(self, event_type: str, data: Any) -> UiPathRuntimeEvent:

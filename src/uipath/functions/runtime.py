@@ -22,6 +22,7 @@ from uipath.runtime.errors import (
     UiPathErrorContract,
     UiPathRuntimeError,
 )
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 from uipath.runtime.schema import UiPathRuntimeSchema, transform_attachments
 
 from .graph_builder import build_call_graph
@@ -98,9 +99,12 @@ class UiPathFunctionsRuntime:
         self, func: Callable[..., Any], input_data: dict[str, Any]
     ) -> dict[str, Any]:
         """Execute function with proper input conversion and error handling."""
-        sig = inspect.signature(func)
+        # Unwrap to inspect the original signature for type-based conversion,
+        # but still call the outer (decorated) func for proper tracing/hooks.
+        unwrapped = inspect.unwrap(func)
+        sig = inspect.signature(unwrapped)
         params = list(sig.parameters.values())
-        is_async = inspect.iscoroutinefunction(func)
+        is_async = inspect.iscoroutinefunction(unwrapped)
 
         # No parameters - call without args
         if not params:
@@ -160,15 +164,50 @@ class UiPathFunctionsRuntime:
         input: dict[str, Any] | None = None,
         options: UiPathExecuteOptions | None = None,
     ) -> AsyncGenerator[UiPathRuntimeEvent, None]:
-        """Stream execution results (functions don't support streaming, returns single result)."""
+        """Stream execution results with lifecycle phase events.
+
+        Yields STARTED → COMPLETED/FAULTED → result so consumers can
+        observe the execution lifecycle.
+        """
+        yield UiPathRuntimeStateEvent(
+            node_name=self.function_name,
+            phase=UiPathRuntimeStatePhase.STARTED,
+            payload=input or {},
+        )
+
         result = await self.execute(input, options)
+
+        if result.status == UiPathRuntimeStatus.FAULTED and result.error is not None:
+            yield UiPathRuntimeStateEvent(
+                node_name=self.function_name,
+                phase=UiPathRuntimeStatePhase.FAULTED,
+                payload={"error": result.error.model_dump()},
+            )
+        else:
+            output = result.output
+            if output is None:
+                completed_payload: dict[str, Any] = {}
+            elif isinstance(output, dict):
+                completed_payload = output
+            else:
+                completed_payload = {"output": str(output)}
+            yield UiPathRuntimeStateEvent(
+                node_name=self.function_name,
+                phase=UiPathRuntimeStatePhase.COMPLETED,
+                payload=completed_payload,
+            )
+
         yield result
 
     async def get_schema(self) -> UiPathRuntimeSchema:
         """Get schema for the function."""
         func = self._load_function()
-        hints = get_type_hints(func)
-        sig = inspect.signature(func)
+
+        # Unwrap decorated functions to get the original signature and type hints.
+        # This handles decorators (e.g. @traced) that use functools.wraps.
+        unwrapped = inspect.unwrap(func)
+        hints = get_type_hints(unwrapped)
+        sig = inspect.signature(unwrapped)
 
         # Determine input schema
         if not sig.parameters:

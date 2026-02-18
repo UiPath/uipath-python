@@ -105,3 +105,4 @@ class ActivityMetadata(BaseModel):
     method_name: str
     content_type: str
     parameter_location_info: ActivityParameterLocationInfo
+    json_body_section: Optional[str] = None

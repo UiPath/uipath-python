@@ -344,7 +344,9 @@ def eval(
                         factory_settings.trace_settings if factory_settings else None
                     )
 
-                    if ctx.job_id or should_register_progress_reporter:
+                    if (
+                        ctx.job_id or should_register_progress_reporter
+                    ) and UiPathConfig.is_tracing_enabled:
                         # Live tracking for Orchestrator or Studio Web
                         # Uses UIPATH_TRACE_ID from environment for trace correlation
                         trace_manager.add_span_processor(
@@ -413,7 +415,9 @@ def eval(
                                     event_bus,
                                 )
                         else:
-                            # Fall back to execution without overwrites
+                            logger.debug(
+                                "No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites"
+                            )
                             ctx.result = await evaluate(
                                 runtime_factory,
                                 trace_manager,

@@ -1,0 +1,28 @@
+flowchart TB
+  main.py:103(main)
+  main.py:85(analyze_tree)
+  main.py:27(log_visit)
+  main.py:36(compute_depth)
+  main.py:45(count_nodes)
+  main.py:52(count_leaves)
+  main.py:31(is_leaf)
+  main.py:61(find_max)
+  main.py:70(find_path_to_value)
+  main.py:85 --> main.py:27
+  main.py:36 --> main.py:36
+  main.py:36 --> main.py:36
+  main.py:85 --> main.py:36
+  main.py:45 --> main.py:45
+  main.py:45 --> main.py:45
+  main.py:85 --> main.py:45
+  main.py:52 --> main.py:31
+  main.py:52 --> main.py:52
+  main.py:52 --> main.py:52
+  main.py:85 --> main.py:52
+  main.py:61 --> main.py:61
+  main.py:61 --> main.py:61
+  main.py:85 --> main.py:61
+  main.py:70 --> main.py:70
+  main.py:70 --> main.py:70
+  main.py:85 --> main.py:70
+  main.py:103 --> main.py:85

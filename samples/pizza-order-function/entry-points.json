@@ -4,7 +4,7 @@
     "entryPoints": [
         {
             "filePath": "main",
-            "uniqueId": "5911a306-20d0-411f-ad09-6e2375c1c633",
+            "uniqueId": "f819caf9-a48a-43fb-9912-f37d56aab48f",
             "type": "agent",
             "input": {
                 "type": "object",

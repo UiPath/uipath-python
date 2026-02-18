@@ -65,7 +65,11 @@ async def generate_llm_input(
     from .mocks import cache_manager_context
 
     try:
-        llm = UiPath().llm
+        llm = UiPath(
+            requesting_product="agentsplayground",
+            requesting_feature="agents-evaluations",
+            agenthub_config="agentsevals",
+        ).llm
         cache_manager = cache_manager_context.get()
 
         # Ensure additionalProperties is set for strict mode compatibility

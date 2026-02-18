@@ -263,6 +263,53 @@ def test_relative_import(tmp_path):
     assert "do_work" in node_names
 
 
+def test_node_id_uses_last_body_line(tmp_path):
+    """Node ID should point to the last statement in the function body."""
+    (tmp_path / "main.py").write_text(
+        textwrap.dedent("""\
+        def main(input):
+            x = input.get("value", 10)
+            y = x * 2
+            return {"result": y}
+        """)
+    )
+
+    graph = build_call_graph(
+        str(tmp_path / "main.py"),
+        "main",
+        project_dir=str(tmp_path),
+    )
+
+    assert len(graph.nodes) == 1
+    node = graph.nodes[0]
+    # Last body line is "return {"result": y}" at line 4
+    assert node.id == "main.py:4"
+
+
+def test_node_id_last_line_with_docstring(tmp_path):
+    """Docstring should not affect the last body line calculation."""
+    (tmp_path / "main.py").write_text(
+        textwrap.dedent("""\
+        def main(input):
+            \"\"\"This is a docstring.\"\"\"
+            x = 1
+            y = 2
+            return x + y
+        """)
+    )
+
+    graph = build_call_graph(
+        str(tmp_path / "main.py"),
+        "main",
+        project_dir=str(tmp_path),
+    )
+
+    assert len(graph.nodes) == 1
+    node = graph.nodes[0]
+    # Last body line is "return x + y" at line 5
+    assert node.id == "main.py:5"
+
+
 def test_module_attribute_call(tmp_path):
     """import module; module.func() pattern is resolved."""
     (tmp_path / "mymod.py").write_text(

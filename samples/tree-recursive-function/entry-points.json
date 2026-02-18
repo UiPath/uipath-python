@@ -1,0 +1,208 @@
+{
+    "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+    "$id": "entry-points.json",
+    "entryPoints": [
+        {
+            "filePath": "main",
+            "uniqueId": "a959aac0-1157-40ca-889c-48a84eec3fab",
+            "type": "agent",
+            "input": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "integer"
+                    },
+                    "left": {
+                        "type": "object"
+                    },
+                    "right": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "value"
+                ]
+            },
+            "output": {
+                "type": "object",
+                "properties": {
+                    "depth": {
+                        "type": "integer"
+                    },
+                    "total_nodes": {
+                        "type": "integer"
+                    },
+                    "leaf_count": {
+                        "type": "integer"
+                    },
+                    "max_value": {
+                        "type": "integer"
+                    },
+                    "path_to_max": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "depth",
+                    "total_nodes",
+                    "leaf_count",
+                    "max_value",
+                    "path_to_max"
+                ]
+            },
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "main.py:103",
+                        "name": "main",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:85",
+                        "name": "analyze_tree",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:27",
+                        "name": "log_visit",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:36",
+                        "name": "compute_depth",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:45",
+                        "name": "count_nodes",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:52",
+                        "name": "count_leaves",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:31",
+                        "name": "is_leaf",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:61",
+                        "name": "find_max",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    },
+                    {
+                        "id": "main.py:70",
+                        "name": "find_path_to_value",
+                        "type": "function",
+                        "metadata": {
+                            "file": "main.py"
+                        }
+                    }
+                ],
+                "edges": [
+                    {
+                        "source": "main.py:85",
+                        "target": "main.py:27"
+                    },
+                    {
+                        "source": "main.py:36",
+                        "target": "main.py:36"
+                    },
+                    {
+                        "source": "main.py:36",
+                        "target": "main.py:36"
+                    },
+                    {
+                        "source": "main.py:85",
+                        "target": "main.py:36"
+                    },
+                    {
+                        "source": "main.py:45",
+                        "target": "main.py:45"
+                    },
+                    {
+                        "source": "main.py:45",
+                        "target": "main.py:45"
+                    },
+                    {
+                        "source": "main.py:85",
+                        "target": "main.py:45"
+                    },
+                    {
+                        "source": "main.py:52",
+                        "target": "main.py:31"
+                    },
+                    {
+                        "source": "main.py:52",
+                        "target": "main.py:52"
+                    },
+                    {
+                        "source": "main.py:52",
+                        "target": "main.py:52"
+                    },
+                    {
+                        "source": "main.py:85",
+                        "target": "main.py:52"
+                    },
+                    {
+                        "source": "main.py:61",
+                        "target": "main.py:61"
+                    },
+                    {
+                        "source": "main.py:61",
+                        "target": "main.py:61"
+                    },
+                    {
+                        "source": "main.py:85",
+                        "target": "main.py:61"
+                    },
+                    {
+                        "source": "main.py:70",
+                        "target": "main.py:70"
+                    },
+                    {
+                        "source": "main.py:70",
+                        "target": "main.py:70"
+                    },
+                    {
+                        "source": "main.py:85",
+                        "target": "main.py:70"
+                    },
+                    {
+                        "source": "main.py:103",
+                        "target": "main.py:85"
+                    }
+                ]
+            }
+        }
+    ]
+}

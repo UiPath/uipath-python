@@ -17,7 +17,7 @@ from uipath.runtime import (
     UiPathRuntimeStatus,
 )
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugQuitError
-from uipath.runtime.events import UiPathRuntimeStateEvent
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 from uipath.runtime.resumable import UiPathResumeTriggerType
 
 from uipath._cli._utils._common import serialize_object
@@ -102,7 +102,7 @@ class ConsoleDebugBridge:
 
     async def emit_state_update(self, state_event: UiPathRuntimeStateEvent) -> None:
         """Print agent state update."""
-        if not self.verbose:
+        if not self.verbose or state_event.phase != UiPathRuntimeStatePhase.UPDATED:
             return
 
         self.console.print(f"[yellow]●[/yellow] [bold]{state_event.node_name}[/bold]")
@@ -564,6 +564,7 @@ class SignalRDebugBridge:
                 "executionId": state_event.execution_id,
                 "nodeName": state_event.node_name,
                 "qualifiedNodeName": state_event.qualified_node_name,
+                "phase": state_event.phase,
                 "state": state_event.payload,
             },
         )
