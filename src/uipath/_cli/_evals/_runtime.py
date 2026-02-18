@@ -47,8 +47,6 @@ from uipath.runtime.errors import (
 from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from uipath._cli._evals._conversational_utils import UiPathLegacyEvalChatMessagesMapper
-
 from uipath._cli._evals._span_utils import (
     configure_eval_set_run_span,
     configure_evaluation_span,
@@ -851,31 +849,6 @@ class UiPathEvalRuntime:
                     eval_id=eval_item.id,
                 )
 
-                # todo: map eval input type to this type
-                # inputs_with_overrides = {
-                #     "messages": [
-                #         {
-                #             "messageId": "E6928DF4-AA36-46BE-B4FC-52ADA2B636D0",
-                #             "role": "user",
-                #             "contentParts": [
-                #                 {
-                #                     "contentPartId": "E75CBEA6-7A2C-442B-B0B6-39FFBF17E986",
-                #                     "mimeType": "text/plain",
-                #                     "data": {"inline": "Hi what can you do"},
-                #                     "citations": [],
-                #                     "createdAt": "2026-01-18T05:32:39.620Z",
-                #                     "updatedAt": "2026-01-18T05:32:39.620Z",
-                #                 }
-                #             ],
-                #             "toolCalls": [],
-                #             "interrupts": [],
-                #             "spanId": "0f32ee22-0def-4906-9cde-dbb9860c050f",
-                #             "createdAt": "2026-01-18T05:32:38.807Z",
-                #             "updatedAt": "2026-01-18T05:32:38.807Z",
-                #         }
-                #     ]
-                # }
-
                 # In resume mode, pass None as input
                 # The UiPathResumableRuntime wrapper will automatically:
                 # 1. Fetch triggers from storage
@@ -915,32 +888,9 @@ class UiPathEvalRuntime:
 
             if result is None:
                 raise ValueError("Execution result cannot be None for eval runs")
-            
+
             if result is None:
                 raise ValueError("Execution result cannot be None for eval runs")
-
-            schema = await self.get_schema()
-            is_conversational = False
-        
-            if schema.metadata and isinstance(schema.metadata, dict):
-                print("=== Schema metadata: ")
-                print(schema.metadata)
-                engine = schema.metadata.get("settings").get("engine")
-                is_conversational = "conversational" in engine
-
-            # print("result.output: " + str(result.output))
-            if is_conversational and result.output:
-                converted_output = UiPathLegacyEvalChatMessagesMapper.messages_to_legacy_conversational_eval_output(result.output.get("messages"))
-                print("converted_output: " + str(converted_output))
-                result = UiPathRuntimeResult(
-                    output=converted_output,
-                    status=result.status,
-                    error=result.error,
-                    trigger=result.trigger,
-                    triggers=result.triggers,
-                )
-
-            print("result: " + str(result))
 
             return UiPathEvalRunExecutionOutput(
                 execution_time=end_time - start_time,

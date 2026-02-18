@@ -5,6 +5,7 @@ from typing import Any
 import click
 from pydantic import ValidationError
 
+from uipath._cli._evals._conversational_utils import UiPathLegacyEvalChatMessagesMapper
 from uipath._cli._evals._evaluator_factory import EvaluatorFactory
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
@@ -15,7 +16,6 @@ from uipath._cli._evals._models._evaluation_set import (
 from uipath._cli._evals.mocks.types import InputMockingStrategy, LLMMockingStrategy
 from uipath._cli._utils._console import ConsoleLogger
 from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
-from uipath._cli._evals._conversational_utils import UiPathLegacyEvalChatMessagesMapper
 
 console = ConsoleLogger()
 
@@ -143,17 +143,25 @@ class EvalHelpers:
                             tools_to_simulate=evaluation.tools_to_simulate or [],
                         )
 
-                    print("--- migrate_evaluation_item: conversational_inputs ---")
-                    print(evaluation.conversational_inputs)
-                    print("--- migrate_evaluation_item: conversational_expected_output ---")
-                    print(evaluation.conversational_expected_output)
-
                     if evaluation.conversational_inputs:
-                        conversational_messages_input = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_messages(evaluation.conversational_inputs)
-                        evaluation.inputs["messages"] = [message.model_dump(by_alias=True) for message in conversational_messages_input]
+                        conversational_messages_input = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+                            evaluation.conversational_inputs
+                        )
+                        evaluation.inputs["messages"] = [
+                            message.model_dump(by_alias=True)
+                            for message in conversational_messages_input
+                        ]
 
-                    print("--- migrate_evaluation_item: evaluation.inputs[messages] ---")
-                    print(evaluation.inputs["messages"])
+                    if evaluation.conversational_expected_output:
+                        conversational_messages_expected_output = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_output_to_uipath_message_data_list(
+                            evaluation.conversational_expected_output
+                        )
+                        evaluation.expected_output[
+                            "uipath__agent_response_messages"
+                        ] = [
+                            message.model_dump(by_alias=True)
+                            for message in conversational_messages_expected_output
+                        ]
 
                     return EvaluationItem.model_validate(
                         {
