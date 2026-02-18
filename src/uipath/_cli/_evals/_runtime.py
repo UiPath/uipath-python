@@ -309,7 +309,6 @@ class UiPathEvalRuntime:
         )
 
     async def execute(self) -> UiPathRuntimeResult:
-        print("EXECUTEE!!!")
         logger.info("=" * 80)
         logger.info("EVAL RUNTIME: Starting evaluation execution")
         logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
@@ -885,9 +884,6 @@ class UiPathEvalRuntime:
 
             end_time = time()
             spans, logs = self._get_and_clear_execution_data(execution_id)
-
-            if result is None:
-                raise ValueError("Execution result cannot be None for eval runs")
 
             if result is None:
                 raise ValueError("Execution result cannot be None for eval runs")
