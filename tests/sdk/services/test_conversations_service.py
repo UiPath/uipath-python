@@ -89,6 +89,7 @@ class TestConversationsService:
                             "contentPartId": "cp-1",
                             "mimeType": "text/plain",
                             "data": {"inline": "Hello, world!"},
+                            "citations": [],
                             "createdAt": "2024-01-01T00:00:00Z",
                             "updatedAt": "2024-01-01T00:00:00Z",
                         }
