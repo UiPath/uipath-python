@@ -535,6 +535,7 @@ class UiPathEvalRuntime:
                         ),
                         span_collector=self.span_collector,
                         execution_id=execution_id,
+                        eval_set_run_id=self.context.eval_set_run_id,
                     )
 
                     # Only create eval run entry if NOT resuming from a checkpoint

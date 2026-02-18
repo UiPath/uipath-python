@@ -101,7 +101,11 @@ class LLMMocker(Mocker):
                 span_collector_context,
             )
 
-            llm = UiPath().llm
+            llm = UiPath(
+                requesting_product="agentsplayground",
+                requesting_feature="agents-evaluations",
+                agenthub_config="agentsevals",
+            ).llm
             return_type: Any = func.__annotations__.get("return", None)
             if return_type is None:
                 return_type = Any
