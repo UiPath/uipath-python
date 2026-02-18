@@ -50,6 +50,9 @@ class UiPath:
         client_secret: Optional[str] = None,
         scope: Optional[str] = None,
         debug: bool = False,
+        requesting_product: Optional[str] = None,
+        requesting_feature: Optional[str] = None,
+        agenthub_config: Optional[str] = None,
     ) -> None:
         try:
             if _has_valid_client_credentials(client_id, client_secret):
@@ -70,7 +73,11 @@ class UiPath:
                     raise BaseUrlMissingError() from e
                 elif error["loc"][0] == "secret":
                     raise SecretMissingError() from e
-        self._execution_context = UiPathExecutionContext()
+        self._execution_context = UiPathExecutionContext(
+            requesting_product=requesting_product,
+            requesting_feature=requesting_feature,
+            agenthub_config=agenthub_config,
+        )
 
     @property
     def api_client(self) -> ApiClient:

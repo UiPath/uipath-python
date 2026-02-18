@@ -11,7 +11,12 @@ class UiPathExecutionContext:
     tracking and managing automation jobs in UiPath Automation Cloud.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        requesting_product: str | None = None,
+        requesting_feature: str | None = None,
+        agenthub_config: str | None = None,
+    ) -> None:
         try:
             self._instance_key: str | None = env[ENV_JOB_KEY]
         except KeyError:
@@ -26,6 +31,13 @@ class UiPathExecutionContext:
             self._robot_key: str | None = env[ENV_ROBOT_KEY]
         except KeyError:
             self._robot_key = None
+
+        # LLM Gateway headers for product/feature identification
+        self.requesting_product = requesting_product or "uipath-python-sdk"
+        self.requesting_feature = requesting_feature or "llm-call"
+
+        # AgentHub configuration header - tells AgentHub how to route/configure the request
+        self.agenthub_config = agenthub_config
 
         super().__init__()
 

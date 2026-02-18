@@ -122,7 +122,11 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         from uipath.platform import UiPath
 
         try:
-            uipath = UiPath()
+            uipath = UiPath(
+                requesting_product="agentsplayground",
+                requesting_feature="agents-evaluations",
+                agenthub_config="agentsevals",
+            )
             # Use llm (normalized API) for multi-vendor model support
             return uipath.llm.chat_completions
         except Exception as e:

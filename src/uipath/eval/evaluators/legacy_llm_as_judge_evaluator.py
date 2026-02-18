@@ -91,7 +91,11 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         """Initialize the LLM used for evaluation."""
         from uipath.platform import UiPath
 
-        uipath = UiPath()
+        uipath = UiPath(
+            requesting_product="agentsplayground",
+            requesting_feature="agents-evaluations",
+            agenthub_config="agentsevals",
+        )
         self.llm = uipath.llm
 
     async def evaluate(
