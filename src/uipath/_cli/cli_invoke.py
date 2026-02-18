@@ -6,7 +6,7 @@ import tomllib
 import click
 import httpx
 
-from .._utils._ssl_context import get_httpx_client_kwargs
+from .._utils._http_clients import get_httpx_client_kwargs
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
 from ._utils._folders import get_personal_workspace_info_async

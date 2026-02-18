@@ -9,7 +9,7 @@ from uipath.runtime.errors import (
 )
 
 from ..._utils._auth import update_env_file
-from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils._http_clients import get_httpx_client_kwargs
 from ...platform.common import TokenData
 from .._utils._console import ConsoleLogger
 from ._models import OrganizationInfo, TenantInfo, TenantsAndOrganizationInfoResponse

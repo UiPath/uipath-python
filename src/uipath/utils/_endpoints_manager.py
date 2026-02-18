@@ -4,7 +4,7 @@ from enum import Enum
 
 import httpx
 
-from uipath._utils._ssl_context import get_httpx_client_kwargs
+from uipath._utils._http_clients import get_httpx_client_kwargs
 
 loggger = logging.getLogger(__name__)
 

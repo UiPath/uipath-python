@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from ..._utils._ssl_context import get_httpx_client_kwargs
+from ..._utils._http_clients import get_httpx_client_kwargs
 from ._console import ConsoleLogger
 
 console = ConsoleLogger()
