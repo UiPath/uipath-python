@@ -198,6 +198,10 @@ class UiPathOpenAIService(BaseService):
                 self._execution_context.agenthub_config
             )
 
+        # Add Action ID header if specified (groups related LLM calls)
+        if self._execution_context.action_id:
+            headers["X-UiPath-LlmGateway-ActionId"] = self._execution_context.action_id
+
         async with get_llm_semaphore():
             response = await self.request_async(
                 "POST",
@@ -341,6 +345,10 @@ class UiPathOpenAIService(BaseService):
             headers["X-UiPath-AgentHub-Config"] = (
                 self._execution_context.agenthub_config
             )
+
+        # Add Action ID header if specified (groups related LLM calls)
+        if self._execution_context.action_id:
+            headers["X-UiPath-LlmGateway-ActionId"] = self._execution_context.action_id
 
         async with get_llm_semaphore():
             response = await self.request_async(
@@ -594,6 +602,10 @@ class UiPathLlmChatService(BaseService):
             headers["X-UiPath-AgentHub-Config"] = (
                 self._execution_context.agenthub_config
             )
+
+        # Add Action ID header if specified (groups related LLM calls)
+        if self._execution_context.action_id:
+            headers["X-UiPath-LlmGateway-ActionId"] = self._execution_context.action_id
 
         # Log the complete request for debugging
         import json as json_module

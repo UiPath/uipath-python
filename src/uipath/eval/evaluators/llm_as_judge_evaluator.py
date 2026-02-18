@@ -107,10 +107,8 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         return self
 
     def model_post_init(self, __context: Any) -> None:
-        """Initialize the LLM service if not provided."""
+        """Initialize the evaluator after model creation."""
         super().model_post_init(__context)
-        if self.llm_service is None:
-            self.llm_service = self._get_llm_service()
 
     def _get_llm_service(self):
         """Get the LLM service from the UiPath instance.
@@ -260,6 +258,11 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         # Only include max_tokens if set (don't pass None to API)
         if max_tokens_value is not None:
             request_data["max_tokens"] = max_tokens_value
+
+        # Lazy initialization - initialize LLM service only when needed
+        # This ensures eval_set_run_id context is set before creating UiPath instance
+        if self.llm_service is None:
+            self.llm_service = self._get_llm_service()
 
         if self.llm_service is None:
             raise UiPathEvaluationError(

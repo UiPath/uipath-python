@@ -28,6 +28,11 @@ span_collector_context: ContextVar[ExecutionSpanCollector | None] = ContextVar(
 # Execution ID for the current evaluation item
 execution_id_context: ContextVar[str | None] = ContextVar("execution_id", default=None)
 
+# Evaluation set run ID (action ID) for grouping related LLM calls
+eval_set_run_id_context: ContextVar[str | None] = ContextVar(
+    "eval_set_run_id", default=None
+)
+
 # Cache manager for LLM and input mocker responses
 cache_manager_context: ContextVar[CacheManager | None] = ContextVar(
     "cache_manager", default=None
@@ -40,6 +45,7 @@ def set_execution_context(
     context: MockingContext | None,
     span_collector: ExecutionSpanCollector,
     execution_id: str | None = None,
+    eval_set_run_id: str | None = None,
 ) -> None:
     """Set the execution context for an evaluation run for mocking and trace access."""
     mocking_context.set(context)
@@ -55,6 +61,7 @@ def set_execution_context(
 
     span_collector_context.set(span_collector)
     execution_id_context.set(execution_id)
+    eval_set_run_id_context.set(eval_set_run_id)
 
 
 def clear_execution_context() -> None:

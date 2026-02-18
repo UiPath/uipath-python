@@ -3,6 +3,17 @@ from os import environ as env
 from uipath._utils.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
 
 
+def _get_action_id_from_context() -> str | None:
+    """Get action_id from evaluation context if available."""
+    try:
+        # Import here to avoid circular dependency
+        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
+
+        return eval_set_run_id_context.get()
+    except (ImportError, LookupError):
+        return None
+
+
 class UiPathExecutionContext:
     """Manages the execution context for UiPath automation processes.
 
@@ -16,6 +27,7 @@ class UiPathExecutionContext:
         requesting_product: str | None = None,
         requesting_feature: str | None = None,
         agenthub_config: str | None = None,
+        action_id: str | None = None,
     ) -> None:
         try:
             self._instance_key: str | None = env[ENV_JOB_KEY]
@@ -38,6 +50,10 @@ class UiPathExecutionContext:
 
         # AgentHub configuration header - tells AgentHub how to route/configure the request
         self.agenthub_config = agenthub_config
+
+        # Action ID for grouping related LLM calls in observability/audit logs
+        # If not provided explicitly, try to get it from eval context
+        self.action_id = action_id or _get_action_id_from_context()
 
         super().__init__()
 

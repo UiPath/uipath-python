@@ -53,6 +53,7 @@ class UiPath:
         requesting_product: Optional[str] = None,
         requesting_feature: Optional[str] = None,
         agenthub_config: Optional[str] = None,
+        action_id: Optional[str] = None,
     ) -> None:
         try:
             if _has_valid_client_credentials(client_id, client_secret):
@@ -77,6 +78,7 @@ class UiPath:
             requesting_product=requesting_product,
             requesting_feature=requesting_feature,
             agenthub_config=agenthub_config,
+            action_id=action_id,
         )
 
     @property
