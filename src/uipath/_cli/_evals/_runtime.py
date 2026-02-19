@@ -248,11 +248,13 @@ def _serialize_span(span: ReadableSpan) -> dict[str, Any]:
             if e.attributes:
                 for k, v in e.attributes.items():
                     event_attrs[k] = list(v) if isinstance(v, tuple) else v
-            events_data.append({
-                "name": e.name,
-                "attributes": event_attrs,
-                "timestamp": e.timestamp,
-            })
+            events_data.append(
+                {
+                    "name": e.name,
+                    "attributes": event_attrs,
+                    "timestamp": e.timestamp,
+                }
+            )
 
     return {
         "name": span.name,
@@ -295,11 +297,13 @@ def _deserialize_span(data: dict[str, Any]) -> ReadableSpan:
 
     events = []
     for e in data.get("events", []):
-        events.append(Event(
-            name=e["name"],
-            attributes=e.get("attributes"),
-            timestamp=e.get("timestamp"),
-        ))
+        events.append(
+            Event(
+                name=e["name"],
+                attributes=e.get("attributes"),
+                timestamp=e.get("timestamp"),
+            )
+        )
 
     return ReadableSpan(
         name=data["name"],
@@ -990,7 +994,11 @@ class UiPathEvalRuntime:
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
                     logger.info(f"Resuming evaluation {eval_item.id}")
-                    input = (input_overrides or None) if self.context.job_id is None else None
+                    input = (
+                        (input_overrides or None)
+                        if self.context.job_id is None
+                        else None
+                    )
                 else:
                     input = inputs_with_overrides
 
@@ -1297,13 +1305,9 @@ class UiPathEvalRuntime:
             key=eval_item_id,
             value={"spans": serialized},
         )
-        logger.info(
-            f"Saved {len(spans)} execution spans for eval_item {eval_item_id}"
-        )
+        logger.info(f"Saved {len(spans)} execution spans for eval_item {eval_item_id}")
 
-    async def _load_execution_spans(
-        self, eval_item_id: str
-    ) -> list[ReadableSpan]:
+    async def _load_execution_spans(self, eval_item_id: str) -> list[ReadableSpan]:
         """Load saved execution spans from storage after resume."""
         if self._storage is None:
             logger.warning("No storage available, cannot load execution spans")
