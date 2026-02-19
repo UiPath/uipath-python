@@ -8,7 +8,7 @@ A Python SDK that enables programmatic interaction with UiPath Cloud Platform se
 
 Use the [UiPath LangChain SDK](https://github.com/UiPath/uipath-langchain-python) to pack and publish LangGraph Agents.
 
-Use the [UiPath LlamaIndex SDK](https://github.com/UiPath/uipath-integrations-python/tree/main/packages/uipath-llamaindex) to pack and publish LlamaIndex Agents.
+Check out other [UiPath Integrations](https://github.com/UiPath/uipath-integrations-python) to pack and publish agents built with LlamaIndex, OpenAI Agents, Google ADK, and more.
 
 This [quickstart guide](https://uipath.github.io/uipath-python/) walks you through deploying your first agent to UiPath Cloud Platform.
 
@@ -196,6 +196,11 @@ To properly use the CLI for packaging and publishing, your project should includ
 
 ## Development
 
-### Setting Up a Development Environment
+### Tools
 
-Please read [CONTRIBUTING.md](https://github.com/UiPath/uipath-python/blob/main/CONTRIBUTING.md) before submitting a pull request.
+Check out [uipath-dev](https://github.com/uipath/uipath-dev-python) - an interactive application for building, testing, and debugging UiPath Python runtimes, agents, and automation scripts.
+
+### Contributions
+
+Please read our [contribution guidelines](https://github.com/UiPath/uipath-integrations-python/blob/main/CONTRIBUTING.md) before submitting a pull request.
+
