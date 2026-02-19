@@ -2,6 +2,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
+from uipath.runtime.errors import (
+    UiPathErrorCategory,
+    UiPathErrorCode,
+    UiPathRuntimeError,
+)
 
 from uipath._cli._utils._common import serialize_object
 
@@ -95,6 +100,7 @@ def test_serialize_complex_nested_structure() -> None:
             name="test", age=25, tags=["tag1", "tag2"], metadata={"nested": True}
         ),
         "dataclass": SampleDataClass(value="test", numbers=[1, 2, 3]),
+        "error": RuntimeError("something failed"),
         "list": [
             {"key": "value"},
             SamplePydanticModel(name="nested", age=30, tags=["tag3"]),
@@ -110,6 +116,7 @@ def test_serialize_complex_nested_structure() -> None:
             "metadata": {"nested": True},
         },
         "dataclass": {"value": "test", "numbers": [1, 2, 3]},
+        "error": "something failed",
         "list": [
             {"key": "value"},
             {"name": "nested", "age": 30, "tags": ["tag3"], "metadata": None},
@@ -117,3 +124,29 @@ def test_serialize_complex_nested_structure() -> None:
         ],
     }
     assert serialize_object(complex_structure) == expected
+
+
+def test_serialize_uipath_runtime_error() -> None:
+    """Test serialization of UiPathBaseRuntimeError-like objects with as_dict property."""
+
+    error = UiPathRuntimeError(
+        code=UiPathErrorCode.INPUT_INVALID_JSON,
+        title="Test error title",
+        detail="Something went wrong",
+        category=UiPathErrorCategory.USER,
+        prefix="Test",
+        include_traceback=False,
+    )
+    result = serialize_object(error)
+
+    assert result["code"] == "Test.INPUT_INVALID_JSON"
+    assert result["title"] == "Test error title"
+    assert result["detail"] == "Something went wrong"
+    assert result["category"] == "User"
+
+
+def test_serialize_exception() -> None:
+    """Test serialization of a plain exception returns its message."""
+    error = ValueError("something broke")
+    result = serialize_object(error)
+    assert result == "something broke"
