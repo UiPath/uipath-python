@@ -1,5 +1,7 @@
 """Tests for conversational eval utilities."""
 
+from uipath.core.chat import UiPathInlineValue
+
 from uipath._cli._evals._conversational_utils import (
     LegacyConversationalEvalInput,
     LegacyConversationalEvalInputAgentMessage,
@@ -35,10 +37,13 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
         # Should have 3 messages: user, agent, user
         assert len(result) == 3
         assert result[0].role == "user"
+        assert isinstance(result[0].content_parts[0].data, UiPathInlineValue)
         assert result[0].content_parts[0].data.inline == "Hello"
         assert result[1].role == "assistant"
+        assert isinstance(result[1].content_parts[0].data, UiPathInlineValue)
         assert result[1].content_parts[0].data.inline == "Hi there!"
         assert result[2].role == "user"
+        assert isinstance(result[2].content_parts[0].data, UiPathInlineValue)
         assert result[2].content_parts[0].data.inline == "How are you?"
 
     def test_converts_user_message_with_text_plain_mime_type(self):
@@ -142,6 +147,7 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
         )
 
         tool_call = result[1].tool_calls[0]
+        assert tool_call.result is not None
         assert tool_call.result.is_error is True
         assert tool_call.result.output == "Error occurred"
 
@@ -168,10 +174,15 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
         )
 
         assert len(result) == 5  # 2 exchanges (4 messages) + current prompt
+        assert isinstance(result[0].content_parts[0].data, UiPathInlineValue)
         assert result[0].content_parts[0].data.inline == "First question"
+        assert isinstance(result[1].content_parts[0].data, UiPathInlineValue)
         assert result[1].content_parts[0].data.inline == "First answer"
+        assert isinstance(result[2].content_parts[0].data, UiPathInlineValue)
         assert result[2].content_parts[0].data.inline == "Second question"
+        assert isinstance(result[3].content_parts[0].data, UiPathInlineValue)
         assert result[3].content_parts[0].data.inline == "Second answer"
+        assert isinstance(result[4].content_parts[0].data, UiPathInlineValue)
         assert result[4].content_parts[0].data.inline == "Third question"
 
     def test_converts_exchange_with_multiple_agent_messages(self):
@@ -264,6 +275,7 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
 
         assert len(result) == 1
         assert result[0].role == "user"
+        assert isinstance(result[0].content_parts[0].data, UiPathInlineValue)
         assert result[0].content_parts[0].data.inline == "First message"
 
 
@@ -285,6 +297,7 @@ class TestLegacyConversationalEvalOutputToUiPathMessageData:
         assert len(result) == 1
         assert result[0].role == "assistant"
         assert len(result[0].content_parts) == 1
+        assert isinstance(result[0].content_parts[0].data, UiPathInlineValue)
         assert result[0].content_parts[0].data.inline == "Here is the answer"
         assert result[0].content_parts[0].mime_type == "text/markdown"
 
@@ -337,8 +350,10 @@ class TestLegacyConversationalEvalOutputToUiPathMessageData:
         )
 
         assert len(result) == 2
+        assert isinstance(result[0].content_parts[0].data, UiPathInlineValue)
         assert result[0].content_parts[0].data.inline == "First response"
         assert len(result[0].tool_calls) == 1
+        assert isinstance(result[1].content_parts[0].data, UiPathInlineValue)
         assert result[1].content_parts[0].data.inline == "Final response"
         assert len(result[1].tool_calls) == 0
 
