@@ -82,6 +82,9 @@ def serialize_object(obj):
         return serialize_object(obj.dict())
     elif hasattr(obj, "to_dict"):
         return serialize_object(obj.to_dict())
+    # Special handling for UiPathBaseRuntimeErrors
+    elif hasattr(obj, "as_dict"):
+        return serialize_object(obj.as_dict)
     elif isinstance(obj, (datetime, date, time)):
         return obj.isoformat()
     # Handle dictionaries
@@ -90,6 +93,9 @@ def serialize_object(obj):
     # Handle lists
     elif isinstance(obj, list):
         return [serialize_object(item) for item in obj]
+    # Handle exceptions
+    elif isinstance(obj, Exception):
+        return str(obj)
     # Handle other iterable objects (convert to dict first)
     elif hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes)):
         try:
