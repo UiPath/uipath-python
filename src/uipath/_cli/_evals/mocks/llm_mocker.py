@@ -195,16 +195,30 @@ class LLMMocker(Mocker):
                     if cached_response is not None:
                         return cached_response
 
-                response = await llm.chat_completions(
-                    [
-                        {
-                            "role": "user",
-                            "content": formatted_prompt,
-                        },
-                    ],
-                    response_format=response_format,
-                    **completion_kwargs,
-                )
+                messages = [
+                    {
+                        "role": "user",
+                        "content": formatted_prompt,
+                    },
+                ]
+
+                try:
+                    response = await llm.chat_completions(
+                        messages,
+                        response_format=response_format,
+                        **completion_kwargs,
+                    )
+                except Exception:
+                    logger.warning(
+                        "json_schema response_format not supported by model, "
+                        "falling back to json_object"
+                    )
+                    response = await llm.chat_completions(
+                        messages,
+                        response_format={"type": "json_object"},
+                        **completion_kwargs,
+                    )
+
                 result = json.loads(response.choices[0].message.content)
 
                 if cache_manager is not None:
