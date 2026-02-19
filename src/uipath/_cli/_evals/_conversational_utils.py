@@ -20,9 +20,9 @@ from uipath.core.chat import (
 class LegacyConversationalEvalJobAttachmentReference(BaseModel):
     """File attachment reference in eval messages."""
 
-    id: str
-    full_name: str = Field(..., alias="fullName")
-    mime_type: str = Field(..., alias="mimeType")
+    id: str = Field(..., alias="ID")
+    full_name: str = Field(..., alias="FullName")
+    mime_type: str = Field(..., alias="MimeType")
 
 
 class LegacyConversationalEvalOutputToolCall(BaseModel):
