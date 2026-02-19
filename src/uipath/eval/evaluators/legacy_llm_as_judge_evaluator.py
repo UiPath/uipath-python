@@ -11,6 +11,7 @@ from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ...platform.chat import UiPathLlmChatService
 from ...platform.chat.llm_gateway import RequiredToolChoice
 from .._helpers.helpers import is_empty_value
+from .._helpers.output_path import resolve_output_path
 from ..models.models import (
     AgentExecution,
     EvaluationResult,
@@ -117,8 +118,6 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         Returns:
             EvaluationResult: Numerical score with LLM justification as details
         """
-        from .._helpers.output_path import resolve_output_path
-
         # Lazily initialize the LLM on first evaluation call
         if self.llm is None:
             self._initialize_llm()

@@ -5,6 +5,7 @@ from typing import Any, TypeVar, Union
 
 from pydantic import Field
 
+from .._helpers.output_path import resolve_output_path
 from ..models import AgentExecution
 from ..models.models import UiPathEvaluationError, UiPathEvaluationErrorCategory
 from .base_evaluator import (
@@ -53,8 +54,6 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
-        from .._helpers.output_path import resolve_output_path
-
         if self.evaluator_config.target_output_key != "*":
             try:
                 return resolve_output_path(
@@ -81,8 +80,6 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
     def _get_expected_output(self, evaluation_criteria: T) -> Any:
         """Load the expected output from the evaluation criteria."""
-        from .._helpers.output_path import resolve_output_path
-
         expected_output = self._get_full_expected_output(evaluation_criteria)
         if self.evaluator_config.target_output_key != "*":
             if isinstance(expected_output, str):
