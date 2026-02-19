@@ -16,7 +16,7 @@ from typing import (
 
 import coverage
 from opentelemetry import context as context_api
-from opentelemetry.sdk.trace import ReadableSpan, Span
+from opentelemetry.sdk.trace import Event, ReadableSpan, Span
 from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
@@ -24,6 +24,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.trace import (
     NonRecordingSpan,
     SpanContext,
+    SpanKind,
     Status,
     StatusCode,
     TraceFlags,
@@ -88,6 +89,7 @@ from ._span_collection import ExecutionSpanCollector
 from .mocks.mocks import (
     cache_manager_context,
     clear_execution_context,
+    execution_id_context,
     set_execution_context,
 )
 from .mocks.types import MockingContext
@@ -125,6 +127,11 @@ class ExecutionSpanExporter(SpanExporter):
         for span in spans:
             if span.attributes is not None:
                 exec_id = span.attributes.get("execution.id")
+                logger.warning(
+                    "DEBUG ExecutionSpanExporter.export: span=%s exec_id=%s",
+                    span.name,
+                    exec_id,
+                )
                 if exec_id is not None and isinstance(exec_id, str):
                     self._spans[exec_id].append(span)
 
@@ -157,10 +164,33 @@ class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
     ) -> None:
         super().on_start(span, parent_context)
 
+        exec_id = span.attributes.get("execution.id") if span.attributes else None
+
+        # Fallback: if execution.id wasn't propagated (e.g., NonRecordingSpan
+        # parent on resume), get it from the execution context variable.
+        if exec_id is None:
+            ctx_exec_id = execution_id_context.get()
+            if ctx_exec_id:
+                span.set_attribute("execution.id", ctx_exec_id)
+                exec_id = ctx_exec_id
+
+        logger.warning(
+            "DEBUG ExecutionSpanProcessor.on_start: span=%s exec_id=%s",
+            span.name,
+            exec_id,
+        )
         if span.attributes and "execution.id" in span.attributes:
             exec_id = span.attributes["execution.id"]
             if isinstance(exec_id, str):
                 self.collector.add_span(span, exec_id)
+
+    def on_end(self, span: "ReadableSpan") -> None:
+        logger.warning(
+            "DEBUG ExecutionSpanProcessor.on_end: span=%s exec_id=%s",
+            span.name,
+            span.attributes.get("execution.id") if span.attributes else None,
+        )
+        super().on_end(span)
 
 
 class ExecutionLogsExporter:
@@ -185,6 +215,103 @@ class ExecutionLogsExporter:
             self._log_handlers.pop(execution_id, None)
         else:
             self._log_handlers.clear()
+
+
+def _serialize_span(span: ReadableSpan) -> dict[str, Any]:
+    """Serialize a ReadableSpan to a JSON-compatible dict for storage."""
+    ctx = span.context
+    context_data = None
+    if ctx:
+        context_data = {
+            "trace_id": ctx.trace_id,
+            "span_id": ctx.span_id,
+            "trace_flags": int(ctx.trace_flags),
+        }
+
+    parent_data = None
+    if span.parent:
+        parent_data = {
+            "trace_id": span.parent.trace_id,
+            "span_id": span.parent.span_id,
+            "trace_flags": int(span.parent.trace_flags),
+        }
+
+    attrs: dict[str, Any] = {}
+    if span.attributes:
+        for k, v in span.attributes.items():
+            attrs[k] = list(v) if isinstance(v, tuple) else v
+
+    events_data = []
+    if span.events:
+        for e in span.events:
+            event_attrs: dict[str, Any] = {}
+            if e.attributes:
+                for k, v in e.attributes.items():
+                    event_attrs[k] = list(v) if isinstance(v, tuple) else v
+            events_data.append({
+                "name": e.name,
+                "attributes": event_attrs,
+                "timestamp": e.timestamp,
+            })
+
+    return {
+        "name": span.name,
+        "context": context_data,
+        "parent": parent_data,
+        "attributes": attrs,
+        "events": events_data,
+        "status_code": span.status.status_code.value if span.status else 0,
+        "status_description": span.status.description if span.status else None,
+        "start_time": span.start_time,
+        "end_time": span.end_time,
+        "kind": span.kind.value if span.kind else 0,
+    }
+
+
+def _deserialize_span(data: dict[str, Any]) -> ReadableSpan:
+    """Deserialize a dict back to a ReadableSpan."""
+    context = None
+    if data.get("context"):
+        context = SpanContext(
+            trace_id=data["context"]["trace_id"],
+            span_id=data["context"]["span_id"],
+            is_remote=False,
+            trace_flags=TraceFlags(data["context"].get("trace_flags", 0)),
+        )
+
+    parent = None
+    if data.get("parent"):
+        parent = SpanContext(
+            trace_id=data["parent"]["trace_id"],
+            span_id=data["parent"]["span_id"],
+            is_remote=False,
+            trace_flags=TraceFlags(data["parent"].get("trace_flags", 0)),
+        )
+
+    status = Status(
+        status_code=StatusCode(data.get("status_code", 0)),
+        description=data.get("status_description"),
+    )
+
+    events = []
+    for e in data.get("events", []):
+        events.append(Event(
+            name=e["name"],
+            attributes=e.get("attributes"),
+            timestamp=e.get("timestamp"),
+        ))
+
+    return ReadableSpan(
+        name=data["name"],
+        context=context,
+        parent=parent,
+        attributes=data.get("attributes"),
+        events=events,
+        status=status,
+        start_time=data.get("start_time"),
+        end_time=data.get("end_time"),
+        kind=SpanKind(data.get("kind", 0)),
+    )
 
 
 class UiPathEvalContext:
@@ -800,6 +927,12 @@ class UiPathEvalRuntime:
         self, execution_id: str
     ) -> tuple[list[ReadableSpan], list[logging.LogRecord]]:
         spans = self.span_exporter.get_spans(execution_id)
+        logger.warning(
+            "DEBUG _get_and_clear_execution_data: execution_id=%s, span_count=%d, span_names=%s",
+            execution_id,
+            len(spans),
+            [s.name for s in spans],
+        )
         self.span_exporter.clear(execution_id)
         self.span_collector.clear(execution_id)
 
@@ -857,7 +990,7 @@ class UiPathEvalRuntime:
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
                     logger.info(f"Resuming evaluation {eval_item.id}")
-                    input = input_overrides if self.context.job_id is None else None
+                    input = (input_overrides or None) if self.context.job_id is None else None
                 else:
                     input = inputs_with_overrides
 
@@ -888,6 +1021,18 @@ class UiPathEvalRuntime:
 
             if result is None:
                 raise ValueError("Execution result cannot be None for eval runs")
+
+            # Persist spans across the suspend/resume process boundary.
+            # On resume: load spans saved during the initial (pre-suspend) run
+            # and prepend them so evaluators see the full execution trace.
+            if self.context.resume:
+                saved_spans = await self._load_execution_spans(eval_item.id)
+                if saved_spans:
+                    spans = saved_spans + spans
+
+            # On suspend: save current spans so they're available after resume.
+            if result.status == UiPathRuntimeStatus.SUSPENDED:
+                await self._save_execution_spans(eval_item.id, spans)
 
             return UiPathEvalRunExecutionOutput(
                 execution_time=end_time - start_time,
@@ -1137,6 +1282,44 @@ class UiPathEvalRuntime:
                 f"No storage available, cannot retrieve parent span context for span_key={span_key}"
             )
             return None
+
+    async def _save_execution_spans(
+        self, eval_item_id: str, spans: list[ReadableSpan]
+    ) -> None:
+        """Save execution spans to storage so they survive across suspend/resume."""
+        if self._storage is None:
+            logger.warning("No storage available, cannot persist execution spans")
+            return
+        serialized = [_serialize_span(s) for s in spans]
+        await self._storage.set_value(
+            runtime_id=self.execution_id,
+            namespace="eval_execution_spans",
+            key=eval_item_id,
+            value={"spans": serialized},
+        )
+        logger.info(
+            f"Saved {len(spans)} execution spans for eval_item {eval_item_id}"
+        )
+
+    async def _load_execution_spans(
+        self, eval_item_id: str
+    ) -> list[ReadableSpan]:
+        """Load saved execution spans from storage after resume."""
+        if self._storage is None:
+            logger.warning("No storage available, cannot load execution spans")
+            return []
+        data = await self._storage.get_value(
+            runtime_id=self.execution_id,
+            namespace="eval_execution_spans",
+            key=eval_item_id,
+        )
+        if not data or "spans" not in data:
+            return []
+        spans = [_deserialize_span(s) for s in data["spans"]]
+        logger.info(
+            f"Loaded {len(spans)} saved execution spans for eval_item {eval_item_id}"
+        )
+        return spans
 
     async def cleanup(self) -> None:
         """Cleanup runtime resources."""
