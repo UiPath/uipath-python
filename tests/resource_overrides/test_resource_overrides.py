@@ -2,13 +2,14 @@
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 from click.testing import CliRunner
 from opentelemetry.sdk.trace.export import SpanExporter
 from pytest_httpx import HTTPXMock
+from uipath.runtime import UiPathRuntimeResult
 
 from uipath._cli import cli
 from uipath._utils._bindings import ResourceOverwriteParser
@@ -213,7 +214,6 @@ class TestResourceOverrides:
 
     def _assert(self, result, httpx_mock):
         # Verify execution was successful
-        print(result.output)
         assert result.exit_code == 0
 
         # Now verify that overridden values were used in API calls
@@ -392,6 +392,116 @@ class TestResourceOverrides:
                     os.chdir(current_dir_copy)
 
                     self._assert(result, httpx_mock)
+
+
+class TestBindingsAvailableDuringResourceOverwrites:
+    def test_overwrites_are_loaded_on_runtime_initialization(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        sample_main_script: str,
+        httpx_mock: HTTPXMock,
+    ):
+        entrypoint = "main.py"
+        bindings_file_created = False
+        bindings_existed_during_overwrites = None
+        overwrites_loaded = False
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            script_path = os.path.join(temp_dir, entrypoint)
+            with open(script_path, "w") as f:
+                f.write(sample_main_script)
+
+            with open(os.path.join(temp_dir, "uipath.json"), "w") as f:
+                json.dump(
+                    {"projectVersion": "1.0.0", "functions": {"main": "main.py:main"}},
+                    f,
+                )
+
+            org = "test-org"
+            tenant = "test-tenant"
+            base_url = f"https://example.com/{org}/{tenant}"
+
+            with patch.dict(
+                os.environ,
+                {
+                    "UIPATH_URL": base_url,
+                    "UIPATH_ACCESS_TOKEN": "test-access-token-12345",
+                    "UIPATH_ORGANIZATION_ID": org,
+                    "UIPATH_TENANT_ID": tenant,
+                    "UIPATH_PROJECT_ID": "test-project-id-12345",
+                },
+            ):
+                from uipath.platform.common import UiPathConfig
+
+                bindings_path = UiPathConfig.bindings_file_path
+
+                async def mock_get_resource_overwrites():
+                    nonlocal bindings_existed_during_overwrites
+                    nonlocal overwrites_loaded
+                    bindings_existed_during_overwrites = os.path.exists(bindings_path)
+                    if bindings_existed_during_overwrites:
+                        overwrites_loaded = True
+                    return {}
+
+                mock_debug_runtime = AsyncMock()
+                mock_debug_runtime.execute = AsyncMock(
+                    return_value=UiPathRuntimeResult()
+                )
+                mock_debug_runtime.dispose = AsyncMock()
+
+                async def mock_new_runtime(*args, **kwargs):
+                    assert overwrites_loaded
+                    return AsyncMock()
+
+                mock_factory = AsyncMock()
+                mock_factory.new_runtime = mock_new_runtime
+                mock_factory.get_settings = AsyncMock(return_value=None)
+                mock_factory.dispose = AsyncMock()
+
+                def mock_registry_get(**kwargs):
+                    nonlocal bindings_file_created
+                    bindings_data = {
+                        "version": "2",
+                        "resources": [],
+                    }
+                    with open(bindings_path, "w") as f:
+                        json.dump(bindings_data, f)
+                    bindings_file_created = True
+                    return mock_factory
+
+                with (
+                    patch(
+                        "uipath._cli.cli_debug.StudioClient"
+                    ) as mock_studio_client_class,
+                    patch(
+                        "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry"
+                    ) as mock_registry,
+                    patch(
+                        "uipath._cli.cli_debug.UiPathDebugRuntime",
+                        return_value=mock_debug_runtime,
+                    ),
+                ):
+                    mock_studio_client = MagicMock()
+                    mock_studio_client_class.return_value = mock_studio_client
+                    mock_studio_client.get_resource_overwrites = (
+                        mock_get_resource_overwrites
+                    )
+
+                    mock_registry.get.side_effect = mock_registry_get
+
+                    current_dir_copy = os.getcwd()
+                    os.chdir(temp_dir)
+
+                    runner.invoke(cli, ["debug", "main"], input="c\n")
+
+                    os.chdir(current_dir_copy)
+
+                    if os.path.exists(bindings_path):
+                        os.remove(bindings_path)
+
+                assert bindings_file_created
+                assert bindings_existed_during_overwrites is True
 
 
 class TestResourceOverrideWithTracing:
