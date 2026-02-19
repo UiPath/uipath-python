@@ -5,6 +5,7 @@ from typing import Any
 import click
 from pydantic import ValidationError
 
+from uipath._cli._evals._conversational_utils import UiPathLegacyEvalChatMessagesMapper
 from uipath._cli._evals._evaluator_factory import EvaluatorFactory
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
@@ -141,6 +142,27 @@ class EvalHelpers:
                             prompt=evaluation.simulation_instructions or "",
                             tools_to_simulate=evaluation.tools_to_simulate or [],
                         )
+
+                    if evaluation.conversational_inputs:
+                        conversational_messages_input = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+                            evaluation.conversational_inputs
+                        )
+                        evaluation.inputs["messages"] = [
+                            message.model_dump(by_alias=True)
+                            for message in conversational_messages_input
+                        ]
+
+                    if evaluation.conversational_expected_output:
+                        conversational_messages_expected_output = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_output_to_uipath_message_data_list(
+                            evaluation.conversational_expected_output
+                        )
+                        evaluation.expected_output[
+                            "uipath__agent_response_messages"
+                        ] = [
+                            message.model_dump(by_alias=True)
+                            for message in conversational_messages_expected_output
+                        ]
+
                     return EvaluationItem.model_validate(
                         {
                             "id": evaluation.id,
