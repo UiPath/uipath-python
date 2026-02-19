@@ -210,7 +210,6 @@ class TestRun:
                         output_file_path,
                     ],
                 )
-                print(result.output)
                 assert result.exit_code == 0
                 assert "Successful execution." in result.output
                 assert result.output.count("Hello world") >= 2
