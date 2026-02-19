@@ -127,11 +127,6 @@ class ExecutionSpanExporter(SpanExporter):
         for span in spans:
             if span.attributes is not None:
                 exec_id = span.attributes.get("execution.id")
-                logger.warning(
-                    "DEBUG ExecutionSpanExporter.export: span=%s exec_id=%s",
-                    span.name,
-                    exec_id,
-                )
                 if exec_id is not None and isinstance(exec_id, str):
                     self._spans[exec_id].append(span)
 
@@ -174,22 +169,12 @@ class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
                 span.set_attribute("execution.id", ctx_exec_id)
                 exec_id = ctx_exec_id
 
-        logger.warning(
-            "DEBUG ExecutionSpanProcessor.on_start: span=%s exec_id=%s",
-            span.name,
-            exec_id,
-        )
         if span.attributes and "execution.id" in span.attributes:
             exec_id = span.attributes["execution.id"]
             if isinstance(exec_id, str):
                 self.collector.add_span(span, exec_id)
 
     def on_end(self, span: "ReadableSpan") -> None:
-        logger.warning(
-            "DEBUG ExecutionSpanProcessor.on_end: span=%s exec_id=%s",
-            span.name,
-            span.attributes.get("execution.id") if span.attributes else None,
-        )
         super().on_end(span)
 
 
@@ -931,12 +916,6 @@ class UiPathEvalRuntime:
         self, execution_id: str
     ) -> tuple[list[ReadableSpan], list[logging.LogRecord]]:
         spans = self.span_exporter.get_spans(execution_id)
-        logger.warning(
-            "DEBUG _get_and_clear_execution_data: execution_id=%s, span_count=%d, span_names=%s",
-            execution_id,
-            len(spans),
-            [s.name for s in spans],
-        )
         self.span_exporter.clear(execution_id)
         self.span_collector.clear(execution_id)
 
