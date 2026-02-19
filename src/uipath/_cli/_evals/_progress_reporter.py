@@ -920,6 +920,32 @@ class StudioWebProgressReporter:
             logger.warning(f"Failed to extract agent snapshot: {e}")
             return StudioWebAgentSnapshot(input_schema={}, output_schema={})
 
+    @staticmethod
+    def _build_assertion_properties(
+        evaluator: BaseLegacyEvaluator[Any],
+    ) -> dict[str, Any]:
+        """Build assertionProperties dict with prompt and model if available."""
+        properties: dict[str, Any] = {}
+        if hasattr(evaluator, "prompt") and isinstance(evaluator.prompt, str):
+            properties["prompt"] = evaluator.prompt
+        if hasattr(evaluator, "model") and isinstance(evaluator.model, str):
+            properties["model"] = evaluator.model
+        return properties
+
+    @staticmethod
+    def _build_evaluator_snapshot(
+        evaluator: BaseEvaluator[Any, Any, Any],
+    ) -> dict[str, Any]:
+        """Build evaluatorSnapshot dict with prompt and model if available."""
+        snapshot: dict[str, Any] = {}
+        config = getattr(evaluator, "evaluator_config", None)
+        if config is not None:
+            if hasattr(config, "prompt") and isinstance(config.prompt, str):
+                snapshot["prompt"] = config.prompt
+            if hasattr(config, "model") and isinstance(config.model, str):
+                snapshot["model"] = config.model
+        return snapshot
+
     def _collect_results(
         self,
         eval_results: list[EvalItemResult],
@@ -977,6 +1003,9 @@ class StudioWebProgressReporter:
                         "outputKey": evaluators[
                             eval_result.evaluator_id
                         ].target_output_key,
+                        "assertionProperties": self._build_assertion_properties(
+                            evaluators[eval_result.evaluator_id]
+                        ),
                     },
                 }
             )
@@ -1015,28 +1044,32 @@ class StudioWebProgressReporter:
                     "evaluatorId": eval_result.evaluator_id,
                 }
             )
-            evaluator_runs.append(
-                {
-                    "status": EvaluationStatus.COMPLETED.value,
-                    "evaluatorId": eval_result.evaluator_id,
-                    "result": {
-                        "score": {
-                            "type": eval_result.result.score_type.value,
-                            "value": eval_result.result.score,
-                        },
-                        "justification": justification,
+            evaluator_run: dict[str, Any] = {
+                "status": EvaluationStatus.COMPLETED.value,
+                "evaluatorId": eval_result.evaluator_id,
+                "result": {
+                    "score": {
+                        "type": eval_result.result.score_type.value,
+                        "value": eval_result.result.score,
                     },
-                    "completionMetrics": {
-                        "duration": int(eval_result.result.evaluation_time * 1000)
-                        if eval_result.result.evaluation_time
-                        else 0,
-                        "cost": usage_metrics["cost"],
-                        "tokens": usage_metrics["tokens"] or 0,
-                        "completionTokens": usage_metrics["completionTokens"] or 0,
-                        "promptTokens": usage_metrics["promptTokens"] or 0,
-                    },
-                }
+                    "justification": justification,
+                },
+                "completionMetrics": {
+                    "duration": int(eval_result.result.evaluation_time * 1000)
+                    if eval_result.result.evaluation_time
+                    else 0,
+                    "cost": usage_metrics["cost"],
+                    "tokens": usage_metrics["tokens"] or 0,
+                    "completionTokens": usage_metrics["completionTokens"] or 0,
+                    "promptTokens": usage_metrics["promptTokens"] or 0,
+                },
+            }
+            snapshot = self._build_evaluator_snapshot(
+                evaluators[eval_result.evaluator_id]
             )
+            if snapshot:
+                evaluator_run["evaluatorSnapshot"] = snapshot
+            evaluator_runs.append(evaluator_run)
         return evaluator_runs, evaluator_scores_list
 
     def _update_eval_run_spec(
