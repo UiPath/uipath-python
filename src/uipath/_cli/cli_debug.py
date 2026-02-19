@@ -176,9 +176,6 @@ def debug(
                     trace_manager=trace_manager,
                     command="debug",
                 ) as ctx:
-                    runtime: UiPathRuntimeProtocol | None = None
-                    chat_runtime: UiPathRuntimeProtocol | None = None
-                    debug_runtime: UiPathRuntimeProtocol | None = None
                     factory: UiPathRuntimeFactoryProtocol | None = None
 
                     # Load simulation config and set up execution context for tool mocking
@@ -203,10 +200,6 @@ def debug(
                             else None
                         )
 
-                        runtime = await factory.new_runtime(
-                            entrypoint, ctx.conversation_id or ctx.job_id or "default"
-                        )
-
                         if ctx.job_id:
                             if UiPathConfig.is_tracing_enabled:
                                 trace_manager.add_span_processor(
@@ -218,6 +211,17 @@ def debug(
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
                             )
+
+                        async def execute_debug_runtime():
+                            chat_runtime: UiPathRuntimeProtocol | None = None
+                            debug_bridge: UiPathDebugProtocol = get_debug_bridge(ctx)
+
+                            runtime = await factory.new_runtime(
+                                entrypoint,
+                                ctx.conversation_id or ctx.job_id or "default",
+                            )
+
+                            delegate = runtime
                             if ctx.conversation_id and ctx.exchange_id:
                                 chat_bridge: UiPathChatProtocol = get_chat_bridge(
                                     context=ctx
@@ -225,47 +229,43 @@ def debug(
                                 chat_runtime = UiPathChatRuntime(
                                     delegate=runtime, chat_bridge=chat_bridge
                                 )
+                                delegate = chat_runtime
 
-                        debug_bridge: UiPathDebugProtocol = get_debug_bridge(ctx)
+                            debug_runtime = UiPathDebugRuntime(
+                                delegate=delegate,
+                                debug_bridge=debug_bridge,
+                                trigger_poll_interval=trigger_poll_interval,
+                            )
 
-                        debug_runtime = UiPathDebugRuntime(
-                            delegate=chat_runtime or runtime,
-                            debug_bridge=debug_bridge,
-                            trigger_poll_interval=trigger_poll_interval,
-                        )
+                            try:
+                                ctx.result = await debug_runtime.execute(
+                                    ctx.get_input(),
+                                    options=UiPathExecuteOptions(resume=resume),
+                                )
+                            finally:
+                                await debug_runtime.dispose()
+                                if chat_runtime:
+                                    await chat_runtime.dispose()
+                                await runtime.dispose()
 
-                        project_id = UiPathConfig.project_id
-
-                        if project_id:
+                        if project_id := UiPathConfig.project_id:
                             studio_client = StudioClient(project_id)
 
                             async with ResourceOverwritesContext(
                                 lambda: studio_client.get_resource_overwrites()
                             ):
-                                ctx.result = await debug_runtime.execute(
-                                    ctx.get_input(),
-                                    options=UiPathExecuteOptions(resume=resume),
-                                )
+                                await execute_debug_runtime()
                         else:
                             logger.debug(
                                 "No UIPATH_PROJECT_ID configured, executing without resource overwrites"
                             )
-                            ctx.result = await debug_runtime.execute(
-                                ctx.get_input(),
-                                options=UiPathExecuteOptions(resume=resume),
-                            )
+                            await execute_debug_runtime()
 
                     finally:
                         # Clear execution context after debugging completes
                         if mocking_ctx:
                             clear_execution_context()
 
-                        if debug_runtime:
-                            await debug_runtime.dispose()
-                        if chat_runtime:
-                            await chat_runtime.dispose()
-                        if runtime:
-                            await runtime.dispose()
                         if factory:
                             await factory.dispose()
 

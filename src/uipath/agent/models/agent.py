@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from enum import Enum, StrEnum
+from enum import Enum
 from typing import (
     Annotated,
     Any,
     Dict,
+    Iterable,
     List,
     Literal,
     Mapping,
@@ -22,7 +23,6 @@ from pydantic import (
     Discriminator,
     Field,
     Tag,
-    field_validator,
     model_validator,
 )
 from uipath.core.guardrails import (
@@ -41,27 +41,58 @@ from uipath.platform.guardrails import (
 EMPTY_SCHEMA = {"type": "object", "properties": {}}
 
 
-def _decapitalize_first_letter(s: str) -> str:
-    """Convert first letter to lowercase (e.g., 'SimpleText' -> 'simpleText')."""
-    if not s or len(s) == 0:
-        return s
-    if len(s) == 1:
-        return s.lower()
-    return s[0].lower() + s[1:]
-
-
-EnumT = TypeVar("EnumT", bound=StrEnum)
+EnumT = TypeVar("EnumT", bound=Enum)
 
 
 def _match_enum_case_insensitive(enum: type[EnumT], value: str) -> EnumT | None:
     """Find the corresponding enum value, ignoring case."""
     for enum_value in enum:
-        if enum_value.value.lower() == value.lower():
+        if (
+            isinstance(enum_value.value, str)
+            and enum_value.value.lower() == value.lower()
+        ):
             return enum_value
     return None
 
 
-class AgentResourceType(str, Enum):
+def _case_insensitive_enum_validator(
+    field_name: str,
+    enum_cls: type[Enum],
+    alias: str | Iterable[str] = (),
+) -> BeforeValidator:
+    """Create a BeforeValidator for case-insensitive enum normalization."""
+
+    def normalizer(v: Any) -> Any:
+        if not isinstance(v, dict):
+            return v
+
+        aliases = [alias] if isinstance(alias, str) else list(alias)
+        for key in [field_name, *aliases]:
+            value = v.get(key)
+            if isinstance(value, str):
+                match = _match_enum_case_insensitive(enum_cls, value)
+                if match is not None:
+                    v[key] = match.value
+                    break
+        return v
+
+    return BeforeValidator(normalizer)
+
+
+class CaseInsensitiveEnum(Enum):
+    """Base class for case-insensitive enums."""
+
+    @classmethod
+    def _missing_(cls, value: Any) -> Enum | None:
+        """Called when enum value is not found during lookup."""
+        if isinstance(value, str):
+            match = _match_enum_case_insensitive(cls, value)
+            if match is not None:
+                return match
+        return None
+
+
+class AgentResourceType(str, CaseInsensitiveEnum):
     """Agent resource type enumeration."""
 
     TOOL = "tool"
@@ -71,7 +102,7 @@ class AgentResourceType(str, Enum):
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
-class AgentToolType(str, Enum):
+class AgentToolType(str, CaseInsensitiveEnum):
     """Agent tool type enumeration."""
 
     AGENT = "Agent"
@@ -84,7 +115,7 @@ class AgentToolType(str, Enum):
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
-class AgentInternalToolType(str, Enum):
+class AgentInternalToolType(str, CaseInsensitiveEnum):
     """Agent internal tool type enumeration."""
 
     ANALYZE_FILES = "analyze-attachments"
@@ -92,7 +123,7 @@ class AgentInternalToolType(str, Enum):
     BATCH_TRANSFORM = "batch-transform"
 
 
-class AgentEscalationRecipientType(StrEnum):
+class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     """Agent escalation recipient type enumeration."""
 
     USER_ID = "UserId"
@@ -103,7 +134,7 @@ class AgentEscalationRecipientType(StrEnum):
     ASSET_GROUP_NAME = "AssetGroupName"
 
 
-class AgentContextRetrievalMode(str, Enum):
+class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
     """Agent context retrieval mode enumeration."""
 
     SEMANTIC = "Semantic"
@@ -113,14 +144,14 @@ class AgentContextRetrievalMode(str, Enum):
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
-class AgentMessageRole(str, Enum):
+class AgentMessageRole(str, CaseInsensitiveEnum):
     """Agent message role enumeration."""
 
     SYSTEM = "system"
     USER = "user"
 
 
-class AgentGuardrailActionType(str, Enum):
+class AgentGuardrailActionType(str, CaseInsensitiveEnum):
     """Agent guardrail action type enumeration."""
 
     BLOCK = "block"
@@ -130,7 +161,7 @@ class AgentGuardrailActionType(str, Enum):
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
-class AgentToolArgumentPropertiesVariant(str, Enum):
+class AgentToolArgumentPropertiesVariant(str, CaseInsensitiveEnum):
     """Agent tool argument properties variant enumeration."""
 
     DYNAMIC = "dynamic"
@@ -139,7 +170,7 @@ class AgentToolArgumentPropertiesVariant(str, Enum):
     TEXT_BUILDER = "textBuilder"
 
 
-class TextTokenType(str, Enum):
+class TextTokenType(str, CaseInsensitiveEnum):
     """Text token type enumeration."""
 
     SIMPLE_TEXT = "simpleText"
@@ -147,27 +178,27 @@ class TextTokenType(str, Enum):
     EXPRESSION = "expression"
 
 
-class CitationMode(str, Enum):
+class CitationMode(str, CaseInsensitiveEnum):
     """Citation mode enumeration."""
 
     INLINE = "Inline"
     SKIP = "Skip"
 
 
-class DeepRagFileExtension(str, Enum):
+class DeepRagFileExtension(str, CaseInsensitiveEnum):
     """File extension enumeration for DeepRAG."""
 
     PDF = "pdf"
     TXT = "txt"
 
 
-class BatchTransformFileExtension(str, Enum):
+class BatchTransformFileExtension(str, CaseInsensitiveEnum):
     """File extension enumeration for Batch Transform."""
 
     CSV = "csv"
 
 
-class BatchTransformWebSearchGrounding(str, Enum):
+class BatchTransformWebSearchGrounding(str, CaseInsensitiveEnum):
     """Batch Transform web search grounding enumeration."""
 
     ENABLED = "Enabled"
@@ -195,12 +226,6 @@ class TextToken(BaseCfg):
 
     type: TextTokenType
     raw_string: str = Field(alias="rawString")
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v: Any) -> Any:
-        """Normalize type by decapitalizing first letter."""
-        return _decapitalize_first_letter(v) if isinstance(v, str) else v
 
 
 class BaseAgentToolArgumentProperties(BaseCfg):
@@ -246,6 +271,7 @@ AgentToolArgumentProperties = Annotated[
         AgentToolTextBuilderArgumentProperties,
     ],
     Field(discriminator="variant"),
+    _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
 ]
 
 
@@ -337,13 +363,7 @@ class AgentContextSettings(BaseCfg):
 
     result_count: int = Field(alias="resultCount")
     # Allow Unknown explicitly so we can serialize deterministically
-    retrieval_mode: Literal[
-        AgentContextRetrievalMode.SEMANTIC,
-        AgentContextRetrievalMode.STRUCTURED,
-        AgentContextRetrievalMode.DEEP_RAG,
-        AgentContextRetrievalMode.BATCH_TRANSFORM,
-        AgentContextRetrievalMode.UNKNOWN,
-    ] = Field(alias="retrievalMode")
+    retrieval_mode: AgentContextRetrievalMode = Field(alias="retrievalMode")
     threshold: float = Field(default=0)
     query: Optional[AgentContextQuerySetting] = Field(None)
     folder_path_prefix: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = (
@@ -467,7 +487,7 @@ AgentEscalationRecipient = Annotated[
 ]
 
 
-class TaskTitleType(str, Enum):
+class TaskTitleType(str, CaseInsensitiveEnum):
     """Task title type enumeration."""
 
     DYNAMIC = "dynamic"
@@ -510,26 +530,20 @@ def _resolve_task_title(v: Any) -> Any:
 
     # Priority 1: Use taskTitleV2 if present
     if task_title_v2 is not None:
-        title_type = (
-            task_title_v2.get("type") if isinstance(task_title_v2, dict) else None
-        )
-
-        if title_type == "textBuilder":
-            v["taskTitle"] = task_title_v2
-        else:
-            raise NotImplementedError(f"TaskTitle type '{title_type}' not implemented")
-
-        v.pop("taskTitleV2", None)
-
-        return v
-
+        task_title_type = task_title_v2.get("type")
+        if task_title_type is not None:
+            normalized_type = _match_enum_case_insensitive(
+                TaskTitleType, task_title_type
+            )
+            if normalized_type is not None:
+                task_title_v2["type"] = normalized_type.value
+        v["taskTitle"] = task_title_v2
+        v.pop("taskTitleV2")
     # Priority 2: Use taskTitle if present (legacy string support)
-    if task_title is not None:
-        return v
-
-    # Priority 3: Default to "Escalation Task"
-    v["taskTitle"] = "Escalation Task"
-
+    elif task_title is not None:
+        pass
+    else:
+        v["taskTitle"] = "Escalation Task"
     return v
 
 
@@ -729,6 +743,7 @@ AgentInternalToolProperties = Annotated[
         AgentInternalBatchTransformToolProperties,
     ],
     Field(discriminator="tool_type"),
+    _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
 ]
 
 
@@ -843,7 +858,7 @@ class AgentGuardrailFilterAction(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
-class AgentGuardrailSeverityLevel(str, Enum):
+class AgentGuardrailSeverityLevel(str, CaseInsensitiveEnum):
     """Severity level enumeration."""
 
     ERROR = "Error"
@@ -906,6 +921,9 @@ GuardrailAction = Annotated[
         AgentGuardrailUnknownAction,  # when parent sets $actionType="unknown"
     ],
     Field(discriminator="action_type"),
+    _case_insensitive_enum_validator(
+        "action_type", AgentGuardrailActionType, "$actionType"
+    ),
 ]
 
 
@@ -921,7 +939,7 @@ class AgentBuiltInValidatorGuardrail(BuiltInValidatorGuardrail):
     )
 
 
-class AgentWordOperator(str, Enum):
+class AgentWordOperator(str, CaseInsensitiveEnum):
     """Word operator enumeration."""
 
     CONTAINS = "contains"
@@ -947,12 +965,6 @@ class AgentWordRule(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    @field_validator("operator", mode="before")
-    @classmethod
-    def normalize_operator(cls, v: Any) -> Any:
-        """Normalize operator by decapitalizing first letter."""
-        return _decapitalize_first_letter(v) if isinstance(v, str) else v
-
 
 class AgentAllFieldsSelector(BaseModel):
     """All fields selector."""
@@ -968,7 +980,7 @@ AgentFieldSelector = Annotated[
 ]
 
 
-class AgentNumberOperator(str, Enum):
+class AgentNumberOperator(str, CaseInsensitiveEnum):
     """Number operator enumeration."""
 
     DOES_NOT_EQUAL = "doesNotEqual"
@@ -989,14 +1001,8 @@ class AgentNumberRule(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    @field_validator("operator", mode="before")
-    @classmethod
-    def normalize_operator(cls, v: Any) -> Any:
-        """Normalize operator by decapitalizing first letter."""
-        return _decapitalize_first_letter(v) if isinstance(v, str) else v
 
-
-class AgentBooleanOperator(str, Enum):
+class AgentBooleanOperator(str, CaseInsensitiveEnum):
     """Boolean operator enumeration."""
 
     EQUALS = "equals"
@@ -1011,12 +1017,6 @@ class AgentBooleanRule(BaseModel):
     value: bool
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
-
-    @field_validator("operator", mode="before")
-    @classmethod
-    def normalize_operator(cls, v: Any) -> Any:
-        """Normalize operator by decapitalizing first letter."""
-        return _decapitalize_first_letter(v) if isinstance(v, str) else v
 
 
 AgentRule = Annotated[
@@ -1072,15 +1072,9 @@ class AgentMetadata(BaseCfg):
 class AgentMessage(BaseCfg):
     """Agent message model."""
 
-    role: Literal[AgentMessageRole.SYSTEM, AgentMessageRole.USER]
+    role: AgentMessageRole
     content: str
     content_tokens: Optional[List[TextToken]] = Field(None, alias="contentTokens")
-
-    @field_validator("role", mode="before")
-    @classmethod
-    def normalize_role(cls, v: Any) -> Any:
-        """Normalize role to lowercase enum/string."""
-        return v.lower() if isinstance(v, str) else v
 
 
 class AgentByomProperties(BaseCfg):
