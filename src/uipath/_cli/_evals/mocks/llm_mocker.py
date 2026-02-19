@@ -4,12 +4,14 @@ import json
 import logging
 from typing import Any, Callable
 
+from httpx import HTTPStatusError
 from pydantic import BaseModel, TypeAdapter
 
 from uipath._cli._evals.mocks.types import (
     LLMMockingStrategy,
     MockingContext,
 )
+from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
 from uipath.tracing._utils import _SpanUtils
 
@@ -208,7 +210,7 @@ class LLMMocker(Mocker):
                         response_format=response_format,
                         **completion_kwargs,
                     )
-                except Exception:
+                except (EnrichedException, HTTPStatusError):
                     logger.warning(
                         "json_schema response_format not supported by model, "
                         "falling back to json_object"
