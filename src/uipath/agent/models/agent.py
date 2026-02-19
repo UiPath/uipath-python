@@ -55,28 +55,19 @@ def _match_enum_case_insensitive(enum: type[EnumT], value: str) -> EnumT | None:
     return None
 
 
-def _case_insensitive_discriminator_validator(
-    discriminator: str,
+def _case_insensitive_enum_validator(
+    field_name: str,
     enum_cls: type[Enum],
     alias: str | Iterable[str] = (),
 ) -> BeforeValidator:
-    """Create a BeforeValidator for case-insensitive discriminator normalization.
-
-    Args:
-        discriminator: The discriminator field name
-        enum_cls: The enum class for the discriminator
-        alias: Optional alias(es) for the discriminator field
-
-    Returns:
-        A BeforeValidator that normalizes the discriminator field case-insensitively.
-    """
+    """Create a BeforeValidator for case-insensitive enum normalization."""
 
     def normalizer(v: Any) -> Any:
         if not isinstance(v, dict):
             return v
 
         aliases = [alias] if isinstance(alias, str) else list(alias)
-        for key in [discriminator, *aliases]:
+        for key in [field_name, *aliases]:
             value = v.get(key)
             if isinstance(value, str):
                 match = _match_enum_case_insensitive(enum_cls, value)
@@ -279,9 +270,8 @@ AgentToolArgumentProperties = Annotated[
         AgentToolArgumentArgumentProperties,
         AgentToolTextBuilderArgumentProperties,
     ],
-    _case_insensitive_discriminator_validator(
-        "variant", AgentToolArgumentPropertiesVariant
-    ),
+    Field(discriminator="variant"),
+    _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
 ]
 
 
@@ -752,9 +742,8 @@ AgentInternalToolProperties = Annotated[
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
     ],
-    _case_insensitive_discriminator_validator(
-        "tool_type", AgentInternalToolType, "toolType"
-    ),
+    Field(discriminator="tool_type"),
+    _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
 ]
 
 
@@ -931,7 +920,8 @@ GuardrailAction = Annotated[
         AgentGuardrailEscalateAction,
         AgentGuardrailUnknownAction,  # when parent sets $actionType="unknown"
     ],
-    _case_insensitive_discriminator_validator(
+    Field(discriminator="action_type"),
+    _case_insensitive_enum_validator(
         "action_type", AgentGuardrailActionType, "$actionType"
     ),
 ]
