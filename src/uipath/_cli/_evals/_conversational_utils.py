@@ -130,16 +130,20 @@ class UiPathLegacyEvalChatMessagesMapper:
             for eval_message in eval_exchange:
                 if eval_message.role == "user":
                     # Convert user message
-                    content_parts = [
-                        UiPathConversationContentPart(
-                            content_part_id=str(uuid.uuid4()),
-                            mime_type="text/plain",
-                            data=UiPathInlineValue(inline=eval_message.text),
-                            citations=[],
-                            created_at=timestamp,
-                            updated_at=timestamp,
-                        )
-                    ]
+                    content_parts = (
+                        [
+                            UiPathConversationContentPart(
+                                content_part_id=str(uuid.uuid4()),
+                                mime_type="text/plain",
+                                data=UiPathInlineValue(inline=eval_message.text),
+                                citations=[],
+                                created_at=timestamp,
+                                updated_at=timestamp,
+                            )
+                        ]
+                        if eval_message.text
+                        else []
+                    )
 
                     # TODO: Add attachments if present
                     # if message.attachments:
@@ -161,16 +165,20 @@ class UiPathLegacyEvalChatMessagesMapper:
                     )
                 elif eval_message.role == "agent":
                     # Convert agent message
-                    content_parts = [
-                        UiPathConversationContentPart(
-                            content_part_id=str(uuid.uuid4()),
-                            mime_type="text/markdown",
-                            data=UiPathInlineValue(inline=eval_message.text),
-                            citations=[],
-                            created_at=timestamp,
-                            updated_at=timestamp,
-                        )
-                    ]
+                    content_parts = (
+                        [
+                            UiPathConversationContentPart(
+                                content_part_id=str(uuid.uuid4()),
+                                mime_type="text/markdown",
+                                data=UiPathInlineValue(inline=eval_message.text),
+                                citations=[],
+                                created_at=timestamp,
+                                updated_at=timestamp,
+                            )
+                        ]
+                        if eval_message.text
+                        else []
+                    )
 
                     # Convert tool calls if present
                     tool_calls: List[UiPathConversationToolCall] = []
@@ -204,16 +212,20 @@ class UiPathLegacyEvalChatMessagesMapper:
                     )
 
         # Add current user prompt
-        content_parts = [
-            UiPathConversationContentPart(
-                content_part_id=str(uuid.uuid4()),
-                mime_type="text/plain",
-                data=UiPathInlineValue(inline=eval_input.current_user_prompt.text),
-                citations=[],
-                created_at=timestamp,
-                updated_at=timestamp,
-            )
-        ]
+        content_parts = (
+            [
+                UiPathConversationContentPart(
+                    content_part_id=str(uuid.uuid4()),
+                    mime_type="text/plain",
+                    data=UiPathInlineValue(inline=eval_input.current_user_prompt.text),
+                    citations=[],
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                )
+            ]
+            if eval_input.current_user_prompt.text
+            else []
+        )
 
         # TODO Add attachments if present
         # if eval_input.current_user_prompt.attachments:
@@ -244,13 +256,17 @@ class UiPathLegacyEvalChatMessagesMapper:
         messages: List[UiPathConversationMessageData] = []
 
         for eval_agent_message in eval_output.agent_response:
-            content_parts = [
-                UiPathConversationContentPartData(
-                    mime_type="text/markdown",
-                    data=UiPathInlineValue(inline=eval_agent_message.text),
-                    citations=[],
-                )
-            ]
+            content_parts = (
+                [
+                    UiPathConversationContentPartData(
+                        mime_type="text/markdown",
+                        data=UiPathInlineValue(inline=eval_agent_message.text),
+                        citations=[],
+                    )
+                ]
+                if eval_agent_message.text
+                else []
+            )
 
             tool_calls: List[UiPathConversationToolCallData] = []
             if eval_agent_message.tool_calls:

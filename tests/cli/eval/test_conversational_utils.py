@@ -278,6 +278,62 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
         assert isinstance(result[0].content_parts[0].data, UiPathInlineValue)
         assert result[0].content_parts[0].data.inline == "First message"
 
+    def test_blank_text_in_message_creates_empty_content_parts(self):
+        """Should create empty content_parts when user message has blank text."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(text=""),
+                    LegacyConversationalEvalInputAgentMessage(text=""),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(text=""),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        # Empty text content should result in no text content-parts
+        assert len(result[0].content_parts) == 0
+        assert len(result[1].content_parts) == 0
+        assert len(result[2].content_parts) == 0
+
+    def test_blank_text_with_tool_calls_creates_empty_content_parts(self):
+        """Should create empty content_parts when agent message with tool calls has blank text."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(text="Search for data"),
+                    LegacyConversationalEvalInputAgentMessage(
+                        text="",
+                        toolCalls=[
+                            LegacyConversationalEvalInputToolCall(
+                                name="search_tool",
+                                arguments={"query": "test"},
+                                result=LegacyConversationalEvalInputToolCallResult(
+                                    value={"results": ["item1"]},
+                                    isError=False,
+                                ),
+                            )
+                        ],
+                    ),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(text="Thanks"),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        agent_message = result[1]
+        assert agent_message.role == "assistant"
+        # Empty content should result in no text content-parts
+        assert len(agent_message.content_parts) == 0
+        # Tool calls should still be present
+        assert len(agent_message.tool_calls) == 1
+
 
 class TestLegacyConversationalEvalOutputToUiPathMessageData:
     """Tests for converting legacy eval output to UiPath message data."""
@@ -434,3 +490,46 @@ class TestLegacyConversationalEvalOutputToUiPathMessageData:
         )
 
         assert result[0].tool_calls[0].input == {}
+
+    def test_blank_text_in_agent_response_creates_empty_content_parts(self):
+        """Should create empty content_parts when agent response has blank text."""
+        eval_output = LegacyConversationalEvalOutput(
+            agentResponse=[LegacyConversationalEvalOutputAgentMessage(text="")]
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_output_to_uipath_message_data_list(
+            eval_output
+        )
+
+        assert len(result) == 1
+        assert result[0].role == "assistant"
+        # Empty text should result in no text content-parts
+        assert len(result[0].content_parts) == 0
+
+    def test_blank_text_with_tool_calls_in_agent_response_creates_empty_content_parts(
+        self,
+    ):
+        """Should create empty content_parts when agent response with tool calls has blank text."""
+        eval_output = LegacyConversationalEvalOutput(
+            agentResponse=[
+                LegacyConversationalEvalOutputAgentMessage(
+                    text="",
+                    toolCalls=[
+                        LegacyConversationalEvalOutputToolCall(
+                            name="search",
+                            arguments={"query": "test"},
+                        )
+                    ],
+                )
+            ]
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_output_to_uipath_message_data_list(
+            eval_output
+        )
+
+        assert len(result) == 1
+        # Empty text should result in no text content-parts
+        assert len(result[0].content_parts) == 0
+        # Tool calls should still be present
+        assert len(result[0].tool_calls) == 1
