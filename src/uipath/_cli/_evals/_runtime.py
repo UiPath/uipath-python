@@ -85,7 +85,10 @@ from ._models._output import (
     convert_eval_execution_output_to_serializable,
 )
 from ._span_collection import ExecutionSpanCollector
-from ._span_persistence_helpers import deserialize_span, serialize_span
+from ._span_persistence_helpers import (
+    load_execution_spans,
+    save_execution_spans,
+)
 from .mocks.mocks import (
     cache_manager_context,
     clear_execution_context,
@@ -869,11 +872,7 @@ class UiPathEvalRuntime:
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
                     logger.info(f"Resuming evaluation {eval_item.id}")
-                    input = (
-                        (input_overrides or None)
-                        if self.context.job_id is None
-                        else None
-                    )
+                    input = input_overrides if self.context.job_id is None else None
                 else:
                     input = inputs_with_overrides
 
@@ -908,14 +907,21 @@ class UiPathEvalRuntime:
             # Persist spans across the suspend/resume process boundary.
             # On resume: load spans saved during the initial (pre-suspend) run
             # and prepend them so evaluators see the full execution trace.
-            if self.context.resume:
-                saved_spans = await self._load_execution_spans(eval_item.id)
+            if self.context.resume and self._storage is not None:
+                saved_spans = await load_execution_spans(
+                    self._storage, self.execution_id, eval_item.id
+                )
                 if saved_spans:
                     spans = saved_spans + spans
 
             # On suspend: save current spans so they're available after resume.
-            if result.status == UiPathRuntimeStatus.SUSPENDED:
-                await self._save_execution_spans(eval_item.id, spans)
+            if (
+                result.status == UiPathRuntimeStatus.SUSPENDED
+                and self._storage is not None
+            ):
+                await save_execution_spans(
+                    self._storage, self.execution_id, eval_item.id, spans
+                )
 
             return UiPathEvalRunExecutionOutput(
                 execution_time=end_time - start_time,
@@ -1165,40 +1171,6 @@ class UiPathEvalRuntime:
                 f"No storage available, cannot retrieve parent span context for span_key={span_key}"
             )
             return None
-
-    async def _save_execution_spans(
-        self, eval_item_id: str, spans: list[ReadableSpan]
-    ) -> None:
-        """Save execution spans to storage so they survive across suspend/resume."""
-        if self._storage is None:
-            logger.warning("No storage available, cannot persist execution spans")
-            return
-        serialized = [serialize_span(s) for s in spans]
-        await self._storage.set_value(
-            runtime_id=self.execution_id,
-            namespace="eval_execution_spans",
-            key=eval_item_id,
-            value={"spans": serialized},
-        )
-        logger.info(f"Saved {len(spans)} execution spans for eval_item {eval_item_id}")
-
-    async def _load_execution_spans(self, eval_item_id: str) -> list[ReadableSpan]:
-        """Load saved execution spans from storage after resume."""
-        if self._storage is None:
-            logger.warning("No storage available, cannot load execution spans")
-            return []
-        data = await self._storage.get_value(
-            runtime_id=self.execution_id,
-            namespace="eval_execution_spans",
-            key=eval_item_id,
-        )
-        if not data or "spans" not in data:
-            return []
-        spans = [deserialize_span(s) for s in data["spans"]]
-        logger.info(
-            f"Loaded {len(spans)} saved execution spans for eval_item {eval_item_id}"
-        )
-        return spans
 
     async def cleanup(self) -> None:
         """Cleanup runtime resources."""

@@ -5,6 +5,7 @@ Tests cover:
 2. ExecutionSpanProcessor.on_start() fallback to execution_id_context ContextVar
 """
 
+from typing import Any
 from unittest.mock import Mock, patch
 
 from opentelemetry.sdk.trace import Event, ReadableSpan, Span
@@ -72,6 +73,7 @@ class TestSerializationRoundtrip:
         span = _make_full_span()
         result = deserialize_span(serialize_span(span))
         assert result.context is not None
+        assert span.context is not None
         assert result.context.trace_id == span.context.trace_id
         assert result.context.span_id == span.context.span_id
         assert int(result.context.trace_flags) == int(span.context.trace_flags)
@@ -80,12 +82,14 @@ class TestSerializationRoundtrip:
         span = _make_full_span()
         result = deserialize_span(serialize_span(span))
         assert result.parent is not None
+        assert span.parent is not None
         assert result.parent.trace_id == span.parent.trace_id
         assert result.parent.span_id == span.parent.span_id
 
     def test_roundtrip_preserves_attributes(self) -> None:
         span = _make_full_span()
         result = deserialize_span(serialize_span(span))
+        assert result.attributes is not None
         assert result.attributes["execution.id"] == "exec-123"
         assert result.attributes["span_type"] == "evaluation"
         assert result.attributes["score"] == 0.95
@@ -99,6 +103,7 @@ class TestSerializationRoundtrip:
             attributes={"tags": ("a", "b", "c")},
         )
         result = deserialize_span(serialize_span(span))
+        assert result.attributes is not None
         assert result.attributes["tags"] == ["a", "b", "c"]
 
     def test_roundtrip_preserves_events(self) -> None:
@@ -107,6 +112,7 @@ class TestSerializationRoundtrip:
         assert len(result.events) == 1
         event = result.events[0]
         assert event.name == "test-event"
+        assert event.attributes is not None
         assert event.attributes["key"] == "value"
         assert event.attributes["num"] == 10
         assert event.timestamp == 1000000000
@@ -182,9 +188,7 @@ class TestSerializationRoundtrip:
 class TestExecutionSpanProcessorFallback:
     """Tests for ExecutionSpanProcessor.on_start() execution_id_context fallback."""
 
-    def _create_processor(
-        self,
-    ) -> tuple["_ProcessorType", ExecutionSpanCollector, Mock]:
+    def _create_processor(self) -> tuple[Any, ExecutionSpanCollector, Mock]:
         from uipath._cli._evals._runtime import ExecutionSpanProcessor
 
         mock_exporter = Mock(spec=SpanExporter)
@@ -192,7 +196,7 @@ class TestExecutionSpanProcessorFallback:
         processor = ExecutionSpanProcessor(mock_exporter, collector)
         return processor, collector, mock_exporter
 
-    def _create_mock_span(self, attributes: dict | None = None) -> Mock:
+    def _create_mock_span(self, attributes: dict[str, Any] | None = None) -> Mock:
         span = Mock(spec=Span)
         span.attributes = attributes or {}
         return span
@@ -236,7 +240,7 @@ class TestExecutionSpanProcessorFallback:
         span = self._create_mock_span({"span_type": "agent"})
 
         # After set_attribute, the mock's attributes dict should reflect the change
-        def side_effect_set_attr(key, value):
+        def side_effect_set_attr(key: str, value: Any) -> None:
             span.attributes[key] = value
 
         span.set_attribute = Mock(side_effect=side_effect_set_attr)
@@ -282,7 +286,3 @@ class TestExecutionSpanProcessorFallback:
 
         # Non-string execution.id should not be added to collector
         assert collector.get_spans("12345") == []
-
-
-# Type alias to avoid import at module level (circular import safety)
-_ProcessorType = object

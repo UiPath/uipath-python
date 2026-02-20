@@ -1,9 +1,13 @@
 """Helpers for serializing and deserializing OpenTelemetry spans for storage."""
 
+import logging
 from typing import Any
 
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.trace import SpanContext, SpanKind, Status, StatusCode, TraceFlags
+from uipath.runtime import UiPathRuntimeStorageProtocol
+
+logger = logging.getLogger(__name__)
 
 
 def serialize_span(span: ReadableSpan) -> dict[str, Any]:
@@ -105,3 +109,40 @@ def deserialize_span(data: dict[str, Any]) -> ReadableSpan:
         end_time=data.get("end_time"),
         kind=SpanKind(data.get("kind", 0)),
     )
+
+
+async def save_execution_spans(
+    storage: UiPathRuntimeStorageProtocol,
+    execution_id: str,
+    eval_item_id: str,
+    spans: list[ReadableSpan],
+) -> None:
+    """Save execution spans to storage so they survive across suspend/resume."""
+    serialized = [serialize_span(s) for s in spans]
+    await storage.set_value(
+        runtime_id=execution_id,
+        namespace="eval_execution_spans",
+        key=eval_item_id,
+        value={"spans": serialized},
+    )
+    logger.info(f"Saved {len(spans)} execution spans for eval_item {eval_item_id}")
+
+
+async def load_execution_spans(
+    storage: UiPathRuntimeStorageProtocol,
+    execution_id: str,
+    eval_item_id: str,
+) -> list[ReadableSpan]:
+    """Load saved execution spans from storage after resume."""
+    data = await storage.get_value(
+        runtime_id=execution_id,
+        namespace="eval_execution_spans",
+        key=eval_item_id,
+    )
+    if not data or "spans" not in data:
+        return []
+    spans = [deserialize_span(s) for s in data["spans"]]
+    logger.info(
+        f"Loaded {len(spans)} saved execution spans for eval_item {eval_item_id}"
+    )
+    return spans
