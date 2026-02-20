@@ -7,6 +7,7 @@ import click
 
 from uipath.platform.common import UiPathConfig
 
+from ._telemetry import track_command
 from ._utils._common import ensure_coded_agent_project, may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
@@ -30,6 +31,7 @@ console = ConsoleLogger()
     is_flag=True,
     help="Automatically overwrite local files without prompts",
 )
+@track_command("pull")
 def pull(root: Path, overwrite: bool) -> None:
     """Pull remote project files from Studio Web.
 

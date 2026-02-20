@@ -35,6 +35,7 @@ from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.platform.common import UiPathConfig
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -127,6 +128,7 @@ def load_simulation_config() -> MockingContext | None:
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@track_command("debug")
 def debug(
     entrypoint: str | None,
     input: str | None,

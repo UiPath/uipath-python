@@ -57,7 +57,7 @@ jobs:
           rsync -a --no-whole-file --ignore-existing "$originalfile" "$tmpfile"
           envsubst '$CONNECTION_STRING' < "$originalfile" > "$tmpfile" && mv "$tmpfile" "$originalfile"
         env:
-          CONNECTION_STRING: ${{ secrets.APPINS_CONNECTION_STRING }}
+          CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
 
       - name: Build
         run: uv build
