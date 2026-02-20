@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-json-similarity-customer.json",
+    "id": "legacy-json-similarity-customer",
+    "name": "JSON Similarity - Customer Object (customer)",
+    "description": "JSON similarity on the customer nested object",
+    "category": 0,
+    "type": 6,
+    "targetOutputKey": "customer",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}

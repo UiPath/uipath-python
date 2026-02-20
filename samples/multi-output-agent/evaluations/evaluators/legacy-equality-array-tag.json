@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-equality-array-tag.json",
+    "id": "legacy-equality-array-tag",
+    "name": "Equality - Array Index (tags[1])",
+    "description": "Exact match on an array element by index: tags[1]",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "tags[1]",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}

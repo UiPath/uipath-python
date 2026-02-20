@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-equality-nested-path.json",
+    "id": "legacy-equality-nested-path",
+    "name": "Equality - Nested Path (summary.status)",
+    "description": "Exact match on a nested path: summary.status",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "summary.status",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}
