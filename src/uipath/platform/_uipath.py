@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from .._utils._auth import resolve_config_from_env
 from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
+from .automation_tracker import AutomationTrackerService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
@@ -167,3 +168,7 @@ class UiPath:
     @property
     def agenthub(self) -> AgentHubService:
         return AgentHubService(self._config, self._execution_context, self.folders)
+
+    @property
+    def automation_tracker(self) -> AutomationTrackerService:
+        return AutomationTrackerService(self._config, self._execution_context)
