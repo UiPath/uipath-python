@@ -5,7 +5,8 @@ import logging
 from typing import Any, Callable
 
 from pydantic import BaseModel, TypeAdapter
-from uipath.core.tracing import _SpanUtils, traced
+from uipath.core.tracing import traced
+from uipath.platform.common import _SpanUtils
 
 from uipath._cli._evals.mocks.types import (
     LLMMockingStrategy,

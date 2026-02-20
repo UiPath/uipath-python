@@ -2,9 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 
-[manifest]
-overrides = [{ name = "uipath-core", specifier = "==0.5.1.dev1000450222", index = "https://test.pypi.org/simple/" }]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -2607,7 +2604,7 @@ requires-dist = [
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.5.0,<0.6.0", index = "https://test.pypi.org/simple/" },
     { name = "uipath-platform", specifier = "==0.0.1.dev1000020014", index = "https://test.pypi.org/simple/" },
-    { name = "uipath-runtime", specifier = ">=0.9.0,<0.10.0" },
+    { name = "uipath-runtime", specifier = "==0.9.0.dev1000950338", index = "https://test.pypi.org/simple/" },
 ]
 
 [package.metadata.requires-dev]
@@ -2671,14 +2668,14 @@ wheels = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.9.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.9.0.dev1000950338"
+source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "uipath-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/ce/82c4edfe6fa11807ea99babf7a53afbced4d3a17b3e020dfa6474ee4d73f/uipath_runtime-0.9.0.tar.gz", hash = "sha256:bc24f6f96fe0ad1d8549b16df51607d4e85558afe04abee294c9dff9790ccc96", size = 109587, upload-time = "2026-02-18T22:04:43.65Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/af/e2/9e52ee2e1d8af96539adab50b6d2ba337e10b2a0c35fc97bdea28c8b2c85/uipath_runtime-0.9.0.dev1000950338.tar.gz", hash = "sha256:7a94b126463c7e12aa3e0445b005d973b0f091557b84b4d5a31d74343c3cbb83", size = 137857, upload-time = "2026-02-20T15:45:51.622Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/e7/c8d0bd9316f4a528e36c52971df4dc01f96fbaf716dd62921253c69ab159/uipath_runtime-0.9.0-py3-none-any.whl", hash = "sha256:803010831cdead1d2563eed39025bb555be01626677bb23eecc918981cf93941", size = 41865, upload-time = "2026-02-18T22:04:42.03Z" },
+    { url = "https://test-files.pythonhosted.org/packages/7b/a3/f0fdfc20b732e14b3915d2dc74d24949211f9027c70357f02beedaac8af8/uipath_runtime-0.9.0.dev1000950338-py3-none-any.whl", hash = "sha256:da1fa22749058abefda615a6148c2168c2f14a52f4ad6ccd640af0014e96171a", size = 41409, upload-time = "2026-02-20T15:45:50.651Z" },
 ]
 
 [[package]]
