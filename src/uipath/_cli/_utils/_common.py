@@ -7,9 +7,12 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import click
-from uipath.platform.common import UiPathConfig
+from uipath.platform.common import (
+    ResourceOverwrite,
+    ResourceOverwriteParser,
+    UiPathConfig,
+)
 
-from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner
 from ._console import ConsoleLogger

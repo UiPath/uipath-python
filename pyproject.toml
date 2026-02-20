@@ -23,7 +23,7 @@ dependencies = [
   "mermaid-builder==0.0.3",
   "graphtty==0.1.8",
   "applicationinsights>=0.11.10",
-  "uipath-platform==0.0.1.dev1000020013",
+  "uipath-platform==0.0.1.dev1000020014",
 ]
 classifiers = [
   "Intended Audience :: Developers",
@@ -132,9 +132,9 @@ init_typed = true
 warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-addopts = "-ra -q --cov"
+#testpaths = ["tests"]
+#python_files = "test_*.py"
+#addopts = "-ra -q --cov"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
 
@@ -156,5 +156,5 @@ uipath-core = { index = "testpypi" }
 
 [tool.uv]
 override-dependencies = [
-  "uipath-core==0.5.1.dev1000450221"
+  "uipath-core==0.5.1.dev1000450222",
 ]

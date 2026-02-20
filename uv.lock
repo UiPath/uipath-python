@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [manifest]
-overrides = [{ name = "uipath-core", specifier = "==0.5.1.dev1000450221", index = "https://test.pypi.org/simple/" }]
+overrides = [{ name = "uipath-core", specifier = "==0.5.1.dev1000450222", index = "https://test.pypi.org/simple/" }]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -2606,7 +2606,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", specifier = ">=0.5.0,<0.6.0", index = "https://test.pypi.org/simple/" },
-    { name = "uipath-platform", specifier = "==0.0.1.dev1000020013", index = "https://test.pypi.org/simple/" },
+    { name = "uipath-platform", specifier = "==0.0.1.dev1000020014", index = "https://test.pypi.org/simple/" },
     { name = "uipath-runtime", specifier = ">=0.9.0,<0.10.0" },
 ]
 
@@ -2641,21 +2641,21 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.1.dev1000450221"
+version = "0.5.1.dev1000450222"
 source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://test-files.pythonhosted.org/packages/8b/88/57dc9b7fda6c3c47b86a497e4edacd6264ebf9d6320dcd2ae1eb4e64b27f/uipath_core-0.5.1.dev1000450221.tar.gz", hash = "sha256:2cf7c29049846764d0c593716df114fd3d628d1c7195f8836f75c6686ed22690", size = 123627, upload-time = "2026-02-20T09:48:21.027Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/3e/49/04157b027c605b12f4b361ab642557b701c08049c95ce16944c182f7994d/uipath_core-0.5.1.dev1000450222.tar.gz", hash = "sha256:e0ad2fde6e186cf14ccfbdbe56e03a61abcc714237d1589dcb1eab50bb8ef75a", size = 123653, upload-time = "2026-02-20T12:50:51.905Z" }
 wheels = [
-    { url = "https://test-files.pythonhosted.org/packages/bc/aa/c0d55138f3d72d414d57a833a6ef5b881a20b3701be1a6614b87a093456a/uipath_core-0.5.1.dev1000450221-py3-none-any.whl", hash = "sha256:f2f7d992a08b45f60913d2bf283964f318d87a7befa5f47e26856580a70f5ea7", size = 44916, upload-time = "2026-02-20T09:48:19.477Z" },
+    { url = "https://test-files.pythonhosted.org/packages/28/57/3ae57e63b38946ba4fd717c489a9008f08fed7ac4fc0ed4d142b562937f5/uipath_core-0.5.1.dev1000450222-py3-none-any.whl", hash = "sha256:27d3ee0fd294ca66dde98d2d3dc378ded4c717d054425a4a988f4c01c49e4880", size = 44971, upload-time = "2026-02-20T12:50:53.292Z" },
 ]
 
 [[package]]
 name = "uipath-platform"
-version = "0.0.1.dev1000020013"
+version = "0.0.1.dev1000020014"
 source = { registry = "https://test.pypi.org/simple/" }
 dependencies = [
     { name = "httpx" },
@@ -2664,9 +2664,9 @@ dependencies = [
     { name = "truststore" },
     { name = "uipath-core" },
 ]
-sdist = { url = "https://test-files.pythonhosted.org/packages/62/a7/7083c7640659bffdbeecfbd6284b87c26fa245f9007d5597abf101f22cd2/uipath_platform-0.0.1.dev1000020013.tar.gz", hash = "sha256:f9d50903a9219230d0656f69d65194d076ff196cbe00a47fb22a7a454794481b", size = 247372, upload-time = "2026-02-20T12:11:18.808Z" }
+sdist = { url = "https://test-files.pythonhosted.org/packages/af/b3/d95ce88f6d86845b82f92c4b188ead46d90d6ea82ab02ebef4af27f42d36/uipath_platform-0.0.1.dev1000020014.tar.gz", hash = "sha256:7668ce3d6e0e3a3e30b7a123f04727ab506774a08e5b6a5c13bdd76648f0c6f6", size = 247531, upload-time = "2026-02-20T13:27:10.508Z" }
 wheels = [
-    { url = "https://test-files.pythonhosted.org/packages/1d/a4/519279eb239eeb96a034b160de520b6dc81d362cef3bfe7ef59aa9ea302b/uipath_platform-0.0.1.dev1000020013-py3-none-any.whl", hash = "sha256:1107df0b1299f35df973bfbf40900e076d2a22d14d5a8d1d32b23cd41fcb8556", size = 148435, upload-time = "2026-02-20T12:11:20.258Z" },
+    { url = "https://test-files.pythonhosted.org/packages/32/03/7b8f64a28fbeeafd2787187cea01c7044b72a2fc962f63b6881f271247a0/uipath_platform-0.0.1.dev1000020014-py3-none-any.whl", hash = "sha256:aff67fb4d8cca7d513cbc424b22ae88c26117c648ed878f6b087406e14956949", size = 148497, upload-time = "2026-02-20T13:27:11.539Z" },
 ]
 
 [[package]]
