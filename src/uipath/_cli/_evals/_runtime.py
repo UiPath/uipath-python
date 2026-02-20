@@ -85,9 +85,14 @@ from ._models._output import (
     convert_eval_execution_output_to_serializable,
 )
 from ._span_collection import ExecutionSpanCollector
+from ._span_persistence_helpers import (
+    load_execution_spans,
+    save_execution_spans,
+)
 from .mocks.mocks import (
     cache_manager_context,
     clear_execution_context,
+    execution_id_context,
     set_execution_context,
 )
 from .mocks.types import MockingContext
@@ -156,6 +161,16 @@ class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
         self, span: Span, parent_context: context_api.Context | None = None
     ) -> None:
         super().on_start(span, parent_context)
+
+        exec_id = span.attributes.get("execution.id") if span.attributes else None
+
+        # Fallback: if execution.id wasn't propagated (e.g., NonRecordingSpan
+        # parent on resume), get it from the execution context variable.
+        if exec_id is None:
+            ctx_exec_id = execution_id_context.get()
+            if ctx_exec_id:
+                span.set_attribute("execution.id", ctx_exec_id)
+                exec_id = ctx_exec_id
 
         if span.attributes and "execution.id" in span.attributes:
             exec_id = span.attributes["execution.id"]
@@ -888,6 +903,25 @@ class UiPathEvalRuntime:
 
             if result is None:
                 raise ValueError("Execution result cannot be None for eval runs")
+
+            # Persist spans across the suspend/resume process boundary.
+            # On resume: load spans saved during the initial (pre-suspend) run
+            # and prepend them so evaluators see the full execution trace.
+            if self.context.resume and self._storage is not None:
+                saved_spans = await load_execution_spans(
+                    self._storage, self.execution_id, eval_item.id
+                )
+                if saved_spans:
+                    spans = saved_spans + spans
+
+            # On suspend: save current spans so they're available after resume.
+            if (
+                result.status == UiPathRuntimeStatus.SUSPENDED
+                and self._storage is not None
+            ):
+                await save_execution_spans(
+                    self._storage, self.execution_id, eval_item.id, spans
+                )
 
             return UiPathEvalRunExecutionOutput(
                 execution_time=end_time - start_time,
