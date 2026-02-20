@@ -109,13 +109,19 @@ class LegacyContextPrecisionEvaluator(
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
         from uipath.platform import UiPath
+        from uipath.platform.chat import UiPathLlmChatService
 
-        uipath = UiPath(
+        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
+
+        uipath = UiPath()
+        self.llm = UiPathLlmChatService(
+            uipath._config,
+            uipath._execution_context,
             requesting_product="agentsplayground",
             requesting_feature="agents-evaluations",
             agenthub_config="agentsevals",
+            action_id=eval_set_run_id_context.get(),
         )
-        self.llm = uipath.llm
 
     @track_evaluation_metrics
     async def evaluate(

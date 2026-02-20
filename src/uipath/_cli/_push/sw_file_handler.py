@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from typing import AsyncIterator
 
 import click
+from uipath.platform.common import UiPathConfig
 
 from uipath._cli.models.uipath_json_schema import PackOptions
-from uipath.platform.common import UiPathConfig
 
 from ...platform.errors import EnrichedException
 from .._utils._common import get_claim_from_token

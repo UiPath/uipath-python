@@ -2,13 +2,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
+from uipath.core.serialization import serialize_object
 from uipath.runtime.errors import (
     UiPathErrorCategory,
     UiPathErrorCode,
     UiPathRuntimeError,
 )
-
-from uipath._cli._utils._common import serialize_object
 
 
 class SamplePydanticModel(BaseModel):

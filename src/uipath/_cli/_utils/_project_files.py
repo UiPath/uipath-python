@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, TypeAdapter
+from uipath.platform.common import UiPathConfig
 
 from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
-from uipath.platform.common import UiPathConfig
 
 from .._utils._console import ConsoleLogger
 from ._constants import is_binary_file

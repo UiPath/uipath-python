@@ -9,10 +9,10 @@ import pytest
 from click.testing import CliRunner
 from opentelemetry.sdk.trace.export import SpanExporter
 from pytest_httpx import HTTPXMock
+from uipath.platform.common import ResourceOverwriteParser
 from uipath.runtime import UiPathRuntimeResult
 
 from uipath._cli import cli
-from uipath._utils._bindings import ResourceOverwriteParser
 
 
 @pytest.fixture
@@ -309,7 +309,7 @@ class TestResourceOverrides:
         assert mcp_server.folder_identifier == "Overwritten/MCPServer/Folder"
 
     def test_overrides_decorator_should_pop_kwargs_dict_when_present(self):
-        from uipath._utils import resource_override
+        from uipath.platform.common import resource_override
 
         @resource_override(resource_type="asset")
         def some_method(a: str, b: str, **kwargs):
@@ -513,11 +513,12 @@ class TestResourceOverrideWithTracing:
     ):
         """Verify that spans show the overridden resource name, not the original value."""
 
-        from uipath._utils import resource_override
-        from uipath._utils._bindings import (
+        from uipath.platform.common import (
             GenericResourceOverwrite,
             ResourceOverwritesContext,
+            resource_override,
         )
+
         from uipath.tracing import traced
 
         provider, captured_spans = tracer_provider_with_memory_exporter

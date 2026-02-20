@@ -2,8 +2,9 @@ import json
 import os
 from pathlib import Path
 
+from uipath.platform.common import TokenData
+
 from ..._utils._auth import parse_access_token
-from ...platform.common import TokenData
 from ._models import AccessTokenData
 
 

@@ -9,13 +9,13 @@ import pytest
 from click.testing import CliRunner
 from httpx import Request
 from pytest_httpx import HTTPXMock
+from uipath.platform.errors import EnrichedException
 from utils.project_details import ProjectDetails
 
 from tests.cli.utils.common import configure_env_vars
 from uipath._cli import cli
 from uipath._cli._utils._common import may_override_files
 from uipath._cli._utils._studio_project import StudioProjectMetadata
-from uipath.platform.errors import EnrichedException
 
 
 def create_uipath_json(

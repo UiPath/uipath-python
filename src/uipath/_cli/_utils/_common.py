@@ -1,17 +1,18 @@
 import json
 import logging
 import os
-import uuid
-from datetime import date, datetime, time
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
 import click
+from uipath.platform.common import (
+    ResourceOverwrite,
+    ResourceOverwriteParser,
+    UiPathConfig,
+)
 
-from uipath.platform.common import UiPathConfig
-
-from ..._utils._bindings import ResourceOverwrite, ResourceOverwriteParser
 from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
 from ..spinner import Spinner
 from ._console import ConsoleLogger
@@ -73,43 +74,6 @@ def get_env_vars(spinner: Spinner | None = None) -> list[str]:
     return [base_url, token]
 
 
-def serialize_object(obj):
-    """Recursively serializes an object and all its nested components."""
-    # Handle Pydantic models
-    if hasattr(obj, "model_dump"):
-        return serialize_object(obj.model_dump(by_alias=True))
-    elif hasattr(obj, "dict"):
-        return serialize_object(obj.dict())
-    elif hasattr(obj, "to_dict"):
-        return serialize_object(obj.to_dict())
-    # Special handling for UiPathBaseRuntimeErrors
-    elif hasattr(obj, "as_dict"):
-        return serialize_object(obj.as_dict)
-    elif isinstance(obj, (datetime, date, time)):
-        return obj.isoformat()
-    # Handle dictionaries
-    elif isinstance(obj, dict):
-        return {k: serialize_object(v) for k, v in obj.items()}
-    # Handle lists
-    elif isinstance(obj, list):
-        return [serialize_object(item) for item in obj]
-    # Handle exceptions
-    elif isinstance(obj, Exception):
-        return str(obj)
-    # Handle other iterable objects (convert to dict first)
-    elif hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes)):
-        try:
-            return serialize_object(dict(obj))
-        except (TypeError, ValueError):
-            return obj
-    # UUIDs must be serialized explicitly
-    elif isinstance(obj, uuid.UUID):
-        return str(obj)
-    # Return primitive types as is
-    else:
-        return obj
-
-
 def get_org_scoped_url(base_url: str) -> str:
     """Get organization scoped URL from base URL.
 
@@ -154,7 +118,6 @@ async def ensure_coded_agent_project(studio_client: StudioClient):
 async def may_override_files(
     studio_client: StudioClient, scope: Literal["remote", "local"]
 ) -> bool:
-    from datetime import datetime
 
     from packaging import version
 

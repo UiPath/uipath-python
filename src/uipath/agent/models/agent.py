@@ -31,12 +31,12 @@ from uipath.core.guardrails import (
     SpecificFieldsSelector,
     UniversalRule,
 )
-
-from uipath.agent.models._legacy import normalize_legacy_format
 from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
+
+from uipath.agent.models._legacy import normalize_legacy_format
 
 EMPTY_SCHEMA = {"type": "object", "properties": {}}
 

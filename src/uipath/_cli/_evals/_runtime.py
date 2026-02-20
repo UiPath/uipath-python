@@ -28,6 +28,7 @@ from opentelemetry.trace import (
     use_span,
 )
 from pydantic import BaseModel
+from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
@@ -55,7 +56,6 @@ from uipath._cli._evals.mocks.input_mocker import (
     generate_llm_input,
 )
 
-from ..._events._event_bus import EventBus
 from ..._events._events import (
     EvalItemExceptionDetails,
     EvalRunCreatedEvent,

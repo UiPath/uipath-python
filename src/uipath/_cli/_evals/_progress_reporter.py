@@ -11,6 +11,9 @@ from urllib.parse import urlparse
 from opentelemetry import trace
 from pydantic import BaseModel
 from rich.console import Console
+from uipath.core.events import EventBus
+from uipath.platform import UiPath
+from uipath.platform.common import UiPathConfig
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
@@ -21,7 +24,6 @@ from uipath._cli._evals._models._sw_reporting import (
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
@@ -41,8 +43,6 @@ from uipath.eval.evaluators import (
 )
 from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
-from uipath.platform import UiPath
-from uipath.platform.common import UiPathConfig
 
 logger = logging.getLogger(__name__)
 
