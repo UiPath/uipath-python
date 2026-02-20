@@ -11,6 +11,7 @@ from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from ...platform.chat import UiPathLlmChatService
 from ...platform.chat.llm_gateway import RequiredToolChoice
 from .._helpers.helpers import is_empty_value
+from .._helpers.output_path import resolve_output_path
 from ..models.models import (
     AgentExecution,
     EvaluationResult,
@@ -121,10 +122,28 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         if self.llm is None:
             self._initialize_llm()
 
+        actual_output = agent_execution.agent_output
+        expected_output = evaluation_criteria.expected_output
+
+        if self.target_output_key and self.target_output_key != "*":
+            try:
+                actual_output = resolve_output_path(
+                    actual_output, self.target_output_key
+                )
+            except (KeyError, IndexError, TypeError):
+                pass
+
+            try:
+                expected_output = resolve_output_path(
+                    expected_output, self.target_output_key
+                )
+            except (KeyError, IndexError, TypeError):
+                pass
+
         # Create the evaluation prompt
         evaluation_prompt = self._create_evaluation_prompt(
-            expected_output=evaluation_criteria.expected_output,
-            actual_output=agent_execution.agent_output,
+            expected_output=expected_output,
+            actual_output=actual_output,
         )
 
         llm_response = await self._get_llm_response(evaluation_prompt)

@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-equality-full-output.json",
+    "id": "legacy-equality-full-output",
+    "name": "Equality - Full Output",
+    "description": "Exact match on the entire output (targetOutputKey=*)",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "*",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}

@@ -1,0 +1,14 @@
+[project]
+name = "multi-output-agent"
+version = "0.0.1"
+description = "Multi-output agent for testing targetOutputKey path resolution"
+authors = [{ name = "Test", email = "test@example.com" }]
+dependencies = [
+    "uipath>=2.4.0, <2.5.0",
+]
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.15",
+]
