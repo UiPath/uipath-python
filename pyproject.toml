@@ -6,7 +6,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
   "uipath-core>=0.5.0, <0.6.0",
-  "uipath-runtime==0.9.0.dev1000950338",
+  "uipath-runtime==0.9.0.dev1000950339",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -23,7 +23,7 @@ dependencies = [
   "mermaid-builder==0.0.3",
   "graphtty==0.1.8",
   "applicationinsights>=0.11.10",
-  "uipath-platform==0.0.1.dev1000020014",
+  "uipath-platform==0.0.1.dev1000020019",
 ]
 classifiers = [
   "Intended Audience :: Developers",

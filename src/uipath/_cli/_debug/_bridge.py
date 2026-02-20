@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.tree import Tree
 from uipath.core.serialization import serialize_object
+from uipath.core.triggers import UiPathResumeTriggerType
 from uipath.runtime import (
     UiPathBreakpointResult,
     UiPathRuntimeContext,
@@ -19,7 +20,6 @@ from uipath.runtime import (
 )
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugQuitError
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
-from uipath.runtime.resumable import UiPathResumeTriggerType
 
 logger = logging.getLogger(__name__)
 

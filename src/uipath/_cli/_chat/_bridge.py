@@ -18,7 +18,7 @@ from uipath.core.chat import (
     UiPathConversationToolCallConfirmationInterruptStartEvent,
     UiPathConversationToolCallConfirmationValue,
 )
-from uipath.runtime import UiPathResumeTrigger
+from uipath.core.triggers import UiPathResumeTrigger
 from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
