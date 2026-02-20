@@ -301,7 +301,15 @@ class UiPathResumeTriggerReader:
                             f"{e.message}",
                         ) from e
 
-                    return f"Batch transform completed. Modified file available at {os.path.abspath(destination_path)}"
+                    attachment_key = await uipath.attachments.upload_async(
+                        name=os.path.basename(destination_path),
+                        source_path=destination_path,
+                    )
+                    return {
+                        "ID": str(attachment_key),
+                        "FullName": os.path.basename(destination_path),
+                        "MimeType": "text/csv",
+                    }
 
             case UiPathResumeTriggerType.IXP_EXTRACTION:
                 if trigger.item_key:
