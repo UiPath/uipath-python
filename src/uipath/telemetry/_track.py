@@ -161,9 +161,10 @@ class _AppInsightsEventClient:
 
             # Set application version
             _AppInsightsEventClient._client.context.application.ver = version("uipath")
-        except Exception:
-            # Silently fail - telemetry should never break the main application
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to initialize Application Insights client: {e}")
+            _logger.debug("Application Insights initialization error", exc_info=True)
 
     @staticmethod
     def track_event(
@@ -193,9 +194,10 @@ class _AppInsightsEventClient:
             )
             # Note: We don't flush after every event to avoid blocking.
             # Events will be sent in batches by the SDK.
-        except Exception:
-            # Telemetry should never break the main application
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to track event '{name}': {e}")
+            _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
 
     @staticmethod
     def flush() -> None:
@@ -203,8 +205,10 @@ class _AppInsightsEventClient:
         if _AppInsightsEventClient._client:
             try:
                 _AppInsightsEventClient._client.flush()
-            except Exception:
-                pass
+            except Exception as e:
+                # Log but don't raise - telemetry should never break the main application
+                _logger.warning(f"Failed to flush telemetry events: {e}")
+                _logger.debug("Telemetry flush error", exc_info=True)
 
 
 class _TelemetryClient:
@@ -238,8 +242,10 @@ class _TelemetryClient:
             _logger.setLevel(INFO)
 
             _TelemetryClient._initialized = True
-        except Exception:
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            getLogger(__name__).warning(f"Failed to initialize telemetry client: {e}")
+            getLogger(__name__).debug("Telemetry initialization error", exc_info=True)
 
     @staticmethod
     def _track_method(name: str, attrs: Optional[Dict[str, Any]] = None):
@@ -278,9 +284,10 @@ class _TelemetryClient:
 
         try:
             _AppInsightsEventClient.track_event(name, properties)
-        except Exception:
-            # Telemetry should never break the main application
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to track event '{name}': {e}")
+            _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
 
 
 def track_event(

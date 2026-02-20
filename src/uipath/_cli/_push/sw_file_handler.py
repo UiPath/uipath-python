@@ -527,11 +527,23 @@ class SwFileHandler:
         remote_files = self._get_remote_files(structure)
 
         # Get files to upload and process them
-        local_files = files_to_include(
+        local_files, skipped_files = files_to_include(
             pack_options,
             self.directory,
             self.include_uv_lock,
         )
+
+        # Log skipped files from root evals folder
+        if skipped_files:
+            logger.info(
+                f"Skipping {len(skipped_files)} file(s) in root evals folder: {', '.join(skipped_files)}"
+            )
+            for skipped_file in skipped_files:
+                yield UpdateEvent(
+                    file_path=skipped_file,
+                    status="skipped",
+                    message=f"Skipping '{skipped_file}' (root evals folder)",
+                )
 
         updates = await self._process_file_uploads(local_files, remote_files)
 
