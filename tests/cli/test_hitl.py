@@ -5,33 +5,29 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pytest_httpx import HTTPXMock
 from uipath.core.errors import ErrorCategory, UiPathFaultedTriggerError
-from uipath.runtime import (
+from uipath.core.triggers import (
     UiPathApiTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerType,
-    UiPathRuntimeStatus,
 )
-
 from uipath.platform.action_center import Task
 from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateEphemeralIndex,
     CreateTask,
     DocumentExtraction,
+    DocumentExtractionValidation,
     InvokeProcess,
     InvokeSystemAgent,
     WaitBatchTransform,
     WaitDeepRag,
+    WaitDocumentExtractionValidation,
+    WaitEphemeralIndex,
     WaitJob,
     WaitSystemAgent,
     WaitTask,
-)
-from uipath.platform.common.interrupt_models import (
-    CreateEphemeralIndex,
-    DocumentExtractionValidation,
-    WaitDocumentExtractionValidation,
-    WaitEphemeralIndex,
 )
 from uipath.platform.context_grounding import (
     BatchTransformCreationResponse,
@@ -63,6 +59,7 @@ from uipath.platform.resume_triggers import (
     UiPathResumeTriggerCreator,
     UiPathResumeTriggerReader,
 )
+from uipath.runtime import UiPathRuntimeStatus
 
 
 @pytest.fixture
@@ -420,7 +417,6 @@ class TestHitlReader:
     ) -> None:
         """Test reading a pending deep rag trigger raises pending error."""
         from uipath.core.errors import UiPathPendingTriggerError
-
         from uipath.platform.context_grounding import DeepRagResponse
 
         task_id = "test-deep-rag-id"
@@ -560,7 +556,6 @@ class TestHitlReader:
     ) -> None:
         """Test reading a pending batch rag trigger raises pending error."""
         from uipath.core.errors import UiPathPendingTriggerError
-
         from uipath.platform.errors import BatchTransformNotCompleteException
 
         task_id = "test-batch-rag-id"

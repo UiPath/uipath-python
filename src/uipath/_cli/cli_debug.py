@@ -6,6 +6,7 @@ from pathlib import Path
 
 import click
 from uipath.core.tracing import UiPathTraceManager
+from uipath.platform.common import UiPathConfig
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeContext,
@@ -32,7 +33,6 @@ from uipath._cli._evals.mocks.types import (
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._utils._bindings import ResourceOverwritesContext
-from uipath.platform.common import UiPathConfig
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger

@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from rich.console import Console
 from rich.tree import Tree
+from uipath.core.serialization import serialize_object
 from uipath.runtime import (
     UiPathBreakpointResult,
     UiPathRuntimeContext,
@@ -19,8 +20,6 @@ from uipath.runtime import (
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugQuitError
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 from uipath.runtime.resumable import UiPathResumeTriggerType
-
-from uipath._cli._utils._common import serialize_object
 
 logger = logging.getLogger(__name__)
 

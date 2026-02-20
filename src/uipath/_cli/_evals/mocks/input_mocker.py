@@ -4,10 +4,11 @@ import json
 from datetime import datetime
 from typing import Any
 
+from uipath.platform import UiPath
+
 from uipath._cli._evals.mocks.types import (
     InputMockingStrategy,
 )
-from uipath.platform import UiPath
 from uipath.tracing import traced
 
 from .mocker import UiPathInputMockingError
@@ -65,11 +66,16 @@ async def generate_llm_input(
     from .mocks import cache_manager_context
 
     try:
-        llm = UiPath(
+        from uipath.platform.chat import UiPathLlmChatService
+
+        uipath = UiPath()
+        llm = UiPathLlmChatService(
+            uipath._config,
+            uipath._execution_context,
             requesting_product="agentsplayground",
             requesting_feature="agents-evaluations",
             agenthub_config="agentsevals",
-        ).llm
+        )
         cache_manager = cache_manager_context.get()
 
         # Ensure additionalProperties is set for strict mode compatibility

@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.8.46"
+version = "2.9.0"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ dependencies = [
   "mermaid-builder==0.0.3",
   "graphtty==0.1.8",
   "applicationinsights>=0.11.10",
+  "uipath-platform==0.0.1.dev1000020013",
 ]
 classifiers = [
   "Intended Audience :: Developers",
@@ -148,3 +149,12 @@ name = "testpypi"
 url = "https://test.pypi.org/simple/"
 publish-url = "https://test.pypi.org/legacy/"
 explicit = true
+
+[tool.uv.sources]
+uipath-platform = { index = "testpypi" }
+uipath-core = { index = "testpypi" }
+
+[tool.uv]
+override-dependencies = [
+  "uipath-core==0.5.1.dev1000450221"
+]
