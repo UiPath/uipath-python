@@ -535,14 +535,15 @@ class SwFileHandler:
 
         # Log skipped files from root evals folder
         if skipped_files:
+            evals_folder_path = os.path.join(self.directory, "evals")
             logger.info(
-                f"Skipping {len(skipped_files)} file(s) in root evals folder: {', '.join(skipped_files)}"
+                f"Skipping {len(skipped_files)} file(s) in evals folder ({evals_folder_path}): {', '.join(skipped_files)}"
             )
             for skipped_file in skipped_files:
                 yield UpdateEvent(
                     file_path=skipped_file,
                     status="skipped",
-                    message=f"Skipping '{skipped_file}' (root evals folder)",
+                    message=f"Skipping '{skipped_file}' (evals folder)",
                 )
 
         updates = await self._process_file_uploads(local_files, remote_files)

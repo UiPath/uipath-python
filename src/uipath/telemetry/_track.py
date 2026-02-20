@@ -244,8 +244,8 @@ class _TelemetryClient:
             _TelemetryClient._initialized = True
         except Exception as e:
             # Log but don't raise - telemetry should never break the main application
-            getLogger(__name__).warning(f"Failed to initialize telemetry client: {e}")
-            getLogger(__name__).debug("Telemetry initialization error", exc_info=True)
+            _logger.warning(f"Failed to initialize telemetry client: {e}")
+            _logger.debug("Telemetry initialization error", exc_info=True)
 
     @staticmethod
     def _track_method(name: str, attrs: Optional[Dict[str, Any]] = None):
