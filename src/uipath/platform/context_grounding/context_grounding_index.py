@@ -1,21 +1,9 @@
 """Models for Context Grounding Index in the UiPath platform."""
 
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
-
-
-class ContextGroundingField(BaseModel):
-    """Model representing a field in a Context Grounding Index."""
-
-    id: Optional[str] = Field(default=None, alias="id")
-    name: Optional[str] = Field(default=None, alias="name")
-    description: Optional[str] = Field(default=None, alias="description")
-    type: Optional[str] = Field(default=None, alias="type")
-    is_filterable: Optional[bool] = Field(default=None, alias="isFilterable")
-    searchable_type: Optional[str] = Field(default=None, alias="searchableType")
-    is_user_defined: Optional[bool] = Field(default=None, alias="isUserDefined")
 
 
 class ContextGroundingDataSource(BaseModel):
@@ -31,6 +19,26 @@ class ContextGroundingDataSource(BaseModel):
     id: Optional[str] = Field(default=None, alias="id")
     folder: Optional[str] = Field(default=None, alias="folder")
     bucketName: Optional[str] = Field(default=None, alias="bucketName")
+
+
+class ContextGroundingIndexHealth(BaseModel):
+    """Model representing health metrics for a Context Grounding Index."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        extra="allow",
+    )
+
+    schema_id: Optional[str] = Field(default=None, alias="schemaId")
+    ingestion_reliability_score: Optional[float] = Field(
+        default=None, alias="ingestionReliabilityScore"
+    )
+    utilization_score: Optional[float] = Field(default=None, alias="utilizationScore")
+    overall_health_score: Optional[float] = Field(
+        default=None, alias="overallHealthScore"
+    )
+    health_status: Optional[str] = Field(default=None, alias="healthStatus")
 
 
 class ContextGroundingIndex(BaseModel):
@@ -54,19 +62,33 @@ class ContextGroundingIndex(BaseModel):
     id: Optional[str] = Field(default=None, alias="id")
     name: Optional[str] = Field(default=None, alias="name")
     description: Optional[str] = Field(default=None, alias="description")
+    is_encrypted: Optional[bool] = Field(default=None, alias="isEncrypted")
+    folder_fully_qualified_name: Optional[str] = Field(
+        default=None, alias="folderFullyQualifiedName"
+    )
     memory_usage: Optional[int] = Field(default=None, alias="memoryUsage")
     disk_usage: Optional[int] = Field(default=None, alias="diskUsage")
+    extraction_strategy: Optional[str] = Field(
+        default=None, alias="extractionStrategy"
+    )
+    embeddings_enabled: Optional[bool] = Field(
+        default=None, alias="embeddingsEnabled"
+    )
     data_source: Optional[ContextGroundingDataSource] = Field(
         default=None, alias="dataSource"
     )
-    pre_processing: Any = Field(default=None, alias="preProcessing")
-    fields: Optional[List[ContextGroundingField]] = Field(default=None, alias="fields")
     last_ingestion_status: Optional[str] = Field(
         default=None, alias="lastIngestionStatus"
+    )
+    last_ingestion_failure_reason: Optional[str] = Field(
+        default=None, alias="lastIngestionFailureReason"
     )
     last_ingested: Optional[datetime] = Field(default=None, alias="lastIngested")
     last_queried: Optional[datetime] = Field(default=None, alias="lastQueried")
     folder_key: Optional[str] = Field(default=None, alias="folderKey")
+    index_health: Optional[ContextGroundingIndexHealth] = Field(
+        default=None, alias="indexHealth"
+    )
 
     def in_progress_ingestion(self):
         """Check if the last ingestion is in progress."""
