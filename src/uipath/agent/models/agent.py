@@ -406,6 +406,14 @@ class AgentMcpTool(BaseCfg):
     )
 
 
+class DynamicToolsMode(str, CaseInsensitiveEnum):
+    """Dynamic tools mode enumeration."""
+
+    NONE = "none"
+    SCHEMA = "schema"
+    ALL = "all"
+
+
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
     """Agent MCP resource configuration model."""
 
@@ -415,6 +423,9 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     slug: str = Field(..., alias="slug")
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
+    dynamic_tools: DynamicToolsMode = Field(
+        default=DynamicToolsMode.NONE, alias="dynamicTools"
+    )
 
 
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
