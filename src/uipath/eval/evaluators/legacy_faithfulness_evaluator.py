@@ -3,8 +3,9 @@
 import json
 from typing import Any, Optional
 
-from uipath.eval.models import NumericEvaluationResult
 from uipath.platform.chat import UiPathLlmChatService
+
+from uipath.eval.models import NumericEvaluationResult
 
 from ..models.models import AgentExecution, EvaluationResult
 from .base_legacy_evaluator import (
@@ -47,13 +48,16 @@ class LegacyFaithfulnessEvaluator(
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
         from uipath.platform import UiPath
+        from uipath.platform.chat import UiPathLlmChatService
 
-        uipath = UiPath(
+        uipath = UiPath()
+        self.llm = UiPathLlmChatService(
+            uipath._config,
+            uipath._execution_context,
             requesting_product="agentsplayground",
             requesting_feature="agents-evaluations",
             agenthub_config="agentsevals",
         )
-        self.llm = uipath.llm
 
     @track_evaluation_metrics
     async def evaluate(

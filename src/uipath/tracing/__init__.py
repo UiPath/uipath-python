@@ -8,7 +8,6 @@ from ._otel_exporters import (  # noqa: D104
     LlmOpsHttpExporter,
     SpanStatus,
 )
-from ._utils import AttachmentDirection, AttachmentProvider, SpanAttachment
 
 __all__ = [
     "traced",
@@ -16,7 +15,4 @@ __all__ = [
     "JsonLinesFileExporter",
     "LiveTrackingSpanProcessor",
     "SpanStatus",
-    "SpanAttachment",
-    "AttachmentProvider",
-    "AttachmentDirection",
 ]

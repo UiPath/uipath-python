@@ -7,6 +7,8 @@ from typing import Any
 
 import click
 from uipath.core.tracing import UiPathTraceManager
+from uipath.platform.chat import set_llm_concurrency
+from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
@@ -27,10 +29,7 @@ from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath._events._event_bus import EventBus
-from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.eval._helpers import auto_discover_entrypoint
-from uipath.platform.chat import set_llm_concurrency
-from uipath.platform.common import UiPathConfig
 from uipath.telemetry._track import flush_events
 from uipath.tracing import (
     JsonLinesFileExporter,

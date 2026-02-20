@@ -118,15 +118,18 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         which includes multi-vendor models that agents use.
         """
         from uipath.platform import UiPath
+        from uipath.platform.chat import UiPathLlmChatService
 
         try:
-            uipath = UiPath(
+            uipath = UiPath()
+            llm = UiPathLlmChatService(
+                uipath._config,
+                uipath._execution_context,
                 requesting_product="agentsplayground",
                 requesting_feature="agents-evaluations",
                 agenthub_config="agentsevals",
             )
-            # Use llm (normalized API) for multi-vendor model support
-            return uipath.llm.chat_completions
+            return llm.chat_completions
         except Exception as e:
             raise UiPathEvaluationError(
                 code="FAILED_TO_GET_LLM_SERVICE",

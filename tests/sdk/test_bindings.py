@@ -1,15 +1,14 @@
 # type: ignore
 
 import pytest
-
-from uipath._utils import resource_override
-from uipath._utils._bindings import (
+from uipath.platform.common import (
     ConnectionResourceOverwrite,
     GenericResourceOverwrite,
     ResourceOverwriteParser,
     ResourceOverwritesContext,
-    _resource_overwrites,
+    resource_override,
 )
+from uipath.platform.common._bindings import _resource_overwrites
 
 
 class TestBindingsInference:
