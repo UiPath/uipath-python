@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Any, Callable
 
-from httpx import HTTPStatusError
 from pydantic import BaseModel, TypeAdapter
 
 from uipath._cli._evals.mocks.types import (
@@ -94,7 +93,6 @@ class LLMMocker(Mocker):
         function_name = params.get("name") or func.__name__
         if function_name in [x.name for x in self.context.strategy.tools_to_simulate]:
             from uipath.platform import UiPath
-            from uipath.platform.chat._llm_gateway_service import _cleanup_schema
 
             from .mocks import (
                 cache_manager_context,
@@ -111,6 +109,8 @@ class LLMMocker(Mocker):
             return_type: Any = func.__annotations__.get("return", None)
             if return_type is None:
                 return_type = Any
+
+            from uipath.platform.chat._llm_gateway_service import _cleanup_schema
 
             output_schema = params.get(
                 "output_schema", TypeAdapter(return_type).json_schema()
@@ -210,16 +210,19 @@ class LLMMocker(Mocker):
                         response_format=response_format,
                         **completion_kwargs,
                     )
-                except (EnrichedException, HTTPStatusError):
-                    logger.warning(
-                        "json_schema response_format not supported by model, "
-                        "falling back to json_object"
-                    )
-                    response = await llm.chat_completions(
-                        messages,
-                        response_format={"type": "json_object"},
-                        **completion_kwargs,
-                    )
+                except EnrichedException as e:
+                    if e.status_code in (400, 422):
+                        logger.warning(
+                            "json_schema response_format not supported by model, "
+                            "falling back to json_object"
+                        )
+                        response = await llm.chat_completions(
+                            messages,
+                            response_format={"type": "json_object"},
+                            **completion_kwargs,
+                        )
+                    else:
+                        raise
 
                 result = json.loads(response.choices[0].message.content)
 
