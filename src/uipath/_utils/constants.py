@@ -55,11 +55,6 @@ DROPBOX_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.DropboxDataSource"
 GOOGLE_DRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.GoogleDriveDataSource"
 ONEDRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.OneDriveDataSource"
 
-# Preprocessing request types
-LLMV3Mini_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV3MiniPreProcessingRequest"
-LLMV4_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest"
-NativeV1_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.NativeV1PreProcessingRequest"
-
 
 # Local storage
 TEMP_ATTACHMENTS_FOLDER = "uipath_attachments"

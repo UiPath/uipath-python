@@ -7,7 +7,6 @@ from pydantic import Field, TypeAdapter
 from ..._utils import Endpoint, RequestSpec, header_folder, resource_override
 from ..._utils._ssl_context import get_httpx_client_kwargs
 from ..._utils.constants import (
-    LLMV4_REQUEST,
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
 from ...tracing import traced
@@ -46,7 +45,6 @@ from .context_grounding_payloads import (
     GoogleDriveSourceConfig,
     OneDriveDataSource,
     OneDriveSourceConfig,
-    PreProcessing,
     SourceConfig,
 )
 
@@ -350,8 +348,9 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         source: SourceConfig,
         description: Optional[str] = None,
-        advanced_ingestion: Optional[bool] = True,
-        preprocessing_request: Optional[str] = LLMV4_REQUEST,
+        extraction_strategy: Optional[str] = None,
+        embeddings_enabled: Optional[bool] = None,
+        is_encrypted: Optional[bool] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
@@ -369,8 +368,9 @@ class ContextGroundingService(FolderContext, BaseService):
                 The source can include an optional indexer field for scheduled indexing:
                     source.indexer = Indexer(cron_expression="0 0 18 ? * 2", time_zone_id="UTC")
             description (Optional[str]): Description of the index.
-            advanced_ingestion (Optional[bool]): Enable advanced ingestion with preprocessing. Defaults to True.
-            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
+            extraction_strategy (Optional[str]): Extraction method - "NativeV1" or "LLMV4". Defaults to NativeV1.
+            embeddings_enabled (Optional[bool]): Whether to generate embeddings. Defaults to true.
+            is_encrypted (Optional[bool]): Whether to encrypt the index. Defaults to false.
             folder_key (Optional[str]): The key of the folder where the index will be created.
             folder_path (Optional[str]): The path of the folder where the index will be created.
 
@@ -381,10 +381,9 @@ class ContextGroundingService(FolderContext, BaseService):
             name=name,
             description=description,
             source=source,
-            advanced_ingestion=advanced_ingestion
-            if advanced_ingestion is not None
-            else True,
-            preprocessing_request=preprocessing_request or LLMV4_REQUEST,
+            extraction_strategy=extraction_strategy,
+            embeddings_enabled=embeddings_enabled,
+            is_encrypted=is_encrypted,
             folder_path=folder_path,
             folder_key=folder_key,
         )
@@ -405,8 +404,9 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         source: SourceConfig,
         description: Optional[str] = None,
-        advanced_ingestion: Optional[bool] = True,
-        preprocessing_request: Optional[str] = LLMV4_REQUEST,
+        extraction_strategy: Optional[str] = None,
+        embeddings_enabled: Optional[bool] = None,
+        is_encrypted: Optional[bool] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
@@ -424,8 +424,9 @@ class ContextGroundingService(FolderContext, BaseService):
                 The source can include an optional indexer field for scheduled indexing:
                     source.indexer = Indexer(cron_expression="0 0 18 ? * 2", time_zone_id="UTC")
             description (Optional[str]): Description of the index.
-            advanced_ingestion (Optional[bool]): Enable advanced ingestion with preprocessing. Defaults to True.
-            preprocessing_request (Optional[str]): The OData type for preprocessing request. Defaults to LLMV4_REQUEST.
+            extraction_strategy (Optional[str]): Extraction method - "NativeV1" or "LLMV4". Defaults to NativeV1.
+            embeddings_enabled (Optional[bool]): Whether to generate embeddings. Defaults to true.
+            is_encrypted (Optional[bool]): Whether to encrypt the index. Defaults to false.
             folder_key (Optional[str]): The key of the folder where the index will be created.
             folder_path (Optional[str]): The path of the folder where the index will be created.
 
@@ -436,10 +437,9 @@ class ContextGroundingService(FolderContext, BaseService):
             name=name,
             description=description,
             source=source,
-            advanced_ingestion=advanced_ingestion
-            if advanced_ingestion is not None
-            else True,
-            preprocessing_request=preprocessing_request or LLMV4_REQUEST,
+            extraction_strategy=extraction_strategy,
+            embeddings_enabled=embeddings_enabled,
+            is_encrypted=is_encrypted,
             folder_path=folder_path,
             folder_key=folder_key,
         )
@@ -1454,8 +1454,9 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         description: Optional[str],
         source: SourceConfig,
-        advanced_ingestion: bool,
-        preprocessing_request: str,
+        extraction_strategy: Optional[str] = None,
+        embeddings_enabled: Optional[bool] = None,
+        is_encrypted: Optional[bool] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
@@ -1465,8 +1466,9 @@ class ContextGroundingService(FolderContext, BaseService):
             name: Index name
             description: Index description
             source: Source configuration (typed model) with optional indexer
-            advanced_ingestion: Whether to enable advanced ingestion with preprocessing
-            preprocessing_request: OData type for preprocessing request
+            extraction_strategy: Extraction method - "NativeV1" or "LLMV4"
+            embeddings_enabled: Whether to generate embeddings
+            is_encrypted: Whether to encrypt the index
             folder_key: Optional folder key
             folder_path: Optional folder path
 
@@ -1485,11 +1487,9 @@ class ContextGroundingService(FolderContext, BaseService):
             name=name,
             description=description or "",
             data_source=data_source_dict,
-            pre_processing=(
-                PreProcessing(**{"@odata.type": preprocessing_request})
-                if advanced_ingestion and preprocessing_request
-                else None
-            ),
+            extraction_strategy=extraction_strategy,
+            embeddings_enabled=embeddings_enabled,
+            is_encrypted=is_encrypted,
         )
 
         return RequestSpec(

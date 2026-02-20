@@ -113,14 +113,6 @@ class Indexer(BaseModel):
         return values
 
 
-class PreProcessing(BaseModel):
-    """Preprocessing configuration for context grounding index."""
-
-    odata_type: str = Field(
-        alias="@odata.type", description="OData type for preprocessing"
-    )
-
-
 class CreateIndexPayload(BaseModel):
     """Payload for creating a context grounding index.
 
@@ -135,8 +127,20 @@ class CreateIndexPayload(BaseModel):
     data_source: Dict[str, Any] = Field(
         alias="dataSource", description="Data source configuration"
     )
-    pre_processing: Optional[PreProcessing] = Field(
-        default=None, alias="preProcessing", description="Preprocessing configuration"
+    extraction_strategy: Optional[str] = Field(
+        default=None,
+        alias="extractionStrategy",
+        description="Extraction method: 'NativeV1' or 'LLMV4'. Defaults to NativeV1",
+    )
+    embeddings_enabled: Optional[bool] = Field(
+        default=None,
+        alias="embeddingsEnabled",
+        description="Whether to generate embeddings. Defaults to true",
+    )
+    is_encrypted: Optional[bool] = Field(
+        default=None,
+        alias="isEncrypted",
+        description="Whether to encrypt the index. Defaults to false",
     )
 
     model_config = ConfigDict(populate_by_name=True)

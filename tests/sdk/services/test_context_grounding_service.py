@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
-from uipath._utils.constants import HEADER_USER_AGENT, LLMV3Mini_REQUEST
+from uipath._utils.constants import HEADER_USER_AGENT
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.context_grounding import (
     BatchTransformCreationResponse,
@@ -400,7 +400,7 @@ class TestContextGroundingService:
             name="test-bucket-index",
             description="Test bucket index",
             source=source,
-            advanced_ingestion=True,
+            extraction_strategy="LLMV4",
         )
 
         assert isinstance(index, ContextGroundingIndex)
@@ -432,10 +432,7 @@ class TestContextGroundingService:
         assert request_data["dataSource"]["folder"] == "/test/folder"
         assert request_data["dataSource"]["directoryPath"] == "/"
         assert request_data["dataSource"]["fileNameGlob"] == "**/*.pdf"
-        assert (
-            request_data["preProcessing"]["@odata.type"]
-            == "#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest"
-        )
+        assert request_data["extractionStrategy"] == "LLMV4"
 
     def test_create_index_google_drive(
         self,
@@ -550,7 +547,7 @@ class TestContextGroundingService:
         )
 
         index = service.create_index(
-            name="test-dropbox-index", source=source, advanced_ingestion=False
+            name="test-dropbox-index", source=source
         )
 
         assert isinstance(index, ContextGroundingIndex)
@@ -569,6 +566,7 @@ class TestContextGroundingService:
         assert request_data["dataSource"]["directoryPath"] == "/company-files"
         assert request_data["dataSource"]["fileNameGlob"] == "**/*"
         assert "preProcessing" not in request_data
+        assert "extractionStrategy" not in request_data
 
     def test_create_index_onedrive(
         self,
@@ -765,7 +763,7 @@ class TestContextGroundingService:
                 folder_path="/test/folder",
             )
 
-    def test_create_index_custom_preprocessing(
+    def test_create_index_with_extraction_strategy(
         self,
         httpx_mock: HTTPXMock,
         service: ContextGroundingService,
@@ -790,9 +788,12 @@ class TestContextGroundingService:
             url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/create",
             status_code=200,
             json={
-                "id": "custom-prep-index-id",
-                "name": "test-custom-prep-index",
+                "id": "custom-strategy-index-id",
+                "name": "test-custom-strategy-index",
                 "lastIngestionStatus": "Queued",
+                "extractionStrategy": "NativeV1",
+                "embeddingsEnabled": True,
+                "isEncrypted": True,
             },
         )
 
@@ -802,18 +803,25 @@ class TestContextGroundingService:
         )
 
         index = service.create_index(
-            name="test-custom-prep-index",
+            name="test-custom-strategy-index",
             source=source,
-            preprocessing_request=LLMV3Mini_REQUEST,
+            extraction_strategy="NativeV1",
+            embeddings_enabled=True,
+            is_encrypted=True,
         )
 
         assert isinstance(index, ContextGroundingIndex)
+        assert index.extraction_strategy == "NativeV1"
+        assert index.embeddings_enabled is True
+        assert index.is_encrypted is True
 
         sent_requests = httpx_mock.get_requests()
         create_request = sent_requests[1]
 
         request_data = json.loads(create_request.content)
-        assert request_data["preProcessing"]["@odata.type"] == LLMV3Mini_REQUEST
+        assert request_data["extractionStrategy"] == "NativeV1"
+        assert request_data["embeddingsEnabled"] is True
+        assert request_data["isEncrypted"] is True
 
     def test_all_requests_pass_spec_parameters(
         self,

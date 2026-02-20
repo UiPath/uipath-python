@@ -32,7 +32,6 @@ from .context_grounding_payloads import (
     Indexer,
     OneDriveDataSource,
     OneDriveSourceConfig,
-    PreProcessing,
     SourceConfig,
 )
 
@@ -65,7 +64,6 @@ __all__ = [
     "Indexer",
     "OneDriveDataSource",
     "OneDriveSourceConfig",
-    "PreProcessing",
     "SourceConfig",
     "Citation",
 ]
