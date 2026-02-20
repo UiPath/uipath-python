@@ -836,7 +836,9 @@ class TestAssertionPropertiesBuilding:
         assert props["prompt"] == "Evaluate the output quality"
         assert props["model"] == "gemini-2.5-pro"
 
-    def test_build_assertion_properties_without_prompt_and_model(self, progress_reporter):
+    def test_build_assertion_properties_without_prompt_and_model(
+        self, progress_reporter
+    ):
         """Test that properties are empty when evaluator lacks prompt/model."""
         evaluator = Mock(spec=[])  # No attributes at all
 
@@ -864,7 +866,9 @@ class TestAssertionPropertiesBuilding:
         assert "prompt" not in props
         assert props["model"] == "gpt-4o"
 
-    def test_build_assertion_properties_skips_non_string_prompt(self, progress_reporter):
+    def test_build_assertion_properties_skips_non_string_prompt(
+        self, progress_reporter
+    ):
         """Test that non-string prompt values are skipped."""
         evaluator = Mock()
         evaluator.prompt = 123  # Not a string
@@ -897,7 +901,9 @@ class TestAssertionPropertiesBuilding:
 
         assert snapshot == {}
 
-    def test_build_evaluator_snapshot_config_without_prompt_model(self, progress_reporter):
+    def test_build_evaluator_snapshot_config_without_prompt_model(
+        self, progress_reporter
+    ):
         """Test that snapshot is empty when config lacks prompt/model."""
         config = Mock(spec=["name"])  # Config without prompt/model
         config.name = "MyEvaluator"
