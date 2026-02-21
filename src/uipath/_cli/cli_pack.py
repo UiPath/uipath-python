@@ -283,7 +283,7 @@ def pack_fn(
         z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(
+        files, skipped_files = files_to_include(
             config_data.pack_options,
             directory,
             include_uv_lock,
