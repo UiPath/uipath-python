@@ -73,11 +73,12 @@ def clear_execution_context() -> None:
 
 
 def _normalize_tool_name(name: str) -> str:
-    """Normalize tool name by replacing underscores with spaces.
+    """Normalize tool name by replacing underscores with spaces and lowering case.
 
     Tool names may use spaces in configuration but underscores in execution.
+    Comparison is case-insensitive.
     """
-    return name.replace("_", " ")
+    return name.replace("_", " ").lower()
 
 
 def is_tool_simulated(tool_name: str) -> bool:

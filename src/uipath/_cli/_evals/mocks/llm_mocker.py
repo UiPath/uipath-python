@@ -90,7 +90,11 @@ class LLMMocker(Mocker):
         assert isinstance(self.context.strategy, LLMMockingStrategy)
 
         function_name = params.get("name") or func.__name__
-        if function_name in [x.name for x in self.context.strategy.tools_to_simulate]:
+        normalized_function_name = function_name.replace("_", " ").lower()
+        if normalized_function_name in [
+            x.name.replace("_", " ").lower()
+            for x in self.context.strategy.tools_to_simulate
+        ]:
             from uipath.platform import UiPath
             from uipath.platform.chat._llm_gateway_service import _cleanup_schema
 

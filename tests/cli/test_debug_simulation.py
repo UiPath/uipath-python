@@ -524,3 +524,37 @@ class TestSimulationConfigFields:
             assert is_tool_simulated("Web Search") is True
 
             clear_execution_context()
+
+    def test_handles_tool_name_case_insensitive(self, temp_dir: str):
+        """Test that tool name comparison is case-insensitive."""
+        config = {
+            "enabled": True,
+            "instructions": "Test",
+            "toolsToSimulate": [
+                {"name": "Web Reader"},
+                {"name": "Web Search"},
+            ],
+        }
+        simulation_path = Path(temp_dir) / "simulation.json"
+        with open(simulation_path, "w", encoding="utf-8") as f:
+            json.dump(config, f)
+
+        with patch("uipath._cli.cli_debug.Path.cwd", return_value=Path(temp_dir)):
+            mocking_ctx = load_simulation_config()
+            assert mocking_ctx is not None
+
+            from uipath._cli._evals._span_collection import ExecutionSpanCollector
+            from uipath._cli._evals.mocks.mocks import set_execution_context
+
+            span_collector = ExecutionSpanCollector()
+            set_execution_context(mocking_ctx, span_collector, "test-id")
+
+            # Case-insensitive matching should work
+            assert is_tool_simulated("web reader") is True
+            assert is_tool_simulated("WEB READER") is True
+            assert is_tool_simulated("Web reader") is True
+            assert is_tool_simulated("web search") is True
+            assert is_tool_simulated("WEB SEARCH") is True
+            assert is_tool_simulated("Non Existent Tool") is False
+
+            clear_execution_context()
