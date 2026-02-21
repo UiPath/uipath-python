@@ -152,8 +152,8 @@ class TestGenerateConversationalAgentSystemPrompt:
 class TestCitationFormat:
     """Tests for citation format"""
 
-    def test_citation_format_in_prompt(self):
-        """Self-closing citation format appears in prompt."""
+    def test_context_grounding_citation_format_claude(self):
+        """Context grounding citation format appears in prompt for Claude models."""
         prompt = get_chat_system_prompt(
             model="claude-3-sonnet",
             system_message=SYSTEM_MESSAGE,
@@ -166,8 +166,8 @@ class TestCitationFormat:
             in prompt
         )
 
-    def test_citation_format_unified_across_models(self):
-        """Citation format is model-agnostic and consistent across GPT, Claude, etc."""
+    def test_context_grounding_citation_format_gpt(self):
+        """Context grounding citation format is identical for GPT models."""
         prompt = get_chat_system_prompt(
             model="gpt-4o",
             system_message=SYSTEM_MESSAGE,
@@ -180,8 +180,36 @@ class TestCitationFormat:
             in prompt
         )
 
+    def test_web_search_citation_format_claude(self):
+        """Web search citation format appears in prompt for Claude models."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+        )
+
+        assert (
+            '<uip:cite title="Document Title" url="https://url"/>'
+            in prompt
+        )
+
+    def test_web_search_citation_format_gpt(self):
+        """Web search citation format is identical for GPT models."""
+        prompt = get_chat_system_prompt(
+            model="gpt-4o",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+        )
+
+        assert (
+            '<uip:cite title="Document Title" url="https://url"/>'
+            in prompt
+        )
+
     def test_citation_examples_in_prompt(self):
-        """Citation examples appear in prompt."""
+        """Citation examples for both web and context grounding appear in prompt."""
         prompt = get_chat_system_prompt(
             model="claude-3-sonnet",
             system_message=SYSTEM_MESSAGE,
