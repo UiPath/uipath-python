@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from uipath._cli._evals._models._output import (
+from uipath.eval.runtime._types import (
     EvaluationResultDto,
     EvaluationRunResult,
     EvaluationRunResultDto,

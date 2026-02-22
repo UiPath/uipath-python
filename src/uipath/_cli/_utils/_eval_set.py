@@ -5,16 +5,16 @@ from typing import Any
 import click
 from pydantic import ValidationError
 
-from uipath._cli._evals._evaluator_factory import EvaluatorFactory
-from uipath._cli._evals._models._evaluation_set import (
+from uipath._cli._utils._console import ConsoleLogger
+from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
+from uipath.eval.evaluators.evaluator_factory import EvaluatorFactory
+from uipath.eval.mocks._types import InputMockingStrategy, LLMMockingStrategy
+from uipath.eval.models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
     LegacyEvaluationItem,
     LegacyEvaluationSet,
 )
-from uipath._cli._evals.mocks.types import InputMockingStrategy, LLMMockingStrategy
-from uipath._cli._utils._console import ConsoleLogger
-from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 
 console = ConsoleLogger()
 

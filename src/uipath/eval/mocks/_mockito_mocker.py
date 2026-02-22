@@ -11,13 +11,13 @@ from mockito import (  # type: ignore[import-untyped]
 )
 from pydantic import JsonValue
 
-from uipath._cli._evals.mocks.mocker import (
+from ._mocker import (
     Mocker,
     R,
     T,
     UiPathMockResponseGenerationError,
 )
-from uipath._cli._evals.mocks.types import (
+from ._types import (
     MockingAnswerType,
     MockingContext,
     MockitoMockingStrategy,

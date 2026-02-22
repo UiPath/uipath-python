@@ -12,12 +12,11 @@ from opentelemetry.sdk.trace import Event, ReadableSpan, Span
 from opentelemetry.sdk.trace.export import SpanExporter
 from opentelemetry.trace import SpanContext, SpanKind, Status, StatusCode, TraceFlags
 
-from uipath._cli._evals._span_collection import ExecutionSpanCollector
-from uipath._cli._evals._span_persistence_helpers import (
+from uipath.eval._execution_context import ExecutionSpanCollector, execution_id_context
+from uipath.eval.runtime._spans import (
     deserialize_span,
     serialize_span,
 )
-from uipath._cli._evals.mocks.mocks import execution_id_context
 
 
 def _make_span_context(
@@ -189,7 +188,7 @@ class TestExecutionSpanProcessorFallback:
     """Tests for ExecutionSpanProcessor.on_start() execution_id_context fallback."""
 
     def _create_processor(self) -> tuple[Any, ExecutionSpanCollector, Mock]:
-        from uipath._cli._evals._runtime import ExecutionSpanProcessor
+        from uipath.eval.runtime._exporters import ExecutionSpanProcessor
 
         mock_exporter = Mock(spec=SpanExporter)
         collector = ExecutionSpanCollector()
@@ -201,7 +200,7 @@ class TestExecutionSpanProcessorFallback:
         span.attributes = attributes or {}
         return span
 
-    @patch("uipath._cli._evals._runtime.UiPathExecutionBatchTraceProcessor.on_start")
+    @patch("uipath.eval.runtime._exporters.UiPathExecutionBatchTraceProcessor.on_start")
     def test_span_with_execution_id_added_to_collector(
         self, mock_super_on_start: Mock
     ) -> None:
@@ -214,7 +213,7 @@ class TestExecutionSpanProcessorFallback:
         assert len(spans) == 1
         assert spans[0] is span
 
-    @patch("uipath._cli._evals._runtime.UiPathExecutionBatchTraceProcessor.on_start")
+    @patch("uipath.eval.runtime._exporters.UiPathExecutionBatchTraceProcessor.on_start")
     def test_span_without_execution_id_not_added(
         self, mock_super_on_start: Mock
     ) -> None:
@@ -230,7 +229,7 @@ class TestExecutionSpanProcessorFallback:
 
         assert collector.get_spans("") == []
 
-    @patch("uipath._cli._evals._runtime.UiPathExecutionBatchTraceProcessor.on_start")
+    @patch("uipath.eval.runtime._exporters.UiPathExecutionBatchTraceProcessor.on_start")
     def test_fallback_sets_execution_id_from_context_var(
         self, mock_super_on_start: Mock
     ) -> None:
@@ -259,7 +258,7 @@ class TestExecutionSpanProcessorFallback:
         assert len(spans) == 1
         assert spans[0] is span
 
-    @patch("uipath._cli._evals._runtime.UiPathExecutionBatchTraceProcessor.on_start")
+    @patch("uipath.eval.runtime._exporters.UiPathExecutionBatchTraceProcessor.on_start")
     def test_no_fallback_when_context_var_empty(
         self, mock_super_on_start: Mock
     ) -> None:
@@ -275,7 +274,7 @@ class TestExecutionSpanProcessorFallback:
         # Span should not have been added anywhere
         span.set_attribute.assert_not_called()
 
-    @patch("uipath._cli._evals._runtime.UiPathExecutionBatchTraceProcessor.on_start")
+    @patch("uipath.eval.runtime._exporters.UiPathExecutionBatchTraceProcessor.on_start")
     def test_span_with_non_string_execution_id_not_added(
         self, mock_super_on_start: Mock
     ) -> None:

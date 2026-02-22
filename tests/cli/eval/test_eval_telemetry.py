@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import pytest
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath._cli._evals._telemetry import (
     EVAL_RUN_COMPLETED,
     EVAL_RUN_FAILED,
@@ -17,14 +16,15 @@ from uipath._cli._evals._telemetry import (
     EvalTelemetrySubscriber,
 )
 from uipath._events._event_bus import EventBus
-from uipath._events._events import (
+from uipath.eval.models import EvalItemResult, NumericEvaluationResult
+from uipath.eval.models.evaluation_set import EvaluationItem
+from uipath.eval.runtime.events import (
     EvalItemExceptionDetails,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
 )
-from uipath.eval.models import EvalItemResult, NumericEvaluationResult
 
 
 class TestEventNameConstants:

@@ -1,16 +1,167 @@
-"""Utility functions for setting evaluation span attributes."""
+"""Helpers for serializing, deserializing, and configuring OpenTelemetry spans."""
 
 import json
-from typing import Any, Dict, Optional
+import logging
+from typing import Any
 
-from opentelemetry.trace import Span, Status, StatusCode
+from opentelemetry.sdk.trace import Event, ReadableSpan
+from opentelemetry.trace import (
+    Span,
+    SpanContext,
+    SpanKind,
+    Status,
+    StatusCode,
+    TraceFlags,
+)
 from pydantic import BaseModel, ConfigDict, Field
+from uipath.runtime import UiPathRuntimeStorageProtocol
+from uipath.runtime.schema import UiPathRuntimeSchema
 
-# Type hint for runtime protocol (avoids circular imports)
-try:
-    from uipath.runtime import UiPathRuntimeProtocol, UiPathRuntimeSchema
-except ImportError:
-    UiPathRuntimeProtocol = Any  # type: ignore
+logger = logging.getLogger(__name__)
+
+
+# --- Serialization / Deserialization ---
+
+
+def serialize_span(span: ReadableSpan) -> dict[str, Any]:
+    """Serialize a ReadableSpan to a JSON-compatible dict for storage."""
+    ctx = span.context
+    context_data = None
+    if ctx:
+        context_data = {
+            "trace_id": ctx.trace_id,
+            "span_id": ctx.span_id,
+            "trace_flags": int(ctx.trace_flags),
+        }
+
+    parent_data = None
+    if span.parent:
+        parent_data = {
+            "trace_id": span.parent.trace_id,
+            "span_id": span.parent.span_id,
+            "trace_flags": int(span.parent.trace_flags),
+        }
+
+    attrs: dict[str, Any] = {}
+    if span.attributes:
+        for k, v in span.attributes.items():
+            attrs[k] = list(v) if isinstance(v, tuple) else v
+
+    events_data = []
+    if span.events:
+        for e in span.events:
+            event_attrs: dict[str, Any] = {}
+            if e.attributes:
+                for k, v in e.attributes.items():
+                    event_attrs[k] = list(v) if isinstance(v, tuple) else v
+            events_data.append(
+                {
+                    "name": e.name,
+                    "attributes": event_attrs,
+                    "timestamp": e.timestamp,
+                }
+            )
+
+    return {
+        "name": span.name,
+        "context": context_data,
+        "parent": parent_data,
+        "attributes": attrs,
+        "events": events_data,
+        "status_code": span.status.status_code.value if span.status else 0,
+        "status_description": span.status.description if span.status else None,
+        "start_time": span.start_time,
+        "end_time": span.end_time,
+        "kind": span.kind.value if span.kind else 0,
+    }
+
+
+def deserialize_span(data: dict[str, Any]) -> ReadableSpan:
+    """Deserialize a dict back to a ReadableSpan."""
+    context = None
+    if data.get("context"):
+        context = SpanContext(
+            trace_id=data["context"]["trace_id"],
+            span_id=data["context"]["span_id"],
+            is_remote=False,
+            trace_flags=TraceFlags(data["context"].get("trace_flags", 0)),
+        )
+
+    parent = None
+    if data.get("parent"):
+        parent = SpanContext(
+            trace_id=data["parent"]["trace_id"],
+            span_id=data["parent"]["span_id"],
+            is_remote=False,
+            trace_flags=TraceFlags(data["parent"].get("trace_flags", 0)),
+        )
+
+    status = Status(
+        status_code=StatusCode(data.get("status_code", 0)),
+        description=data.get("status_description"),
+    )
+
+    events = []
+    for e in data.get("events", []):
+        events.append(
+            Event(
+                name=e["name"],
+                attributes=e.get("attributes"),
+                timestamp=e.get("timestamp"),
+            )
+        )
+
+    return ReadableSpan(
+        name=data["name"],
+        context=context,
+        parent=parent,
+        attributes=data.get("attributes"),
+        events=events,
+        status=status,
+        start_time=data.get("start_time"),
+        end_time=data.get("end_time"),
+        kind=SpanKind(data.get("kind", 0)),
+    )
+
+
+async def save_execution_spans(
+    storage: UiPathRuntimeStorageProtocol,
+    execution_id: str,
+    eval_item_id: str,
+    spans: list[ReadableSpan],
+) -> None:
+    """Save execution spans to storage so they survive across suspend/resume."""
+    serialized = [serialize_span(s) for s in spans]
+    await storage.set_value(
+        runtime_id=execution_id,
+        namespace="eval_execution_spans",
+        key=eval_item_id,
+        value={"spans": serialized},
+    )
+    logger.info(f"Saved {len(spans)} execution spans for eval_item {eval_item_id}")
+
+
+async def load_execution_spans(
+    storage: UiPathRuntimeStorageProtocol,
+    execution_id: str,
+    eval_item_id: str,
+) -> list[ReadableSpan]:
+    """Load saved execution spans from storage after resume."""
+    data = await storage.get_value(
+        runtime_id=execution_id,
+        namespace="eval_execution_spans",
+        key=eval_item_id,
+    )
+    if not data or "spans" not in data:
+        return []
+    spans = [deserialize_span(s) for s in data["spans"]]
+    logger.info(
+        f"Loaded {len(spans)} saved execution spans for eval_item {eval_item_id}"
+    )
+    return spans
+
+
+# --- Span attribute configuration ---
 
 
 class EvalSetRunOutput(BaseModel):
@@ -18,7 +169,7 @@ class EvalSetRunOutput(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    scores: Dict[str, float] = Field(..., alias="scores")
+    scores: dict[str, float] = Field(..., alias="scores")
 
 
 class EvaluationOutput(BaseModel):
@@ -26,7 +177,7 @@ class EvaluationOutput(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    scores: Dict[str, float] = Field(..., alias="scores")
+    scores: dict[str, float] = Field(..., alias="scores")
 
 
 class EvaluationOutputSpanOutput(BaseModel):
@@ -36,8 +187,8 @@ class EvaluationOutputSpanOutput(BaseModel):
 
     type: int = Field(1, alias="type")
     score: float = Field(..., alias="score")
-    evaluator_id: Optional[str] = Field(None, alias="evaluatorId")
-    justification: Optional[str] = Field(None, alias="justification")
+    evaluator_id: str | None = Field(None, alias="evaluatorId")
+    justification: str | None = Field(None, alias="justification")
 
 
 def normalize_score_to_100(score: float) -> float:
@@ -56,7 +207,7 @@ def normalize_score_to_100(score: float) -> float:
     return round(min(max(score, 0), 100), 2)
 
 
-def extract_evaluator_scores(evaluation_run_results: Any) -> Dict[str, float]:
+def extract_evaluator_scores(evaluation_run_results: Any) -> dict[str, float]:
     """Extract scores per evaluator from evaluation run results.
 
     Args:
@@ -65,7 +216,7 @@ def extract_evaluator_scores(evaluation_run_results: Any) -> Dict[str, float]:
     Returns:
         Dictionary mapping evaluator names to their normalized scores (0-100)
     """
-    scores: Dict[str, float] = {}
+    scores: dict[str, float] = {}
     if not evaluation_run_results.evaluation_run_results:
         return scores
 
@@ -79,10 +230,10 @@ def extract_evaluator_scores(evaluation_run_results: Any) -> Dict[str, float]:
 
 def set_eval_set_run_output_and_metadata(
     span: Span,
-    evaluator_scores: Dict[str, float],
+    evaluator_scores: dict[str, float],
     execution_id: str,
-    input_schema: Optional[Dict[str, Any]],
-    output_schema: Optional[Dict[str, Any]],
+    input_schema: dict[str, Any] | None,
+    output_schema: dict[str, Any] | None,
     success: bool = True,
 ) -> None:
     """Set output and metadata attributes for Evaluation Set Run span.
@@ -127,11 +278,11 @@ def set_eval_set_run_output_and_metadata(
 
 def set_evaluation_output_and_metadata(
     span: Span,
-    evaluator_scores: Dict[str, float],
+    evaluator_scores: dict[str, float],
     execution_id: str,
-    input_data: Optional[Dict[str, Any]] = None,
+    input_data: dict[str, Any] | None = None,
     has_error: bool = False,
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
 ) -> None:
     """Set output and metadata attributes for Evaluation span.
 
@@ -168,8 +319,8 @@ def set_evaluation_output_and_metadata(
 def set_evaluation_output_span_output(
     span: Span,
     score: float,
-    evaluator_id: Optional[str] = None,
-    justification: Optional[str] = None,
+    evaluator_id: str | None = None,
+    justification: str | None = None,
 ) -> None:
     """Set output attribute for Evaluation output span.
 
@@ -198,7 +349,7 @@ def set_evaluation_output_span_output(
 
 async def configure_eval_set_run_span(
     span: Span,
-    evaluator_averages: Dict[str, float],
+    evaluator_averages: dict[str, float],
     execution_id: str,
     schema: UiPathRuntimeSchema,
     success: bool = True,
@@ -246,8 +397,8 @@ async def configure_evaluation_span(
     span: Span,
     evaluation_run_results: Any,
     execution_id: str,
-    input_data: Optional[Dict[str, Any]] = None,
-    agent_execution_output: Optional[Any] = None,
+    input_data: dict[str, Any] | None = None,
+    agent_execution_output: Any | None = None,
 ) -> None:
     """Configure Evaluation span with output and metadata.
 

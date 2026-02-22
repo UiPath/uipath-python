@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.mocks import cache_manager_context
+from uipath.eval.mocks._cache_manager import CacheManager
+from uipath.eval.mocks._mocks import cache_manager_context
 
 
 @pytest.fixture

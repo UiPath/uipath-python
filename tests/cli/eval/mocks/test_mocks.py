@@ -7,24 +7,24 @@ from _pytest.monkeypatch import MonkeyPatch
 from pydantic import BaseModel
 from pytest_httpx import HTTPXMock
 
-from uipath._cli._evals._models._evaluation_set import (
-    EvaluationItem,
-)
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.mocker import UiPathMockResponseGenerationError
-from uipath._cli._evals.mocks.mocks import (
+from uipath.eval.mocks import mockable
+from uipath.eval.mocks._cache_manager import CacheManager
+from uipath.eval.mocks._mocker import UiPathMockResponseGenerationError
+from uipath.eval.mocks._mocks import (
     _normalize_tool_name,
     clear_execution_context,
     is_tool_simulated,
     set_execution_context,
 )
-from uipath._cli._evals.mocks.types import (
+from uipath.eval.mocks._types import (
     LLMMockingStrategy,
     MockingContext,
     MockitoMockingStrategy,
     ToolSimulation,
 )
-from uipath.eval.mocks import mockable
+from uipath.eval.models.evaluation_set import (
+    EvaluationItem,
+)
 
 _mock_span_collector = MagicMock()
 

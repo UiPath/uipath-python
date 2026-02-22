@@ -4,12 +4,12 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from pytest_httpx import HTTPXMock
 
-from uipath._cli._evals._models._evaluation_set import (
+from uipath.eval.mocks._cache_manager import CacheManager
+from uipath.eval.mocks._input_mocker import generate_llm_input
+from uipath.eval.mocks._types import InputMockingStrategy, ModelSettings
+from uipath.eval.models.evaluation_set import (
     EvaluationItem,
 )
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.input_mocker import generate_llm_input
-from uipath._cli._evals.mocks.types import InputMockingStrategy, ModelSettings
 
 
 @pytest.mark.asyncio

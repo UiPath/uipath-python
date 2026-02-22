@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from uipath._cli._evals._models._evaluation_set import (
+from uipath._cli._utils._eval_set import EvalHelpers
+from uipath.eval.models.evaluation_set import (
     EvaluationSet,
     LegacyEvaluationSet,
 )
-from uipath._cli._evals._runtime import UiPathEvalContext
-from uipath._cli._utils._eval_set import EvalHelpers
+from uipath.eval.runtime.context import UiPathEvalContext
 
 
 @pytest.mark.asyncio
@@ -97,7 +97,7 @@ async def test_input_overrides_e2e_direct_override():
         }
 
         # Apply overrides to the inputs with eval_id
-        from uipath._cli._evals._eval_util import apply_input_overrides
+        from uipath.eval.runtime._utils import apply_input_overrides
 
         modified_inputs = apply_input_overrides(
             original_input, overrides, eval_id="test-eval-1"
@@ -161,7 +161,7 @@ async def test_input_overrides_e2e_direct_field():
             }
         }
 
-        from uipath._cli._evals._eval_util import apply_input_overrides
+        from uipath.eval.runtime._utils import apply_input_overrides
 
         modified_inputs = apply_input_overrides(
             original_input, overrides, eval_id="test-eval-1"
@@ -223,7 +223,7 @@ async def test_input_overrides_e2e_nested_objects():
             }
         }
 
-        from uipath._cli._evals._eval_util import apply_input_overrides
+        from uipath.eval.runtime._utils import apply_input_overrides
 
         modified_inputs = apply_input_overrides(
             original_input, overrides, eval_id="test-eval-1"
@@ -260,7 +260,7 @@ async def test_input_overrides_per_evaluation():
         "eval-2": {"operator": "/", "b": 5},
     }
 
-    from uipath._cli._evals._eval_util import apply_input_overrides
+    from uipath.eval.runtime._utils import apply_input_overrides
 
     # Test eval-1
     eval_1_inputs = {"a": 5, "b": 3, "operator": "+"}

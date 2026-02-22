@@ -14,9 +14,9 @@ from uipath.runtime import (
     UiPathRuntimeStatus,
 )
 
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._events._event_bus import EventBus
+from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime
 
 # ============================================================================
 # Direct unit tests using mocks to verify the specific code path we changed
@@ -31,7 +31,7 @@ from uipath._events._event_bus import EventBus
 async def test_execute_runtime_method_passes_options_with_resume_false():
     """Test that execute_runtime respects resume=False setting."""
     # Arrange
-    from uipath._cli._evals._models._evaluation_set import EvaluationItem
+    from uipath.eval.models.evaluation_set import EvaluationItem
 
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
@@ -81,7 +81,7 @@ async def test_execute_runtime_method_passes_options_with_resume_false():
 
     #  Act - Call execute_runtime directly
     with patch(
-        "uipath._cli._evals._runtime.UiPathExecutionRuntime"
+        "uipath.eval.runtime.runtime.UiPathExecutionRuntime"
     ) as mock_execution_runtime_class:
         # Set up the mock to capture the execute call
         mock_execution_runtime_instance = AsyncMock()
@@ -117,7 +117,7 @@ async def test_execute_runtime_method_passes_options_with_resume_false():
 async def test_execute_runtime_method_passes_options_with_resume_true():
     """Test that execute_runtime respects resume=True setting."""
     # Arrange
-    from uipath._cli._evals._models._evaluation_set import EvaluationItem
+    from uipath.eval.models.evaluation_set import EvaluationItem
 
     event_bus = EventBus()
     trace_manager = UiPathTraceManager()
@@ -167,7 +167,7 @@ async def test_execute_runtime_method_passes_options_with_resume_true():
 
     # Act - Call execute_runtime directly
     with patch(
-        "uipath._cli._evals._runtime.UiPathExecutionRuntime"
+        "uipath.eval.runtime.runtime.UiPathExecutionRuntime"
     ) as mock_execution_runtime_class:
         # Set up the mock to capture the execute call
         mock_execution_runtime_instance = AsyncMock()

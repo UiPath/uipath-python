@@ -4,11 +4,16 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Callable
 
-from uipath._cli._evals._span_collection import ExecutionSpanCollector
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
-from uipath._cli._evals.mocks.mocker_factory import MockerFactory
-from uipath._cli._evals.mocks.types import (
+from .._execution_context import (
+    ExecutionSpanCollector,
+    eval_set_run_id_context,
+    execution_id_context,
+    span_collector_context,
+)
+from ._cache_manager import CacheManager
+from ._mocker import Mocker, UiPathNoMockFoundError
+from ._mocker_factory import MockerFactory
+from ._types import (
     LLMMockingStrategy,
     MockingContext,
     MockitoMockingStrategy,
@@ -20,18 +25,6 @@ mocking_context: ContextVar[MockingContext | None] = ContextVar(
 )
 
 mocker_context: ContextVar[Mocker | None] = ContextVar("mocker", default=None)
-# Span collector for trace access during mocking
-span_collector_context: ContextVar[ExecutionSpanCollector | None] = ContextVar(
-    "span_collector", default=None
-)
-
-# Execution ID for the current evaluation item
-execution_id_context: ContextVar[str | None] = ContextVar("execution_id", default=None)
-
-# Evaluation set run ID (action ID) for grouping related LLM calls
-eval_set_run_id_context: ContextVar[str | None] = ContextVar(
-    "eval_set_run_id", default=None
-)
 
 # Cache manager for LLM and input mocker responses
 cache_manager_context: ContextVar[CacheManager | None] = ContextVar(

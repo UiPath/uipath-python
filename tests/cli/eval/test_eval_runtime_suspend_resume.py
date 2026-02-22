@@ -26,11 +26,10 @@ from uipath.runtime import (
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from uipath._cli._evals._evaluate import evaluate
-from uipath._cli._evals._runtime import UiPathEvalContext
 from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._events._event_bus import EventBus
-from uipath._events._events import EvaluationEvents
+from uipath.eval.runtime import UiPathEvalContext, evaluate
+from uipath.eval.runtime.events import EvaluationEvents
 
 
 class MockRuntimeSchema(UiPathRuntimeSchema):

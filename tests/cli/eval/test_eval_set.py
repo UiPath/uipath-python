@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from uipath._cli._evals._models._evaluation_set import (
+from uipath._cli._utils._eval_set import EvalHelpers
+from uipath.eval.mocks._types import LLMMockingStrategy
+from uipath.eval.models.evaluation_set import (
     EvaluationSet,
 )
-from uipath._cli._evals.mocks.types import LLMMockingStrategy
-from uipath._cli._utils._eval_set import EvalHelpers
 
 
 @pytest.mark.asyncio

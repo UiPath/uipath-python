@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from uipath._cli._evals._models._evaluation_set import EvaluationSet
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import NumericEvaluationResult
+from uipath.eval.models.evaluation_set import EvaluationSet
+from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime
 
 
 class MockSpan:
@@ -251,7 +251,7 @@ class TestEvaluationSpanCreation:
     @pytest.fixture
     def mock_eval_item(self) -> Any:
         """Create a real EvaluationItem instance for testing."""
-        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+        from uipath.eval.models.evaluation_set import EvaluationItem
 
         return EvaluationItem(
             id="item-123",
@@ -503,7 +503,7 @@ class TestSpanAttributeValues:
         mock_execution_output.spans = []
         mock_execution_output.logs = []
 
-        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+        from uipath.eval.models.evaluation_set import EvaluationItem
 
         for i in range(3):
             eval_item = EvaluationItem(
@@ -723,7 +723,7 @@ class TestSpanOutputAttributes:
         mock_event_bus: MagicMock,
     ) -> None:
         """Test that Evaluation Set Run span has output attribute with score."""
-        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+        from uipath.eval.models.evaluation_set import EvaluationItem
 
         context = create_eval_context(
             eval_set="test.json",
@@ -804,7 +804,7 @@ class TestSpanOutputAttributes:
         mock_event_bus: MagicMock,
     ) -> None:
         """Test that Evaluation span has metadata attributes (agentId, agentName, schemas)."""
-        from uipath._cli._evals._models._evaluation_set import EvaluationItem
+        from uipath.eval.models.evaluation_set import EvaluationItem
 
         context = create_eval_context(
             eval_set="test.json",
@@ -928,7 +928,7 @@ class TestSpanOutputAttributes:
             "validate_and_evaluate_criteria",
             new=AsyncMock(return_value=eval_result),
         ):
-            from uipath._cli._evals._models._evaluation_set import EvaluationItem
+            from uipath.eval.models.evaluation_set import EvaluationItem
 
             eval_item = EvaluationItem(
                 id="item-with-justification",

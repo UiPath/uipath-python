@@ -1,3 +1,5 @@
+"""Evaluator definitions and discriminators for legacy and coded evaluators."""
+
 from typing import Annotated, Any, Union
 
 from pydantic import ConfigDict, Discriminator, Field, Tag
@@ -29,20 +31,27 @@ from uipath.eval.models import (
 
 
 class UnknownLegacyEvaluator(BaseLegacyEvaluator[Any]):
+    """Fallback evaluator for unknown legacy evaluator types."""
+
     pass
 
 
 class UnknownEvaluatorConfig(BaseEvaluatorConfig[Any]):
+    """Fallback config for unknown evaluator types."""
+
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
 
 
 class UnknownCodedEvaluator(BaseEvaluator[Any, Any, Any]):
+    """Fallback evaluator for unknown coded evaluator types."""
+
     pass
 
 
 def legacy_evaluator_discriminator(data: Any) -> str:
+    """Determine the specific legacy evaluator type based on category and type fields."""
     if isinstance(data, dict):
         category = data.get("category")
         evaluator_type = data.get("type")
@@ -93,6 +102,7 @@ LegacyEvaluator = Annotated[
 
 
 def coded_evaluator_discriminator(data: Any) -> str:
+    """Determine the specific coded evaluator type based on evaluatorTypeId field."""
     if isinstance(data, dict):
         evaluator_type_id = data.get("evaluatorTypeId")
         match evaluator_type_id:
@@ -180,6 +190,7 @@ CodedEvaluator = Annotated[
 
 
 def evaluator_discriminator(data: Any) -> str:
+    """Determine the specific evaluator type (legacy vs coded) based on presence of version field."""
     if "version" in data:
         return "CodedEvaluator"
     else:
