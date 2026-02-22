@@ -8,10 +8,8 @@ from typing import (
     Awaitable,
     Iterable,
     Iterator,
-    Protocol,
     Sequence,
     Tuple,
-    runtime_checkable,
 )
 
 import coverage
@@ -98,25 +96,6 @@ from .mocks.mocks import (
 from .mocks.types import MockingContext
 
 logger = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class LLMAgentRuntimeProtocol(Protocol):
-    """Protocol for runtimes that can provide agent model information.
-
-    Runtimes that implement this protocol can be queried for
-    the agent's configured LLM model, enabling features like 'same-as-agent'
-    model resolution for evaluators.
-    """
-
-    def get_agent_model(self) -> str | None:
-        """Return the agent's configured LLM model name.
-
-        Returns:
-            The model name from agent settings (e.g., 'gpt-4o-2024-11-20'),
-            or None if no model is configured.
-        """
-        ...
 
 
 class ExecutionSpanExporter(SpanExporter):
