@@ -3,24 +3,10 @@
 import json
 import logging
 from datetime import datetime, timezone
-from enum import Enum
 
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-
-
-class CitationType(Enum):
-    """Citation type for system prompt generation.
-
-    Some models may have issues wrapping citation tags around text.
-    In those cases, we can prompt the citation tags to be placed after the text instead.
-    We also allow disabling citations entirely, for scenarios such as voice output.
-    """
-
-    NONE = "none"
-    WRAPPED = "wrapped"
-    TRAILING = "trailing"
 
 
 class PromptUserSettings(BaseModel):
@@ -96,26 +82,29 @@ WHAT TO CITE:
 - Any information drawn from web search results.
 - Any information drawn from Context Grounding documents.
 
-CITATION FORMAT:
-{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationFormatPrompt}}
+CITATION FORMAT (self-closing tag after each sentence with cited information):
+<uip:cite title="Document Title" reference="https://url" page_number="1"/>
 
 TOOL RESULT PATTERNS REQUIRING CITATION:
 Tool results containing these fields indicate citable sources:
-- Web results: "url", "title" fields
-- Context Grounding: objects with "reference", "source", "page_number", "content"
-
-SOURCE FORMATS:
-- URLs: {"title":"Page Title","url":"https://example.com"}
-- Context Grounding: {"title":"filename.pdf","reference":"https://ref.url","page_number":1}
-  where title is set to the document source (filename), and reference and page_number
-  are from the tool results
+- Web results: "url", "title" fields -> use title and url attributes
+- Context Grounding: objects with "reference", "source", "page_number" -> use title (from source), reference, page_number attributes
 
 RULES:
-- Minimum 1 source per citation (never empty array)
-- Truncate titles >48 chars
+- Place citation tag immediately after the sentence containing the cited fact
+- title attribute is required (truncate to 48 chars if needed)
+- For web results: use title and url attributes
+- For context grounding: use title, reference, and page_number attributes
 - Never include citations in tool inputs
 
-{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationExamplePrompt}}
+EXAMPLES OF CORRECT USAGE:
+AI adoption is growing rapidly. <uip:cite title="Industry Study" url="https://example.com/study"/>
+The procedure requires manager approval. <uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>
+
+CRITICAL ERRORS TO AVOID:
+<uip:cite/> (missing attributes)
+<uip:cite title=""/> (empty title)
+Putting all citations at the very end of the response instead of after each sentence
 
 =====================================================================
 EXECUTION CHECKLIST
@@ -144,24 +133,6 @@ You have the following information about the user:
 {user_settings_json}
 ```"""
 
-_CITATION_FORMAT_WRAPPED = "<uip:cite sources='[...]'>factual claim here</uip:cite>"
-_CITATION_FORMAT_TRAILING = "factual claim here<uip:cite sources='[...]'></uip:cite>"
-
-_CITATION_EXAMPLE_WRAPPED = """EXAMPLES OF CORRECT USAGE:
-<uip:cite sources='[{"title":"Study","url":"https://example.com"}]'>AI adoption is growing</uip:cite>
-
-CRITICAL ERRORS TO AVOID:
-<uip:cite sources='[]'>text</uip:cite> (empty sources)
-Some text<uip:cite sources='[...]'>part</uip:cite>more text (spacing)
-<uip:cite sources='[...]'></uip:cite> (empty claim)"""
-
-_CITATION_EXAMPLE_TRAILING = """EXAMPLES OF CORRECT USAGE:
-AI adoption is growing<uip:cite sources='[{"title":"Study","url":"https://example.com"}]'></uip:cite>
-
-CRITICAL ERRORS TO AVOID:
-text<uip:cite sources='[]'></uip:cite> (empty sources)
-Some text<uip:cite sources='[...]'>part</uip:cite>more text (content between citation tags)"""
-
 
 def get_chat_system_prompt(
     model: str,
@@ -178,9 +149,6 @@ def get_chat_system_prompt(
     Returns:
         The complete system prompt string
     """
-    # Determine citation type based on model
-    citation_type = _get_citation_type(model)
-
     # Format date as ISO 8601 (yyyy-MM-ddTHH:mmZ)
     formatted_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
@@ -206,33 +174,8 @@ def get_chat_system_prompt(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_userSettingsPrompt}}",
         _get_user_settings_template(user_settings),
     )
-    prompt = prompt.replace(
-        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationFormatPrompt}}",
-        _get_citation_format_prompt(citation_type),
-    )
-    prompt = prompt.replace(
-        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_citationExamplePrompt}}",
-        _get_citation_example_prompt(citation_type),
-    )
 
     return prompt
-
-
-def _get_citation_type(model: str) -> CitationType:
-    """Determine the citation type based on the agent's model.
-
-    GPT models use trailing citations due to issues with generating
-    wrapped citations around text.
-
-    Args:
-        model: The model name
-
-    Returns:
-        CitationType.TRAILING for GPT models, CitationType.WRAPPED otherwise
-    """
-    if "gpt" in model.lower():
-        return CitationType.TRAILING
-    return CitationType.WRAPPED
 
 
 def _get_user_settings_template(
@@ -259,35 +202,3 @@ def _get_user_settings_template(
 
     user_settings_json = json.dumps(settings_dict, ensure_ascii=False)
     return _USER_CONTEXT_TEMPLATE.format(user_settings_json=user_settings_json)
-
-
-def _get_citation_format_prompt(citation_type: CitationType) -> str:
-    """Get the citation format prompt based on citation type.
-
-    Args:
-        citation_type: The type of citation formatting to use
-
-    Returns:
-        The citation format string or empty string for NONE
-    """
-    if citation_type == CitationType.WRAPPED:
-        return _CITATION_FORMAT_WRAPPED
-    elif citation_type == CitationType.TRAILING:
-        return _CITATION_FORMAT_TRAILING
-    return ""
-
-
-def _get_citation_example_prompt(citation_type: CitationType) -> str:
-    """Get the citation example prompt based on citation type.
-
-    Args:
-        citation_type: The type of citation formatting to use
-
-    Returns:
-        The citation examples string or empty string for NONE
-    """
-    if citation_type == CitationType.WRAPPED:
-        return _CITATION_EXAMPLE_WRAPPED
-    elif citation_type == CitationType.TRAILING:
-        return _CITATION_EXAMPLE_TRAILING
-    return ""
