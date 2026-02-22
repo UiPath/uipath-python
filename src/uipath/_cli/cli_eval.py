@@ -10,7 +10,6 @@ from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
-    UiPathRuntimeProtocol,
     UiPathRuntimeSchema,
 )
 
@@ -19,7 +18,6 @@ from uipath._cli._evals._evaluate import evaluate
 from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._runtime import (
-    LLMAgentRuntimeProtocol,
     UiPathEvalContext,
 )
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
@@ -70,34 +68,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     return True
 
 
-def _find_agent_model_in_runtime(runtime: UiPathRuntimeProtocol) -> str | None:
-    """Recursively search for get_agent_model in runtime and its delegates.
-
-    Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
-    which wraps the base runtime). This method traverses the wrapper chain
-    to find a runtime that implements LLMAgentRuntimeProtocol.
-
-    Args:
-        runtime: The runtime to check (may be a wrapper)
-
-    Returns:
-        The model name if found, None otherwise.
-    """
-    # Check if this runtime implements the protocol
-    if isinstance(runtime, LLMAgentRuntimeProtocol):
-        return runtime.get_agent_model()
-
-    # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
-    delegate = getattr(runtime, "delegate", None) or getattr(runtime, "_delegate", None)
-    if delegate is not None:
-        return _find_agent_model_in_runtime(delegate)
-
-    return None
-
-
-async def _get_agent_model(
-    runtime: UiPathRuntimeProtocol, schema: UiPathRuntimeSchema
-) -> str | None:
+async def _get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
     """Get agent model from the runtime schema metadata.
 
     The model is read from schema.metadata["settings"]["model"] which is
@@ -113,12 +84,7 @@ async def _get_agent_model(
             if model:
                 logger.debug(f"Got agent model from schema.metadata: {model}")
                 return model
-
-        # Fallback to protocol-based approach for backwards compatibility
-        model = _find_agent_model_in_runtime(runtime)
-        if model:
-            logger.debug(f"Got agent model from runtime protocol: {model}")
-        return model
+        return None
     except Exception:
         return None
 
@@ -395,7 +361,7 @@ def eval(
                     eval_context.evaluators = await EvalHelpers.load_evaluators(
                         resolved_eval_set_path,
                         eval_context.evaluation_set,
-                        await _get_agent_model(runtime, eval_context.runtime_schema),
+                        await _get_agent_model(eval_context.runtime_schema),
                     )
 
                     # Runtime is not required anymore.
