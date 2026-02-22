@@ -22,14 +22,11 @@ from uipath.runtime import (
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from uipath._cli._evals._runtime import (
-    UiPathEvalContext,
-    UiPathEvalRuntime,
-)
 from uipath._cli.cli_eval import (
     _get_agent_model,
 )
 from uipath._events._event_bus import EventBus
+from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime
 
 
 class MockRuntimeSchema(UiPathRuntimeSchema):

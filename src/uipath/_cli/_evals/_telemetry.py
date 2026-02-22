@@ -7,11 +7,11 @@ events to Application Insights for monitoring and analytics.
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from uipath._cli._utils._common import get_claim_from_token
 from uipath._events._event_bus import EventBus
-from uipath._events._events import (
+from uipath.eval.runtime.events import (
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
@@ -50,12 +50,12 @@ class EvalTelemetrySubscriber:
 
     def __init__(self) -> None:
         """Initialize the telemetry subscriber."""
-        self._eval_set_start_times: Dict[str, float] = {}
-        self._eval_run_start_times: Dict[str, float] = {}
-        self._eval_set_info: Dict[str, Dict[str, Any]] = {}
-        self._eval_run_info: Dict[str, Dict[str, Any]] = {}
-        self._current_eval_set_run_id: Optional[str] = None
-        self._current_entrypoint: Optional[str] = None
+        self._eval_set_start_times: dict[str, float] = {}
+        self._eval_run_start_times: dict[str, float] = {}
+        self._eval_set_info: dict[str, dict[str, Any]] = {}
+        self._eval_run_info: dict[str, dict[str, Any]] = {}
+        self._current_eval_set_run_id: str | None = None
+        self._current_entrypoint: str | None = None
 
     @staticmethod
     def _get_agent_type(entrypoint: str) -> str:
@@ -112,7 +112,7 @@ class EvalTelemetrySubscriber:
             self._current_eval_set_run_id = eval_set_run_id
             self._current_entrypoint = event.entrypoint
 
-            properties: Dict[str, Any] = {
+            properties: dict[str, Any] = {
                 "EvalSetId": event.eval_set_id,
                 "EvalSetRunId": eval_set_run_id,
                 "Entrypoint": event.entrypoint,
@@ -142,7 +142,7 @@ class EvalTelemetrySubscriber:
                 "eval_item_name": event.eval_item.name,
             }
 
-            properties: Dict[str, Any] = {
+            properties: dict[str, Any] = {
                 "EvalId": event.eval_item.id,
                 "EvalName": event.eval_item.name,
                 "Runtime": "URT",
@@ -185,7 +185,7 @@ class EvalTelemetrySubscriber:
             avg_score = sum(scores) / len(scores) if scores else None
 
             # Try to get trace ID from spans
-            trace_id: Optional[str] = None
+            trace_id: str | None = None
             if event.spans:
                 for span in event.spans:
                     if span.context and span.context.trace_id:
@@ -193,7 +193,7 @@ class EvalTelemetrySubscriber:
                         trace_id = format(span.context.trace_id, "032x")
                         break
 
-            properties: Dict[str, Any] = {
+            properties: dict[str, Any] = {
                 "EvalId": run_info.get("eval_item_id", event.eval_item.id),
                 "EvalName": run_info.get("eval_item_name", event.eval_item.name),
                 "Success": event.success,
@@ -259,7 +259,7 @@ class EvalTelemetrySubscriber:
             scores = list(event.evaluator_scores.values())
             avg_score = sum(scores) / len(scores) if scores else None
 
-            properties: Dict[str, Any] = {
+            properties: dict[str, Any] = {
                 "EvalSetId": set_info.get("eval_set_id", "unknown"),
                 "Success": event.success,
                 "EvaluatorCount": len(event.evaluator_scores),
@@ -302,7 +302,7 @@ class EvalTelemetrySubscriber:
         except Exception as e:
             logger.debug(f"Error tracking eval set run updated: {e}")
 
-    def _enrich_properties(self, properties: Dict[str, Any]) -> None:
+    def _enrich_properties(self, properties: dict[str, Any]) -> None:
         """Enrich properties with common context information.
 
         Args:

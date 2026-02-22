@@ -16,7 +16,7 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath._events._events import EvalSetRunCreatedEvent, EvalSetRunUpdatedEvent
+from uipath.eval.runtime.events import EvalSetRunCreatedEvent, EvalSetRunUpdatedEvent
 from uipath.tracing import LlmOpsHttpExporter
 
 # Test fixtures - simple mocks without full evaluator instantiation
@@ -225,7 +225,7 @@ class TestRequestSpecGeneration:
 
     def test_create_eval_set_run_spec_for_coded(self, progress_reporter):
         """Test creating eval set run spec for coded evaluators."""
-        from uipath._cli._evals._models._sw_reporting import StudioWebAgentSnapshot
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
 
         agent_snapshot = StudioWebAgentSnapshot(
             input_schema={"type": "object"}, output_schema={"type": "object"}
@@ -246,7 +246,7 @@ class TestRequestSpecGeneration:
 
     def test_create_eval_set_run_spec_for_legacy(self, progress_reporter):
         """Test creating eval set run spec for legacy evaluators."""
-        from uipath._cli._evals._models._sw_reporting import StudioWebAgentSnapshot
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
 
         agent_snapshot = StudioWebAgentSnapshot(
             input_schema={"type": "object"}, output_schema={"type": "object"}

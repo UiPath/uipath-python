@@ -7,7 +7,7 @@ def _get_action_id_from_context() -> str | None:
     """Get action_id from evaluation context if available."""
     try:
         # Import here to avoid circular dependency
-        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
+        from uipath.eval._execution_context import eval_set_run_id_context
 
         return eval_set_run_id_context.get()
     except (ImportError, LookupError):

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from opentelemetry.trace import Status, StatusCode
 
-from uipath._cli._evals._span_utils import (
+from uipath.eval.runtime._spans import (
     EvalSetRunOutput,
     EvaluationOutput,
     EvaluationOutputSpanOutput,

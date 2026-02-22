@@ -1,3 +1,5 @@
+"""Factory class for creating evaluator instances based on configuration."""
+
 import importlib.util
 import logging
 import sys
@@ -6,11 +8,7 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from uipath._cli._evals._helpers import (  # type: ignore # Remove after gnarly fix
-    try_extract_file_and_class_name,
-)
-from uipath._cli._evals._models._evaluator import CodedEvaluator, LegacyEvaluator
-from uipath._utils.constants import EVALS_FOLDER
+from uipath._utils.constants import CUSTOM_EVALUATOR_PREFIX, EVALS_FOLDER
 from uipath.eval.evaluators import (
     BaseEvaluator,
     BaseLegacyEvaluator,
@@ -20,8 +18,22 @@ from uipath.eval.evaluators import (
     LegacyTrajectoryEvaluator,
 )
 from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
+from uipath.eval.evaluators.evaluator import CodedEvaluator, LegacyEvaluator
 
 logger = logging.getLogger(__name__)
+
+
+def _try_extract_file_and_class_name(text: str) -> tuple[bool, str, str]:
+    if text.startswith(CUSTOM_EVALUATOR_PREFIX):
+        file_and_class = text[len(CUSTOM_EVALUATOR_PREFIX) :]
+        if ":" not in file_and_class:
+            raise ValueError(
+                f"evaluatorSchema must include class name after ':' - got: {text}"
+            )
+        file_path_str, class_name = file_and_class.rsplit(":", 1)
+
+        return True, file_path_str, class_name
+    return False, "", ""
 
 
 class EvaluatorFactory:
@@ -66,6 +78,7 @@ class EvaluatorFactory:
         evaluators_dir: Path | None = None,
         agent_model: str | None = None,
     ) -> GenericBaseEvaluator[Any, Any, Any]:
+        """Create an evaluator instance from configuration data."""
         if data.get("version", None) == "1.0":
             return cls._create_evaluator_internal(data, evaluators_dir)
         else:
@@ -78,7 +91,7 @@ class EvaluatorFactory:
     ) -> BaseEvaluator[Any, Any, Any]:
         # check custom evaluator
         evaluator_schema = data.get("evaluatorSchema", "")
-        success, file_path, class_name = try_extract_file_and_class_name(
+        success, file_path, class_name = _try_extract_file_and_class_name(
             evaluator_schema
         )
         if success:

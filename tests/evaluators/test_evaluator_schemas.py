@@ -594,7 +594,7 @@ class TestEvaluatorReference:
 
     def test_evaluator_reference_from_string(self) -> None:
         """Test creating EvaluatorReference from a string."""
-        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+        from uipath.eval.models.evaluation_set import EvaluatorReference
 
         ref = EvaluatorReference.model_validate("evaluator-id-123")
         assert ref.ref == "evaluator-id-123"
@@ -602,7 +602,7 @@ class TestEvaluatorReference:
 
     def test_evaluator_reference_from_dict_with_weight(self) -> None:
         """Test creating EvaluatorReference from a dict with weight."""
-        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+        from uipath.eval.models.evaluation_set import EvaluatorReference
 
         ref = EvaluatorReference.model_validate(
             {"ref": "evaluator-id-123", "weight": 2.5}
@@ -612,7 +612,7 @@ class TestEvaluatorReference:
 
     def test_evaluator_reference_from_dict_without_weight(self) -> None:
         """Test creating EvaluatorReference from a dict without weight."""
-        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+        from uipath.eval.models.evaluation_set import EvaluatorReference
 
         ref = EvaluatorReference.model_validate({"ref": "evaluator-id-123"})
         assert ref.ref == "evaluator-id-123"
@@ -620,7 +620,7 @@ class TestEvaluatorReference:
 
     def test_evaluator_reference_serialization_with_weight(self) -> None:
         """Test serializing EvaluatorReference with weight."""
-        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+        from uipath.eval.models.evaluation_set import EvaluatorReference
 
         ref = EvaluatorReference(ref="evaluator-id-123", weight=2.5)
         serialized = ref.model_dump(mode="json")
@@ -628,7 +628,7 @@ class TestEvaluatorReference:
 
     def test_evaluator_reference_serialization_without_weight(self) -> None:
         """Test serializing EvaluatorReference without weight."""
-        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+        from uipath.eval.models.evaluation_set import EvaluatorReference
 
         ref = EvaluatorReference(ref="evaluator-id-123")
         serialized = ref.model_dump(mode="json")
@@ -636,7 +636,7 @@ class TestEvaluatorReference:
 
     def test_evaluator_reference_weight_validation(self) -> None:
         """Test that weight must be non-negative."""
-        from uipath._cli._evals._models._evaluation_set import EvaluatorReference
+        from uipath.eval.models.evaluation_set import EvaluatorReference
 
         # Valid weight
         ref = EvaluatorReference.model_validate(
@@ -650,7 +650,7 @@ class TestEvaluatorReference:
 
     def test_evaluation_set_with_evaluator_references(self) -> None:
         """Test EvaluationSet with EvaluatorReference objects in evaluatorConfigs."""
-        from uipath._cli._evals._models._evaluation_set import EvaluationSet
+        from uipath.eval.models.evaluation_set import EvaluationSet
 
         eval_set_data = {
             "id": "test-set-123",
@@ -675,7 +675,7 @@ class TestEvaluatorReference:
 
     def test_evaluation_set_backward_compatibility(self) -> None:
         """Test EvaluationSet with old evaluatorRefs field (backward compatibility)."""
-        from uipath._cli._evals._models._evaluation_set import EvaluationSet
+        from uipath.eval.models.evaluation_set import EvaluationSet
 
         eval_set_data = {
             "id": "test-set-456",

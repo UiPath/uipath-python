@@ -9,18 +9,18 @@ import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
-from uipath._cli._evals.mocks.mocks import (
+from uipath._cli.cli_debug import load_simulation_config
+from uipath._cli.middlewares import MiddlewareResult
+from uipath.eval.mocks._mocks import (
     clear_execution_context,
     is_tool_simulated,
 )
-from uipath._cli._evals.mocks.types import (
+from uipath.eval.mocks._types import (
     LLMMockingStrategy,
     MockingContext,
     MockingStrategyType,
     ToolSimulation,
 )
-from uipath._cli.cli_debug import load_simulation_config
-from uipath._cli.middlewares import MiddlewareResult
 
 
 @pytest.fixture
@@ -422,10 +422,10 @@ def main(input):
             assert mocking_ctx is not None
 
             # Manually set context (simulating what debug command does)
-            from uipath._cli._evals._span_collection import ExecutionSpanCollector
+            from uipath.eval._execution_context import ExecutionSpanCollector
 
             span_collector = ExecutionSpanCollector()
-            from uipath._cli._evals.mocks.mocks import set_execution_context
+            from uipath.eval.mocks._mocks import set_execution_context
 
             set_execution_context(mocking_ctx, span_collector, "test-execution-id")
 
@@ -512,8 +512,8 @@ class TestSimulationConfigFields:
             assert mocking_ctx is not None
 
             # Set context to test name normalization
-            from uipath._cli._evals._span_collection import ExecutionSpanCollector
-            from uipath._cli._evals.mocks.mocks import set_execution_context
+            from uipath.eval._execution_context import ExecutionSpanCollector
+            from uipath.eval.mocks._mocks import set_execution_context
 
             span_collector = ExecutionSpanCollector()
             set_execution_context(mocking_ctx, span_collector, "test-id")

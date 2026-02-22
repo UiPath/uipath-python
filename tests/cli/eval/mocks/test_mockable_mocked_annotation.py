@@ -5,14 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
-from uipath._cli._evals.mocks.mocks import (
+from uipath.eval.mocks import mockable
+from uipath.eval.mocks._mocks import (
     clear_execution_context,
     set_execution_context,
 )
-from uipath._cli._evals.mocks.types import MockingContext
-from uipath.eval.mocks import mockable
+from uipath.eval.mocks._types import MockingContext
 from uipath.eval.mocks.mockable import MOCKED_ANNOTATION_KEY
+from uipath.eval.models.evaluation_set import EvaluationItem
 
 _mock_span_collector = MagicMock()
 

@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from uipath._cli._evals._evaluator_factory import EvaluatorFactory
 from uipath.eval.evaluators.contains_evaluator import ContainsEvaluator
+from uipath.eval.evaluators.evaluator_factory import EvaluatorFactory
 from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
 from uipath.eval.evaluators.json_similarity_evaluator import JsonSimilarityEvaluator
 from uipath.eval.evaluators.llm_judge_output_evaluator import LLMJudgeOutputEvaluator

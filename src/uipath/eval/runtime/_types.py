@@ -8,11 +8,19 @@ from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
 from uipath.runtime import UiPathRuntimeResult
 
-from uipath.eval.models.models import (
+from ..models.models import (
     EvaluationResult,
     ScoreType,
     TrajectoryEvaluationTrace,
 )
+
+
+class EvaluationRuntimeException(Exception):
+    def __init__(self, spans, logs, root_exception, execution_time):
+        self.spans = spans
+        self.logs = logs
+        self.root_exception = root_exception
+        self.execution_time = execution_time
 
 
 class UiPathEvalRunExecutionOutput(BaseModel):

@@ -372,30 +372,3 @@ class _SpanUtils:
                 f"Error formatting arguments for trace: {e}. Using args and kwargs directly."
             )
             return {"args": args, "kwargs": kwargs}
-
-    @staticmethod
-    def spans_to_llm_context(spans: list[ReadableSpan]) -> str:
-        """Convert spans to a formatted conversation history string suitable for LLM context.
-
-        Includes function calls (including LLM calls) with their inputs and outputs.
-        """
-        history = []
-        for span in spans:
-            attributes = dict(span.attributes) if span.attributes else {}
-
-            input_value = attributes.get("input.value")
-            output_value = attributes.get("output.value")
-            telemetry_filter = attributes.get("telemetry.filter")
-
-            if not input_value or not output_value or telemetry_filter == "drop":
-                continue
-
-            history.append(f"Function: {span.name}")
-            history.append(f"Input: {input_value}")
-            history.append(f"Output: {output_value}")
-            history.append("")
-
-        if not history:
-            return "(empty)"
-
-        return "\n".join(history)

@@ -18,20 +18,20 @@ from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import get_debug_bridge
-from uipath._cli._evals._span_collection import ExecutionSpanCollector
-from uipath._cli._evals.mocks.mocks import (
+from uipath._cli._utils._debug import setup_debugging
+from uipath._cli._utils._studio_project import StudioClient
+from uipath._utils._bindings import ResourceOverwritesContext
+from uipath.eval._execution_context import ExecutionSpanCollector
+from uipath.eval.mocks._mocks import (
     clear_execution_context,
     set_execution_context,
 )
-from uipath._cli._evals.mocks.types import (
+from uipath.eval.mocks._types import (
     LLMMockingStrategy,
     MockingContext,
     MockingStrategyType,
     ToolSimulation,
 )
-from uipath._cli._utils._debug import setup_debugging
-from uipath._cli._utils._studio_project import StudioClient
-from uipath._utils._bindings import ResourceOverwritesContext
 from uipath.platform.common import UiPathConfig
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 

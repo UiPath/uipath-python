@@ -17,19 +17,6 @@ logger = logging.getLogger(__name__)
 console = ConsoleLogger().get_instance()
 
 
-def try_extract_file_and_class_name(text: str) -> tuple[bool, str, str]:
-    if text.startswith(CUSTOM_EVALUATOR_PREFIX):
-        file_and_class = text[len(CUSTOM_EVALUATOR_PREFIX) :]
-        if ":" not in file_and_class:
-            raise ValueError(
-                f"evaluatorSchema must include class name after ':' - got: {text}"
-            )
-        file_path_str, class_name = file_and_class.rsplit(":", 1)
-
-        return True, file_path_str, class_name
-    return False, "", ""
-
-
 def to_kebab_case(text: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "-", text).lower()
 

@@ -33,6 +33,7 @@ from uipath.core.guardrails import (
 )
 
 from uipath.agent.models._legacy import normalize_legacy_format
+from uipath.eval.mocks import ExampleCall
 from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
@@ -211,14 +212,6 @@ class BaseCfg(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
-
-
-class ExampleCall(BaseCfg):
-    """Example call for a resource containing resource I/O."""
-
-    id: str = Field(..., alias="id")
-    input: str = Field(..., alias="input")
-    output: str = Field(..., alias="output")
 
 
 class TextToken(BaseCfg):

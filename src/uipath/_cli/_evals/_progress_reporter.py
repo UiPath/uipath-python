@@ -5,30 +5,17 @@ import json
 import logging
 import os
 import uuid
+from enum import IntEnum
 from typing import Any
 from urllib.parse import urlparse
 
 from opentelemetry import trace
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 from rich.console import Console
 
-from uipath._cli._evals._models._evaluation_set import (
-    EvaluationItem,
-    EvaluationStatus,
-)
-from uipath._cli._evals._models._sw_reporting import (
-    StudioWebAgentSnapshot,
-    StudioWebProgressItem,
-)
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._events._event_bus import EventBus
-from uipath._events._events import (
-    EvalRunCreatedEvent,
-    EvalRunUpdatedEvent,
-    EvalSetRunCreatedEvent,
-    EvalSetRunUpdatedEvent,
-    EvaluationEvents,
-)
 from uipath._utils import Endpoint, RequestSpec
 from uipath._utils.constants import (
     ENV_EVAL_BACKEND_URL,
@@ -41,10 +28,40 @@ from uipath.eval.evaluators import (
 )
 from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
+from uipath.eval.models.evaluation_set import EvaluationItem
+from uipath.eval.runtime.events import (
+    EvalRunCreatedEvent,
+    EvalRunUpdatedEvent,
+    EvalSetRunCreatedEvent,
+    EvalSetRunUpdatedEvent,
+    EvaluationEvents,
+)
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
 
 logger = logging.getLogger(__name__)
+
+
+class EvaluationStatus(IntEnum):
+    PENDING = 0
+    IN_PROGRESS = 1
+    COMPLETED = 2
+    FAILED = 3
+
+
+class StudioWebProgressItem(BaseModel):
+    eval_run_id: str
+    eval_results: list[EvalItemResult]
+    success: bool
+    agent_output: dict[str, Any]
+    agent_execution_time: float
+
+
+class StudioWebAgentSnapshot(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    input_schema: dict[str, Any]
+    output_schema: dict[str, Any]
 
 
 def gracefully_handle_errors(func):
