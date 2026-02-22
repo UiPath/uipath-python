@@ -3,9 +3,8 @@
 import math
 from typing import Any, Tuple, TypeVar
 
-from uipath.eval.models import EvaluationResult, NumericEvaluationResult
-
 from .._helpers.output_path import resolve_output_path
+from ..models import EvaluationResult, NumericEvaluationResult
 from ..models.models import AgentExecution
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator

@@ -6,7 +6,8 @@ from string import Template
 
 import click
 
-from .._utils.constants import EVALS_FOLDER
+from uipath.eval.constants import EVALS_FOLDER
+
 from ._utils._console import ConsoleLogger
 from ._utils._resources import Resources
 

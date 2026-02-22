@@ -1,23 +1,24 @@
+"""Helper functions for evaluation commands, including loading and parsing evaluation sets and evaluators."""
+
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import click
 from pydantic import ValidationError
 
-from uipath._cli._evals._evaluator_factory import EvaluatorFactory
-from uipath._cli._evals._models._evaluation_set import (
+from .evaluators.base_evaluator import GenericBaseEvaluator
+from .evaluators.evaluator_factory import EvaluatorFactory
+from .mocks._types import InputMockingStrategy, LLMMockingStrategy
+from .models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
     LegacyEvaluationItem,
     LegacyEvaluationSet,
 )
-from uipath._cli._evals.mocks.types import InputMockingStrategy, LLMMockingStrategy
-from uipath._cli._utils._console import ConsoleLogger
-from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 
-console = ConsoleLogger()
-
+logger = logging.getLogger(__name__)
 
 EVAL_SETS_DIRECTORY_NAME = "evaluations/eval-sets"
 
@@ -41,6 +42,8 @@ def discriminate_eval_set(data: dict[str, Any]) -> EvaluationSet | LegacyEvaluat
 
 
 class EvalHelpers:
+    """Helper functions for evaluation commands, including loading and parsing evaluation sets and evaluators."""
+
     @staticmethod
     def auto_discover_eval_set() -> str:
         """Auto-discover evaluation set from {EVAL_SETS_DIRECTORY_NAME} directory.
@@ -74,7 +77,7 @@ class EvalHelpers:
             )
 
         eval_set_path = str(eval_set_files[0])
-        console.info(
+        logger.info(
             f"Auto-discovered evaluation set: {click.style(eval_set_path, fg='cyan')}"
         )
 

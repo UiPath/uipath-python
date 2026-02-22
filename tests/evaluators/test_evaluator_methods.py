@@ -824,9 +824,9 @@ class TestLlmAsAJudgeEvaluator:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -921,9 +921,9 @@ class TestLlmAsAJudgeEvaluator:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -976,9 +976,9 @@ class TestLlmJudgeTrajectoryEvaluator:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1028,9 +1028,9 @@ class TestLlmJudgeTrajectoryEvaluator:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1077,7 +1077,10 @@ class TestEvaluatorErrorHandling:
         """Test that evaluators properly validate config fields."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPath",
+            return_value=mock_uipath,
+        )
 
         config = {
             "name": "LLMJudgeEvaluator",
@@ -1298,9 +1301,9 @@ class TestJustificationHandling:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1354,9 +1357,9 @@ class TestJustificationHandling:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1507,9 +1510,9 @@ class TestJustificationHandling:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = capture_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1592,9 +1595,9 @@ class TestClaude45ModelSupport:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = capture_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1662,9 +1665,9 @@ class TestClaude45ModelSupport:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = capture_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 
@@ -1717,9 +1720,9 @@ class TestClaude45ModelSupport:
         mock_llm_instance = mocker.MagicMock()
         mock_llm_instance.chat_completions = capture_chat_completions
 
-        mocker.patch("uipath.platform.UiPath")
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
         mocker.patch(
-            "uipath.platform.chat.UiPathLlmChatService",
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
             return_value=mock_llm_instance,
         )
 

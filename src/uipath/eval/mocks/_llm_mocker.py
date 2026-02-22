@@ -4,22 +4,34 @@ import json
 import logging
 from typing import Any, Callable
 
+from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, TypeAdapter
 
-from uipath._cli._evals.mocks.types import (
-    LLMMockingStrategy,
-    MockingContext,
-)
 from uipath.core.tracing import traced
-from uipath.platform.common import _SpanUtils
+from uipath.platform import UiPath
+from uipath.platform.chat import UiPathLlmChatService
+from uipath.platform.chat._llm_gateway_service import _cleanup_schema
 
-from .._models._mocks import ExampleCall
-from .mocker import (
+from .._execution_context import (
+    eval_set_run_id_context,
+    execution_id_context,
+    span_collector_context,
+)
+from ._mock_context import (
+    cache_manager_context,
+    mocking_context,
+)
+from ._mocker import (
     Mocker,
     R,
     T,
     UiPathMockResponseGenerationError,
     UiPathNoMockFoundError,
+)
+from ._types import (
+    ExampleCall,
+    LLMMockingStrategy,
+    MockingContext,
 )
 
 PROMPT = """You are simulating a tool call for automated testing purposes of an Agent.
@@ -91,18 +103,6 @@ class LLMMocker(Mocker):
 
         function_name = params.get("name") or func.__name__
         if function_name in [x.name for x in self.context.strategy.tools_to_simulate]:
-            from uipath.platform import UiPath
-            from uipath.platform.chat import UiPathLlmChatService
-            from uipath.platform.chat._llm_gateway_service import _cleanup_schema
-
-            from .mocks import (
-                cache_manager_context,
-                eval_set_run_id_context,
-                execution_id_context,
-                mocking_context,
-                span_collector_context,
-            )
-
             uipath = UiPath()
             llm = UiPathLlmChatService(
                 uipath._config,
@@ -143,7 +143,7 @@ class LLMMocker(Mocker):
                 execution_id = execution_id_context.get()
                 if ctx and span_collector and execution_id:
                     spans = span_collector.get_spans(execution_id)
-                    test_run_history = _SpanUtils.spans_to_llm_context(spans)
+                    test_run_history = self.spans_to_llm_context(spans)
 
                 prompt_input: dict[str, Any] = {
                     "toolRunExamples": example_calls,
@@ -226,3 +226,30 @@ class LLMMocker(Mocker):
                 raise UiPathMockResponseGenerationError() from e
         else:
             raise UiPathNoMockFoundError(f"Method '{function_name}' is not simulated.")
+
+    @staticmethod
+    def spans_to_llm_context(spans: list[ReadableSpan]) -> str:
+        """Convert spans to a formatted conversation history string suitable for LLM context.
+
+        Includes function calls (including LLM calls) with their inputs and outputs.
+        """
+        history = []
+        for span in spans:
+            attributes = dict(span.attributes) if span.attributes else {}
+
+            input_value = attributes.get("input.value")
+            output_value = attributes.get("output.value")
+            telemetry_filter = attributes.get("telemetry.filter")
+
+            if not input_value or not output_value or telemetry_filter == "drop":
+                continue
+
+            history.append(f"Function: {span.name}")
+            history.append(f"Input: {input_value}")
+            history.append(f"Output: {output_value}")
+            history.append("")
+
+        if not history:
+            return "(empty)"
+
+        return "\n".join(history)

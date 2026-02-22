@@ -1,10 +1,11 @@
-from enum import IntEnum
+"""Evaluation set models."""
+
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from uipath._cli._evals.mocks.types import (
+from ..mocks._types import (
     InputMockingStrategy,
     MockingStrategy,
     ToolSimulation,
@@ -137,6 +138,7 @@ class EvaluationSet(BaseModel):
     )
 
     def extract_selected_evals(self, eval_ids) -> None:
+        """Filter evaluations to only include those with specified IDs."""
         selected_evals: list[EvaluationItem] = []
         remaining_ids = set(eval_ids)
         for evaluation in self.evaluations:
@@ -170,6 +172,7 @@ class LegacyEvaluationSet(BaseModel):
     updated_at: str = Field(alias="updatedAt")
 
     def extract_selected_evals(self, eval_ids) -> None:
+        """Filter evaluations to only include those with specified IDs."""
         selected_evals: list[LegacyEvaluationItem] = []
         remaining_ids = set(eval_ids)
         for evaluation in self.evaluations:
@@ -179,10 +182,3 @@ class LegacyEvaluationSet(BaseModel):
         if len(remaining_ids) > 0:
             raise ValueError("Unknown evaluation ids: {}".format(remaining_ids))
         self.evaluations = selected_evals
-
-
-class EvaluationStatus(IntEnum):
-    PENDING = 0
-    IN_PROGRESS = 1
-    COMPLETED = 2
-    FAILED = 3

@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any
 
-from uipath.eval.evaluators import EVALUATORS
+from ..evaluators import EVALUATORS
 
 
 def generate_evaluator_json_types(

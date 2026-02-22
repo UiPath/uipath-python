@@ -6,7 +6,6 @@ from typing import Any, Optional
 from httpx import Response
 from pydantic import TypeAdapter
 
-from uipath._cli._utils._eval_set import EvalHelpers
 from uipath._cli._utils._project_files import pull_project
 from uipath._cli._utils._studio_project import (
     ProjectFile,
@@ -15,11 +14,12 @@ from uipath._cli._utils._studio_project import (
     StudioSolutionsClient,
     resolve_path,
 )
-from uipath._utils.constants import EVALS_FOLDER
 from uipath.agent.models.agent import (
     AgentDefinition,
 )
 from uipath.agent.models.evals import AgentEvalsDefinition
+from uipath.eval.constants import EVALS_FOLDER
+from uipath.eval.helpers import EvalHelpers
 
 logger = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Iterator, Type
+from typing import Any, Iterator, NoReturn, Type
 
 import click
 from rich.console import Console
@@ -101,7 +101,7 @@ class ConsoleLogger:
         """Log a success message."""
         self.log(message, LogLevel.SUCCESS)
 
-    def error(self, message: str, include_traceback: bool = False) -> None:
+    def error(self, message: str, include_traceback: bool = False) -> NoReturn:
         """Log an error message with optional traceback.
 
         Args:

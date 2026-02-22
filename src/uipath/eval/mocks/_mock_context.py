@@ -1,14 +1,11 @@
 """Mocking interface."""
 
-import logging
 from contextvars import ContextVar
 from typing import Any, Callable
 
-from uipath._cli._evals._span_collection import ExecutionSpanCollector
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.mocker import Mocker, UiPathNoMockFoundError
-from uipath._cli._evals.mocks.mocker_factory import MockerFactory
-from uipath._cli._evals.mocks.types import (
+from ._cache_manager import CacheManager
+from ._mocker import Mocker, UiPathNoMockFoundError
+from ._types import (
     LLMMockingStrategy,
     MockingContext,
     MockitoMockingStrategy,
@@ -20,56 +17,11 @@ mocking_context: ContextVar[MockingContext | None] = ContextVar(
 )
 
 mocker_context: ContextVar[Mocker | None] = ContextVar("mocker", default=None)
-# Span collector for trace access during mocking
-span_collector_context: ContextVar[ExecutionSpanCollector | None] = ContextVar(
-    "span_collector", default=None
-)
-
-# Execution ID for the current evaluation item
-execution_id_context: ContextVar[str | None] = ContextVar("execution_id", default=None)
-
-# Evaluation set run ID (action ID) for grouping related LLM calls
-eval_set_run_id_context: ContextVar[str | None] = ContextVar(
-    "eval_set_run_id", default=None
-)
 
 # Cache manager for LLM and input mocker responses
 cache_manager_context: ContextVar[CacheManager | None] = ContextVar(
     "cache_manager", default=None
 )
-
-logger = logging.getLogger(__name__)
-
-
-def set_execution_context(
-    context: MockingContext | None,
-    span_collector: ExecutionSpanCollector,
-    execution_id: str | None = None,
-    eval_set_run_id: str | None = None,
-) -> None:
-    """Set the execution context for an evaluation run for mocking and trace access."""
-    mocking_context.set(context)
-
-    try:
-        if context and context.strategy:
-            mocker_context.set(MockerFactory.create(context))
-        else:
-            mocker_context.set(None)
-    except Exception:
-        logger.warning("Failed to create mocker.")
-        mocker_context.set(None)
-
-    span_collector_context.set(span_collector)
-    execution_id_context.set(execution_id)
-    eval_set_run_id_context.set(eval_set_run_id)
-
-
-def clear_execution_context() -> None:
-    """Clear the execution context after evaluation completes."""
-    mocking_context.set(None)
-    mocker_context.set(None)
-    span_collector_context.set(None)
-    execution_id_context.set(None)
 
 
 def _normalize_tool_name(name: str) -> str:

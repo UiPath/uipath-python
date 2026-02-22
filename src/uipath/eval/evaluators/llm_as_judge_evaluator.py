@@ -8,6 +8,10 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
+from uipath.platform import UiPath
+from uipath.platform.chat import UiPathLlmChatService
+
+from .._execution_context import eval_set_run_id_context
 from .._helpers.evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
     AgentExecution,
@@ -117,10 +121,6 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         The normalized API endpoint checks against AllowedNormalizedModels configuration,
         which includes multi-vendor models that agents use.
         """
-        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
-        from uipath.platform import UiPath
-        from uipath.platform.chat import UiPathLlmChatService
-
         try:
             uipath = UiPath()
             llm = UiPathLlmChatService(

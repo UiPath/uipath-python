@@ -4,9 +4,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel, Field
 
-from uipath.eval.models import EvaluatorType
-
-from ..models import AgentExecution, EvaluationResult
+from ..models import AgentExecution, EvaluationResult, EvaluatorType
 from ..models.llm_judge_types import (
     LLMJudgeOutputSchema,
     LLMJudgePromptTemplates,

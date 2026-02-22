@@ -4,12 +4,11 @@ from typing import Any, AsyncGenerator
 
 from pydantic import BaseModel
 
-from uipath._cli._evals._evaluate import evaluate
-from uipath._cli._evals._models._output import UiPathEvalOutput
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
-from uipath._cli._utils._eval_set import EvalHelpers
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
+from uipath.eval.helpers import EvalHelpers
+from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime, evaluate
+from uipath.eval.runtime._types import UiPathEvalOutput
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeEvent,
