@@ -10,8 +10,8 @@ from uipath._cli._evals.mocks.types import (
     LLMMockingStrategy,
     MockingContext,
 )
-from uipath.tracing import traced
-from uipath.tracing._utils import _SpanUtils
+from uipath.core.tracing import traced
+from uipath.platform.common import _SpanUtils
 
 from .._models._mocks import ExampleCall
 from .mocker import (
@@ -92,20 +92,26 @@ class LLMMocker(Mocker):
         function_name = params.get("name") or func.__name__
         if function_name in [x.name for x in self.context.strategy.tools_to_simulate]:
             from uipath.platform import UiPath
+            from uipath.platform.chat import UiPathLlmChatService
             from uipath.platform.chat._llm_gateway_service import _cleanup_schema
 
             from .mocks import (
                 cache_manager_context,
+                eval_set_run_id_context,
                 execution_id_context,
                 mocking_context,
                 span_collector_context,
             )
 
-            llm = UiPath(
+            uipath = UiPath()
+            llm = UiPathLlmChatService(
+                uipath._config,
+                uipath._execution_context,
                 requesting_product="agentsplayground",
                 requesting_feature="agents-evaluations",
                 agenthub_config="agentsevals",
-            ).llm
+                action_id=eval_set_run_id_context.get(),
+            )
             return_type: Any = func.__annotations__.get("return", None)
             if return_type is None:
                 return_type = Any

@@ -12,11 +12,11 @@ from pydantic import TypeAdapter
 from pydantic_function_models import (  # type: ignore[import-untyped]
     ValidatedFunction,
 )
-from uipath.core import UiPathSpanUtils
 
 from uipath._cli._evals._models._mocks import ExampleCall
 from uipath._cli._evals.mocks.mocker import UiPathNoMockFoundError
 from uipath._cli._evals.mocks.mocks import get_mocked_response
+from uipath.core import UiPathSpanUtils
 
 _event_loop = None
 logger = logging.getLogger(__name__)

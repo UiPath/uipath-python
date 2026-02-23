@@ -21,7 +21,6 @@ from uipath._cli._evals._models._sw_reporting import (
     StudioWebProgressItem,
 )
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
@@ -35,6 +34,7 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
+from uipath.core.events import EventBus
 from uipath.eval.evaluators import (
     BaseEvaluator,
     BaseLegacyEvaluator,

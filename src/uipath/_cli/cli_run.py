@@ -1,7 +1,13 @@
 import asyncio
 
 import click
+
+from uipath._cli._chat._bridge import get_chat_bridge
+from uipath._cli._debug._bridge import ConsoleDebugBridge
+from uipath._cli._utils._common import read_resource_overwrites_from_file
+from uipath._cli._utils._debug import setup_debugging
 from uipath.core.tracing import UiPathTraceManager
+from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeFactoryProtocol,
@@ -15,13 +21,6 @@ from uipath.runtime.context import UiPathRuntimeContext
 from uipath.runtime.debug import UiPathDebugProtocol
 from uipath.runtime.errors import UiPathRuntimeError
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
-
-from uipath._cli._chat._bridge import get_chat_bridge
-from uipath._cli._debug._bridge import ConsoleDebugBridge
-from uipath._cli._utils._common import read_resource_overwrites_from_file
-from uipath._cli._utils._debug import setup_debugging
-from uipath._utils._bindings import ResourceOverwritesContext
-from uipath.platform.common import UiPathConfig
 from uipath.tracing import (
     JsonLinesFileExporter,
     LiveTrackingSpanProcessor,

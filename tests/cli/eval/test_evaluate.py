@@ -3,6 +3,12 @@ from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from pydantic import BaseModel
+
+from uipath._cli._evals._evaluate import evaluate
+from uipath._cli._evals._models._output import UiPathEvalOutput
+from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._utils._eval_set import EvalHelpers
+from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -15,12 +21,6 @@ from uipath.runtime import (
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
-
-from uipath._cli._evals._evaluate import evaluate
-from uipath._cli._evals._models._output import UiPathEvalOutput
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
-from uipath._cli._utils._eval_set import EvalHelpers
-from uipath._events._event_bus import EventBus
 
 
 async def test_evaluate():

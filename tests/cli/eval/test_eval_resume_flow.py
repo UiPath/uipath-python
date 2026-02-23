@@ -5,6 +5,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
+from uipath._cli._utils._eval_set import EvalHelpers
+from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -13,10 +17,6 @@ from uipath.runtime import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
-from uipath._cli._utils._eval_set import EvalHelpers
-from uipath._events._event_bus import EventBus
 
 # ============================================================================
 # Direct unit tests using mocks to verify the specific code path we changed

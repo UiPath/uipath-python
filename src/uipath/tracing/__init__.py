@@ -1,6 +1,11 @@
 """Tracing utilities and OpenTelemetry exporters."""
 
 from uipath.core import traced
+from uipath.platform.common._span_utils import (
+    AttachmentDirection,
+    AttachmentProvider,
+    SpanAttachment,
+)
 
 from ._live_tracking_processor import LiveTrackingSpanProcessor
 from ._otel_exporters import (  # noqa: D104
@@ -8,7 +13,6 @@ from ._otel_exporters import (  # noqa: D104
     LlmOpsHttpExporter,
     SpanStatus,
 )
-from ._utils import AttachmentDirection, AttachmentProvider, SpanAttachment
 
 __all__ = [
     "traced",
@@ -16,7 +20,7 @@ __all__ = [
     "JsonLinesFileExporter",
     "LiveTrackingSpanProcessor",
     "SpanStatus",
-    "SpanAttachment",
-    "AttachmentProvider",
     "AttachmentDirection",
+    "AttachmentProvider",
+    "SpanAttachment",
 ]

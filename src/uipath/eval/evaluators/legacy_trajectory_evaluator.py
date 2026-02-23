@@ -7,9 +7,9 @@ from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import field_validator
 
 from uipath.eval.models import EvaluationResult
+from uipath.platform.chat import UiPathLlmChatService
 
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
-from ...platform.chat import UiPathLlmChatService
 from ...platform.chat.llm_gateway import RequiredToolChoice
 from .._helpers.helpers import is_empty_value
 from ..models.models import (
@@ -61,14 +61,19 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
 
     def _initialize_llm(self):
         """Initialize the LLM used for evaluation."""
+        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
         from uipath.platform import UiPath
+        from uipath.platform.chat import UiPathLlmChatService
 
-        uipath = UiPath(
+        uipath = UiPath()
+        self.llm = UiPathLlmChatService(
+            uipath._config,
+            uipath._execution_context,
             requesting_product="agentsplayground",
             requesting_feature="agents-evaluations",
             agenthub_config="agentsevals",
+            action_id=eval_set_run_id_context.get(),
         )
-        self.llm = uipath.llm
 
     async def evaluate(
         self,

@@ -12,10 +12,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 from click.testing import CliRunner
-from uipath.runtime.errors import UiPathRuntimeError
 
 from uipath._cli._auth._portal_service import PortalService
 from uipath.platform.common import TokenData
+from uipath.runtime.errors import UiPathRuntimeError
 
 
 @pytest.fixture

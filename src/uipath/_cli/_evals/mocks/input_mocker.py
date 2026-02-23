@@ -62,14 +62,20 @@ async def generate_llm_input(
     expected_output: dict[str, Any],
 ) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
-    from .mocks import cache_manager_context
+    from .mocks import cache_manager_context, eval_set_run_id_context
 
     try:
-        llm = UiPath(
+        from uipath.platform.chat import UiPathLlmChatService
+
+        uipath = UiPath()
+        llm = UiPathLlmChatService(
+            uipath._config,
+            uipath._execution_context,
             requesting_product="agentsplayground",
             requesting_feature="agents-evaluations",
             agenthub_config="agentsevals",
-        ).llm
+            action_id=eval_set_run_id_context.get(),
+        )
         cache_manager = cache_manager_context.get()
 
         # Ensure additionalProperties is set for strict mode compatibility

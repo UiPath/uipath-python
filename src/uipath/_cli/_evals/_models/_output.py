@@ -6,13 +6,13 @@ from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, ConfigDict, model_serializer
 from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
-from uipath.runtime import UiPathRuntimeResult
 
 from uipath.eval.models.models import (
     EvaluationResult,
     ScoreType,
     TrajectoryEvaluationTrace,
 )
+from uipath.runtime import UiPathRuntimeResult
 
 
 class UiPathEvalRunExecutionOutput(BaseModel):

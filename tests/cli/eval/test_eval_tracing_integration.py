@@ -10,12 +10,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from uipath.runtime.schema import UiPathRuntimeSchema
 
 from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.models import NumericEvaluationResult
+from uipath.runtime.schema import UiPathRuntimeSchema
 
 
 class MockSpan:

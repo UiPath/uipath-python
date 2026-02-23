@@ -16,7 +16,6 @@ from uipath._cli._evals._telemetry import (
     EVAL_SET_RUN_STARTED,
     EvalTelemetrySubscriber,
 )
-from uipath._events._event_bus import EventBus
 from uipath._events._events import (
     EvalItemExceptionDetails,
     EvalRunCreatedEvent,
@@ -24,6 +23,7 @@ from uipath._events._events import (
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
 )
+from uipath.core.events import EventBus
 from uipath.eval.models import EvalItemResult, NumericEvaluationResult
 
 
