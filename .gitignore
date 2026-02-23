@@ -33,3 +33,13 @@ site
 
 .claude/*
 firebase-debug.log
+
+samples/**/AGENTS.md
+samples/**/CLAUDE.md
+samples/**/.claude/
+samples/**/.agent/
+samples/**/.vscode/
+samples/**/entry-points.json
+samples/**/uv.lock
+
+testcases/**/uv.lock
