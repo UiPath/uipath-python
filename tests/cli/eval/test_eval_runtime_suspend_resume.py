@@ -13,6 +13,11 @@ from typing import Any, AsyncGenerator
 from unittest.mock import AsyncMock
 
 import pytest
+
+from uipath._cli._evals._evaluate import evaluate
+from uipath._cli._evals._runtime import UiPathEvalContext
+from uipath._cli._utils._eval_set import EvalHelpers
+from uipath._events._events import EvaluationEvents
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
@@ -26,11 +31,6 @@ from uipath.runtime import (
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
-
-from uipath._cli._evals._evaluate import evaluate
-from uipath._cli._evals._runtime import UiPathEvalContext
-from uipath._cli._utils._eval_set import EvalHelpers
-from uipath._events._events import EvaluationEvents
 
 
 class MockRuntimeSchema(UiPathRuntimeSchema):

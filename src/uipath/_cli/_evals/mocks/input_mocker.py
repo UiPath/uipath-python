@@ -4,11 +4,10 @@ import json
 from datetime import datetime
 from typing import Any
 
-from uipath.platform import UiPath
-
 from uipath._cli._evals.mocks.types import (
     InputMockingStrategy,
 )
+from uipath.platform import UiPath
 from uipath.tracing import traced
 
 from .mocker import UiPathInputMockingError

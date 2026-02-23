@@ -5,17 +5,6 @@ import uuid
 from pathlib import Path
 
 import click
-from uipath.core.tracing import UiPathTraceManager
-from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
-from uipath.runtime import (
-    UiPathExecuteOptions,
-    UiPathRuntimeContext,
-    UiPathRuntimeFactoryProtocol,
-    UiPathRuntimeFactoryRegistry,
-    UiPathRuntimeProtocol,
-)
-from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
-from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import get_debug_bridge
@@ -32,6 +21,17 @@ from uipath._cli._evals.mocks.types import (
 )
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
+from uipath.core.tracing import UiPathTraceManager
+from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.runtime import (
+    UiPathExecuteOptions,
+    UiPathRuntimeContext,
+    UiPathRuntimeFactoryProtocol,
+    UiPathRuntimeFactoryRegistry,
+    UiPathRuntimeProtocol,
+)
+from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
+from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
 from ._utils._console import ConsoleLogger

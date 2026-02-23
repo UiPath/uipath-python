@@ -25,6 +25,8 @@ from pydantic import (
     Tag,
     model_validator,
 )
+
+from uipath.agent.models._legacy import normalize_legacy_format
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
@@ -35,8 +37,6 @@ from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
-
-from uipath.agent.models._legacy import normalize_legacy_format
 
 EMPTY_SCHEMA = {"type": "object", "properties": {}}
 

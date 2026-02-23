@@ -117,10 +117,9 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         The normalized API endpoint checks against AllowedNormalizedModels configuration,
         which includes multi-vendor models that agents use.
         """
+        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
         from uipath.platform import UiPath
         from uipath.platform.chat import UiPathLlmChatService
-
-        from uipath._cli._evals.mocks.mocks import eval_set_run_id_context
 
         try:
             uipath = UiPath()

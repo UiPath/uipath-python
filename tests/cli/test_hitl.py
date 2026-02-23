@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
+
 from uipath.core.errors import ErrorCategory, UiPathFaultedTriggerError
 from uipath.core.triggers import (
     UiPathApiTrigger,

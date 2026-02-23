@@ -1,11 +1,10 @@
+from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeResult,
 )
-
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 
 
 async def evaluate(

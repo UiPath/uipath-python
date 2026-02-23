@@ -28,6 +28,16 @@ from opentelemetry.trace import (
     use_span,
 )
 from pydantic import BaseModel
+
+from uipath._cli._evals._span_utils import (
+    configure_eval_set_run_span,
+    configure_evaluation_span,
+    set_evaluation_output_span_output,
+)
+from uipath._cli._evals.mocks.cache_manager import CacheManager
+from uipath._cli._evals.mocks.input_mocker import (
+    generate_llm_input,
+)
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
@@ -45,16 +55,6 @@ from uipath.runtime.errors import (
 )
 from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
-
-from uipath._cli._evals._span_utils import (
-    configure_eval_set_run_span,
-    configure_evaluation_span,
-    set_evaluation_output_span_output,
-)
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.input_mocker import (
-    generate_llm_input,
-)
 
 from ..._events._events import (
     EvalItemExceptionDetails,

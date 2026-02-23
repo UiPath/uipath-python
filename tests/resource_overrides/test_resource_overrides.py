@@ -9,10 +9,10 @@ import pytest
 from click.testing import CliRunner
 from opentelemetry.sdk.trace.export import SpanExporter
 from pytest_httpx import HTTPXMock
-from uipath.platform.common import ResourceOverwriteParser
-from uipath.runtime import UiPathRuntimeResult
 
 from uipath._cli import cli
+from uipath.platform.common import ResourceOverwriteParser
+from uipath.runtime import UiPathRuntimeResult
 
 
 @pytest.fixture
@@ -518,7 +518,6 @@ class TestResourceOverrideWithTracing:
             ResourceOverwritesContext,
             resource_override,
         )
-
         from uipath.tracing import traced
 
         provider, captured_spans = tracer_provider_with_memory_exporter

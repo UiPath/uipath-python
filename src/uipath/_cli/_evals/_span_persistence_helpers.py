@@ -5,6 +5,7 @@ from typing import Any
 
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.trace import SpanContext, SpanKind, Status, StatusCode, TraceFlags
+
 from uipath.runtime import UiPathRuntimeStorageProtocol
 
 logger = logging.getLogger(__name__)

@@ -7,6 +7,7 @@ from types import UnionType
 from typing import Any, Union, get_args, get_origin
 
 from pydantic import BaseModel
+
 from uipath.runtime.schema import transform_nullable_types, transform_references
 
 SPECIAL_TYPES_MAP: dict[str, Any] = {

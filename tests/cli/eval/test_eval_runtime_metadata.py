@@ -9,6 +9,14 @@ import uuid
 from typing import Any, AsyncGenerator
 
 import pytest
+
+from uipath._cli._evals._runtime import (
+    UiPathEvalContext,
+    UiPathEvalRuntime,
+)
+from uipath._cli.cli_eval import (
+    _get_agent_model,
+)
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
@@ -22,14 +30,6 @@ from uipath.runtime import (
     UiPathStreamOptions,
 )
 from uipath.runtime.schema import UiPathRuntimeSchema
-
-from uipath._cli._evals._runtime import (
-    UiPathEvalContext,
-    UiPathEvalRuntime,
-)
-from uipath._cli.cli_eval import (
-    _get_agent_model,
-)
 
 
 class MockRuntimeSchema(UiPathRuntimeSchema):

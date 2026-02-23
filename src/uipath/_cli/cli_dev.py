@@ -2,12 +2,12 @@ import asyncio
 import signal
 
 import click
-from uipath.core.tracing import UiPathTraceManager
-from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.middlewares import Middlewares
+from uipath.core.tracing import UiPathTraceManager
+from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 console = ConsoleLogger()
 
@@ -31,7 +31,7 @@ def _check_dev_dependency(interface: str) -> None:
 @click.argument(
     "interface",
     type=click.Choice(["terminal", "web"], case_sensitive=False),
-    default="terminal",
+    default="web",
 )
 @click.option(
     "--debug",

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
+
 from uipath.core.serialization import serialize_object
 from uipath.runtime.errors import (
     UiPathErrorCategory,

@@ -1,6 +1,7 @@
 # type: ignore
 
 import pytest
+
 from uipath.platform.common import (
     ConnectionResourceOverwrite,
     GenericResourceOverwrite,

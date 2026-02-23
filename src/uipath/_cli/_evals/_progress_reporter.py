@@ -11,9 +11,6 @@ from urllib.parse import urlparse
 from opentelemetry import trace
 from pydantic import BaseModel
 from rich.console import Console
-from uipath.core.events import EventBus
-from uipath.platform import UiPath
-from uipath.platform.common import UiPathConfig
 
 from uipath._cli._evals._models._evaluation_set import (
     EvaluationItem,
@@ -37,12 +34,15 @@ from uipath._utils.constants import (
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
+from uipath.core.events import EventBus
 from uipath.eval.evaluators import (
     BaseEvaluator,
     BaseLegacyEvaluator,
 )
 from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
+from uipath.platform import UiPath
+from uipath.platform.common import UiPathConfig
 
 logger = logging.getLogger(__name__)
 

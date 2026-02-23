@@ -19,6 +19,8 @@ from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
     Node,
     Subgraph,
 )
+
+from uipath.platform.common import UiPathConfig
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryProtocol,
@@ -26,8 +28,6 @@ from uipath.runtime import (
     UiPathRuntimeProtocol,
 )
 from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
-
-from uipath.platform.common import UiPathConfig
 
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE

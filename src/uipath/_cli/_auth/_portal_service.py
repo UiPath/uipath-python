@@ -2,6 +2,7 @@ import time
 
 import click
 import httpx
+
 from uipath.platform.common import TokenData
 from uipath.runtime.errors import (
     UiPathErrorCategory,

@@ -5,7 +5,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from uipath.core.events import EventBus
 
 from uipath._cli._evals._models._evaluation_set import EvaluationItem
 from uipath._cli._evals._telemetry import (
@@ -24,6 +23,7 @@ from uipath._events._events import (
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
 )
+from uipath.core.events import EventBus
 from uipath.eval.models import EvalItemResult, NumericEvaluationResult
 
 

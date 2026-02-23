@@ -9,9 +9,6 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from uipath.core.events import EventBus
-from uipath.platform.common import UiPathConfig
-
 from uipath._cli._utils._common import get_claim_from_token
 from uipath._events._events import (
     EvalRunCreatedEvent,
@@ -20,6 +17,8 @@ from uipath._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
+from uipath.core.events import EventBus
+from uipath.platform.common import UiPathConfig
 from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)
