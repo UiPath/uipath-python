@@ -1,3 +1,7 @@
+"""Runtime for executing evaluation sets and runs, with support for parallel execution and resuming from checkpoints."""
+
+from __future__ import annotations
+
 import json
 import logging
 from collections import defaultdict
@@ -8,17 +12,11 @@ from typing import (
     Awaitable,
     Iterable,
     Iterator,
-    Sequence,
     Tuple,
 )
 
 import coverage
-from opentelemetry import context as context_api
-from opentelemetry.sdk.trace import ReadableSpan, Span
-from opentelemetry.sdk.trace.export import (
-    SpanExporter,
-    SpanExportResult,
-)
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import (
     NonRecordingSpan,
     SpanContext,
@@ -29,18 +27,8 @@ from opentelemetry.trace import (
 )
 from pydantic import BaseModel
 
-from uipath._cli._evals._span_utils import (
-    configure_eval_set_run_span,
-    configure_evaluation_span,
-    set_evaluation_output_span_output,
-)
-from uipath._cli._evals.mocks.cache_manager import CacheManager
-from uipath._cli._evals.mocks.input_mocker import (
-    generate_llm_input,
-)
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
-from uipath.core.tracing.processors import UiPathExecutionBatchTraceProcessor
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathExecutionRuntime,
@@ -56,7 +44,46 @@ from uipath.runtime.errors import (
 from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from ..._events._events import (
+from .._execution_context import ExecutionSpanCollector
+from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..mocks._cache_manager import CacheManager
+from ..mocks._input_mocker import (
+    generate_llm_input,
+)
+from ..mocks._mock_context import cache_manager_context
+from ..mocks._mock_runtime import UiPathMockRuntime
+from ..mocks._types import MockingContext
+from ..models import EvaluationResult
+from ..models.evaluation_set import (
+    EvaluationItem,
+    EvaluationSet,
+)
+from ..models.models import AgentExecution, EvalItemResult
+from ._exporters import (
+    ExecutionLogsExporter,
+    ExecutionSpanExporter,
+    ExecutionSpanProcessor,
+)
+from ._parallelization import execute_parallel
+from ._spans import (
+    configure_eval_set_run_span,
+    configure_evaluation_span,
+    load_execution_spans,
+    save_execution_spans,
+    set_evaluation_output_span_output,
+)
+from ._types import (
+    EvaluationResultDto,
+    EvaluationRuntimeException,
+    UiPathEvalOutput,
+    UiPathEvalRunExecutionOutput,
+    UiPathEvalRunResult,
+    UiPathEvalRunResultDto,
+    convert_eval_execution_output_to_serializable,
+)
+from ._utils import apply_input_overrides
+from .context import UiPathEvalContext
+from .events import (
     EvalItemExceptionDetails,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
@@ -64,142 +91,8 @@ from ..._events._events import (
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from ...eval.evaluators.base_evaluator import GenericBaseEvaluator
-from ...eval.models import EvaluationResult
-from ...eval.models.models import AgentExecution, EvalItemResult
-from .._utils._parallelization import execute_parallel
-from ._eval_util import apply_input_overrides
-from ._models._evaluation_set import (
-    EvaluationItem,
-    EvaluationSet,
-)
-from ._models._exceptions import EvaluationRuntimeException
-from ._models._output import (
-    EvaluationResultDto,
-    EvaluationRunResult,
-    EvaluationRunResultDto,
-    UiPathEvalOutput,
-    UiPathEvalRunExecutionOutput,
-    convert_eval_execution_output_to_serializable,
-)
-from ._span_collection import ExecutionSpanCollector
-from ._span_persistence_helpers import (
-    load_execution_spans,
-    save_execution_spans,
-)
-from .mocks.mocks import (
-    cache_manager_context,
-    clear_execution_context,
-    execution_id_context,
-    set_execution_context,
-)
-from .mocks.types import MockingContext
 
 logger = logging.getLogger(__name__)
-
-
-class ExecutionSpanExporter(SpanExporter):
-    """Custom exporter that stores spans grouped by execution ids."""
-
-    def __init__(self):
-        # { execution_id -> list of spans }
-        self._spans: dict[str, list[ReadableSpan]] = defaultdict(list)
-
-    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        for span in spans:
-            if span.attributes is not None:
-                exec_id = span.attributes.get("execution.id")
-                if exec_id is not None and isinstance(exec_id, str):
-                    self._spans[exec_id].append(span)
-
-        return SpanExportResult.SUCCESS
-
-    def get_spans(self, execution_id: str) -> list[ReadableSpan]:
-        """Retrieve spans for a given execution id."""
-        return self._spans.get(execution_id, [])
-
-    def clear(self, execution_id: str | None = None) -> None:
-        """Clear stored spans for one or all executions."""
-        if execution_id:
-            self._spans.pop(execution_id, None)
-        else:
-            self._spans.clear()
-
-    def shutdown(self) -> None:
-        self.clear()
-
-
-class ExecutionSpanProcessor(UiPathExecutionBatchTraceProcessor):
-    """Span processor that adds spans to ExecutionSpanCollector when they start."""
-
-    def __init__(self, span_exporter: SpanExporter, collector: ExecutionSpanCollector):
-        super().__init__(span_exporter)
-        self.collector = collector
-
-    def on_start(
-        self, span: Span, parent_context: context_api.Context | None = None
-    ) -> None:
-        super().on_start(span, parent_context)
-
-        exec_id = span.attributes.get("execution.id") if span.attributes else None
-
-        # Fallback: if execution.id wasn't propagated (e.g., NonRecordingSpan
-        # parent on resume), get it from the execution context variable.
-        if exec_id is None:
-            ctx_exec_id = execution_id_context.get()
-            if ctx_exec_id:
-                span.set_attribute("execution.id", ctx_exec_id)
-                exec_id = ctx_exec_id
-
-        if span.attributes and "execution.id" in span.attributes:
-            exec_id = span.attributes["execution.id"]
-            if isinstance(exec_id, str):
-                self.collector.add_span(span, exec_id)
-
-
-class ExecutionLogsExporter:
-    """Custom exporter that stores multiple execution log handlers."""
-
-    def __init__(self):
-        self._log_handlers: dict[str, UiPathRuntimeExecutionLogHandler] = {}
-
-    def register(
-        self, execution_id: str, handler: UiPathRuntimeExecutionLogHandler
-    ) -> None:
-        self._log_handlers[execution_id] = handler
-
-    def get_logs(self, execution_id: str) -> list[logging.LogRecord]:
-        """Clear stored spans for one or all executions."""
-        log_handler = self._log_handlers.get(execution_id)
-        return log_handler.buffer if log_handler else []
-
-    def clear(self, execution_id: str | None = None) -> None:
-        """Clear stored spans for one or all executions."""
-        if execution_id:
-            self._log_handlers.pop(execution_id, None)
-        else:
-            self._log_handlers.clear()
-
-
-class UiPathEvalContext:
-    """Context used for evaluation runs."""
-
-    # Required Fields
-    runtime_schema: UiPathRuntimeSchema
-    evaluation_set: EvaluationSet
-    evaluators: list[GenericBaseEvaluator[Any, Any, Any]]
-    execution_id: str
-
-    # Optional Fields
-    entrypoint: str | None = None
-    workers: int | None = 1
-    eval_set_run_id: str | None = None
-    verbose: bool = False
-    enable_mocker_cache: bool = False
-    report_coverage: bool = False
-    input_overrides: dict[str, Any] | None = None
-    resume: bool = False
-    job_id: str | None = None
 
 
 class UiPathEvalRuntime:
@@ -212,6 +105,7 @@ class UiPathEvalRuntime:
         trace_manager: UiPathTraceManager,
         event_bus: EventBus,
     ):
+        """Initialize the evaluation runtime."""
         self.context: UiPathEvalContext = context
         self.factory: UiPathRuntimeFactoryProtocol = factory
         self.event_bus: EventBus = event_bus
@@ -235,7 +129,8 @@ class UiPathEvalRuntime:
 
         self._storage: UiPathRuntimeStorageProtocol | None = None
 
-    async def __aenter__(self) -> "UiPathEvalRuntime":
+    async def __aenter__(self) -> UiPathEvalRuntime:
+        """Async context manager entry - initialize storage and start coverage if enabled."""
         if self.context.report_coverage:
             self.coverage.start()
         self._storage = await self.factory.get_storage()
@@ -243,11 +138,13 @@ class UiPathEvalRuntime:
         return self
 
     async def __aexit__(self, *args: Any) -> None:
+        """Async context manager exit - stop coverage and clean up execution context."""
         if self.context.report_coverage:
             self.coverage.stop()
             self.coverage.report(include=["./*"], show_missing=True)
 
     async def get_schema(self) -> UiPathRuntimeSchema:
+        """Get the runtime schema from context."""
         return self.context.runtime_schema
 
     @contextmanager
@@ -271,8 +168,9 @@ class UiPathEvalRuntime:
     ) -> Tuple[
         EvaluationSet,
         list[GenericBaseEvaluator[Any, Any, Any]],
-        Iterable[Awaitable[EvaluationRunResult]],
+        Iterable[Awaitable[UiPathEvalRunResult]],
     ]:
+        """Initiate the evaluation by publishing the create eval set run event and preparing the evaluation iterable."""
         # Validate that resume mode is not used with multiple evaluations
         if self.context.resume and len(self.context.evaluation_set.evaluations) > 1:
             raise ValueError(
@@ -303,6 +201,7 @@ class UiPathEvalRuntime:
         )
 
     async def execute(self) -> UiPathRuntimeResult:
+        """Execute the evaluation runtime."""
         logger.info("=" * 80)
         logger.info("EVAL RUNTIME: Starting evaluation execution")
         logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
@@ -482,7 +381,7 @@ class UiPathEvalRuntime:
         self,
         eval_item: EvaluationItem,
         evaluators: list[GenericBaseEvaluator[Any, Any, Any]],
-    ) -> EvaluationRunResult:
+    ) -> UiPathEvalRunResult:
         execution_id = str(eval_item.id)
 
         tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
@@ -511,7 +410,7 @@ class UiPathEvalRuntime:
         with span_context_manager as span:
             await self._save_span_context_for_resume(span, eval_item.id, "Evaluation")
 
-            evaluation_run_results = EvaluationRunResult(
+            evaluation_run_results = UiPathEvalRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
 
@@ -520,17 +419,6 @@ class UiPathEvalRuntime:
                     # Generate LLM-based input if input_mocking_strategy is defined
                     if eval_item.input_mocking_strategy:
                         eval_item = await self._generate_input_for_eval(eval_item)
-
-                    set_execution_context(
-                        MockingContext(
-                            strategy=eval_item.mocking_strategy,
-                            name=eval_item.name,
-                            inputs=eval_item.inputs,
-                        ),
-                        span_collector=self.span_collector,
-                        execution_id=execution_id,
-                        eval_set_run_id=self.context.eval_set_run_id,
-                    )
 
                     # Only create eval run entry if NOT resuming from a checkpoint
                     # When resuming, the entry already exists from the suspend phase
@@ -547,6 +435,12 @@ class UiPathEvalRuntime:
                         eval_item,
                         execution_id,
                         input_overrides=self.context.input_overrides,
+                        mocking_context=MockingContext(
+                            strategy=eval_item.mocking_strategy,
+                            name=eval_item.name,
+                            inputs=eval_item.inputs,
+                        ),
+                        eval_set_run_id=self.context.eval_set_run_id,
                     )
 
                     logger.info(
@@ -672,7 +566,7 @@ class UiPathEvalRuntime:
                     )
 
                     evaluation_run_results.evaluation_run_results.append(
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name=evaluator.name,
                             result=dto_result,
                             evaluator_id=evaluator.id,
@@ -721,7 +615,7 @@ class UiPathEvalRuntime:
 
                 for evaluator in evaluators:
                     evaluation_run_results.evaluation_run_results.append(
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name=evaluator.name,
                             evaluator_id=evaluator.id,
                             result=EvaluationResultDto(score=0),
@@ -755,9 +649,6 @@ class UiPathEvalRuntime:
                     eval_run_updated_event,
                     wait_for_completion=False,
                 )
-            finally:
-                clear_execution_context()
-
             # Configure span with output and metadata
             await configure_evaluation_span(
                 span=span,
@@ -807,7 +698,10 @@ class UiPathEvalRuntime:
         eval_item: EvaluationItem,
         execution_id: str,
         input_overrides: dict[str, Any] | None = None,
+        mocking_context: MockingContext | None = None,
+        eval_set_run_id: str | None = None,
     ) -> UiPathEvalRunExecutionOutput:
+        """Execute the runtime for a single evaluation item, with support for input overrides and capturing spans/logs for error handling."""
         log_handler = self._setup_execution_logging(execution_id)
         attributes: dict[str, Any] = {
             "evalId": eval_item.id,
@@ -826,8 +720,19 @@ class UiPathEvalRuntime:
                 entrypoint=self.context.entrypoint or "",
                 runtime_id=runtime_id,
             )
+
+            delegate = eval_runtime
+            if mocking_context:
+                delegate = UiPathMockRuntime(
+                    delegate=eval_runtime,
+                    mocking_context=mocking_context,
+                    span_collector=self.span_collector,
+                    execution_id=execution_id,
+                    eval_set_run_id=eval_set_run_id,
+                )
+
             execution_runtime = UiPathExecutionRuntime(
-                delegate=eval_runtime,
+                delegate=delegate,
                 trace_manager=self.trace_manager,
                 log_handler=log_handler,
                 execution_id=execution_id,
@@ -927,6 +832,7 @@ class UiPathEvalRuntime:
         *,
         evaluation_criteria: Any,
     ) -> EvaluationResult:
+        """Run a single evaluator against the execution output, with support for creating spans with appropriate attributes and handling evaluation criteria."""
         # Create span for evaluator execution
         # Use tracer from trace_manager's provider to ensure spans go through
         # the ExecutionSpanProcessor
@@ -1151,10 +1057,6 @@ class UiPathEvalRuntime:
             )
             return None
 
-    async def cleanup(self) -> None:
-        """Cleanup runtime resources."""
-        pass
-
-    async def validate(self) -> None:
+    async def dispose(self) -> None:
         """Cleanup runtime resources."""
         pass

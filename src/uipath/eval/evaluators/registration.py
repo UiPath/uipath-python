@@ -1,4 +1,5 @@
-# type: ignore # Gnarly issue
+"""Module for registering custom evaluators in the UiPath evaluation framework."""
+
 import ast
 import importlib.util
 import json
@@ -8,29 +9,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import click
-
-from uipath._cli._utils._console import ConsoleLogger
-from uipath._utils.constants import CUSTOM_EVALUATOR_PREFIX, EVALS_FOLDER
+from ..constants import CUSTOM_EVALUATOR_PREFIX, EVALS_FOLDER
 
 logger = logging.getLogger(__name__)
-console = ConsoleLogger().get_instance()
 
 
-def try_extract_file_and_class_name(text: str) -> tuple[bool, str, str]:
-    if text.startswith(CUSTOM_EVALUATOR_PREFIX):
-        file_and_class = text[len(CUSTOM_EVALUATOR_PREFIX) :]
-        if ":" not in file_and_class:
-            raise ValueError(
-                f"evaluatorSchema must include class name after ':' - got: {text}"
-            )
-        file_path_str, class_name = file_and_class.rsplit(":", 1)
+class EvaluatorRegistrationError(Exception):
+    """Raised when evaluator registration fails."""
 
-        return True, file_path_str, class_name
-    return False, "", ""
+    pass
 
 
 def to_kebab_case(text: str) -> str:
+    """Convert a given string to kebab-case."""
     return re.sub(r"(?<!^)(?=[A-Z])", "-", text).lower()
 
 
@@ -72,7 +63,7 @@ def find_base_evaluator_class(file_path: Path) -> str | None:
         return None
 
 
-def load_evaluator_class(file_path: Path, class_name: str) -> type | None:
+def load_evaluator_class(file_path: Path, class_name: str) -> Any | None:
     """Dynamically load the evaluator class from the file."""
     try:
         parent_dir = str(file_path.parent)
@@ -99,7 +90,7 @@ def load_evaluator_class(file_path: Path, class_name: str) -> type | None:
             sys.path.remove(parent_dir)
 
 
-def generate_evaluator_config(evaluator_class: type, class_name: str) -> dict[str, Any]:
+def generate_evaluator_config(evaluator_class: Any, class_name: str) -> dict[str, Any]:
     """Generate the evaluator config from the class."""
     try:
         config_type = evaluator_class._extract_config_type()
@@ -108,7 +99,9 @@ def generate_evaluator_config(evaluator_class: type, class_name: str) -> dict[st
 
         return config_dict
     except Exception as e:
-        console.error(f"Error inferring evaluator config: {e}")
+        raise EvaluatorRegistrationError(
+            f"Error inferring evaluator config: {e}"
+        ) from e
 
 
 def register_evaluator(filename: str) -> tuple[str, str]:
@@ -118,36 +111,38 @@ def register_evaluator(filename: str) -> tuple[str, str]:
         tuple[str, str]:
             - The first string is the path to the python evaluator file.
             - The second string is the evaluator type that corresponds to the schema file.
+
+    Raises:
+        EvaluatorRegistrationError: If registration fails at any step.
     """
     if not filename.endswith(".py"):
         filename = filename + ".py"
     file_path = find_evaluator_file(filename)
     if file_path is None:
-        console.error(
+        raise EvaluatorRegistrationError(
             f"Could not find '{filename}' in {EVALS_FOLDER}/evaluators/custom folder"
         )
 
-    relative_path = f"evals/evaluators/custom/{filename}"
-    console.info(
-        f"Found custom evaluator file: {click.style(relative_path, fg='cyan')}"
-    )
+    logger.info(f"Found custom evaluator file: evals/evaluators/custom/{filename}")
 
     class_name = find_base_evaluator_class(file_path)
     if class_name is None:
-        console.error(
+        raise EvaluatorRegistrationError(
             f"Could not find a class inheriting from BaseEvaluator in {filename}"
         )
 
-    console.info(f"Found custom evaluator class: {click.style(class_name, fg='cyan')}")
+    logger.info(f"Found custom evaluator class: {class_name}")
 
     evaluator_class = load_evaluator_class(file_path, class_name)
     if evaluator_class is None:
-        console.error(f"Could not load class {class_name} from {filename}")
+        raise EvaluatorRegistrationError(
+            f"Could not load class {class_name} from {filename}"
+        )
 
     try:
         evaluator_id = evaluator_class.get_evaluator_id()
     except Exception as e:
-        console.error(f"Error getting evaluator ID: {e}")
+        raise EvaluatorRegistrationError(f"Error getting evaluator ID: {e}") from e
 
     evaluator_config = generate_evaluator_config(evaluator_class, class_name)
     evaluator_json_type = evaluator_class.generate_json_type()
@@ -167,11 +162,8 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     with open(evaluator_types_output_path, "w") as f:
         json.dump(evaluator_json_type, f, indent=2)
 
-    relative_output_path = (
-        f"{EVALS_FOLDER}/evaluators/custom/types/{output_file_evaluator_types}"
-    )
-    console.success(
-        f"Generated evaluator types: {click.style(relative_output_path, fg='cyan')}"
+    logger.info(
+        f"Generated evaluator types: {EVALS_FOLDER}/evaluators/custom/types/{output_file_evaluator_types}"
     )
 
     output = {
@@ -188,9 +180,8 @@ def register_evaluator(filename: str) -> tuple[str, str]:
     with open(evaluator_spec_output_path, "w") as f:
         json.dump(output, f, indent=2)
 
-    relative_output_path = f"evals/evaluators/{output_file_evaluator_spec}"
-    console.success(
-        f"Generated evaluator spec: {click.style(relative_output_path, fg='cyan')}"
+    logger.info(
+        f"Generated evaluator spec: evals/evaluators/{output_file_evaluator_spec}"
     )
 
     return str(file_path), str(evaluator_types_output_path)

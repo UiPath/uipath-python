@@ -10,15 +10,12 @@ from typing import Any, AsyncGenerator
 
 import pytest
 
-from uipath._cli._evals._runtime import (
-    UiPathEvalContext,
-    UiPathEvalRuntime,
-)
 from uipath._cli.cli_eval import (
     _get_agent_model,
 )
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
+from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeEvent,
@@ -130,7 +127,7 @@ class TestGetAgentModel:
         schema = MockRuntimeSchema()
         schema.metadata = {"settings": {"model": "gpt-4o-2024-11-20"}}
 
-        model = await _get_agent_model(schema)
+        model = _get_agent_model(schema)
         assert model == "gpt-4o-2024-11-20"
 
     @pytest.mark.asyncio
@@ -138,7 +135,7 @@ class TestGetAgentModel:
         """Test that _get_agent_model returns None when runtime has no model."""
         schema = MockRuntimeSchema()
 
-        model = await _get_agent_model(schema)
+        model = _get_agent_model(schema)
         assert model is None
 
     @pytest.mark.asyncio
@@ -148,8 +145,8 @@ class TestGetAgentModel:
         schema.metadata = {"settings": {"model": "consistent-model"}}
 
         # Multiple calls should return the same value
-        model1 = await _get_agent_model(schema)
-        model2 = await _get_agent_model(schema)
+        model1 = _get_agent_model(schema)
+        model2 = _get_agent_model(schema)
 
         assert model1 == model2 == "consistent-model"
 

@@ -8,14 +8,13 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import ConfigDict, Field
 
-from uipath.eval.models import EvaluationResult
-from uipath.eval.models.models import (
+from ..models import EvaluationResult
+from ..models.models import (
     AgentExecution,
     ErrorEvaluationResult,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
 )
-
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluatorConfig,

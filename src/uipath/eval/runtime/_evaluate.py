@@ -1,10 +1,12 @@
-from uipath._cli._evals._runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeResult,
 )
+
+from .context import UiPathEvalContext
+from .runtime import UiPathEvalRuntime
 
 
 async def evaluate(
@@ -13,6 +15,7 @@ async def evaluate(
     eval_context: UiPathEvalContext,
     event_bus: EventBus,
 ) -> UiPathRuntimeResult:
+    """Main entry point for evaluation execution."""
     async with UiPathEvalRuntime(
         factory=runtime_factory,
         context=eval_context,

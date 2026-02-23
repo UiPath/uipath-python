@@ -7,12 +7,21 @@ from pydantic import BaseModel, ConfigDict, model_serializer
 from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
 
-from uipath.eval.models.models import (
+from uipath.runtime import UiPathRuntimeResult
+
+from ..models.models import (
     EvaluationResult,
     ScoreType,
     TrajectoryEvaluationTrace,
 )
-from uipath.runtime import UiPathRuntimeResult
+
+
+class EvaluationRuntimeException(Exception):
+    def __init__(self, spans, logs, root_exception, execution_time):
+        self.spans = spans
+        self.logs = logs
+        self.root_exception = root_exception
+        self.execution_time = execution_time
 
 
 class UiPathEvalRunExecutionOutput(BaseModel):
@@ -80,7 +89,7 @@ class EvaluationResultDto(BaseModel):
         )
 
 
-class EvaluationRunResultDto(BaseModel):
+class UiPathEvalRunResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluator_name: str
@@ -88,11 +97,11 @@ class EvaluationRunResultDto(BaseModel):
     result: EvaluationResultDto
 
 
-class EvaluationRunResult(BaseModel):
+class UiPathEvalRunResult(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_name: str
-    evaluation_run_results: list[EvaluationRunResultDto]
+    evaluation_run_results: list[UiPathEvalRunResultDto]
     agent_execution_output: UiPathSerializableEvalRunExecutionOutput | None = None
 
     @property
@@ -109,7 +118,7 @@ class UiPathEvalOutput(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     evaluation_set_name: str
-    evaluation_set_results: list[EvaluationRunResult]
+    evaluation_set_results: list[UiPathEvalRunResult]
 
     @property
     def score(self) -> float:
@@ -151,7 +160,7 @@ class UiPathEvalOutput(BaseModel):
             evaluator_weights = {}
 
         # Step 1: Flatten the nested structure and group by datapoint_id and evaluator_name for deduplication
-        # datapoint_id = evaluation_name, evaluator_name from EvaluationRunResultDto
+        # datapoint_id = evaluation_name, evaluator_name from UiPathEvalRunResultDto
         grouped_by_datapoint_evaluator: defaultdict[
             str, defaultdict[str, list[float]]
         ] = defaultdict(lambda: defaultdict(list))

@@ -4,13 +4,16 @@ import json
 from datetime import datetime
 from typing import Any
 
-from uipath._cli._evals.mocks.types import (
+from uipath.core.tracing import traced
+from uipath.platform import UiPath
+from uipath.platform.chat import UiPathLlmChatService
+
+from .._execution_context import eval_set_run_id_context
+from ._mock_context import cache_manager_context
+from ._mocker import UiPathInputMockingError
+from ._types import (
     InputMockingStrategy,
 )
-from uipath.platform import UiPath
-from uipath.tracing import traced
-
-from .mocker import UiPathInputMockingError
 
 
 def get_input_mocking_prompt(
@@ -62,11 +65,7 @@ async def generate_llm_input(
     expected_output: dict[str, Any],
 ) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
-    from .mocks import cache_manager_context, eval_set_run_id_context
-
     try:
-        from uipath.platform.chat import UiPathLlmChatService
-
         uipath = UiPath()
         llm = UiPathLlmChatService(
             uipath._config,

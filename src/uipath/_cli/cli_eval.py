@@ -8,12 +8,7 @@ from typing import Any
 import click
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
-from uipath._cli._evals._evaluate import evaluate
-from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath._cli._evals._runtime import (
-    UiPathEvalContext,
-)
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
@@ -21,6 +16,9 @@ from uipath._cli.middlewares import Middlewares
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.eval._helpers import auto_discover_entrypoint
+from uipath.eval.helpers import EvalHelpers
+from uipath.eval.models.evaluation_set import EvaluationSet
+from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
 from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
@@ -36,7 +34,6 @@ from uipath.tracing import (
 )
 
 from ._utils._console import ConsoleLogger
-from ._utils._eval_set import EvalHelpers
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger()
@@ -67,7 +64,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     return True
 
 
-async def _get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
+def _get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
     """Get agent model from the runtime schema metadata.
 
     The model is read from schema.metadata["settings"]["model"] which is
@@ -360,7 +357,7 @@ def eval(
                     eval_context.evaluators = await EvalHelpers.load_evaluators(
                         resolved_eval_set_path,
                         eval_context.evaluation_set,
-                        await _get_agent_model(eval_context.runtime_schema),
+                        _get_agent_model(eval_context.runtime_schema),
                     )
 
                     # Runtime is not required anymore.

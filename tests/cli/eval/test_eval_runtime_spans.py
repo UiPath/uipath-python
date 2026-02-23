@@ -14,9 +14,9 @@ from unittest.mock import MagicMock
 import pytest
 from opentelemetry.sdk.trace import Span
 
-from uipath._cli._evals._models._evaluation_set import EvaluationItem
-from uipath._cli._evals._runtime import UiPathEvalContext
 from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.models.evaluation_set import EvaluationItem
+from uipath.eval.runtime.context import UiPathEvalContext
 
 
 class MockSpanContext:

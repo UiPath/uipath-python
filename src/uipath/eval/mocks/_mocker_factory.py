@@ -1,9 +1,9 @@
 """Mocker Factory."""
 
-from uipath._cli._evals.mocks.llm_mocker import LLMMocker
-from uipath._cli._evals.mocks.mocker import Mocker
-from uipath._cli._evals.mocks.mockito_mocker import MockitoMocker
-from uipath._cli._evals.mocks.types import (
+from ._llm_mocker import LLMMocker
+from ._mocker import Mocker
+from ._mockito_mocker import MockitoMocker
+from ._types import (
     LLMMockingStrategy,
     MockingContext,
     MockitoMockingStrategy,
