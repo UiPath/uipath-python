@@ -28,6 +28,26 @@ async def start_job(
             return await response.json()
 
 
+async def start_job_with_env(
+    port: int,
+    job_key: str,
+    command: str,
+    args: list[str],
+    env_vars: dict[str, str],
+) -> dict[str, Any]:
+    """Start a job on the server with environment variables."""
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f"http://127.0.0.1:{port}/jobs/{job_key}/start",
+            json={
+                "command": command,
+                "args": args,
+                "environmentVariables": env_vars,
+            },
+        ) as response:
+            return await response.json()
+
+
 class TestServer:
     @pytest.fixture
     def server_port(self):
@@ -206,3 +226,146 @@ def main(input: Input) -> str:
             status, body = asyncio.run(send_with_host(host))
             assert status == 200, f"Host '{host}' should be allowed but got {status}"
             assert body == "OK"
+
+
+class TestServerEnvIsolation:
+    """Test that environment variables are isolated between sequential server requests."""
+
+    @pytest.fixture
+    def server_port(self):
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
+    @pytest.fixture
+    def env_snapshots(self):
+        return []
+
+    @pytest.fixture
+    def server_with_spy(self, server_port, env_snapshots):
+        """Start server with a spy command that captures os.environ."""
+        import click
+
+        from uipath._cli import cli_server
+
+        @click.command()
+        def spy_cmd():
+            env_snapshots.append(dict(os.environ))
+
+        original_commands = cli_server.COMMANDS.copy()
+        cli_server.COMMANDS["spy"] = spy_cmd
+
+        def run_server():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(start_tcp_server("127.0.0.1", server_port))
+            except asyncio.CancelledError:
+                pass
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_server, daemon=True)
+        thread.start()
+        time.sleep(0.5)
+
+        yield server_port
+
+        cli_server.COMMANDS.clear()
+        cli_server.COMMANDS.update(original_commands)
+
+    def test_env_vars_do_not_leak_between_requests(
+        self, server_with_spy, env_snapshots
+    ):
+        """Env vars from request 1 must not be visible in request 2."""
+        port = server_with_spy
+
+        # Request 1: set TEST_VAR_A
+        asyncio.run(
+            start_job_with_env(
+                port,
+                "job-1",
+                "spy",
+                [],
+                {"TEST_VAR_A": "value_a"},
+            )
+        )
+
+        # Request 2: set TEST_VAR_B (but NOT TEST_VAR_A)
+        asyncio.run(
+            start_job_with_env(
+                port,
+                "job-2",
+                "spy",
+                [],
+                {"TEST_VAR_B": "value_b"},
+            )
+        )
+
+        assert len(env_snapshots) == 2
+
+        env_run1 = env_snapshots[0]
+        env_run2 = env_snapshots[1]
+
+        # Run 1 should have TEST_VAR_A
+        assert env_run1["TEST_VAR_A"] == "value_a"
+        assert "TEST_VAR_B" not in env_run1
+
+        # Run 2 should have TEST_VAR_B but NOT TEST_VAR_A
+        assert env_run2["TEST_VAR_B"] == "value_b"
+        assert "TEST_VAR_A" not in env_run2
+
+    def test_server_baseline_env_preserved(self, server_with_spy, env_snapshots):
+        """Server baseline env vars (like PATH) should be available during command execution."""
+        from uipath._cli import cli_server
+
+        port = server_with_spy
+
+        asyncio.run(
+            start_job_with_env(
+                port,
+                "job-1",
+                "spy",
+                [],
+                {"CUSTOM_VAR": "custom_value"},
+            )
+        )
+
+        assert len(env_snapshots) == 1
+        env_run = env_snapshots[0]
+
+        # Baseline is captured at server start, not import time
+        baseline = cli_server._state.baseline_env
+        assert baseline is not None
+
+        # Baseline env vars should be present
+        assert env_run.get("PATH") == baseline.get("PATH")
+
+        # Request env var should override/add
+        assert env_run["CUSTOM_VAR"] == "custom_value"
+
+    def test_env_restored_after_request(self, server_with_spy):
+        """os.environ should be restored to baseline after each request."""
+        from uipath._cli import cli_server
+
+        port = server_with_spy
+
+        asyncio.run(
+            start_job_with_env(
+                port,
+                "job-1",
+                "spy",
+                [],
+                {"SHOULD_NOT_PERSIST": "temporary"},
+            )
+        )
+
+        baseline = cli_server._state.baseline_env
+        assert baseline is not None
+
+        # After the request, os.environ should match baseline
+        assert "SHOULD_NOT_PERSIST" not in os.environ
+        for key in baseline:
+            assert os.environ.get(key) == baseline[key]

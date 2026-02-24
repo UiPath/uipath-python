@@ -33,6 +33,25 @@ COMMANDS = {
     "eval": eval,
 }
 
+
+class _ServerState:
+    """Mutable server state, initialized lazily at server startup."""
+
+    def __init__(self) -> None:
+        self.lock: asyncio.Lock | None = None
+        self.baseline_env: dict[str, str] | None = None
+
+    def init(self) -> None:
+        """Must be called inside a running event loop at server startup."""
+        if self.lock is not None:
+            return
+        self.lock = asyncio.Lock()
+        self.baseline_env = os.environ.copy()
+
+
+_state = _ServerState()
+
+
 DEFAULT_PRELOAD_MODULES = [
     # Network/async - slowest to load
     "pysignalr.client",
@@ -168,48 +187,78 @@ async def handle_start(request: web.Request) -> web.Response:
             status=400,
         )
 
-    # Save original state
-    original_cwd = os.getcwd()
-    original_env = os.environ.copy()
-
-    console.info(f"Original cwd: {original_cwd}")
+    console.info(f"Original cwd: {os.getcwd()}")
     console.info(f"Requested working_dir: {working_dir}")
 
-    try:
-        if isinstance(env_vars, dict):
-            os.environ.update(env_vars)
+    if _state.lock is None or _state.baseline_env is None:
+        raise RuntimeError("Server state not initialized")
 
-        if working_dir and isinstance(working_dir, str):
-            os.chdir(working_dir)
-
-        result = await asyncio.to_thread(cmd.main, args, standalone_mode=False)
-
+    # Validate environmentVariables type early
+    if env_vars and not isinstance(env_vars, dict):
         return web.json_response(
             {
-                "success": True,
-                "job_key": job_key,
-                "result": result,
-            }
+                "success": False,
+                "error": "Invalid field: 'environmentVariables' must be a dict",
+            },
+            status=400,
         )
-    except SystemExit as e:
-        exit_code = e.code if isinstance(e.code, int) else 1
-        return web.json_response(
-            {
-                "success": exit_code == 0,
-                "job_key": job_key,
-                "error": None if exit_code == 0 else f"Exit code: {exit_code}",
-            }
-        )
-    except Exception as e:
-        return web.json_response(
-            {"success": False, "job_key": job_key, "error": str(e)},
-            status=500,
-        )
-    finally:
-        # Restore original state
-        os.chdir(original_cwd)
-        os.environ.clear()
-        os.environ.update(original_env)
+
+    # Serialize command execution to prevent concurrent os.environ mutation
+    async with _state.lock:
+        original_cwd = os.getcwd()
+
+        try:
+            # Start from server baseline + request env vars only.
+            # This ensures no env vars from previous requests leak through.
+            os.environ.clear()
+            os.environ.update(_state.baseline_env)
+            if isinstance(env_vars, dict):
+                os.environ.update(env_vars)
+
+            if working_dir and isinstance(working_dir, str):
+                try:
+                    os.chdir(working_dir)
+                except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+                    return web.json_response(
+                        {
+                            "success": False,
+                            "job_key": job_key,
+                            "error": f"Cannot change to working directory: {e}",
+                        },
+                        status=400,
+                    )
+
+            result = await asyncio.to_thread(cmd.main, args, standalone_mode=False)
+
+            return web.json_response(
+                {
+                    "success": True,
+                    "job_key": job_key,
+                    "result": result,
+                }
+            )
+        except SystemExit as e:
+            exit_code = e.code if isinstance(e.code, int) else 1
+            return web.json_response(
+                {
+                    "success": exit_code == 0,
+                    "job_key": job_key,
+                    "error": None if exit_code == 0 else f"Exit code: {exit_code}",
+                }
+            )
+        except Exception as e:
+            return web.json_response(
+                {"success": False, "job_key": job_key, "error": str(e)},
+                status=500,
+            )
+        finally:
+            # Restore to server baseline
+            try:
+                os.chdir(original_cwd)
+            except OSError:
+                pass
+            os.environ.clear()
+            os.environ.update(_state.baseline_env)
 
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -253,6 +302,8 @@ async def start_unix_server(
     ack_socket_path: str, server_socket_path: str | None = None
 ) -> None:
     """Start Unix domain socket HTTP server."""
+    _state.init()
+
     server_socket_path = server_socket_path or generate_socket_path()
 
     if os.path.exists(server_socket_path):
@@ -280,6 +331,8 @@ async def start_unix_server(
 
 async def start_tcp_server(host: str, port: int) -> None:
     """Start TCP HTTP server (Windows fallback)."""
+    _state.init()
+
     app = create_app()
     runner = web.AppRunner(app)
     await runner.setup()
