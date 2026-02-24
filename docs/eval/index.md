@@ -155,6 +155,120 @@ uipath eval --no-report
 | `--workers` | Integer | Number of parallel workers (default: 1) |
 | `--output-file` | Path | File path to save evaluation results |
 | `--no-report` | Flag | Disable reporting results to Studio Web |
+| `--input-overrides` | JSON | Can be used to override any input parameter, but most often used for file inputs (see below) |
+
+### Running Multimodal Evaluations with Input Overrides
+
+You can use the `--input-overrides` parameter to override any input parameter at runtime. This is most commonly used for file attachments inputs.
+
+#### Input Overrides Format
+
+The `--input-overrides` parameter accepts a JSON object where:
+- Keys are evaluation IDs
+- Values are objects containing input parameter names mapped to their override values
+
+#### How File Attachment Overrides Work
+
+**At Design Time:**
+Evaluation sets define file attachments using **relative studioweb local paths**:
+```json
+{
+  "filePath": {
+    "ID": "evaluationFiles/document.pdf",
+    "FullName": "Document.pdf",
+    "MimeType": "application/pdf"
+  }
+}
+```
+
+**At Runtime (with `--input-overrides`):**
+When running evaluations, you override the local path with an **attachmentId** obtained by uploading the file to your personal workspace:
+```json
+{
+  "filePath": {
+    "ID": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+The system automatically merges this override with the original definition, preserving `FullName` and `MimeType` fields. The final input passed to your agent becomes:
+```json
+{
+  "filePath": {
+    "ID": "550e8400-e29b-41d4-a716-446655440000",
+    "FullName": "Document.pdf",
+    "MimeType": "application/pdf"
+  }
+}
+```
+
+**Key Points:**
+- Only the `ID` field needs to be specified in the override
+- `FullName` and `MimeType` are automatically preserved from the evaluation set definition
+- You can override any field, but typically only `ID` changes at runtime
+
+#### Example: Single File Attachment
+
+```bash
+uipath eval agent.py eval_set.json \
+  --eval-ids '["eval-001"]' \
+  --eval-set-run-id e4d8f9a2-1234-5678-9abc-def012345678 \
+  --input-overrides '{
+    "eval-001": {
+      "filePath": {
+        "ID": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    }
+  }'
+```
+
+#### Example: Multiple Files (Array)
+
+```bash
+uipath eval agent.py eval_set.json \
+  --eval-ids '["eval-002"]' \
+  --eval-set-run-id e4d8f9a2-1234-5678-9abc-def012345678 \
+  --input-overrides '{
+    "eval-002": {
+      "documents": [
+        {
+          "ID": "550e8400-e29b-41d4-a716-446655440001"
+        },
+        {
+          "ID": "550e8400-e29b-41d4-a716-446655440002"
+        }
+      ]
+    }
+  }'
+```
+
+#### Example: Multiple Evaluations
+
+```bash
+uipath eval agent.py eval_set.json \
+  --eval-ids '["eval-001", "eval-002", "eval-003"]' \
+  --eval-set-run-id e4d8f9a2-1234-5678-9abc-def012345678 \
+  --input-overrides '{
+    "eval-001": {
+      "image": {
+        "ID": "550e8400-e29b-41d4-a716-446655440003"
+      }
+    },
+    "eval-002": {
+      "document": {
+        "ID": "550e8400-e29b-41d4-a716-446655440004"
+      }
+    },
+    "eval-003": {
+      "files": [
+        {"ID": "550e8400-e29b-41d4-a716-446655440005"},
+        {"ID": "550e8400-e29b-41d4-a716-446655440006"}
+      ]
+    }
+  }'
+```
+
+
 
 ### Evaluation Sets
 
