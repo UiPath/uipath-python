@@ -6,31 +6,26 @@ import uuid
 from typing import Any
 
 import click
-from uipath.core.tracing import UiPathTraceManager
-from uipath.runtime import (
-    UiPathRuntimeContext,
-    UiPathRuntimeFactoryRegistry,
-    UiPathRuntimeProtocol,
-    UiPathRuntimeSchema,
-)
 
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
-from uipath._cli._evals._evaluate import evaluate
-from uipath._cli._evals._models._evaluation_set import EvaluationSet
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath._cli._evals._runtime import (
-    LLMAgentRuntimeProtocol,
-    UiPathEvalContext,
-)
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
-from uipath._events._event_bus import EventBus
-from uipath._utils._bindings import ResourceOverwritesContext
+from uipath.core.events import EventBus
+from uipath.core.tracing import UiPathTraceManager
 from uipath.eval._helpers import auto_discover_entrypoint
+from uipath.eval.helpers import EvalHelpers
+from uipath.eval.models.evaluation_set import EvaluationSet
+from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
-from uipath.platform.common import UiPathConfig
+from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.runtime import (
+    UiPathRuntimeContext,
+    UiPathRuntimeFactoryRegistry,
+    UiPathRuntimeSchema,
+)
 from uipath.telemetry._track import flush_events
 from uipath.tracing import (
     JsonLinesFileExporter,
@@ -39,7 +34,6 @@ from uipath.tracing import (
 )
 
 from ._utils._console import ConsoleLogger
-from ._utils._eval_set import EvalHelpers
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger()
@@ -70,34 +64,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     return True
 
 
-def _find_agent_model_in_runtime(runtime: UiPathRuntimeProtocol) -> str | None:
-    """Recursively search for get_agent_model in runtime and its delegates.
-
-    Runtimes may be wrapped (e.g., ResumableRuntime wraps TelemetryWrapper
-    which wraps the base runtime). This method traverses the wrapper chain
-    to find a runtime that implements LLMAgentRuntimeProtocol.
-
-    Args:
-        runtime: The runtime to check (may be a wrapper)
-
-    Returns:
-        The model name if found, None otherwise.
-    """
-    # Check if this runtime implements the protocol
-    if isinstance(runtime, LLMAgentRuntimeProtocol):
-        return runtime.get_agent_model()
-
-    # Check for delegate property (used by UiPathResumableRuntime, TelemetryRuntimeWrapper)
-    delegate = getattr(runtime, "delegate", None) or getattr(runtime, "_delegate", None)
-    if delegate is not None:
-        return _find_agent_model_in_runtime(delegate)
-
-    return None
-
-
-async def _get_agent_model(
-    runtime: UiPathRuntimeProtocol, schema: UiPathRuntimeSchema
-) -> str | None:
+def _get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
     """Get agent model from the runtime schema metadata.
 
     The model is read from schema.metadata["settings"]["model"] which is
@@ -113,12 +80,7 @@ async def _get_agent_model(
             if model:
                 logger.debug(f"Got agent model from schema.metadata: {model}")
                 return model
-
-        # Fallback to protocol-based approach for backwards compatibility
-        model = _find_agent_model_in_runtime(runtime)
-        if model:
-            logger.debug(f"Got agent model from runtime protocol: {model}")
-        return model
+        return None
     except Exception:
         return None
 
@@ -395,7 +357,7 @@ def eval(
                     eval_context.evaluators = await EvalHelpers.load_evaluators(
                         resolved_eval_set_path,
                         eval_context.evaluation_set,
-                        await _get_agent_model(runtime, eval_context.runtime_schema),
+                        _get_agent_model(eval_context.runtime_schema),
                     )
 
                     # Runtime is not required anymore.

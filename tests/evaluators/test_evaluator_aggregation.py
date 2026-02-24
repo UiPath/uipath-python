@@ -8,11 +8,11 @@ import uuid
 
 import pytest
 
-from uipath._cli._evals._models._output import (
+from uipath.eval.runtime._types import (
     EvaluationResultDto,
-    EvaluationRunResult,
-    EvaluationRunResultDto,
     UiPathEvalOutput,
+    UiPathEvalRunResult,
+    UiPathEvalRunResultDto,
 )
 
 
@@ -36,30 +36,30 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         )
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test2",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         )
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test3",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
@@ -80,30 +80,30 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ContainsEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.9),
                         ),
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test2",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ContainsEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.7),
@@ -129,31 +129,31 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
                         # Multiple ExactMatch results for same datapoint (should be averaged)
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",  # Duplicate!
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",  # Another duplicate!
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
                         ),
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test2",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.5),
@@ -176,15 +176,15 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ContainsEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
@@ -215,15 +215,15 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="UnknownEvaluator",  # Not in weights
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
@@ -247,15 +247,15 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="UnknownEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.6),
@@ -291,55 +291,55 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatch",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.5),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatch",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="Contains",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ToolCallCount",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test2",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatch",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="Contains",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test3",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatch",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ToolCallCount",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
@@ -370,10 +370,10 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.85),
@@ -393,35 +393,35 @@ class TestEvaluationResultAggregation:
         eval_output = UiPathEvalOutput(
             evaluation_set_name="test_set",
             evaluation_set_results=[
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test1",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.8),
                         ),
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test2",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ContainsEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.9),
                         ),
                     ],
                 ),
-                EvaluationRunResult(
+                UiPathEvalRunResult(
                     evaluation_name="test3",
                     evaluation_run_results=[
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ExactMatchEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=1.0),
                         ),
-                        EvaluationRunResultDto(
+                        UiPathEvalRunResultDto(
                             evaluator_name="ContainsEvaluator",
                             evaluator_id=str(uuid.uuid4()),
                             result=EvaluationResultDto(score=0.7),

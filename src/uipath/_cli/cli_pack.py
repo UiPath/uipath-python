@@ -10,10 +10,11 @@ from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings
 from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
-from uipath._utils.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
+from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 from uipath.platform.common import UiPathConfig
 
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     ensure_config_file,
@@ -283,7 +284,7 @@ def pack_fn(
         z.writestr(f"{project_name}.nuspec", nuspec_content)
         z.writestr("_rels/.rels", rels_content)
 
-        files = files_to_include(
+        files, skipped_files = files_to_include(
             config_data.pack_options,
             directory,
             include_uv_lock,
@@ -336,6 +337,7 @@ def display_project_info(config):
     is_flag=True,
     help="Skip running uv lock and exclude uv.lock from the package",
 )
+@track_command("pack")
 def pack(root, nolock):
     """Pack the project."""
     version = get_project_version(root)

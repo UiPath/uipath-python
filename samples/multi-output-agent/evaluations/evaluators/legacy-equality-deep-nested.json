@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-equality-deep-nested.json",
+    "id": "legacy-equality-deep-nested",
+    "name": "Equality - Deep Nested (customer.address.city)",
+    "description": "Exact match on a deeply nested path: customer.address.city",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "customer.address.city",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}

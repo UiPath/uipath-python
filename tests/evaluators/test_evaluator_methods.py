@@ -200,6 +200,67 @@ class TestExactMatchEvaluator:
         assert result.score == 0.0
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "actual, expected",
+        [
+            ("1.0", "1"),
+            ("1", "1.0"),
+            ("1e0", "1"),
+            ("1.00", "1.0"),
+            ("0.5", "0.50"),
+            ("-3.0", "-3"),
+        ],
+    )
+    async def test_exact_match_numeric_leniency(
+        self, actual: str, expected: str
+    ) -> None:
+        """Test that numerically equal values match regardless of string representation."""
+        execution = AgentExecution(
+            agent_input={"input": "Test"},
+            agent_output={"result": actual},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchNumericTest",
+            "case_sensitive": True,
+            "target_output_key": "result",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(expected_output={"result": expected})  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0, (
+            f"Expected '{actual}' and '{expected}' to be considered equal as numbers"
+        )
+
+    @pytest.mark.asyncio
+    async def test_exact_match_numeric_non_equal(self) -> None:
+        """Test that numerically different values do not match."""
+        execution = AgentExecution(
+            agent_input={"input": "Test"},
+            agent_output={"result": "1.5"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchNumericTest",
+            "case_sensitive": True,
+            "target_output_key": "result",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(expected_output={"result": "1"})  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
     async def test_exact_match_validate_and_evaluate_criteria(
         self, sample_agent_execution: AgentExecution
     ) -> None:
@@ -803,12 +864,6 @@ class TestLlmAsAJudgeEvaluator:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM as judge basic evaluation functionality with function calling."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock the chat completions response with tool call (function calling approach)
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -824,13 +879,17 @@ class TestLlmAsAJudgeEvaluator:
             )
         ]
 
-        # Make chat_completions an async method
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        mock_llm.chat_completions = mock_chat_completions
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
 
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "LlmJudgeTest",
@@ -902,12 +961,6 @@ class TestLlmAsAJudgeEvaluator:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM judge using validate_and_evaluate_criteria with function calling."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock tool call for function calling approach
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -923,14 +976,17 @@ class TestLlmAsAJudgeEvaluator:
             )
         ]
 
-        # Make chat_completions an async method
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        mock_llm.chat_completions = mock_chat_completions
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
 
-        # Mock the UiPath import and constructor
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "LlmJudgeTest",
@@ -960,12 +1016,6 @@ class TestLlmJudgeTrajectoryEvaluator:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM trajectory judge basic evaluation functionality with function calling."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock tool call for function calling approach
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -981,14 +1031,17 @@ class TestLlmJudgeTrajectoryEvaluator:
             )
         ]
 
-        # Make chat_completions an async method
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        mock_llm.chat_completions = mock_chat_completions
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
 
-        # Mock the UiPath import and constructor
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1015,12 +1068,6 @@ class TestLlmJudgeTrajectoryEvaluator:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM trajectory judge using validate_and_evaluate_criteria with function calling."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock tool call for function calling approach
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1036,14 +1083,17 @@ class TestLlmJudgeTrajectoryEvaluator:
             )
         ]
 
-        # Make chat_completions an async method
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        mock_llm.chat_completions = mock_chat_completions
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
 
-        # Mock the UiPath import and constructor
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1088,7 +1138,10 @@ class TestEvaluatorErrorHandling:
         """Test that evaluators properly validate config fields."""
         # Mock the UiPath constructor to avoid authentication
         mock_uipath = mocker.MagicMock()
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPath",
+            return_value=mock_uipath,
+        )
 
         config = {
             "name": "LLMJudgeEvaluator",
@@ -1288,12 +1341,6 @@ class TestJustificationHandling:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test that LLMJudgeOutputEvaluator handles str justification correctly with function calling."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock tool call for function calling approach
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1309,12 +1356,17 @@ class TestJustificationHandling:
             )
         ]
 
-        # Make chat_completions an async method
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        mock_llm.chat_completions = mock_chat_completions
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
+
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "LlmJudgeTest",
@@ -1345,13 +1397,6 @@ class TestJustificationHandling:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test that LLMJudgeTrajectoryEvaluator handles str justification correctly."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock the chat completions response with justification using tool_call format
-        mock_response = mocker.MagicMock()
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1360,18 +1405,24 @@ class TestJustificationHandling:
             "justification": "The agent trajectory shows good decision making and follows expected behavior patterns",
         }
 
+        mock_response = mocker.MagicMock()
         mock_response.choices = [
             mocker.MagicMock(
                 message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
             )
         ]
 
-        # Make chat_completions an async method
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        mock_llm.chat_completions = mock_chat_completions
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
+
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "LlmTrajectoryTest",
@@ -1492,12 +1543,6 @@ class TestJustificationHandling:
         self, sample_agent_execution: AgentExecution, mocker: MockerFixture
     ) -> None:
         """Test that max_tokens is omitted from API request when None (fixes 400 error)."""
-        # Mock the UiPath constructor to avoid authentication
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
-        # Mock tool call response
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1516,7 +1561,6 @@ class TestJustificationHandling:
         mock_response = mocker.MagicMock()
         mock_response.choices = [mock_choice]
 
-        # Capture the request data passed to chat_completions
         captured_request = {}
 
         async def capture_chat_completions(**kwargs: Any) -> Any:
@@ -1524,44 +1568,43 @@ class TestJustificationHandling:
             captured_request = kwargs
             return mock_response
 
-        mock_llm.chat_completions = capture_chat_completions
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = capture_chat_completions
 
-        # Patch UiPath to return our mock
-        with mocker.patch("uipath.platform.UiPath", return_value=mock_uipath):
-            # Create evaluator with max_tokens=None (the default)
-            config = {
-                "name": "TestMaxTokensNone",
-                "model": "gpt-4o-mini-2024-07-18",
-                "prompt": "Evaluate the output",
-                # max_tokens is intentionally omitted (defaults to None)
-            }
-            evaluator = LLMJudgeOutputEvaluator.model_validate(
-                {"evaluatorConfig": config, "id": str(uuid.uuid4())}
-            )
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
-            # Evaluate
-            result = await evaluator.evaluate(
-                agent_execution=sample_agent_execution,
-                evaluation_criteria=OutputEvaluationCriteria(expected_output="42"),
-            )
+        config = {
+            "name": "TestMaxTokensNone",
+            "model": "gpt-4o-mini-2024-07-18",
+            "prompt": "Evaluate the output",
+        }
+        evaluator = LLMJudgeOutputEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
 
-            # Verify max_tokens was NOT included in the request
-            assert "max_tokens" not in captured_request, (
-                "max_tokens should be omitted when None, not passed as None "
-                "(this was causing 400 errors from LLM Gateway API)"
-            )
+        result = await evaluator.evaluate(
+            agent_execution=sample_agent_execution,
+            evaluation_criteria=OutputEvaluationCriteria(expected_output="42"),
+        )
 
-            # Verify other expected fields ARE included
-            assert "model" in captured_request
-            assert "temperature" in captured_request
-            assert "tools" in captured_request
-            assert "tool_choice" in captured_request
-            assert "messages" in captured_request
+        assert "max_tokens" not in captured_request, (
+            "max_tokens should be omitted when None, not passed as None "
+            "(this was causing 400 errors from LLM Gateway API)"
+        )
 
-            # Verify evaluation result
-            assert result.score == 0.8
-            assert isinstance(result.details, LLMJudgeJustification)
-            assert result.details.justification == "Good response"
+        assert "model" in captured_request
+        assert "temperature" in captured_request
+        assert "tools" in captured_request
+        assert "tool_choice" in captured_request
+        assert "messages" in captured_request
+
+        assert result.score == 0.8
+        assert isinstance(result.details, LLMJudgeJustification)
+        assert result.details.justification == "Good response"
 
 
 class TestClaude45ModelSupport:
@@ -1588,10 +1631,6 @@ class TestClaude45ModelSupport:
         mocker: MockerFixture,
     ) -> None:
         """Test that Claude 4.5 evaluators use function calling (tools/tool_choice)."""
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1614,8 +1653,14 @@ class TestClaude45ModelSupport:
             captured_request = kwargs
             return mock_response
 
-        mock_llm.chat_completions = capture_chat_completions
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = capture_chat_completions
+
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": f"Claude45Test-{model_name}",
@@ -1659,10 +1704,6 @@ class TestClaude45ModelSupport:
         mocker: MockerFixture,
     ) -> None:
         """Test that Claude 4.5 models get default max_tokens=8000 when not configured."""
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1682,8 +1723,14 @@ class TestClaude45ModelSupport:
             captured_request = kwargs
             return mock_response
 
-        mock_llm.chat_completions = capture_chat_completions
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = capture_chat_completions
+
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         # No max_tokens in config - should default to 8000 for Claude 4.5
         config = {
@@ -1712,10 +1759,6 @@ class TestClaude45ModelSupport:
         mocker: MockerFixture,
     ) -> None:
         """Test that explicitly configured max_tokens overrides the Claude 4.5 default."""
-        mock_uipath = mocker.MagicMock()
-        mock_llm = mocker.MagicMock()
-        mock_uipath.llm = mock_llm
-
         mock_tool_call = mocker.MagicMock()
         mock_tool_call.id = "call_1"
         mock_tool_call.name = "submit_evaluation"
@@ -1735,8 +1778,14 @@ class TestClaude45ModelSupport:
             captured_request = kwargs
             return mock_response
 
-        mock_llm.chat_completions = capture_chat_completions
-        mocker.patch("uipath.platform.UiPath", return_value=mock_uipath)
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = capture_chat_completions
+
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
 
         config = {
             "name": "Claude45CustomMaxTokens",

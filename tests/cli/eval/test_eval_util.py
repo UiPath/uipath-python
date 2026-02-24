@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from uipath._cli._evals._eval_util import apply_input_overrides, deep_merge
+from uipath.eval.runtime._utils import apply_input_overrides, deep_merge
 
 
 @pytest.mark.asyncio

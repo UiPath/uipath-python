@@ -1,4 +1,5 @@
-from ._bindings import resource_override
+from uipath.platform.common import resource_override
+
 from ._endpoint import Endpoint
 from ._logs import setup_logging
 from ._request_override import header_folder

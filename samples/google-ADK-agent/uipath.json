@@ -1,5 +1,0 @@
-{
-  "functions": {
-    "agent": "multi_tool_agent/agent.py:main"
-  }
-}

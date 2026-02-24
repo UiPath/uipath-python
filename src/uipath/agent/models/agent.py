@@ -25,14 +25,15 @@ from pydantic import (
     Tag,
     model_validator,
 )
+
+from uipath.agent.models._legacy import normalize_legacy_format
 from uipath.core.guardrails import (
     BaseGuardrail,
     FieldReference,
     SpecificFieldsSelector,
     UniversalRule,
 )
-
-from uipath.agent.models._legacy import normalize_legacy_format
+from uipath.eval.mocks import ExampleCall
 from uipath.platform.connections import Connection
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
@@ -211,14 +212,6 @@ class BaseCfg(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True, validate_by_alias=True, extra="allow"
     )
-
-
-class ExampleCall(BaseCfg):
-    """Example call for a resource containing resource I/O."""
-
-    id: str = Field(..., alias="id")
-    input: str = Field(..., alias="input")
-    output: str = Field(..., alias="output")
 
 
 class TextToken(BaseCfg):
@@ -406,6 +399,14 @@ class AgentMcpTool(BaseCfg):
     )
 
 
+class DynamicToolsMode(str, CaseInsensitiveEnum):
+    """Dynamic tools mode enumeration."""
+
+    NONE = "none"
+    SCHEMA = "schema"
+    ALL = "all"
+
+
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
     """Agent MCP resource configuration model."""
 
@@ -415,6 +416,9 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     slug: str = Field(..., alias="slug")
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
+    dynamic_tools: DynamicToolsMode = Field(
+        default=DynamicToolsMode.NONE, alias="dynamicTools"
+    )
 
 
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {

@@ -12,8 +12,7 @@ from opentelemetry.sdk.trace.export import (
 )
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
-
-from ._utils import _SpanUtils
+from uipath.platform.common import _SpanUtils
 
 logger = logging.getLogger(__name__)
 

@@ -7,16 +7,16 @@ from rich.console import Console
 from rich.rule import Rule
 from rich.table import Table
 
-from uipath._events._event_bus import EventBus
-from uipath._events._events import (
+from uipath.core.events import EventBus
+from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
+from uipath.eval.models import ScoreType
+from uipath.eval.runtime.events import (
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
     EvaluationEvents,
 )
-from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
-from uipath.eval.models import ScoreType
 
 logger = logging.getLogger(__name__)
 

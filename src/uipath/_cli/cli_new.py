@@ -4,6 +4,7 @@ import shutil
 
 import click
 
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -46,6 +47,7 @@ def generate_uipath_json(target_directory):
 
 @click.command()
 @click.argument("name", type=str, default="")
+@track_command("new")
 def new(name: str):
     """Generate a quick-start project."""
     directory = os.getcwd()

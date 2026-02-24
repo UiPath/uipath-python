@@ -8,6 +8,10 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
+from uipath.platform import UiPath
+from uipath.platform.chat import UiPathLlmChatService
+
+from .._execution_context import eval_set_run_id_context
 from .._helpers.evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
     AgentExecution,
@@ -117,16 +121,17 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         The normalized API endpoint checks against AllowedNormalizedModels configuration,
         which includes multi-vendor models that agents use.
         """
-        from uipath.platform import UiPath
-
         try:
-            uipath = UiPath(
+            uipath = UiPath()
+            llm = UiPathLlmChatService(
+                uipath._config,
+                uipath._execution_context,
                 requesting_product="agentsplayground",
                 requesting_feature="agents-evaluations",
                 agenthub_config="agentsevals",
+                action_id=eval_set_run_id_context.get(),
             )
-            # Use llm (normalized API) for multi-vendor model support
-            return uipath.llm.chat_completions
+            return llm.chat_completions
         except Exception as e:
             raise UiPathEvaluationError(
                 code="FAILED_TO_GET_LLM_SERVICE",

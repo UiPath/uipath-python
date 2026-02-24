@@ -49,6 +49,7 @@ def evaluator_with_mocked_llm():
         **_make_base_params(),
         model="gpt-4.1-2025-04-14",
     )
+    evaluator.llm = AsyncMock()
     return evaluator
 
 

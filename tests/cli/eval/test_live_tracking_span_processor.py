@@ -8,8 +8,8 @@ from unittest.mock import Mock
 import pytest
 from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span
-from uipath.runtime import UiPathRuntimeFactorySettings
 
+from uipath.runtime import UiPathRuntimeFactorySettings
 from uipath.tracing import LiveTrackingSpanProcessor, SpanStatus
 
 

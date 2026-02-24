@@ -16,7 +16,7 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
-from uipath._events._events import EvalSetRunCreatedEvent, EvalSetRunUpdatedEvent
+from uipath.eval.runtime.events import EvalSetRunCreatedEvent, EvalSetRunUpdatedEvent
 from uipath.tracing import LlmOpsHttpExporter
 
 # Test fixtures - simple mocks without full evaluator instantiation
@@ -225,7 +225,7 @@ class TestRequestSpecGeneration:
 
     def test_create_eval_set_run_spec_for_coded(self, progress_reporter):
         """Test creating eval set run spec for coded evaluators."""
-        from uipath._cli._evals._models._sw_reporting import StudioWebAgentSnapshot
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
 
         agent_snapshot = StudioWebAgentSnapshot(
             input_schema={"type": "object"}, output_schema={"type": "object"}
@@ -246,7 +246,7 @@ class TestRequestSpecGeneration:
 
     def test_create_eval_set_run_spec_for_legacy(self, progress_reporter):
         """Test creating eval set run spec for legacy evaluators."""
-        from uipath._cli._evals._models._sw_reporting import StudioWebAgentSnapshot
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
 
         agent_snapshot = StudioWebAgentSnapshot(
             input_schema={"type": "object"}, output_schema={"type": "object"}
@@ -819,3 +819,112 @@ class TestAgentSnapshotExtraction:
             assert serialized["outputSchema"] == {"type": "object", "properties": {}}
         finally:
             os.chdir(original_cwd)
+
+
+# Tests for assertion properties and evaluator snapshot building
+class TestAssertionPropertiesBuilding:
+    """Tests for _build_assertion_properties and _build_evaluator_snapshot."""
+
+    def test_build_assertion_properties_with_prompt_and_model(self, progress_reporter):
+        """Test that prompt and model are included when evaluator has them."""
+        evaluator = Mock()
+        evaluator.prompt = "Evaluate the output quality"
+        evaluator.model = "gemini-2.5-pro"
+
+        props = progress_reporter._build_assertion_properties(evaluator)
+
+        assert props["prompt"] == "Evaluate the output quality"
+        assert props["model"] == "gemini-2.5-pro"
+
+    def test_build_assertion_properties_without_prompt_and_model(
+        self, progress_reporter
+    ):
+        """Test that properties are empty when evaluator lacks prompt/model."""
+        evaluator = Mock(spec=[])  # No attributes at all
+
+        props = progress_reporter._build_assertion_properties(evaluator)
+
+        assert props == {}
+
+    def test_build_assertion_properties_with_only_prompt(self, progress_reporter):
+        """Test that only prompt is included when model is absent."""
+        evaluator = Mock(spec=["prompt"])
+        evaluator.prompt = "Check similarity"
+
+        props = progress_reporter._build_assertion_properties(evaluator)
+
+        assert props["prompt"] == "Check similarity"
+        assert "model" not in props
+
+    def test_build_assertion_properties_with_only_model(self, progress_reporter):
+        """Test that only model is included when prompt is absent."""
+        evaluator = Mock(spec=["model"])
+        evaluator.model = "gpt-4o"
+
+        props = progress_reporter._build_assertion_properties(evaluator)
+
+        assert "prompt" not in props
+        assert props["model"] == "gpt-4o"
+
+    def test_build_assertion_properties_skips_non_string_prompt(
+        self, progress_reporter
+    ):
+        """Test that non-string prompt values are skipped."""
+        evaluator = Mock()
+        evaluator.prompt = 123  # Not a string
+        evaluator.model = "gpt-4o"
+
+        props = progress_reporter._build_assertion_properties(evaluator)
+
+        assert "prompt" not in props
+        assert props["model"] == "gpt-4o"
+
+    def test_build_evaluator_snapshot_with_prompt_and_model(self, progress_reporter):
+        """Test that evaluator snapshot includes prompt/model from config."""
+        config = Mock()
+        config.prompt = "Rate the response"
+        config.model = "claude-sonnet-4-20250514"
+
+        evaluator = Mock()
+        evaluator.evaluator_config = config
+
+        snapshot = progress_reporter._build_evaluator_snapshot(evaluator)
+
+        assert snapshot["prompt"] == "Rate the response"
+        assert snapshot["model"] == "claude-sonnet-4-20250514"
+
+    def test_build_evaluator_snapshot_without_config(self, progress_reporter):
+        """Test that snapshot is empty when evaluator has no config."""
+        evaluator = Mock(spec=[])  # No evaluator_config attribute
+
+        snapshot = progress_reporter._build_evaluator_snapshot(evaluator)
+
+        assert snapshot == {}
+
+    def test_build_evaluator_snapshot_config_without_prompt_model(
+        self, progress_reporter
+    ):
+        """Test that snapshot is empty when config lacks prompt/model."""
+        config = Mock(spec=["name"])  # Config without prompt/model
+        config.name = "MyEvaluator"
+
+        evaluator = Mock()
+        evaluator.evaluator_config = config
+
+        snapshot = progress_reporter._build_evaluator_snapshot(evaluator)
+
+        assert snapshot == {}
+
+    def test_build_evaluator_snapshot_skips_non_string_model(self, progress_reporter):
+        """Test that non-string model values are skipped."""
+        config = Mock()
+        config.prompt = "Evaluate this"
+        config.model = None  # Not a string
+
+        evaluator = Mock()
+        evaluator.evaluator_config = config
+
+        snapshot = progress_reporter._build_evaluator_snapshot(evaluator)
+
+        assert snapshot["prompt"] == "Evaluate this"
+        assert "model" not in snapshot

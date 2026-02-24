@@ -1,0 +1,11 @@
+{
+    "fileName": "legacy-equality-flat-key.json",
+    "id": "legacy-equality-flat-key",
+    "name": "Equality - Flat Key (order_id)",
+    "description": "Exact match on a flat top-level key: order_id",
+    "category": 0,
+    "type": 1,
+    "targetOutputKey": "order_id",
+    "createdAt": "2025-06-26T17:45:39.651Z",
+    "updatedAt": "2025-06-26T17:45:39.651Z"
+}

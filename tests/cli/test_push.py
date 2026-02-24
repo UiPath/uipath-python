@@ -1328,6 +1328,263 @@ class TestPush:
             assert "Updating 'main.py'" not in result.output
             assert "Updating 'helper.py'" not in result.output
 
+    def test_push_skips_root_evals_folder_files(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that files in root evals folder are skipped during push."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            # Create evals folder structure
+            os.makedirs("evals")
+            os.makedirs("evals/eval-sets")
+            os.makedirs("evals/evaluators")
+
+            # Create files in root evals folder (should be skipped)
+            with open("evals/root_file1.json", "w") as f:
+                f.write('{"should": "be skipped"}')
+            with open("evals/root_file2.py", "w") as f:
+                f.write("print('should be skipped')")
+
+            # Create files in eval-sets (should be included)
+            with open("evals/eval-sets/test_eval.json", "w") as f:
+                f.write('{"should": "be included"}')
+
+            # Create files in evaluators (should be included)
+            with open("evals/evaluators/test_evaluator.py", "w") as f:
+                f.write("def evaluate(): pass")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+
+            # Verify root evals files are skipped
+            assert "Skipping 'evals/root_file1.json' (evals folder)" in result.output
+            assert "Skipping 'evals/root_file2.py' (evals folder)" in result.output
+
+            # Verify eval-sets and evaluators files are uploaded
+            assert "Uploading 'test_eval.json'" in result.output
+            assert "Uploading 'test_evaluator.py'" in result.output
+
+            # Verify main.py is uploaded
+            assert "Uploading 'main.py'" in result.output
+
+    def test_push_skips_only_root_evals_files_not_subdirectories(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that only files directly in evals folder are skipped, not files in subdirectories."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create evals folder with various subdirectories
+            os.makedirs("evals/eval-sets")
+            os.makedirs("evals/evaluators")
+            os.makedirs("evals/custom-subfolder")
+
+            # Files directly in evals (should be skipped)
+            with open("evals/config.json", "w") as f:
+                f.write('{"root": "file"}')
+
+            # Files in subdirectories (should be included)
+            with open("evals/eval-sets/test.json", "w") as f:
+                f.write('{"eval": "set"}')
+            with open("evals/evaluators/eval.py", "w") as f:
+                f.write("def evaluate(): pass")
+            with open("evals/custom-subfolder/data.json", "w") as f:
+                f.write('{"custom": "data"}')
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+
+            # Verify root file is skipped
+            assert "Skipping 'evals/config.json' (evals folder)" in result.output
+
+            # Verify subdirectory files are included
+            assert "Uploading 'test.json'" in result.output
+            assert "Uploading 'eval.py'" in result.output
+            assert "Uploading 'data.json'" in result.output
+
+    def test_push_logs_skipped_files_count(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push logs the count of skipped files from root evals folder."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            # Create evals folder with multiple files
+            os.makedirs("evals")
+
+            # Create 3 files in root evals
+            with open("evals/file1.json", "w") as f:
+                f.write("{}")
+            with open("evals/file2.py", "w") as f:
+                f.write("pass")
+            with open("evals/file3.yaml", "w") as f:
+                f.write("key: value")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+
+            # Verify individual files are skipped
+            assert "Skipping 'evals/file1.json' (evals folder)" in result.output
+            assert "Skipping 'evals/file2.py' (evals folder)" in result.output
+            assert "Skipping 'evals/file3.yaml' (evals folder)" in result.output
+
     def test_push_preserves_remote_evals_when_no_local_evals(
         self,
         runner: CliRunner,

@@ -2,9 +2,12 @@ import logging
 
 import click
 
-from ._evals._helpers import (  # type: ignore[attr-defined] # Remove after gnarly fix
+from uipath.eval.evaluators.registration import (
+    EvaluatorRegistrationError,
     register_evaluator,
 )
+
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from ._utils._resources import Resources
 
@@ -15,6 +18,7 @@ console = ConsoleLogger()
 @click.command()
 @click.argument("resource", required=True)
 @click.argument("args", nargs=-1)
+@track_command("register")
 def register(resource: str, args: tuple[str]) -> None:
     """Register a local resource.
 
@@ -41,4 +45,7 @@ def register(resource: str, args: tuple[str]) -> None:
                 console.error("Invalid filename: must be a non-empty string")
                 return
 
-            register_evaluator(filename)
+            try:
+                register_evaluator(filename)
+            except EvaluatorRegistrationError as e:
+                console.error(str(e))

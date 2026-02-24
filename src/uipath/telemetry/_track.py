@@ -1,3 +1,4 @@
+import atexit
 import json
 import os
 from functools import wraps
@@ -24,6 +25,7 @@ from ._constants import (
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
+    _CONNECTION_STRING,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -68,6 +70,20 @@ def _parse_connection_string(connection_string: str) -> Optional[str]:
 
 _logger = getLogger(__name__)
 _logger.propagate = False
+
+
+def _get_connection_string() -> str | None:
+    """Get the Application Insights connection string.
+
+    Checks the TELEMETRY_CONNECTION_STRING env var first, then falls back
+    to the _CONNECTION_STRING constant.
+    """
+    env_value = os.getenv("TELEMETRY_CONNECTION_STRING")
+    if env_value:
+        return env_value
+    if _CONNECTION_STRING and _CONNECTION_STRING != "$CONNECTION_STRING":
+        return _CONNECTION_STRING
+    return None
 
 
 def _get_project_key() -> str:
@@ -129,6 +145,7 @@ class _AppInsightsEventClient:
 
     _initialized = False
     _client: Optional[Any] = None
+    _atexit_registered = False
 
     @staticmethod
     def _initialize() -> None:
@@ -146,7 +163,7 @@ class _AppInsightsEventClient:
         if not _HAS_APPINSIGHTS:
             return
 
-        connection_string = os.getenv("TELEMETRY_CONNECTION_STRING")
+        connection_string = _get_connection_string()
         if not connection_string:
             return
 
@@ -161,9 +178,10 @@ class _AppInsightsEventClient:
 
             # Set application version
             _AppInsightsEventClient._client.context.application.ver = version("uipath")
-        except Exception:
-            # Silently fail - telemetry should never break the main application
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to initialize Application Insights client: {e}")
+            _logger.debug("Application Insights initialization error", exc_info=True)
 
     @staticmethod
     def track_event(
@@ -193,9 +211,10 @@ class _AppInsightsEventClient:
             )
             # Note: We don't flush after every event to avoid blocking.
             # Events will be sent in batches by the SDK.
-        except Exception:
-            # Telemetry should never break the main application
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to track event '{name}': {e}")
+            _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
 
     @staticmethod
     def flush() -> None:
@@ -203,8 +222,17 @@ class _AppInsightsEventClient:
         if _AppInsightsEventClient._client:
             try:
                 _AppInsightsEventClient._client.flush()
-            except Exception:
-                pass
+            except Exception as e:
+                # Log but don't raise - telemetry should never break the main application
+                _logger.warning(f"Failed to flush telemetry events: {e}")
+                _logger.debug("Telemetry flush error", exc_info=True)
+
+    @staticmethod
+    def register_atexit_flush() -> None:
+        """Register an atexit handler to flush events on process exit."""
+        if not _AppInsightsEventClient._atexit_registered:
+            atexit.register(_AppInsightsEventClient.flush)
+            _AppInsightsEventClient._atexit_registered = True
 
 
 class _TelemetryClient:
@@ -238,8 +266,10 @@ class _TelemetryClient:
             _logger.setLevel(INFO)
 
             _TelemetryClient._initialized = True
-        except Exception:
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to initialize telemetry client: {e}")
+            _logger.debug("Telemetry initialization error", exc_info=True)
 
     @staticmethod
     def _track_method(name: str, attrs: Optional[Dict[str, Any]] = None):
@@ -278,9 +308,10 @@ class _TelemetryClient:
 
         try:
             _AppInsightsEventClient.track_event(name, properties)
-        except Exception:
-            # Telemetry should never break the main application
-            pass
+        except Exception as e:
+            # Log but don't raise - telemetry should never break the main application
+            _logger.warning(f"Failed to track event '{name}': {e}")
+            _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
 
 
 def track_event(
@@ -323,6 +354,23 @@ def flush_events() -> None:
     events are sent immediately.
     """
     _AppInsightsEventClient.flush()
+
+
+def track_cli_event(
+    name: str,
+    properties: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Track a CLI event.
+
+    Buffers the event and registers an atexit handler to flush pending events on process exit.
+    """
+    if not _TelemetryClient._is_enabled():
+        return
+    try:
+        _AppInsightsEventClient.track_event(name, properties)
+        _AppInsightsEventClient.register_atexit_flush()
+    except Exception:
+        pass
 
 
 def track(

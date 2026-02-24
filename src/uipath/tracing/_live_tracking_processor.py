@@ -3,8 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
-from uipath.core.tracing import UiPathTraceSettings
 
+from uipath.core.tracing import UiPathTraceSettings
 from uipath.tracing._otel_exporters import LlmOpsHttpExporter, SpanStatus
 
 logger = logging.getLogger(__name__)

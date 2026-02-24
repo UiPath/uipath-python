@@ -7,12 +7,13 @@ This module tests:
 - Proper instantiation across all evaluator types
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
+from pytest_mock.plugin import MockerFixture
 
-from uipath._cli._evals._evaluator_factory import EvaluatorFactory
 from uipath.eval.evaluators.contains_evaluator import ContainsEvaluator
+from uipath.eval.evaluators.evaluator_factory import EvaluatorFactory
 from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
 from uipath.eval.evaluators.json_similarity_evaluator import JsonSimilarityEvaluator
 from uipath.eval.evaluators.llm_judge_output_evaluator import LLMJudgeOutputEvaluator
@@ -24,9 +25,6 @@ from uipath.eval.evaluators.tool_call_args_evaluator import ToolCallArgsEvaluato
 from uipath.eval.evaluators.tool_call_count_evaluator import ToolCallCountEvaluator
 from uipath.eval.evaluators.tool_call_order_evaluator import ToolCallOrderEvaluator
 from uipath.eval.evaluators.tool_call_output_evaluator import ToolCallOutputEvaluator
-
-if TYPE_CHECKING:
-    from pytest_mock.plugin import MockerFixture
 
 
 class TestEvaluatorFactoryFieldHandling:

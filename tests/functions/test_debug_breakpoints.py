@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pytest
+
+from uipath.functions.debug import BreakpointController, UiPathDebugFunctionsRuntime
+from uipath.functions.runtime import UiPathFunctionsRuntime
 from uipath.runtime import (
     UiPathBreakpointResult,
     UiPathRuntimeResult,
@@ -26,9 +29,6 @@ from uipath.runtime import (
 )
 from uipath.runtime.debug import UiPathDebugRuntime
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
-
-from uipath.functions.debug import BreakpointController, UiPathDebugFunctionsRuntime
-from uipath.functions.runtime import UiPathFunctionsRuntime
 
 
 class MockDebugBridge:

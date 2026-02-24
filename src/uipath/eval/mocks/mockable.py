@@ -5,18 +5,19 @@ import functools
 import inspect
 import logging
 import threading
-from typing import Any, List, Optional
+from typing import Any
 
 from opentelemetry import trace
 from pydantic import TypeAdapter
 from pydantic_function_models import (  # type: ignore[import-untyped]
     ValidatedFunction,
 )
-from uipath.core import UiPathSpanUtils
 
-from uipath._cli._evals._models._mocks import ExampleCall
-from uipath._cli._evals.mocks.mocker import UiPathNoMockFoundError
-from uipath._cli._evals.mocks.mocks import get_mocked_response
+from uipath.core.tracing import UiPathSpanUtils
+
+from ._mock_context import get_mocked_response
+from ._mocker import UiPathNoMockFoundError
+from ._types import ExampleCall
 
 _event_loop = None
 logger = logging.getLogger(__name__)
@@ -92,11 +93,11 @@ def get_input_schema(func):
 
 
 def mockable(
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    input_schema: Optional[dict[str, Any]] = None,
-    output_schema: Optional[dict[str, Any]] = None,
-    example_calls: Optional[List[ExampleCall]] = None,
+    name: str | None = None,
+    description: str | None = None,
+    input_schema: dict[str, Any] | None = None,
+    output_schema: dict[str, Any] | None = None,
+    example_calls: list[ExampleCall] | None = None,
     **kwargs,
 ):
     """Decorate a function to be a mockable."""

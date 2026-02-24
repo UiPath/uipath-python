@@ -5,6 +5,7 @@ from typing import Any, TypeVar, Union
 
 from pydantic import Field
 
+from .._helpers.output_path import resolve_output_path
 from ..models import AgentExecution
 from ..models.models import UiPathEvaluationError, UiPathEvaluationErrorCategory
 from .base_evaluator import (
@@ -53,14 +54,13 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
-        if self.evaluator_config.target_output_key != "*" and isinstance(
-            agent_execution.agent_output, dict
-        ):
+        if self.evaluator_config.target_output_key != "*":
             try:
-                return agent_execution.agent_output[
-                    self.evaluator_config.target_output_key
-                ]
-            except KeyError as e:
+                return resolve_output_path(
+                    agent_execution.agent_output,
+                    self.evaluator_config.target_output_key,
+                )
+            except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
                     title="Target output key not found in actual output",
@@ -93,10 +93,11 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                         category=UiPathEvaluationErrorCategory.USER,
                     ) from e
             try:
-                expected_output = expected_output[
-                    self.evaluator_config.target_output_key
-                ]
-            except KeyError as e:
+                expected_output = resolve_output_path(
+                    expected_output,
+                    self.evaluator_config.target_output_key,
+                )
+            except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
                     title="Target output key not found in expected output",
