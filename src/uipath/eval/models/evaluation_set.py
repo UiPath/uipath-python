@@ -5,6 +5,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from uipath._cli._evals._conversational_utils import (
+    LegacyConversationalEvalInput,
+    LegacyConversationalEvalOutput,
+)
+
 from ..mocks._types import (
     InputMockingStrategy,
     MockingStrategy,
@@ -115,6 +120,12 @@ class LegacyEvaluationItem(BaseModel):
     )
     tools_to_simulate: list[ToolSimulation] = Field(
         default_factory=list, alias="toolsToSimulate"
+    )
+    conversational_inputs: LegacyConversationalEvalInput | None = Field(
+        default=None, alias="conversationalInputs"
+    )
+    conversational_expected_output: LegacyConversationalEvalOutput | None = Field(
+        default=None, alias="conversationalExpectedOutput"
     )
 
 
