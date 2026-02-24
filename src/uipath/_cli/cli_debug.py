@@ -21,6 +21,7 @@ from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
+from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
@@ -62,6 +63,7 @@ logger = logging.getLogger(__name__)
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@track_command("debug")
 def debug(
     entrypoint: str | None,
     input: str | None,
