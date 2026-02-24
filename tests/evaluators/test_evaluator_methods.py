@@ -200,6 +200,67 @@ class TestExactMatchEvaluator:
         assert result.score == 0.0
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "actual, expected",
+        [
+            ("1.0", "1"),
+            ("1", "1.0"),
+            ("1e0", "1"),
+            ("1.00", "1.0"),
+            ("0.5", "0.50"),
+            ("-3.0", "-3"),
+        ],
+    )
+    async def test_exact_match_numeric_leniency(
+        self, actual: str, expected: str
+    ) -> None:
+        """Test that numerically equal values match regardless of string representation."""
+        execution = AgentExecution(
+            agent_input={"input": "Test"},
+            agent_output={"result": actual},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchNumericTest",
+            "case_sensitive": True,
+            "target_output_key": "result",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(expected_output={"result": expected})  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0, (
+            f"Expected '{actual}' and '{expected}' to be considered equal as numbers"
+        )
+
+    @pytest.mark.asyncio
+    async def test_exact_match_numeric_non_equal(self) -> None:
+        """Test that numerically different values do not match."""
+        execution = AgentExecution(
+            agent_input={"input": "Test"},
+            agent_output={"result": "1.5"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchNumericTest",
+            "case_sensitive": True,
+            "target_output_key": "result",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(expected_output={"result": "1"})  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
     async def test_exact_match_validate_and_evaluate_criteria(
         self, sample_agent_execution: AgentExecution
     ) -> None:

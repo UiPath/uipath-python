@@ -58,11 +58,14 @@ class ExactMatchEvaluator(
         """
         actual_output = str(self._get_actual_output(agent_execution))
         expected_output = str(self._get_expected_output(evaluation_criteria))
-        if not self.evaluator_config.case_sensitive:
-            actual_output = actual_output.lower()
-            expected_output = expected_output.lower()
 
-        is_exact_match = actual_output == expected_output
+        try:
+            is_exact_match = float(actual_output) == float(expected_output)
+        except ValueError:
+            if not self.evaluator_config.case_sensitive:
+                actual_output = actual_output.lower()
+                expected_output = expected_output.lower()
+            is_exact_match = actual_output == expected_output
         if self.evaluator_config.negated:
             is_exact_match = not is_exact_match
 
