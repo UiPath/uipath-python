@@ -1,5 +1,6 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
+import copy
 import json
 import logging
 from abc import abstractmethod
@@ -289,8 +290,6 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         )
 
         # Log full request body for debugging
-        import copy
-
         request_body_for_log = copy.deepcopy(request_data)
         # Convert tool_choice to dict for logging
         if "tool_choice" in request_body_for_log:
