@@ -15,6 +15,7 @@ from ._utils._project_files import (
     pull_project,
 )
 from ._utils._studio_project import StudioClient
+from .middlewares import Middlewares
 
 console = ConsoleLogger()
 
@@ -52,6 +53,13 @@ def pull(root: Path, overwrite: bool) -> None:
         return
 
     studio_client = StudioClient(project_id=project_id)
+
+    result = Middlewares.next("pull", studio_client, root, overwrite)
+    if result.error_message:
+        console.error(result.error_message)
+        return
+    if not result.should_continue:
+        return
 
     asyncio.run(ensure_coded_agent_project(studio_client))
 
