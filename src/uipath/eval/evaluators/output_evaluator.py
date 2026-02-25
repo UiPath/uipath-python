@@ -52,11 +52,25 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         J: The justification type
     """
 
+    def _normalize_numbers(self, obj: Any) -> Any:
+        """Recursively normalize int/float to float for consistent numeric comparison.
+
+        Converts all numeric values (int, float) to float in nested structures
+        (dicts, lists), while preserving booleans and other data types.
+        """
+        if isinstance(obj, dict):
+            return {k: self._normalize_numbers(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [self._normalize_numbers(v) for v in obj]
+        if isinstance(obj, (int, float)) and not isinstance(obj, bool):
+            return float(obj)
+        return obj
+
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Get the actual output from the agent execution."""
         if self.evaluator_config.target_output_key != "*":
             try:
-                return resolve_output_path(
+                result = resolve_output_path(
                     agent_execution.agent_output,
                     self.evaluator_config.target_output_key,
                 )
@@ -67,7 +81,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     detail=f"Error: {e}",
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
-        return agent_execution.agent_output
+        else:
+            result = agent_execution.agent_output
+        return self._normalize_numbers(result)
 
     def _get_full_expected_output(self, evaluation_criteria: T) -> Any:
         """Get the full expected output from the evaluation criteria."""
@@ -104,7 +120,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     detail=f"Error: {e}",
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
-        return expected_output
+        return self._normalize_numbers(expected_output)
 
 
 # NOTE: This evaluator is only used in coded evaluators.

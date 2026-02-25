@@ -56,23 +56,26 @@ class ExactMatchEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating exact match (True/False)
         """
-        actual_output = str(self._get_actual_output(agent_execution))
-        expected_output = str(self._get_expected_output(evaluation_criteria))
+        actual_output = self._get_actual_output(agent_execution)
+        expected_output = self._get_expected_output(evaluation_criteria)
 
-        try:
-            is_exact_match = float(actual_output) == float(expected_output)
-        except ValueError:
+        if isinstance(actual_output, str) or isinstance(expected_output, str):
+            actual_str = str(actual_output)
+            expected_str = str(expected_output)
             if not self.evaluator_config.case_sensitive:
-                actual_output = actual_output.lower()
-                expected_output = expected_output.lower()
+                actual_str = actual_str.lower()
+                expected_str = expected_str.lower()
+            is_exact_match = actual_str == expected_str
+        else:
             is_exact_match = actual_output == expected_output
+
         if self.evaluator_config.negated:
             is_exact_match = not is_exact_match
 
         validated_justification = self.validate_justification(
             {
-                "expected": expected_output,
-                "actual": actual_output,
+                "expected": str(expected_output),
+                "actual": str(actual_output),
             }
         )
         return NumericEvaluationResult(

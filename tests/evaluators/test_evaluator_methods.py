@@ -201,64 +201,81 @@ class TestExactMatchEvaluator:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "actual, expected",
+        "actual_output, expected_output, expected_score",
         [
-            ("1.0", "1"),
-            ("1", "1.0"),
-            ("1e0", "1"),
-            ("1.00", "1.0"),
-            ("0.5", "0.50"),
-            ("-3.0", "-3"),
+            # Scalar int/float normalization — the core fix
+            (1, 1.0, 1.0),
+            (1.0, 1, 1.0),
+            (0, 0.0, 1.0),
+            (-3, -3.0, 1.0),
+            (1.5, 1, 0.0),
+            (2, 3, 0.0),
         ],
     )
-    async def test_exact_match_numeric_leniency(
-        self, actual: str, expected: str
+    async def test_exact_match_numeric_normalization(
+        self, actual_output: Any, expected_output: Any, expected_score: float
     ) -> None:
-        """Test that numerically equal values match regardless of string representation."""
+        """Test that int and float scalar values are normalized before comparison."""
         execution = AgentExecution(
-            agent_input={"input": "Test"},
-            agent_output={"result": actual},
+            agent_input={},
+            agent_output={"value": actual_output},
             agent_trace=[],
         )
-        config = {
-            "name": "ExactMatchNumericTest",
-            "case_sensitive": True,
-            "target_output_key": "result",
-        }
+        config = {"name": "ExactMatchNumericTest", "target_output_key": "value"}
         evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"result": expected})  # pyright: ignore[reportCallIssue]
+        criteria = OutputEvaluationCriteria(expected_output={"value": expected_output})  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(execution, criteria)
 
         assert isinstance(result, NumericEvaluationResult)
-        assert result.score == 1.0, (
-            f"Expected '{actual}' and '{expected}' to be considered equal as numbers"
-        )
+        assert result.score == expected_score
 
     @pytest.mark.asyncio
-    async def test_exact_match_numeric_non_equal(self) -> None:
-        """Test that numerically different values do not match."""
+    @pytest.mark.parametrize(
+        "actual_output, expected_output, target_key, expected_score",
+        [
+            # Flat dict: int vs float value
+            ({"v": 1}, {"v": 1.0}, "*", 1.0),
+            ({"v": 1.0}, {"v": 1}, "*", 1.0),
+            ({"v": 1.5}, {"v": 1}, "*", 0.0),
+            # Nested dict
+            ({"a": {"b": 1}}, {"a": {"b": 1.0}}, "*", 1.0),
+            ({"a": {"b": 1.5}}, {"a": {"b": 1}}, "*", 0.0),
+            # List of numbers
+            ({"vals": [1, 2, 3]}, {"vals": [1.0, 2.0, 3.0]}, "*", 1.0),
+            ({"vals": [1, 2, 4]}, {"vals": [1.0, 2.0, 3.0]}, "*", 0.0),
+            # target_output_key resolves to a dict containing int/float
+            ({"result": {"count": 1}}, {"result": {"count": 1.0}}, "result", 1.0),
+            # target_output_key resolves to a scalar int/float
+            ({"result": 1}, {"result": 1.0}, "result", 1.0),
+            ({"result": 1.5}, {"result": 1}, "result", 0.0),
+        ],
+    )
+    async def test_exact_match_recursive_normalization(
+        self,
+        actual_output: Any,
+        expected_output: Any,
+        target_key: str,
+        expected_score: float,
+    ) -> None:
+        """Test that int/float normalization works recursively for dicts, lists, and nested structures."""
         execution = AgentExecution(
-            agent_input={"input": "Test"},
-            agent_output={"result": "1.5"},
+            agent_input={},
+            agent_output=actual_output,
             agent_trace=[],
         )
-        config = {
-            "name": "ExactMatchNumericTest",
-            "case_sensitive": True,
-            "target_output_key": "result",
-        }
+        config = {"name": "ExactMatchRecursiveTest", "target_output_key": target_key}
         evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
-        criteria = OutputEvaluationCriteria(expected_output={"result": "1"})  # pyright: ignore[reportCallIssue]
+        criteria = OutputEvaluationCriteria(expected_output=expected_output)  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.evaluate(execution, criteria)
 
         assert isinstance(result, NumericEvaluationResult)
-        assert result.score == 0.0
+        assert result.score == expected_score
 
     @pytest.mark.asyncio
     async def test_exact_match_validate_and_evaluate_criteria(
@@ -286,43 +303,64 @@ class TestContainsEvaluator:
     """Test ContainsEvaluator.evaluate() method."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "agent_output, search_text, target_key, case_sensitive, negated, expected_score",
+        [
+            # Basic match
+            ("Test output", "Test output", "*", False, False, 1.0),
+            # Substring match
+            ("Hello World", "World", "*", False, False, 1.0),
+            # No match
+            ("Hello World", "Goodbye", "*", False, False, 0.0),
+            # Case-insensitive match (default)
+            ("Hello World", "hello world", "*", False, False, 1.0),
+            # Case-sensitive hit
+            ("Hello World", "Hello", "*", True, False, 1.0),
+            # Case-sensitive miss
+            ("Hello World", "hello", "*", True, False, 0.0),
+            # Negated hit becomes miss
+            ("Test output", "Test output", "*", False, True, 0.0),
+            # Negated miss becomes hit
+            ("Hello World", "Goodbye", "*", False, True, 1.0),
+            # target_output_key extraction
+            ("Test output", "Test output", "output", False, False, 1.0),
+        ],
+    )
     async def test_contains_evaluator(
-        self, sample_agent_execution: AgentExecution
+        self,
+        agent_output: Any,
+        search_text: str,
+        target_key: str,
+        case_sensitive: bool,
+        negated: bool,
+        expected_score: float,
+        sample_agent_execution: AgentExecution,
     ) -> None:
-        """Test contains evaluator."""
+        """Test ContainsEvaluator across match, no-match, case sensitivity, and negation cases."""
+        if target_key == "output":
+            execution = (
+                sample_agent_execution  # has agent_output={"output": "Test output"}
+            )
+        else:
+            execution = AgentExecution(
+                agent_input={},
+                agent_output=agent_output,
+                agent_trace=[],
+            )
         config = {
             "name": "ContainsTest",
-            "target_output_key": "output",
-            "default_evaluation_criteria": {"search_text": "Test output"},
+            "target_output_key": target_key,
+            "case_sensitive": case_sensitive,
+            "negated": negated,
         }
         evaluator = ContainsEvaluator.model_validate(
             {"evaluatorConfig": config, "id": str(uuid.uuid4())}
         )
-        criteria = ContainsEvaluationCriteria(search_text="Test output")
-        result = await evaluator.evaluate(sample_agent_execution, criteria)
+        criteria = ContainsEvaluationCriteria(search_text=search_text)
+        result = await evaluator.evaluate(execution, criteria)
 
         assert isinstance(result, NumericEvaluationResult)
-        assert result.score == 1.0
-
-    @pytest.mark.asyncio
-    async def test_contains_evaluator_negated(
-        self, sample_agent_execution: AgentExecution
-    ) -> None:
-        """Test contains evaluator with negated criteria."""
-        config = {
-            "name": "ContainsTest",
-            "negated": True,
-            "target_output_key": "output",
-            "default_evaluation_criteria": {"search_text": "Test output"},
-        }
-        evaluator = ContainsEvaluator.model_validate(
-            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
-        )
-        criteria = ContainsEvaluationCriteria(search_text="Test output")
-        result = await evaluator.evaluate(sample_agent_execution, criteria)
-
-        assert isinstance(result, NumericEvaluationResult)
-        assert result.score == 0.0
+        assert result.score == expected_score
 
     @pytest.mark.asyncio
     async def test_contains_evaluator_validate_and_evaluate_criteria(
@@ -332,7 +370,6 @@ class TestContainsEvaluator:
         config = {
             "name": "ContainsTest",
             "target_output_key": "*",
-            "default_evaluation_criteria": {"search_text": "Test output"},
         }
         evaluator = ContainsEvaluator.model_validate(
             {"evaluatorConfig": config, "id": str(uuid.uuid4())}
@@ -394,6 +431,44 @@ class TestJsonSimilarityEvaluator:
 
         assert isinstance(result, NumericEvaluationResult)
         assert math.isclose(result.score, 0.666, abs_tol=1e-3)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "actual_output, expected_output, expected_score",
+        [
+            # int/float normalization — identical after normalization
+            ({"count": 1}, {"count": 1.0}, 1.0),
+            ({"count": 1.0}, {"count": 1}, 1.0),
+            # Nested int/float
+            ({"a": {"b": 1}}, {"a": {"b": 1.0}}, 1.0),
+            # List of ints vs floats
+            ({"vals": [1, 2, 3]}, {"vals": [1.0, 2.0, 3.0]}, 1.0),
+            # Different numeric values — partial score: 1.0 - |expected-actual|/|expected|
+            ({"count": 1.5}, {"count": 1}, 0.5),
+        ],
+    )
+    async def test_json_similarity_numeric_normalization(
+        self,
+        actual_output: Any,
+        expected_output: Any,
+        expected_score: float,
+    ) -> None:
+        """Test that int/float normalization is applied before JSON similarity comparison."""
+        execution = AgentExecution(
+            agent_input={},
+            agent_output=actual_output,
+            agent_trace=[],
+        )
+        config = {"name": "JsonSimilarityTest"}
+        evaluator = JsonSimilarityEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(expected_output=expected_output)  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == expected_score
 
     @pytest.mark.asyncio
     async def test_json_similarity_validate_and_evaluate_criteria(self) -> None:
