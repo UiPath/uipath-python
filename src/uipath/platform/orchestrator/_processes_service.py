@@ -51,6 +51,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
+        parent_operation_id: Optional[str] = None,
         **kwargs: Any,
     ) -> Job:
         """Start execution of a process by its name.
@@ -99,6 +100,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_key=folder_key,
             folder_path=folder_path,
             parent_span_id=kwargs.get("parent_span_id"),
+            parent_operation_id=parent_operation_id,
         )
         response = self.request(
             spec.method,
@@ -121,6 +123,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
+        parent_operation_id: Optional[str] = None,
         **kwargs: Any,
     ) -> Job:
         """Asynchronously start execution of a process by its name.
@@ -164,6 +167,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_key=folder_key,
             folder_path=folder_path,
             parent_span_id=kwargs.get("parent_span_id"),
+            parent_operation_id=parent_operation_id,
         )
 
         response = await self.request_async(
@@ -308,9 +312,12 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         parent_span_id: Optional[str] = None,
+        parent_operation_id: Optional[str] = None,
     ) -> RequestSpec:
         payload: Dict[str, Any] = {"ReleaseName": name, **(input_data or {})}
         self._add_tracing(payload, UiPathConfig.trace_id, parent_span_id)
+        if parent_operation_id:
+            payload["ParentOperationId"] = parent_operation_id
 
         request_spec = RequestSpec(
             method="POST",
