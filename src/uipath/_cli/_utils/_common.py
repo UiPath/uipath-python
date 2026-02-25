@@ -181,7 +181,14 @@ async def read_resource_overwrites_from_file(
                 .get("resourceOverwrites", {})
             )
             for key, value in resource_overwrites.items():
-                overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
+                try:
+                    overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
+                except Exception as e:
+                    logger.warning(
+                        "Skipping unrecognized resource overwrite '%s': %s",
+                        key,
+                        e,
+                    )
 
             logger.debug(
                 "Loaded %d resource overwrite(s) from file %s",
