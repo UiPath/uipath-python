@@ -554,66 +554,28 @@ class TestLangchainExporter(unittest.TestCase):
             "SpanType": "OpenTelemetry",
         }
 
-        print("\n=== Testing UNKNOWN span type preservation ===")
-        print(f"Initial SpanType: {span_data['SpanType']}")
-        attributes_before = span_data["Attributes"]
-        assert isinstance(attributes_before, dict)
-        print(
-            f"openinference.span.kind: {attributes_before['openinference.span.kind']}"
-        )
-        print(f"Attributes type before: {type(attributes_before)}")
-
-        # Process the span
         self.exporter._process_span_attributes(span_data)
 
-        print(f"SpanType after processing: {span_data['SpanType']}")
-        print(f"Attributes type after: {type(span_data['Attributes'])}")
+        self.assertEqual(span_data["SpanType"], "UNKNOWN")
+        self.assertIn("Attributes", span_data)
 
-        # Verify span is processed correctly
-        self.assertEqual(
-            span_data["SpanType"],
-            "UNKNOWN",
-            "SpanType should be mapped to UNKNOWN from openinference.span.kind",
-        )
-        self.assertIn("Attributes", span_data, "Attributes should still be present")
-
-        # When input is dict, output stays as dict (optimized path)
         attributes = span_data["Attributes"]
         assert isinstance(attributes, dict)
-        self.assertIsInstance(
-            attributes, dict, "Attributes should remain as dict in optimized path"
-        )
 
-        # Basic attribute mapping should still work
-        self.assertIn(
-            "input",
-            attributes,
-            "input.value should be mapped to input by ATTRIBUTE_MAPPING",
-        )
-        self.assertIn(
-            "output",
-            attributes,
-            "output.value should be mapped to output by ATTRIBUTE_MAPPING",
-        )
+        self.assertIn("input", attributes)
+        self.assertIn("output", attributes)
 
-        # Verify mime types are preserved
         self.assertEqual(attributes["input.mime_type"], "application/json")
         self.assertEqual(attributes["output.mime_type"], "application/json")
 
-        # Verify parsed values
         input_val = attributes["input"]
         assert isinstance(input_val, dict)
-        self.assertIsInstance(input_val, dict, "input should be parsed from JSON")
         self.assertIn("content", input_val)
 
         output_val = attributes["output"]
         assert isinstance(output_val, dict)
-        self.assertIsInstance(output_val, dict, "output should be parsed from JSON")
         self.assertEqual(output_val["label"], "security")
         self.assertEqual(output_val["confidence"], 0.95)
-
-        print("✓ UNKNOWN span preserved and processed correctly")
-        print(f"✓ Final attributes keys: {list(attributes.keys())}")
 
     def test_json_strings_parsed_to_objects(self):
         """Test that JSON-encoded strings starting with { or [ are parsed to objects.
@@ -756,6 +718,52 @@ class TestUpsertSpan:
 
             assert result == SpanExportResult.FAILURE
             assert exporter_with_mocks.http_client.post.call_count == 4  # max_retries=4
+
+
+class TestNilUuidProcessKey:
+    """ProcessKey nil UUID normalization during export."""
+
+    def _export_with_process_key(self, mock_env_vars, mock_span, process_key):
+        """Export a span with the given ProcessKey and return the exported payload."""
+        mock_uipath_span = MagicMock()
+        mock_uipath_span.to_dict.return_value = {
+            "TraceId": "test-trace-id",
+            "Id": "span-id",
+            "ProcessKey": process_key,
+            "Attributes": {},
+        }
+
+        with (
+            patch("uipath.tracing._otel_exporters.httpx.Client"),
+            patch(
+                "uipath.tracing._otel_exporters._SpanUtils.otel_span_to_uipath_span",
+                return_value=mock_uipath_span,
+            ),
+        ):
+            exporter = LlmOpsHttpExporter()
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            exporter.http_client.post.return_value = mock_response
+            exporter._build_url = MagicMock(return_value="http://test/api")  # type: ignore
+
+            exporter.export([mock_span])
+
+            return exporter.http_client.post.call_args.kwargs["json"][0]
+
+    def test_nil_uuid_normalized_to_none(self, mock_env_vars, mock_span):
+        payload = self._export_with_process_key(
+            mock_env_vars, mock_span, "00000000-0000-0000-0000-000000000000"
+        )
+        assert payload["ProcessKey"] is None
+
+    def test_valid_uuid_preserved(self, mock_env_vars, mock_span):
+        real_key = "65965c09-87e3-4fa3-a7be-3fdb3955bd47"
+        payload = self._export_with_process_key(mock_env_vars, mock_span, real_key)
+        assert payload["ProcessKey"] == real_key
+
+    def test_none_stays_none(self, mock_env_vars, mock_span):
+        payload = self._export_with_process_key(mock_env_vars, mock_span, None)
+        assert payload["ProcessKey"] is None
 
 
 if __name__ == "__main__":
