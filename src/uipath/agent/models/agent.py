@@ -358,7 +358,9 @@ class AgentContextSettings(BaseCfg):
     # Allow Unknown explicitly so we can serialize deterministically
     retrieval_mode: AgentContextRetrievalMode = Field(alias="retrievalMode")
     threshold: float = Field(default=0)
-    query: Optional[AgentContextQuerySetting] = Field(None)
+    query: AgentContextQuerySetting = Field(
+        default_factory=lambda: AgentContextQuerySetting(variant="dynamic")
+    )
     folder_path_prefix: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = (
         Field(None, alias="folderPathPrefix")
     )
