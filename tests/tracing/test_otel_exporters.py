@@ -743,12 +743,12 @@ class TestNilUuidProcessKey:
             exporter = LlmOpsHttpExporter()
             mock_response = MagicMock()
             mock_response.status_code = 200
-            exporter.http_client.post.return_value = mock_response
+            exporter.http_client.post.return_value = mock_response  # type: ignore
             exporter._build_url = MagicMock(return_value="http://test/api")  # type: ignore
 
             exporter.export([mock_span])
 
-            return exporter.http_client.post.call_args.kwargs["json"][0]
+            return exporter.http_client.post.call_args.kwargs["json"][0]  # type: ignore
 
     def test_nil_uuid_normalized_to_none(self, mock_env_vars, mock_span):
         payload = self._export_with_process_key(
