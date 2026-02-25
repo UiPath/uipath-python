@@ -41,29 +41,47 @@ try:
     from applicationinsights import (  # type: ignore[import-untyped]
         TelemetryClient as AppInsightsTelemetryClient,
     )
+    from applicationinsights.channel import (  # type: ignore[import-untyped]
+        SynchronousQueue,
+        SynchronousSender,
+        TelemetryChannel,
+    )
 
     _HAS_APPINSIGHTS = True
 except ImportError:
     _HAS_APPINSIGHTS = False
     AppInsightsTelemetryClient = None
+    SynchronousSender = None
+    SynchronousQueue = None
+    TelemetryChannel = None
 
 
-def _parse_connection_string(connection_string: str) -> Optional[str]:
-    """Parse Azure Application Insights connection string to get instrumentation key.
+def _parse_connection_string(
+    connection_string: str,
+) -> Optional[Dict[str, str]]:
+    """Parse Azure Application Insights connection string.
 
     Args:
         connection_string: The full connection string from Azure.
 
     Returns:
-        The instrumentation key if found, None otherwise.
+        Dict with 'InstrumentationKey' and optionally 'IngestionEndpoint',
+        or None if InstrumentationKey is not found.
     """
     try:
-        parts = {}
+        parts: Dict[str, str] = {}
         for part in connection_string.split(";"):
             if "=" in part:
                 key, value = part.split("=", 1)
                 parts[key] = value
-        return parts.get("InstrumentationKey")
+        ikey = parts.get("InstrumentationKey")
+        if not ikey:
+            return None
+        result: Dict[str, str] = {"InstrumentationKey": ikey}
+        ingestion = parts.get("IngestionEndpoint")
+        if ingestion:
+            result["IngestionEndpoint"] = ingestion
+        return result
     except Exception:
         return None
 
@@ -136,6 +154,59 @@ class _AzureMonitorOpenTelemetryEventHandler(LoggingHandler):
         return attributes
 
 
+class _DiagnosticSender(SynchronousSender):
+    """SynchronousSender that logs HTTP failures the base SDK silently discards."""
+
+    def send(self, data_to_send: Any) -> None:
+        """Send telemetry data with diagnostic logging.
+
+        The base SDK silently discards HTTP 400 responses and swallows all
+        other network errors. This override adds WARNING-level logs so
+        silent data loss becomes visible in logs.
+        """
+        import json as _json
+
+        try:
+            import urllib.request as HTTPClient
+            from urllib.error import HTTPError
+        except ImportError:
+            super().send(data_to_send)
+            return
+
+        request_payload = _json.dumps([a.write() for a in data_to_send])
+        request = HTTPClient.Request(
+            self._service_endpoint_uri,
+            bytearray(request_payload, "utf-8"),
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+        )
+        try:
+            response = HTTPClient.urlopen(request, timeout=self._timeout)
+            status_code = response.getcode()
+            if 200 <= status_code < 300:
+                return
+        except HTTPError as e:
+            if e.getcode() == 400:
+                _logger.warning(
+                    "AppInsights send: HTTP 400 — payload rejected (%d items discarded)",
+                    len(data_to_send),
+                )
+                return
+            _logger.warning(
+                "AppInsights send: HTTP %d (%d items re-queued)",
+                e.getcode(),
+                len(data_to_send),
+            )
+        except Exception as e:
+            _logger.warning("AppInsights send: %s (%s)", type(e).__name__, e)
+
+        # Re-queue unsent data
+        for data in data_to_send:
+            self._queue.put(data)
+
+
 class _AppInsightsEventClient:
     """Application Insights SDK client for sending custom events.
 
@@ -168,12 +239,25 @@ class _AppInsightsEventClient:
             return
 
         try:
-            instrumentation_key = _parse_connection_string(connection_string)
-            if not instrumentation_key:
+            parsed = _parse_connection_string(connection_string)
+            if not parsed:
                 return
 
+            instrumentation_key = parsed["InstrumentationKey"]
+            ingestion_endpoint = parsed.get("IngestionEndpoint")
+
+            # Build custom channel: DiagnosticSender → SynchronousQueue → TelemetryChannel
+            if ingestion_endpoint:
+                endpoint_url = ingestion_endpoint.rstrip("/") + "/v2/track"
+            else:
+                endpoint_url = None  # SDK default
+
+            sender = _DiagnosticSender(service_endpoint_uri=endpoint_url)
+            queue = SynchronousQueue(sender)
+            channel = TelemetryChannel(queue=queue)
+
             _AppInsightsEventClient._client = AppInsightsTelemetryClient(
-                instrumentation_key
+                instrumentation_key, telemetry_channel=channel
             )
 
             # Set application version
@@ -222,6 +306,18 @@ class _AppInsightsEventClient:
         if _AppInsightsEventClient._client:
             try:
                 _AppInsightsEventClient._client.flush()
+                # Check if items remain after flush (indicates send failure)
+                try:
+                    remaining = (
+                        _AppInsightsEventClient._client.channel.queue._queue.qsize()
+                    )
+                    if remaining > 0:
+                        _logger.warning(
+                            "AppInsights flush: %d items still in queue after flush",
+                            remaining,
+                        )
+                except Exception:
+                    pass
             except Exception as e:
                 # Log but don't raise - telemetry should never break the main application
                 _logger.warning(f"Failed to flush telemetry events: {e}")
@@ -308,6 +404,10 @@ class _TelemetryClient:
 
         try:
             _AppInsightsEventClient.track_event(name, properties)
+            # Safety net: register atexit flush so events are sent even if
+            # the caller never explicitly flushes (e.g. serverless containers).
+            # Idempotent — only registers once.
+            _AppInsightsEventClient.register_atexit_flush()
         except Exception as e:
             # Log but don't raise - telemetry should never break the main application
             _logger.warning(f"Failed to track event '{name}': {e}")

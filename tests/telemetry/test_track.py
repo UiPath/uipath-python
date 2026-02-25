@@ -27,7 +27,10 @@ class TestParseConnectionString:
 
         result = _parse_connection_string(connection_string)
 
-        assert result == "test-key-123"
+        assert result == {
+            "InstrumentationKey": "test-key-123",
+            "IngestionEndpoint": "https://example.com/",
+        }
 
     def test_parse_connection_string_only_instrumentation_key(self):
         """Test parsing connection string with only InstrumentationKey."""
@@ -35,7 +38,7 @@ class TestParseConnectionString:
 
         result = _parse_connection_string(connection_string)
 
-        assert result == "simple-key"
+        assert result == {"InstrumentationKey": "simple-key"}
 
     def test_parse_connection_string_missing_instrumentation_key(self):
         """Test parsing connection string without InstrumentationKey."""
@@ -68,7 +71,7 @@ class TestParseConnectionString:
 
         result = _parse_connection_string(connection_string)
 
-        assert result == "key=with=equals"
+        assert result == {"InstrumentationKey": "key=with=equals"}
 
 
 class TestAppInsightsEventClient:
@@ -96,6 +99,9 @@ class TestAppInsightsEventClient:
             assert _AppInsightsEventClient._initialized is True
             assert _AppInsightsEventClient._client is None
 
+    @patch("uipath.telemetry._track.TelemetryChannel")
+    @patch("uipath.telemetry._track.SynchronousQueue")
+    @patch("uipath.telemetry._track._DiagnosticSender")
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
     @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
     @patch(
@@ -103,7 +109,7 @@ class TestAppInsightsEventClient:
         "InstrumentationKey=builtin-key;IngestionEndpoint=https://example.com/",
     )
     def test_initialize_falls_back_to_builtin_connection_string(
-        self, mock_client_class
+        self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
     ):
         """Test initialization uses _CONNECTION_STRING when env var is not set."""
         mock_client = MagicMock()
@@ -116,7 +122,12 @@ class TestAppInsightsEventClient:
 
         assert _AppInsightsEventClient._initialized is True
         assert _AppInsightsEventClient._client is mock_client
-        mock_client_class.assert_called_once_with("builtin-key")
+        mock_sender_class.assert_called_once_with(
+            service_endpoint_uri="https://example.com/v2/track"
+        )
+        mock_client_class.assert_called_once_with(
+            "builtin-key", telemetry_channel=mock_channel_class.return_value
+        )
 
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", False)
     def test_initialize_no_appinsights_package(self):
@@ -126,9 +137,14 @@ class TestAppInsightsEventClient:
         assert _AppInsightsEventClient._initialized is True
         assert _AppInsightsEventClient._client is None
 
+    @patch("uipath.telemetry._track.TelemetryChannel")
+    @patch("uipath.telemetry._track.SynchronousQueue")
+    @patch("uipath.telemetry._track._DiagnosticSender")
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
     @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
-    def test_initialize_creates_client(self, mock_client_class):
+    def test_initialize_creates_client(
+        self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
+    ):
         """Test that initialization creates Application Insights client."""
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
@@ -145,11 +161,19 @@ class TestAppInsightsEventClient:
 
         assert _AppInsightsEventClient._initialized is True
         assert _AppInsightsEventClient._client is mock_client
-        mock_client_class.assert_called_once_with("test-key")
+        mock_sender_class.assert_called_once_with(
+            service_endpoint_uri="https://example.com/v2/track"
+        )
+        mock_client_class.assert_called_once_with(
+            "test-key", telemetry_channel=mock_channel_class.return_value
+        )
 
+    @patch("uipath.telemetry._track._DiagnosticSender")
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
     @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
-    def test_initialize_invalid_connection_string(self, mock_client_class):
+    def test_initialize_invalid_connection_string(
+        self, mock_client_class, mock_sender_class
+    ):
         """Test initialization with invalid connection string."""
         with patch.dict(
             os.environ,
@@ -276,15 +300,27 @@ class TestTelemetryClient:
 
             mock_track.assert_not_called()
 
+    @patch.object(_AppInsightsEventClient, "register_atexit_flush")
     @patch.object(_TelemetryClient, "_is_enabled", return_value=True)
     @patch.object(_AppInsightsEventClient, "track_event")
-    def test_track_event_enabled(self, mock_track, mock_is_enabled):
+    def test_track_event_enabled(self, mock_track, mock_is_enabled, mock_atexit):
         """Test that track_event calls AppInsightsEventClient when enabled."""
         properties = {"key": "value"}
 
         _TelemetryClient.track_event("test_event", properties)
 
         mock_track.assert_called_once_with("test_event", properties)
+
+    @patch.object(_AppInsightsEventClient, "register_atexit_flush")
+    @patch.object(_TelemetryClient, "_is_enabled", return_value=True)
+    @patch.object(_AppInsightsEventClient, "track_event")
+    def test_track_event_registers_atexit_handler(
+        self, mock_track, mock_is_enabled, mock_atexit
+    ):
+        """Test that track_event registers atexit flush handler."""
+        _TelemetryClient.track_event("test_event", {"key": "value"})
+
+        mock_atexit.assert_called_once()
 
 
 class TestPublicFunctions:
@@ -488,9 +524,14 @@ class TestTelemetryExceptionHandling:
         # Should not raise exception
         _AppInsightsEventClient.flush()
 
+    @patch("uipath.telemetry._track.TelemetryChannel")
+    @patch("uipath.telemetry._track.SynchronousQueue")
+    @patch("uipath.telemetry._track._DiagnosticSender")
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
     @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
-    def test_initialize_handles_exception(self, mock_client_class):
+    def test_initialize_handles_exception(
+        self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
+    ):
         """Test that initialization handles exceptions."""
         mock_client_class.side_effect = Exception("Init error")
 
