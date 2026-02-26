@@ -152,7 +152,7 @@ class EvalHelpers:
                             evaluation.conversational_inputs
                         )
                         evaluation.inputs["messages"] = [
-                            message.model_dump(by_alias=True)
+                            message.model_dump(by_alias=True, exclude_none=True)
                             for message in conversational_messages_input
                         ]
 
@@ -163,7 +163,7 @@ class EvalHelpers:
                         evaluation.expected_output[
                             "uipath__agent_response_messages"
                         ] = [
-                            message.model_dump(by_alias=True)
+                            message.model_dump(by_alias=True, exclude_none=True)
                             for message in conversational_messages_expected_output
                         ]
 
