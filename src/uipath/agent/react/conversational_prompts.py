@@ -83,12 +83,13 @@ WHAT TO CITE:
 - Any information drawn from Context Grounding documents.
 
 CITATION FORMAT (self-closing tag after each sentence with cited information):
-<uip:cite title="Document Title" reference="https://url" page_number="1"/>
+- Web results: <uip:cite title="Document Title" url="https://url"/>
+- Context Grounding: <uip:cite title="Document Title" reference="https://url" page_number="1"/>
 
 TOOL RESULT PATTERNS REQUIRING CITATION:
 Tool results containing these fields indicate citable sources:
-- Web results: "url", "title" fields -> use title and url attributes
-- Context Grounding: objects with "reference", "source", "page_number" -> use title (from source), reference, page_number attributes
+- Web results: "url", "title" fields -> use url, title attributes
+- Context Grounding: objects with "reference", "source", "page_number" -> use reference, title (from source), page_number attributes
 
 RULES:
 - Place citation tag immediately after the sentence containing the cited fact
@@ -96,6 +97,8 @@ RULES:
 - For web results: use title and url attributes
 - For context grounding: use title, reference, and page_number attributes
 - Never include citations in tool inputs
+- Do not mix attributes between citation types: web results use only title/url, context grounding uses only title/reference/page_number
+- Do not add a space before the citation tag
 
 EXAMPLES OF CORRECT USAGE:
 AI adoption is growing rapidly.<uip:cite title="Industry Study" url="https://example.com/study"/>
