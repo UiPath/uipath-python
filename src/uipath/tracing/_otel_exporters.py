@@ -16,6 +16,12 @@ from uipath.platform.common import _SpanUtils
 
 logger = logging.getLogger(__name__)
 
+_NIL_UUID = "00000000-0000-0000-0000-000000000000"
+
+
+def _normalize_process_key(value: Optional[str]) -> Optional[str]:
+    return None if not value or value == _NIL_UUID else value
+
 
 class SpanStatus:
     """Span status values matching LLMOps StatusEnum."""
@@ -149,6 +155,10 @@ class LlmOpsHttpExporter(SpanExporter):
 
         # Process spans in-place - work directly with dict
         for span_data in span_list:
+            if "ProcessKey" in span_data:
+                span_data["ProcessKey"] = _normalize_process_key(
+                    span_data["ProcessKey"]
+                )
             self._process_span_attributes(span_data)
 
         # Serialize attributes once at the very end
@@ -189,6 +199,8 @@ class LlmOpsHttpExporter(SpanExporter):
 
         url = self._build_url([span_data])
 
+        if "ProcessKey" in span_data:
+            span_data["ProcessKey"] = _normalize_process_key(span_data["ProcessKey"])
         self._process_span_attributes(span_data)
 
         # Apply status override after processing (which may set status from error)
