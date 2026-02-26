@@ -12,6 +12,7 @@ from uipath.core.chat import (
     UiPathConversationToolCall,
     UiPathConversationToolCallData,
     UiPathConversationToolCallResult,
+    UiPathExternalValue,
     UiPathInlineValue,
 )
 
@@ -146,13 +147,21 @@ class UiPathLegacyEvalChatMessagesMapper:
                         else []
                     )
 
-                    # TODO: Add attachments if present
-                    # if message.attachments:
-                    #     for attachment in message.attachments:
-                    #         content_parts.append(
-                    #             UiPathConversationContentPart(...)
-                    #         )
-
+                    if eval_message.attachments:
+                        for attachment in eval_message.attachments:
+                            content_parts.append(
+                                UiPathConversationContentPart(
+                                    content_part_id=str(uuid.uuid4()),
+                                    mime_type=attachment.mime_type,
+                                    data=UiPathExternalValue(
+                                        uri=f"urn:uipath:cas:file:orchestrator:{attachment.id}"
+                                    ),
+                                    name=attachment.full_name,
+                                    citations=[],
+                                    created_at=timestamp,
+                                    updated_at=timestamp,
+                                )
+                            )
                     messages.append(
                         UiPathConversationMessage(
                             message_id=str(uuid.uuid4()),
@@ -228,12 +237,21 @@ class UiPathLegacyEvalChatMessagesMapper:
             else []
         )
 
-        # TODO Add attachments if present
-        # if eval_input.current_user_prompt.attachments:
-        #     for attachment in eval_input.current_user_prompt.attachments:
-        #         content_parts.append(
-        #             UiPathConversationContentPart(...)
-        #         )
+        if eval_input.current_user_prompt.attachments:
+            for attachment in eval_input.current_user_prompt.attachments:
+                content_parts.append(
+                    UiPathConversationContentPart(
+                        content_part_id=str(uuid.uuid4()),
+                        mime_type=attachment.mime_type,
+                        data=UiPathExternalValue(
+                            uri=f"urn:uipath:cas:file:orchestrator:{attachment.id}"
+                        ),
+                        name=attachment.full_name,
+                        citations=[],
+                        created_at=timestamp,
+                        updated_at=timestamp,
+                    )
+                )
 
         messages.append(
             UiPathConversationMessage(

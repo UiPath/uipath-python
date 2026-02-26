@@ -267,7 +267,9 @@ def eval(
 
         # Load eval set to resolve the path
         eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()
-        _, resolved_eval_set_path = EvalHelpers.load_eval_set(eval_set_path, eval_ids)
+        _, resolved_eval_set_path = EvalHelpers.load_eval_set(
+            eval_set_path, eval_ids, input_overrides=input_overrides
+        )
 
         eval_context.report_coverage = report_coverage
         eval_context.input_overrides = input_overrides
@@ -338,7 +340,9 @@ def eval(
 
                     # Load eval set (path is already resolved in cli_eval.py)
                     eval_context.evaluation_set, _ = EvalHelpers.load_eval_set(
-                        resolved_eval_set_path, eval_ids
+                        resolved_eval_set_path,
+                        eval_ids,
+                        input_overrides=input_overrides,
                     )
 
                     # Resolve model settings override from eval set
