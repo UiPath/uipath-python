@@ -98,8 +98,8 @@ RULES:
 - Never include citations in tool inputs
 
 EXAMPLES OF CORRECT USAGE:
-AI adoption is growing rapidly. <uip:cite title="Industry Study" url="https://example.com/study"/>
-The procedure requires manager approval. <uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>
+AI adoption is growing rapidly.<uip:cite title="Industry Study" url="https://example.com/study"/>
+The procedure requires manager approval.<uip:cite title="Policy Manual v2.pdf" reference="https://docs.example.com/ref" page_number="15"/>
 
 CRITICAL ERRORS TO AVOID:
 <uip:cite/> (missing attributes)
