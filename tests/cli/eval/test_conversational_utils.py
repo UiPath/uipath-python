@@ -14,8 +14,6 @@ from uipath._cli._evals._conversational_utils import (
     LegacyConversationalEvalUserMessage,
     UiPathLegacyEvalChatMessagesMapper,
 )
-from uipath.core.chat import UiPathInlineValue
-
 
 class TestLegacyConversationalEvalInputToUiPathMessages:
     """Tests for converting legacy eval input to UiPath messages."""
