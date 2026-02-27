@@ -2,8 +2,6 @@
 
 from typing import Any
 
-import pytest
-
 from uipath._cli._evals._conversational_utils import (
     LegacyConversationalEvalInput,
     LegacyConversationalEvalInputAgentMessage,
