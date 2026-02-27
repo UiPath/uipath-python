@@ -81,6 +81,9 @@ class EvaluationItem(BaseModel):
     id: str
     name: str
     inputs: dict[str, Any]
+    expected_output: dict[str, Any] | str | None = Field(
+        default=None, alias="expectedOutput"
+    )
     evaluation_criterias: dict[str, dict[str, Any] | None] = Field(
         ..., alias="evaluationCriterias"
     )
