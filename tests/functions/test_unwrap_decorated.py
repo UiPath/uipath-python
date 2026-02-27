@@ -71,3 +71,28 @@ async def test_execute_unwraps_decorated_function(decorated_module):
     assert isinstance(result.output, dict)
     assert result.output["total_nodes"] == 1
     assert result.output["max_value"] == 42
+
+
+@pytest.mark.asyncio
+async def test_schema_type_defaults_to_function(decorated_module):
+    """Schema type should be 'function' by default."""
+    runtime = UiPathFunctionsRuntime(str(decorated_module), "main", "decorated")
+    schema = await runtime.get_schema()
+
+    assert schema.type == "function"
+
+
+@pytest.mark.asyncio
+async def test_schema_type_reflects_entrypoint_type(decorated_module):
+    """Schema type should reflect the entrypoint_type passed to the runtime."""
+    runtime_fn = UiPathFunctionsRuntime(
+        str(decorated_module), "main", "decorated", entrypoint_type="function"
+    )
+    schema_fn = await runtime_fn.get_schema()
+    assert schema_fn.type == "function"
+
+    runtime_agent = UiPathFunctionsRuntime(
+        str(decorated_module), "main", "decorated", entrypoint_type="agent"
+    )
+    schema_agent = await runtime_agent.get_schema()
+    assert schema_agent.type == "agent"
