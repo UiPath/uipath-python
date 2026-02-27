@@ -120,7 +120,8 @@ async def test_evaluate():
     )
 
     # Assert that the output is json-serializable
-    UiPathEvalOutput.model_validate(result.output).model_dump_json()
+    eval_output = UiPathEvalOutput.model_validate(result.output)
+    eval_output.model_dump_json()
     assert result.output
     output_dict = (
         result.output.model_dump()
@@ -128,16 +129,16 @@ async def test_evaluate():
         else result.output
     )
     assert isinstance(output_dict, dict)
-    assert (
-        output_dict["evaluationSetResults"][0]["evaluationRunResults"][0]["result"][
-            "score"
-        ]
-        == 1.0
-    )
-    assert (
-        output_dict["evaluationSetResults"][0]["evaluationRunResults"][0]["evaluatorId"]
-        == "ExactMatchEvaluator"
-    )
+    first_result = output_dict["evaluationSetResults"][0]["evaluationRunResults"][0]
+    assert first_result["result"]["score"] == 1.0
+    assert first_result["evaluatorId"] == "ExactMatchEvaluator"
+    # Verify details are properly serialized (not empty dict)
+    details = first_result["result"].get("details")
+    if details is not None:
+        assert details != {}, (
+            "details should not be an empty dict - BaseModel serialization bug"
+        )
+        assert isinstance(details, (str, dict))
 
 
 async def test_eval_runtime_generates_uuid_when_no_custom_id():
