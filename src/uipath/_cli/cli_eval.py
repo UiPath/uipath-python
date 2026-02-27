@@ -205,6 +205,12 @@ def _resolve_model_settings_override(
     default=False,
     help="Resume execution from a previous suspended state",
 )
+@click.option(
+    "--verbose",
+    is_flag=True,
+    default=False,
+    help="Include agent execution output (trace, result) in the output file",
+)
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
@@ -220,6 +226,7 @@ def eval(
     max_llm_concurrency: int,
     input_overrides: dict[str, Any],
     resume: bool,
+    verbose: bool,
 ) -> None:
     """Run an evaluation set against the agent.
 
@@ -272,6 +279,7 @@ def eval(
         eval_context.report_coverage = report_coverage
         eval_context.input_overrides = input_overrides
         eval_context.resume = resume
+        eval_context.verbose = verbose
 
         try:
 

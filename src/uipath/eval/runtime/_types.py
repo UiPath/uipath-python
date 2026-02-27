@@ -55,7 +55,7 @@ class EvaluationResultDto(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     score: float
-    details: str | BaseModel | None = None
+    details: str | dict[str, Any] | None = None
     evaluation_time: float | None = None
 
     @model_serializer(mode="wrap")
@@ -82,9 +82,17 @@ class EvaluationResultDto(BaseModel):
         else:
             score = evaluation_result.score
 
+        # Convert BaseModel details to dict so Pydantic doesn't lose subclass fields
+        if isinstance(evaluation_result.details, BaseModel):
+            details: str | dict[str, Any] | None = (
+                evaluation_result.details.model_dump()
+            )
+        else:
+            details = evaluation_result.details
+
         return cls(
             score=score,
-            details=evaluation_result.details,
+            details=details,
             evaluation_time=evaluation_result.evaluation_time,
         )
 
