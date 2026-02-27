@@ -1,0 +1,12 @@
+[project]
+name = "eval-level-expected-output"
+version = "0.0.1"
+description = "Tests for evaluation-level expectedOutput on EvaluationItem"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath",
+]
+requires-python = ">=3.11"
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }
