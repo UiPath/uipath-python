@@ -648,6 +648,7 @@ class TestEndToEndCriteriaResolution:
                     "expectedOutput": evaluation_item.expected_output,
                 }
 
+        assert evaluation_criteria is not None
         typed_criteria = evaluator.evaluation_criteria_type(**evaluation_criteria)
         result = await evaluator.evaluate(execution, typed_criteria)
 
@@ -694,6 +695,7 @@ class TestEndToEndCriteriaResolution:
             if em_criteria is None:
                 em_criteria = {"expectedOutput": evaluation_item.expected_output}
 
+        assert em_criteria is not None
         em_typed = exact_match_evaluator.evaluation_criteria_type(**em_criteria)
         em_result = await exact_match_evaluator.evaluate(execution, em_typed)
         assert em_result.score == 1.0
@@ -704,6 +706,7 @@ class TestEndToEndCriteriaResolution:
             contains_evaluator.evaluation_criteria_type,
             OutputEvaluationCriteria,
         )
+        assert c_criteria is not None
         c_typed = contains_evaluator.evaluation_criteria_type(**c_criteria)
         c_result = await contains_evaluator.evaluate(execution, c_typed)
         assert c_result.score == 1.0
@@ -748,6 +751,7 @@ class TestEndToEndCriteriaResolution:
                 }
             # else: per-evaluator wins (this case)
 
+        assert evaluation_criteria is not None
         typed_criteria = evaluator.evaluation_criteria_type(**evaluation_criteria)
         result = await evaluator.evaluate(execution, typed_criteria)
 
