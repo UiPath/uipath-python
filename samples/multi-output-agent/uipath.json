@@ -10,7 +10,7 @@
     "directoriesExcluded": [],
     "includeUvLock": true
   },
-  "functions": {
+  "agents": {
     "main": "main.py:main"
   }
 }
