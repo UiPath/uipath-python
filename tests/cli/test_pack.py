@@ -326,6 +326,55 @@ class TestPack:
                     "Binary file content was corrupted during packing"
                 )
 
+    def test_pack_preserves_crlf_line_endings(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that packing preserves CRLF line endings byte-for-byte.
+
+        Regression test: text-mode reads on Windows silently convert CRLF to LF,
+        causing files to be trimmed. The pack must use binary-mode reads so the
+        zip entry is byte-identical to the file on disk.
+        """
+        crlf_content = b"line1\r\nline2\r\nline3\r\n"
+        lf_content = b"line1\nline2\nline3\n"
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump(create_uipath_json(), f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            # Write main.py with CRLF endings using binary mode to avoid any conversion
+            with open("main.py", "wb") as f:
+                f.write(b"def main(input):\r\n    return input\r\n")
+            # Write a helper file with CRLF endings
+            with open("crlf_file.py", "wb") as f:
+                f.write(crlf_content)
+            # Write a helper file with LF endings
+            with open("lf_file.py", "wb") as f:
+                f.write(lf_content)
+            create_bindings_file()
+
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                assert z.read("content/crlf_file.py") == crlf_content, (
+                    "CRLF line endings were not preserved during packing"
+                )
+                assert z.read("content/lf_file.py") == lf_content, (
+                    "LF line endings were not preserved during packing"
+                )
+
     def test_include_files(
         self,
         runner: CliRunner,
