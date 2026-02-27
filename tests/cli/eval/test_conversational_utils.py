@@ -545,9 +545,7 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
             eval_input
         )
 
-        all_ids = [
-            part.content_part_id for msg in result for part in msg.content_parts
-        ]
+        all_ids = [part.content_part_id for msg in result for part in msg.content_parts]
         assert len(all_ids) == len(set(all_ids))
 
 

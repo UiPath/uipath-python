@@ -41,18 +41,14 @@ def _apply_file_overrides_to_conversational_inputs(
     file_overrides: list[dict[str, Any]] = []
     for value in overrides.values():
         if isinstance(value, list):
-            file_overrides.extend(
-                f for f in value if isinstance(f, dict) and "ID" in f
-            )
+            file_overrides.extend(f for f in value if isinstance(f, dict) and "ID" in f)
         elif isinstance(value, dict) and "ID" in value:
             file_overrides.append(value)
 
     if not file_overrides:
         return
 
-    override_by_name = {
-        f["FullName"]: f for f in file_overrides if "FullName" in f
-    }
+    override_by_name = {f["FullName"]: f for f in file_overrides if "FullName" in f}
 
     def _override_attachments(attachments: list[Any] | None) -> None:
         if not attachments:

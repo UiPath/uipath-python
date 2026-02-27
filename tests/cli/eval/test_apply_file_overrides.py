@@ -41,26 +41,20 @@ class TestApplyFileOverridesNoOp:
 
     def test_empty_overrides(self) -> None:
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         _apply_file_overrides_to_conversational_inputs(inputs, {})
         assert attachment.id == "old-id"
 
     def test_no_overrides(self) -> None:
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         _apply_file_overrides_to_conversational_inputs(inputs, {})
         assert attachment.id == "old-id"
 
     def test_overrides_without_id_key_are_ignored(self) -> None:
         """Dicts without 'ID' key should not be treated as file overrides."""
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {"someField": {"name": "not-a-file"}}
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.id == "old-id"
@@ -68,9 +62,7 @@ class TestApplyFileOverridesNoOp:
     def test_string_override_values_are_ignored(self) -> None:
         """Non-dict, non-list override values should be skipped."""
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {"someField": "just a string", "anotherField": 42}
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.id == "old-id"
@@ -78,11 +70,13 @@ class TestApplyFileOverridesNoOp:
     def test_no_matching_attachment_by_name(self) -> None:
         """Override with a FullName that doesn't match any attachment."""
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
-            "files": {"ID": "new-id", "FullName": "other.pdf", "MimeType": "application/pdf"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "other.pdf",
+                "MimeType": "application/pdf",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.id == "old-id"
@@ -91,7 +85,11 @@ class TestApplyFileOverridesNoOp:
         """No error when current_user_prompt has no attachments."""
         inputs = _make_conversational_inputs(current_prompt_attachments=None)
         overrides = {
-            "files": {"ID": "new-id", "FullName": "file.pdf", "MimeType": "application/pdf"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "file.pdf",
+                "MimeType": "application/pdf",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
 
@@ -99,7 +97,11 @@ class TestApplyFileOverridesNoOp:
         """No error when current_user_prompt has empty attachments list."""
         inputs = _make_conversational_inputs(current_prompt_attachments=[])
         overrides = {
-            "files": {"ID": "new-id", "FullName": "file.pdf", "MimeType": "application/pdf"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "file.pdf",
+                "MimeType": "application/pdf",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
 
@@ -109,45 +111,47 @@ class TestApplyFileOverridesSingleDict:
 
     def test_override_updates_id(self) -> None:
         attachment = _make_attachment("old-id", "report.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
-            "files": {"ID": "new-id", "FullName": "report.pdf", "MimeType": "application/pdf"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "report.pdf",
+                "MimeType": "application/pdf",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.id == "new-id"
 
     def test_override_updates_full_name(self) -> None:
         attachment = _make_attachment("old-id", "report.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
-            "files": {"ID": "new-id", "FullName": "report.pdf", "MimeType": "text/plain"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "report.pdf",
+                "MimeType": "text/plain",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.full_name == "report.pdf"
 
     def test_override_updates_mime_type(self) -> None:
         attachment = _make_attachment("old-id", "report.pdf", "application/pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
-            "files": {"ID": "new-id", "FullName": "report.pdf", "MimeType": "text/plain"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "report.pdf",
+                "MimeType": "text/plain",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.mime_type == "text/plain"
 
     def test_override_without_mime_type_preserves_original(self) -> None:
         attachment = _make_attachment("old-id", "report.pdf", "application/pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
-        overrides = {
-            "files": {"ID": "new-id", "FullName": "report.pdf"}
-        }
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
+        overrides = {"files": {"ID": "new-id", "FullName": "report.pdf"}}
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.id == "new-id"
         assert attachment.mime_type == "application/pdf"
@@ -158,13 +162,19 @@ class TestApplyFileOverridesArrayValues:
 
     def test_override_from_array_of_files(self) -> None:
         attachment = _make_attachment("old-id", "doc.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
             "files": [
-                {"ID": "new-id-1", "FullName": "doc.pdf", "MimeType": "application/pdf"},
-                {"ID": "new-id-2", "FullName": "other.pdf", "MimeType": "application/pdf"},
+                {
+                    "ID": "new-id-1",
+                    "FullName": "doc.pdf",
+                    "MimeType": "application/pdf",
+                },
+                {
+                    "ID": "new-id-2",
+                    "FullName": "other.pdf",
+                    "MimeType": "application/pdf",
+                },
             ]
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
@@ -173,9 +183,7 @@ class TestApplyFileOverridesArrayValues:
     def test_multiple_attachments_matched_from_array(self) -> None:
         att1 = _make_attachment("old-1", "a.pdf")
         att2 = _make_attachment("old-2", "b.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[att1, att2]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[att1, att2])
         overrides = {
             "files": [
                 {"ID": "new-1", "FullName": "a.pdf", "MimeType": "application/pdf"},
@@ -190,9 +198,7 @@ class TestApplyFileOverridesArrayValues:
     def test_non_dict_items_in_array_are_skipped(self) -> None:
         """Non-dict items in an override array should be safely ignored."""
         attachment = _make_attachment("old-id", "doc.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
             "files": [
                 "not-a-dict",
@@ -206,9 +212,7 @@ class TestApplyFileOverridesArrayValues:
     def test_dicts_without_id_in_array_are_skipped(self) -> None:
         """Dicts in array that lack 'ID' should not be treated as file overrides."""
         attachment = _make_attachment("old-id", "doc.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
             "files": [
                 {"name": "not-a-file"},
@@ -225,11 +229,13 @@ class TestApplyFileOverridesMultipleOverrideKeys:
     def test_file_overrides_collected_across_multiple_keys(self) -> None:
         att1 = _make_attachment("old-1", "a.pdf")
         att2 = _make_attachment("old-2", "b.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[att1, att2]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[att1, att2])
         overrides = {
-            "primaryFile": {"ID": "new-1", "FullName": "a.pdf", "MimeType": "application/pdf"},
+            "primaryFile": {
+                "ID": "new-1",
+                "FullName": "a.pdf",
+                "MimeType": "application/pdf",
+            },
             "secondaryFiles": [
                 {"ID": "new-2", "FullName": "b.pdf", "MimeType": "text/plain"},
             ],
@@ -245,24 +251,22 @@ class TestApplyFileOverridesEdgeCases:
     def test_file_override_without_full_name_is_not_indexed(self) -> None:
         """File dicts with ID but no FullName cannot match any attachment."""
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
-        overrides = {
-            "files": {"ID": "new-id"}
-        }
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
+        overrides = {"files": {"ID": "new-id"}}
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert attachment.id == "old-id"
 
     def test_duplicate_full_names_last_wins(self) -> None:
         """When multiple overrides share the same FullName, the last one wins in the dict comprehension."""
         attachment = _make_attachment("old-id", "file.pdf")
-        inputs = _make_conversational_inputs(
-            current_prompt_attachments=[attachment]
-        )
+        inputs = _make_conversational_inputs(current_prompt_attachments=[attachment])
         overrides = {
             "files": [
-                {"ID": "first-id", "FullName": "file.pdf", "MimeType": "application/pdf"},
+                {
+                    "ID": "first-id",
+                    "FullName": "file.pdf",
+                    "MimeType": "application/pdf",
+                },
                 {"ID": "second-id", "FullName": "file.pdf", "MimeType": "text/plain"},
             ]
         }
@@ -283,7 +287,11 @@ class TestApplyFileOverridesConversationHistory:
             conversation_history=[[history_msg]],
         )
         overrides = {
-            "files": {"ID": "new-hist", "FullName": "history.pdf", "MimeType": "application/pdf"}
+            "files": {
+                "ID": "new-hist",
+                "FullName": "history.pdf",
+                "MimeType": "application/pdf",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert history_attachment.id == "new-hist"
@@ -300,8 +308,16 @@ class TestApplyFileOverridesConversationHistory:
         )
         overrides = {
             "files": [
-                {"ID": "new-curr", "FullName": "current.pdf", "MimeType": "application/pdf"},
-                {"ID": "new-hist", "FullName": "history.pdf", "MimeType": "application/pdf"},
+                {
+                    "ID": "new-curr",
+                    "FullName": "current.pdf",
+                    "MimeType": "application/pdf",
+                },
+                {
+                    "ID": "new-hist",
+                    "FullName": "history.pdf",
+                    "MimeType": "application/pdf",
+                },
             ]
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
@@ -322,7 +338,11 @@ class TestApplyFileOverridesConversationHistory:
             conversation_history=[[user_msg, agent_msg]],
         )
         overrides = {
-            "files": {"ID": "new-id", "FullName": "file.pdf", "MimeType": "application/pdf"}
+            "files": {
+                "ID": "new-id",
+                "FullName": "file.pdf",
+                "MimeType": "application/pdf",
+            }
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
         assert current_att.id == "new-id"
@@ -346,7 +366,11 @@ class TestApplyFileOverridesConversationHistory:
         overrides = {
             "files": [
                 {"ID": "new-1", "FullName": "first.pdf", "MimeType": "application/pdf"},
-                {"ID": "new-2", "FullName": "second.pdf", "MimeType": "application/pdf"},
+                {
+                    "ID": "new-2",
+                    "FullName": "second.pdf",
+                    "MimeType": "application/pdf",
+                },
             ]
         }
         _apply_file_overrides_to_conversational_inputs(inputs, overrides)
