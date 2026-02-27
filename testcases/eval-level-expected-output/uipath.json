@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "main": "../../samples/calculator/main.py:main"
+  }
+}
