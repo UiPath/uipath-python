@@ -6,8 +6,12 @@ import logging
 import os
 import uuid
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
+from uipath._utils.constants import (
+    ENV_FOLDER_KEY,
+    ENV_JOB_KEY,
+)
 from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
@@ -389,7 +393,6 @@ def get_chat_bridge(
     assert context.conversation_id is not None, "conversation_id must be set in context"
     assert context.exchange_id is not None, "exchange_id must be set in context"
 
-    # Extract host from UIPATH_URL
     base_url = os.environ.get("UIPATH_URL")
     if not base_url:
         raise RuntimeError(
@@ -401,9 +404,20 @@ def get_chat_bridge(
         raise RuntimeError(f"Invalid UIPATH_URL format: {base_url}")
 
     host = parsed.netloc
+    conversation_id = context.conversation_id
+    folder_key = os.environ.get(ENV_FOLDER_KEY)
+    job_key = os.environ.get(ENV_JOB_KEY)
 
-    # Construct WebSocket URL for CAS
-    websocket_url = f"wss://{host}?conversationId={context.conversation_id}"
+    # Build query params for CAS for use verifying the requesting agent should have access when runAsMe=False
+    query_params: dict[str, str] = {
+        "conversationId": conversation_id,
+        "folderKey": folder_key or "",
+        "jobKey": job_key or "",
+    }
+    query_params = {k: v for k, v in query_params.items() if v}
+    query_string = urlencode(query_params)
+
+    websocket_url = f"wss://{host}?{query_string}"
     websocket_path = "autopilotforeveryone_/websocket_/socket.io"
 
     if os.environ.get("CAS_WEBSOCKET_HOST"):
@@ -420,13 +434,13 @@ def get_chat_bridge(
         or os.environ.get("UIPATH_TENANT_ID", ""),
         "X-UiPath-Internal-AccountId": f"{context.org_id}"
         or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
-        "X-UiPath-ConversationId": context.conversation_id,
+        "X-UiPath-ConversationId": conversation_id,
     }
 
     return SocketIOChatBridge(
         websocket_url=websocket_url,
         websocket_path=websocket_path,
-        conversation_id=context.conversation_id,
+        conversation_id=conversation_id,
         exchange_id=context.exchange_id,
         headers=headers,
     )
