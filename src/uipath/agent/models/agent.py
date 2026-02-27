@@ -361,10 +361,10 @@ class AgentContextSettings(BaseCfg):
     query: AgentContextQuerySetting = Field(
         default_factory=lambda: AgentContextQuerySetting(variant="dynamic")
     )
-    folder_path_prefix: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = (
-        Field(None, alias="folderPathPrefix")
+    folder_path_prefix: Optional[AgentContextQuerySetting] = Field(
+        None, alias="folderPathPrefix"
     )
-    file_extension: Optional[Union[Dict[str, Any], AgentContextValueSetting]] = Field(
+    file_extension: Optional[AgentContextValueSetting] = Field(
         None, alias="fileExtension"
     )
     citation_mode: Optional[AgentContextValueSetting] = Field(
