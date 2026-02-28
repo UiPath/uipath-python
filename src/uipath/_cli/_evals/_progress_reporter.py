@@ -30,6 +30,7 @@ from uipath.eval.evaluators.base_evaluator import GenericBaseEvaluator
 from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.eval.models.evaluation_set import EvaluationItem
 from uipath.eval.runtime.events import (
+    AgentExecutionCompletedEvent,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
@@ -47,6 +48,7 @@ class EvaluationStatus(IntEnum):
     IN_PROGRESS = 1
     COMPLETED = 2
     FAILED = 3
+    WORKLOAD_EXECUTING = 4
 
 
 class StudioWebProgressItem(BaseModel):
@@ -725,6 +727,54 @@ class StudioWebProgressReporter:
         except Exception as e:
             self._format_error_message(e, "StudioWeb create eval run error")
 
+    async def handle_agent_execution_completed(
+        self, payload: AgentExecutionCompletedEvent
+    ) -> None:
+        """Handle agent execution completed — move eval run from WorkloadExecuting to Running."""
+        try:
+            eval_run_id = self.eval_run_ids.get(payload.execution_id)
+            if not eval_run_id:
+                logger.warning(
+                    f"Cannot move eval run to Running: eval_run_id not found for "
+                    f"execution_id={payload.execution_id}"
+                )
+                return
+
+            is_coded = self.is_coded_eval.get(
+                self.eval_set_execution_id or "", False
+            )
+
+            endpoint_suffix = "coded/" if is_coded else ""
+            spec = RequestSpec(
+                method="PUT",
+                endpoint=Endpoint(
+                    f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
+                ),
+                json={
+                    "evalRunId": eval_run_id,
+                    "status": EvaluationStatus.IN_PROGRESS.value,
+                },
+                headers=self._tenant_header(),
+            )
+
+            await self._client.request_async(
+                method=spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                json=spec.json,
+                headers=spec.headers,
+                scoped="org" if self._is_localhost() else "tenant",
+            )
+
+            logger.info(
+                f"Moved eval_run_id={eval_run_id} from WorkloadExecuting to Running (coded={is_coded})"
+            )
+
+        except Exception as e:
+            self._format_error_message(
+                e, "StudioWeb agent execution completed error"
+            )
+
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
             logger.info(
@@ -826,6 +876,10 @@ class StudioWebProgressReporter:
         )
         event_bus.subscribe(
             EvaluationEvents.CREATE_EVAL_RUN, self.handle_create_eval_run
+        )
+        event_bus.subscribe(
+            EvaluationEvents.AGENT_EXECUTION_COMPLETED,
+            self.handle_agent_execution_completed,
         )
         event_bus.subscribe(
             EvaluationEvents.UPDATE_EVAL_RUN, self.handle_update_eval_run
@@ -1234,7 +1288,7 @@ class StudioWebProgressReporter:
             "evalSetRunId": eval_set_run_id,
             "evalSnapshot": eval_snapshot,
             # Backend expects integer status
-            "status": EvaluationStatus.IN_PROGRESS.value,
+            "status": EvaluationStatus.WORKLOAD_EXECUTING.value,
         }
 
         # Legacy backend expects payload wrapped in "request" field

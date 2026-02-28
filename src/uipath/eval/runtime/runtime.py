@@ -85,6 +85,7 @@ from ._types import (
 from ._utils import apply_input_overrides
 from .context import UiPathEvalContext
 from .events import (
+    AgentExecutionCompletedEvent,
     EvalItemExceptionDetails,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
@@ -535,6 +536,14 @@ class UiPathEvalRuntime:
                     # Return partial results with trigger information
                     # The evaluation will be completed when resumed
                     return evaluation_run_results
+
+                # Agent execution completed — move eval run from WorkloadExecuting to Running
+                await self.event_bus.publish(
+                    EvaluationEvents.AGENT_EXECUTION_COMPLETED,
+                    AgentExecutionCompletedEvent(
+                        execution_id=execution_id,
+                    ),
+                )
 
                 if self.context.verbose:
                     evaluation_run_results.agent_execution_output = (

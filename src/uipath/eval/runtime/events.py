@@ -19,6 +19,7 @@ class EvaluationEvents(str, Enum):
     CREATE_EVAL_RUN = "create_eval_run"
     UPDATE_EVAL_SET_RUN = "update_eval_set_run"
     UPDATE_EVAL_RUN = "update_eval_run"
+    AGENT_EXECUTION_COMPLETED = "agent_execution_completed"
 
 
 class EvalSetRunCreatedEvent(BaseModel):
@@ -80,9 +81,16 @@ class EvalSetRunUpdatedEvent(BaseModel):
     success: bool = True
 
 
+class AgentExecutionCompletedEvent(BaseModel):
+    """Event emitted when agent execution completes and evaluation/scoring is about to begin."""
+
+    execution_id: str
+
+
 ProgressEvent = Union[
     EvalSetRunCreatedEvent,
     EvalRunCreatedEvent,
     EvalRunUpdatedEvent,
     EvalSetRunUpdatedEvent,
+    AgentExecutionCompletedEvent,
 ]
