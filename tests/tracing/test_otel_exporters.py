@@ -216,6 +216,44 @@ def test_get_base_url():
             assert exporter.base_url == "https://custom-trace.example.com/prefix"
 
 
+def test_internal_headers_set_when_trace_base_url_present():
+    """Test that internal tenant/account headers are set when UIPATH_TRACE_BASE_URL is configured."""
+    with patch.dict(
+        os.environ,
+        {
+            "UIPATH_TRACE_BASE_URL": "http://localhost:8888/llmops_",
+            "UIPATH_ACCESS_TOKEN": "test-token",
+            "UIPATH_TENANT_ID": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "UIPATH_ORGANIZATION_ID": "11111111-2222-3333-4444-555555555555",
+        },
+        clear=True,
+    ):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+
+            assert exporter.headers["X-UiPath-Internal-TenantId"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+            assert exporter.headers["X-UiPath-Internal-AccountId"] == "11111111-2222-3333-4444-555555555555"
+
+
+def test_internal_headers_not_set_without_trace_base_url():
+    """Test that internal headers are NOT set when UIPATH_TRACE_BASE_URL is absent (cloud mode)."""
+    with patch.dict(
+        os.environ,
+        {
+            "UIPATH_URL": "https://cloud.uipath.com/org/tenant",
+            "UIPATH_ACCESS_TOKEN": "test-token",
+            "UIPATH_TENANT_ID": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "UIPATH_ORGANIZATION_ID": "11111111-2222-3333-4444-555555555555",
+        },
+        clear=True,
+    ):
+        with patch("uipath.tracing._otel_exporters.httpx.Client"):
+            exporter = LlmOpsHttpExporter()
+
+            assert "X-UiPath-Internal-TenantId" not in exporter.headers
+            assert "X-UiPath-Internal-AccountId" not in exporter.headers
+
+
 def test_send_with_retries_success():
     """Test _send_with_retries method with successful response."""
     with patch("uipath.tracing._otel_exporters.httpx.Client"):
