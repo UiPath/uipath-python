@@ -122,10 +122,18 @@ class LlmOpsHttpExporter(SpanExporter):
         super().__init__()
         self.base_url = self._get_base_url()
         self.auth_token = os.environ.get("UIPATH_ACCESS_TOKEN")
-        self.headers = {
+        self.headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.auth_token}",
         }
+
+        if os.environ.get("UIPATH_TRACE_BASE_URL"):
+            self.headers["X-UiPath-Internal-TenantId"] = os.environ.get(
+                "UIPATH_TENANT_ID", ""
+            )
+            self.headers["X-UiPath-Internal-AccountId"] = os.environ.get(
+                "UIPATH_ORGANIZATION_ID", ""
+            )
 
         client_kwargs = get_httpx_client_kwargs()
 
