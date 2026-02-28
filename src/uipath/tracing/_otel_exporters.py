@@ -128,8 +128,12 @@ class LlmOpsHttpExporter(SpanExporter):
         }
 
         if os.environ.get("UIPATH_TRACE_BASE_URL"):
-            self.headers["X-UiPath-Internal-TenantId"] = os.environ.get("UIPATH_TENANT_ID", "")
-            self.headers["X-UiPath-Internal-AccountId"] = os.environ.get("UIPATH_ORGANIZATION_ID", "")
+            self.headers["X-UiPath-Internal-TenantId"] = os.environ.get(
+                "UIPATH_TENANT_ID", ""
+            )
+            self.headers["X-UiPath-Internal-AccountId"] = os.environ.get(
+                "UIPATH_ORGANIZATION_ID", ""
+            )
 
         client_kwargs = get_httpx_client_kwargs()
 
