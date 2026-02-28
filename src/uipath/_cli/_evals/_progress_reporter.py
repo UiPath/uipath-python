@@ -740,9 +740,7 @@ class StudioWebProgressReporter:
                 )
                 return
 
-            is_coded = self.is_coded_eval.get(
-                self.eval_set_execution_id or "", False
-            )
+            is_coded = self.is_coded_eval.get(self.eval_set_execution_id or "", False)
 
             endpoint_suffix = "coded/" if is_coded else ""
             spec = RequestSpec(
@@ -771,9 +769,7 @@ class StudioWebProgressReporter:
             )
 
         except Exception as e:
-            self._format_error_message(
-                e, "StudioWeb agent execution completed error"
-            )
+            self._format_error_message(e, "StudioWeb agent execution completed error")
 
     async def handle_update_eval_run(self, payload: EvalRunUpdatedEvent) -> None:
         try:
