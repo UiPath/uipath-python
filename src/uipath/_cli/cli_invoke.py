@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import tomllib
+import urllib.parse
 
 import click
 import httpx
@@ -113,7 +114,14 @@ def invoke(entrypoint: str | None, input: str | None, file: str | None) -> None:
                     console.error("Error: Failed to get job key from response")
                 if job_key:
                     with console.spinner("Starting job ..."):
-                        job_url = f"{base_url}/orchestrator_/jobs(sidepanel:sidepanel/jobs/{job_key}/details)?fid={personal_workspace_folder_id}"
+                        url_params = {"fid": str(personal_workspace_folder_id)}
+                        job_url_path = urllib.parse.quote(
+                            f"orchestrator_/jobs(sidepanel:sidepanel/jobs/{job_key}/details)"
+                        )
+                        job_url_full_path = urllib.parse.urljoin(base_url, job_url_path)
+                        job_url = (
+                            f"{job_url_full_path}?{urllib.parse.urlencode(url_params)}"
+                        )
                         console.magic("Job started successfully!")
                         console.link("Monitor your job here: ", job_url)
             else:
