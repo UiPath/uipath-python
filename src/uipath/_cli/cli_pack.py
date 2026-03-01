@@ -292,24 +292,11 @@ def pack_fn(
         )
 
         for file in files:
-            if file.is_binary:
-                # Read binary files in binary mode
-                with open(file.file_path, "rb") as f:
-                    z.writestr(f"content/{file.relative_path}", f.read())
-            else:
-                try:
-                    # Try UTF-8 first
-                    with open(file.file_path, "r", encoding="utf-8") as f:
-                        z.writestr(f"content/{file.relative_path}", f.read())
-                except UnicodeDecodeError:
-                    # If UTF-8 fails, try with utf-8-sig (for files with BOM)
-                    try:
-                        with open(file.file_path, "r", encoding="utf-8-sig") as f:
-                            z.writestr(f"content/{file.relative_path}", f.read())
-                    except UnicodeDecodeError:
-                        # If that also fails, try with latin-1 as a fallback
-                        with open(file.file_path, "r", encoding="latin-1") as f:
-                            z.writestr(f"content/{file.relative_path}", f.read())
+            archive_path = f"content/{file.relative_path}"
+            if os.sep != "/":
+                archive_path = archive_path.replace(os.sep, "/")
+            with open(file.file_path, "rb") as f:
+                z.writestr(archive_path, f.read())
 
 
 def display_project_info(config):
