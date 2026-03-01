@@ -19,7 +19,6 @@ from uipath.runtime import (
 from uipath.runtime.errors import (
     UiPathErrorCategory,
     UiPathErrorCode,
-    UiPathErrorContract,
     UiPathRuntimeError,
 )
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
@@ -125,9 +124,16 @@ class UiPathFunctionsRuntime:
             result = await func() if is_async else func()
             return convert_from_class(result) if result is not None else {}
 
-        # Get first parameter info
+        # Get first parameter info.
+        # Use get_type_hints() to resolve PEP 563 stringified annotations
+        # (from `from __future__ import annotations`).  inspect.signature()
+        # returns raw strings in that case, which breaks type detection.
         input_param = params[0]
-        input_type = input_param.annotation
+        try:
+            hints = get_type_hints(unwrapped)
+            input_type = hints.get(input_param.name, inspect.Parameter.empty)
+        except Exception:
+            input_type = input_param.annotation
 
         # Typed parameter (class, dataclass, or Pydantic)
         if input_type != inspect.Parameter.empty and (
@@ -161,17 +167,12 @@ class UiPathFunctionsRuntime:
         except UiPathRuntimeError:
             raise
         except Exception as e:
-            logger.exception(f"Function execution failed: {e}")
-            return UiPathRuntimeResult(
-                output=None,
-                status=UiPathRuntimeStatus.FAULTED,
-                error=UiPathErrorContract(
-                    code=UiPathErrorCode.FUNCTION_EXECUTION_ERROR,
-                    category=UiPathErrorCategory.USER,
-                    title=f"Function execution failed: {self.function_name}",
-                    detail=str(e),
-                ),
-            )
+            raise UiPathRuntimeError(
+                UiPathErrorCode.FUNCTION_EXECUTION_ERROR,
+                f"Function execution failed: {self.function_name}",
+                str(e),
+                UiPathErrorCategory.USER,
+            ) from e
 
     async def stream(
         self,
@@ -189,27 +190,28 @@ class UiPathFunctionsRuntime:
             payload=input or {},
         )
 
-        result = await self.execute(input, options)
-
-        if result.status == UiPathRuntimeStatus.FAULTED and result.error is not None:
+        try:
+            result = await self.execute(input, options)
+        except UiPathRuntimeError as e:
             yield UiPathRuntimeStateEvent(
                 node_name=self.function_name,
                 phase=UiPathRuntimeStatePhase.FAULTED,
-                payload={"error": result.error.model_dump()},
+                payload={"error": str(e)},
             )
+            raise
+
+        output = result.output
+        if output is None:
+            completed_payload: dict[str, Any] = {}
+        elif isinstance(output, dict):
+            completed_payload = output
         else:
-            output = result.output
-            if output is None:
-                completed_payload: dict[str, Any] = {}
-            elif isinstance(output, dict):
-                completed_payload = output
-            else:
-                completed_payload = {"output": str(output)}
-            yield UiPathRuntimeStateEvent(
-                node_name=self.function_name,
-                phase=UiPathRuntimeStatePhase.COMPLETED,
-                payload=completed_payload,
-            )
+            completed_payload = {"output": str(output)}
+        yield UiPathRuntimeStateEvent(
+            node_name=self.function_name,
+            phase=UiPathRuntimeStatePhase.COMPLETED,
+            payload=completed_payload,
+        )
 
         yield result
 

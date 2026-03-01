@@ -5,6 +5,8 @@ import textwrap
 import pytest
 
 from uipath.functions.runtime import UiPathFunctionsRuntime
+from uipath.runtime.errors import UiPathRuntimeError
+from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 
 
 @pytest.fixture
@@ -96,3 +98,79 @@ async def test_schema_type_reflects_entrypoint_type(decorated_module):
     )
     schema_agent = await runtime_agent.get_schema()
     assert schema_agent.type == "agent"
+
+
+@pytest.fixture
+def future_annotations_module(tmp_path):
+    """Create a module using `from __future__ import annotations` (PEP 563)."""
+    (tmp_path / "future_ann.py").write_text(
+        textwrap.dedent("""\
+        from __future__ import annotations
+
+        from pydantic import BaseModel
+
+
+        class OrderInput(BaseModel):
+            customer_name: str
+            quantity: int = 1
+
+
+        class OrderOutput(BaseModel):
+            accepted: bool
+            total: float
+
+
+        def main(order: OrderInput) -> OrderOutput:
+            return OrderOutput(accepted=True, total=order.quantity * 9.99)
+        """)
+    )
+    return tmp_path / "future_ann.py"
+
+
+@pytest.mark.asyncio
+async def test_execute_resolves_future_annotations(future_annotations_module):
+    """PEP 563 stringified annotations should be resolved via get_type_hints."""
+    runtime = UiPathFunctionsRuntime(
+        str(future_annotations_module), "main", "future_ann"
+    )
+    result = await runtime.execute({"customer_name": "Alice", "quantity": 2})
+
+    assert result.output == {"accepted": True, "total": 19.98}
+
+
+@pytest.fixture
+def failing_module(tmp_path):
+    """Create a module whose function always raises."""
+    (tmp_path / "failing.py").write_text(
+        textwrap.dedent("""\
+        def main(data: dict) -> dict:
+            raise ValueError("something went wrong")
+        """)
+    )
+    return tmp_path / "failing.py"
+
+
+@pytest.mark.asyncio
+async def test_execute_raises_on_function_error(failing_module):
+    """Function errors should propagate as UiPathRuntimeError, not return FAULTED."""
+    runtime = UiPathFunctionsRuntime(str(failing_module), "main", "failing")
+
+    with pytest.raises(UiPathRuntimeError, match="something went wrong"):
+        await runtime.execute({"key": "value"})
+
+
+@pytest.mark.asyncio
+async def test_stream_yields_faulted_then_raises(failing_module):
+    """stream() should yield STARTED, then FAULTED, then raise UiPathRuntimeError."""
+    runtime = UiPathFunctionsRuntime(str(failing_module), "main", "failing")
+
+    events = []
+    with pytest.raises(UiPathRuntimeError, match="something went wrong"):
+        async for event in runtime.stream({"key": "value"}):
+            events.append(event)
+
+    assert len(events) == 2
+    assert isinstance(events[0], UiPathRuntimeStateEvent)
+    assert events[0].phase == UiPathRuntimeStatePhase.STARTED
+    assert isinstance(events[1], UiPathRuntimeStateEvent)
+    assert events[1].phase == UiPathRuntimeStatePhase.FAULTED
