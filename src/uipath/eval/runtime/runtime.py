@@ -46,6 +46,7 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
 from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..mocks._cache_manager import CacheManager
 from ..mocks._input_mocker import (
     generate_llm_input,
@@ -548,6 +549,22 @@ class UiPathEvalRuntime:
                         # Skip!
                         continue
                     evaluation_criteria = eval_item.evaluation_criterias[evaluator.id]
+
+                    # Inject eval-level expectedOutput for output-based evaluators
+                    if eval_item.expected_output is not None and issubclass(
+                        evaluator.evaluation_criteria_type,
+                        OutputEvaluationCriteria,
+                    ):
+                        if evaluation_criteria is None:
+                            evaluation_criteria = {
+                                "expectedOutput": eval_item.expected_output
+                            }
+                        elif "expectedOutput" not in evaluation_criteria:
+                            evaluation_criteria = {
+                                **evaluation_criteria,
+                                "expectedOutput": eval_item.expected_output,
+                            }
+                        # else: per-evaluator expectedOutput takes precedence
 
                     evaluation_result = await self.run_evaluator(
                         evaluator=evaluator,

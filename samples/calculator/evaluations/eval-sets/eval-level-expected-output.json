@@ -1,0 +1,100 @@
+{
+  "version": "1.0",
+  "id": "EvalLevelExpectedOutputSet",
+  "name": "Evaluation-Level expectedOutput Tests",
+  "evaluatorRefs": [
+    "ExactMatchEvaluator",
+    "JsonSimilarityEvaluator",
+    "ContainsEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "eval-level-null-criteria-add",
+      "name": "Eval-level expectedOutput with null criteria (addition)",
+      "inputs": {
+        "a": 2,
+        "b": 3,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 5.0
+      },
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": null,
+        "JsonSimilarityEvaluator": null,
+        "ContainsEvaluator": {
+          "searchText": "5"
+        }
+      }
+    },
+    {
+      "id": "eval-level-null-criteria-multiply",
+      "name": "Eval-level expectedOutput with null criteria (multiplication)",
+      "inputs": {
+        "a": 4,
+        "b": 5,
+        "operator": "*"
+      },
+      "expectedOutput": {
+        "result": 20.0
+      },
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": null,
+        "JsonSimilarityEvaluator": null,
+        "ContainsEvaluator": {
+          "searchText": "20"
+        }
+      }
+    },
+    {
+      "id": "eval-level-per-evaluator-override",
+      "name": "Per-evaluator expectedOutput overrides eval-level",
+      "inputs": {
+        "a": 10,
+        "b": 5,
+        "operator": "-"
+      },
+      "expectedOutput": {
+        "result": 5.0
+      },
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": {
+          "expectedOutput": {
+            "result": 5.0
+          }
+        },
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "result": 5.0
+          }
+        },
+        "ContainsEvaluator": {
+          "searchText": "5"
+        }
+      }
+    },
+    {
+      "id": "eval-level-mixed-null-and-explicit",
+      "name": "Mixed: some evaluators null, some explicit",
+      "inputs": {
+        "a": 7,
+        "b": 3,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 10.0
+      },
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": null,
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "result": 10.0
+          }
+        },
+        "ContainsEvaluator": {
+          "searchText": "10"
+        }
+      }
+    }
+  ]
+}

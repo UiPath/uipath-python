@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "id": "EvalLevelExpectedOutputLLMJudgeSet",
+  "name": "Evaluation-Level expectedOutput with LLM Judge",
+  "evaluatorRefs": [
+    "ExactMatchEvaluator",
+    "LLMJudgeOutputEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "eval-level-llm-judge-add",
+      "name": "LLM Judge uses eval-level expectedOutput (addition)",
+      "inputs": {
+        "a": 3,
+        "b": 7,
+        "operator": "+"
+      },
+      "expectedOutput": {
+        "result": 10.0
+      },
+      "expectedAgentBehavior": "The agent should correctly add the two numbers and return the result.",
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": null,
+        "LLMJudgeOutputEvaluator": null
+      }
+    },
+    {
+      "id": "eval-level-llm-judge-multiply",
+      "name": "LLM Judge uses eval-level expectedOutput (multiplication)",
+      "inputs": {
+        "a": 6,
+        "b": 8,
+        "operator": "*"
+      },
+      "expectedOutput": {
+        "result": 48.0
+      },
+      "expectedAgentBehavior": "The agent should correctly multiply the two numbers and return the result.",
+      "evaluationCriterias": {
+        "ExactMatchEvaluator": null,
+        "LLMJudgeOutputEvaluator": null
+      }
+    }
+  ]
+}

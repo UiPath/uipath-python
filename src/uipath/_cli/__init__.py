@@ -9,6 +9,17 @@ from uipath._cli._utils._context import CliContext
 from uipath._utils._logs import setup_logging
 from uipath._utils.constants import DOTENV_FILE
 
+# Windows console uses codepages (e.g. cp1252) that can't encode Unicode
+# characters used by Rich spinners (Braille) and emoji output.
+# When piped (not a TTY), keep the system encoding so the parent process
+# can decode our output, but use errors="replace" to avoid write-side crashes.
+if sys.platform == "win32":
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            if _stream.isatty():
+                _stream.reconfigure(encoding="utf-8")
+            else:
+                _stream.reconfigure(errors="replace")
 # DO NOT ADD HEAVY IMPORTS HERE
 #
 # Every import at the top of this file runs on EVERY command.
