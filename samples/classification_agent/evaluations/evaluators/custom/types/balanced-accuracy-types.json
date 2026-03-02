@@ -1,0 +1,71 @@
+{
+  "evaluatorTypeId": "custom-balanced-accuracy",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "BalancedAccuracyEvaluationCriteria": {
+        "description": "Per-datapoint criteria: which class this sample should belong to.",
+        "properties": {
+          "expectedClass": {
+            "title": "Expected Class",
+            "type": "string"
+          }
+        },
+        "required": ["expectedClass"],
+        "title": "BalancedAccuracyEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Evaluator config with class list and per-class sample counts.",
+    "properties": {
+      "name": {
+        "default": "BalancedAccuracyEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "targetOutputKey": {
+        "default": "*",
+        "title": "Target Output Key",
+        "type": "string"
+      },
+      "defaultEvaluationCriteria": {
+        "$ref": "#/$defs/BalancedAccuracyEvaluationCriteria",
+        "default": {
+          "expectedClass": "spam"
+        }
+      },
+      "classes": {
+        "items": { "type": "string" },
+        "title": "Classes",
+        "type": "array"
+      },
+      "classCounts": {
+        "additionalProperties": { "type": "integer" },
+        "title": "Class Counts",
+        "type": "object"
+      }
+    },
+    "required": ["classes", "classCounts"],
+    "title": "BalancedAccuracyEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Per-datapoint criteria: which class this sample should belong to.",
+    "properties": {
+      "expectedClass": {
+        "title": "Expected Class",
+        "type": "string"
+      }
+    },
+    "required": ["expectedClass"],
+    "title": "BalancedAccuracyEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "properties": {
+      "predictedClass": { "type": "string" },
+      "expectedClass": { "type": "string" },
+      "weight": { "type": "number" },
+      "isMatch": { "type": "boolean" }
+    }
+  }
+}

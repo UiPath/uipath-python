@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "id": "MulticlassClassificationEvaluator",
+  "description": "Checks if the predicted email category matches the expected category using macro-averaged precision",
+  "evaluatorTypeId": "uipath-multiclass-classification",
+  "evaluatorConfig": {
+    "name": "MulticlassClassificationEvaluator",
+    "targetOutputKey": "category",
+    "classes": ["plan_details", "payments", "spam"],
+    "metricType": "precision",
+    "averaging": "macro",
+    "defaultEvaluationCriteria": {
+      "expectedClass": "spam"
+    }
+  }
+}
