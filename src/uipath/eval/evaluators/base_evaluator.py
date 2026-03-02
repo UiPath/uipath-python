@@ -10,6 +10,7 @@ from pydantic.alias_generators import to_camel
 from .._helpers.helpers import track_evaluation_metrics
 from ..models import AgentExecution, EvaluationResult
 from ..models.models import (
+    EvaluationResultDto,
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
 )
@@ -141,7 +142,8 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
 
             # Validate and create the config object if config dict is provided
             try:
-                validated_config = config_type.model_validate(values.get("config", {}))
+                raw_config = values.get("config") or values.get("evaluatorConfig") or {}
+                validated_config = config_type.model_validate(raw_config)
                 values["evaluator_config"] = validated_config
             except Exception as e:
                 raise UiPathEvaluationError(
@@ -552,6 +554,24 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             "evaluationCriteriaSchema": cls.get_evaluation_criteria_schema(),
             "justificationSchema": cls.get_justification_schema(),
         }
+
+    def reduce_scores(self, results: list[EvaluationResultDto]) -> float:
+        """Reduce per-datapoint results into a single aggregated score.
+
+        Default implementation computes a simple average of scores. Subclasses
+        can override this to implement custom aggregation logic (e.g., precision,
+        recall) using the rich per-datapoint data in EvaluationResultDto.
+
+        Args:
+            results: List of per-datapoint results, each containing the score
+                and evaluation details/justification.
+
+        Returns:
+            The aggregated score
+        """
+        if not results:
+            return 0.0
+        return sum(r.score for r in results) / len(results)
 
     @abstractmethod
     async def validate_and_evaluate_criteria(
