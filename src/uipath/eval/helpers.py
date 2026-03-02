@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import click
 from pydantic import ValidationError
 
 from .evaluators.base_evaluator import GenericBaseEvaluator
@@ -89,49 +88,6 @@ def discriminate_eval_set(data: dict[str, Any]) -> EvaluationSet | LegacyEvaluat
 
 class EvalHelpers:
     """Helper functions for evaluation commands, including loading and parsing evaluation sets and evaluators."""
-
-    @staticmethod
-    def auto_discover_eval_set() -> str:
-        """Auto-discover evaluation set from {EVAL_SETS_DIRECTORY_NAME} directory.
-
-        Returns:
-            Path to the evaluation set file
-
-        Raises:
-            ValueError: If no eval set found or multiple eval sets exist
-        """
-        eval_sets_dir = Path(EVAL_SETS_DIRECTORY_NAME)
-
-        if not eval_sets_dir.exists():
-            raise ValueError(
-                f"No '{EVAL_SETS_DIRECTORY_NAME}' directory found. "
-                "Please set 'UIPATH_PROJECT_ID' env var and run 'uipath pull'."
-            )
-
-        eval_set_files = list(eval_sets_dir.glob("*.json"))
-
-        if not eval_set_files:
-            raise ValueError(
-                f"No evaluation set files found in '{EVAL_SETS_DIRECTORY_NAME}' directory. "
-            )
-
-        if len(eval_set_files) > 1:
-            file_names = [f.name for f in eval_set_files]
-            raise ValueError(
-                f"Multiple evaluation sets found: {file_names}. "
-                f"Please specify which evaluation set to use: 'uipath eval [entrypoint] <eval_set_path>'"
-            )
-
-        eval_set_path = str(eval_set_files[0])
-        logger.info(
-            f"Auto-discovered evaluation set: {click.style(eval_set_path, fg='cyan')}"
-        )
-
-        eval_set_path_obj = Path(eval_set_path)
-        if not eval_set_path_obj.is_file() or eval_set_path_obj.suffix != ".json":
-            raise ValueError("Evaluation set must be a JSON file")
-
-        return eval_set_path
 
     @staticmethod
     def load_eval_set(
