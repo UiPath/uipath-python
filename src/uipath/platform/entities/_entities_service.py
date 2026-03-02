@@ -426,9 +426,7 @@ class EntitiesService(BaseService):
             "X-UiPath-Internal-TenantName": self._url.tenant_name,
             "X-UiPath-Internal-AccountName": self._url.org_name,
         }
-        # Use absolute URL to bypass scoping since org/tenant are embedded in the path
-        full_url = f"{self._url.base_url}{spec.endpoint}"
-        response = self.request(spec.method, full_url, json=spec.json, headers=headers)
+        response = self.request(spec.method, spec.endpoint, json=spec.json, headers=headers)
 
         records_data = response.json().get("results", [])
         return records_data
@@ -471,8 +469,7 @@ class EntitiesService(BaseService):
             "X-UiPath-Internal-TenantName": self._url.tenant_name,
             "X-UiPath-Internal-AccountName": self._url.org_name,
         }
-        full_url = f"{self._url.base_url}{spec.endpoint}"
-        response = await self.request_async(spec.method, full_url, json=spec.json, headers=headers)
+        response = await self.request_async(spec.method, spec.endpoint, json=spec.json, headers=headers)
 
         records_data = response.json().get("results", [])
         return records_data
@@ -964,10 +961,9 @@ class EntitiesService(BaseService):
         self,
         sql_query: str,
     ) -> RequestSpec:
-        endpoint = f"/dataservice_/{self._url.org_name}/{self._url.tenant_name}/datafabric_/api/v1/query/execute"
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(endpoint),
+            endpoint=Endpoint("datafabric_/api/v1/query/execute"),
             json={"query": sql_query},
         )
 
