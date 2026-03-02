@@ -54,4 +54,11 @@ async def main() -> Response:
     )
     response.resources.append(Resource(name="process_result", value=str(process_result.model_dump())))
 
+    # MCP Servers - retrieve MCP server
+    mcp_server = await uipath.mcp.retrieve_async(
+        slug="mcp_server_slug",
+        folder_path="folder_path",
+    )
+    response.resources.append(Resource(name="mcp_server", value=str(mcp_server.model_dump())))
+
     return response

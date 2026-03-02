@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://cloud.uipath.com/draft/2024-12/bindings",
   "title": "UiPath Resources Configuration",
-  "description": "Configuration file for UiPath resource bindings including assets, processes, buckets, indexes, and connections",
+  "description": "Configuration file for UiPath resource bindings including assets, processes, buckets, indexes, apps, connections and MCP servers",
   "type": "object",
   "required": [
     "version",
@@ -41,7 +41,8 @@
               "bucket",
               "index",
               "app",
-              "connection"
+              "connection",
+              "mcpServer"
             ]
           },
           "key": {
@@ -53,7 +54,7 @@
             "description": "Resource configuration values",
             "oneOf": [
               {
-                "title": "Asset/Process/Bucket/App/Index Value",
+                "title": "Asset/Process/Bucket/App/Index/McpServer Value",
                 "properties": {
                   "name": {
                     "$ref": "#/definitions/propertyDefinition",
