@@ -667,3 +667,355 @@ class TestCustomReducerIntegration:
             "DefaultEval": pytest.approx(0.5),
         }
         assert final_score == pytest.approx(0.65)
+
+
+class TestBinaryClassificationReduceScores:
+    """Test BinaryClassificationEvaluator.reduce_scores for precision/recall/f-score."""
+
+    def _make_binary_evaluator(
+        self,
+        metric_type: str = "precision",
+        f_value: float = 1.0,
+    ):
+        from uipath.eval.evaluators.binary_classification_evaluator import (
+            BinaryClassificationEvaluator,
+        )
+
+        config = {
+            "name": "BinaryTest",
+            "target_output_key": "class",
+            "positive_class": "spam",
+            "metric_type": metric_type,
+            "f_value": f_value,
+        }
+        return BinaryClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": "binary-test"}
+        )
+
+    def _dp(self, predicted: str, expected: str) -> EvaluationResultDto:
+        """Create a EvaluationResultDto with BaseEvaluatorJustification."""
+        from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
+
+        score = 1.0 if predicted == expected else 0.0
+        return EvaluationResultDto(
+            score=score,
+            details=BaseEvaluatorJustification(
+                expected=expected,
+                actual=predicted,
+            ).model_dump(),
+        )
+
+    def test_binary_precision(self) -> None:
+        """2 TP + 1 FP + 1 FN + 1 TN → precision = 2/(2+1) = 2/3."""
+        evaluator = self._make_binary_evaluator("precision")
+        results = [
+            self._dp("spam", "spam"),  # TP
+            self._dp("spam", "spam"),  # TP
+            self._dp("spam", "ham"),  # FP
+            self._dp("ham", "spam"),  # FN
+            self._dp("ham", "ham"),  # TN
+        ]
+        assert evaluator.reduce_scores(results) == pytest.approx(2 / 3)
+
+    def test_binary_recall(self) -> None:
+        """2 TP + 1 FP + 1 FN + 1 TN → recall = 2/(2+1) = 2/3."""
+        evaluator = self._make_binary_evaluator("recall")
+        results = [
+            self._dp("spam", "spam"),
+            self._dp("spam", "spam"),
+            self._dp("spam", "ham"),
+            self._dp("ham", "spam"),
+            self._dp("ham", "ham"),
+        ]
+        assert evaluator.reduce_scores(results) == pytest.approx(2 / 3)
+
+    def test_binary_f1(self) -> None:
+        """2 TP + 1 FP + 1 FN → P=R=2/3, F1 = 2*P*R/(P+R) = 2/3."""
+        evaluator = self._make_binary_evaluator("f-score", f_value=1.0)
+        results = [
+            self._dp("spam", "spam"),
+            self._dp("spam", "spam"),
+            self._dp("spam", "ham"),
+            self._dp("ham", "spam"),
+            self._dp("ham", "ham"),
+        ]
+        p = 2 / 3
+        r = 2 / 3
+        expected_f1 = 2 * p * r / (p + r)
+        assert evaluator.reduce_scores(results) == pytest.approx(expected_f1)
+
+    def test_binary_f2(self) -> None:
+        """F2 weights recall more: (1+4)*P*R / (4*P+R)."""
+        evaluator = self._make_binary_evaluator("f-score", f_value=2.0)
+        # 3 TP, 1 FP, 2 FN → P=3/4, R=3/5
+        results = [
+            self._dp("spam", "spam"),  # TP
+            self._dp("spam", "spam"),  # TP
+            self._dp("spam", "spam"),  # TP
+            self._dp("spam", "ham"),  # FP
+            self._dp("ham", "spam"),  # FN
+            self._dp("ham", "spam"),  # FN
+        ]
+        p = 3 / 4
+        r = 3 / 5
+        beta_sq = 4.0
+        expected = (1 + beta_sq) * p * r / (beta_sq * p + r)
+        assert evaluator.reduce_scores(results) == pytest.approx(expected)
+
+    def test_binary_precision_no_positive_predictions(self) -> None:
+        """No positive predictions → precision = 0."""
+        evaluator = self._make_binary_evaluator("precision")
+        results = [
+            self._dp("ham", "spam"),  # FN
+            self._dp("ham", "spam"),  # FN
+            self._dp("ham", "ham"),  # TN
+            self._dp("ham", "ham"),  # TN
+        ]
+        assert evaluator.reduce_scores(results) == 0.0
+
+    def test_binary_recall_no_positive_expected(self) -> None:
+        """No positive expected → recall = 0."""
+        evaluator = self._make_binary_evaluator("recall")
+        results = [
+            self._dp("spam", "ham"),  # FP
+            self._dp("spam", "ham"),  # FP
+            self._dp("ham", "ham"),  # TN
+            self._dp("ham", "ham"),  # TN
+        ]
+        assert evaluator.reduce_scores(results) == 0.0
+
+    def test_binary_empty_scores(self) -> None:
+        """Empty results returns 0."""
+        evaluator = self._make_binary_evaluator("precision")
+        assert evaluator.reduce_scores([]) == 0.0
+
+    def test_binary_perfect_precision(self) -> None:
+        """All TP, no FP → precision = 1.0."""
+        evaluator = self._make_binary_evaluator("precision")
+        results = [
+            self._dp("spam", "spam"),
+            self._dp("spam", "spam"),
+            self._dp("spam", "spam"),
+        ]
+        assert evaluator.reduce_scores(results) == 1.0
+
+
+class TestMulticlassClassificationReduceScores:
+    """Test MulticlassClassificationEvaluator.reduce_scores for micro/macro metrics."""
+
+    def _make_multiclass_evaluator(
+        self,
+        classes: list[str],
+        metric_type: str = "precision",
+        averaging: str = "macro",
+        f_value: float = 1.0,
+    ):
+        from uipath.eval.evaluators.multiclass_classification_evaluator import (
+            MulticlassClassificationEvaluator,
+        )
+
+        config = {
+            "name": "MulticlassTest",
+            "target_output_key": "class",
+            "classes": classes,
+            "metric_type": metric_type,
+            "averaging": averaging,
+            "f_value": f_value,
+        }
+        return MulticlassClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": "multiclass-test"}
+        )
+
+    def _dp(self, predicted: str, expected: str) -> EvaluationResultDto:
+        """Create a EvaluationResultDto with BaseEvaluatorJustification."""
+        from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
+
+        score = 1.0 if predicted == expected else 0.0
+        return EvaluationResultDto(
+            score=score,
+            details=BaseEvaluatorJustification(
+                expected=expected,
+                actual=predicted,
+            ).model_dump(),
+        )
+
+    def test_multiclass_macro_precision_perfect(self) -> None:
+        """All correct predictions → macro precision = 1.0."""
+        classes = ["cat", "dog", "bird"]
+        evaluator = self._make_multiclass_evaluator(classes, "precision", "macro")
+        results = [
+            self._dp("cat", "cat"),
+            self._dp("dog", "dog"),
+            self._dp("bird", "bird"),
+        ]
+        assert evaluator.reduce_scores(results) == pytest.approx(1.0)
+
+    def test_multiclass_macro_precision_known_confusion(self) -> None:
+        """Known confusion matrix → verify macro precision.
+
+        classes: [a, b, c]
+        Confusion matrix (confusion[pred][exp]):
+          pred a: [2, 1, 0]  → TP_a=2, FP_a=1
+          pred b: [0, 3, 1]  → TP_b=3, FP_b=1
+          pred c: [1, 0, 2]  → TP_c=2, FP_c=1
+
+        Precision: a=2/3, b=3/4, c=2/3
+        Macro precision = (2/3 + 3/4 + 2/3) / 3
+        """
+        classes = ["a", "b", "c"]
+        evaluator = self._make_multiclass_evaluator(classes, "precision", "macro")
+        results = [
+            # pred=a, exp=a (TP for a) ×2
+            self._dp("a", "a"),
+            self._dp("a", "a"),
+            # pred=a, exp=b (FP for a) ×1
+            self._dp("a", "b"),
+            # pred=b, exp=b (TP for b) ×3
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            # pred=b, exp=c (FP for b) ×1
+            self._dp("b", "c"),
+            # pred=c, exp=a (FP for c) ×1
+            self._dp("c", "a"),
+            # pred=c, exp=c (TP for c) ×2
+            self._dp("c", "c"),
+            self._dp("c", "c"),
+        ]
+        expected = (2 / 3 + 3 / 4 + 2 / 3) / 3
+        assert evaluator.reduce_scores(results) == pytest.approx(expected)
+
+    def test_multiclass_macro_recall_known_confusion(self) -> None:
+        """Same confusion matrix, test macro recall.
+
+        Recall: a=2/(2+1)=2/3, b=3/(3+1)=3/4, c=2/(2+1)=2/3
+        Macro recall = (2/3 + 3/4 + 2/3) / 3
+        """
+        classes = ["a", "b", "c"]
+        evaluator = self._make_multiclass_evaluator(classes, "recall", "macro")
+        results = [
+            self._dp("a", "a"),
+            self._dp("a", "a"),
+            self._dp("a", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "c"),
+            self._dp("c", "a"),
+            self._dp("c", "c"),
+            self._dp("c", "c"),
+        ]
+        expected = (2 / 3 + 3 / 4 + 2 / 3) / 3
+        assert evaluator.reduce_scores(results) == pytest.approx(expected)
+
+    def test_multiclass_micro_precision_known_confusion(self) -> None:
+        """Micro precision: global TP / (global TP + global FP).
+
+        Total TP = 2+3+2 = 7, Total FP = 1+1+1 = 3
+        Micro precision = 7/10 = 0.7
+        """
+        classes = ["a", "b", "c"]
+        evaluator = self._make_multiclass_evaluator(classes, "precision", "micro")
+        results = [
+            self._dp("a", "a"),
+            self._dp("a", "a"),
+            self._dp("a", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "c"),
+            self._dp("c", "a"),
+            self._dp("c", "c"),
+            self._dp("c", "c"),
+        ]
+        assert evaluator.reduce_scores(results) == pytest.approx(7 / 10)
+
+    def test_multiclass_micro_recall_known_confusion(self) -> None:
+        """Micro recall: global TP / (global TP + global FN).
+
+        Total TP = 7, Total FN = 1+1+1 = 3
+        Micro recall = 7/10 = 0.7
+        """
+        classes = ["a", "b", "c"]
+        evaluator = self._make_multiclass_evaluator(classes, "recall", "micro")
+        results = [
+            self._dp("a", "a"),
+            self._dp("a", "a"),
+            self._dp("a", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "c"),
+            self._dp("c", "a"),
+            self._dp("c", "c"),
+            self._dp("c", "c"),
+        ]
+        assert evaluator.reduce_scores(results) == pytest.approx(7 / 10)
+
+    def test_multiclass_micro_f1(self) -> None:
+        """Micro F1 with the same data. Since micro P = micro R = 0.7, F1 = 0.7."""
+        classes = ["a", "b", "c"]
+        evaluator = self._make_multiclass_evaluator(
+            classes, "f-score", "micro", f_value=1.0
+        )
+        results = [
+            self._dp("a", "a"),
+            self._dp("a", "a"),
+            self._dp("a", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "c"),
+            self._dp("c", "a"),
+            self._dp("c", "c"),
+            self._dp("c", "c"),
+        ]
+        assert evaluator.reduce_scores(results) == pytest.approx(0.7)
+
+    def test_multiclass_macro_f1(self) -> None:
+        """Macro F1 from per-class F1 values."""
+        classes = ["a", "b", "c"]
+        evaluator = self._make_multiclass_evaluator(
+            classes, "f-score", "macro", f_value=1.0
+        )
+        results = [
+            self._dp("a", "a"),
+            self._dp("a", "a"),
+            self._dp("a", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "b"),
+            self._dp("b", "c"),
+            self._dp("c", "a"),
+            self._dp("c", "c"),
+            self._dp("c", "c"),
+        ]
+        # Per-class: P_a=R_a=2/3→F1_a=2/3, P_b=R_b=3/4→F1_b=3/4, P_c=R_c=2/3→F1_c=2/3
+        expected = (2 / 3 + 3 / 4 + 2 / 3) / 3
+        assert evaluator.reduce_scores(results) == pytest.approx(expected)
+
+    def test_multiclass_empty_scores(self) -> None:
+        """Empty results returns 0."""
+        evaluator = self._make_multiclass_evaluator(["a", "b"], "precision", "macro")
+        assert evaluator.reduce_scores([]) == 0.0
+
+    def test_multiclass_two_classes(self) -> None:
+        """Binary-like scenario with 2 classes via multiclass evaluator.
+
+        classes: [pos, neg]
+        2 TP, 1 FP, 1 FN → precision_pos=2/3, precision_neg=1/2
+        Macro precision = (2/3 + 1/2) / 2
+        """
+        classes = ["pos", "neg"]
+        evaluator = self._make_multiclass_evaluator(classes, "precision", "macro")
+        results = [
+            self._dp("pos", "pos"),  # TP for pos
+            self._dp("pos", "pos"),  # TP for pos
+            self._dp("pos", "neg"),  # FP for pos
+            self._dp("neg", "pos"),  # FN for pos
+            self._dp("neg", "neg"),  # TN for pos / TP for neg
+        ]
+        # confusion: pred_pos=[2, 1], pred_neg=[1, 1]
+        # P_pos = 2/3, P_neg = 1/2
+        expected = (2 / 3 + 1 / 2) / 2
+        assert evaluator.reduce_scores(results) == pytest.approx(expected)

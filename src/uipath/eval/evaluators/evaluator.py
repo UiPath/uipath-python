@@ -11,6 +11,7 @@ from ..models import (
 )
 from . import (
     BaseLegacyEvaluator,
+    BinaryClassificationEvaluator,
     ContainsEvaluator,
     ExactMatchEvaluator,
     JsonSimilarityEvaluator,
@@ -22,6 +23,7 @@ from . import (
     LLMJudgeStrictJSONSimilarityOutputEvaluator,
     LLMJudgeTrajectoryEvaluator,
     LLMJudgeTrajectorySimulationEvaluator,
+    MulticlassClassificationEvaluator,
     ToolCallArgsEvaluator,
     ToolCallCountEvaluator,
     ToolCallOrderEvaluator,
@@ -128,6 +130,10 @@ def coded_evaluator_discriminator(data: Any) -> str:
                 return "ToolCallOrderEvaluator"
             case EvaluatorType.TOOL_CALL_OUTPUT:
                 return "ToolCallOutputEvaluator"
+            case EvaluatorType.BINARY_CLASSIFICATION:
+                return "BinaryClassificationEvaluator"
+            case EvaluatorType.MULTICLASS_CLASSIFICATION:
+                return "MulticlassClassificationEvaluator"
             case _:
                 return "UnknownEvaluator"
     else:
@@ -179,6 +185,14 @@ CodedEvaluator = Annotated[
         Annotated[
             LLMJudgeTrajectorySimulationEvaluator,
             Tag("LLMJudgeTrajectorySimulationEvaluator"),
+        ],
+        Annotated[
+            BinaryClassificationEvaluator,
+            Tag("BinaryClassificationEvaluator"),
+        ],
+        Annotated[
+            MulticlassClassificationEvaluator,
+            Tag("MulticlassClassificationEvaluator"),
         ],
         Annotated[
             UnknownCodedEvaluator,

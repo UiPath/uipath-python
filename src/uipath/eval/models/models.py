@@ -297,6 +297,8 @@ class EvaluatorType(str, Enum):
     TOOL_CALL_COUNT = "uipath-tool-call-count"
     TOOL_CALL_ORDER = "uipath-tool-call-order"
     TOOL_CALL_OUTPUT = "uipath-tool-call-output"
+    BINARY_CLASSIFICATION = "uipath-binary-classification"
+    MULTICLASS_CLASSIFICATION = "uipath-multiclass-classification"
 
 
 class ToolCall(BaseModel):
