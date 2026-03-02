@@ -2,7 +2,7 @@
 
 ## Overview
 
-The resources configuration file defines bindings for UiPath resources including assets, processes, buckets, indexes, apps and connections. This file enables declarative configuration of resource references used throughout your UiPath project.
+The resources configuration file defines bindings for UiPath resources including assets, processes, buckets, indexes, apps, connections and MCP servers. This file enables declarative configuration of resource references used throughout your UiPath project.
 
 **File Name:** `bindings.json`
 
@@ -41,8 +41,9 @@ The configuration supports multiple resource types:
 2. **process** - Workflow processes
 3. **bucket** - Storage buckets
 4. **index** - Search indexes
-5. **apps** - Action center apps
+5. **app** - Action center apps
 6. **connection** - External connections
+7. **mcpServer** - MCP servers
 
 
 ---
@@ -53,7 +54,7 @@ Each resource in the `resources` array has the following structure:
 
 ```json
 {
-  "resource": "asset|process|bucket|index|connection",
+  "resource": "asset|process|bucket|index|app|connection|mcpServer",
   "key": "unique_key",
   "value": { ... },
   "metadata": { ... }
@@ -64,7 +65,7 @@ Each resource in the `resources` array has the following structure:
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `resource` | `string` | Yes | Resource type (one of the five types) |
+| `resource` | `string` | Yes | Resource type (one of the supported types) |
 | `key` | `string` | Yes | Unique identifier for this resource |
 | `value` | `object` | Yes | Resource-specific configuration |
 | `metadata` | `object` | No | Additional metadata for the binding |
@@ -303,6 +304,47 @@ Connections define external system integrations.
 
 ---
 
+### 7. MCP Server
+
+MCP servers provide an MCP endpoint that coded agents can connect to.
+
+**Key Format:** `slug.folder_path`
+
+> **Note:** The `value.name.defaultValue` field holds the MCP server **slug** — the same value passed to `uipath.mcp.retrieve_async(slug=...)` in your code.
+
+**Example:**
+
+```json
+{
+  "resource": "mcpServer",
+  "key": "my-mcp-server.MyFolder",
+  "value": {
+    "name": {
+      "defaultValue": "my-mcp-server",
+      "isExpression": false,
+      "displayName": "Slug"
+    },
+    "folderPath": {
+      "defaultValue": "MyFolder",
+      "isExpression": false,
+      "displayName": "Folder Path"
+    }
+  },
+  "metadata": {
+    "ActivityName": "retrieve_async",
+    "BindingsVersion": "2.2",
+    "DisplayLabel": "FullName"
+  }
+}
+```
+
+**Common Metadata:**
+- `ActivityName`: Typically `"retrieve_async"`
+- `BindingsVersion`: `"2.2"`
+- `DisplayLabel`: `"FullName"`
+
+---
+
 ## Value Object Structure
 
 ### For Assets, Processes, Buckets, Apps and Indexes
@@ -352,9 +394,9 @@ Metadata provides additional context about the resource binding.
 
 | Field | Type | Description | Applicable To |
 |-------|------|-------------|---------------|
-| `ActivityName` | `string` | Activity used to access the resource | asset, process, bucket, index |
+| `ActivityName` | `string` | Activity used to access the resource | asset, process, bucket, index, app, mcpServer |
 | `BindingsVersion` | `string` | Version of the bindings schema | All resources |
-| `DisplayLabel` | `string` | Label format for display | asset, process, bucket, index |
+| `DisplayLabel` | `string` | Label format for display | asset, process, bucket, index, app, mcpServer |
 | `Connector` | `string` | Type of connector | connection |
 | `UseConnectionService` | `string` | Whether to use connection service | connection |
 
@@ -486,6 +528,27 @@ Metadata provides additional context about the resource binding.
                 "BindingsVersion": "2.2",
                 "Connector": "Salesforce",
                 "UseConnectionService": "True"
+            }
+        },
+        {
+            "resource": "mcpServer",
+            "key": "my-mcp-server.MyFolder",
+            "value": {
+                "name": {
+                    "defaultValue": "my-mcp-server",
+                    "isExpression": false,
+                    "displayName": "Slug"
+                },
+                "folderPath": {
+                    "defaultValue": "MyFolder",
+                    "isExpression": false,
+                    "displayName": "Folder Path"
+                }
+            },
+            "metadata": {
+                "ActivityName": "retrieve_async",
+                "BindingsVersion": "2.2",
+                "DisplayLabel": "FullName"
             }
         }
     ]

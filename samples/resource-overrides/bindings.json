@@ -121,6 +121,27 @@
         "Connector": "",
         "UseConnectionService": "True"
       }
+    },
+    {
+      "resource": "mcpServer",
+      "key": "mcp_server_slug.folder_path",
+      "value": {
+        "name": {
+          "defaultValue": "mcp_server_slug",
+          "isExpression": false,
+          "displayName": "Name"
+        },
+        "folderPath": {
+          "defaultValue": "folder_path",
+          "isExpression": false,
+          "displayName": "Folder Path"
+        }
+      },
+      "metadata": {
+        "ActivityName": "retrieve_async",
+        "BindingsVersion": "2.2",
+        "DisplayLabel": "FullName"
+      }
     }
   ]
 }
