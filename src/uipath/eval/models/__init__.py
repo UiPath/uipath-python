@@ -6,6 +6,7 @@ from uipath.eval.models.models import (
     ErrorEvaluationResult,
     EvalItemResult,
     EvaluationResult,
+    EvaluationResultDto,
     EvaluatorType,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
@@ -19,6 +20,7 @@ from uipath.eval.models.models import (
 __all__ = [
     "AgentExecution",
     "EvaluationResult",
+    "EvaluationResultDto",
     "LLMResponse",
     "LegacyEvaluatorCategory",
     "LegacyEvaluatorType",

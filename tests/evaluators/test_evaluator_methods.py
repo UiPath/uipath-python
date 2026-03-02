@@ -15,7 +15,6 @@ from typing import Any
 
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import ValidationError
 from pytest_mock.plugin import MockerFixture
 
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
@@ -1223,8 +1222,8 @@ class TestEvaluatorErrorHandling:
             "default_evaluation_criteria": {},
         }
 
-        with pytest.raises(ValidationError):
-            # Missing required field 'model'
+        with pytest.raises(UiPathEvaluationError):
+            # Invalid default_evaluation_criteria (missing expectedOutput)
             LLMJudgeOutputEvaluator.model_validate(
                 {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )

@@ -59,7 +59,7 @@ from ..models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
 )
-from ..models.models import AgentExecution, EvalItemResult
+from ..models.models import AgentExecution, EvalItemResult, EvaluationResultDto
 from ._exporters import (
     ExecutionLogsExporter,
     ExecutionSpanExporter,
@@ -74,7 +74,6 @@ from ._spans import (
     set_evaluation_output_span_output,
 )
 from ._types import (
-    EvaluationResultDto,
     EvaluationRuntimeException,
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
@@ -94,6 +93,108 @@ from .events import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def compute_evaluator_scores(
+    evaluation_set_results: list[UiPathEvalRunResult],
+    evaluators: Iterable[GenericBaseEvaluator[Any, Any, Any]],
+    evaluator_weights: dict[str, float] | None = None,
+    default_weight: float = 1.0,
+) -> tuple[float, dict[str, float]]:
+    """Aggregate evaluation results with deduplication and weighted scoring.
+
+    Steps:
+    1. Flatten nested evaluation_set_results structure
+    2. Deduplicate results by (datapoint_id, evaluator_name), averaging duplicates
+    3. Reduce results per evaluator across all datapoints
+    4. Compute final weighted score across evaluators
+
+    Args:
+        evaluation_set_results: The per-datapoint evaluation results
+        evaluators: The evaluator instances. Each must have a `name` attribute
+            and a `reduce_scores` method.
+        evaluator_weights: Optional dict mapping evaluator names to weights
+        default_weight: Default weight for evaluators not in evaluator_weights (default: 1.0)
+
+    Returns:
+        Tuple of (final_score, agg_metrics_per_evaluator)
+        - final_score: Weighted average across evaluators
+        - agg_metrics_per_evaluator: Dict mapping evaluator names to their reduced scores
+    """
+    if not evaluation_set_results:
+        return 0.0, {}
+
+    if evaluator_weights is None:
+        evaluator_weights = {}
+
+    evaluator_reducers: dict[str, GenericBaseEvaluator[Any, Any, Any]] = {
+        e.name: e for e in evaluators
+    }
+
+    # Step 1: Flatten and group by (datapoint_id, evaluator_name) for deduplication
+    grouped_by_datapoint_evaluator: defaultdict[
+        str, defaultdict[str, list[EvaluationResultDto]]
+    ] = defaultdict(lambda: defaultdict(list))
+
+    for eval_run_result in evaluation_set_results:
+        datapoint_id = eval_run_result.evaluation_name
+        for eval_run_result_dto in eval_run_result.evaluation_run_results:
+            evaluator_name = eval_run_result_dto.evaluator_name
+            if evaluator_name not in evaluator_reducers:
+                known = sorted(evaluator_reducers.keys())
+                raise ValueError(
+                    f"Evaluator '{evaluator_name}' found in results for "
+                    f"datapoint '{datapoint_id}' but no matching evaluator "
+                    f"instance was provided. Known evaluators: {known}"
+                )
+            grouped_by_datapoint_evaluator[datapoint_id][evaluator_name].append(
+                eval_run_result_dto.result
+            )
+
+    # Step 2: Deduplicate by averaging same evaluator results for same datapoint
+    dedup_results: list[tuple[str, str, EvaluationResultDto]] = []
+    for datapoint_id, evaluators_dict in grouped_by_datapoint_evaluator.items():
+        for evaluator_name, results_list in evaluators_dict.items():
+            if results_list:
+                avg_score = sum(r.score for r in results_list) / len(results_list)
+                dedup_results.append(
+                    (
+                        datapoint_id,
+                        evaluator_name,
+                        EvaluationResultDto(
+                            score=avg_score,
+                            details=results_list[0].details,
+                        ),
+                    )
+                )
+
+    # Step 3: Group by evaluator and reduce using the evaluator's reducer
+    grouped_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for _datapoint_id, evaluator_name, dp_result in dedup_results:
+        grouped_by_evaluator[evaluator_name].append(dp_result)
+
+    agg_metrics_per_evaluator = {}
+    for evaluator_name, results_list in grouped_by_evaluator.items():
+        reducer = evaluator_reducers[evaluator_name].reduce_scores
+        agg_metrics_per_evaluator[evaluator_name] = reducer(results_list)
+
+    # Step 4: Calculate final weighted score
+    if not agg_metrics_per_evaluator:
+        return 0.0, {}
+
+    total_weighted_score = 0.0
+    total_weight = 0.0
+
+    for evaluator_name, avg_score in agg_metrics_per_evaluator.items():
+        weight = evaluator_weights.get(evaluator_name, default_weight)
+        total_weighted_score += avg_score * weight
+        total_weight += weight
+
+    final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
+
+    return final_score, agg_metrics_per_evaluator
 
 
 class UiPathEvalRuntime:
@@ -253,38 +354,27 @@ class UiPathEvalRuntime:
                     ) = await self.initiate_evaluation()
                     workers = self.context.workers or 1
                     assert workers >= 1
-                    eval_run_result_list = await execute_parallel(
-                        evaluation_iterable, workers
-                    )
+                    eval_run_result_list: list[
+                        UiPathEvalRunResult
+                    ] = await execute_parallel(evaluation_iterable, workers)
+
                     results = UiPathEvalOutput(
                         evaluation_set_name=evaluation_set.name,
                         evaluation_set_results=eval_run_result_list,
                     )
 
-                    # Computing evaluator averages
-                    evaluator_averages: dict[str, float] = defaultdict(float)
-                    evaluator_count: dict[str, int] = defaultdict(int)
+                    # Check for failures
+                    any_failed = any(
+                        eval_run_result.agent_execution_output
+                        and eval_run_result.agent_execution_output.result.error
+                        for eval_run_result in results.evaluation_set_results
+                    )
 
-                    # Check if any eval runs failed
-                    any_failed = False
-                    for eval_run_result in results.evaluation_set_results:
-                        # Check if the agent execution had an error
-                        if (
-                            eval_run_result.agent_execution_output
-                            and eval_run_result.agent_execution_output.result.error
-                        ):
-                            any_failed = True
-
-                        for result_dto in eval_run_result.evaluation_run_results:
-                            evaluator_averages[result_dto.evaluator_name] += (
-                                result_dto.result.score
-                            )
-                            evaluator_count[result_dto.evaluator_name] += 1
-
-                    for eval_id in evaluator_averages:
-                        evaluator_averages[eval_id] = (
-                            evaluator_averages[eval_id] / evaluator_count[eval_id]
-                        )
+                    # Compute evaluator averages using each evaluator's reducer
+                    _, evaluator_averages = compute_evaluator_scores(
+                        results.evaluation_set_results,
+                        evaluators,
+                    )
 
                     # Configure span with output and metadata
                     await configure_eval_set_run_span(
