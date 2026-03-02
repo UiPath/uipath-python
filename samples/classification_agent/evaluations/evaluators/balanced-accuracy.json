@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "id": "BalancedAccuracyEvaluator",
+  "evaluatorTypeId": "file://types/balanced-accuracy-types.json",
+  "evaluatorSchema": "file://balanced_accuracy_evaluator.py:BalancedAccuracyEvaluator",
+  "description": "Balanced accuracy: mean of per-class recall rates. Uses weighted per-datapoint scores with a custom reduce_scores (sum instead of average).",
+  "evaluatorConfig": {
+    "name": "BalancedAccuracyEvaluator",
+    "targetOutputKey": "category",
+    "classes": ["plan_details", "payments", "spam"],
+    "classCounts": {
+      "payments": 2,
+      "plan_details": 2,
+      "spam": 3
+    },
+    "defaultEvaluationCriteria": {
+      "expectedClass": "spam"
+    }
+  }
+}

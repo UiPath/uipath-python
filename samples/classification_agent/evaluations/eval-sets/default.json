@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "id": "TeleComClassificationEval",
+  "name": "TeleCom Email Classification Evaluation",
+  "evaluatorRefs": [
+    "MulticlassClassificationEvaluator",
+    "BalancedAccuracyEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "payment-invoice",
+      "name": "Payment - Invoice reminder",
+      "inputs": {
+        "email_subject": "Your invoice is ready",
+        "email_body": "Dear customer, your monthly invoice of $45.99 is now available. Payment is due by March 15."
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "payments"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "payments"
+        }
+      }
+    },
+    {
+      "id": "payment-overdue",
+      "name": "Payment - Overdue balance",
+      "inputs": {
+        "email_subject": "Action required: overdue balance",
+        "email_body": "Your account has an overdue balance of $120.00. Please submit your payment as soon as possible to avoid service interruption."
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "payments"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "payments"
+        }
+      }
+    },
+    {
+      "id": "payment-refund",
+      "name": "Payment - Refund request (DELIBERATELY WRONG: ground truth set to 'spam')",
+      "inputs": {
+        "email_subject": "Refund for last month's charge",
+        "email_body": "I was charged $29.99 last month for a service I cancelled. Please process a refund to my account."
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "spam"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "spam"
+        }
+      }
+    },
+    {
+      "id": "payment-confirmation",
+      "name": "Payment - Confirmation (DELIBERATELY WRONG: ground truth set to 'spam')",
+      "inputs": {
+        "email_subject": "Payment confirmation",
+        "email_body": "Thank you for your payment of $85.00. Your account balance is now $0.00."
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "spam"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "spam"
+        }
+      }
+    },
+    {
+      "id": "plan-upgrade",
+      "name": "Plan - Upgrade inquiry",
+      "inputs": {
+        "email_subject": "How do I upgrade my plan?",
+        "email_body": "Hi, I currently have the 10GB data plan and would like to upgrade to the unlimited plan. Can you help?"
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "plan_details"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "plan_details"
+        }
+      }
+    },
+    {
+      "id": "plan-subscription",
+      "name": "Plan - Subscription details",
+      "inputs": {
+        "email_subject": "Question about my subscription",
+        "email_body": "I would like to know the details of my current plan including data limits and any upgrade options available."
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "plan_details"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "plan_details"
+        }
+      }
+    },
+    {
+      "id": "spam-promo",
+      "name": "Spam - Unsolicited promotion",
+      "inputs": {
+        "email_subject": "You won a FREE iPhone!!!",
+        "email_body": "Congratulations! You have been selected as the lucky winner. Click here to claim your prize now!"
+      },
+      "evaluationCriterias": {
+        "MulticlassClassificationEvaluator": {
+          "expectedClass": "spam"
+        },
+        "BalancedAccuracyEvaluator": {
+          "expectedClass": "spam"
+        }
+      }
+    }
+  ]
+}
