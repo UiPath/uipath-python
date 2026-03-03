@@ -1,5 +1,5 @@
-import ast
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -42,7 +42,7 @@ console = ConsoleLogger()
 class LiteralOption(click.Option):
     def type_cast_value(self, ctx, value):
         try:
-            return ast.literal_eval(value)
+            return json.loads(value)
         except Exception as e:
             raise click.BadParameter(value) from e
 
