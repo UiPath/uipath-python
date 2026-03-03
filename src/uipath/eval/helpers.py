@@ -8,11 +8,10 @@ from typing import Any
 import click
 from pydantic import ValidationError
 
-from uipath._cli._evals._conversational_utils import UiPathLegacyEvalChatMessagesMapper
-
 from .evaluators.base_evaluator import GenericBaseEvaluator
 from .evaluators.evaluator_factory import EvaluatorFactory
 from .mocks._types import InputMockingStrategy, LLMMockingStrategy
+from .models._conversational_utils import UiPathLegacyEvalChatMessagesMapper
 from .models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
