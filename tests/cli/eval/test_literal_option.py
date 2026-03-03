@@ -37,42 +37,32 @@ class TestLiteralOption:
 
     def test_parse_dict_with_strings(self):
         """Should parse JSON object with string values."""
-        result = self.runner.invoke(
-            dummy_command, ["--data", '{"key": "value"}']
-        )
+        result = self.runner.invoke(dummy_command, ["--data", '{"key": "value"}'])
         assert result.exit_code == 0
         assert "key" in result.output
         assert "value" in result.output
 
     def test_parse_dict_with_numbers(self):
         """Should parse JSON object with numeric values."""
-        result = self.runner.invoke(
-            dummy_command, ["--data", '{"a": 10, "b": 3.14}']
-        )
+        result = self.runner.invoke(dummy_command, ["--data", '{"a": 10, "b": 3.14}'])
         assert result.exit_code == 0
         assert "10" in result.output
 
     def test_parse_json_null(self):
         """Regression: should parse JSON null (ast.literal_eval fails on this)."""
-        result = self.runner.invoke(
-            dummy_command, ["--data", '{"field": null}']
-        )
+        result = self.runner.invoke(dummy_command, ["--data", '{"field": null}'])
         assert result.exit_code == 0
         assert "None" in result.output
 
     def test_parse_json_true(self):
         """Regression: should parse JSON true (ast.literal_eval fails on this)."""
-        result = self.runner.invoke(
-            dummy_command, ["--data", '{"flag": true}']
-        )
+        result = self.runner.invoke(dummy_command, ["--data", '{"flag": true}'])
         assert result.exit_code == 0
         assert "True" in result.output
 
     def test_parse_json_false(self):
         """Regression: should parse JSON false (ast.literal_eval fails on this)."""
-        result = self.runner.invoke(
-            dummy_command, ["--data", '{"flag": false}']
-        )
+        result = self.runner.invoke(dummy_command, ["--data", '{"flag": false}'])
         assert result.exit_code == 0
         assert "False" in result.output
 
@@ -112,9 +102,7 @@ class TestLiteralOption:
 
     def test_invalid_json_raises_bad_parameter(self):
         """Should raise BadParameter for invalid JSON."""
-        result = self.runner.invoke(
-            dummy_command, ["--data", "{invalid json}"]
-        )
+        result = self.runner.invoke(dummy_command, ["--data", "{invalid json}"])
         assert result.exit_code != 0
 
     def test_default_value(self):
