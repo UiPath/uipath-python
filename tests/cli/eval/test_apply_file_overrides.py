@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from uipath._cli._evals._conversational_utils import (
+from uipath.eval.models._conversational_utils import (
     LegacyConversationalEvalInput,
     LegacyConversationalEvalInputAgentMessage,
     LegacyConversationalEvalJobAttachmentReference,
