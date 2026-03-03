@@ -2,13 +2,13 @@
 
 from typing import Any
 
+from uipath.eval.helpers import _apply_file_overrides_to_conversational_inputs
 from uipath.eval.models._conversational_utils import (
     LegacyConversationalEvalInput,
     LegacyConversationalEvalInputAgentMessage,
     LegacyConversationalEvalJobAttachmentReference,
     LegacyConversationalEvalUserMessage,
 )
-from uipath.eval.helpers import _apply_file_overrides_to_conversational_inputs
 
 
 def _make_attachment(
