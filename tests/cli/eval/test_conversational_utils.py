@@ -1,11 +1,12 @@
 """Tests for conversational eval utilities."""
 
-from uipath.core.chat import UiPathInlineValue
+from uipath.core.chat import UiPathExternalValue, UiPathInlineValue
 from uipath.eval.models._conversational_utils import (
     LegacyConversationalEvalInput,
     LegacyConversationalEvalInputAgentMessage,
     LegacyConversationalEvalInputToolCall,
     LegacyConversationalEvalInputToolCallResult,
+    LegacyConversationalEvalJobAttachmentReference,
     LegacyConversationalEvalOutput,
     LegacyConversationalEvalOutputAgentMessage,
     LegacyConversationalEvalOutputToolCall,
@@ -332,6 +333,220 @@ class TestLegacyConversationalEvalInputToUiPathMessages:
         assert len(agent_message.content_parts) == 0
         # Tool calls should still be present
         assert len(agent_message.tool_calls) == 1
+
+    def test_converts_user_message_with_single_attachment(self):
+        """Should convert user message with a single attachment to UiPathExternalValue content part."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(
+                        text="See attached",
+                        attachments=[
+                            LegacyConversationalEvalJobAttachmentReference(
+                                ID="abc-123",
+                                FullName="report.pdf",
+                                MimeType="application/pdf",
+                            )
+                        ],
+                    ),
+                    LegacyConversationalEvalInputAgentMessage(text="Got it"),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(text="Next"),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        user_msg = result[0]
+        assert len(user_msg.content_parts) == 2
+        # First part is text
+        assert isinstance(user_msg.content_parts[0].data, UiPathInlineValue)
+        assert user_msg.content_parts[0].data.inline == "See attached"
+        # Second part is attachment
+        assert isinstance(user_msg.content_parts[1].data, UiPathExternalValue)
+        assert (
+            user_msg.content_parts[1].data.uri
+            == "urn:uipath:cas:file:orchestrator:abc-123"
+        )
+        assert user_msg.content_parts[1].name == "report.pdf"
+        assert user_msg.content_parts[1].mime_type == "application/pdf"
+
+    def test_converts_user_message_with_multiple_attachments(self):
+        """Should convert user message with multiple attachments."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(
+                        text="Here are the files",
+                        attachments=[
+                            LegacyConversationalEvalJobAttachmentReference(
+                                ID="id-1",
+                                FullName="file1.csv",
+                                MimeType="text/csv",
+                            ),
+                            LegacyConversationalEvalJobAttachmentReference(
+                                ID="id-2",
+                                FullName="file2.xlsx",
+                                MimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            ),
+                        ],
+                    ),
+                    LegacyConversationalEvalInputAgentMessage(text="Received"),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(text="Analyze"),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        user_msg = result[0]
+        assert len(user_msg.content_parts) == 3  # 1 text + 2 attachments
+        assert isinstance(user_msg.content_parts[1].data, UiPathExternalValue)
+        assert (
+            user_msg.content_parts[1].data.uri
+            == "urn:uipath:cas:file:orchestrator:id-1"
+        )
+        assert user_msg.content_parts[1].name == "file1.csv"
+        assert isinstance(user_msg.content_parts[2].data, UiPathExternalValue)
+        assert (
+            user_msg.content_parts[2].data.uri
+            == "urn:uipath:cas:file:orchestrator:id-2"
+        )
+        assert user_msg.content_parts[2].name == "file2.xlsx"
+
+    def test_converts_current_user_prompt_with_attachment(self):
+        """Should convert current user prompt attachments."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(
+                text="Process this",
+                attachments=[
+                    LegacyConversationalEvalJobAttachmentReference(
+                        ID="prompt-att-1",
+                        FullName="data.json",
+                        MimeType="application/json",
+                    )
+                ],
+            ),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        assert len(result) == 1
+        prompt_msg = result[0]
+        assert len(prompt_msg.content_parts) == 2
+        assert isinstance(prompt_msg.content_parts[1].data, UiPathExternalValue)
+        assert (
+            prompt_msg.content_parts[1].data.uri
+            == "urn:uipath:cas:file:orchestrator:prompt-att-1"
+        )
+        assert prompt_msg.content_parts[1].name == "data.json"
+        assert prompt_msg.content_parts[1].mime_type == "application/json"
+
+    def test_user_message_with_no_attachments_unchanged(self):
+        """Should not add attachment content parts when attachments is None."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(
+                        text="No attachments here", attachments=None
+                    ),
+                    LegacyConversationalEvalInputAgentMessage(text="Ok"),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(text="Done"),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        user_msg = result[0]
+        assert len(user_msg.content_parts) == 1
+        assert isinstance(user_msg.content_parts[0].data, UiPathInlineValue)
+
+    def test_user_message_with_empty_text_and_attachment(self):
+        """Should create only attachment content part when text is empty."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(
+                        text="",
+                        attachments=[
+                            LegacyConversationalEvalJobAttachmentReference(
+                                ID="att-only",
+                                FullName="image.png",
+                                MimeType="image/png",
+                            )
+                        ],
+                    ),
+                    LegacyConversationalEvalInputAgentMessage(text="I see the image"),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(text="Thanks"),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        user_msg = result[0]
+        # No text part (empty text), only attachment
+        assert len(user_msg.content_parts) == 1
+        assert isinstance(user_msg.content_parts[0].data, UiPathExternalValue)
+        assert (
+            user_msg.content_parts[0].data.uri
+            == "urn:uipath:cas:file:orchestrator:att-only"
+        )
+        assert user_msg.content_parts[0].name == "image.png"
+
+    def test_attachment_content_parts_have_unique_ids(self):
+        """Should generate unique content part IDs for attachment parts."""
+        eval_input = LegacyConversationalEvalInput(
+            conversationHistory=[
+                [
+                    LegacyConversationalEvalUserMessage(
+                        text="Files",
+                        attachments=[
+                            LegacyConversationalEvalJobAttachmentReference(
+                                ID="a1",
+                                FullName="f1.txt",
+                                MimeType="text/plain",
+                            ),
+                            LegacyConversationalEvalJobAttachmentReference(
+                                ID="a2",
+                                FullName="f2.txt",
+                                MimeType="text/plain",
+                            ),
+                        ],
+                    ),
+                    LegacyConversationalEvalInputAgentMessage(text="Ok"),
+                ]
+            ],
+            currentUserPrompt=LegacyConversationalEvalUserMessage(
+                text="More",
+                attachments=[
+                    LegacyConversationalEvalJobAttachmentReference(
+                        ID="a3",
+                        FullName="f3.txt",
+                        MimeType="text/plain",
+                    )
+                ],
+            ),
+        )
+
+        result = UiPathLegacyEvalChatMessagesMapper.legacy_conversational_eval_input_to_uipath_message_list(
+            eval_input
+        )
+
+        all_ids = [part.content_part_id for msg in result for part in msg.content_parts]
+        assert len(all_ids) == len(set(all_ids))
 
 
 class TestLegacyConversationalEvalOutputToUiPathMessageData:
