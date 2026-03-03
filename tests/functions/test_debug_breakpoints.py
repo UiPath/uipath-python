@@ -1392,47 +1392,71 @@ class TestGeneratorStateEvents:
             await runtime.dispose()
 
 
-class TestSignalRBridgeBreakpoints:
-    """SignalR bridge should use node.id for breakpoints, not node.name."""
+class TestFuncNameBreakpointResolution:
+    """BreakpointController should resolve bare function names via node_id_map."""
 
-    def test_add_breakpoints_uses_node_id(self):
-        """_add_breakpoints should prefer node.id over node.name."""
-        from uipath._cli._debug._bridge import SignalRDebugBridge
-
-        bridge = SignalRDebugBridge(hub_url="http://localhost:0")
-        bridge._add_breakpoints(
-            [
-                {"node": {"id": "src/main.py:5", "name": "main"}},
-                {"node": {"id": "src/helpers.py:2", "name": "helper"}},
-            ]
+    def test_bare_function_name_resolved_to_file_line(self):
+        """A bare function name breakpoint is resolved to file:line via node_id_map."""
+        node_id_map = {
+            ("/abs/main.py", "main"): "main.py:5",
+            ("/abs/helpers.py", "helper"): "helpers.py:2",
+        }
+        controller = BreakpointController(
+            project_dir="/abs",
+            breakpoints=["helper"],
+            node_id_map=node_id_map,
         )
-        bps = bridge.get_breakpoints()
-        assert "src/main.py:5" in bps
-        assert "src/helpers.py:2" in bps
-        # Should NOT contain the bare function names
-        assert "main" not in bps
-        assert "helper" not in bps
+        # The bare name "helper" should resolve to helpers.py:2
+        abs_helpers = os.path.abspath("helpers.py")
+        assert abs_helpers in controller._file_breakpoints
+        assert 2 in controller._file_breakpoints[abs_helpers]
 
-    def test_add_breakpoints_falls_back_to_name(self):
-        """When node.id is missing, _add_breakpoints falls back to node.name."""
-        from uipath._cli._debug._bridge import SignalRDebugBridge
-
-        bridge = SignalRDebugBridge(hub_url="http://localhost:0")
-        bridge._add_breakpoints([{"node": {"name": "agent_node"}}])
-        bps = bridge.get_breakpoints()
-        assert "agent_node" in bps
-
-    async def test_remove_breakpoints_uses_node_id(self):
-        """_handle_remove_breakpoints should use node.id to match _add_breakpoints."""
-        from uipath._cli._debug._bridge import SignalRDebugBridge
-
-        bridge = SignalRDebugBridge(hub_url="http://localhost:0")
-        bridge.state.add_breakpoint("src/main.py:5")
-        bridge.state.add_breakpoint("src/helpers.py:2")
-
-        await bridge._handle_remove_breakpoints(
-            ['{"breakpoints": [{"node": {"id": "src/main.py:5", "name": "main"}}]}']
+    def test_unresolvable_function_name_ignored(self):
+        """A bare function name not in node_id_map is silently ignored."""
+        controller = BreakpointController(
+            project_dir="/abs",
+            breakpoints=["unknown_func"],
+            node_id_map={},
         )
-        bps = bridge.get_breakpoints()
-        assert "src/main.py:5" not in bps
-        assert "src/helpers.py:2" in bps
+        assert len(controller._file_breakpoints) == 0
+
+    async def test_bridge_sends_func_name_breakpoint_hits(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """End-to-end: bridge sends a bare function name, breakpoint fires."""
+        import sys as _sys
+
+        mod_name = "fname_helpers"
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.delitem(_sys.modules, mod_name, raising=False)
+
+        _write_script(
+            tmp_path,
+            f"{mod_name}.py",
+            "def helper(n):\n    doubled = n * 2\n    return doubled\n",
+        )
+        script = _write_script(
+            tmp_path,
+            "fname_main.py",
+            f"from {mod_name} import helper\n"
+            "\n"
+            "def main(input):\n"
+            '    val = input.get("n", 5)\n'
+            "    result = helper(val)\n"
+            '    return {"result": result}\n',
+        )
+
+        # The bridge sends bare function name "helper" as breakpoint
+        runtime, bridge = _build_stack(script, breakpoints=["helper"])
+
+        try:
+            result = await runtime.execute({"n": 4})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 8}
+            # The bare name "helper" should have resolved and fired
+            assert len(bridge.breakpoint_hits) >= 1
+        finally:
+            monkeypatch.delitem(_sys.modules, mod_name, raising=False)
+            await runtime.dispose()

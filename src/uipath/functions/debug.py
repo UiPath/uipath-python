@@ -175,6 +175,8 @@ class BreakpointController:
         self._entrypoint_path = (
             os.path.abspath(entrypoint_path) if entrypoint_path else None
         )
+        self._state_tracked: dict[str, set[str]] | None = state_tracked_functions
+        self._node_id_map: dict[tuple[str, str], str] = node_id_map or {}
         self._step_mode: bool = breakpoints == "*"
         if isinstance(breakpoints, list):
             self._file_breakpoints: dict[str, set[int]] = self._build_breakpoint_map(
@@ -182,9 +184,6 @@ class BreakpointController:
             )
         else:
             self._file_breakpoints: dict[str, set[int]] = {}
-
-        self._state_tracked: dict[str, set[str]] | None = state_tracked_functions
-        self._node_id_map: dict[tuple[str, str], str] = node_id_map or {}
         # Per-frame tracking.  Keyed by id(frame); created on ``call``,
         # removed on ``return`` for normal functions.  For generators the
         # state persists across yield/resume cycles.
@@ -206,6 +205,7 @@ class BreakpointController:
 
             "42"          -> line 42 in the entrypoint file
             "main.py:42"  -> line 42 in main.py (resolved relative to cwd)
+            "helper"      -> resolved via node_id_map to file:line
         """
         result: dict[str, set[int]] = {}
         for bp in breakpoints:
@@ -221,10 +221,31 @@ class BreakpointController:
                 try:
                     line = int(bp)
                 except ValueError:
-                    continue  # non-numeric tokens (agent node names) are ignored
+                    # Non-numeric token: try resolving as a function name
+                    # via the node_id_map (the bridge may send bare names).
+                    resolved_id = self._resolve_func_name(bp)
+                    if resolved_id and ":" in resolved_id:
+                        file_part, line_str = resolved_id.rsplit(":", 1)
+                        try:
+                            line = int(line_str)
+                        except ValueError:
+                            continue
+                        resolved = os.path.abspath(file_part)
+                        result.setdefault(resolved, set()).add(line)
+                    continue
                 if self._entrypoint_path is not None:
                     result.setdefault(self._entrypoint_path, set()).add(line)
         return result
+
+    def _resolve_func_name(self, name: str) -> str | None:
+        """Look up a bare function name in the node_id_map.
+
+        Returns the ``"file:line"`` node ID if found, otherwise ``None``.
+        """
+        for (_, func_name), node_id in self._node_id_map.items():
+            if func_name == name:
+                return node_id
+        return None
 
     def update_breakpoints(self, breakpoints: list[str] | Literal["*"] | None) -> None:
         """Replace the active breakpoint set (called between resume cycles).
