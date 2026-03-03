@@ -765,16 +765,16 @@ class SignalRDebugBridge:
 
     def _add_breakpoints(self, breakpoints: list[dict[str, Any]]) -> None:
         for bp in breakpoints:
-            node_name = (
-                bp.get("node", {}).get("name")
-                if isinstance(bp.get("node"), dict)
-                else None
-            )
-            if node_name:
-                self.state.add_breakpoint(node_name)
-                logger.info(f"Breakpoint added: {node_name}")
+            node = bp.get("node", {}) if isinstance(bp.get("node"), dict) else {}
+            # Prefer node ID ("file:line" format) which the
+            # BreakpointController can parse.  Fall back to node name
+            # for agent-style runtimes that use name-based breakpoints.
+            node_ref = node.get("id") or node.get("name")
+            if node_ref:
+                self.state.add_breakpoint(node_ref)
+                logger.info(f"Breakpoint added: {node_ref}")
             else:
-                logger.warning(f"Breakpoint without node name: {bp}")
+                logger.warning(f"Breakpoint without node id or name: {bp}")
 
     async def _handle_step(self, args: list[Any]) -> None:
         """Handle Step command from SignalR server.
@@ -820,14 +820,11 @@ class SignalRDebugBridge:
             logger.info("All breakpoints cleared")
         else:
             for bp in break_points:
-                node_name = (
-                    bp.get("node", {}).get("name")
-                    if isinstance(bp.get("node"), dict)
-                    else None
-                )
-                if node_name:
-                    self.state.remove_breakpoint(node_name)
-                    logger.info(f"Breakpoint removed: {node_name}")
+                node = bp.get("node", {}) if isinstance(bp.get("node"), dict) else {}
+                node_ref = node.get("id") or node.get("name")
+                if node_ref:
+                    self.state.remove_breakpoint(node_ref)
+                    logger.info(f"Breakpoint removed: {node_ref}")
 
     async def _handle_quit(self, _args: list[Any]) -> None:
         """Handle Quit command from SignalR server."""

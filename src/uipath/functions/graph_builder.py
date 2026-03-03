@@ -102,11 +102,23 @@ class _BuildContext:
     def _find_function_def(
         self, tree: ast.Module, name: str
     ) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
-        """Find a top-level function definition by name."""
+        """Find a function definition by name.
+
+        Searches top-level functions first, then methods inside class
+        definitions so that class-based entrypoints are discoverable.
+        """
+        # Top-level functions
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if node.name == name:
                     return node
+        # Methods inside class definitions
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.ClassDef):
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        if item.name == name:
+                            return item
         return None
 
     def _resolve_imports(
@@ -205,18 +217,28 @@ class _BuildContext:
         return None
 
     @staticmethod
-    def _last_body_line(
+    def _first_code_line(
         func_def: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> int:
-        """Return the line number of the last statement in the function body.
+        """Return the line number of the first code statement after the docstring.
 
-        Using the last body line (rather than the first) means breakpoints
-        derived from graph-node IDs fire at the end of the function where
-        all local variables are visible for inspection.
+        If the body starts with a docstring (``ast.Expr`` wrapping an
+        ``ast.Constant(value=str)``), the second statement's line is used.
+        Falls back to ``body[0].lineno`` when there is no non-docstring
+        statement, or ``func_def.lineno`` for an empty body.
         """
-        if func_def.body:
-            return func_def.body[-1].lineno
-        return func_def.lineno
+        if not func_def.body:
+            return func_def.lineno
+
+        first = func_def.body[0]
+        is_docstring = (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        )
+        if is_docstring and len(func_def.body) > 1:
+            return func_def.body[1].lineno
+        return first.lineno
 
     def visit_function(self, abs_file: str, func_name: str, depth: int) -> str | None:
         """Process a function: create its node and recurse into its calls.
@@ -231,7 +253,7 @@ class _BuildContext:
         if func_def is None:
             return None
 
-        node_id = self._node_id(abs_file, self._last_body_line(func_def))
+        node_id = self._node_id(abs_file, self._first_code_line(func_def))
 
         # Add node even if already visited (we need the ID for edges)
         if node_id in self._visited:

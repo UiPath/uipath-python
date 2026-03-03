@@ -237,13 +237,16 @@ class UiPathFunctionsRuntime:
         raw_output_schema = get_type_schema(hints.get("return"))
         output_schema = transform_attachments(raw_output_schema)
 
-        # Build call graph from AST
+        # Build call graph from AST.
+        # Use CWD as project_dir so node IDs (relative paths) are
+        # consistent with BreakpointController and _build_tracked_functions,
+        # which also resolve relative to CWD.
         graph = None
         try:
             graph = build_call_graph(
                 str(self.file_path),
                 self.function_name,
-                project_dir=str(self.file_path.parent),
+                project_dir=str(Path.cwd()),
             )
         except Exception:
             logger.debug(
