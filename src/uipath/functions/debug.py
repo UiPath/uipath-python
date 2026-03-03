@@ -124,11 +124,19 @@ class _FrameState:
     resumption and skip "completed" on intermediate yields.
     """
 
-    __slots__ = ("faulted", "is_generator")
+    __slots__ = ("faulted", "is_generator", "last_line")
 
     def __init__(self, *, is_generator: bool = False) -> None:
         self.faulted: bool = False
         self.is_generator: bool = is_generator
+        # Last line event seen in this frame.  Used to deduplicate the
+        # bounce-back pattern where multiline expressions (e.g.
+        # ``return Foo(arg=bar(...))``) cause the bytecode to revisit the
+        # call-site line after evaluating arguments on deeper lines.
+        # Only suppress when the *immediately preceding* line event was
+        # the same breakpoint line (no intervening lines), so loop
+        # iterations that pass through other lines still fire normally.
+        self.last_line: int = -1
 
 
 class BreakpointController:
@@ -356,11 +364,28 @@ class BreakpointController:
                     return self._trace_callback
 
                 lineno = frame.f_lineno
+                # Update last_line for bounce-back dedup (see _FrameState).
+                state = self._frame_states.get(id(frame))
+                prev_line = state.last_line if state is not None else -1
+                if state is not None:
+                    state.last_line = lineno
+
                 should_break = (
                     self._step_mode and self._is_project_file(filepath)
                 ) or (lineno in self._file_breakpoints.get(filepath, ()))
 
                 if should_break:
+                    # Deduplicate: multiline expressions (e.g.
+                    # ``return Foo(arg=bar(...))``) cause the bytecode to
+                    # bounce back to the call-site line after evaluating
+                    # arguments on deeper lines.  Without this guard the
+                    # same breakpoint would fire twice per call.
+                    # Only suppress when the *immediately preceding* line
+                    # event was the same line (no intervening lines), so
+                    # loop iterations still fire normally.
+                    if lineno == prev_line:
+                        return self._trace_callback
+
                     self._events.put(
                         (
                             "breakpoint",

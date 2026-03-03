@@ -1032,6 +1032,37 @@ class TestRobustness:
         finally:
             await runtime.dispose()
 
+    async def test_single_line_call_breakpoint_fires_once(self, script_dir: Path):
+        """Single-line call expression with nested call should not bounce-back.
+
+        ``result = dict(value=bar(val))`` compiles so that the bytecode
+        visits line 6 twice: once to set up the call, and once after
+        ``bar()`` returns to execute the outer ``dict()`` call.  The
+        breakpoint should fire only once.
+        """
+        script = _write_script(
+            script_dir,
+            "bounce.py",
+            "def bar(x):\n"
+            "    return x + 1\n"
+            "\n"
+            "def main(input):\n"
+            '    val = input.get("n", 5)\n'  # line 5
+            "    result = dict(value=bar(val))\n"  # line 6 ← breakpoint (single-line)
+            '    return {"result": result["value"]}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=["6"])
+
+        try:
+            result = await runtime.execute({"n": 3})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 4}  # bar(3) = 4
+            # The breakpoint on line 6 should fire exactly once, not twice
+            assert len(bridge.breakpoint_hits) == 1
+        finally:
+            await runtime.dispose()
+
     def test_wait_for_event_raises_on_dead_thread(self, script_dir: Path):
         """wait_for_event raises RuntimeError when the trace thread dies."""
         import threading as _threading
