@@ -1,0 +1,199 @@
+name: Test Packages
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changed-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+      count: ${{ steps.detect.outputs.count }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Detect changed packages
+        id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python .github/scripts/detect_changed_packages.py
+
+  test-uipath-core:
+    name: Test (uipath-core, ${{ matrix.python-version }}, ${{ matrix.os }})
+    needs: detect-changed-packages
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check if package changed
+        id: check
+        shell: bash
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-core")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        shell: bash
+        run: echo "Skipping - no changes to uipath-core"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-core
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-core
+        run: uv run pytest
+
+  test-uipath-platform:
+    name: Test (uipath-platform, ${{ matrix.python-version }}, ${{ matrix.os }})
+    needs: detect-changed-packages
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check if package changed
+        id: check
+        shell: bash
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-platform")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        shell: bash
+        run: echo "Skipping - no changes to uipath-platform"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv run pytest
+
+  test-uipath:
+    name: Test (uipath, ${{ matrix.python-version }}, ${{ matrix.os }})
+    needs: detect-changed-packages
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check if package changed
+        id: check
+        shell: bash
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        shell: bash
+        run: echo "Skipping - no changes to uipath"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv run pytest
+
+    continue-on-error: true
+
+  test-gate:
+    name: Test
+    needs: [test-uipath-core, test-uipath-platform, test-uipath]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          if [[ "${{ needs.test-uipath-core.result }}" == "failure" || \
+                "${{ needs.test-uipath-platform.result }}" == "failure" || \
+                "${{ needs.test-uipath.result }}" == "failure" ]]; then
+            echo "Tests failed"
+            exit 1
+          fi
+          echo "All tests passed"

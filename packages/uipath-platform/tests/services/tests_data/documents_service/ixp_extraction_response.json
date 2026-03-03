@@ -1,0 +1,1078 @@
+{
+  "extractionResult": {
+    "DocumentId": "8253c809-2dbe-f011-8194-000d3a296f55",
+    "ResultsVersion": 0,
+    "ResultsDocument": {
+      "Bounds": {
+        "StartPage": 0,
+        "PageCount": 1,
+        "TextStartIndex": 0,
+        "TextLength": 629,
+        "PageRange": "1"
+      },
+      "Language": "eng",
+      "DocumentGroup": "",
+      "DocumentCategory": "",
+      "DocumentTypeId": "00000000-0000-0000-0000-000000000000",
+      "DocumentTypeName": "Default",
+      "DocumentTypeDataVersion": 0,
+      "DataVersion": 0,
+      "DocumentTypeSource": "Automatic",
+      "DocumentTypeField": {
+        "Components": [],
+        "Value": "Default",
+        "UnformattedValue": "",
+        "Reference": {
+          "TextStartIndex": 0,
+          "TextLength": 0,
+          "Tokens": []
+        },
+        "DerivedFields": [],
+        "Confidence": 1.0,
+        "OperatorConfirmed": false,
+        "OcrConfidence": -1.0,
+        "TextType": "Unknown",
+        "ValidatorNotes": "",
+        "ValidatorNotesInfo": ""
+      },
+      "Fields": [
+        {
+          "FieldId": "Details",
+          "FieldName": "Details",
+          "FieldType": "Table",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [
+                {
+                  "FieldId": "Details.Header",
+                  "FieldName": "Header",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Total",
+                          "FieldName": "Total",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Total",
+                              "UnformattedValue": "Total",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": -1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "From",
+                          "FieldName": "From",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "From",
+                              "UnformattedValue": "From",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": -1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "To",
+                          "FieldName": "To",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "To",
+                              "UnformattedValue": "To",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": -1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Dummy field",
+                          "FieldName": "Dummy field",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Dummy field",
+                              "UnformattedValue": "Dummy field",
+                              "Reference": {
+                                "TextStartIndex": 0,
+                                "TextLength": 0,
+                                "Tokens": []
+                              },
+                              "DerivedFields": [],
+                              "Confidence": -1.0,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Unknown",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": false,
+                  "ValidatorNotes": "",
+                  "ValidatorNotesInfo": ""
+                },
+                {
+                  "FieldId": "Details.Body",
+                  "FieldName": "Body",
+                  "FieldType": "Internal",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [
+                        {
+                          "FieldId": "Total",
+                          "FieldName": "Total",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "66.79 RON",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 620,
+                                "TextLength": 9,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 620,
+                                    "TextLength": 3,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [304.3017, 479.8387, 19.9318, 6.6474]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 624,
+                                    "TextLength": 5,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [304.3017, 503.4615, 23.6228, 6.6474]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 0.9975757,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "From",
+                          "FieldName": "From",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Aleea Muscel 9, Cluj-Napoca 400347, Romania",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 337,
+                                "TextLength": 43,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 337,
+                                    "TextLength": 5,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 122.5434, 19.1935, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 343,
+                                    "TextLength": 6,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 143.9516, 22.8846, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 350,
+                                    "TextLength": 2,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 168.3126, 4.4293, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 350,
+                                    "TextLength": 2,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 172.7419, 2.2147, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 353,
+                                    "TextLength": 11,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 176.433, 12.5496, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 353,
+                                    "TextLength": 11,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 188.9826, 2.9528, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 353,
+                                    "TextLength": 11,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 191.1973, 24.361, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 365,
+                                    "TextLength": 7,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 217.773, 24.361, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 365,
+                                    "TextLength": 7,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 242.134, 2.2147, 7.386]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 373,
+                                    "TextLength": 7,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [423.9544, 246.5633, 28.7903, 7.386]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 0.9979634,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "To",
+                          "FieldName": "To",
+                          "FieldType": "Text",
+                          "IsMissing": false,
+                          "DataSource": "Automatic",
+                          "Values": [
+                            {
+                              "Components": [],
+                              "Value": "Strada Traian Vuia 149-151, Cluj-Napoca 400397, Romania",
+                              "UnformattedValue": "",
+                              "Reference": {
+                                "TextStartIndex": 391,
+                                "TextLength": 55,
+                                "Tokens": [
+                                  {
+                                    "TextStartIndex": 391,
+                                    "TextLength": 6,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 123.2816, 22.1464, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 398,
+                                    "TextLength": 6,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 146.9045, 19.9318, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 405,
+                                    "TextLength": 4,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 168.3126, 15.5025, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 410,
+                                    "TextLength": 8,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 186.0298, 25.0992, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 410,
+                                    "TextLength": 8,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 211.8672, 2.2147, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 419,
+                                    "TextLength": 11,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 215.5583, 12.5496, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 419,
+                                    "TextLength": 11,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 228.1079, 2.9528, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 419,
+                                    "TextLength": 11,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 231.0608, 24.361, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 431,
+                                    "TextLength": 7,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 256.8983, 25.0992, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 431,
+                                    "TextLength": 7,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 281.2593, 2.2147, 7.3859]
+                                    ]
+                                  },
+                                  {
+                                    "TextStartIndex": 439,
+                                    "TextLength": 7,
+                                    "Page": 0,
+                                    "PageWidth": 595.0,
+                                    "PageHeight": 842.0,
+                                    "Boxes": [
+                                      [443.1579, 285.6886, 28.7903, 7.3859]
+                                    ]
+                                  }
+                                ]
+                              },
+                              "DerivedFields": [],
+                              "Confidence": 0.99986005,
+                              "OperatorConfirmed": false,
+                              "OcrConfidence": 1.0,
+                              "TextType": "Text",
+                              "ValidatorNotes": "",
+                              "ValidatorNotesInfo": ""
+                            }
+                          ],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        },
+                        {
+                          "FieldId": "Dummy field",
+                          "FieldName": "Dummy field",
+                          "FieldType": "Text",
+                          "IsMissing": true,
+                          "DataSource": "Automatic",
+                          "Values": [],
+                          "DataVersion": 0,
+                          "OperatorConfirmed": false,
+                          "ValidatorNotes": "",
+                          "ValidatorNotesInfo": ""
+                        }
+                      ],
+                      "Value": "",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 0.9975757,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ],
+                  "DataVersion": 0,
+                  "OperatorConfirmed": false,
+                  "ValidatorNotes": "",
+                  "ValidatorNotesInfo": ""
+                }
+              ],
+              "Value": "",
+              "UnformattedValue": "",
+              "Reference": {
+                "TextStartIndex": 0,
+                "TextLength": 0,
+                "Tokens": []
+              },
+              "DerivedFields": [],
+              "Confidence": 0.9975757,
+              "OperatorConfirmed": true,
+              "OcrConfidence": 1.0,
+              "TextType": "Unknown",
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        }
+      ],
+      "Tables": [
+        {
+          "FieldId": "Details",
+          "FieldName": "Details",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "DataVersion": 0,
+          "OperatorConfirmed": false,
+          "Values": [
+            {
+              "OperatorConfirmed": true,
+              "Confidence": 0.9975757,
+              "OcrConfidence": 1.0,
+              "Cells": [
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 0,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Total",
+                      "UnformattedValue": "Total",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 1,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "From",
+                      "UnformattedValue": "From",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 2,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "To",
+                      "UnformattedValue": "To",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 0,
+                  "ColumnIndex": 3,
+                  "IsHeader": true,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Dummy field",
+                      "UnformattedValue": "Dummy field",
+                      "Reference": {
+                        "TextStartIndex": 0,
+                        "TextLength": 0,
+                        "Tokens": []
+                      },
+                      "DerivedFields": [],
+                      "Confidence": -1.0,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Unknown",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 0,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "66.79 RON",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 620,
+                        "TextLength": 9,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 620,
+                            "TextLength": 3,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[304.3017, 479.8387, 19.9318, 6.6474]]
+                          },
+                          {
+                            "TextStartIndex": 624,
+                            "TextLength": 5,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[304.3017, 503.4615, 23.6228, 6.6474]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 0.9975757,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 1,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Aleea Muscel 9, Cluj-Napoca 400347, Romania",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 337,
+                        "TextLength": 43,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 337,
+                            "TextLength": 5,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 122.5434, 19.1935, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 343,
+                            "TextLength": 6,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 143.9516, 22.8846, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 350,
+                            "TextLength": 2,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 168.3126, 4.4293, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 350,
+                            "TextLength": 2,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 172.7419, 2.2147, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 353,
+                            "TextLength": 11,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 176.433, 12.5496, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 353,
+                            "TextLength": 11,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 188.9826, 2.9528, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 353,
+                            "TextLength": 11,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 191.1973, 24.361, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 365,
+                            "TextLength": 7,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 217.773, 24.361, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 365,
+                            "TextLength": 7,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 242.134, 2.2147, 7.386]]
+                          },
+                          {
+                            "TextStartIndex": 373,
+                            "TextLength": 7,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[423.9544, 246.5633, 28.7903, 7.386]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 0.9979634,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 2,
+                  "IsHeader": false,
+                  "IsMissing": false,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "Strada Traian Vuia 149-151, Cluj-Napoca 400397, Romania",
+                      "UnformattedValue": "",
+                      "Reference": {
+                        "TextStartIndex": 391,
+                        "TextLength": 55,
+                        "Tokens": [
+                          {
+                            "TextStartIndex": 391,
+                            "TextLength": 6,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 123.2816, 22.1464, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 398,
+                            "TextLength": 6,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 146.9045, 19.9318, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 405,
+                            "TextLength": 4,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 168.3126, 15.5025, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 410,
+                            "TextLength": 8,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 186.0298, 25.0992, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 410,
+                            "TextLength": 8,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 211.8672, 2.2147, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 419,
+                            "TextLength": 11,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 215.5583, 12.5496, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 419,
+                            "TextLength": 11,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 228.1079, 2.9528, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 419,
+                            "TextLength": 11,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 231.0608, 24.361, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 431,
+                            "TextLength": 7,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 256.8983, 25.0992, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 431,
+                            "TextLength": 7,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 281.2593, 2.2147, 7.3859]]
+                          },
+                          {
+                            "TextStartIndex": 439,
+                            "TextLength": 7,
+                            "Page": 0,
+                            "PageWidth": 595.0,
+                            "PageHeight": 842.0,
+                            "Boxes": [[443.1579, 285.6886, 28.7903, 7.3859]]
+                          }
+                        ]
+                      },
+                      "DerivedFields": [],
+                      "Confidence": 0.99986005,
+                      "OperatorConfirmed": false,
+                      "OcrConfidence": 1.0,
+                      "TextType": "Text",
+                      "ValidatorNotes": "",
+                      "ValidatorNotesInfo": ""
+                    }
+                  ]
+                },
+                {
+                  "RowIndex": 1,
+                  "ColumnIndex": 3,
+                  "IsHeader": false,
+                  "IsMissing": true,
+                  "OperatorConfirmed": false,
+                  "DataSource": "Automatic",
+                  "DataVersion": 0,
+                  "Values": []
+                }
+              ],
+              "ColumnInfo": [
+                {
+                  "FieldId": "Total",
+                  "FieldName": "Total",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "From",
+                  "FieldName": "From",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "To",
+                  "FieldName": "To",
+                  "FieldType": "Text"
+                },
+                {
+                  "FieldId": "Dummy field",
+                  "FieldName": "Dummy field",
+                  "FieldType": "Text"
+                }
+              ],
+              "NumberOfRows": 2,
+              "ValidatorNotes": "",
+              "ValidatorNotesInfo": ""
+            }
+          ],
+          "ValidatorNotes": "",
+          "ValidatorNotesInfo": ""
+        }
+      ]
+    },
+    "ExtractorPayloads": null,
+    "BusinessRulesResults": null
+  },
+  "projectId": "c390c3ab-358a-80ee-9dcf-9ea0d5ca7bb3",
+  "projectType": "IXP",
+  "tag": "live",
+  "documentTypeId": "00000000-0000-0000-0000-000000000000",
+  "dataProjection": [
+    {
+      "fieldGroupName": "Details",
+      "fieldValues": [
+        {
+          "id": "Total",
+          "name": "Total",
+          "value": "66.79 RON",
+          "unformattedValue": "",
+          "confidence": 0.9975757,
+          "ocrConfidence": 1.0,
+          "type": "Text"
+        },
+        {
+          "id": "From",
+          "name": "From",
+          "value": "Aleea Muscel 9, Cluj-Napoca 400347, Romania",
+          "unformattedValue": "",
+          "confidence": 0.9979634,
+          "ocrConfidence": 1.0,
+          "type": "Text"
+        },
+        {
+          "id": "To",
+          "name": "To",
+          "value": "Strada Traian Vuia 149-151, Cluj-Napoca 400397, Romania",
+          "unformattedValue": "",
+          "confidence": 0.99986005,
+          "ocrConfidence": 1.0,
+          "type": "Text"
+        },
+        {
+          "id": "Dummy field",
+          "name": "Dummy field",
+          "value": null,
+          "unformattedValue": null,
+          "confidence": null,
+          "ocrConfidence": null,
+          "type": "Text"
+        }
+      ]
+    }
+  ]
+}

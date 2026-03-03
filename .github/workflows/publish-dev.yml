@@ -3,16 +3,53 @@ name: Publish Dev Build
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+    paths:
+      - 'packages/**'
+      - '.github/workflows/publish-dev.yml'
+      - '.github/scripts/detect_changed_packages.py'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
-  publish-dev:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-
-    # Only run if PR has the build:dev label
+  detect-changed-packages:
     if: contains(github.event.pull_request.labels.*.name, 'build:dev')
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+      count: ${{ steps.detect.outputs.count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Detect changed packages
+        id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python .github/scripts/detect_changed_packages.py
+
+  publish-dev:
+    name: Publish Dev Build - ${{ matrix.package }}
+    needs: detect-changed-packages
+    if: contains(github.event.pull_request.labels.*.name, 'build:dev') && needs.detect-changed-packages.outputs.count > 0
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.package }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.detect-changed-packages.outputs.packages) }}
 
     steps:
       - name: Checkout
@@ -26,12 +63,13 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version-file: ".python-version"
+          python-version-file: "packages/${{ matrix.package }}/.python-version"
 
       - name: Install dependencies
         run: uv sync --all-extras
 
       - name: Replace connection string placeholder
+        if: matrix.package == 'uipath'
         run: |
           originalfile="src/uipath/telemetry/_constants.py"
           tmpfile=$(mktemp)
@@ -47,11 +85,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $pyprojcontent = Get-Content pyproject.toml -Raw
+          $pyprojPath = "pyproject.toml"
+          $pyprojcontent = Get-Content $pyprojPath -Raw
 
           $PROJECT_NAME    = ($pyprojcontent | Select-String -Pattern '(?m)^\[(project|tool\.poetry)\][^\[]*?name\s*=\s*"([^"]*)"' -AllMatches).Matches[0].Groups[2].Value
           $CURRENT_VERSION = ($pyprojcontent | Select-String -Pattern '(?m)^\[(project|tool\.poetry)\][^\[]*?version\s*=\s*"([^"]*)"' -AllMatches).Matches[0].Groups[2].Value
-
 
           # Get PR number and run number with proper padding
           $PR_NUM = [int]"${{ github.event.pull_request.number }}"
@@ -67,19 +105,12 @@ jobs:
           $DEV_VERSION = "$CURRENT_VERSION.dev1$PADDED_PR$PADDED_RUN"
 
           # Update version in pyproject.toml
-          (Get-Content pyproject.toml) -replace "version = `"$CURRENT_VERSION`"", "version = `"$DEV_VERSION`"" | Set-Content pyproject.toml
+          (Get-Content $pyprojPath) -replace "version = `"$CURRENT_VERSION`"", "version = `"$DEV_VERSION`"" | Set-Content $pyprojPath
 
-          Write-Output "Package version set to $DEV_VERSION"
-
-          $startMarker = "<!-- DEV_PACKAGE_START -->"
-          $endMarker = "<!-- DEV_PACKAGE_END -->"
+          Write-Output "Package $PROJECT_NAME version set to $DEV_VERSION"
 
           $dependencyMessage = @"
-          $startMarker
-          ## Development Package
-
-          - Use ``uipath pack --nolock`` to get the latest dev build from this PR (requires version range).
-          - Add this package as a dependency in your pyproject.toml:
+          ### $PROJECT_NAME
 
           ``````toml
           [project]
@@ -99,13 +130,7 @@ jobs:
 
           [tool.uv.sources]
           $PROJECT_NAME = { index = "testpypi" }
-
-          [tool.uv]
-          override-dependencies = [
-              "$PROJECT_NAME>=$MIN_VERSION,<$MAX_VERSION",
-          ]
           ``````
-          $endMarker
           "@
 
           # Get the owner and repo from the GitHub repository
@@ -123,30 +148,80 @@ jobs:
           $pr = Invoke-RestMethod -Uri $prUri -Method Get -Headers $headers
           $currentBody = $pr.body
 
-          # Check if markers already exist in the PR description
-          $markerPattern = "(?s)$([regex]::Escape($startMarker)).*?$([regex]::Escape($endMarker))"
-          if ($currentBody -match $markerPattern) {
-            # Replace everything between markers (including markers)
-            $newBody = $currentBody -replace $markerPattern, $dependencyMessage
+          # Define regex patterns for matching package sections
+          $devPackagesHeader = "## Development Packages"
+          $packageHeaderPattern = "### $PROJECT_NAME\s*\n"
+
+          # Find if the package section exists using multiline regex
+          $packageSectionRegex = "(?ms)### $PROJECT_NAME\s*\n``````toml.*?``````"
+
+          if ($currentBody -match $devPackagesHeader) {
+            # Development Packages section exists
+            if ($currentBody -match $packageSectionRegex) {
+              # Replace existing package section
+              Write-Output "Updating existing $PROJECT_NAME section"
+              $newBody = $currentBody -replace $packageSectionRegex, $dependencyMessage.Trim()
+            } else {
+              # Append new package section after the Development Packages header
+              Write-Output "Adding new $PROJECT_NAME section"
+              $insertPoint = $currentBody.IndexOf($devPackagesHeader) + $devPackagesHeader.Length
+              $newBody = $currentBody.Insert($insertPoint, "`n`n$dependencyMessage")
+            }
           } else {
-            # Append the dependency message to the end of the description
-            $newBody = if ($currentBody) { "$currentBody`n`n$dependencyMessage" } else { $dependencyMessage }
+            # Create the Development Packages section
+            Write-Output "Creating Development Packages section with $PROJECT_NAME"
+            $packageSection = @"
+          ## Development Packages
+
+          $dependencyMessage
+          "@
+            $newBody = if ($currentBody) { "$currentBody`n`n$packageSection" } else { $packageSection }
           }
 
-          # Update the PR description
-          $updateBody = @{
-            body = $newBody
-          } | ConvertTo-Json
+          # Update the PR description with retry logic
+          $maxRetries = 3
+          $retryCount = 0
+          $success = $false
 
-          Invoke-RestMethod -Uri $prUri -Method Patch -Headers $headers -Body $updateBody -ContentType "application/json"
+          while (-not $success -and $retryCount -lt $maxRetries) {
+            try {
+              $updateBody = @{
+                body = $newBody
+              } | ConvertTo-Json
 
-          Write-Output "Updated PR description with development package information"
+              Invoke-RestMethod -Uri $prUri -Method Patch -Headers $headers -Body $updateBody -ContentType "application/json" | Out-Null
+              $success = $true
+              Write-Output "Successfully updated PR description with $PROJECT_NAME information"
+            } catch {
+              $retryCount++
+              if ($retryCount -lt $maxRetries) {
+                Write-Output "Failed to update PR description, retrying ($retryCount/$maxRetries)..."
+                Start-Sleep -Seconds 2
+                # Re-fetch PR body in case another job updated it
+                $pr = Invoke-RestMethod -Uri $prUri -Method Get -Headers $headers
+                $currentBody = $pr.body
+
+                # Recompute newBody with fresh data
+                if ($currentBody -match $packageSectionRegex) {
+                  $newBody = $currentBody -replace $packageSectionRegex, $dependencyMessage.Trim()
+                } elseif ($currentBody -match $devPackagesHeader) {
+                  $insertPoint = $currentBody.IndexOf($devPackagesHeader) + $devPackagesHeader.Length
+                  $newBody = $currentBody.Insert($insertPoint, "`n`n$dependencyMessage")
+                } else {
+                  $packageSection = "$devPackagesHeader`n`n$dependencyMessage"
+                  $newBody = if ($currentBody) { "$currentBody`n`n$packageSection" } else { $packageSection }
+                }
+              } else {
+                Write-Output "Failed to update PR description after $maxRetries attempts"
+                throw
+              }
+            }
+          }
 
       - name: Build package
-        run: uv build
+        run: uv build --no-sources --package ${{ matrix.package }}
 
       - name: Publish
         run: uv publish --index testpypi
         env:
-          UV_PUBLISH_TOKEN: ${{ secrets.TESTPYPI_TOKEN }}
-
+          UV_PUBLISH_TOKEN: ${{ matrix.package == 'uipath' && secrets.TESTPYPI_TOKEN || matrix.package == 'uipath-platform' && secrets.TESTPYPI_TOKEN_PLATFORM || secrets.TESTPYPI_TOKEN_CORE }}

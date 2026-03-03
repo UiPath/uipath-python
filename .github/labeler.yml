@@ -1,7 +1,15 @@
-test:uipath-llamaindex:
-  - changed-files:
-    - any-glob-to-any-file: ['src/**/*.py']
-
 test:uipath-langchain:
   - changed-files:
-    - any-glob-to-any-file: ['src/**/*.py']
+    - any-glob-to-any-file: ['packages/uipath/src/**/*.py']
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath-platform/src/**/*.py']
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath-core/src/**/*.py']
+
+test:uipath-llamaindex:
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath/src/**/*.py']
+
+test:uipath-runtime:
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath-core/src/**/*.py']
