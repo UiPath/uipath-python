@@ -226,7 +226,7 @@ class UiPathEvalRuntime:
             f"eval_set_run_id={context.eval_set_run_id}"
         )
         self.execution_id = context.execution_id
-        logger.info(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
+        logger.debug(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
         self.coverage = coverage.Coverage(branch=True)
 
         self._storage: UiPathRuntimeStorageProtocol | None = None
@@ -304,12 +304,12 @@ class UiPathEvalRuntime:
 
     async def execute(self) -> UiPathRuntimeResult:
         """Execute the evaluation runtime."""
-        logger.info("=" * 80)
-        logger.info("EVAL RUNTIME: Starting evaluation execution")
-        logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
-        logger.info(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
-        logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
-        logger.info("=" * 80)
+        logger.debug("=" * 80)
+        logger.debug("EVAL RUNTIME: Starting evaluation execution")
+        logger.debug(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
+        logger.debug(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
+        logger.debug(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
+        logger.debug("=" * 80)
 
         with self._mocker_cache():
             tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
@@ -396,8 +396,8 @@ class UiPathEvalRuntime:
                     )
 
                     # Collect triggers from all evaluation runs (pass-through from inner runtime)
-                    logger.info("=" * 80)
-                    logger.info(
+                    logger.debug("=" * 80)
+                    logger.debug(
                         "EVAL RUNTIME: Collecting triggers from all evaluation runs"
                     )
                     all_triggers = []
@@ -413,16 +413,16 @@ class UiPathEvalRuntime:
                                 all_triggers.extend(runtime_result.triggers)
 
                     if all_triggers:
-                        logger.info(
+                        logger.debug(
                             f"EVAL RUNTIME: ✅ Passing through {len(all_triggers)} trigger(s) to top-level result"
                         )
                         for i, trigger in enumerate(all_triggers, 1):
-                            logger.info(
+                            logger.debug(
                                 f"EVAL RUNTIME: Pass-through trigger {i}: {trigger.model_dump(by_alias=True)}"
                             )
                     else:
-                        logger.info("EVAL RUNTIME: No triggers to pass through")
-                    logger.info("=" * 80)
+                        logger.debug("EVAL RUNTIME: No triggers to pass through")
+                    logger.debug("=" * 80)
 
                     # Determine overall status - propagate status from inner runtime
                     # This is critical for serverless executor to know to save state and suspend job
@@ -438,7 +438,7 @@ class UiPathEvalRuntime:
                             )
                             if inner_status == UiPathRuntimeStatus.SUSPENDED:
                                 overall_status = UiPathRuntimeStatus.SUSPENDED
-                                logger.info(
+                                logger.debug(
                                     "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
                                 )
                                 break  # SUSPENDED takes highest priority, stop checking
@@ -534,10 +534,10 @@ class UiPathEvalRuntime:
                         eval_set_run_id=self.context.eval_set_run_id,
                     )
 
-                    logger.info(
+                    logger.debug(
                         f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
                     )
-                    logger.info(
+                    logger.debug(
                         f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
                     )
 
@@ -583,11 +583,11 @@ class UiPathEvalRuntime:
                 ):
                     # For suspended executions, we don't run evaluators yet
                     # The serverless executor should save the triggers and resume later
-                    logger.info("=" * 80)
-                    logger.info(
+                    logger.debug("=" * 80)
+                    logger.debug(
                         f"🔴 EVAL RUNTIME: DETECTED SUSPENSION for eval '{eval_item.name}' (id: {eval_item.id})"
                     )
-                    logger.info("EVAL RUNTIME: Agent returned SUSPENDED status")
+                    logger.debug("EVAL RUNTIME: Agent returned SUSPENDED status")
 
                     # Extract triggers from result
                     triggers = []
@@ -596,15 +596,15 @@ class UiPathEvalRuntime:
                     if agent_execution_output.result.triggers:
                         triggers.extend(agent_execution_output.result.triggers)
 
-                    logger.info(
+                    logger.debug(
                         f"EVAL RUNTIME: Extracted {len(triggers)} trigger(s) from suspended execution"
                     )
                     for i, trigger in enumerate(triggers, 1):
-                        logger.info(
+                        logger.debug(
                             f"EVAL RUNTIME: Trigger {i}: {trigger.model_dump(by_alias=True)}"
                         )
 
-                    logger.info("=" * 80)
+                    logger.debug("=" * 80)
 
                     # IMPORTANT: Always include execution output with triggers when suspended
                     # This ensures triggers are visible in the output JSON for serverless executor
@@ -618,7 +618,7 @@ class UiPathEvalRuntime:
                     # The evalRun should remain in IN_PROGRESS state until the agent completes
                     # and evaluators run. When the execution resumes, the evaluators will run
                     # and the evalRun will be properly updated with results.
-                    logger.info(
+                    logger.debug(
                         "EVAL RUNTIME: Skipping evalRun update - keeping status as IN_PROGRESS until resume"
                     )
 
@@ -862,7 +862,7 @@ class UiPathEvalRuntime:
                 # 3. Build resume map: {interrupt_id: resume_data}
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
-                    logger.info(f"Resuming evaluation {eval_item.id}")
+                    logger.debug(f"Resuming evaluation {eval_item.id}")
                     input = input_overrides if self.context.job_id is None else None
                 else:
                     input = inputs_with_overrides
@@ -876,7 +876,7 @@ class UiPathEvalRuntime:
 
                 # Log suspend status if applicable
                 if result.status == UiPathRuntimeStatus.SUSPENDED:
-                    logger.info(f"Evaluation {eval_item.id} suspended")
+                    logger.debug(f"Evaluation {eval_item.id} suspended")
 
             except Exception as e:
                 end_time = time()
@@ -1042,7 +1042,7 @@ class UiPathEvalRuntime:
                 trace_flags=TraceFlags(0x01),  # Sampled
             )
             parent_span = NonRecordingSpan(span_context)
-            logger.info(
+            logger.debug(
                 f"EVAL RUNTIME: Restored {span_type} span context for resume - "
                 f"trace_id={saved_context['trace_id']}, span_id={saved_context['span_id']}"
             )
@@ -1083,7 +1083,7 @@ class UiPathEvalRuntime:
             },
         )
 
-        logger.info(
+        logger.debug(
             f"EVAL RUNTIME: Saved {span_type} span context for resume - "
             f"trace_id={trace_id_hex}, span_id={span_id_hex}"
         )
