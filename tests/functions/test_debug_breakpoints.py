@@ -1032,8 +1032,8 @@ class TestRobustness:
         finally:
             await runtime.dispose()
 
-    async def test_single_line_call_breakpoint_fires_once(self, script_dir: Path):
-        """Single-line call expression with nested call should not bounce-back.
+    async def test_single_line_bounce_breakpoint_fires_once(self, script_dir: Path):
+        """Single-line call with nested call should not bounce-back.
 
         ``result = dict(value=bar(val))`` compiles so that the bytecode
         visits line 6 twice: once to set up the call, and once after
@@ -1048,7 +1048,7 @@ class TestRobustness:
             "\n"
             "def main(input):\n"
             '    val = input.get("n", 5)\n'  # line 5
-            "    result = dict(value=bar(val))\n"  # line 6 ← breakpoint (single-line)
+            "    result = dict(value=bar(val))\n"  # line 6 ← breakpoint
             '    return {"result": result["value"]}\n',
         )
         runtime, bridge = _build_stack(script, breakpoints=["6"])
@@ -1058,7 +1058,38 @@ class TestRobustness:
 
             assert result.status == UiPathRuntimeStatus.SUCCESSFUL
             assert result.output == {"result": 4}  # bar(3) = 4
-            # The breakpoint on line 6 should fire exactly once, not twice
+            assert len(bridge.breakpoint_hits) == 1
+        finally:
+            await runtime.dispose()
+
+    async def test_multiline_bounce_breakpoint_fires_once(self, script_dir: Path):
+        """Multiline call expression should not bounce-back.
+
+        ``result = dict(\\n    value=bar(val),\\n)`` advances from the
+        call-site line to the argument lines, then bounces back to the
+        call-site line for the outer call.  The breakpoint should fire
+        only once.
+        """
+        script = _write_script(
+            script_dir,
+            "bounce_multi.py",
+            "def bar(x):\n"
+            "    return x + 1\n"
+            "\n"
+            "def main(input):\n"
+            '    val = input.get("n", 5)\n'  # line 5
+            "    result = dict(\n"  # line 6 ← breakpoint
+            "        value=bar(val),\n"  # line 7 (argument evaluation)
+            "    )\n"  # line 8
+            '    return {"result": result["value"]}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=["6"])
+
+        try:
+            result = await runtime.execute({"n": 3})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 4}  # bar(3) = 4
             assert len(bridge.breakpoint_hits) == 1
         finally:
             await runtime.dispose()

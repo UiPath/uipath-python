@@ -124,19 +124,21 @@ class _FrameState:
     resumption and skip "completed" on intermediate yields.
     """
 
-    __slots__ = ("faulted", "is_generator", "last_line")
+    __slots__ = ("faulted", "is_generator", "last_bp_line", "saw_backward_jump")
 
     def __init__(self, *, is_generator: bool = False) -> None:
         self.faulted: bool = False
         self.is_generator: bool = is_generator
-        # Last line event seen in this frame.  Used to deduplicate the
-        # bounce-back pattern where multiline expressions (e.g.
-        # ``return Foo(arg=bar(...))``) cause the bytecode to revisit the
-        # call-site line after evaluating arguments on deeper lines.
-        # Only suppress when the *immediately preceding* line event was
-        # the same breakpoint line (no intervening lines), so loop
-        # iterations that pass through other lines still fire normally.
-        self.last_line: int = -1
+        # Bounce-back dedup state.  Multiline call expressions like
+        # ``result = Foo(arg=bar(...))`` cause the bytecode to visit the
+        # call-site line, advance to argument lines, then bounce back to
+        # the call-site line for the outer call.  We suppress this second
+        # hit by tracking whether any line *before* the last breakpoint
+        # was visited — a backward jump indicates a loop iteration (which
+        # should fire the breakpoint again), while only-forward movement
+        # followed by a return to the same line indicates a bounce.
+        self.last_bp_line: int = -1
+        self.saw_backward_jump: bool = False
 
 
 class BreakpointController:
@@ -364,11 +366,11 @@ class BreakpointController:
                     return self._trace_callback
 
                 lineno = frame.f_lineno
-                # Update last_line for bounce-back dedup (see _FrameState).
+                # Track backward jumps for bounce-back dedup (see _FrameState).
                 state = self._frame_states.get(id(frame))
-                prev_line = state.last_line if state is not None else -1
-                if state is not None:
-                    state.last_line = lineno
+                if state is not None and state.last_bp_line >= 0:
+                    if lineno < state.last_bp_line:
+                        state.saw_backward_jump = True
 
                 should_break = (
                     self._step_mode and self._is_project_file(filepath)
@@ -376,15 +378,20 @@ class BreakpointController:
 
                 if should_break:
                     # Deduplicate: multiline expressions (e.g.
-                    # ``return Foo(arg=bar(...))``) cause the bytecode to
-                    # bounce back to the call-site line after evaluating
-                    # arguments on deeper lines.  Without this guard the
-                    # same breakpoint would fire twice per call.
-                    # Only suppress when the *immediately preceding* line
-                    # event was the same line (no intervening lines), so
-                    # loop iterations still fire normally.
-                    if lineno == prev_line:
-                        return self._trace_callback
+                    # ``result = Foo(\n    arg=bar(...)\n)``) cause the
+                    # bytecode to bounce back to the call-site line after
+                    # evaluating arguments on deeper lines.  Suppress the
+                    # duplicate when we return to the same line and no
+                    # backward jump occurred (which would indicate a loop
+                    # iteration that should fire again).
+                    if state is not None:
+                        is_bounce = (
+                            lineno == state.last_bp_line and not state.saw_backward_jump
+                        )
+                        if is_bounce:
+                            return self._trace_callback
+                        state.last_bp_line = lineno
+                        state.saw_backward_jump = False
 
                     self._events.put(
                         (
