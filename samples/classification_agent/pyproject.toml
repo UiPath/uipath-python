@@ -1,0 +1,9 @@
+[project]
+name = "classification-agent"
+version = "0.0.1"
+description = "TeleCom customer support email classification agent"
+requires-python = ">=3.11"
+dependencies = ["uipath"]
+
+[dependency-groups]
+dev = ["uipath-dev"]

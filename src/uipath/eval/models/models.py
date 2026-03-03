@@ -6,7 +6,9 @@ from enum import Enum, IntEnum
 from typing import Annotated, Any, Literal, Union
 
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
+from pydantic.alias_generators import to_camel
+from pydantic_core import core_schema
 
 
 class AgentExecution(BaseModel):
@@ -69,6 +71,56 @@ EvaluationResult = Annotated[
     Union[BooleanEvaluationResult, NumericEvaluationResult, ErrorEvaluationResult],
     Field(discriminator="score_type"),
 ]
+
+
+class EvaluationResultDto(BaseModel):
+    """Serializable evaluation result used for aggregation and transport."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    score: float
+    details: str | dict[str, Any] | None = None
+    evaluation_time: float | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_model(
+        self,
+        serializer: core_schema.SerializerFunctionWrapHandler,
+        info: core_schema.SerializationInfo,
+    ) -> Any:
+        """Omit 'details' key from serialized output when it is None."""
+        data = serializer(self)
+        if self.details is None and isinstance(data, dict):
+            data.pop("details", None)
+        return data
+
+    @classmethod
+    def from_evaluation_result(
+        cls, evaluation_result: EvaluationResult
+    ) -> "EvaluationResultDto":
+        """Convert an EvaluationResult to a serializable DTO."""
+        score_type = evaluation_result.score_type
+        score: float
+        if score_type == ScoreType.BOOLEAN:
+            score = 100 if evaluation_result.score else 0
+        elif score_type == ScoreType.ERROR:
+            score = 0
+        else:
+            score = evaluation_result.score
+
+        # Convert BaseModel details to dict so Pydantic doesn't lose subclass fields
+        if isinstance(evaluation_result.details, BaseModel):
+            details: str | dict[str, Any] | None = (
+                evaluation_result.details.model_dump()
+            )
+        else:
+            details = evaluation_result.details
+
+        return cls(
+            score=score,
+            details=details,
+            evaluation_time=evaluation_result.evaluation_time,
+        )
 
 
 class EvalItemResult(BaseModel):
@@ -245,6 +297,8 @@ class EvaluatorType(str, Enum):
     TOOL_CALL_COUNT = "uipath-tool-call-count"
     TOOL_CALL_ORDER = "uipath-tool-call-order"
     TOOL_CALL_OUTPUT = "uipath-tool-call-output"
+    BINARY_CLASSIFICATION = "uipath-binary-classification"
+    MULTICLASS_CLASSIFICATION = "uipath-multiclass-classification"
 
 
 class ToolCall(BaseModel):

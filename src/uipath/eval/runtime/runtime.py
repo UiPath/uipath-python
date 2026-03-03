@@ -59,7 +59,7 @@ from ..models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
 )
-from ..models.models import AgentExecution, EvalItemResult
+from ..models.models import AgentExecution, EvalItemResult, EvaluationResultDto
 from ._exporters import (
     ExecutionLogsExporter,
     ExecutionSpanExporter,
@@ -74,7 +74,6 @@ from ._spans import (
     set_evaluation_output_span_output,
 )
 from ._types import (
-    EvaluationResultDto,
     EvaluationRuntimeException,
     UiPathEvalOutput,
     UiPathEvalRunExecutionOutput,
@@ -94,6 +93,108 @@ from .events import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def compute_evaluator_scores(
+    evaluation_set_results: list[UiPathEvalRunResult],
+    evaluators: Iterable[GenericBaseEvaluator[Any, Any, Any]],
+    evaluator_weights: dict[str, float] | None = None,
+    default_weight: float = 1.0,
+) -> tuple[float, dict[str, float]]:
+    """Aggregate evaluation results with deduplication and weighted scoring.
+
+    Steps:
+    1. Flatten nested evaluation_set_results structure
+    2. Deduplicate results by (datapoint_id, evaluator_name), averaging duplicates
+    3. Reduce results per evaluator across all datapoints
+    4. Compute final weighted score across evaluators
+
+    Args:
+        evaluation_set_results: The per-datapoint evaluation results
+        evaluators: The evaluator instances. Each must have a `name` attribute
+            and a `reduce_scores` method.
+        evaluator_weights: Optional dict mapping evaluator names to weights
+        default_weight: Default weight for evaluators not in evaluator_weights (default: 1.0)
+
+    Returns:
+        Tuple of (final_score, agg_metrics_per_evaluator)
+        - final_score: Weighted average across evaluators
+        - agg_metrics_per_evaluator: Dict mapping evaluator names to their reduced scores
+    """
+    if not evaluation_set_results:
+        return 0.0, {}
+
+    if evaluator_weights is None:
+        evaluator_weights = {}
+
+    evaluator_reducers: dict[str, GenericBaseEvaluator[Any, Any, Any]] = {
+        e.name: e for e in evaluators
+    }
+
+    # Step 1: Flatten and group by (datapoint_id, evaluator_name) for deduplication
+    grouped_by_datapoint_evaluator: defaultdict[
+        str, defaultdict[str, list[EvaluationResultDto]]
+    ] = defaultdict(lambda: defaultdict(list))
+
+    for eval_run_result in evaluation_set_results:
+        datapoint_id = eval_run_result.evaluation_name
+        for eval_run_result_dto in eval_run_result.evaluation_run_results:
+            evaluator_name = eval_run_result_dto.evaluator_name
+            if evaluator_name not in evaluator_reducers:
+                known = sorted(evaluator_reducers.keys())
+                raise ValueError(
+                    f"Evaluator '{evaluator_name}' found in results for "
+                    f"datapoint '{datapoint_id}' but no matching evaluator "
+                    f"instance was provided. Known evaluators: {known}"
+                )
+            grouped_by_datapoint_evaluator[datapoint_id][evaluator_name].append(
+                eval_run_result_dto.result
+            )
+
+    # Step 2: Deduplicate by averaging same evaluator results for same datapoint
+    dedup_results: list[tuple[str, str, EvaluationResultDto]] = []
+    for datapoint_id, evaluators_dict in grouped_by_datapoint_evaluator.items():
+        for evaluator_name, results_list in evaluators_dict.items():
+            if results_list:
+                avg_score = sum(r.score for r in results_list) / len(results_list)
+                dedup_results.append(
+                    (
+                        datapoint_id,
+                        evaluator_name,
+                        EvaluationResultDto(
+                            score=avg_score,
+                            details=results_list[0].details,
+                        ),
+                    )
+                )
+
+    # Step 3: Group by evaluator and reduce using the evaluator's reducer
+    grouped_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for _datapoint_id, evaluator_name, dp_result in dedup_results:
+        grouped_by_evaluator[evaluator_name].append(dp_result)
+
+    agg_metrics_per_evaluator = {}
+    for evaluator_name, results_list in grouped_by_evaluator.items():
+        reducer = evaluator_reducers[evaluator_name].reduce_scores
+        agg_metrics_per_evaluator[evaluator_name] = reducer(results_list)
+
+    # Step 4: Calculate final weighted score
+    if not agg_metrics_per_evaluator:
+        return 0.0, {}
+
+    total_weighted_score = 0.0
+    total_weight = 0.0
+
+    for evaluator_name, avg_score in agg_metrics_per_evaluator.items():
+        weight = evaluator_weights.get(evaluator_name, default_weight)
+        total_weighted_score += avg_score * weight
+        total_weight += weight
+
+    final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
+
+    return final_score, agg_metrics_per_evaluator
 
 
 class UiPathEvalRuntime:
@@ -125,7 +226,7 @@ class UiPathEvalRuntime:
             f"eval_set_run_id={context.eval_set_run_id}"
         )
         self.execution_id = context.execution_id
-        logger.info(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
+        logger.debug(f"EVAL RUNTIME: execution_id set to: {self.execution_id}")
         self.coverage = coverage.Coverage(branch=True)
 
         self._storage: UiPathRuntimeStorageProtocol | None = None
@@ -203,12 +304,12 @@ class UiPathEvalRuntime:
 
     async def execute(self) -> UiPathRuntimeResult:
         """Execute the evaluation runtime."""
-        logger.info("=" * 80)
-        logger.info("EVAL RUNTIME: Starting evaluation execution")
-        logger.info(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
-        logger.info(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
-        logger.info(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
-        logger.info("=" * 80)
+        logger.debug("=" * 80)
+        logger.debug("EVAL RUNTIME: Starting evaluation execution")
+        logger.debug(f"EVAL RUNTIME: Execution ID: {self.execution_id}")
+        logger.debug(f"EVAL RUNTIME: Job ID: {self.context.job_id}")
+        logger.debug(f"EVAL RUNTIME: Resume mode: {self.context.resume}")
+        logger.debug("=" * 80)
 
         with self._mocker_cache():
             tracer = self.trace_manager.tracer_provider.get_tracer(__name__)
@@ -253,38 +354,27 @@ class UiPathEvalRuntime:
                     ) = await self.initiate_evaluation()
                     workers = self.context.workers or 1
                     assert workers >= 1
-                    eval_run_result_list = await execute_parallel(
-                        evaluation_iterable, workers
-                    )
+                    eval_run_result_list: list[
+                        UiPathEvalRunResult
+                    ] = await execute_parallel(evaluation_iterable, workers)
+
                     results = UiPathEvalOutput(
                         evaluation_set_name=evaluation_set.name,
                         evaluation_set_results=eval_run_result_list,
                     )
 
-                    # Computing evaluator averages
-                    evaluator_averages: dict[str, float] = defaultdict(float)
-                    evaluator_count: dict[str, int] = defaultdict(int)
+                    # Check for failures
+                    any_failed = any(
+                        eval_run_result.agent_execution_output
+                        and eval_run_result.agent_execution_output.result.error
+                        for eval_run_result in results.evaluation_set_results
+                    )
 
-                    # Check if any eval runs failed
-                    any_failed = False
-                    for eval_run_result in results.evaluation_set_results:
-                        # Check if the agent execution had an error
-                        if (
-                            eval_run_result.agent_execution_output
-                            and eval_run_result.agent_execution_output.result.error
-                        ):
-                            any_failed = True
-
-                        for result_dto in eval_run_result.evaluation_run_results:
-                            evaluator_averages[result_dto.evaluator_name] += (
-                                result_dto.result.score
-                            )
-                            evaluator_count[result_dto.evaluator_name] += 1
-
-                    for eval_id in evaluator_averages:
-                        evaluator_averages[eval_id] = (
-                            evaluator_averages[eval_id] / evaluator_count[eval_id]
-                        )
+                    # Compute evaluator averages using each evaluator's reducer
+                    _, evaluator_averages = compute_evaluator_scores(
+                        results.evaluation_set_results,
+                        evaluators,
+                    )
 
                     # Configure span with output and metadata
                     await configure_eval_set_run_span(
@@ -306,8 +396,8 @@ class UiPathEvalRuntime:
                     )
 
                     # Collect triggers from all evaluation runs (pass-through from inner runtime)
-                    logger.info("=" * 80)
-                    logger.info(
+                    logger.debug("=" * 80)
+                    logger.debug(
                         "EVAL RUNTIME: Collecting triggers from all evaluation runs"
                     )
                     all_triggers = []
@@ -323,16 +413,16 @@ class UiPathEvalRuntime:
                                 all_triggers.extend(runtime_result.triggers)
 
                     if all_triggers:
-                        logger.info(
+                        logger.debug(
                             f"EVAL RUNTIME: ✅ Passing through {len(all_triggers)} trigger(s) to top-level result"
                         )
                         for i, trigger in enumerate(all_triggers, 1):
-                            logger.info(
+                            logger.debug(
                                 f"EVAL RUNTIME: Pass-through trigger {i}: {trigger.model_dump(by_alias=True)}"
                             )
                     else:
-                        logger.info("EVAL RUNTIME: No triggers to pass through")
-                    logger.info("=" * 80)
+                        logger.debug("EVAL RUNTIME: No triggers to pass through")
+                    logger.debug("=" * 80)
 
                     # Determine overall status - propagate status from inner runtime
                     # This is critical for serverless executor to know to save state and suspend job
@@ -348,7 +438,7 @@ class UiPathEvalRuntime:
                             )
                             if inner_status == UiPathRuntimeStatus.SUSPENDED:
                                 overall_status = UiPathRuntimeStatus.SUSPENDED
-                                logger.info(
+                                logger.debug(
                                     "EVAL RUNTIME: Propagating SUSPENDED status from inner runtime"
                                 )
                                 break  # SUSPENDED takes highest priority, stop checking
@@ -444,10 +534,10 @@ class UiPathEvalRuntime:
                         eval_set_run_id=self.context.eval_set_run_id,
                     )
 
-                    logger.info(
+                    logger.debug(
                         f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
                     )
-                    logger.info(
+                    logger.debug(
                         f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
                     )
 
@@ -493,11 +583,11 @@ class UiPathEvalRuntime:
                 ):
                     # For suspended executions, we don't run evaluators yet
                     # The serverless executor should save the triggers and resume later
-                    logger.info("=" * 80)
-                    logger.info(
+                    logger.debug("=" * 80)
+                    logger.debug(
                         f"🔴 EVAL RUNTIME: DETECTED SUSPENSION for eval '{eval_item.name}' (id: {eval_item.id})"
                     )
-                    logger.info("EVAL RUNTIME: Agent returned SUSPENDED status")
+                    logger.debug("EVAL RUNTIME: Agent returned SUSPENDED status")
 
                     # Extract triggers from result
                     triggers = []
@@ -506,15 +596,15 @@ class UiPathEvalRuntime:
                     if agent_execution_output.result.triggers:
                         triggers.extend(agent_execution_output.result.triggers)
 
-                    logger.info(
+                    logger.debug(
                         f"EVAL RUNTIME: Extracted {len(triggers)} trigger(s) from suspended execution"
                     )
                     for i, trigger in enumerate(triggers, 1):
-                        logger.info(
+                        logger.debug(
                             f"EVAL RUNTIME: Trigger {i}: {trigger.model_dump(by_alias=True)}"
                         )
 
-                    logger.info("=" * 80)
+                    logger.debug("=" * 80)
 
                     # IMPORTANT: Always include execution output with triggers when suspended
                     # This ensures triggers are visible in the output JSON for serverless executor
@@ -528,7 +618,7 @@ class UiPathEvalRuntime:
                     # The evalRun should remain in IN_PROGRESS state until the agent completes
                     # and evaluators run. When the execution resumes, the evaluators will run
                     # and the evalRun will be properly updated with results.
-                    logger.info(
+                    logger.debug(
                         "EVAL RUNTIME: Skipping evalRun update - keeping status as IN_PROGRESS until resume"
                     )
 
@@ -772,7 +862,7 @@ class UiPathEvalRuntime:
                 # 3. Build resume map: {interrupt_id: resume_data}
                 # 4. Pass this map to the delegate runtime
                 if self.context.resume:
-                    logger.info(f"Resuming evaluation {eval_item.id}")
+                    logger.debug(f"Resuming evaluation {eval_item.id}")
                     input = input_overrides if self.context.job_id is None else None
                 else:
                     input = inputs_with_overrides
@@ -786,7 +876,7 @@ class UiPathEvalRuntime:
 
                 # Log suspend status if applicable
                 if result.status == UiPathRuntimeStatus.SUSPENDED:
-                    logger.info(f"Evaluation {eval_item.id} suspended")
+                    logger.debug(f"Evaluation {eval_item.id} suspended")
 
             except Exception as e:
                 end_time = time()
@@ -952,7 +1042,7 @@ class UiPathEvalRuntime:
                 trace_flags=TraceFlags(0x01),  # Sampled
             )
             parent_span = NonRecordingSpan(span_context)
-            logger.info(
+            logger.debug(
                 f"EVAL RUNTIME: Restored {span_type} span context for resume - "
                 f"trace_id={saved_context['trace_id']}, span_id={saved_context['span_id']}"
             )
@@ -993,7 +1083,7 @@ class UiPathEvalRuntime:
             },
         )
 
-        logger.info(
+        logger.debug(
             f"EVAL RUNTIME: Saved {span_type} span context for resume - "
             f"trace_id={trace_id_hex}, span_id={span_id_hex}"
         )

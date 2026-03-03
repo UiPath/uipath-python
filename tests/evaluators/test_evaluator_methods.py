@@ -15,7 +15,6 @@ from typing import Any
 
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import ValidationError
 from pytest_mock.plugin import MockerFixture
 
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
@@ -1223,8 +1222,8 @@ class TestEvaluatorErrorHandling:
             "default_evaluation_criteria": {},
         }
 
-        with pytest.raises(ValidationError):
-            # Missing required field 'model'
+        with pytest.raises(UiPathEvaluationError):
+            # Invalid default_evaluation_criteria (missing expectedOutput)
             LLMJudgeOutputEvaluator.model_validate(
                 {"evaluatorConfig": config, "id": str(uuid.uuid4())}
             )
@@ -1878,3 +1877,167 @@ class TestClaude45ModelSupport:
         assert captured_request["max_tokens"] == 4096, (
             "Configured max_tokens should override the Claude 4.5 default"
         )
+
+
+class TestBinaryClassificationEvaluator:
+    """Test BinaryClassificationEvaluator.evaluate() method."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "predicted, expected_class, positive_class, expected_score",
+        [
+            # TP: pred=positive, exp=positive → match → 1.0
+            ("spam", "spam", "spam", 1.0),
+            # FP: pred=positive, exp=negative → mismatch → 0.0
+            ("spam", "ham", "spam", 0.0),
+            # FN: pred=negative, exp=positive → mismatch → 0.0
+            ("ham", "spam", "spam", 0.0),
+            # TN: pred=negative, exp=negative → match → 1.0
+            ("ham", "ham", "spam", 1.0),
+            # Case insensitive TP
+            ("Spam", "SPAM", "spam", 1.0),
+        ],
+    )
+    async def test_binary_classification_scoring(
+        self,
+        predicted: str,
+        expected_class: str,
+        positive_class: str,
+        expected_score: float,
+    ) -> None:
+        """Test BinaryClassificationEvaluator returns 1.0 for match, 0.0 for mismatch."""
+        from uipath.eval.evaluators.binary_classification_evaluator import (
+            BinaryClassificationEvaluationCriteria,
+            BinaryClassificationEvaluator,
+        )
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"class": predicted},
+            agent_trace=[],
+        )
+        config = {
+            "name": "BinaryClassificationTest",
+            "target_output_key": "class",
+            "positive_class": positive_class,
+        }
+        evaluator = BinaryClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = BinaryClassificationEvaluationCriteria(
+            expected_class=expected_class,
+        )
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == expected_score
+        assert isinstance(result.details, BaseEvaluatorJustification)
+
+
+class TestMulticlassClassificationEvaluator:
+    """Test MulticlassClassificationEvaluator.evaluate() method."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "predicted, expected_class, classes, expected_score",
+        [
+            # Correct prediction → 1.0
+            ("cat", "cat", ["cat", "dog", "bird"], 1.0),
+            # Mismatch → 0.0
+            ("dog", "cat", ["cat", "dog", "bird"], 0.0),
+            # Mismatch → 0.0
+            ("cat", "dog", ["cat", "dog", "bird"], 0.0),
+            # Correct prediction → 1.0
+            ("bird", "bird", ["cat", "dog", "bird"], 1.0),
+            # Case insensitive match → 1.0
+            ("Cat", "CAT", ["cat", "dog", "bird"], 1.0),
+        ],
+    )
+    async def test_multiclass_classification_scoring(
+        self,
+        predicted: str,
+        expected_class: str,
+        classes: list[str],
+        expected_score: float,
+    ) -> None:
+        """Test MulticlassClassificationEvaluator returns 1.0 for match, 0.0 for mismatch."""
+        from uipath.eval.evaluators.multiclass_classification_evaluator import (
+            MulticlassClassificationEvaluationCriteria,
+            MulticlassClassificationEvaluator,
+        )
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"class": predicted},
+            agent_trace=[],
+        )
+        config = {
+            "name": "MulticlassClassificationTest",
+            "target_output_key": "class",
+            "classes": classes,
+        }
+        evaluator = MulticlassClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = MulticlassClassificationEvaluationCriteria(
+            expected_class=expected_class,
+        )
+        result = await evaluator.evaluate(execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == expected_score
+        assert isinstance(result.details, BaseEvaluatorJustification)
+
+    @pytest.mark.asyncio
+    async def test_multiclass_classification_invalid_expected_class(self) -> None:
+        """Test that an invalid expected class returns an error result."""
+        from uipath.eval.evaluators.multiclass_classification_evaluator import (
+            MulticlassClassificationEvaluationCriteria,
+            MulticlassClassificationEvaluator,
+        )
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"class": "cat"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "MulticlassClassificationTest",
+            "target_output_key": "class",
+            "classes": ["cat", "dog"],
+        }
+        evaluator = MulticlassClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = MulticlassClassificationEvaluationCriteria(expected_class="bird")
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_multiclass_classification_invalid_predicted_class(self) -> None:
+        """Test that an invalid predicted class returns an error result."""
+        from uipath.eval.evaluators.multiclass_classification_evaluator import (
+            MulticlassClassificationEvaluationCriteria,
+            MulticlassClassificationEvaluator,
+        )
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"class": "fish"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "MulticlassClassificationTest",
+            "target_output_key": "class",
+            "classes": ["cat", "dog"],
+        }
+        evaluator = MulticlassClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = MulticlassClassificationEvaluationCriteria(expected_class="cat")
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
