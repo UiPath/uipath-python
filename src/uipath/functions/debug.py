@@ -9,9 +9,9 @@ inspection.
 
 Composition chain (debug command):
 
-    UiPathDebugRuntime                      → bridge I/O, resume loop
-      └─ UiPathDebugFunctionsRuntime        → trace-based line breakpoints
-           └─ UiPathFunctionsRuntime        → loads & executes user code
+    UiPathDebugRuntime                      -> bridge I/O, resume loop
+      └─ UiPathDebugFunctionsRuntime        -> trace-based line breakpoints
+           └─ UiPathFunctionsRuntime        -> loads & executes user code
 """
 
 from __future__ import annotations
@@ -41,6 +41,22 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 
 logger = logging.getLogger(__name__)
 
+# Safety limits for local variable capture
+_MAX_LOCALS = 100
+_MAX_STRING_LENGTH = 10_000
+_MAX_COLLECTION_ITEMS = 500
+
+# Thread health-check interval (seconds) for wait_for_event
+_EVENT_POLL_INTERVAL = 1.0
+
+# Bitmask for generator / coroutine / async-generator code objects.
+# Used to suppress spurious state events on yield/await resumption.
+_CO_GENERATOR_LIKE = (
+    0x20  # CO_GENERATOR
+    | 0x80  # CO_COROUTINE
+    | 0x200  # CO_ASYNC_GENERATOR
+)
+
 
 def _capture_frame_locals(frame: FrameType) -> dict[str, Any]:
     """Snapshot local variables from a live frame for variable inspection.
@@ -48,22 +64,43 @@ def _capture_frame_locals(frame: FrameType) -> dict[str, Any]:
     Primitives and JSON-serialisable collections are kept as-is so the
     bridge can render them natively. Everything else is repr()-ed to
     guarantee safe serialisation over the wire.
+
+    Safety guards:
+    - At most ``_MAX_LOCALS`` variables captured.
+    - Strings longer than ``_MAX_STRING_LENGTH`` are truncated.
+    - Collections larger than ``_MAX_COLLECTION_ITEMS`` are summarised.
     """
     snapshot: dict[str, Any] = {}
-    for name, value in frame.f_locals.items():
+    for i, (name, value) in enumerate(frame.f_locals.items()):
+        if i >= _MAX_LOCALS:
+            snapshot["..."] = f"<{len(frame.f_locals) - _MAX_LOCALS} more locals>"
+            break
         try:
-            if isinstance(value, (bool, int, float, str, type(None))):
+            if isinstance(value, (bool, int, float, type(None))):
                 snapshot[name] = value
+            elif isinstance(value, str):
+                if len(value) <= _MAX_STRING_LENGTH:
+                    snapshot[name] = value
+                else:
+                    snapshot[name] = value[:_MAX_STRING_LENGTH] + "..."
             elif isinstance(value, (dict, list, tuple)):
-                # Strict probe — no default=str, so nested non-serialisable
-                # objects (code, frame, etc.) correctly fail here.
-                json.dumps(value)
-                snapshot[name] = value
+                if len(value) > _MAX_COLLECTION_ITEMS:
+                    snapshot[name] = f"<{type(value).__name__} with {len(value)} items>"
+                else:
+                    # Strict probe -- no default=str, so nested non-serialisable
+                    # objects (code, frame, etc.) correctly fail here.
+                    json.dumps(value)
+                    snapshot[name] = value
             else:
                 snapshot[name] = repr(value)
         except Exception:
             try:
-                snapshot[name] = repr(value)
+                r = repr(value)
+                snapshot[name] = (
+                    r
+                    if len(r) <= _MAX_STRING_LENGTH
+                    else r[:_MAX_STRING_LENGTH] + "..."
+                )
             except Exception:
                 snapshot[name] = "<unrepresentable>"
     return snapshot
@@ -78,6 +115,32 @@ def _format_location(filepath: str, line: int) -> str:
     return f"{relative}:{line}"
 
 
+class _FrameState:
+    """Per-frame tracking for the trace callback.
+
+    Created on ``call`` and cleaned up on ``return`` (for normal
+    functions).  For generators/coroutines the state persists across
+    yield/await cycles so we can suppress duplicate "started" events on
+    resumption and skip "completed" on intermediate yields.
+    """
+
+    __slots__ = ("faulted", "is_generator", "last_bp_line", "saw_backward_jump")
+
+    def __init__(self, *, is_generator: bool = False) -> None:
+        self.faulted: bool = False
+        self.is_generator: bool = is_generator
+        # Bounce-back dedup state.  Multiline call expressions like
+        # ``result = Foo(arg=bar(...))`` cause the bytecode to visit the
+        # call-site line, advance to argument lines, then bounce back to
+        # the call-site line for the outer call.  We suppress this second
+        # hit by tracking whether any line *before* the last breakpoint
+        # was visited — a backward jump indicates a loop iteration (which
+        # should fire the breakpoint again), while only-forward movement
+        # followed by a return to the same line indicates a bounce.
+        self.last_bp_line: int = -1
+        self.saw_backward_jump: bool = False
+
+
 class BreakpointController:
     """Synchronises a sys.settrace-instrumented thread with an async stream.
 
@@ -87,7 +150,7 @@ class BreakpointController:
     2. start() launches delegate.execute() in a daemon thread with
        tracing enabled.
     3. When a matching line is reached the thread pauses and a
-       ("breakpoint", …) event is enqueued.
+       ("breakpoint", ...) event is enqueued.
     4. The async stream dequeues the event and yields a
        UiPathBreakpointResult.
     5. resume() unblocks the thread so it continues to the next
@@ -101,6 +164,7 @@ class BreakpointController:
         breakpoints: list[str] | Literal["*"],
         entrypoint_path: str | None = None,
         state_tracked_functions: dict[str, set[str]] | None = None,
+        node_id_map: dict[tuple[str, str], str] | None = None,
     ) -> None:
         """Initialize the controller.
 
@@ -109,40 +173,51 @@ class BreakpointController:
         state_tracked_functions:
             If provided, state events are emitted *only* for function calls
             whose ``(abs_file_path, func_name)`` appears in this mapping
-            (``{abs_path: {func_name, …}, …}``).  When ``None``, no state
+            (``{abs_path: {func_name, ...}, ...}``).  When ``None``, no state
             events are emitted.
+        node_id_map:
+            Mapping of ``(abs_path, func_name)`` → graph node ID string
+            (e.g. ``"src/main.py:5"``).  Used to set ``qualified_node_name``
+            on state events so they match the graph node IDs returned by
+            ``get_schema``.
         """
         self._project_dir = project_dir
         self._entrypoint_path = (
             os.path.abspath(entrypoint_path) if entrypoint_path else None
         )
-        self._step_mode: bool = breakpoints == "*"
-        self._file_breakpoints: dict[str, set[int]] = {}
-        if isinstance(breakpoints, list):
-            self._parse_breakpoints(breakpoints)
-
         self._state_tracked: dict[str, set[str]] | None = state_tracked_functions
+        self._node_id_map: dict[tuple[str, str], str] = node_id_map or {}
+        self._step_mode: bool = breakpoints == "*"
+        if isinstance(breakpoints, list):
+            self._file_breakpoints: dict[str, set[int]] = self._build_breakpoint_map(
+                breakpoints
+            )
+        else:
+            self._file_breakpoints: dict[str, set[int]] = {}
+        # Per-frame tracking.  Keyed by id(frame); created on ``call``,
+        # removed on ``return`` for normal functions.  For generators the
+        # state persists across yield/resume cycles.
+        self._frame_states: dict[int, _FrameState] = {}
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
         self._resume_event = threading.Event()
         self._stopped = False
         self._thread: threading.Thread | None = None
         self._abspath_cache: dict[str, str] = {}
-        # Track which breakpoints already fired per frame so that
-        # multiline expressions (where the bytecodes bounce back to the
-        # call line after evaluating arguments on deeper lines) don't
-        # trigger the same breakpoint twice within one function call.
-        self._hit_lines: dict[int, set[int]] = {}  # frame-id → {lines}
 
     # Breakpoint management
 
-    def _parse_breakpoints(self, breakpoints: list[str]) -> None:
-        """Parse breakpoint strings into *file → line-numbers* mappings.
+    def _build_breakpoint_map(self, breakpoints: list[str]) -> dict[str, set[int]]:
+        """Parse breakpoint strings into a new *file -> line-numbers* mapping.
+
+        Returns a fresh dict (safe for atomic reference swap).
 
         Supported formats::
 
-            "42"          → line 42 in the entrypoint file
-            "main.py:42"  → line 42 in main.py (resolved relative to cwd)
+            "42"          -> line 42 in the entrypoint file
+            "main.py:42"  -> line 42 in main.py (resolved relative to cwd)
+            "helper"      -> resolved via node_id_map to file:line
         """
+        result: dict[str, set[int]] = {}
         for bp in breakpoints:
             if ":" in bp:
                 file_part, line_str = bp.rsplit(":", 1)
@@ -151,23 +226,48 @@ class BreakpointController:
                 except ValueError:
                     continue
                 resolved = os.path.abspath(file_part)
-                self._file_breakpoints.setdefault(resolved, set()).add(line)
+                result.setdefault(resolved, set()).add(line)
             else:
                 try:
                     line = int(bp)
                 except ValueError:
-                    continue  # non-numeric tokens (agent node names) are ignored
+                    # Non-numeric token: try resolving as a function name
+                    # via the node_id_map (the bridge may send bare names).
+                    resolved_id = self._resolve_func_name(bp)
+                    if resolved_id and ":" in resolved_id:
+                        file_part, line_str = resolved_id.rsplit(":", 1)
+                        try:
+                            line = int(line_str)
+                        except ValueError:
+                            continue
+                        resolved = os.path.abspath(file_part)
+                        result.setdefault(resolved, set()).add(line)
+                    continue
                 if self._entrypoint_path is not None:
-                    self._file_breakpoints.setdefault(self._entrypoint_path, set()).add(
-                        line
-                    )
+                    result.setdefault(self._entrypoint_path, set()).add(line)
+        return result
+
+    def _resolve_func_name(self, name: str) -> str | None:
+        """Look up a bare function name in the node_id_map.
+
+        Returns the ``"file:line"`` node ID if found, otherwise ``None``.
+        """
+        for (_, func_name), node_id in self._node_id_map.items():
+            if func_name == name:
+                return node_id
+        return None
 
     def update_breakpoints(self, breakpoints: list[str] | Literal["*"] | None) -> None:
-        """Replace the active breakpoint set (called between resume cycles)."""
+        """Replace the active breakpoint set (called between resume cycles).
+
+        Builds a new dict and swaps the reference atomically so the trace
+        thread never sees a partially-cleared mapping.
+        """
         self._step_mode = breakpoints == "*"
-        self._file_breakpoints.clear()
         if isinstance(breakpoints, list):
-            self._parse_breakpoints(breakpoints)
+            self._file_breakpoints = self._build_breakpoint_map(breakpoints)
+        else:
+            self._file_breakpoints = {}
 
     # Tracing
 
@@ -195,7 +295,7 @@ class BreakpointController:
         return funcs is not None and func_name in funcs
 
     def _trace_callback(self, frame: FrameType, event: str, arg: Any) -> Any:
-        """sys.settrace callback — dispatched for every frame event."""
+        """sys.settrace callback -- dispatched for every frame event."""
         if self._stopped:
             return None
 
@@ -210,35 +310,54 @@ class BreakpointController:
             if event == "call":
                 is_project = self._is_project_file(filepath)
 
-                # Emit state event only for tracked graph-node functions
-                if is_project and self._is_tracked_function(
-                    filepath, frame.f_code.co_name
-                ):
-                    self._events.put(
-                        (
-                            "state",
-                            {
-                                "file": filepath,
-                                "line": frame.f_lineno,
-                                "function": frame.f_code.co_name,
-                                "locals": _capture_frame_locals(frame),
-                                "phase": "started",
-                            },
-                        )
-                    )
-
-                # Reset per-frame hit tracking so each call starts fresh.
-                self._hit_lines[id(frame)] = set()
-
-                # Decide whether to trace *into* this function's frame.
+                # Decide whether to trace *into* this frame FIRST.
+                # We only get "return" events for traced frames, so we
+                # must not create _FrameState for frames we won't trace
+                # (their state would leak and poison future frame-id reuse).
+                trace_into = False
                 if self._step_mode:
-                    return self._trace_callback if is_project else None
-                if filepath in self._file_breakpoints:
-                    return self._trace_callback
-                # Also trace project files that contain tracked functions
-                if is_project and filepath in (self._state_tracked or {}):
-                    return self._trace_callback
-                return None
+                    trace_into = is_project
+                elif filepath in self._file_breakpoints:
+                    trace_into = True
+                elif is_project and filepath in (self._state_tracked or {}):
+                    trace_into = True
+
+                if not trace_into:
+                    return None
+
+                frame_id = id(frame)
+                func_name = frame.f_code.co_name
+                is_gen = bool(frame.f_code.co_flags & _CO_GENERATOR_LIKE)
+
+                existing = self._frame_states.get(frame_id)
+                if existing is not None and existing.is_generator:
+                    # Generator/coroutine resumption after yield/await.
+                    # Don't emit a duplicate "started" event and don't
+                    # reset the fault tracker.
+                    pass
+                else:
+                    # Fresh frame (or a reused id from a deallocated frame).
+                    state = _FrameState(is_generator=is_gen)
+                    self._frame_states[frame_id] = state
+
+                    # Emit "started" state event for tracked functions.
+                    if is_project and self._is_tracked_function(filepath, func_name):
+                        node_id = self._node_id_map.get((filepath, func_name))
+                        self._events.put(
+                            (
+                                "state",
+                                {
+                                    "file": filepath,
+                                    "line": frame.f_lineno,
+                                    "function": func_name,
+                                    "locals": _capture_frame_locals(frame),
+                                    "phase": "started",
+                                    "node_id": node_id,
+                                },
+                            )
+                        )
+
+                return self._trace_callback
 
             if event == "line":
                 # Skip module-level lines (imports, class/function defs).
@@ -247,21 +366,32 @@ class BreakpointController:
                     return self._trace_callback
 
                 lineno = frame.f_lineno
+                # Track backward jumps for bounce-back dedup (see _FrameState).
+                state = self._frame_states.get(id(frame))
+                if state is not None and state.last_bp_line >= 0:
+                    if lineno < state.last_bp_line:
+                        state.saw_backward_jump = True
+
                 should_break = (
                     self._step_mode and self._is_project_file(filepath)
                 ) or (lineno in self._file_breakpoints.get(filepath, ()))
 
                 if should_break:
                     # Deduplicate: multiline expressions (e.g.
-                    # ``return Foo(arg=bar(...))``) cause the bytecode to
-                    # bounce back to the call-site line after evaluating
-                    # arguments on deeper lines. Without this guard the
-                    # same breakpoint would fire twice per call.
-                    frame_hits = self._hit_lines.get(id(frame))
-                    if frame_hits is not None and lineno in frame_hits:
-                        return self._trace_callback
-                    if frame_hits is not None:
-                        frame_hits.add(lineno)
+                    # ``result = Foo(\n    arg=bar(...)\n)``) cause the
+                    # bytecode to bounce back to the call-site line after
+                    # evaluating arguments on deeper lines.  Suppress the
+                    # duplicate when we return to the same line and no
+                    # backward jump occurred (which would indicate a loop
+                    # iteration that should fire again).
+                    if state is not None:
+                        is_bounce = (
+                            lineno == state.last_bp_line and not state.saw_backward_jump
+                        )
+                        if is_bounce:
+                            return self._trace_callback
+                        state.last_bp_line = lineno
+                        state.saw_backward_jump = False
 
                     self._events.put(
                         (
@@ -281,39 +411,69 @@ class BreakpointController:
                     if self._stopped:
                         return None
 
-            elif event == "return":
-                # Emit a "completed" state event for tracked functions
+            elif event == "exception":
+                # Record that this frame saw an unhandled exception so the
+                # "return" handler can emit "faulted" instead of "completed".
                 if self._is_project_file(filepath) and self._is_tracked_function(
                     filepath, frame.f_code.co_name
                 ):
-                    locals_snapshot = _capture_frame_locals(frame)
-                    if arg is not None:
-                        try:
-                            import json as _json
+                    state = self._frame_states.get(id(frame))
+                    if state is not None:
+                        state.faulted = True
 
-                            _json.dumps(arg)
-                            locals_snapshot["__return__"] = arg
-                        except Exception:
-                            locals_snapshot["__return__"] = repr(arg)
-                    self._events.put(
-                        (
-                            "state",
-                            {
-                                "file": filepath,
-                                "line": frame.f_lineno,
-                                "function": frame.f_code.co_name,
-                                "locals": locals_snapshot,
-                                "phase": "completed",
-                            },
+            elif event == "return":
+                frame_id = id(frame)
+                func_name = frame.f_code.co_name
+                state = self._frame_states.get(frame_id)
+
+                # Generator/coroutine frames: don't pop state or emit
+                # "completed" on yield/await -- the frame is merely
+                # suspended, not finished.
+                if state is not None and state.is_generator:
+                    pass  # state persists for the next resumption
+                else:
+                    # Normal function: pop state and emit terminal event.
+                    state = self._frame_states.pop(frame_id, None)
+                    if self._is_project_file(filepath) and self._is_tracked_function(
+                        filepath, func_name
+                    ):
+                        saw_exception = state is not None and state.faulted
+
+                        # Exception propagated (arg is None on unhandled raise)
+                        if saw_exception and arg is None:
+                            phase = "faulted"
+                        else:
+                            phase = "completed"
+
+                        node_id = self._node_id_map.get((filepath, func_name))
+                        locals_snapshot = _capture_frame_locals(frame)
+                        if arg is not None:
+                            try:
+                                import json as _json
+
+                                _json.dumps(arg)
+                                locals_snapshot["__return__"] = arg
+                            except Exception:
+                                locals_snapshot["__return__"] = repr(arg)
+                        self._events.put(
+                            (
+                                "state",
+                                {
+                                    "file": filepath,
+                                    "line": frame.f_lineno,
+                                    "function": func_name,
+                                    "locals": locals_snapshot,
+                                    "phase": phase,
+                                    "node_id": node_id,
+                                },
+                            )
                         )
-                    )
-                # Clean up per-frame tracking when the frame exits.
-                self._hit_lines.pop(id(frame), None)
 
             return self._trace_callback
 
         except Exception:
-            # Never let our own errors propagate — that would disable tracing.
+            # Never let our own errors propagate -- that would disable tracing.
+            logger.debug("Error in trace callback", exc_info=True)
             return self._trace_callback
 
     # Thread lifecycle
@@ -345,24 +505,47 @@ class BreakpointController:
         options: UiPathExecuteOptions | None,
     ) -> None:
         """Thread entry-point: install the trace, execute, report result."""
+        loop = asyncio.new_event_loop()
         try:
             sys.settrace(self._trace_callback)
-            loop = asyncio.new_event_loop()
             try:
                 result = loop.run_until_complete(delegate.execute(input, options))
             finally:
-                loop.close()
-            sys.settrace(None)
+                sys.settrace(None)
             self._events.put(("completed", result))
         except Exception as exc:
-            sys.settrace(None)
             self._events.put(("error", exc))
+        finally:
+            # Cancel any lingering tasks so loop.close() doesn't warn.
+            try:
+                pending = asyncio.all_tasks(loop)
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
+            except Exception:
+                pass
+            loop.close()
 
     # Inter-thread communication
 
     def wait_for_event(self) -> tuple[str, Any]:
-        """Block until the next breakpoint hit or execution completion."""
-        return self._events.get()
+        """Block until the next breakpoint hit or execution completion.
+
+        Periodically checks that the trace thread is still alive so callers
+        do not hang indefinitely if the thread dies unexpectedly (e.g. via
+        ``SystemExit`` or a C-extension segfault).
+        """
+        while True:
+            try:
+                return self._events.get(timeout=_EVENT_POLL_INTERVAL)
+            except queue.Empty:
+                if self._thread is not None and not self._thread.is_alive():
+                    raise RuntimeError(
+                        "Trace thread died without producing a terminal event"
+                    )
 
     def resume(self) -> None:
         """Unblock the trace thread so it continues past the current breakpoint."""
@@ -391,7 +574,7 @@ class UiPathDebugFunctionsRuntime:
     that appears in the entrypoint's call graph, so the debug bridge can
     visualise execution flow through the graph nodes.
 
-    Works for both sync and async user functions — async functions run in
+    Works for both sync and async user functions -- async functions run in
     a dedicated asyncio event loop on the background thread.
 
     Parameters
@@ -438,9 +621,9 @@ class UiPathDebugFunctionsRuntime:
 
         Breakpoint formats (via options.breakpoints):
 
-        * "42"          — line 42 in the entrypoint file
-        * "main.py:42"  — line 42 in *main.py* (resolved from cwd)
-        * "*"           — **step mode**: break on every line in project files
+        * "42"          -- line 42 in the entrypoint file
+        * "main.py:42"  -- line 42 in *main.py* (resolved from cwd)
+        * "*"           -- **step mode**: break on every line in project files
         """
         breakpoints = options.breakpoints if options else None
 
@@ -455,9 +638,9 @@ class UiPathDebugFunctionsRuntime:
 
         # Build the set of tracked functions from the call graph so we
         # can emit state events even without breakpoints.
-        tracked = self._build_tracked_functions()
+        tracked, node_id_map = self._build_tracked_functions()
 
-        # Nothing to trace → transparent delegation.  The controller
+        # Nothing to trace -> transparent delegation.  The controller
         # path runs delegate.execute() in a background thread with a
         # new asyncio event loop, so we only use it when there is
         # something to observe (breakpoints and/or state tracking).
@@ -471,10 +654,11 @@ class UiPathDebugFunctionsRuntime:
             breakpoints=breakpoints if breakpoints else [],
             entrypoint_path=self._entrypoint_path,
             state_tracked_functions=tracked,
+            node_id_map=node_id_map,
         )
         self._controller = controller
 
-        # Strip breakpoints from the options forwarded to the delegate —
+        # Strip breakpoints from the options forwarded to the delegate --
         # the delegate does not handle them; we do via the trace.
         delegate_options = UiPathExecuteOptions(
             resume=options.resume if options else False,
@@ -495,13 +679,23 @@ class UiPathDebugFunctionsRuntime:
             self._controller = None
         await self.delegate.dispose()
 
-    def _build_tracked_functions(self) -> dict[str, set[str]] | None:
-        """Build a mapping of abs_file → {func_names} from the call graph.
+    def _build_tracked_functions(
+        self,
+    ) -> tuple[dict[str, set[str]] | None, dict[tuple[str, str], str]]:
+        """Build tracked-function and node-ID mappings from the call graph.
 
-        Returns None when the graph cannot be built (missing path / name).
+        Returns:
+        -------
+        tracked:
+            ``{abs_path: {func_name, ...}}`` or ``None`` when the graph
+            cannot be built.
+        node_id_map:
+            ``{(abs_path, func_name): node_id}`` so the trace callback
+            can set ``qualified_node_name`` to match the graph node IDs
+            returned by ``get_schema``.
         """
         if not self._entrypoint_path or not self._function_name:
-            return None
+            return None, {}
 
         try:
             from .graph_builder import build_call_graph
@@ -513,17 +707,19 @@ class UiPathDebugFunctionsRuntime:
             )
 
             tracked: dict[str, set[str]] = {}
+            node_id_map: dict[tuple[str, str], str] = {}
             for node in graph.nodes:
                 file_rel = (node.metadata or {}).get("file")
                 if not file_rel:
                     continue
                 abs_path = os.path.abspath(file_rel)
                 tracked.setdefault(abs_path, set()).add(node.name)
+                node_id_map[(abs_path, node.name)] = node.id
 
-            return tracked if tracked else None
+            return (tracked if tracked else None), node_id_map
         except Exception:
             logger.debug("Failed to build call graph for state tracking", exc_info=True)
-            return None
+            return None, {}
 
     async def _drain_events(self) -> AsyncGenerator[UiPathRuntimeEvent, None]:
         """Drain events from the controller, yielding state events and stopping at a terminal event."""
@@ -539,9 +735,16 @@ class UiPathDebugFunctionsRuntime:
     def _to_state_event(data: dict[str, Any]) -> UiPathRuntimeStateEvent:
         """Convert a trace state event into a UiPathRuntimeStateEvent."""
         phase = UiPathRuntimeStatePhase(data.get("phase", "updated"))
+        # Use the pre-resolved graph node ID when available so the client
+        # can map state events to graph nodes.  Falls back to the raw
+        # file:line from the frame (which may differ from the graph ID
+        # because frame.f_lineno on "call" is the def line, not the
+        # first-code-line used by the graph builder).
+        node_id = data.get("node_id")
+        qualified = node_id if node_id else _format_location(data["file"], data["line"])
         return UiPathRuntimeStateEvent(
             node_name=data["function"],
-            qualified_node_name=_format_location(data["file"], data["line"]),
+            qualified_node_name=qualified,
             payload=data["locals"],
             phase=phase,
         )

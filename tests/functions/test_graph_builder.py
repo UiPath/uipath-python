@@ -263,8 +263,8 @@ def test_relative_import(tmp_path):
     assert "do_work" in node_names
 
 
-def test_node_id_uses_last_body_line(tmp_path):
-    """Node ID should point to the last statement in the function body."""
+def test_node_id_uses_first_code_line(tmp_path):
+    """Node ID should point to the first code statement in the function body."""
     (tmp_path / "main.py").write_text(
         textwrap.dedent("""\
         def main(input):
@@ -282,12 +282,12 @@ def test_node_id_uses_last_body_line(tmp_path):
 
     assert len(graph.nodes) == 1
     node = graph.nodes[0]
-    # Last body line is "return {"result": y}" at line 4
-    assert node.id == "main.py:4"
+    # First code line is "x = input.get(...)" at line 2
+    assert node.id == "main.py:2"
 
 
-def test_node_id_last_line_with_docstring(tmp_path):
-    """Docstring should not affect the last body line calculation."""
+def test_node_id_skips_docstring(tmp_path):
+    """Node ID should skip the docstring and point to the first code line."""
     (tmp_path / "main.py").write_text(
         textwrap.dedent("""\
         def main(input):
@@ -306,7 +306,53 @@ def test_node_id_last_line_with_docstring(tmp_path):
 
     assert len(graph.nodes) == 1
     node = graph.nodes[0]
-    # Last body line is "return x + y" at line 5
+    # First code line after docstring is "x = 1" at line 3
+    assert node.id == "main.py:3"
+
+
+def test_node_id_docstring_only(tmp_path):
+    """Function with only a docstring falls back to the docstring line."""
+    (tmp_path / "main.py").write_text(
+        textwrap.dedent("""\
+        def main(input):
+            \"\"\"Only a docstring, no code.\"\"\"
+        """)
+    )
+
+    graph = build_call_graph(
+        str(tmp_path / "main.py"),
+        "main",
+        project_dir=str(tmp_path),
+    )
+
+    assert len(graph.nodes) == 1
+    node = graph.nodes[0]
+    # Only a docstring → falls back to body[0].lineno (line 2)
+    assert node.id == "main.py:2"
+
+
+def test_node_id_multiline_docstring(tmp_path):
+    """Multiline docstring is skipped; node ID points to first code line after it."""
+    (tmp_path / "main.py").write_text(
+        textwrap.dedent("""\
+        def main(input):
+            \"\"\"This is a
+            multiline
+            docstring.\"\"\"
+            x = 1
+            return x
+        """)
+    )
+
+    graph = build_call_graph(
+        str(tmp_path / "main.py"),
+        "main",
+        project_dir=str(tmp_path),
+    )
+
+    assert len(graph.nodes) == 1
+    node = graph.nodes[0]
+    # Multiline docstring ends at line 4; first code line is "x = 1" at line 5
     assert node.id == "main.py:5"
 
 
