@@ -393,6 +393,7 @@ def get_chat_bridge(
     assert context.conversation_id is not None, "conversation_id must be set in context"
     assert context.exchange_id is not None, "exchange_id must be set in context"
 
+    # Extract host from UIPATH_URL
     base_url = os.environ.get("UIPATH_URL")
     if not base_url:
         raise RuntimeError(
@@ -417,6 +418,7 @@ def get_chat_bridge(
     query_params = {k: v for k, v in query_params.items() if v}
     query_string = urlencode(query_params)
 
+    # Construct WebSocket URL for CAS
     websocket_url = f"wss://{host}?{query_string}"
     websocket_path = "autopilotforeveryone_/websocket_/socket.io"
 
