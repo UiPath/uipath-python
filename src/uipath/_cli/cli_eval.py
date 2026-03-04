@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import uuid
+from pathlib import Path
 from typing import Any
 
 import click
@@ -15,8 +16,7 @@ from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
-from uipath.eval._helpers import auto_discover_entrypoint
-from uipath.eval.helpers import EvalHelpers
+from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers
 from uipath.eval.models.evaluation_set import EvaluationSet
 from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
@@ -133,6 +133,55 @@ def _resolve_model_settings_override(
         override["temperature"] = float(target_model_settings.temperature)
 
     return override if override else None
+
+
+class _EvalDiscoveryError(Exception):
+    """Raised when auto-discovery of entrypoint or eval set fails."""
+
+    def __init__(self, entrypoints: list[str], eval_sets: list[Path]):
+        self.entrypoints = entrypoints
+        self.eval_sets = eval_sets
+
+
+def _discover_eval_sets() -> list[Path]:
+    """Discover available eval set files."""
+    eval_sets_dir = Path(EVAL_SETS_DIRECTORY_NAME)
+    if eval_sets_dir.exists():
+        return sorted(eval_sets_dir.glob("*.json"))
+    return []
+
+
+def _show_eval_usage_help(entrypoints: list[str], eval_set_files: list[Path]) -> None:
+    """Show available entrypoints and eval sets with usage examples."""
+    lines: list[str] = []
+
+    if entrypoints:
+        lines.append("Available entrypoints:")
+        for name in entrypoints:
+            lines.append(f"  - {name}")
+    else:
+        lines.append(
+            "No entrypoints found. "
+            "Add a 'functions' or 'agents' section to your config file "
+            "(e.g. uipath.json, langgraph.json)."
+        )
+
+    if eval_set_files:
+        lines.append("\nAvailable eval sets:")
+        for f in eval_set_files:
+            lines.append(f"  - {f}")
+    else:
+        lines.append(
+            f"\nNo eval sets found in '{EVAL_SETS_DIRECTORY_NAME}/' directory."
+        )
+
+    lines.append("\nUsage: uipath eval <entrypoint> <eval_set>")
+    if entrypoints and eval_set_files:
+        ep_name = entrypoints[0]
+        es_path = eval_set_files[0]
+        lines.append(f"Example: uipath eval {ep_name} {es_path}")
+
+    click.echo("\n".join(lines))
 
 
 @click.command()
@@ -266,18 +315,9 @@ def eval(
 
     if result.should_continue:
         eval_context = UiPathEvalContext()
-
-        eval_context.entrypoint = entrypoint or auto_discover_entrypoint()
         eval_context.workers = workers
         eval_context.eval_set_run_id = eval_set_run_id
         eval_context.enable_mocker_cache = enable_mocker_cache
-
-        # Load eval set to resolve the path
-        eval_set_path = eval_set or EvalHelpers.auto_discover_eval_set()
-        _, resolved_eval_set_path = EvalHelpers.load_eval_set(
-            eval_set_path, eval_ids, input_overrides=input_overrides
-        )
-
         eval_context.report_coverage = report_coverage
         eval_context.input_overrides = input_overrides
         eval_context.resume = resume
@@ -311,71 +351,102 @@ def eval(
                     eval_context.job_id = ctx.job_id
 
                     runtime_factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
-                    factory_settings = await runtime_factory.get_settings()
-                    trace_settings = (
-                        factory_settings.trace_settings if factory_settings else None
-                    )
 
-                    if (
-                        ctx.job_id or should_register_progress_reporter
-                    ) and UiPathConfig.is_tracing_enabled:
-                        # Live tracking for Orchestrator or Studio Web
-                        # Uses UIPATH_TRACE_ID from environment for trace correlation
-                        trace_manager.add_span_processor(
-                            LiveTrackingSpanProcessor(
-                                LlmOpsHttpExporter(),
-                                settings=trace_settings,
+                    try:
+                        # Auto-discover entrypoint and eval set using the runtime factory
+                        resolved_entrypoint = entrypoint
+                        eval_set_path = eval_set
+
+                        available_entrypoints = runtime_factory.discover_entrypoints()
+                        available_eval_sets = _discover_eval_sets()
+
+                        if not resolved_entrypoint:
+                            if len(available_entrypoints) == 1:
+                                resolved_entrypoint = available_entrypoints[0]
+                            else:
+                                raise _EvalDiscoveryError(
+                                    available_entrypoints, available_eval_sets
+                                )
+
+                        if not eval_set_path:
+                            if len(available_eval_sets) == 1:
+                                eval_set_path = str(available_eval_sets[0])
+                            else:
+                                raise _EvalDiscoveryError(
+                                    available_entrypoints, available_eval_sets
+                                )
+
+                        eval_context.entrypoint = resolved_entrypoint
+
+                        # Load eval set and resolve the path
+                        loaded_eval_set, resolved_eval_set_path = (
+                            EvalHelpers.load_eval_set(
+                                eval_set_path, eval_ids, input_overrides=input_overrides
                             )
                         )
 
-                    if trace_file:
+                        factory_settings = await runtime_factory.get_settings()
                         trace_settings = (
                             factory_settings.trace_settings
                             if factory_settings
                             else None
                         )
-                        trace_manager.add_span_exporter(
-                            JsonLinesFileExporter(trace_file), settings=trace_settings
+
+                        if (
+                            ctx.job_id or should_register_progress_reporter
+                        ) and UiPathConfig.is_tracing_enabled:
+                            # Live tracking for Orchestrator or Studio Web
+                            # Uses UIPATH_TRACE_ID from environment for trace correlation
+                            trace_manager.add_span_processor(
+                                LiveTrackingSpanProcessor(
+                                    LlmOpsHttpExporter(),
+                                    settings=trace_settings,
+                                )
+                            )
+
+                        if trace_file:
+                            trace_settings = (
+                                factory_settings.trace_settings
+                                if factory_settings
+                                else None
+                            )
+                            trace_manager.add_span_exporter(
+                                JsonLinesFileExporter(trace_file),
+                                settings=trace_settings,
+                            )
+
+                        project_id = UiPathConfig.project_id
+
+                        eval_context.execution_id = (
+                            eval_context.job_id
+                            or eval_context.eval_set_run_id
+                            or str(uuid.uuid4())
                         )
 
-                    project_id = UiPathConfig.project_id
+                        eval_context.evaluation_set = loaded_eval_set
 
-                    eval_context.execution_id = (
-                        eval_context.job_id
-                        or eval_context.eval_set_run_id
-                        or str(uuid.uuid4())
-                    )
+                        # Resolve model settings override from eval set
+                        settings_override = _resolve_model_settings_override(
+                            model_settings_id, eval_context.evaluation_set
+                        )
 
-                    # Load eval set (path is already resolved in cli_eval.py)
-                    eval_context.evaluation_set, _ = EvalHelpers.load_eval_set(
-                        resolved_eval_set_path,
-                        eval_ids,
-                        input_overrides=input_overrides,
-                    )
+                        runtime = await runtime_factory.new_runtime(
+                            entrypoint=eval_context.entrypoint or "",
+                            runtime_id=eval_context.execution_id,
+                            settings=settings_override,
+                        )
 
-                    # Resolve model settings override from eval set
-                    settings_override = _resolve_model_settings_override(
-                        model_settings_id, eval_context.evaluation_set
-                    )
+                        eval_context.runtime_schema = await runtime.get_schema()
 
-                    runtime = await runtime_factory.new_runtime(
-                        entrypoint=eval_context.entrypoint or "",
-                        runtime_id=eval_context.execution_id,
-                        settings=settings_override,
-                    )
+                        eval_context.evaluators = await EvalHelpers.load_evaluators(
+                            resolved_eval_set_path,
+                            eval_context.evaluation_set,
+                            _get_agent_model(eval_context.runtime_schema),
+                        )
 
-                    eval_context.runtime_schema = await runtime.get_schema()
+                        # Runtime is not required anymore.
+                        await runtime.dispose()
 
-                    eval_context.evaluators = await EvalHelpers.load_evaluators(
-                        resolved_eval_set_path,
-                        eval_context.evaluation_set,
-                        _get_agent_model(eval_context.runtime_schema),
-                    )
-
-                    # Runtime is not required anymore.
-                    await runtime.dispose()
-
-                    try:
                         if project_id:
                             studio_client = StudioClient(project_id)
 
@@ -399,11 +470,14 @@ def eval(
                                 event_bus,
                             )
                     finally:
-                        if runtime_factory:
-                            await runtime_factory.dispose()
+                        await runtime_factory.dispose()
 
             asyncio.run(execute_eval())
 
+        except _EvalDiscoveryError as e:
+            _show_eval_usage_help(e.entrypoints, e.eval_sets)
+        except ValueError as e:
+            console.error(str(e))
         except Exception as e:
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True
