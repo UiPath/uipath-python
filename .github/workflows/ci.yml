@@ -1,13 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - packages/*/pyproject.toml
-      - '!packages/*/samples/**/pyproject.toml'
-      - '!packages/*/testcases/**/pyproject.toml'
   pull_request:
     branches:
       - main
