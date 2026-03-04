@@ -1,0 +1,67 @@
+"""UiPath Chat Services.
+
+This module provides services for chat-related functionality including:
+- LLM Gateway services for chat completions and embeddings
+- Conversations service for autopilot conversations
+"""
+
+from ._conversations_service import ConversationsService
+from ._llm_gateway_service import (
+    DEFAULT_REQUESTING_FEATURE,
+    DEFAULT_REQUESTING_PRODUCT,
+    ChatModels,
+    EmbeddingModels,
+    UiPathLlmChatService,
+    UiPathOpenAIService,
+)
+from .llm_gateway import (
+    AutoToolChoice,
+    ChatCompletion,
+    ChatCompletionChoice,
+    ChatCompletionUsage,
+    ChatMessage,
+    EmbeddingItem,
+    EmbeddingUsage,
+    RequiredToolChoice,
+    SpecificToolChoice,
+    TextEmbedding,
+    ToolCall,
+    ToolChoice,
+    ToolDefinition,
+    ToolFunctionDefinition,
+    ToolParametersDefinition,
+    ToolPropertyDefinition,
+)
+from .llm_throttle import get_llm_semaphore, set_llm_concurrency
+
+__all__ = [
+    # Conversations Service
+    "ConversationsService",
+    # LLM Gateway Services
+    "ChatModels",
+    "EmbeddingModels",
+    "DEFAULT_REQUESTING_PRODUCT",
+    "DEFAULT_REQUESTING_FEATURE",
+    "UiPathLlmChatService",
+    "UiPathOpenAIService",
+    # LLM Throttling
+    "get_llm_semaphore",
+    "set_llm_concurrency",
+    # LLM Gateway Models
+    "ToolPropertyDefinition",
+    "ToolParametersDefinition",
+    "ToolFunctionDefinition",
+    "ToolDefinition",
+    "AutoToolChoice",
+    "RequiredToolChoice",
+    "SpecificToolChoice",
+    "ChatMessage",
+    "ChatCompletionChoice",
+    "ChatCompletionUsage",
+    "ChatCompletion",
+    "EmbeddingItem",
+    "EmbeddingUsage",
+    "TextEmbedding",
+    "ToolChoice",
+    "ToolCall",
+]

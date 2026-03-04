@@ -1,4 +1,4 @@
-name: Integration testing
+name: uipath - Integration Tests
 
 on:
   push:
@@ -22,6 +22,7 @@ jobs:
 
     - name: Discover testcases
       id: discover
+      working-directory: packages/uipath
       run: |
         # Find all testcase folders (excluding common folders like README, etc.)
         testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-*" | sed 's|testcases/||' | sort)
@@ -54,6 +55,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install dependencies
+      working-directory: packages/uipath
       run: uv sync
 
     - name: Run testcase
@@ -68,7 +70,7 @@ jobs:
         TELEMETRY_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
         APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
-      working-directory: testcases/${{ matrix.testcase }}
+      working-directory: packages/uipath/testcases/${{ matrix.testcase }}
       run: |
         # If any errors occur execution will stop with exit code
         set -e
