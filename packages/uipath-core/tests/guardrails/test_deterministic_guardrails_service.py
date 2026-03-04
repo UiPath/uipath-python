@@ -1466,3 +1466,104 @@ class TestDeterministicGuardrailsService:
                 ),
             ],
         )
+
+
+class TestMissingFieldPassesValidation:
+    """Test that rules referencing missing fields pass validation."""
+
+    def test_word_rule_missing_field_passes(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="test-missing-field",
+            name="Missing Field Guardrail",
+            description="Test missing field",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                WordRule(
+                    rule_type="word",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(path="sentence2", source=FieldSource.INPUT)
+                        ],
+                    ),
+                    detects_violation=lambda s: len(s or "") > 0,
+                    rule_description="sentence2 is not empty",
+                ),
+            ],
+        )
+        result = service._evaluate_deterministic_guardrail(
+            input_data={"sentence1": "hello"},
+            output_data={},
+            guardrail=guardrail,
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
+
+    def test_number_rule_missing_field_passes(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="test-missing-field",
+            name="Missing Field Guardrail",
+            description="Test missing field",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                NumberRule(
+                    rule_type="number",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[FieldReference(path="age", source=FieldSource.INPUT)],
+                    ),
+                    detects_violation=lambda n: n is not None and n < 0,
+                    rule_description="age is negative",
+                ),
+            ],
+        )
+        result = service._evaluate_deterministic_guardrail(
+            input_data={"name": "test"},
+            output_data={},
+            guardrail=guardrail,
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
+
+    def test_boolean_rule_missing_field_passes(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="test-missing-field",
+            name="Missing Field Guardrail",
+            description="Test missing field",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                BooleanRule(
+                    rule_type="boolean",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(path="is_active", source=FieldSource.INPUT)
+                        ],
+                    ),
+                    detects_violation=lambda b: b is False,
+                    rule_description="is_active is false",
+                ),
+            ],
+        )
+        result = service._evaluate_deterministic_guardrail(
+            input_data={"name": "test"},
+            output_data={},
+            guardrail=guardrail,
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
