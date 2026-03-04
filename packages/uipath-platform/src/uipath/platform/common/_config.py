@@ -1,4 +1,5 @@
 import os
+from functools import cached_property
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -133,10 +134,29 @@ class ConfigurationManager:
         return Path(".uipath", STUDIO_METADATA_FILE)
 
     @property
+    def licensing_context(self) -> str | None:
+        return self._read_internal_argument("licensingContext")
+
+    @property
     def is_tracing_enabled(self) -> bool:
         from uipath.platform.common.constants import ENV_TRACING_ENABLED
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
+
+    def _read_internal_argument(self, key: str) -> str | None:
+        internal_args = self._internal_arguments
+        return internal_args.get(key) if internal_args else None
+
+    @cached_property
+    def _internal_arguments(self) -> dict[str, str] | None:
+        import json
+
+        try:
+            with open(self.config_file_path, "r") as f:
+                data = json.load(f)
+                return data.get("runtime", {}).get("internalArguments")
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
 
 
 UiPathConfig = ConfigurationManager()

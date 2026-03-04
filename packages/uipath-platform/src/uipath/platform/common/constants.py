@@ -30,6 +30,7 @@ HEADER_TENANT_ID = "x-uipath-tenantid"
 HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
 HEADER_SW_LOCK_KEY = "x-uipath-sw-lockkey"
+HEADER_LICENSING_CONTEXT = "x-uipath-licensing-context"
 
 # Data sources (request types)
 ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE_REQUEST = (
