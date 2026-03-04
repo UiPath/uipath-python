@@ -195,6 +195,9 @@ def evaluate_word_rule(
 ) -> tuple[bool, str]:
     """Evaluate a word rule against input and output data."""
     fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
+    if not fields:
+        return True, "No fields to validate"
+
     operator = _humanize_guardrail_func(rule.detects_violation) or "violation check"
     field_paths = ", ".join({field_ref.path for _, field_ref in fields})
 
@@ -237,6 +240,9 @@ def evaluate_number_rule(
 ) -> tuple[bool, str]:
     """Evaluate a number rule against input and output data."""
     fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
+    if not fields:
+        return True, "No fields to validate"
+
     operator = _humanize_guardrail_func(rule.detects_violation) or "violation check"
     field_paths = ", ".join({field_ref.path for _, field_ref in fields})
     for field_value, field_ref in fields:
@@ -281,6 +287,9 @@ def evaluate_boolean_rule(
 ) -> tuple[bool, str]:
     """Evaluate a boolean rule against input and output data."""
     fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
+    if not fields:
+        return True, "No fields to validate"
+
     operator = _humanize_guardrail_func(rule.detects_violation) or "violation check"
     field_paths = ", ".join({field_ref.path for _, field_ref in fields})
     for field_value, field_ref in fields:
