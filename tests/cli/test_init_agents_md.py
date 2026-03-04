@@ -1,4 +1,4 @@
-"""Tests for AGENTS.md generation in the init command."""
+"""Tests for AGENTS.md and CLAUDE.md generation in the init command."""
 
 import os
 import tempfile
@@ -50,7 +50,7 @@ class TestGenerateAgentMdFile:
             finally:
                 os.chdir(original_cwd)
 
-    def test_generate_agents_md_overwrites_existing_file(self) -> None:
+    def test_generate_claude_md_overwrites_existing_file(self) -> None:
         """Test that existing AGENTS.md is overwritten."""
         with tempfile.TemporaryDirectory() as temp_dir:
             agents_path = Path(temp_dir) / "AGENTS.md"
@@ -81,7 +81,7 @@ class TestGenerateAgentMdFile:
                 assert agents_path.read_text() != original_content
                 assert agents_path.exists()
 
-    def test_generate_agents_md_handles_errors_gracefully(self) -> None:
+    def test_generate_claude_md_handles_errors_gracefully(self) -> None:
         """Test that errors are handled gracefully."""
         with tempfile.TemporaryDirectory() as temp_dir:
             with (
@@ -99,10 +99,10 @@ class TestGenerateAgentMdFile:
 
 
 class TestGenerateAgentMdFiles:
-    """Test the generate_agent_md_files function that creates multiple files."""
+    """Test the generate_agent_md_files function that creates AGENTS.md and CLAUDE.md."""
 
-    def test_generate_agent_md_files_creates_all_files(self) -> None:
-        """Test that all root and agent files are created in the correct locations."""
+    def test_generate_agent_md_files_creates_agents_and_claude_md(self) -> None:
+        """Test that AGENTS.md and CLAUDE.md are created (without .agent/ or .claude/commands/)."""
         with tempfile.TemporaryDirectory() as temp_dir:
             with (
                 patch("uipath._cli.cli_init.importlib.resources.files") as mock_files,
@@ -121,30 +121,19 @@ class TestGenerateAgentMdFiles:
 
                 generate_agent_md_files(temp_dir, False)
 
-                agent_dir = Path(temp_dir) / ".agent"
-                assert agent_dir.exists()
-                assert agent_dir.is_dir()
-
                 assert (Path(temp_dir) / "AGENTS.md").exists()
                 assert (Path(temp_dir) / "CLAUDE.md").exists()
 
-                assert (agent_dir / "CLI_REFERENCE.md").exists()
-                assert (agent_dir / "REQUIRED_STRUCTURE.md").exists()
-                assert (agent_dir / "SDK_REFERENCE.md").exists()
+                # Should NOT create .agent directory or .claude/commands/
+                assert not (Path(temp_dir) / ".agent").exists()
+                assert not (Path(temp_dir) / ".claude" / "commands").exists()
 
-    def test_generate_agent_md_files_overwrites_existing_files(self) -> None:
-        """Test that existing files are overwritten."""
+    def test_generate_agent_md_files_overwrites_existing_agents_md(self) -> None:
+        """Test that existing AGENTS.md is overwritten."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            agent_dir = Path(temp_dir) / ".agent"
-            agent_dir.mkdir()
-
             agents_path = Path(temp_dir) / "AGENTS.md"
             agents_content = "Original AGENTS content"
             agents_path.write_text(agents_content)
-
-            cli_ref_path = agent_dir / "CLI_REFERENCE.md"
-            cli_ref_content = "Original CLI_REFERENCE content"
-            cli_ref_path.write_text(cli_ref_content)
 
             with (
                 patch("uipath._cli.cli_init.importlib.resources.files") as mock_files,
@@ -165,19 +154,16 @@ class TestGenerateAgentMdFiles:
 
                 assert agents_path.read_text() != agents_content
                 assert agents_path.read_text() == "Test content"
-                assert cli_ref_path.read_text() != cli_ref_content
-                assert cli_ref_path.read_text() == "Test content"
 
 
 class TestInitWithAgentsMd:
-    """Test the init command with default AGENTS.md creation."""
+    """Test the init command with AGENTS.md and CLAUDE.md creation."""
 
-    def test_init_creates_agent_files_by_default(
+    def test_init_creates_agents_and_claude_md_by_default(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
-        """Test that agent files are created by default during init."""
+        """Test that AGENTS.md and CLAUDE.md are created by default during init."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create a simple Python file
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
 
@@ -190,7 +176,6 @@ class TestInitWithAgentsMd:
                     "uipath._cli.cli_init.importlib.resources.as_file"
                 ) as mock_as_file,
             ):
-                # Setup mocks
                 mock_path = MagicMock()
                 mock_files.return_value.joinpath.return_value = mock_path
                 mock_as_file.return_value.__enter__.return_value = temp_source
@@ -200,25 +185,22 @@ class TestInitWithAgentsMd:
 
                 assert result.exit_code == 0
                 assert "AGENTS.md" in result.output
-                assert "file." in result.output
 
                 assert os.path.exists("AGENTS.md")
                 assert os.path.exists("CLAUDE.md")
 
-                assert os.path.exists(".agent/CLI_REFERENCE.md")
-                assert os.path.exists(".agent/REQUIRED_STRUCTURE.md")
-                assert os.path.exists(".agent/SDK_REFERENCE.md")
+                # Should NOT create .agent directory or .claude/commands/
+                assert not os.path.exists(".agent")
+                assert not os.path.exists(".claude/commands")
 
     def test_init_overwrites_existing_agents_md(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         """Test that existing AGENTS.md is overwritten."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            # Create a simple Python file
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
 
-            # Create existing AGENTS.md
             original_content = "Original AGENTS.md content"
             with open("AGENTS.md", "w") as f:
                 f.write(original_content)
@@ -232,18 +214,15 @@ class TestInitWithAgentsMd:
                     "uipath._cli.cli_init.importlib.resources.as_file"
                 ) as mock_as_file,
             ):
-                # Setup mocks
                 mock_path = MagicMock()
                 mock_files.return_value.joinpath.return_value = mock_path
                 mock_as_file.return_value.__enter__.return_value = temp_source
                 mock_as_file.return_value.__exit__.return_value = None
 
-                # Run init (AGENTS.md creation is now default)
                 result = runner.invoke(cli, ["init"])
 
                 assert result.exit_code == 0
 
-                # Verify content was changed
                 with open("AGENTS.md", "r") as f:
                     content = f.read()
                     assert content != original_content

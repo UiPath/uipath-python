@@ -117,38 +117,25 @@ def generate_agent_md_file(
 
 
 def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) -> None:
-    """Generate AGENTS.md related files and Claude Code skills.
+    """Generate AGENTS.md and CLAUDE.md files.
 
     Args:
         target_directory: The directory where the files should be created.
         no_agents_md_override: Whether to override existing files.
     """
-    agent_dir = os.path.join(target_directory, ".agent")
-    os.makedirs(agent_dir, exist_ok=True)
-    claude_commands_dir = os.path.join(target_directory, ".claude", "commands")
-    os.makedirs(claude_commands_dir, exist_ok=True)
-
-    files_to_create = {
-        target_directory: ["AGENTS.md", "CLAUDE.md"],
-        agent_dir: ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"],
-        claude_commands_dir: ["new-agent.md", "eval.md"],
-    }
-
     any_overridden = False
-    for directory, filenames in files_to_create.items():
-        for filename in filenames:
-            if generate_agent_md_file(directory, filename, no_agents_md_override):
-                any_overridden = True
+    for filename in ["AGENTS.md", "CLAUDE.md"]:
+        if generate_agent_md_file(target_directory, filename, no_agents_md_override):
+            any_overridden = True
 
     if any_overridden:
         console.success(
-            f"Updated {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
+            f"Updated {click.style('AGENTS.md', fg='cyan')} and {click.style('CLAUDE.md', fg='cyan')}."
         )
-        return
-
-    console.success(
-        f"Created {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
-    )
+    else:
+        console.success(
+            f"Created {click.style('AGENTS.md', fg='cyan')} and {click.style('CLAUDE.md', fg='cyan')}."
+        )
 
 
 def write_bindings_file(bindings: Bindings) -> Path:
@@ -325,7 +312,7 @@ def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -
     is_flag=True,
     required=False,
     default=False,
-    help="Won't override existing .agent files and AGENTS.md file.",
+    help="Won't override existing CLAUDE.md file.",
 )
 @track_command("initialize")
 def init(no_agents_md_override: bool) -> None:
