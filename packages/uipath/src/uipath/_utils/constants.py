@@ -16,18 +16,24 @@ ENV_TELEMETRY_ENABLED = "UIPATH_TELEMETRY_ENABLED"
 ENV_TRACING_ENABLED = "UIPATH_TRACING_ENABLED"
 ENV_UIPATH_PROJECT_ID = "UIPATH_PROJECT_ID"
 ENV_PROJECT_KEY = "PROJECT_KEY"
+ENV_PROCESS_KEY = "UIPATH_PROCESS_KEY"
 ENV_UIPATH_PROCESS_UUID = "UIPATH_PROCESS_UUID"
 ENV_UIPATH_TRACE_ID = "UIPATH_TRACE_ID"
 ENV_UIPATH_PROCESS_VERSION = "UIPATH_PROCESS_VERSION"
 
 # Headers
+HEADER_AGENTHUB_CONFIG = "x-uipath-agenthub-config"
 HEADER_FOLDER_KEY = "x-uipath-folderkey"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
-HEADER_USER_AGENT = "x-uipath-user-agent"
-HEADER_TENANT_ID = "x-uipath-tenantid"
+HEADER_INTERNAL_ACCOUNT_ID = "x-uipath-internal-accountid"
 HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
 HEADER_JOB_KEY = "x-uipath-jobkey"
+HEADER_LLMGATEWAY_BYO_CONNECTION_ID = "x-uipath-llmgateway-byoisconnectionid"
+HEADER_PROCESS_KEY = "x-uipath-processkey"
 HEADER_SW_LOCK_KEY = "x-uipath-sw-lockkey"
+HEADER_TENANT_ID = "x-uipath-tenantid"
+HEADER_TRACE_ID = "x-uipath-traceid"
+HEADER_USER_AGENT = "x-uipath-user-agent"
 
 # Data sources (request types)
 ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE_REQUEST = (
