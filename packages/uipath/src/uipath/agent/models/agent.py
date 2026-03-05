@@ -142,6 +142,7 @@ class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
     STRUCTURED = "Structured"
     DEEP_RAG = "DeepRAG"
     BATCH_TRANSFORM = "BatchTransform"
+    DATA_FABRIC = "DataFabric"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -375,6 +376,9 @@ class AgentContextSettings(BaseCfg):
     )
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
+    )
+    entity_identifiers: Optional[List[str]] = Field(
+        None, alias="entityIdentifiers"
     )
 
 
@@ -1199,6 +1203,7 @@ class AgentDefinition(BaseModel):
             "structured": "Structured",
             "deeprag": "DeepRAG",
             "batchtransform": "BatchTransform",
+            "datafabric": "DataFabric",
             "unknown": "Unknown",
         }
 
