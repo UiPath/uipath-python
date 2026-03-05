@@ -20,8 +20,8 @@ from tenacity import (
 from ..errors import EnrichedException
 from ._config import UiPathApiConfig
 from ._execution_context import UiPathExecutionContext
+from ._http_config import get_httpx_client_kwargs
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
-from ._ssl_context import get_httpx_client_kwargs
 from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .constants import HEADER_USER_AGENT

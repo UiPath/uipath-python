@@ -12,8 +12,8 @@ from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
+from ..common._http_config import get_httpx_client_kwargs
 from ..common._models import Endpoint, RequestSpec
-from ..common._ssl_context import get_httpx_client_kwargs
 from ..common.paging import PagedResult
 from ..common.validation import validate_pagination_params
 from .buckets import Bucket, BucketFile

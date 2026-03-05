@@ -17,8 +17,8 @@ from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
+from ..common._http_config import get_httpx_client_kwargs
 from ..common._models import Endpoint, RequestSpec
-from ..common._ssl_context import get_httpx_client_kwargs
 from ..common.constants import TEMP_ATTACHMENTS_FOLDER
 
 
