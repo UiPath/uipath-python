@@ -987,9 +987,10 @@ class TestContextGroundingService:
     ) -> None:
         citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=content,name,createdDate,lastDeepRagStatus",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=id,content,name,createdDate,lastDeepRagStatus,failureReason",
             status_code=200,
             json={
+                "id": "test-task-id",
                 "name": "test-deep-rag-task",
                 "createdDate": "2024-01-15T10:30:00Z",
                 "lastDeepRagStatus": "Successful",
@@ -997,6 +998,7 @@ class TestContextGroundingService:
                     "text": "This is the deep RAG response text.",
                     "citations": [citation.model_dump()],
                 },
+                "failureReason": None,
             },
         )
 
@@ -1017,7 +1019,7 @@ class TestContextGroundingService:
         assert sent_requests[0].method == "GET"
         assert (
             sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=content%2Cname%2CcreatedDate%2ClastDeepRagStatus"
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=id%2Ccontent%2Cname%2CcreatedDate%2ClastDeepRagStatus%2CfailureReason"
         )
 
         assert HEADER_USER_AGENT in sent_requests[0].headers
@@ -1039,9 +1041,10 @@ class TestContextGroundingService:
         citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=content,name,createdDate,lastDeepRagStatus",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=id,content,name,createdDate,lastDeepRagStatus,failureReason",
             status_code=200,
             json={
+                "id": "test-task-id",
                 "name": "test-deep-rag-task",
                 "createdDate": "2024-01-15T10:30:00Z",
                 "lastDeepRagStatus": "Successful",
@@ -1049,6 +1052,7 @@ class TestContextGroundingService:
                     "text": "This is the deep RAG response text.",
                     "citations": [citation.model_dump()],
                 },
+                "failureReason": None,
             },
         )
 
@@ -1069,7 +1073,7 @@ class TestContextGroundingService:
         assert sent_requests[0].method == "GET"
         assert (
             sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=content%2Cname%2CcreatedDate%2ClastDeepRagStatus"
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=id%2Ccontent%2Cname%2CcreatedDate%2ClastDeepRagStatus%2CfailureReason"
         )
 
         assert HEADER_USER_AGENT in sent_requests[0].headers

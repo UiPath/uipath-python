@@ -1808,7 +1808,7 @@ class ContextGroundingService(FolderContext, BaseService):
             endpoint=Endpoint(f"/ecs_/v2/deeprag/{id}"),
             params={
                 "$expand": "content",
-                "$select": "content,name,createdDate,lastDeepRagStatus",
+                "$select": "id,content,name,createdDate,lastDeepRagStatus,failureReason",
             },
         )
 
