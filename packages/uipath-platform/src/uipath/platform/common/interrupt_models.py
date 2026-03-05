@@ -118,6 +118,12 @@ class CreateDeepRag(BaseModel):
         return self
 
 
+class CreateDeepRagRaw(CreateDeepRag):
+    """Model representing a Deep RAG task creation (returns the deep_rag without status validation)."""
+
+    pass
+
+
 class WaitDeepRag(BaseModel):
     """Model representing a wait Deep RAG task."""
 
@@ -126,17 +132,35 @@ class WaitDeepRag(BaseModel):
     index_folder_key: str | None = None
 
 
+class WaitDeepRagRaw(WaitDeepRag):
+    """Model representing a wait Deep RAG task (returns the deep_rag without status validation)."""
+
+    pass
+
+
 class CreateEphemeralIndex(BaseModel):
-    """Model representing a Ephemeral Index task creation."""
+    """Model representing an Ephemeral Index task creation."""
 
     usage: EphemeralIndexUsage
     attachments: list[str]
+
+
+class CreateEphemeralIndexRaw(CreateEphemeralIndex):
+    """Model representing an Ephemeral Index task creation (returns the ephemeral index without status validation)."""
+
+    pass
 
 
 class WaitEphemeralIndex(BaseModel):
     """Model representing a wait Ephemeral Index task."""
 
     index: ContextGroundingIndex
+
+
+class WaitEphemeralIndexRaw(WaitEphemeralIndex):
+    """Model representing a wait Ephemeral Index task (returns the ephemeral index without status validation)."""
+
+    pass
 
 
 class CreateBatchTransform(BaseModel):

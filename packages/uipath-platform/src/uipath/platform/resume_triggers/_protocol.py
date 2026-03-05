@@ -25,7 +25,9 @@ from uipath.platform.common._config import UiPathConfig
 from uipath.platform.common.interrupt_models import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateDeepRagRaw,
     CreateEphemeralIndex,
+    CreateEphemeralIndexRaw,
     CreateEscalation,
     CreateTask,
     DocumentExtraction,
@@ -35,9 +37,11 @@ from uipath.platform.common.interrupt_models import (
     InvokeSystemAgent,
     WaitBatchTransform,
     WaitDeepRag,
+    WaitDeepRagRaw,
     WaitDocumentExtraction,
     WaitDocumentExtractionValidation,
     WaitEphemeralIndex,
+    WaitEphemeralIndexRaw,
     WaitEscalation,
     WaitJob,
     WaitJobRaw,
@@ -246,6 +250,9 @@ class UiPathResumeTriggerReader:
                             f"DeepRag is not finished yet. Current status: {deep_rag_status}",
                         )
 
+                    if trigger.trigger_name == UiPathResumeTriggerName.DEEP_RAG_RAW:
+                        return deep_rag
+
                     if deep_rag_status != DeepRagStatus.SUCCESSFUL:
                         raise UiPathFaultedTriggerError(
                             ErrorCategory.USER,
@@ -284,6 +291,12 @@ class UiPathResumeTriggerReader:
                             ErrorCategory.SYSTEM,
                             f"Index ingestion is not finished yet. Current status: {ephemeral_index_status}",
                         )
+
+                    if (
+                        trigger.trigger_name
+                        == UiPathResumeTriggerName.INDEX_INGESTION_RAW
+                    ):
+                        return ephemeral_index
 
                     if ephemeral_index_status != IndexStatus.SUCCESSFUL:
                         raise UiPathFaultedTriggerError(
@@ -512,7 +525,9 @@ class UiPathResumeTriggerCreator:
             ),
         ):
             return UiPathResumeTriggerType.JOB
-        if isinstance(value, (CreateDeepRag, WaitDeepRag)):
+        if isinstance(
+            value, (CreateDeepRag, CreateDeepRagRaw, WaitDeepRag, WaitDeepRagRaw)
+        ):
             return UiPathResumeTriggerType.DEEP_RAG
         if isinstance(value, (CreateEphemeralIndex, WaitEphemeralIndex)):
             return UiPathResumeTriggerType.INDEX_INGESTION
@@ -546,8 +561,12 @@ class UiPathResumeTriggerCreator:
             value, (InvokeProcess, WaitJob, InvokeSystemAgent, WaitSystemAgent)
         ):
             return UiPathResumeTriggerName.JOB
+        if isinstance(value, (CreateDeepRagRaw, WaitDeepRagRaw)):
+            return UiPathResumeTriggerName.DEEP_RAG_RAW
         if isinstance(value, (CreateDeepRag, WaitDeepRag)):
             return UiPathResumeTriggerName.DEEP_RAG
+        if isinstance(value, (CreateEphemeralIndexRaw, WaitEphemeralIndexRaw)):
+            return UiPathResumeTriggerName.INDEX_INGESTION_RAW
         if isinstance(value, (CreateEphemeralIndex, WaitEphemeralIndex)):
             return UiPathResumeTriggerName.INDEX_INGESTION
         if isinstance(value, (CreateBatchTransform, WaitBatchTransform)):
