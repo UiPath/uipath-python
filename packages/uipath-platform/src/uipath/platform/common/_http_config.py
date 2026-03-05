@@ -50,4 +50,11 @@ def get_httpx_client_kwargs() -> Dict[str, Any]:
     # Auto-detect proxy from environment variables (httpx handles this automatically)
     # HTTP_PROXY, HTTPS_PROXY, NO_PROXY are read by httpx by default
 
+    from ._config import UiPathConfig
+    from .constants import HEADER_LICENSING_CONTEXT
+
+    licensing_context = UiPathConfig.licensing_context
+    if licensing_context:
+        client_kwargs["headers"] = {HEADER_LICENSING_CONTEXT: licensing_context}
+
     return client_kwargs
