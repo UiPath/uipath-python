@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace.export import (
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
+from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
 
 logger = logging.getLogger(__name__)
 
@@ -399,10 +400,13 @@ class LlmOpsHttpExporter(SpanExporter):
                 response = self.http_client.post(url, json=payload)
                 if response.status_code == 200:
                     return SpanExportResult.SUCCESS
-                else:
-                    logger.warning(
-                        f"Attempt {attempt + 1} failed with status code {response.status_code}: {response.text}"
-                    )
+
+                logger.warning(
+                    f"Attempt {attempt + 1} failed with status code {response.status_code}: {response.text}"
+                )
+
+                if response.status_code in NON_RETRYABLE_STATUS_CODES:
+                    return SpanExportResult.FAILURE
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1} failed with exception: {e}")
 
