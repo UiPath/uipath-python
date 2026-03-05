@@ -12,6 +12,7 @@ from tenacity import RetryCallState
 from ..errors import EnrichedException
 
 RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 429, 502, 503, 504})
+NON_RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({400, 401, 403, 404, 413, 422})
 
 
 def parse_retry_after(header_value: str) -> float | None:
