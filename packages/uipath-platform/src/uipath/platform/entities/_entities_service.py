@@ -1,4 +1,5 @@
-from typing import Any, List, Optional, Type
+import re
+from typing import Any, Dict, List, Optional, Type
 
 from httpx import Response
 from uipath.core.tracing import traced
@@ -12,6 +13,30 @@ from .entities import (
     EntityRecord,
     EntityRecordsBatchResponse,
 )
+
+_FORBIDDEN_SQL_KEYWORDS = {
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "MERGE",
+    "DROP",
+    "ALTER",
+    "CREATE",
+    "TRUNCATE",
+    "REPLACE",
+}
+_DISALLOWED_SQL_OPERATORS = [
+    "WITH",
+    "UNION",
+    "INTERSECT",
+    "EXCEPT",
+    "OVER",
+    "ROLLUP",
+    "CUBE",
+    "GROUPING SETS",
+    "PARTITION BY",
+]
+_SQL_KEYWORD_PATTERN = re.compile(r"\b([A-Z]+(?:\s+BY|\s+SETS)?)\b")
 
 
 class EntitiesService(BaseService):
@@ -390,6 +415,67 @@ class EntitiesService(BaseService):
         return [
             EntityRecord.from_data(data=record, model=schema) for record in records_data
         ]
+
+    @traced(name="entity_query_records", run_type="uipath")
+    def query_entity_records(
+        self,
+        sql_query: str,
+        schema: Optional[Type[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Backward-compatible alias for query_multiple_entities."""
+        return self.query_multiple_entities(sql_query, schema)
+
+
+    @traced(name="query_entities_async", run_type="uipath")
+    async def query_entity_records_async(
+        self,
+        sql_query: str,
+        schema: Optional[Type[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Backward-compatible alias for query_multiple_entities_async."""
+        return await self.query_multiple_entities_async(sql_query, schema)
+
+    @traced(name="query_multiple_entities", run_type="uipath")
+    def query_multiple_entities(
+        self,
+        sql_query: str,
+        schema: Optional[Type[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Query entity records using a validated SQL query."""
+        self._validate_sql_query(sql_query)
+        spec = self._query_multiple_entities_spec(sql_query)
+        headers = {
+            "X-UiPath-Internal-TenantName": self._url.tenant_name,
+            "X-UiPath-Internal-AccountName": self._url.org_name,
+        }
+        full_url = f"{self._url.base_url}{spec.endpoint}"
+        response = self.request(spec.method, full_url, json=spec.json, headers=headers)
+        status_code = getattr(response, "status_code", 200)
+        if isinstance(status_code, int) and status_code >= 400:
+            response.raise_for_status()
+        return response.json().get("results", [])
+
+    @traced(name="query_multiple_entities_async", run_type="uipath")
+    async def query_multiple_entities_async(
+        self,
+        sql_query: str,
+        schema: Optional[Type[Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Asynchronously query entity records using a validated SQL query."""
+        self._validate_sql_query(sql_query)
+        spec = self._query_multiple_entities_spec(sql_query)
+        headers = {
+            "X-UiPath-Internal-TenantName": self._url.tenant_name,
+            "X-UiPath-Internal-AccountName": self._url.org_name,
+        }
+        full_url = f"{self._url.base_url}{spec.endpoint}"
+        response = await self.request_async(
+            spec.method, full_url, json=spec.json, headers=headers
+        )
+        status_code = getattr(response, "status_code", 200)
+        if isinstance(status_code, int) and status_code >= 400:
+            response.raise_for_status()
+        return response.json().get("results", [])
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
@@ -874,6 +960,23 @@ class EntitiesService(BaseService):
             params=({"start": start, "limit": limit}),
         )
 
+    def _query_entity_records_spec(
+        self,
+        sql_query: str,
+    ) -> RequestSpec:
+        endpoint = f"/dataservice_/{self._url.org_name}/{self._url.tenant_name}/datafabric_/api/v1/query/execute"
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(endpoint),
+            json={"query": sql_query},
+        )
+
+    def _query_multiple_entities_spec(
+        self,
+        sql_query: str,
+    ) -> RequestSpec:
+        return self._query_entity_records_spec(sql_query)
+
     def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -902,3 +1005,57 @@ class EntitiesService(BaseService):
             ),
             json=record_ids,
         )
+
+    def _validate_sql_query(self, sql_query: str) -> None:
+        query = sql_query.strip()
+        if not query:
+            raise ValueError("SQL query cannot be empty.")
+
+        if ";" in query.rstrip(";"):
+            raise ValueError("Only a single SELECT statement is allowed.")
+
+        normalized_query = re.sub(r"\s+", " ", query).strip()
+        normalized_upper = normalized_query.upper()
+        normalized_keywords = set(_SQL_KEYWORD_PATTERN.findall(normalized_upper))
+
+        # Keep legacy behavior: non-SELECT statements fail with this message,
+        # while CTE-based queries are reported as disallowed WITH usage.
+        if not normalized_upper.startswith("SELECT "):
+            if not normalized_upper.startswith("WITH "):
+                raise ValueError("Only SELECT statements are allowed.")
+
+        for keyword in _FORBIDDEN_SQL_KEYWORDS:
+            if keyword in normalized_keywords:
+                raise ValueError(f"SQL keyword '{keyword}' is not allowed.")
+
+        for operator in _DISALLOWED_SQL_OPERATORS:
+            if operator in normalized_keywords:
+                raise ValueError(
+                    f"SQL construct '{operator}' is not allowed in entity queries."
+                )
+
+        if re.search(r"\(\s*SELECT\b", normalized_upper):
+            raise ValueError("Subqueries are not allowed.")
+
+        has_where = bool(re.search(r"\bWHERE\b", normalized_upper))
+        has_limit = bool(re.search(r"\bLIMIT\s+\d+\b", normalized_upper))
+        if not has_where and not has_limit:
+            raise ValueError("Queries without WHERE must include a LIMIT clause.")
+
+        projection = self._projection_segment(normalized_query)
+        if "*" in projection and not has_where:
+            raise ValueError("SELECT * without filtering is not allowed.")
+        if not has_where and self._projection_column_count(projection) > 4:
+            raise ValueError(
+                "Selecting more than 4 columns without filtering is not allowed."
+            )
+
+    def _projection_segment(self, normalized_query: str) -> str:
+        match = re.match(r"(?is)\s*SELECT\s+(.*?)\s+FROM\s+", normalized_query)
+        return match.group(1) if match else ""
+
+    def _projection_column_count(self, projection: str) -> int:
+        cleaned = projection.strip()
+        if not cleaned:
+            return 0
+        return len([part for part in cleaned.split(",") if part.strip()])

@@ -1047,16 +1047,34 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.3"
-source = { registry = "https://pypi.org/simple" }
+version = "0.5.6"
+source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2f/76/568bbe81e2c502b0b3d34b35f0f2d7557ceed58fc9161820d186276b47ac/uipath_core-0.5.3.tar.gz", hash = "sha256:5ff386c9bf85006648f111496b74534925fab1de4b35d5d0c2f6dfdf81e6e103", size = 119096, upload-time = "2026-02-25T14:08:47.548Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/35/87a346abe7485c0a63802487050e3550723bfd97925f85cc8814d34bb2a3/uipath_core-0.5.3-py3-none-any.whl", hash = "sha256:2ad9670d3d8e62d7e4f5ed090dffeff00281b8d20d159fff67cac941889d6748", size = 42858, upload-time = "2026-02-25T14:08:46.037Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "opentelemetry-instrumentation", specifier = ">=0.60b0,<1.0.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.39.0,<2.0.0" },
+    { name = "pydantic", specifier = ">=2.12.5,<3.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.8.2" },
+    { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-httpx", specifier = ">=0.35.0" },
+    { name = "pytest-mock", specifier = ">=3.11.1" },
+    { name = "pytest-trio", specifier = ">=0.8.0" },
+    { name = "ruff", specifier = ">=0.9.4" },
+    { name = "rust-just", specifier = ">=1.39.0" },
 ]
 
 [[package]]
@@ -1092,7 +1110,7 @@ requires-dist = [
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.5.3,<0.6.0" },
+    { name = "uipath-core", editable = "../uipath-core" },
 ]
 
 [package.metadata.requires-dev]
