@@ -15,7 +15,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  detect-changed-packages:
+  detect-publishable-packages:
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
@@ -23,26 +23,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Detect changed packages
+      - name: Detect publishable packages
         id: detect
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.before }}
-          HEAD_SHA: ${{ github.event.after }}
-        run: python .github/scripts/detect_changed_packages.py
+        run: python .github/scripts/detect_publishable_packages.py
 
   build:
     name: Build ${{ matrix.package }}
-    needs: detect-changed-packages
-    if: needs.detect-changed-packages.outputs.count > 0 && github.repository == 'UiPath/uipath-python'
+    needs: detect-publishable-packages
+    if: needs.detect-publishable-packages.outputs.count > 0 && github.repository == 'UiPath/uipath-python'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -50,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJson(needs.detect-changed-packages.outputs.packages) }}
+        package: ${{ fromJson(needs.detect-publishable-packages.outputs.packages) }}
     permissions:
       contents: read
       actions: write
@@ -99,13 +93,13 @@ jobs:
 
   pypi-publish:
     name: Upload ${{ matrix.package }} to PyPI
-    needs: [detect-changed-packages, build]
+    needs: [detect-publishable-packages, build]
     runs-on: ubuntu-latest
     environment: pypi
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJson(needs.detect-changed-packages.outputs.packages) }}
+        package: ${{ fromJson(needs.detect-publishable-packages.outputs.packages) }}
     permissions:
       contents: read
       id-token: write
