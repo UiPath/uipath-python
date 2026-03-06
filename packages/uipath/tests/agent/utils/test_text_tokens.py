@@ -1,5 +1,7 @@
 """Tests for text_tokens.py utils."""
 
+from enum import Enum
+
 import pytest
 
 from uipath.agent.models.agent import TextToken, TextTokenType
@@ -250,6 +252,11 @@ class TestSafeGetNested:
 class TestSerializeValue:
     """Test value serialization."""
 
+    class RiskTolerance(str, Enum):
+        """Test enum mirroring dynamic string enums in input schemas."""
+
+        LOW = "low"
+
     def test_string(self):
         """Test serializing strings."""
         assert serialize_argument("hello") == "hello"
@@ -277,3 +284,7 @@ class TestSerializeValue:
         """Test serializing booleans (JSON-style lowercase)."""
         assert serialize_argument(True) == "true"
         assert serialize_argument(False) == "false"
+
+    def test_string_enum_uses_underlying_value(self):
+        """Test string enums serialize to their values for prompt interpolation."""
+        assert serialize_argument(self.RiskTolerance.LOW) == "low"
