@@ -276,7 +276,7 @@ class ContextGroundingService(FolderContext, BaseService):
             Exception: If no index with the given name is found.
         """
         resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
-        if resolved_folder_key is None:
+        if not resolved_folder_key:
             indexes = self.retrieve_across_folders(name=name)
             try:
                 return next(index for index in indexes if index.name == name)
@@ -285,8 +285,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         spec = self._retrieve_spec(
             name,
-            folder_key=folder_key,
-            folder_path=folder_path,
+            folder_key=resolved_folder_key,
         )
 
         response = self.request(
@@ -329,7 +328,7 @@ class ContextGroundingService(FolderContext, BaseService):
             Exception: If no index with the given name is found.
         """
         resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
-        if resolved_folder_key is None:
+        if not resolved_folder_key:
             indexes = await self.retrieve_across_folders_async(name=name)
             try:
                 return next(index for index in indexes if index.name == name)
@@ -338,8 +337,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         spec = self._retrieve_spec(
             name,
-            folder_key=folder_key,
-            folder_path=folder_path,
+            folder_key=resolved_folder_key,
         )
 
         response = (
