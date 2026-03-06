@@ -1,22 +1,72 @@
-import asyncio
 import os
 import webbrowser
+from pathlib import Path
+from socket import AF_INET, SOCK_STREAM, error, socket
+from typing import Any
+
+import click
 
 from uipath._cli._auth._auth_server import HTTPServer
-from uipath._cli._auth._oidc_utils import OidcUtils
-from uipath._cli._auth._portal_service import (
-    PortalService,
-)
-from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
-from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
-from uipath._utils._auth import update_env_file
+from uipath.platform import UiPath
+from uipath.platform.auth import (
+    AuthService,
+    TenantsAndOrganizationInfoResponse,
+    extract_org_tenant,
+    get_auth_data,
+    get_parsed_token_data,
+    resolve_domain,
+    update_auth_file,
+)
 from uipath.platform.common import ExternalApplicationService, TokenData
 
-from ._utils import update_auth_file
+
+def _find_free_port(candidates: list[int]) -> int | None:
+    """Find the first free port from the given candidates."""
+
+    def is_free(port: int) -> bool:
+        with socket(AF_INET, SOCK_STREAM) as s:
+            try:
+                s.bind(("localhost", port))
+                return True
+            except error:
+                return False
+
+    return next((p for p in candidates if is_free(p)), None)
 
 
-class AuthService:
+def _get_redirect_uri_and_port() -> tuple[str, int]:
+    """Resolve a free port and build the redirect URI."""
+    custom_port = os.getenv("UIPATH_AUTH_PORT")
+    candidates = [int(custom_port)] if custom_port else [8104, 8055, 42042]
+
+    port = _find_free_port(candidates)
+    if port is None:
+        ports_str = ", ".join(str(p) for p in candidates)
+        raise ValueError(
+            f"All configured ports ({ports_str}) are in use. "
+            "Please close applications using these ports or configure different ports via UIPATH_AUTH_PORT."
+        )
+
+    redirect_uri = f"http://localhost:{port}/oidc/login"
+    return redirect_uri, port
+
+
+def update_env_file(env_contents: dict[str, Any]) -> None:
+    env_path = Path.cwd() / ".env"
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            for line in f:
+                if "=" in line:
+                    key, value = line.strip().split("=", 1)
+                    if key not in env_contents:
+                        env_contents[key] = value
+    lines = [f"{key}={value}\n" for key, value in env_contents.items()]
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+
+
+class AuthHandler:
     def __init__(
         self,
         environment: str | None,
@@ -36,15 +86,16 @@ class AuthService:
         self._tenant = tenant
         self._domain = resolve_domain(self._base_url, environment)
         self._scope = scope
+        self._auth_service = AuthService(self._domain)
 
-    def authenticate(self) -> None:
+    async def authenticate(self) -> None:
         if self._client_id and self._client_secret:
-            self._authenticate_client_credentials()
+            await self._authenticate_client_credentials()
             return
 
-        self._authenticate_authorization_code()
+        await self._authenticate_authorization_code()
 
-    def _authenticate_client_credentials(self):
+    async def _authenticate_client_credentials(self):
         assert self._client_id and self._client_secret, (
             "Client ID and Client Secret must be provided."
         )
@@ -72,50 +123,56 @@ class AuthService:
 
         if tenant_name:
             self._tenant = tenant_name
-            with PortalService(self._domain) as portal_service:
-                portal_service.update_token_data(token_data)
-                tenant_info = portal_service.resolve_tenant_info(self._tenant)
-                env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
+            data = await self._auth_service.get_tenants_and_organizations(
+                token_data.access_token
+            )
+            tenant_info = self._find_tenant(data, self._tenant)
+            env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
         else:
             self._console.warning("Could not extract tenant from --base-url.")
         update_env_file(env_vars)
 
-    def _authenticate_authorization_code(self) -> None:
-        with PortalService(self._domain) as portal_service:
-            if not self._force and self._can_reuse_existing_token(portal_service):
-                return
+    async def _authenticate_authorization_code(self) -> None:
+        if not self._force and await self._can_reuse_existing_token():
+            return
 
-            token_data = self._perform_oauth_flow()
-            portal_service.update_token_data(token_data)
-            update_auth_file(token_data)
+        token_data = await self._perform_oauth_flow()
+        update_auth_file(token_data)
 
-            tenant_info = portal_service.resolve_tenant_info(self._tenant)
-            uipath_url = portal_service.build_tenant_url()
+        data = await self._auth_service.get_tenants_and_organizations(
+            token_data.access_token
+        )
+        tenant_info = await self._resolve_tenant_info(data, self._tenant)
+        organization_name = data["organization"]["name"]
+        uipath_url = f"{self._domain}/{organization_name}/{tenant_info['tenant_name']}"
 
-            update_env_file(
-                {
-                    "UIPATH_ACCESS_TOKEN": token_data.access_token,
-                    "UIPATH_URL": uipath_url,
-                    "UIPATH_TENANT_ID": tenant_info["tenant_id"],
-                    "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
-                }
-            )
+        update_env_file(
+            {
+                "UIPATH_ACCESS_TOKEN": token_data.access_token,
+                "UIPATH_URL": uipath_url,
+                "UIPATH_TENANT_ID": tenant_info["tenant_id"],
+                "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
+            }
+        )
 
-            try:
-                portal_service.enable_studio_web(uipath_url)
-            except Exception:
-                self._console.error(
-                    "Could not prepare the environment. Please try again."
-                )
+        try:
+            client = UiPath(base_url=uipath_url, secret=token_data.access_token)
+            await client.studio_web.enable_async()
+        except Exception:
+            self._console.error("Could not prepare the environment. Please try again.")
 
-    def _can_reuse_existing_token(self, portal_service: PortalService) -> bool:
+    async def _can_reuse_existing_token(self) -> bool:
         if (
             os.getenv("UIPATH_URL")
             and os.getenv("UIPATH_TENANT_ID")
             and os.getenv("UIPATH_ORGANIZATION_ID")
         ):
             try:
-                portal_service.ensure_valid_token()
+                auth_data = get_auth_data()
+                token_data = await self._auth_service.ensure_valid_token(auth_data)
+                if token_data is not auth_data:
+                    update_auth_file(token_data)
+                update_env_file({"UIPATH_ACCESS_TOKEN": token_data.access_token})
                 return True
             except Exception:
                 self._console.error(
@@ -123,19 +180,19 @@ class AuthService:
                 )
         return False
 
-    def _perform_oauth_flow(self) -> TokenData:
-        auth_config = OidcUtils.get_auth_config(self._domain)
-        auth_url, code_verifier, state = OidcUtils.get_auth_url(
-            self._domain, auth_config
-        )
-        self._open_browser(auth_url)
+    async def _perform_oauth_flow(self) -> TokenData:
+        redirect_uri, port = _get_redirect_uri_and_port()
+        auth_request = self._auth_service.get_authorization_url(redirect_uri)
+        self._open_browser(auth_request.url)
 
         server = HTTPServer(
-            port=auth_config["port"],
-            redirect_uri=auth_config["redirect_uri"],
-            client_id=auth_config["client_id"],
+            port=port,
+            redirect_uri=redirect_uri,
+            client_id=self._auth_service.auth_config.client_id,
         )
-        token_data = asyncio.run(server.start(state, code_verifier, self._domain))
+        token_data = await server.start(
+            auth_request.state, auth_request.code_verifier, self._domain
+        )
 
         if not token_data:
             self._console.error(
@@ -144,8 +201,52 @@ class AuthService:
 
         return TokenData.model_validate(token_data)
 
+    async def _resolve_tenant_info(
+        self, data: TenantsAndOrganizationInfoResponse, tenant: str | None
+    ) -> dict[str, Any]:
+        if tenant:
+            return self._find_tenant(data, tenant)
+        return self._select_tenant(data)
+
+    def _find_tenant(
+        self, data: TenantsAndOrganizationInfoResponse, tenant_name: str
+    ) -> dict[str, Any]:
+        """Find a tenant by name from the tenants/org response."""
+        organization = data["organization"]
+        tenants = data["tenants"]
+        tenant = next((t for t in tenants if t["name"] == tenant_name), None)
+        if not tenant:
+            raise ValueError(f"Tenant '{tenant_name}' not found.")
+        return {
+            "tenant_id": tenant["id"],
+            "organization_id": organization["id"],
+            "tenant_name": tenant["name"],
+        }
+
+    def _select_tenant(
+        self, data: TenantsAndOrganizationInfoResponse
+    ) -> dict[str, Any]:
+        """Interactively select a tenant from the list."""
+        organization = data["organization"]
+        tenants = data["tenants"]
+        tenant_names = [t["name"] for t in tenants]
+
+        self._console.display_options(tenant_names, "Select tenant:")
+        tenant_idx = (
+            0
+            if len(tenant_names) == 1
+            else self._console.prompt("Select tenant number", type=int)
+        )
+
+        tenant = tenants[tenant_idx]
+        self._console.info(f"Selected tenant: {click.style(tenant['name'], fg='cyan')}")
+        return {
+            "tenant_id": tenant["id"],
+            "organization_id": organization["id"],
+            "tenant_name": tenant["name"],
+        }
+
     def _open_browser(self, url: str) -> None:
-        # Try to open browser. Always print the fallback link.
         webbrowser.open(url, new=1)
         self._console.link(
             "If a browser window did not open, please open the following URL in your browser:",

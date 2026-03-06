@@ -1,5 +1,5 @@
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -31,6 +31,31 @@ This test suite covers the following scenarios for the authentication logic:
     Confirms that the command defaults to the 'cloud' environment when no flags
     or environment variables are provided.
 """
+
+
+def _mock_auth_service(domain="https://cloud.uipath.com"):
+    """Create a mock AuthService with default behavior."""
+    mock = MagicMock()
+    mock.domain = domain
+    mock.auth_config.client_id = "test-client-id"
+    mock.auth_config.scope = "openid offline_access"
+
+    def _get_auth_url(redirect_uri):
+        auth_request = MagicMock()
+        auth_request.url = f"{mock.domain}/identity_/connect/authorize?client_id=test-client-id&redirect_uri={redirect_uri}"
+        auth_request.code_verifier = "test-verifier"
+        auth_request.state = "test-state"
+        return auth_request
+
+    mock.get_authorization_url = MagicMock(side_effect=_get_auth_url)
+    mock.get_tenants_and_organizations = AsyncMock(
+        return_value={
+            "tenants": [{"name": "DefaultTenant", "id": "tenant-id"}],
+            "organization": {"name": "DefaultOrg", "id": "org-id"},
+        }
+    )
+    mock.ensure_valid_token = AsyncMock()
+    return mock
 
 
 class TestAuth:
@@ -105,20 +130,20 @@ class TestAuth:
             patch("uipath._cli._auth._auth_service.webbrowser.open") as mock_open,
             patch("uipath._cli._auth._auth_service.HTTPServer") as mock_server,
             patch(
-                "uipath._cli._auth._auth_service.PortalService"
-            ) as mock_portal_service,
+                "uipath._cli._auth._auth_service.AuthService"
+            ) as mock_auth_service_cls,
+            patch("uipath._cli._auth._auth_service.UiPath") as mock_uipath_cls,
         ):
+
+            def _create_mock_auth_service(domain):
+                return _mock_auth_service(domain)
+
+            mock_auth_service_cls.side_effect = _create_mock_auth_service
+            mock_uipath_cls.return_value.studio_web.enable_async = AsyncMock()
+
             mock_server.return_value.start = AsyncMock(
                 return_value={"access_token": "test_token"}
             )
-            mock_portal_service.return_value.__enter__.return_value.get_tenants_and_organizations.return_value = {
-                "tenants": [{"name": "DefaultTenant", "id": "tenant-id"}],
-                "organization": {"name": "DefaultOrg", "id": "org-id"},
-            }
-            mock_portal_service.return_value.__enter__.return_value._select_tenant.return_value = {
-                "tenant_id": "tenant-id",
-                "organization_id": "org-id",
-            }
 
             with runner.isolated_filesystem():
                 for key, value in env_vars.items():
@@ -160,30 +185,31 @@ class TestAuth:
             patch("uipath._cli._auth._auth_service.webbrowser.open") as mock_open,
             patch("uipath._cli._auth._auth_service.HTTPServer") as mock_server,
             patch(
-                "uipath._cli._auth._auth_service.PortalService"
-            ) as mock_portal_service,
-            patch(
-                "uipath._cli._auth._url_utils.resolve_domain",
-                return_value="https://alpha.uipath.com",
-            ),
+                "uipath._cli._auth._auth_service.AuthService"
+            ) as mock_auth_service_cls,
+            patch("uipath._cli._auth._auth_service.UiPath") as mock_uipath_cls,
         ):
+
+            def _create_mock_auth_service(domain):
+                svc = _mock_auth_service(domain)
+                svc.get_tenants_and_organizations = AsyncMock(
+                    return_value={
+                        "tenants": [
+                            {"name": "MyTenantName", "id": "tenant-id"},
+                            {"name": "OtherTenant", "id": "other-id"},
+                        ],
+                        "organization": {"name": "MyOrg", "id": "org-id"},
+                    }
+                )
+                return svc
+
+            mock_auth_service_cls.side_effect = _create_mock_auth_service
+            mock_uipath_cls.return_value.studio_web.enable_async = AsyncMock()
+
             mock_server.return_value.start = AsyncMock(
                 return_value={"access_token": "test_token"}
             )
 
-            portal = mock_portal_service.return_value.__enter__.return_value
-            portal.get_tenants_and_organizations.return_value = {
-                "tenants": [
-                    {"name": "MyTenantName", "id": "tenant-id"},
-                    {"name": "OtherTenant", "id": "other-id"},
-                ],
-                "organization": {"name": "MyOrg", "id": "org-id"},
-            }
-            portal.resolve_tenant_info.return_value = {
-                "tenant_id": "tenant-id",
-                "organization_id": "org-id",
-            }
-            portal.selected_tenant = "MyTenantName"
             with runner.isolated_filesystem():
                 result = runner.invoke(
                     cli, ["auth", "--alpha", "--tenant", "MyTenantName", "--force"]
@@ -191,5 +217,3 @@ class TestAuth:
 
                 assert result.exit_code == 0, result.output
                 mock_open.assert_called_once()
-
-                portal.resolve_tenant_info.assert_called_once_with("MyTenantName")

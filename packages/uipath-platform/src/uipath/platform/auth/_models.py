@@ -1,13 +1,21 @@
 from typing import TypedDict
 
+from pydantic import BaseModel
 
-class AuthConfig(TypedDict):
-    """TypedDict for auth_config.json structure."""
+
+class AuthConfig(BaseModel):
+    """OIDC auth configuration."""
 
     client_id: str
-    port: int
-    redirect_uri: str
     scope: str
+
+
+class AuthorizationRequest(BaseModel):
+    """Result of building an OAuth2 PKCE authorization URL."""
+
+    url: str
+    code_verifier: str
+    state: str
 
 
 class AccessTokenData(TypedDict):

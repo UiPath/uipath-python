@@ -32,6 +32,7 @@ from .orchestrator import (
     QueuesService,
 )
 from .resource_catalog import ResourceCatalogService
+from .studio_web import StudioWebService
 
 
 def _has_valid_client_credentials(
@@ -164,3 +165,7 @@ class UiPath:
     @property
     def automation_tracker(self) -> AutomationTrackerService:
         return AutomationTrackerService(self._config, self._execution_context)
+
+    @property
+    def studio_web(self) -> StudioWebService:
+        return StudioWebService(self._config, self._execution_context)
