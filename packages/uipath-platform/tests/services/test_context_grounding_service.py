@@ -1326,7 +1326,7 @@ class TestContextGroundingService:
     ) -> None:
         citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=id,content,name,createdDate,lastDeepRagStatus,failureReason",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content",
             status_code=200,
             json={
                 "id": "test-task-id",
@@ -1358,7 +1358,7 @@ class TestContextGroundingService:
         assert sent_requests[0].method == "GET"
         assert (
             sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=id%2Ccontent%2Cname%2CcreatedDate%2ClastDeepRagStatus%2CfailureReason"
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content"
         )
 
         assert HEADER_USER_AGENT in sent_requests[0].headers
@@ -1380,7 +1380,7 @@ class TestContextGroundingService:
         citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=id,content,name,createdDate,lastDeepRagStatus,failureReason",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content",
             status_code=200,
             json={
                 "id": "test-task-id",
@@ -1412,7 +1412,7 @@ class TestContextGroundingService:
         assert sent_requests[0].method == "GET"
         assert (
             sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=id%2Ccontent%2Cname%2CcreatedDate%2ClastDeepRagStatus%2CfailureReason"
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content"
         )
 
         assert HEADER_USER_AGENT in sent_requests[0].headers
