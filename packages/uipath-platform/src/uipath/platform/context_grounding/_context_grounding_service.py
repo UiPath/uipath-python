@@ -261,6 +261,9 @@ class ContextGroundingService(FolderContext, BaseService):
     ) -> ContextGroundingIndex:
         """Retrieve context grounding index information by its name.
 
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to searching across all folders.
+
         Args:
             name (str): The name of the context index to retrieve.
             folder_key (Optional[str]): The key of the folder where the index resides.
@@ -272,6 +275,14 @@ class ContextGroundingService(FolderContext, BaseService):
         Raises:
             Exception: If no index with the given name is found.
         """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if resolved_folder_key is None:
+            indexes = self.retrieve_across_folders(name=name)
+            try:
+                return next(index for index in indexes if index.name == name)
+            except StopIteration as e:
+                raise Exception("ContextGroundingIndex not found") from e
+
         spec = self._retrieve_spec(
             name,
             folder_key=folder_key,
@@ -303,6 +314,9 @@ class ContextGroundingService(FolderContext, BaseService):
     ) -> ContextGroundingIndex:
         """Asynchronously retrieve context grounding index information by its name.
 
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to searching across all folders.
+
         Args:
             name (str): The name of the context index to retrieve.
             folder_key (Optional[str]): The key of the folder where the index resides.
@@ -314,6 +328,14 @@ class ContextGroundingService(FolderContext, BaseService):
         Raises:
             Exception: If no index with the given name is found.
         """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if resolved_folder_key is None:
+            indexes = await self.retrieve_across_folders_async(name=name)
+            try:
+                return next(index for index in indexes if index.name == name)
+            except StopIteration as e:
+                raise Exception("ContextGroundingIndex not found") from e
+
         spec = self._retrieve_spec(
             name,
             folder_key=folder_key,
@@ -684,6 +706,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._batch_transform_creation_spec(
             index_id=index_id,
@@ -759,6 +782,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._batch_transform_creation_spec(
             index_id=index_id,
@@ -1083,6 +1107,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._deep_rag_creation_spec(
             index_id=index_id,
@@ -1145,6 +1170,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._deep_rag_creation_spec(
             index_id=index_id,
@@ -1278,6 +1304,8 @@ class ContextGroundingService(FolderContext, BaseService):
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
 
+        folder_key = folder_key or index.folder_key
+
         spec = self._search_spec(
             name,
             query,
@@ -1330,6 +1358,9 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
+
+        folder_key = folder_key or index.folder_key
+
         spec = self._search_spec(
             name,
             query,
