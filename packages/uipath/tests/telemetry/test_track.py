@@ -399,7 +399,10 @@ class TestPublicProviderAndResetFunctions:
 
     def test_set_event_connection_string_provider_sets_provider(self) -> None:
         """Test that the public function sets the provider on the client."""
-        provider = lambda: "InstrumentationKey=test"  # noqa: E731
+
+        def provider() -> str:
+            return "InstrumentationKey=test"
+
         set_event_connection_string_provider(provider)
 
         assert _AppInsightsEventClient._connection_string_provider is provider
