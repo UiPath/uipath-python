@@ -193,6 +193,64 @@ class ContextGroundingService(FolderContext, BaseService):
                 index, folder_key=folder_key, folder_path=folder_path
             )
 
+    @traced(name="contextgrounding_retrieve_across_folders", run_type="uipath")
+    def retrieve_across_folders(
+        self,
+        name: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Retrieve all context grounding indexes across all folders.
+
+        This method fetches indexes from all folders without requiring a folder key.
+
+        Args:
+            name (Optional[str]): Optional name filter. If provided, only indexes
+                matching this name will be returned.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of indexes across all folders.
+        """
+        spec = self._retrieve_across_folders_spec(name=name)
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
+    @traced(name="contextgrounding_retrieve_across_folders", run_type="uipath")
+    async def retrieve_across_folders_async(
+        self,
+        name: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously retrieve all context grounding indexes across all folders.
+
+        This method fetches indexes from all folders without requiring a folder key.
+
+        Args:
+            name (Optional[str]): Optional name filter. If provided, only indexes
+                matching this name will be returned.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of indexes across all folders.
+        """
+        spec = self._retrieve_across_folders_spec(name=name)
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+            )
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_retrieve", run_type="uipath")
     def retrieve(
@@ -1431,6 +1489,22 @@ class ContextGroundingService(FolderContext, BaseService):
             headers={
                 **header_folder(folder_key, None),
             },
+        )
+
+    def _retrieve_across_folders_spec(
+        self,
+        name: Optional[str] = None,
+    ) -> RequestSpec:
+        params: Dict[str, str] = {
+            "$expand": "dataSource",
+        }
+        if name:
+            params["$filter"] = f"Name eq '{name}'"
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes/allacrossfolders"),
+            params=params,
         )
 
     def _retrieve_spec(
