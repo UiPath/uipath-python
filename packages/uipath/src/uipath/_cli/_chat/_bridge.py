@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 from uipath.core.chat import (
+    UiPathConversationErrorEvent,
+    UiPathConversationErrorStartEvent,
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
@@ -245,6 +247,51 @@ class SocketIOChatBridge:
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
+
+    async def emit_exchange_error_event(
+        self, error_id: str, message: str, details: Any | None = None
+    ) -> None:
+        """Send an exchange error event to signal an error to the UI.
+
+        Args:
+            error_id: Identifier for the error type
+            message: Human-readable error message
+            details: Optional additional error details
+        """
+        if self._client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+
+        try:
+            exchange_error_event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    error=UiPathConversationErrorEvent(
+                        error_id=error_id,
+                        start=UiPathConversationErrorStartEvent(
+                            message=message, details=details
+                        ),
+                    ),
+                ),
+            )
+
+            event_data = exchange_error_event.model_dump(
+                mode="json", exclude_none=True, by_alias=True
+            )
+
+            if self._websocket_disabled:
+                logger.info(
+                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                )
+            else:
+                await self._client.emit("ConversationEvent", event_data)
+
+        except Exception as e:
+            logger.error(f"Error sending exchange error event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
         if self._client and self._connected_event.is_set():
