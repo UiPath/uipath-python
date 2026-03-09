@@ -263,7 +263,7 @@ class TabularSearchResult(BaseModel):
 
     schema_: dict[str, str] = Field(default_factory=dict, alias="schema")
     citations: list[dict[str, str]] = Field(default_factory=list)
-    data: list[list] = Field(default_factory=list)
+    data: list[list[object]] = Field(default_factory=list)
     explanations: Optional[list[str]] = Field(default=None)
 
 

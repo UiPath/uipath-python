@@ -1931,7 +1931,7 @@ class ContextGroundingService(FolderContext, BaseService):
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_key, folder_path)
 
-        json_body: dict = {
+        json_body: Dict[str, Any] = {
             "searchMode": search_mode.value
             if isinstance(search_mode, SearchMode)
             else search_mode,
