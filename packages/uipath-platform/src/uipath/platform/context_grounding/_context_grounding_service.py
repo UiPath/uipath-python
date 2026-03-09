@@ -1394,7 +1394,7 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         search_mode: SearchMode = SearchMode.AUTO,
-        number_of_results: int = 3,
+        number_of_results: int = 10,
         threshold: float = 0.0,
         filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
@@ -1410,7 +1410,7 @@ class ContextGroundingService(FolderContext, BaseService):
             name (str): The name of the context index to search in.
             query (str): The search query in natural language.
             search_mode (SearchMode): The search mode to use. Defaults to AUTO.
-            number_of_results (int): Maximum number of results to return. Defaults to 3.
+            number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
             filter (Optional[str]): Optional filter expression.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
@@ -1454,7 +1454,7 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         search_mode: SearchMode = SearchMode.AUTO,
-        number_of_results: int = 3,
+        number_of_results: int = 10,
         threshold: float = 0.0,
         filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
@@ -1470,7 +1470,7 @@ class ContextGroundingService(FolderContext, BaseService):
             name (str): The name of the context index to search in.
             query (str): The search query in natural language.
             search_mode (SearchMode): The search mode to use. Defaults to AUTO.
-            number_of_results (int): Maximum number of results to return. Defaults to 3.
+            number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
             filter (Optional[str]): Optional filter expression.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
@@ -1915,7 +1915,7 @@ class ContextGroundingService(FolderContext, BaseService):
         index_id: str,
         query: str,
         search_mode: SearchMode = SearchMode.AUTO,
-        number_of_results: int = 3,
+        number_of_results: int = 10,
         threshold: float = 0.0,
         filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
