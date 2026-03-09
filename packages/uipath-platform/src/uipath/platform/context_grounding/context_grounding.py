@@ -209,3 +209,95 @@ class ContextGroundingQueryResponse(BaseModel):
     caption: Optional[str] = Field(default=None, alias="caption")
     score: Optional[float] = Field(default=None, alias="score")
     reference: Optional[str] = Field(default=None, alias="reference")
+
+
+class SearchMode(str, Enum):
+    """Enum representing possible unified search modes."""
+
+    AUTO = "Auto"
+    SEMANTIC = "Semantic"
+    TABULAR = "Tabular"
+
+
+class UnifiedSearchScope(BaseModel):
+    """Model representing the scope for a unified search request."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    folder: Optional[str] = Field(default=None)
+    extension: Optional[str] = Field(default=None)
+
+
+class SemanticSearchOptions(BaseModel):
+    """Model representing semantic search options for a unified search request."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    number_of_results: int = Field(default=3, alias="numberOfResults")
+    threshold: float = Field(default=0.0)
+    re_ranker: bool = Field(default=False, alias="reRanker")
+
+
+class TabularSearchResult(BaseModel):
+    """Model representing a tabular search result from a unified search."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    schema_: dict[str, str] = Field(default_factory=dict, alias="schema")
+    citations: list[dict[str, str]] = Field(default_factory=list)
+    data: list[list] = Field(default_factory=list)
+    explanations: Optional[list[str]] = Field(default=None)
+
+
+class SemanticSearchResult(BaseModel):
+    """Model representing a semantic search result from a unified search."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    values: list[ContextGroundingQueryResponse] = Field(
+        default_factory=list, alias="values"
+    )
+
+
+class UnifiedQueryResult(BaseModel):
+    """Model representing the result of a unified search query."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    tabular_results: Optional[TabularSearchResult] = Field(
+        default=None, alias="tabularResults"
+    )
+    semantic_results: Optional[SemanticSearchResult] = Field(
+        default=None, alias="semanticResults"
+    )
+    explanation: Optional[str] = Field(default=None)

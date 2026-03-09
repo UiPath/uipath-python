@@ -33,6 +33,9 @@ from .context_grounding import (
     DeepRagCreationResponse,
     DeepRagResponse,
     EphemeralIndexUsage,
+    SearchMode,
+    UnifiedQueryResult,
+    UnifiedSearchScope,
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
@@ -1279,6 +1282,7 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
+        threshold: Optional[float] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
@@ -1293,6 +1297,7 @@ class ContextGroundingService(FolderContext, BaseService):
             query (str): The search query in natural language.
             number_of_results (int, optional): Maximum number of results to return.
                 Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
 
         Returns:
             List[ContextGroundingQueryResponse]: A list of search results, each containing
@@ -1308,6 +1313,7 @@ class ContextGroundingService(FolderContext, BaseService):
             name,
             query,
             number_of_results,
+            threshold=threshold if threshold is not None else 0.0,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -1330,6 +1336,7 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
+        threshold: Optional[float] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
@@ -1344,6 +1351,7 @@ class ContextGroundingService(FolderContext, BaseService):
             query (str): The search query in natural language.
             number_of_results (int, optional): Maximum number of results to return.
                 Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
 
         Returns:
             List[ContextGroundingQueryResponse]: A list of search results, each containing
@@ -1363,6 +1371,7 @@ class ContextGroundingService(FolderContext, BaseService):
             name,
             query,
             number_of_results,
+            threshold=threshold if threshold is not None else 0.0,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -1377,6 +1386,134 @@ class ContextGroundingService(FolderContext, BaseService):
         return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
             response.json()
         )
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_unified_search", run_type="uipath")
+    def unified_search(
+        self,
+        name: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.AUTO,
+        number_of_results: int = 3,
+        threshold: float = 0.0,
+        re_ranker: bool = False,
+        filter: Optional[str] = None,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> UnifiedQueryResult:
+        """Perform a unified search on a context grounding index.
+
+        This method performs a unified search (v1.2) against the specified context index,
+        supporting both semantic and tabular search modes.
+
+        Args:
+            name (str): The name of the context index to search in.
+            query (str): The search query in natural language.
+            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            number_of_results (int): Maximum number of results to return. Defaults to 3.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
+            re_ranker (bool): Whether to use re-ranking. Defaults to False.
+            filter (Optional[str]): Optional filter expression.
+            scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Returns:
+            UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+        """
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=name)
+
+        folder_key = folder_key or index.folder_key
+
+        spec = self._unified_search_spec(
+            index_id=index.id,
+            query=query,
+            search_mode=search_mode,
+            number_of_results=number_of_results,
+            threshold=threshold,
+            re_ranker=re_ranker,
+            filter=filter,
+            scope=scope,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return UnifiedQueryResult.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_unified_search", run_type="uipath")
+    async def unified_search_async(
+        self,
+        name: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.AUTO,
+        number_of_results: int = 3,
+        threshold: float = 0.0,
+        re_ranker: bool = False,
+        filter: Optional[str] = None,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> UnifiedQueryResult:
+        """Asynchronously perform a unified search on a context grounding index.
+
+        This method performs a unified search (v1.2) against the specified context index,
+        supporting both semantic and tabular search modes.
+
+        Args:
+            name (str): The name of the context index to search in.
+            query (str): The search query in natural language.
+            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            number_of_results (int): Maximum number of results to return. Defaults to 3.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
+            re_ranker (bool): Whether to use re-ranking. Defaults to False.
+            filter (Optional[str]): Optional filter expression.
+            scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Returns:
+            UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+        """
+        index = await self.retrieve_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=name)
+
+        folder_key = folder_key or index.folder_key
+
+        spec = self._unified_search_spec(
+            index_id=index.id,
+            query=query,
+            search_mode=search_mode,
+            number_of_results=number_of_results,
+            threshold=threshold,
+            re_ranker=re_ranker,
+            filter=filter,
+            scope=scope,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return UnifiedQueryResult.model_validate(response.json())
 
     @traced(name="contextgrounding_ingest_data", run_type="uipath")
     def ingest_data(
@@ -1757,6 +1894,7 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
+        threshold: float = 0.0,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
@@ -1766,9 +1904,55 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v1/search"),
             json={
-                "query": {"query": query, "numberOfResults": number_of_results},
+                "query": {
+                    "query": query,
+                    "numberOfResults": number_of_results,
+                    "threshold": threshold,
+                },
                 "schema": {"name": name},
             },
+            headers={
+                **header_folder(folder_key, None),
+            },
+        )
+
+    def _unified_search_spec(
+        self,
+        index_id: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.AUTO,
+        number_of_results: int = 3,
+        threshold: float = 0.0,
+        re_ranker: bool = False,
+        filter: Optional[str] = None,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        json_body: dict = {
+            "searchMode": search_mode.value
+            if isinstance(search_mode, SearchMode)
+            else search_mode,
+            "query": query,
+            "semanticSearchOptions": {
+                "numberOfResults": number_of_results,
+                "threshold": threshold,
+                "reRanker": re_ranker,
+            },
+        }
+
+        if filter is not None:
+            json_body["filter"] = filter
+
+        if scope is not None:
+            json_body["scope"] = scope.model_dump(by_alias=True, exclude_none=True)
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(f"/ecs_/v1.2/search/{index_id}"),
+            json=json_body,
             headers={
                 **header_folder(folder_key, None),
             },

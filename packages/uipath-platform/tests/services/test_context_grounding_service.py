@@ -24,6 +24,9 @@ from uipath.platform.context_grounding import (
     GoogleDriveSourceConfig,
     Indexer,
     OneDriveSourceConfig,
+    SearchMode,
+    UnifiedQueryResult,
+    UnifiedSearchScope,
 )
 from uipath.platform.context_grounding._context_grounding_service import (
     ContextGroundingService,
@@ -2771,3 +2774,355 @@ class TestContextGroundingService:
         assert "/DownloadBlob" in str(download_request.url)
         assert "Authorization" in download_request.headers
         assert download_request.headers["Authorization"].startswith("Bearer ")
+
+    def test_unified_search(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "values": [
+                        {
+                            "source": "test-source",
+                            "page_number": "1",
+                            "content": "Test content",
+                            "metadata": {
+                                "operation_id": "test-op",
+                                "strategy": "test-strategy",
+                            },
+                            "score": 0.95,
+                        }
+                    ]
+                },
+                "tabularResults": None,
+                "explanation": "test explanation",
+            },
+        )
+
+        response = service.unified_search(
+            name="test-index",
+            query="test query",
+            search_mode=SearchMode.SEMANTIC,
+            number_of_results=5,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.explanation == "test explanation"
+        assert response.tabular_results is None
+        assert response.semantic_results is not None
+        assert len(response.semantic_results.values) == 1
+        assert response.semantic_results.values[0].source == "test-source"
+        assert response.semantic_results.values[0].content == "Test content"
+        assert response.semantic_results.values[0].score == 0.95
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        search_request = sent_requests[3]
+        assert search_request.method == "POST"
+        assert (
+            str(search_request.url)
+            == f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id"
+        )
+        request_body = json.loads(search_request.content)
+        assert request_body["searchMode"] == "Semantic"
+        assert request_body["query"] == "test query"
+        assert request_body["semanticSearchOptions"]["numberOfResults"] == 5
+
+        assert HEADER_USER_AGENT in search_request.headers
+        assert (
+            search_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.unified_search/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_unified_search_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "values": [
+                        {
+                            "source": "test-source",
+                            "page_number": "1",
+                            "content": "Test content",
+                            "metadata": {
+                                "operation_id": "test-op",
+                                "strategy": "test-strategy",
+                            },
+                            "score": 0.95,
+                        }
+                    ]
+                },
+                "tabularResults": None,
+                "explanation": "test explanation",
+            },
+        )
+
+        response = await service.unified_search_async(
+            name="test-index",
+            query="test query",
+            search_mode=SearchMode.AUTO,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.explanation == "test explanation"
+        assert response.semantic_results is not None
+        assert len(response.semantic_results.values) == 1
+
+    def test_unified_search_with_tabular_results(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": None,
+                "tabularResults": {
+                    "schema": {"col1": "string", "col2": "number"},
+                    "citations": [{"source": "file.csv", "page": "1"}],
+                    "data": [["value1", "42"]],
+                    "explanations": ["Matched on col1"],
+                },
+                "explanation": None,
+            },
+        )
+
+        response = service.unified_search(
+            name="test-index",
+            query="test query",
+            search_mode=SearchMode.TABULAR,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.semantic_results is None
+        assert response.tabular_results is not None
+        assert response.tabular_results.schema_ == {
+            "col1": "string",
+            "col2": "number",
+        }
+        assert len(response.tabular_results.data) == 1
+        assert response.tabular_results.data[0] == ["value1", "42"]
+        assert response.tabular_results.citations == [
+            {"source": "file.csv", "page": "1"}
+        ]
+        assert response.tabular_results.explanations == ["Matched on col1"]
+
+    def test_unified_search_with_scope_and_filter(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {"values": []},
+                "tabularResults": None,
+                "explanation": None,
+            },
+        )
+
+        scope = UnifiedSearchScope(folder="docs", extension=".pdf")
+
+        response = service.unified_search(
+            name="test-index",
+            query="test query",
+            filter="category eq 'finance'",
+            scope=scope,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+
+        sent_requests = httpx_mock.get_requests()
+        search_request = sent_requests[3]
+        request_body = json.loads(search_request.content)
+        assert request_body["filter"] == "category eq 'finance'"
+        assert request_body["scope"]["folder"] == "docs"
+        assert request_body["scope"]["extension"] == ".pdf"
