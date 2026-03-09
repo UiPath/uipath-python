@@ -104,7 +104,7 @@ class DeepRagResponse(BaseModel):
     created_date: str = Field(alias="createdDate")
     last_deep_rag_status: DeepRagStatus = Field(alias="lastDeepRagStatus")
     content: DeepRagContent | None = Field(alias="content")
-    failure_reason: str | None = Field(alias="failureReason")
+    failure_reason: str | None = Field(alias="failureReason", default=None)
 
 
 class BatchTransformStatus(str, Enum):
