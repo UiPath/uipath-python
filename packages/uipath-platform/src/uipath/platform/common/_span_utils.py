@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 # SourceEnum.Robots = 4 (default for Python SDK / coded agents)
 DEFAULT_SOURCE = 4
 
+SOURCE_NAMES: dict[int, str] = {
+    0: "Testing",
+    1: "Agents",
+    2: "ProcessOrchestration",
+    3: "ApiWorkflows",
+    4: "Robots",
+    5: "ConversationalAgentsService",
+    6: "IntegrationServiceTrigger",
+    7: "Playground",
+}
+
 
 class AttachmentProvider(IntEnum):
     ORCHESTRATOR = 0

@@ -216,6 +216,51 @@ def test_get_base_url():
             assert exporter.base_url == "https://custom-trace.example.com/prefix"
 
 
+def test_build_url_uses_span_source():
+    """Test _build_url derives source query param from span's Source field."""
+    with (
+        patch("uipath.tracing._otel_exporters.httpx.Client"),
+        patch.dict(os.environ, {"UIPATH_ACCESS_TOKEN": "t"}, clear=True),
+    ):
+        exporter = LlmOpsHttpExporter()
+        exporter.base_url = "https://example.com/llmops"
+
+        # Source=1 (Agents)
+        url = exporter._build_url([{"TraceId": "abc", "Source": 1}])
+        assert (
+            url
+            == "https://example.com/llmops/api/Traces/spans?traceId=abc&source=Agents"
+        )
+
+        # Source=4 (Robots) - default
+        url = exporter._build_url([{"TraceId": "abc", "Source": 4}])
+        assert (
+            url
+            == "https://example.com/llmops/api/Traces/spans?traceId=abc&source=Robots"
+        )
+
+        # Missing Source defaults to Robots
+        url = exporter._build_url([{"TraceId": "abc"}])
+        assert (
+            url
+            == "https://example.com/llmops/api/Traces/spans?traceId=abc&source=Robots"
+        )
+
+        # Source=7 (Playground)
+        url = exporter._build_url([{"TraceId": "abc", "Source": 7}])
+        assert (
+            url
+            == "https://example.com/llmops/api/Traces/spans?traceId=abc&source=Playground"
+        )
+
+        # Unknown source int falls back to Robots
+        url = exporter._build_url([{"TraceId": "abc", "Source": 99}])
+        assert (
+            url
+            == "https://example.com/llmops/api/Traces/spans?traceId=abc&source=Robots"
+        )
+
+
 def test_internal_headers_set_when_trace_base_url_present():
     """Test that internal tenant/account headers are set when UIPATH_TRACE_BASE_URL is configured."""
     with patch.dict(
