@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace.export import (
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
+from uipath.platform.common._span_utils import DEFAULT_SOURCE, SOURCE_NAMES
 from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
 
 logger = logging.getLogger(__name__)
@@ -389,7 +390,11 @@ class LlmOpsHttpExporter(SpanExporter):
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
         trace_id = str(span_list[0]["TraceId"])
-        return f"{self.base_url}/api/Traces/spans?traceId={trace_id}&source=Robots"
+        source_int = span_list[0].get("Source", DEFAULT_SOURCE)
+        source_name = SOURCE_NAMES.get(source_int, "Robots")
+        return (
+            f"{self.base_url}/api/Traces/spans?traceId={trace_id}&source={source_name}"
+        )
 
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
