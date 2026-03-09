@@ -216,7 +216,6 @@ class SearchMode(str, Enum):
 
     AUTO = "Auto"
     SEMANTIC = "Semantic"
-    TABULAR = "Tabular"
 
 
 class UnifiedSearchScope(BaseModel):
@@ -247,24 +246,6 @@ class SemanticSearchOptions(BaseModel):
 
     number_of_results: int = Field(default=3, alias="numberOfResults")
     threshold: float = Field(default=0.0)
-    re_ranker: bool = Field(default=False, alias="reRanker")
-
-
-class TabularSearchResult(BaseModel):
-    """Model representing a tabular search result from a unified search."""
-
-    model_config = ConfigDict(
-        validate_by_name=True,
-        validate_by_alias=True,
-        use_enum_values=True,
-        arbitrary_types_allowed=True,
-        extra="allow",
-    )
-
-    schema_: dict[str, str] = Field(default_factory=dict, alias="schema")
-    citations: list[dict[str, str]] = Field(default_factory=list)
-    data: list[list[object]] = Field(default_factory=list)
-    explanations: Optional[list[str]] = Field(default=None)
 
 
 class SemanticSearchResult(BaseModel):
@@ -294,9 +275,6 @@ class UnifiedQueryResult(BaseModel):
         extra="allow",
     )
 
-    tabular_results: Optional[TabularSearchResult] = Field(
-        default=None, alias="tabularResults"
-    )
     semantic_results: Optional[SemanticSearchResult] = Field(
         default=None, alias="semanticResults"
     )

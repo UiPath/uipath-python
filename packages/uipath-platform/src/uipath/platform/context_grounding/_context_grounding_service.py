@@ -1396,7 +1396,6 @@ class ContextGroundingService(FolderContext, BaseService):
         search_mode: SearchMode = SearchMode.AUTO,
         number_of_results: int = 3,
         threshold: float = 0.0,
-        re_ranker: bool = False,
         filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
@@ -1413,7 +1412,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode (SearchMode): The search mode to use. Defaults to AUTO.
             number_of_results (int): Maximum number of results to return. Defaults to 3.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
-            re_ranker (bool): Whether to use re-ranking. Defaults to False.
             filter (Optional[str]): Optional filter expression.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
             folder_key (Optional[str]): The key of the folder where the index resides.
@@ -1434,7 +1432,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode=search_mode,
             number_of_results=number_of_results,
             threshold=threshold,
-            re_ranker=re_ranker,
             filter=filter,
             scope=scope,
             folder_key=folder_key,
@@ -1459,7 +1456,6 @@ class ContextGroundingService(FolderContext, BaseService):
         search_mode: SearchMode = SearchMode.AUTO,
         number_of_results: int = 3,
         threshold: float = 0.0,
-        re_ranker: bool = False,
         filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
@@ -1476,7 +1472,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode (SearchMode): The search mode to use. Defaults to AUTO.
             number_of_results (int): Maximum number of results to return. Defaults to 3.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
-            re_ranker (bool): Whether to use re-ranking. Defaults to False.
             filter (Optional[str]): Optional filter expression.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
             folder_key (Optional[str]): The key of the folder where the index resides.
@@ -1499,7 +1494,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode=search_mode,
             number_of_results=number_of_results,
             threshold=threshold,
-            re_ranker=re_ranker,
             filter=filter,
             scope=scope,
             folder_key=folder_key,
@@ -1923,7 +1917,6 @@ class ContextGroundingService(FolderContext, BaseService):
         search_mode: SearchMode = SearchMode.AUTO,
         number_of_results: int = 3,
         threshold: float = 0.0,
-        re_ranker: bool = False,
         filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
@@ -1939,7 +1932,6 @@ class ContextGroundingService(FolderContext, BaseService):
             "semanticSearchOptions": {
                 "numberOfResults": number_of_results,
                 "threshold": threshold,
-                "reRanker": re_ranker,
             },
         }
 

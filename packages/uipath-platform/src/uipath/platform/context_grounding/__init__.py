@@ -18,7 +18,6 @@ from .context_grounding import (
     SearchMode,
     SemanticSearchOptions,
     SemanticSearchResult,
-    TabularSearchResult,
     UnifiedQueryResult,
     UnifiedSearchScope,
 )
@@ -74,7 +73,6 @@ __all__ = [
     "SemanticSearchOptions",
     "SemanticSearchResult",
     "SourceConfig",
-    "TabularSearchResult",
     "UnifiedQueryResult",
     "UnifiedSearchScope",
     "Citation",

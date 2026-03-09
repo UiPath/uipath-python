@@ -2842,7 +2842,6 @@ class TestContextGroundingService:
                         }
                     ]
                 },
-                "tabularResults": None,
                 "explanation": "test explanation",
             },
         )
@@ -2856,7 +2855,6 @@ class TestContextGroundingService:
 
         assert isinstance(response, UnifiedQueryResult)
         assert response.explanation == "test explanation"
-        assert response.tabular_results is None
         assert response.semantic_results is not None
         assert len(response.semantic_results.values) == 1
         assert response.semantic_results.values[0].source == "test-source"
@@ -2952,7 +2950,6 @@ class TestContextGroundingService:
                         }
                     ]
                 },
-                "tabularResults": None,
                 "explanation": "test explanation",
             },
         )
@@ -2967,89 +2964,6 @@ class TestContextGroundingService:
         assert response.explanation == "test explanation"
         assert response.semantic_results is not None
         assert len(response.semantic_results.values) == 1
-
-    def test_unified_search_with_tabular_results(
-        self,
-        httpx_mock: HTTPXMock,
-        service: ContextGroundingService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ) -> None:
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
-            status_code=200,
-            json={
-                "value": [
-                    {
-                        "id": "test-index-id",
-                        "name": "test-index",
-                        "lastIngestionStatus": "Completed",
-                    }
-                ]
-            },
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
-            status_code=200,
-            json={
-                "PageItems": [
-                    {
-                        "Key": "test-folder-key",
-                        "FullyQualifiedName": "test-folder-path",
-                    }
-                ]
-            },
-        )
-
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
-            status_code=200,
-            json={
-                "semanticResults": None,
-                "tabularResults": {
-                    "schema": {"col1": "string", "col2": "number"},
-                    "citations": [{"source": "file.csv", "page": "1"}],
-                    "data": [["value1", "42"]],
-                    "explanations": ["Matched on col1"],
-                },
-                "explanation": None,
-            },
-        )
-
-        response = service.unified_search(
-            name="test-index",
-            query="test query",
-            search_mode=SearchMode.TABULAR,
-        )
-
-        assert isinstance(response, UnifiedQueryResult)
-        assert response.semantic_results is None
-        assert response.tabular_results is not None
-        assert response.tabular_results.schema_ == {
-            "col1": "string",
-            "col2": "number",
-        }
-        assert len(response.tabular_results.data) == 1
-        assert response.tabular_results.data[0] == ["value1", "42"]
-        assert response.tabular_results.citations == [
-            {"source": "file.csv", "page": "1"}
-        ]
-        assert response.tabular_results.explanations == ["Matched on col1"]
 
     def test_unified_search_with_scope_and_filter(
         self,
@@ -3104,7 +3018,6 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "semanticResults": {"values": []},
-                "tabularResults": None,
                 "explanation": None,
             },
         )
