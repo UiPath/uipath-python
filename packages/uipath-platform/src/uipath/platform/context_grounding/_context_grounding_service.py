@@ -1290,6 +1290,8 @@ class ContextGroundingService(FolderContext, BaseService):
     ) -> List[ContextGroundingQueryResponse]:
         """Search for contextual information within a specific index.
 
+        This method is deprecated. Use unified_search instead.
+
         This method performs a semantic search against the specified context index,
         helping to find relevant information that can be used in automation processes.
         The search is powered by AI and understands natural language queries.
@@ -1344,6 +1346,8 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
         """Search asynchronously for contextual information within a specific index.
+
+        This method is deprecated. Use unified_search_async instead.
 
         This method performs a semantic search against the specified context index,
         helping to find relevant information that can be used in automation processes.
