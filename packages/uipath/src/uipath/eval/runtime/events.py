@@ -19,6 +19,7 @@ class EvaluationEvents(str, Enum):
     CREATE_EVAL_RUN = "create_eval_run"
     UPDATE_EVAL_SET_RUN = "update_eval_set_run"
     UPDATE_EVAL_RUN = "update_eval_run"
+    MOVE_EVAL_RUN_TO_RUNNING = "move_eval_run_to_running"
 
 
 class EvalSetRunCreatedEvent(BaseModel):
@@ -49,6 +50,12 @@ class EvalItemExceptionDetails(BaseModel):
     exception: Exception
 
 
+class EvalRunStatusUpdateEvent(BaseModel):
+    """Event emitted to update an eval run's status (e.g., move to Running)."""
+
+    execution_id: str
+
+
 class EvalRunUpdatedEvent(BaseModel):
     """Event emitted when an individual evaluation run is updated with results."""
 
@@ -63,6 +70,7 @@ class EvalRunUpdatedEvent(BaseModel):
     spans: list[ReadableSpan]
     logs: list[logging.LogRecord]
     exception_details: EvalItemExceptionDetails | None = None
+    workload_failed: bool = False
 
     @model_validator(mode="after")
     def validate_exception_details(self):
@@ -83,6 +91,7 @@ class EvalSetRunUpdatedEvent(BaseModel):
 ProgressEvent = Union[
     EvalSetRunCreatedEvent,
     EvalRunCreatedEvent,
+    EvalRunStatusUpdateEvent,
     EvalRunUpdatedEvent,
     EvalSetRunUpdatedEvent,
 ]

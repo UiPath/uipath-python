@@ -31,6 +31,7 @@ from uipath.eval.models import EvalItemResult, ScoreType
 from uipath.eval.models.evaluation_set import EvaluationItem
 from uipath.eval.runtime.events import (
     EvalRunCreatedEvent,
+    EvalRunStatusUpdateEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
@@ -47,6 +48,8 @@ class EvaluationStatus(IntEnum):
     IN_PROGRESS = 1
     COMPLETED = 2
     FAILED = 3
+    WORKLOAD_EXECUTING = 4
+    WORKLOAD_FAILED = 5
 
 
 class StudioWebProgressItem(BaseModel):
@@ -473,6 +476,7 @@ class StudioWebProgressReporter:
         evaluators: dict[str, BaseEvaluator[Any, Any, Any]],
         is_coded: bool = False,
         spans: list[Any] | None = None,
+        workload_failed: bool = False,
     ):
         """Update an evaluation run with results."""
         coded_evaluators: dict[str, BaseEvaluator[Any, Any, Any]] = {}
@@ -512,6 +516,7 @@ class StudioWebProgressReporter:
                 actual_output=sw_progress_item.agent_output,
                 success=sw_progress_item.success,
                 is_coded=is_coded,
+                workload_failed=workload_failed,
             )
         else:
             spec = self._update_eval_run_spec(
@@ -522,6 +527,7 @@ class StudioWebProgressReporter:
                 actual_output=sw_progress_item.agent_output,
                 success=sw_progress_item.success,
                 is_coded=is_coded,
+                workload_failed=workload_failed,
             )
 
         await self._client.request_async(
@@ -545,6 +551,24 @@ class StudioWebProgressReporter:
         spec = self._update_eval_set_run_spec(
             eval_set_run_id, evaluator_scores, is_coded, success
         )
+        await self._client.request_async(
+            method=spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+            scoped="org" if self._is_localhost() else "tenant",
+        )
+
+    @gracefully_handle_errors
+    async def move_eval_run_status(
+        self,
+        eval_run_id: str,
+        status: EvaluationStatus,
+        is_coded: bool = False,
+    ):
+        """Update an evaluation run's status without changing results."""
+        spec = self._update_eval_run_status_spec(eval_run_id, status, is_coded)
         await self._client.request_async(
             method=spec.method,
             url=spec.endpoint,
@@ -782,6 +806,7 @@ class StudioWebProgressReporter:
                     self.evaluators,
                     is_coded=is_coded,
                     spans=payload.spans,
+                    workload_failed=payload.workload_failed,
                 )
 
                 logger.info(
@@ -820,6 +845,39 @@ class StudioWebProgressReporter:
         except Exception as e:
             self._format_error_message(e, "StudioWeb update eval set run error")
 
+    async def handle_move_eval_run_to_running(
+        self, payload: EvalRunStatusUpdateEvent
+    ) -> None:
+        """Handle the event to move an eval run from WorkloadExecuting to Running."""
+        try:
+            eval_run_id = self.eval_run_ids.get(payload.execution_id)
+            if not eval_run_id:
+                logger.warning(
+                    f"Cannot move eval run to running: eval_run_id not found for "
+                    f"execution_id={payload.execution_id}"
+                )
+                return
+
+            is_coded = self.is_coded_eval.get(self.eval_set_execution_id or "", False)
+
+            logger.info(
+                f"Moving eval run to Running status: eval_run_id={eval_run_id}, "
+                f"is_coded={is_coded}"
+            )
+
+            await self.move_eval_run_status(
+                eval_run_id=eval_run_id,
+                status=EvaluationStatus.IN_PROGRESS,
+                is_coded=is_coded,
+            )
+
+            logger.info(
+                f"Successfully moved eval_run_id={eval_run_id} to Running status"
+            )
+
+        except Exception as e:
+            self._format_error_message(e, "StudioWeb move eval run to running error")
+
     async def subscribe_to_eval_runtime_events(self, event_bus: EventBus) -> None:
         event_bus.subscribe(
             EvaluationEvents.CREATE_EVAL_SET_RUN, self.handle_create_eval_set_run
@@ -832,6 +890,10 @@ class StudioWebProgressReporter:
         )
         event_bus.subscribe(
             EvaluationEvents.UPDATE_EVAL_SET_RUN, self.handle_update_eval_set_run
+        )
+        event_bus.subscribe(
+            EvaluationEvents.MOVE_EVAL_RUN_TO_RUNNING,
+            self.handle_move_eval_run_to_running,
         )
 
         logger.debug("StudioWeb progress reporter subscribed to evaluation events")
@@ -1098,12 +1160,18 @@ class StudioWebProgressReporter:
         execution_time: float,
         success: bool,
         is_coded: bool = False,
+        workload_failed: bool = False,
     ) -> RequestSpec:
         # For legacy evaluations, endpoint is without /coded
         endpoint_suffix = "coded/" if is_coded else ""
 
-        # Determine status based on success
-        status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
+        # Determine status based on success and workload failure
+        if success:
+            status = EvaluationStatus.COMPLETED
+        elif workload_failed:
+            status = EvaluationStatus.WORKLOAD_FAILED
+        else:
+            status = EvaluationStatus.FAILED
 
         inner_payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
@@ -1148,13 +1216,19 @@ class StudioWebProgressReporter:
         execution_time: float,
         success: bool,
         is_coded: bool = False,
+        workload_failed: bool = False,
     ) -> RequestSpec:
         """Create update spec for coded evaluators."""
         # For coded evaluations, endpoint has /coded
         endpoint_suffix = "coded/" if is_coded else ""
 
-        # Determine status based on success
-        status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
+        # Determine status based on success and workload failure
+        if success:
+            status = EvaluationStatus.COMPLETED
+        elif workload_failed:
+            status = EvaluationStatus.WORKLOAD_FAILED
+        else:
+            status = EvaluationStatus.FAILED
 
         payload: dict[str, Any] = {
             "evalRunId": eval_run_id,
@@ -1176,6 +1250,33 @@ class StudioWebProgressReporter:
         )
         logger.debug(
             f"Full coded eval run update payload: {json.dumps(payload, indent=2)}"
+        )
+
+        return RequestSpec(
+            method="PUT",
+            endpoint=Endpoint(
+                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
+            ),
+            json=payload,
+            headers=self._tenant_header(),
+        )
+
+    def _update_eval_run_status_spec(
+        self,
+        eval_run_id: str,
+        status: EvaluationStatus,
+        is_coded: bool = False,
+    ) -> RequestSpec:
+        """Create spec for a status-only update of an eval run."""
+        endpoint_suffix = "coded/" if is_coded else ""
+
+        payload: dict[str, Any] = {
+            "evalRunId": eval_run_id,
+            "status": status.value,
+        }
+
+        logger.debug(
+            f"Updating eval run status: evalRunId={eval_run_id}, status={status.name}"
         )
 
         return RequestSpec(
@@ -1234,7 +1335,8 @@ class StudioWebProgressReporter:
             "evalSetRunId": eval_set_run_id,
             "evalSnapshot": eval_snapshot,
             # Backend expects integer status
-            "status": EvaluationStatus.IN_PROGRESS.value,
+            # Use WORKLOAD_EXECUTING to indicate agent execution phase
+            "status": EvaluationStatus.WORKLOAD_EXECUTING.value,
         }
 
         # Legacy backend expects payload wrapped in "request" field
