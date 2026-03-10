@@ -34,6 +34,38 @@ from .middlewares import Middlewares
 console = ConsoleLogger()
 
 
+class _RunDiscoveryError(Exception):
+    """Raised when entrypoint auto-discovery fails."""
+
+    def __init__(self, entrypoints: list[str]):
+        self.entrypoints = entrypoints
+
+
+def _show_run_usage_help(entrypoints: list[str]) -> None:
+    """Show available entrypoints with usage examples."""
+    lines: list[str] = []
+
+    if entrypoints:
+        lines.append("Available entrypoints:")
+        for name in entrypoints:
+            lines.append(f"  - {name}")
+    else:
+        lines.append(
+            "No entrypoints found. "
+            "Add a 'functions' or 'agents' section to your config file "
+            "(e.g. uipath.json, langgraph.json) "
+            "or add MCP slugs to mcp.json."
+        )
+
+    lines.append(
+        "\nUsage: uipath run <entrypoint> <input_arguments> [-f <input_json_file_path>]"
+    )
+    if entrypoints:
+        lines.append(f"Example: uipath run {entrypoints[0]}")
+
+    click.echo("\n".join(lines))
+
+
 @click.command()
 @click.argument("entrypoint", required=False)
 @click.argument("input", required=False, default=None)
@@ -125,11 +157,6 @@ def run(
         return
 
     if result.should_continue:
-        if not entrypoint:
-            console.error("""No entrypoint specified. Please provide the path to the Python function.
-    Usage: `uipath run <entrypoint> <input_arguments> [-f <input_json_file_path>]`""")
-            return
-
         try:
 
             async def execute_runtime(
@@ -187,6 +214,15 @@ def run(
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+
+                            resolved_entrypoint = entrypoint
+                            if not resolved_entrypoint:
+                                available = factory.discover_entrypoints()
+                                if len(available) == 1:
+                                    resolved_entrypoint = available[0]
+                                else:
+                                    raise _RunDiscoveryError(available)
+
                             factory_settings = await factory.get_settings()
                             trace_settings = (
                                 factory_settings.trace_settings
@@ -194,7 +230,7 @@ def run(
                                 else None
                             )
                             runtime = await factory.new_runtime(
-                                entrypoint,
+                                resolved_entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
@@ -230,12 +266,17 @@ def run(
 
             asyncio.run(execute())
 
+        except _RunDiscoveryError as e:
+            _show_run_usage_help(e.entrypoints)
+            return
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")
+            return
         except Exception as e:
             console.error(
                 f"Error: Unexpected error occurred - {str(e)}", include_traceback=True
             )
+            return
 
     console.success("Successful execution.")
 
