@@ -33,83 +33,88 @@ jobs:
         id: detect
         run: python .github/scripts/detect_publishable_packages.py
 
-  build:
-    name: Build ${{ matrix.package }}
+  # --- Tier 0: uipath-core (no internal dependencies) ---
+  publish-uipath-core:
     needs: detect-publishable-packages
-    if: needs.detect-publishable-packages.outputs.count > 0 && github.repository == 'UiPath/uipath-python'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/${{ matrix.package }}
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJson(needs.detect-publishable-packages.outputs.packages) }}
-    permissions:
-      contents: read
-      actions: write
+    if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
+    uses: ./.github/workflows/publish-package.yml
+    with:
+      package: uipath-core
+      needs-relock: false
 
+  wait-for-uipath-core:
+    name: Wait for uipath-core on PyPI
+    needs: [detect-publishable-packages, publish-uipath-core]
+    if: |
+      always() &&
+      (contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform') ||
+       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath'))
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
         uses: actions/checkout@v4
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
       - name: Setup Python
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
         uses: actions/setup-python@v5
         with:
-          python-version-file: "packages/${{ matrix.package }}/.python-version"
+          python-version: '3.11'
 
-      - name: Install dependencies
-        run: uv sync --all-extras
+      - name: Wait for uipath-core
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
+        run: python .github/scripts/wait_for_pypi.py uipath-core
 
-      - name: Update AGENTS.md
-        if: matrix.package == 'uipath'
-        run: uv run python scripts/update_agents_md.py
+      - name: Skip
+        if: "!contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')"
+        run: echo "uipath-core not being published — skipping wait"
 
-      - name: Replace connection string placeholder
-        if: matrix.package == 'uipath'
-        run: |
-          originalfile="src/uipath/telemetry/_constants.py"
-          tmpfile=$(mktemp)
-          trap 'rm -f "$tmpfile"' EXIT
+  # --- Tier 1: uipath-platform (depends on core) ---
+  publish-uipath-platform:
+    needs: [detect-publishable-packages, wait-for-uipath-core]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
+    uses: ./.github/workflows/publish-package.yml
+    with:
+      package: uipath-platform
+      needs-relock: true
 
-          rsync -a --no-whole-file --ignore-existing "$originalfile" "$tmpfile"
-          envsubst '$CONNECTION_STRING' < "$originalfile" > "$tmpfile" && mv "$tmpfile" "$originalfile"
-        env:
-          CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-
-      - name: Build
-        run: uv build --no-sources --package ${{ matrix.package }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-dists-${{ matrix.package }}
-          path: packages/${{ matrix.package }}/dist/
-
-  pypi-publish:
-    name: Upload ${{ matrix.package }} to PyPI
-    needs: [detect-publishable-packages, build]
+  wait-for-uipath-platform:
+    name: Wait for uipath-platform on PyPI
+    needs: [detect-publishable-packages, publish-uipath-platform]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
     runs-on: ubuntu-latest
-    environment: pypi
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJson(needs.detect-publishable-packages.outputs.packages) }}
-    permissions:
-      contents: read
-      id-token: write
-
     steps:
-      - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
-        with:
-          name: release-dists-${{ matrix.package }}
-          path: dist/
+      - name: Checkout
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
+        uses: actions/checkout@v4
 
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Setup Python
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Wait for uipath-platform
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
+        run: python .github/scripts/wait_for_pypi.py uipath-platform
+
+      - name: Skip
+        if: "!contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')"
+        run: echo "uipath-platform not being published — skipping wait"
+
+  # --- Tier 2: uipath (depends on core + platform) ---
+  publish-uipath:
+    needs: [detect-publishable-packages, wait-for-uipath-platform]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
+    uses: ./.github/workflows/publish-package.yml
+    with:
+      package: uipath
+      needs-relock: true
+    secrets:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
