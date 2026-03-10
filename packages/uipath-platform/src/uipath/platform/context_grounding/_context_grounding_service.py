@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
+from typing_extensions import deprecated
 
 import httpx
 from pydantic import Field, TypeAdapter
@@ -1277,6 +1278,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_search", run_type="uipath")
+    @deprecated("Use unified_search instead.")
     def search(
         self,
         name: str,
@@ -1331,6 +1333,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_search", run_type="uipath")
+    @deprecated("Use unified_search_async instead.")
     async def search_async(
         self,
         name: str,
@@ -1421,8 +1424,6 @@ class ContextGroundingService(FolderContext, BaseService):
             UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
         """
         index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
-        if index and index.in_progress_ingestion():
-            raise IngestionInProgressException(index_name=name)
 
         folder_key = folder_key or index.folder_key
 
