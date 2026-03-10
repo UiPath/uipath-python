@@ -2,10 +2,6 @@ import os
 from typing import Tuple
 from urllib.parse import urlparse
 
-from .._utils._console import ConsoleLogger
-
-console = ConsoleLogger()
-
 
 def resolve_domain(base_url: str | None, environment: str | None) -> str:
     """Resolve the UiPath domain, giving priority to base_url when valid.
@@ -13,12 +9,13 @@ def resolve_domain(base_url: str | None, environment: str | None) -> str:
     Args:
         base_url: The base URL explicitly provided.
         environment: The environment name (e.g., 'alpha', 'staging', 'cloud').
-        force: Whether to ignore UIPATH_URL from environment variables when base_url is set.
 
     Returns:
         A valid base URL for UiPath services.
+
+    Raises:
+        ValueError: If UIPATH_URL env var is set but malformed.
     """
-    # If base_url is a real URL, prefer it
     if base_url and base_url.startswith("http"):
         parsed = urlparse(base_url)
         domain = f"{parsed.scheme}://{parsed.netloc}"
@@ -30,15 +27,13 @@ def resolve_domain(base_url: str | None, environment: str | None) -> str:
         if uipath_url:
             parsed = urlparse(uipath_url)
             if parsed.scheme and parsed.netloc:
-                domain = f"{parsed.scheme}://{parsed.netloc}"
-                return domain
+                return f"{parsed.scheme}://{parsed.netloc}"
             else:
-                console.error(
+                raise ValueError(
                     f"Malformed UIPATH_URL: '{uipath_url}'. "
                     "Please ensure it includes scheme and netloc (e.g., 'https://cloud.uipath.com')."
                 )
 
-    # Otherwise, fall back to environment
     return f"https://{environment or 'cloud'}.uipath.com"
 
 
@@ -61,15 +56,12 @@ def extract_org_tenant(uipath_url: str) -> Tuple[str | None, str | None]:
     Accepts values like:
       - https://cloud.uipath.com/myOrg/myTenant
       - https://alpha.uipath.com/myOrg/myTenant/anything_else
-      - cloud.uipath.com/myOrg/myTenant  (scheme will be assumed https)
 
     Args:
         uipath_url: The UiPath URL to parse
 
     Returns:
-        A tuple of (organization, tenant) where:
-          - organization: 'myOrg' or None
-          - tenant: 'myTenant' or None
+        A tuple of (organization, tenant) where either can be None.
 
     Example:
         >>> extract_org_tenant('https://cloud.uipath.com/myOrg/myTenant')

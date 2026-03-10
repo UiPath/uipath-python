@@ -1,5 +1,5 @@
 """
-Unit tests for OidcUtils.get_auth_config() method.
+Unit tests for OIDC utility functions and AuthService config/URL methods.
 
 IMPORTANT: Backwards Compatibility Notice
 =========================================
@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from uipath._cli._auth._oidc_utils import (
-    OidcUtils,
+from uipath.platform.auth._auth_service import AuthService
+from uipath.platform.auth._oidc_utils import (
     _get_version_from_api,
     _is_cloud_domain,
     _select_config_file,
@@ -22,34 +22,27 @@ from uipath._cli._auth._oidc_utils import (
 
 
 class TestOidcUtils:
-    """Test suite for OidcUtils class."""
+    """Test suite for OIDC utility functions."""
 
     def test_auth_config_backwards_compatibility_v2025_10(self):
         """
         Test that auth_config_25_10.json maintains backwards compatibility with release/v2025.10.
-
-        This test validates that the authentication configuration values remain
-        unchanged to ensure compatibility with release/v2025.10 and later branches.
-
-        CRITICAL: Any failure indicates a breaking change that requires coordination
-        across all supported release branches.
         """
-        # Read the actual auth_config_25_10.json file
         config_path = os.path.join(
             os.path.dirname(__file__),
             "..",
             "..",
+            "..",
             "src",
             "uipath",
-            "_cli",
-            "_auth",
+            "platform",
+            "auth",
             "auth_config_25_10.json",
         )
 
         with open(config_path, "r") as f:
             actual_config = json.load(f)
 
-        # Assert exact values for non-scope fields
         assert actual_config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00", (
             f"BACKWARDS COMPATIBILITY VIOLATION: client_id has changed! "
             f"Expected: 36dea5b8-e8bb-423d-8e7b-c808df8f1c00, Got: {actual_config['client_id']}"
@@ -68,7 +61,6 @@ class TestOidcUtils:
             f"Expected: 8104, Got: {actual_config['port']}"
         )
 
-        # For scopes, ensure actual scopes are a subset of the allowed scopes (no new scopes allowed)
         allowed_scopes = set(
             [
                 "offline_access",
@@ -111,7 +103,7 @@ class TestOidcUtils:
             ("https://alpha.uipath.com", True),
             ("https://staging.uipath.com", True),
             ("https://cloud.uipath.com", True),
-            ("https://ALPHA.UIPATH.COM", True),  # Test case insensitivity
+            ("https://ALPHA.UIPATH.COM", True),
             ("https://custom.domain.com", False),
             ("https://cloud.uipath.dev", False),
             ("https://alpha-test.uipath.com", False),
@@ -165,69 +157,64 @@ class TestOidcUtils:
     @pytest.mark.parametrize(
         "domain,mock_version,expected_config",
         [
-            # Cloud domains should always use auth_config_cloud.json
             ("https://alpha.uipath.com", None, "auth_config_cloud.json"),
             ("https://staging.uipath.com", None, "auth_config_cloud.json"),
             ("https://cloud.uipath.com", None, "auth_config_cloud.json"),
-            # Version 25.10.* should use auth_config_25_10.json
             (
                 "https://custom.domain.com",
                 "25.10.0-beta.415",
                 "auth_config_25_10.json",
             ),
             ("https://custom.domain.com", "25.10.1", "auth_config_25_10.json"),
-            # Other versions should fallback to cloud config
             ("https://custom.domain.com", "24.10.0", "auth_config_cloud.json"),
             ("https://custom.domain.com", "26.1.0", "auth_config_cloud.json"),
-            # Unable to determine version should fallback to cloud config
             ("https://custom.domain.com", None, "auth_config_cloud.json"),
         ],
     )
     def test_select_config_file(self, domain, mock_version, expected_config):
         """Test _select_config_file selects the correct config based on domain and version."""
         with patch(
-            "uipath._cli._auth._oidc_utils._get_version_from_api",
+            "uipath.platform.auth._oidc_utils._get_version_from_api",
             return_value=mock_version,
         ):
             config_file = _select_config_file(domain)
             assert config_file == expected_config
 
-    def test_get_auth_config_without_domain(self):
-        """Test get_auth_config without domain parameter uses default config."""
-        with patch(
-            "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port", return_value=8104
-        ):
-            config = OidcUtils.get_auth_config()
-            assert config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
-            assert config["port"] == 8104
 
-    def test_get_auth_config_with_cloud_domain(self):
-        """Test get_auth_config with cloud domain uses auth_config_cloud.json."""
-        with patch(
-            "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port", return_value=8104
-        ):
-            config = OidcUtils.get_auth_config("https://alpha.uipath.com")
-            assert config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
-            assert config["port"] == 8104
+class TestAuthServiceConfig:
+    """Test suite for AuthService auth_config and get_authorization_url."""
 
-    def test_get_auth_config_with_25_10_version(self):
-        """Test get_auth_config with version 25.10 uses auth_config_25_10.json."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"version": "25.10.0-beta.415"}
-        mock_response.raise_for_status = MagicMock()
+    def test_auth_config_cloud_domain(self):
+        """Test auth_config with cloud domain."""
+        service = AuthService("https://cloud.uipath.com")
+        config = service.auth_config
+        assert config.client_id == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
+        assert "offline_access" in config.scope
 
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
+    def test_auth_config_cached(self):
+        """Test auth_config is cached (same object returned)."""
+        service = AuthService("https://cloud.uipath.com")
+        config1 = service.auth_config
+        config2 = service.auth_config
+        assert config1 is config2
 
-        with (
-            patch("httpx.Client", return_value=mock_client),
-            patch(
-                "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port",
-                return_value=8104,
-            ),
-        ):
-            config = OidcUtils.get_auth_config("https://custom.domain.com")
-            assert config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
-            assert config["port"] == 8104
+    def test_get_authorization_url_returns_model(self):
+        """Test get_authorization_url returns AuthorizationRequest model."""
+        service = AuthService("https://cloud.uipath.com")
+        result = service.get_authorization_url("http://localhost:8104/oidc/login")
+
+        assert result.url.startswith(
+            "https://cloud.uipath.com/identity_/connect/authorize"
+        )
+        assert "client_id=" in result.url
+        assert "redirect_uri=" in result.url
+        assert "code_challenge=" in result.url
+        assert len(result.code_verifier) > 0
+        assert len(result.state) > 0
+
+    def test_get_authorization_url_uses_provided_redirect_uri(self):
+        """Test that redirect_uri param is included in the auth URL."""
+        service = AuthService("https://alpha.uipath.com")
+        redirect = "http://localhost:9999/callback"
+        result = service.get_authorization_url(redirect)
+        assert "localhost%3A9999" in result.url or "localhost:9999" in result.url

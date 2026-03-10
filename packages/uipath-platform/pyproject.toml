@@ -108,7 +108,7 @@ show_missing = true
 source = ["src"]
 
 [tool.uv.sources]
-uipath-core = { path = "../uipath-core", editable = true }
+uipath-core = { path = "../uipath-core", editable = false }
 
 [[tool.uv.index]]
 name = "testpypi"

@@ -1,6 +1,8 @@
+import asyncio
+
 import click
 
-from ._auth._auth_service import AuthService
+from ._auth._auth_service import AuthHandler
 from ._utils._common import environment_options
 from ._utils._console import ConsoleLogger
 
@@ -67,18 +69,22 @@ def auth(
     - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
     - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
     """
-    auth_service = AuthService(
-        environment=environment,
-        force=force,
-        client_id=client_id,
-        client_secret=client_secret,
-        base_url=base_url,
-        tenant=tenant,
-        scope=scope,
-    )
+    try:
+        auth_handler = AuthHandler(
+            environment=environment,
+            force=force,
+            client_id=client_id,
+            client_secret=client_secret,
+            base_url=base_url,
+            tenant=tenant,
+            scope=scope,
+        )
+    except ValueError as e:
+        console.error(str(e))
+
     with console.spinner("Authenticating with UiPath ..."):
         try:
-            auth_service.authenticate()
+            asyncio.run(auth_handler.authenticate())
             console.success(
                 "Authentication successful.",
             )

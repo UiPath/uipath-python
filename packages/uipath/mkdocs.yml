@@ -61,6 +61,7 @@ nav:
         - CLI Reference: cli/index.md
         - Tracing: core/traced.md
         - Services:
+            - Auth: core/auth.md
             - Assets: core/assets.md
             - Attachments: core/attachments.md
             - Buckets: core/buckets.md
