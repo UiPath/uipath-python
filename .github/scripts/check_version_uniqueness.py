@@ -75,7 +75,7 @@ def get_changed_packages() -> list[str]:
     for file_path in result.stdout.strip().split("\n"):
         if file_path.startswith("packages/"):
             parts = file_path.split("/")
-            if len(parts) >= 2 and (Path("packages") / parts[1] / "pyproject.toml").exists():
+            if len(parts) >= 3 and parts[2] == "src" and (Path("packages") / parts[1] / "pyproject.toml").exists():
                 changed.add(parts[1])
     return sorted(changed)
 
