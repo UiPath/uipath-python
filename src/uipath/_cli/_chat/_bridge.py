@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlparse
 
 from uipath._utils.constants import (
     ENV_FOLDER_KEY,
-    ENV_JOB_KEY,
+    ENV_SYNTHETIC_USER_ID,
 )
 from uipath.core.chat import (
     UiPathConversationEvent,
@@ -407,13 +407,13 @@ def get_chat_bridge(
     host = parsed.netloc
     conversation_id = context.conversation_id
     folder_key = os.environ.get(ENV_FOLDER_KEY)
-    job_key = os.environ.get(ENV_JOB_KEY)
+    synthetic_user_id = os.environ.get(ENV_SYNTHETIC_USER_ID)
 
-    # Build query params for CAS for use verifying the requesting agent should have access when runAsMe=False
+    # Build query params for CAS: conversationId, folderKey, syntheticUserId (RunAsMe=false validation per CAS contract)
     query_params: dict[str, str] = {
         "conversationId": conversation_id,
         "folderKey": folder_key or "",
-        "jobKey": job_key or "",
+        "syntheticUserId": synthetic_user_id or "",
     }
     query_params = {k: v for k, v in query_params.items() if v}
     query_string = urlencode(query_params)
@@ -423,7 +423,7 @@ def get_chat_bridge(
     websocket_path = "autopilotforeveryone_/websocket_/socket.io"
 
     if os.environ.get("CAS_WEBSOCKET_HOST"):
-        websocket_url = f"ws://{os.environ.get('CAS_WEBSOCKET_HOST')}?conversationId={context.conversation_id}"
+        websocket_url = f"ws://{os.environ.get('CAS_WEBSOCKET_HOST')}?{query_string}"
         websocket_path = "/socket.io"
         logger.warning(
             f"CAS_WEBSOCKET_HOST is set. Using websocket_url '{websocket_url}{websocket_path}'."
