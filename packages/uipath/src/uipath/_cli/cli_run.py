@@ -27,11 +27,27 @@ from uipath.tracing import (
     LlmOpsHttpExporter,
 )
 
+from ._errors import EntrypointDiscoveryException
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
+
+
+class _RunDiscoveryError(EntrypointDiscoveryException):
+    """Raised when entrypoint auto-discovery fails."""
+
+    def get_usage_help(self) -> list[str]:
+        lines = super().get_usage_help()
+        lines.append("")
+        lines.append(
+            "Usage: uipath run <entrypoint> <input_arguments>"
+            " [-f <input_json_file_path>]"
+        )
+        if self.entrypoints:
+            lines.append(f"Example: uipath run {self.entrypoints[0]}")
+        return lines
 
 
 @click.command()
@@ -125,11 +141,6 @@ def run(
         return
 
     if result.should_continue:
-        if not entrypoint:
-            console.error("""No entrypoint specified. Please provide the path to the Python function.
-    Usage: `uipath run <entrypoint> <input_arguments> [-f <input_json_file_path>]`""")
-            return
-
         try:
 
             async def execute_runtime(
@@ -187,6 +198,15 @@ def run(
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+
+                            resolved_entrypoint = entrypoint
+                            if not resolved_entrypoint:
+                                available = factory.discover_entrypoints()
+                                if len(available) == 1:
+                                    resolved_entrypoint = available[0]
+                                else:
+                                    raise _RunDiscoveryError(available)
+
                             factory_settings = await factory.get_settings()
                             trace_settings = (
                                 factory_settings.trace_settings
@@ -194,7 +214,7 @@ def run(
                                 else None
                             )
                             runtime = await factory.new_runtime(
-                                entrypoint,
+                                resolved_entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
 
@@ -230,6 +250,15 @@ def run(
 
             asyncio.run(execute())
 
+        except _RunDiscoveryError as e:
+            click.echo("\n".join(e.get_usage_help()))
+            if not e.entrypoints:
+                click.echo()
+                console.link(
+                    "uipath.json spec:",
+                    "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
+                )
+            return
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")
         except Exception as e:

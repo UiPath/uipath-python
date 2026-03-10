@@ -8,6 +8,7 @@ from typing import Any
 
 import click
 
+from uipath._cli._errors import EntrypointDiscoveryException
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
@@ -135,12 +136,34 @@ def _resolve_model_settings_override(
     return override if override else None
 
 
-class _EvalDiscoveryError(Exception):
+class _EvalDiscoveryError(EntrypointDiscoveryException):
     """Raised when auto-discovery of entrypoint or eval set fails."""
 
     def __init__(self, entrypoints: list[str], eval_sets: list[Path]):
-        self.entrypoints = entrypoints
+        super().__init__(entrypoints)
         self.eval_sets = eval_sets
+
+    def get_usage_help(self) -> list[str]:
+        lines = super().get_usage_help()
+
+        if self.eval_sets:
+            lines.append("")
+            lines.append("Available eval sets:")
+            for f in self.eval_sets:
+                lines.append(f"  - {f}")
+        else:
+            lines.append("")
+            lines.append(
+                f"No eval sets found in '{EVAL_SETS_DIRECTORY_NAME}/' directory."
+            )
+
+        lines.append("")
+        lines.append("Usage: uipath eval <entrypoint> <eval_set>")
+        if self.entrypoints and self.eval_sets:
+            lines.append(
+                f"Example: uipath eval {self.entrypoints[0]} {self.eval_sets[0]}"
+            )
+        return lines
 
 
 def _discover_eval_sets() -> list[Path]:
@@ -149,39 +172,6 @@ def _discover_eval_sets() -> list[Path]:
     if eval_sets_dir.exists():
         return sorted(eval_sets_dir.glob("*.json"))
     return []
-
-
-def _show_eval_usage_help(entrypoints: list[str], eval_set_files: list[Path]) -> None:
-    """Show available entrypoints and eval sets with usage examples."""
-    lines: list[str] = []
-
-    if entrypoints:
-        lines.append("Available entrypoints:")
-        for name in entrypoints:
-            lines.append(f"  - {name}")
-    else:
-        lines.append(
-            "No entrypoints found. "
-            "Add a 'functions' or 'agents' section to your config file "
-            "(e.g. uipath.json, langgraph.json)."
-        )
-
-    if eval_set_files:
-        lines.append("\nAvailable eval sets:")
-        for f in eval_set_files:
-            lines.append(f"  - {f}")
-    else:
-        lines.append(
-            f"\nNo eval sets found in '{EVAL_SETS_DIRECTORY_NAME}/' directory."
-        )
-
-    lines.append("\nUsage: uipath eval <entrypoint> <eval_set>")
-    if entrypoints and eval_set_files:
-        ep_name = entrypoints[0]
-        es_path = eval_set_files[0]
-        lines.append(f"Example: uipath eval {ep_name} {es_path}")
-
-    click.echo("\n".join(lines))
 
 
 @click.command()
@@ -475,7 +465,13 @@ def eval(
             asyncio.run(execute_eval())
 
         except _EvalDiscoveryError as e:
-            _show_eval_usage_help(e.entrypoints, e.eval_sets)
+            click.echo("\n".join(e.get_usage_help()))
+            if not e.entrypoints:
+                click.echo()
+                console.link(
+                    "uipath.json spec:",
+                    "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
+                )
         except ValueError as e:
             console.error(str(e))
         except Exception as e:
