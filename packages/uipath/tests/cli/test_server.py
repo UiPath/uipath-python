@@ -346,6 +346,14 @@ class TestServerEnvIsolation:
         # Request env var should override/add
         assert env_run["CUSTOM_VAR"] == "custom_value"
 
+    def test_baseline_matches_pre_dotenv_env(self, server_with_spy):
+        """Server baseline must use pre-dotenv env, not post-dotenv env."""
+        from uipath._cli import _pre_dotenv_env, cli_server
+
+        baseline = cli_server._state.baseline_env
+        assert baseline is not None
+        assert baseline == _pre_dotenv_env
+
     def test_env_restored_after_request(self, server_with_spy):
         """os.environ should be restored to baseline after each request."""
         from uipath._cli import cli_server

@@ -13,6 +13,8 @@ from typing import Any
 import click
 from aiohttp import ClientSession, UnixConnector, web
 
+from uipath._cli import _pre_dotenv_env
+
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .cli_debug import debug
@@ -46,7 +48,7 @@ class _ServerState:
         if self.lock is not None:
             return
         self.lock = asyncio.Lock()
-        self.baseline_env = os.environ.copy()
+        self.baseline_env = _pre_dotenv_env.copy()
 
 
 _state = _ServerState()

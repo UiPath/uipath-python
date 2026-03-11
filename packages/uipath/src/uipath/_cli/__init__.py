@@ -96,6 +96,8 @@ def load_environment_variables():
     load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
 
 
+_pre_dotenv_env: dict[str, str] = os.environ.copy()
+
 load_environment_variables()
 add_cwd_to_path()
 
