@@ -211,6 +211,31 @@ class ContextGroundingQueryResponse(BaseModel):
     reference: Optional[str] = Field(default=None, alias="reference")
 
 
+class ContextGroundingSearchResultItem(BaseModel):
+    """Model representing a value item in a unified search (v1.2) semantic result."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+    id: Optional[str] = Field(default=None, alias="id")
+    content: str = Field(alias="content")
+    source: str = Field(alias="source")
+    page_number: int | str = Field(alias="page_number")
+    score: Optional[float] = Field(default=None, alias="score")
+    reference: Optional[str] = Field(default=None, alias="reference")
+    source_document_id: Optional[str] = Field(default=None, alias="source_document_id")
+    dataset_id: Optional[str] = Field(default=None, alias="dataset_id")
+    datasource_id: Optional[str] = Field(default=None, alias="datasource_id")
+    source_document_sha256: Optional[str] = Field(
+        default=None, alias="source_document_sha256"
+    )
+    caption: Optional[str] = Field(default=None, alias="caption")
+
+
 class SearchMode(str, Enum):
     """Enum representing possible unified search modes."""
 
@@ -259,9 +284,10 @@ class SemanticSearchResult(BaseModel):
         extra="allow",
     )
 
-    values: list[ContextGroundingQueryResponse] = Field(
+    values: list[ContextGroundingSearchResultItem] = Field(
         default_factory=list, alias="values"
     )
+    metadata: Optional[ContextGroundingMetadata] = Field(default=None, alias="metadata")
 
 
 class UnifiedQueryResult(BaseModel):

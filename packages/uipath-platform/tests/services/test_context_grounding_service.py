@@ -2829,18 +2829,19 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
                     "values": [
                         {
+                            "id": "result-1",
                             "source": "test-source",
-                            "page_number": "1",
+                            "page_number": 1,
                             "content": "Test content",
-                            "metadata": {
-                                "operation_id": "test-op",
-                                "strategy": "test-strategy",
-                            },
                             "score": 0.95,
                         }
-                    ]
+                    ],
                 },
                 "explanation": "test explanation",
             },
@@ -2856,8 +2857,13 @@ class TestContextGroundingService:
         assert isinstance(response, UnifiedQueryResult)
         assert response.explanation == "test explanation"
         assert response.semantic_results is not None
+        assert response.semantic_results.metadata is not None
+        assert response.semantic_results.metadata.operation_id == "test-op"
+        assert response.semantic_results.metadata.strategy == "test-strategy"
         assert len(response.semantic_results.values) == 1
+        assert response.semantic_results.values[0].id == "result-1"
         assert response.semantic_results.values[0].source == "test-source"
+        assert response.semantic_results.values[0].page_number == 1
         assert response.semantic_results.values[0].content == "Test content"
         assert response.semantic_results.values[0].score == 0.95
 
@@ -2937,18 +2943,19 @@ class TestContextGroundingService:
             status_code=200,
             json={
                 "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
                     "values": [
                         {
+                            "id": "result-1",
                             "source": "test-source",
-                            "page_number": "1",
+                            "page_number": 1,
                             "content": "Test content",
-                            "metadata": {
-                                "operation_id": "test-op",
-                                "strategy": "test-strategy",
-                            },
                             "score": 0.95,
                         }
-                    ]
+                    ],
                 },
                 "explanation": "test explanation",
             },
@@ -2963,6 +2970,7 @@ class TestContextGroundingService:
         assert isinstance(response, UnifiedQueryResult)
         assert response.explanation == "test explanation"
         assert response.semantic_results is not None
+        assert response.semantic_results.metadata is not None
         assert len(response.semantic_results.values) == 1
 
     def test_unified_search_with_scope(
