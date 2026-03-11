@@ -10,6 +10,7 @@ dependencies = [
   "truststore>=0.10.1",
   "uipath-core>=0.5.4, <0.6.0",
   "pydantic-function-models>=0.1.11",
+  "sqlparse>=0.5.5",
 ]
 classifiers = [
   "Intended Audience :: Developers",
