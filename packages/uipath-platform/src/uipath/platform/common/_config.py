@@ -143,6 +143,12 @@ class ConfigurationManager:
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
 
+    def reset(self) -> None:
+        """Reset mutable state for per-job isolation in pooled server mode."""
+        self.studio_solution_id = None
+        # Invalidate cached_property by removing from instance __dict__
+        self.__dict__.pop("_internal_arguments", None)
+
     def _read_internal_argument(self, key: str) -> str | None:
         internal_args = self._internal_arguments
         return internal_args.get(key) if internal_args else None
