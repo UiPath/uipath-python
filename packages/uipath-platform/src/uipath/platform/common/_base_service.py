@@ -1,4 +1,5 @@
-import inspect
+import sys
+import types
 from logging import getLogger
 from typing import Any, Literal, Union
 
@@ -31,6 +32,33 @@ from .retry import (
     is_retryable_response,
     platform_wait_strategy,
 )
+
+_THIS_FILE = __file__
+_MAX_CALLER_FRAMES = 5
+
+
+def _get_caller_component() -> str:
+    try:
+        current: types.FrameType | None = sys._getframe(1)
+        for _ in range(_MAX_CALLER_FRAMES):
+            if current is None:
+                break
+            code = current.f_code
+            if code.co_filename == _THIS_FILE:
+                current = current.f_back
+                continue
+            # Skip frames from third-party libraries (e.g. tenacity)
+            if "site-packages" in code.co_filename:
+                current = current.f_back
+                continue
+            qualname = code.co_qualname
+            if "." in qualname:
+                parts = qualname.rsplit(".", 2)
+                return f"{parts[-2]}.{parts[-1]}"
+            current = current.f_back
+    except Exception:
+        pass
+    return ""
 
 
 class BaseService:
@@ -78,26 +106,7 @@ class BaseService:
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
-        try:
-            stack = inspect.stack()
-
-            # use the third frame because of the retry decorator
-            caller_frame = stack[3].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
+        specific_component = _get_caller_component()
 
         kwargs.setdefault("headers", {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
@@ -181,24 +190,4 @@ class BaseService:
 
     @property
     def _specific_component(self) -> str:
-        try:
-            stack = inspect.stack()
-
-            caller_frame = stack[4].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
-
-        return specific_component
+        return _get_caller_component()
