@@ -1,12 +1,48 @@
 # type: ignore
 import os
-from unittest.mock import patch
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
+
+
+def _middleware_continue():
+    return MiddlewareResult(
+        should_continue=True,
+        error_message=None,
+        should_include_stacktrace=False,
+    )
+
+
+async def _empty_async_gen(*args, **kwargs):
+    """An async generator that yields nothing (simulates empty runtime.stream)."""
+    if False:  # pragma: no cover
+        yield
+
+
+def _make_mock_factory(entrypoints: list[str]):
+    """Create a mock runtime factory with given entrypoints."""
+    mock_factory = Mock()
+    mock_factory.discover_entrypoints.return_value = entrypoints
+    mock_factory.get_settings = AsyncMock(return_value=None)
+    mock_factory.dispose = AsyncMock()
+
+    mock_runtime = Mock()
+    mock_runtime.execute = AsyncMock(return_value=Mock(status="SUCCESSFUL"))
+    mock_runtime.stream = Mock(side_effect=_empty_async_gen)
+    mock_runtime.dispose = AsyncMock()
+    mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
+
+    return mock_factory
+
+
+@asynccontextmanager
+async def _mock_resource_overwrites_context(*args, **kwargs):
+    yield
 
 
 @pytest.fixture
@@ -142,14 +178,81 @@ class TestRun:
                     assert "Successful execution." in result.output
 
     class TestMiddleware:
-        def test_no_entrypoint(self, runner: CliRunner, temp_dir: str):
+        def test_autodiscover_entrypoint(self, runner: CliRunner, temp_dir: str):
+            """When exactly one entrypoint exists, it is auto-resolved."""
             with runner.isolated_filesystem(temp_dir=temp_dir):
-                result = runner.invoke(cli, ["run"])
-                assert result.exit_code == 1
-                assert (
-                    "No entrypoint specified" in result.output
-                    or "Missing argument" in result.output
+                mock_factory = _make_mock_factory(["my_agent"])
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=mock_factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                ):
+                    result = runner.invoke(cli, ["run"])
+
+                assert result.exit_code == 0, (
+                    f"output: {result.output!r}, exception: {result.exception}"
                 )
+                assert "Successful execution." in result.output
+                mock_factory.new_runtime.assert_awaited_once()
+                assert mock_factory.new_runtime.call_args[0][0] == "my_agent"
+
+        def test_no_entrypoint_multiple_available(
+            self, runner: CliRunner, temp_dir: str
+        ):
+            """When multiple entrypoints exist and none specified, show usage help."""
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                mock_factory = _make_mock_factory(["agent_a", "agent_b"])
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=mock_factory,
+                    ),
+                ):
+                    result = runner.invoke(cli, ["run"])
+
+                assert result.exit_code == 0
+                assert "Available entrypoints:" in result.output
+                assert "agent_a" in result.output
+                assert "agent_b" in result.output
+                assert "Usage: uipath run" in result.output
+                mock_factory.new_runtime.assert_not_awaited()
+
+        def test_no_entrypoint_none_available(self, runner: CliRunner, temp_dir: str):
+            """When no entrypoints exist and none specified, show usage help."""
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                mock_factory = _make_mock_factory([])
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=mock_factory,
+                    ),
+                ):
+                    result = runner.invoke(cli, ["run"])
+
+                assert result.exit_code == 0
+                assert "No entrypoints found" in result.output
+                assert "Usage: uipath run" in result.output
+                mock_factory.new_runtime.assert_not_awaited()
 
         def test_script_not_found(
             self, runner: CliRunner, temp_dir: str, entrypoint: str
