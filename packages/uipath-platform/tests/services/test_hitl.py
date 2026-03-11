@@ -17,17 +17,23 @@ from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common import (
     CreateBatchTransform,
     CreateDeepRag,
+    CreateDeepRagRaw,
     CreateEphemeralIndex,
+    CreateEphemeralIndexRaw,
     CreateTask,
     DocumentExtraction,
     DocumentExtractionValidation,
     InvokeProcess,
+    InvokeProcessRaw,
     InvokeSystemAgent,
     WaitBatchTransform,
     WaitDeepRag,
+    WaitDeepRagRaw,
     WaitDocumentExtractionValidation,
     WaitEphemeralIndex,
+    WaitEphemeralIndexRaw,
     WaitJob,
+    WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
 )
@@ -344,6 +350,71 @@ class TestHitlReader:
             )
 
     @pytest.mark.anyio
+    async def test_read_job_raw_trigger_pending(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a pending job raw trigger still raises pending error."""
+        from uipath.core.errors import UiPathPendingTriggerError
+
+        job_key = "test-job-key"
+        mock_job = Job(
+            id=1234,
+            key=job_key,
+            state=JobState.RUNNING.value,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_job)
+
+        with patch(
+            "uipath.platform.orchestrator._jobs_service.JobsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.JOB,
+                trigger_name=UiPathResumeTriggerName.JOB_RAW,
+                item_key=job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+
+            with pytest.raises(UiPathPendingTriggerError):
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+
+    @pytest.mark.anyio
+    async def test_read_job_raw_trigger_faulted(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a faulted job raw trigger returns the raw job without raising."""
+        job_key = "test-job-key"
+        job_error_info = JobErrorInfo(code="error code")
+        mock_job = Job(
+            id=1234,
+            key=job_key,
+            state="Faulted",
+            job_error=job_error_info,
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_job)
+
+        with patch(
+            "uipath.platform.orchestrator._jobs_service.JobsService.retrieve_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.JOB,
+                trigger_name=UiPathResumeTriggerName.JOB_RAW,
+                item_key=job_key,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+            assert result == mock_job
+
+    @pytest.mark.anyio
     async def test_read_system_agent_job_trigger_successful(
         self,
         setup_test_env: None,
@@ -456,10 +527,12 @@ class TestHitlReader:
             ],
         )
         mock_deep_rag = DeepRagResponse(
+            id=task_id,
             name="test-deep-rag",
             created_date="2024-01-01",
             last_deep_rag_status=DeepRagStatus.SUCCESSFUL,
             content=content,
+            failure_reason=None,
         )
         mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
 
@@ -496,10 +569,12 @@ class TestHitlReader:
 
         task_id = "test-deep-rag-id"
         mock_deep_rag = DeepRagResponse(
+            id=task_id,
             name="test-deep-rag",
             created_date="2024-01-01",
             last_deep_rag_status=DeepRagStatus.QUEUED,
             content=None,
+            failure_reason=None,
         )
         mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
 
@@ -528,10 +603,12 @@ class TestHitlReader:
 
         task_id = "test-deep-rag-id"
         mock_deep_rag = DeepRagResponse(
+            id=task_id,
             name="test-deep-rag",
             created_date="2024-01-01",
             last_deep_rag_status=DeepRagStatus.FAILED,
             content=None,
+            failure_reason="An error ocurred during the deepRAG processing",
         )
         mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
 
@@ -561,10 +638,12 @@ class TestHitlReader:
 
         task_id = "test-deep-rag-id"
         mock_deep_rag = DeepRagResponse(
+            id=task_id,
             name="test-deep-rag",
             created_date="2024-01-01",
             last_deep_rag_status=DeepRagStatus.SUCCESSFUL,
             content=None,
+            failure_reason=None,
         )
         mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
 
@@ -584,6 +663,77 @@ class TestHitlReader:
                 "status": DeepRagStatus.SUCCESSFUL.value,
                 PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
             }
+
+    @pytest.mark.anyio
+    async def test_read_deep_rag_raw_trigger_pending(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a pending deep rag raw trigger still raises pending error."""
+        from uipath.core.errors import UiPathPendingTriggerError
+
+        from uipath.platform.context_grounding import DeepRagResponse
+
+        task_id = "test-deep-rag-id"
+        mock_deep_rag = DeepRagResponse(
+            id=task_id,
+            name="test-deep-rag",
+            created_date="2024-01-01",
+            last_deep_rag_status=DeepRagStatus.QUEUED,
+            content=None,
+            failure_reason=None,
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_deep_rag_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.DEEP_RAG,
+                trigger_name=UiPathResumeTriggerName.DEEP_RAG_RAW,
+                item_key=task_id,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+
+            with pytest.raises(UiPathPendingTriggerError):
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+
+    @pytest.mark.anyio
+    async def test_read_deep_rag_raw_trigger_failed(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a failed deep rag raw trigger returns the raw response without raising."""
+        from uipath.platform.context_grounding import DeepRagResponse
+
+        task_id = "test-deep-rag-id"
+        mock_deep_rag = DeepRagResponse(
+            id=task_id,
+            name="test-deep-rag",
+            created_date="2024-01-01",
+            last_deep_rag_status=DeepRagStatus.FAILED,
+            content=None,
+            failure_reason="An error occurred during the deepRAG processing",
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_deep_rag_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.DEEP_RAG,
+                trigger_name=UiPathResumeTriggerName.DEEP_RAG_RAW,
+                item_key=task_id,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+            assert result == mock_deep_rag
 
     @pytest.mark.anyio
     async def test_read_batch_rag_trigger_successful(
@@ -747,6 +897,70 @@ class TestHitlReader:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
             assert exc_info.value.category == ErrorCategory.USER
+
+    @pytest.mark.anyio
+    async def test_read_ephemeral_index_raw_trigger_pending(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a pending ephemeral index raw trigger still raises pending error."""
+        from uipath.core.errors import UiPathPendingTriggerError
+
+        index_id = "test-ephemeral-index-id"
+        index_data = {
+            "id": index_id,
+            "name": "test-index",
+            "lastIngestionStatus": IndexStatus.IN_PROGRESS.value,
+        }
+
+        mock_retrieve_by_id = AsyncMock(return_value=index_data)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_by_id_async",
+            new=mock_retrieve_by_id,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.INDEX_INGESTION,
+                trigger_name=UiPathResumeTriggerName.INDEX_INGESTION_RAW,
+                item_key=index_id,
+            )
+
+            with pytest.raises(UiPathPendingTriggerError):
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+
+    @pytest.mark.anyio
+    async def test_read_ephemeral_index_raw_trigger_failed(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a failed ephemeral index raw trigger returns the raw response without raising."""
+        from uipath.platform.context_grounding.context_grounding_index import (
+            ContextGroundingIndex,
+        )
+
+        index_id = "test-ephemeral-index-id"
+        index_data = {
+            "id": index_id,
+            "name": "test-index",
+            "lastIngestionStatus": IndexStatus.FAILED.value,
+        }
+
+        mock_retrieve_by_id = AsyncMock(return_value=index_data)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_by_id_async",
+            new=mock_retrieve_by_id,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.INDEX_INGESTION,
+                trigger_name=UiPathResumeTriggerName.INDEX_INGESTION_RAW,
+                item_key=index_id,
+            )
+            reader = UiPathResumeTriggerReader()
+            result = await reader.read_trigger(resume_trigger)
+            assert isinstance(result, ContextGroundingIndex)
+            assert result.last_ingestion_status == IndexStatus.FAILED
 
     @pytest.mark.anyio
     async def test_read_ixp_vs_escalation_trigger_successful(
@@ -1000,6 +1214,56 @@ class TestHitlProcessor:
         assert resume_trigger.folder_path == wait_job.process_folder_path
 
     @pytest.mark.anyio
+    async def test_create_resume_trigger_invoke_process_raw(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for InvokeProcessRaw sets the raw trigger name."""
+        job_key = "test-job-key"
+        invoke_process_raw = InvokeProcessRaw(
+            name="TestProcess",
+            process_folder_path="/test/path",
+            input_arguments={"key": "value"},
+        )
+
+        mock_job = Job(
+            id=1234, key=job_key, folder_key="d0e09040-5997-44e1-93b7-4087689521b7"
+        )
+        mock_invoke = AsyncMock(return_value=mock_job)
+
+        with patch(
+            "uipath.platform.orchestrator._processes_service.ProcessesService.invoke_async",
+            new=mock_invoke,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(invoke_process_raw)
+
+            assert resume_trigger is not None
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
+            assert resume_trigger.trigger_name == UiPathResumeTriggerName.JOB_RAW
+            assert resume_trigger.item_key == job_key
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_job_raw(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for WaitJobRaw sets the raw trigger name."""
+        job_key = "test-job-key"
+        job = Job(
+            id=1234, key=job_key, folder_key="d0e09040-5997-44e1-93b7-4087689521b7"
+        )
+        wait_job_raw = WaitJobRaw(job=job, process_folder_path="/test/path")
+
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_job_raw)
+
+        assert resume_trigger is not None
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.JOB
+        assert resume_trigger.trigger_name == UiPathResumeTriggerName.JOB_RAW
+        assert resume_trigger.item_key == job_key
+
+    @pytest.mark.anyio
     async def test_create_resume_trigger_invoke_system_agent(
         self,
         setup_test_env: None,
@@ -1141,6 +1405,65 @@ class TestHitlProcessor:
         assert resume_trigger.item_key == deep_rag_id
 
     @pytest.mark.anyio
+    async def test_create_resume_trigger_create_deep_rag_raw(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for CreateDeepRagRaw sets the raw trigger name."""
+        deep_rag_id = "test-deep-rag-id"
+        create_deep_rag_raw = CreateDeepRagRaw(
+            name="test-deep-rag",
+            index_name="test-index",
+            prompt="test prompt",
+            glob_pattern="**/*.pdf",
+            citation_mode=CitationMode.INLINE,
+            index_folder_path="/test/path",
+        )
+
+        mock_deep_rag = DeepRagCreationResponse(
+            id=deep_rag_id,
+            last_deep_rag_status=DeepRagStatus.QUEUED,
+            created_date="2024-01-01",
+        )
+        mock_start_deep_rag_async = AsyncMock(return_value=mock_deep_rag)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.start_deep_rag_async",
+            new=mock_start_deep_rag_async,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_deep_rag_raw)
+
+            assert resume_trigger is not None
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.DEEP_RAG
+            assert resume_trigger.trigger_name == UiPathResumeTriggerName.DEEP_RAG_RAW
+            assert resume_trigger.item_key == deep_rag_id
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_deep_rag_raw(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for WaitDeepRagRaw sets the raw trigger name."""
+        deep_rag_id = "test-deep-rag-id"
+        deep_rag = DeepRagCreationResponse(
+            id=deep_rag_id,
+            last_deep_rag_status=DeepRagStatus.IN_PROGRESS,
+            created_date="2024-01-01",
+        )
+        wait_deep_rag_raw = WaitDeepRagRaw(
+            deep_rag=deep_rag, index_folder_path="/test/path"
+        )
+
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_deep_rag_raw)
+
+        assert resume_trigger is not None
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.DEEP_RAG
+        assert resume_trigger.trigger_name == UiPathResumeTriggerName.DEEP_RAG_RAW
+        assert resume_trigger.item_key == deep_rag_id
+
+    @pytest.mark.anyio
     async def test_create_resume_trigger_create_batch_transform(
         self,
         setup_test_env: None,
@@ -1265,6 +1588,67 @@ class TestHitlProcessor:
 
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.INDEX_INGESTION
+        assert resume_trigger.item_key == index_id
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_create_ephemeral_index_raw(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for CreateEphemeralIndexRaw sets the raw trigger name."""
+        index_id = "test-ephemeral-index-id"
+        attachments = ["attachment-uuid-1", "attachment-uuid-2"]
+        create_ephemeral_index_raw = CreateEphemeralIndexRaw(
+            usage=EphemeralIndexUsage.DEEP_RAG,
+            attachments=attachments,
+        )
+
+        mock_index = ContextGroundingIndex(
+            id=index_id,
+            name="ephemeral-index",
+            last_ingestion_status=IndexStatus.QUEUED.value,
+        )
+        mock_create_ephemeral_index = AsyncMock(return_value=mock_index)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.create_ephemeral_index_async",
+            new=mock_create_ephemeral_index,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_ephemeral_index_raw)
+
+            assert resume_trigger is not None
+            assert (
+                resume_trigger.trigger_type == UiPathResumeTriggerType.INDEX_INGESTION
+            )
+            assert (
+                resume_trigger.trigger_name
+                == UiPathResumeTriggerName.INDEX_INGESTION_RAW
+            )
+            assert resume_trigger.item_key == index_id
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_ephemeral_index_raw(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for WaitEphemeralIndexRaw sets the raw trigger name."""
+        index_id = "test-ephemeral-index-id"
+        ephemeral_index = ContextGroundingIndex(
+            id=index_id,
+            name="ephemeral-index",
+            last_ingestion_status=IndexStatus.IN_PROGRESS.value,
+        )
+        wait_ephemeral_index_raw = WaitEphemeralIndexRaw(index=ephemeral_index)
+
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_ephemeral_index_raw)
+
+        assert resume_trigger is not None
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.INDEX_INGESTION
+        assert (
+            resume_trigger.trigger_name == UiPathResumeTriggerName.INDEX_INGESTION_RAW
+        )
         assert resume_trigger.item_key == index_id
 
     @pytest.mark.anyio

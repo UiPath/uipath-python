@@ -133,4 +133,6 @@ def serialize_argument(
         return ""
     if isinstance(value, (list, dict, bool)):
         return json.dumps(value, ensure_ascii=False)
+    if hasattr(value, "value"):
+        return serialize_argument(value.value)
     return str(value)

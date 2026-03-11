@@ -5,8 +5,8 @@ from enum import Enum
 import httpx
 
 from ._config import UiPathConfig
+from ._http_config import get_httpx_client_kwargs
 from ._service_url_overrides import resolve_service_url
-from ._ssl_context import get_httpx_client_kwargs
 
 loggger = logging.getLogger(__name__)
 

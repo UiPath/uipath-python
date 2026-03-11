@@ -6,7 +6,7 @@ import httpx
 from httpx import HTTPStatusError, Request
 
 from ..errors import EnrichedException
-from ._ssl_context import get_httpx_client_kwargs
+from ._http_config import get_httpx_client_kwargs
 from .auth import TokenData
 from .constants import ENV_BASE_URL
 

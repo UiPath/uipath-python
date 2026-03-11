@@ -391,6 +391,9 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     index_name: str = Field(alias="indexName")
     settings: AgentContextSettings = Field(..., description="Context settings")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
 
 
 class AgentMcpTool(BaseCfg):
