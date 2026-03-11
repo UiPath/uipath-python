@@ -7,6 +7,7 @@ from uipath.agent.models.agent import (
     AgentBuiltInValidatorGuardrail,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
+    AgentContextType,
     AgentCustomGuardrail,
     AgentDefinition,
     AgentEscalationChannel,
@@ -1637,6 +1638,7 @@ class TestAgentBuilderConfig:
         context_resource = config.resources[0]
         assert isinstance(context_resource, AgentContextResourceConfig)
         assert context_resource.resource_type == AgentResourceType.CONTEXT
+        assert context_resource.settings is not None
         assert (
             context_resource.settings.retrieval_mode
             == AgentContextRetrievalMode.UNKNOWN
@@ -3041,6 +3043,7 @@ class TestAgentBuilderConfig:
         context = config.resources[1]
         assert isinstance(context, AgentContextResourceConfig)
         assert context.resource_type == AgentResourceType.CONTEXT
+        assert context.settings is not None
         assert context.settings.retrieval_mode == AgentContextRetrievalMode.SEMANTIC
         assert context.settings.query is not None
         assert (
@@ -3220,48 +3223,95 @@ class TestAgentDefinitionIsConversational:
 class TestDataFabricContextConfig:
     """Tests for Data Fabric context resource configuration."""
 
-    def test_datafabric_retrieval_mode_exists(self):
-        """Test that DATA_FABRIC retrieval mode is defined."""
-        assert AgentContextRetrievalMode.DATA_FABRIC == "DataFabric"
-
     def test_datafabric_context_config_parses(self):
-        """Test that Data Fabric context config parses correctly."""
+        """Test v48 format with contextType and entitySet."""
         config = {
             "$resourceType": "context",
-            "name": "Customer Data",
-            "description": "Query customer and order data",
-            "isEnabled": True,
-            "folderPath": "Shared",
-            "indexName": "",
-            "settings": {
-                "retrievalMode": "DataFabric",
-                "resultCount": 100,
-                "entityIdentifiers": ["customers-key", "orders-key"],
-            },
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [
+                {
+                    "id": "abc-123",
+                    "name": "Customers",
+                    "folderId": "folder-1",
+                    "description": "Customer records",
+                },
+                {
+                    "id": "def-456",
+                    "referenceKey": "orders-ref",
+                    "name": "Orders",
+                    "folderId": "folder-2",
+                    "description": None,
+                },
+            ],
         }
 
         parsed = AgentContextResourceConfig.model_validate(config)
 
-        assert parsed.name == "Customer Data"
-        assert parsed.settings.retrieval_mode == AgentContextRetrievalMode.DATA_FABRIC
-        assert parsed.settings.entity_identifiers == ["customers-key", "orders-key"]
+        assert parsed.context_type == AgentContextType.DATA_FABRIC_ENTITY_SET
+        assert parsed.folder_path is None
+        assert parsed.index_name is None
+        assert parsed.settings is None
+        assert parsed.entity_set is not None
+        assert len(parsed.entity_set) == 2
+        assert parsed.entity_set[0].id == "abc-123"
+        assert parsed.entity_set[0].name == "Customers"
+        assert parsed.entity_set[0].folder_id == "folder-1"
+        assert parsed.entity_set[0].description == "Customer records"
+        assert parsed.entity_set[0].reference_key is None
+        assert parsed.entity_set[1].reference_key == "orders-ref"
+        assert parsed.entity_set[1].description is None
 
-    def test_datafabric_context_config_without_entity_identifiers(self):
-        """Test that entity_identifiers is optional."""
+    def test_is_datafabric(self):
+        """Test is_datafabric property with datafabricentityset contextType."""
         config = {
             "$resourceType": "context",
             "name": "Test",
-            "description": "Test",
-            "isEnabled": True,
-            "folderPath": "Shared",
-            "indexName": "",
-            "settings": {
-                "retrievalMode": "DataFabric",
-                "resultCount": 10,
-            },
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [
+                {"id": "abc-123", "name": "E", "folderId": "", "description": None}
+            ],
         }
-
         parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.is_datafabric is True
 
-        assert parsed.settings.retrieval_mode == AgentContextRetrievalMode.DATA_FABRIC
-        assert parsed.settings.entity_identifiers is None
+    def test_is_datafabric_false_for_semantic(self):
+        """Test is_datafabric is False for Semantic contexts."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "folderPath": "Shared",
+            "indexName": "my-index",
+            "settings": {"retrievalMode": "Semantic", "resultCount": 5},
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.is_datafabric is False
+
+    def test_datafabric_entity_identifiers(self):
+        """Test entity identifiers extracted from entitySet."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [
+                {"id": "id-1", "name": "E1", "folderId": "", "description": None},
+                {"id": "id-2", "name": "E2", "folderId": "", "description": None},
+            ],
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.datafabric_entity_identifiers == ["id-1", "id-2"]
+
+    def test_datafabric_entity_identifiers_empty(self):
+        """Test empty entity identifiers when no entitySet provided."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "contextType": "datafabricentityset",
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.datafabric_entity_identifiers == []

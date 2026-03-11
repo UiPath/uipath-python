@@ -37,6 +37,7 @@ _DISALLOWED_SQL_OPERATORS = [
     "PARTITION BY",
 ]
 _SQL_KEYWORD_PATTERN = re.compile(r"\b([A-Z]+(?:\s+BY|\s+SETS)?)\b")
+_QUOTED_STRING_PATTERN = re.compile(r"'[^']*'")
 
 
 class EntitiesService(BaseService):
@@ -420,61 +421,60 @@ class EntitiesService(BaseService):
     def query_entity_records(
         self,
         sql_query: str,
-        schema: Optional[Type[Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """Backward-compatible alias for query_multiple_entities."""
-        return self.query_multiple_entities(sql_query, schema)
+        """Query entity records using a validated SQL query.
 
+        PREVIEW: This method is in preview and may change in future releases.
 
-    @traced(name="query_entities_async", run_type="uipath")
+        Args:
+            sql_query (str): A SQL SELECT query to execute against Data Service entities.
+                Only SELECT statements are allowed. Queries without WHERE must include
+                a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+
+        Returns:
+            List[Dict[str, Any]]: A list of result records as dictionaries.
+
+        Raises:
+            ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
+                WHERE/LIMIT, forbidden keywords, subqueries).
+        """
+        return self._query_entities_for_records(sql_query)
+
+    @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(
         self,
         sql_query: str,
-        schema: Optional[Type[Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """Backward-compatible alias for query_multiple_entities_async."""
-        return await self.query_multiple_entities_async(sql_query, schema)
+        """Asynchronously query entity records using a validated SQL query.
 
-    @traced(name="query_multiple_entities", run_type="uipath")
-    def query_multiple_entities(
-        self,
-        sql_query: str,
-        schema: Optional[Type[Any]] = None,
-    ) -> List[Dict[str, Any]]:
-        """Query entity records using a validated SQL query."""
+        PREVIEW: This method is in preview and may change in future releases.
+
+        Args:
+            sql_query (str): A SQL SELECT query to execute against Data Service entities.
+                Only SELECT statements are allowed. Queries without WHERE must include
+                a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+
+        Returns:
+            List[Dict[str, Any]]: A list of result records as dictionaries.
+
+        Raises:
+            ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
+                WHERE/LIMIT, forbidden keywords, subqueries).
+        """
+        return await self._query_entities_for_records_async(sql_query)
+
+    def _query_entities_for_records(self, sql_query: str) -> List[Dict[str, Any]]:
         self._validate_sql_query(sql_query)
-        spec = self._query_multiple_entities_spec(sql_query)
-        headers = {
-            "X-UiPath-Internal-TenantName": self._url.tenant_name,
-            "X-UiPath-Internal-AccountName": self._url.org_name,
-        }
-        full_url = f"{self._url.base_url}{spec.endpoint}"
-        response = self.request(spec.method, full_url, json=spec.json, headers=headers)
-        status_code = getattr(response, "status_code", 200)
-        if isinstance(status_code, int) and status_code >= 400:
-            response.raise_for_status()
+        spec = self._query_entity_records_spec(sql_query)
+        response = self.request(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
 
-    @traced(name="query_multiple_entities_async", run_type="uipath")
-    async def query_multiple_entities_async(
-        self,
-        sql_query: str,
-        schema: Optional[Type[Any]] = None,
+    async def _query_entities_for_records_async(
+        self, sql_query: str
     ) -> List[Dict[str, Any]]:
-        """Asynchronously query entity records using a validated SQL query."""
         self._validate_sql_query(sql_query)
-        spec = self._query_multiple_entities_spec(sql_query)
-        headers = {
-            "X-UiPath-Internal-TenantName": self._url.tenant_name,
-            "X-UiPath-Internal-AccountName": self._url.org_name,
-        }
-        full_url = f"{self._url.base_url}{spec.endpoint}"
-        response = await self.request_async(
-            spec.method, full_url, json=spec.json, headers=headers
-        )
-        status_code = getattr(response, "status_code", 200)
-        if isinstance(status_code, int) and status_code >= 400:
-            response.raise_for_status()
+        spec = self._query_entity_records_spec(sql_query)
+        response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
@@ -964,18 +964,11 @@ class EntitiesService(BaseService):
         self,
         sql_query: str,
     ) -> RequestSpec:
-        endpoint = f"/dataservice_/{self._url.org_name}/{self._url.tenant_name}/datafabric_/api/v1/query/execute"
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(endpoint),
+            endpoint=Endpoint("datafabric_/api/v1/query/execute"),
             json={"query": sql_query},
         )
-
-    def _query_multiple_entities_spec(
-        self,
-        sql_query: str,
-    ) -> RequestSpec:
-        return self._query_entity_records_spec(sql_query)
 
     def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
         return RequestSpec(
@@ -1007,29 +1000,30 @@ class EntitiesService(BaseService):
         )
 
     def _validate_sql_query(self, sql_query: str) -> None:
-        query = sql_query.strip()
+        query = sql_query.strip().rstrip(";").strip()
         if not query:
             raise ValueError("SQL query cannot be empty.")
 
-        if ";" in query.rstrip(";"):
+        # Strip quoted strings before checking for semicolons so that
+        # values like WHERE name = 'foo;bar' don't trigger a false positive.
+        unquoted = _QUOTED_STRING_PATTERN.sub("''", query)
+        if ";" in unquoted:
             raise ValueError("Only a single SELECT statement is allowed.")
 
         normalized_query = re.sub(r"\s+", " ", query).strip()
         normalized_upper = normalized_query.upper()
-        normalized_keywords = set(_SQL_KEYWORD_PATTERN.findall(normalized_upper))
+        extracted_keywords = set(_SQL_KEYWORD_PATTERN.findall(normalized_upper))
 
-        # Keep legacy behavior: non-SELECT statements fail with this message,
-        # while CTE-based queries are reported as disallowed WITH usage.
         if not normalized_upper.startswith("SELECT "):
             if not normalized_upper.startswith("WITH "):
                 raise ValueError("Only SELECT statements are allowed.")
 
         for keyword in _FORBIDDEN_SQL_KEYWORDS:
-            if keyword in normalized_keywords:
+            if keyword in extracted_keywords:
                 raise ValueError(f"SQL keyword '{keyword}' is not allowed.")
 
         for operator in _DISALLOWED_SQL_OPERATORS:
-            if operator in normalized_keywords:
+            if operator in extracted_keywords:
                 raise ValueError(
                     f"SQL construct '{operator}' is not allowed in entity queries."
                 )
