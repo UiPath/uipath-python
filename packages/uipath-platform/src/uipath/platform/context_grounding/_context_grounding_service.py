@@ -1403,7 +1403,6 @@ class ContextGroundingService(FolderContext, BaseService):
         search_mode: SearchMode = SearchMode.AUTO,
         number_of_results: int = 10,
         threshold: float = 0.0,
-        filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -1419,7 +1418,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode (SearchMode): The search mode to use. Defaults to AUTO.
             number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
-            filter (Optional[str]): Optional filter expression.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
@@ -1437,7 +1435,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode=search_mode,
             number_of_results=number_of_results,
             threshold=threshold,
-            filter=filter,
             scope=scope,
             folder_key=folder_key,
             folder_path=folder_path,
@@ -1461,7 +1458,6 @@ class ContextGroundingService(FolderContext, BaseService):
         search_mode: SearchMode = SearchMode.AUTO,
         number_of_results: int = 10,
         threshold: float = 0.0,
-        filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -1477,7 +1473,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode (SearchMode): The search mode to use. Defaults to AUTO.
             number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
-            filter (Optional[str]): Optional filter expression.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
@@ -1499,7 +1494,6 @@ class ContextGroundingService(FolderContext, BaseService):
             search_mode=search_mode,
             number_of_results=number_of_results,
             threshold=threshold,
-            filter=filter,
             scope=scope,
             folder_key=folder_key,
             folder_path=folder_path,
@@ -1922,7 +1916,6 @@ class ContextGroundingService(FolderContext, BaseService):
         search_mode: SearchMode = SearchMode.AUTO,
         number_of_results: int = 10,
         threshold: float = 0.0,
-        filter: Optional[str] = None,
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
@@ -1939,9 +1932,6 @@ class ContextGroundingService(FolderContext, BaseService):
                 "threshold": threshold,
             },
         }
-
-        if filter is not None:
-            json_body["filter"] = filter
 
         if scope is not None:
             json_body["scope"] = scope.model_dump(by_alias=True, exclude_none=True)

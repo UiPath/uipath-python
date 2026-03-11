@@ -2965,7 +2965,7 @@ class TestContextGroundingService:
         assert response.semantic_results is not None
         assert len(response.semantic_results.values) == 1
 
-    def test_unified_search_with_scope_and_filter(
+    def test_unified_search_with_scope(
         self,
         httpx_mock: HTTPXMock,
         service: ContextGroundingService,
@@ -3027,7 +3027,6 @@ class TestContextGroundingService:
         response = service.unified_search(
             name="test-index",
             query="test query",
-            filter="category eq 'finance'",
             scope=scope,
         )
 
@@ -3036,6 +3035,6 @@ class TestContextGroundingService:
         sent_requests = httpx_mock.get_requests()
         search_request = sent_requests[3]
         request_body = json.loads(search_request.content)
-        assert request_body["filter"] == "category eq 'finance'"
+        assert "filter" not in request_body
         assert request_body["scope"]["folder"] == "docs"
         assert request_body["scope"]["extension"] == ".pdf"
