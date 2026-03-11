@@ -210,12 +210,14 @@ async def handle_start(request: web.Request) -> web.Response:
         original_cwd = os.getcwd()
 
         try:
-            # Start from server baseline + request env vars only.
-            # This ensures no env vars from previous requests leak through.
-            os.environ.clear()
-            os.environ.update(_state.baseline_env)
+            # Build target env before touching os.environ to minimize the
+            # window where the environment is empty (clear+update is not atomic).
+            job_env = dict(_state.baseline_env)
             if isinstance(env_vars, dict):
-                os.environ.update(env_vars)
+                job_env.update(env_vars)
+
+            os.environ.clear()
+            os.environ.update(job_env)
 
             if working_dir and isinstance(working_dir, str):
                 try:
