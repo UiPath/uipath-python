@@ -142,7 +142,16 @@ class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
     STRUCTURED = "Structured"
     DEEP_RAG = "DeepRAG"
     BATCH_TRANSFORM = "BatchTransform"
+    DATA_FABRIC = "DataFabric"
     UNKNOWN = "Unknown"  # fallback branch discriminator
+
+
+class AgentContextType(str, CaseInsensitiveEnum):
+    """Agent context type enumeration."""
+
+    INDEX = "index"
+    ATTACHMENTS = "attachments"
+    DATA_FABRIC_ENTITY_SET = "datafabricentityset"
 
 
 class AgentMessageRole(str, CaseInsensitiveEnum):
@@ -378,18 +387,44 @@ class AgentContextSettings(BaseCfg):
     )
 
 
+class DataFabricEntityItem(BaseCfg):
+    """A single Data Fabric entity reference."""
+
+    id: str
+    reference_key: Optional[str] = Field(None, alias="referenceKey")
+    name: str
+    folder_id: str = Field(alias="folderId")
+    description: Optional[str] = None
+
+
 class AgentContextResourceConfig(BaseAgentResourceConfig):
     """Agent context resource configuration model."""
 
     resource_type: Literal[AgentResourceType.CONTEXT] = Field(
         alias="$resourceType", default=AgentResourceType.CONTEXT, frozen=True
     )
-    folder_path: str = Field(alias="folderPath")
-    index_name: str = Field(alias="indexName")
-    settings: AgentContextSettings = Field(..., description="Context settings")
+    context_type: Optional[AgentContextType] = Field(None, alias="contextType")
+    folder_path: Optional[str] = Field(None, alias="folderPath")
+    index_name: Optional[str] = Field(None, alias="indexName")
+    settings: Optional[AgentContextSettings] = Field(
+        None, description="Context settings"
+    )
+    entity_set: Optional[List[DataFabricEntityItem]] = Field(None, alias="entitySet")
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
+
+    @property
+    def is_datafabric(self) -> bool:
+        """Check if this context is a Data Fabric entity set resource."""
+        return self.context_type == AgentContextType.DATA_FABRIC_ENTITY_SET
+
+    @property
+    def datafabric_entity_identifiers(self) -> list[str]:
+        """Extract entity identifiers from entitySet."""
+        if self.entity_set:
+            return [item.id for item in self.entity_set]
+        return []
 
 
 class AgentMcpTool(BaseCfg):
@@ -1202,6 +1237,7 @@ class AgentDefinition(BaseModel):
             "structured": "Structured",
             "deeprag": "DeepRAG",
             "batchtransform": "BatchTransform",
+            "datafabric": "DataFabric",
             "unknown": "Unknown",
         }
 
@@ -1231,14 +1267,15 @@ class AgentDefinition(BaseModel):
                 )
 
             if res["$resourceType"] == "context":
-                settings = res.get("settings", {})
-                rm = settings.get("retrievalMode") or settings.get("retrieval_mode")
-                settings["retrievalMode"] = (
-                    CONTEXT_MODE_MAP.get(rm.lower(), "Unknown")
-                    if isinstance(rm, str)
-                    else "Unknown"
-                )
-                res["settings"] = settings
+                settings = res.get("settings")
+                if settings is not None:
+                    rm = settings.get("retrievalMode") or settings.get("retrieval_mode")
+                    settings["retrievalMode"] = (
+                        CONTEXT_MODE_MAP.get(rm.lower(), "Unknown")
+                        if isinstance(rm, str)
+                        else "Unknown"
+                    )
+                    res["settings"] = settings
 
             out.append(res)
 

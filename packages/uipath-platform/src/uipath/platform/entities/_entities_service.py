@@ -1,6 +1,9 @@
-from typing import Any, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
+import sqlparse
 from httpx import Response
+from sqlparse.sql import Parenthesis, Where
+from sqlparse.tokens import DML, Keyword, Wildcard
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -13,6 +16,20 @@ from .entities import (
     EntityRecordsBatchResponse,
 )
 
+_FORBIDDEN_DML = {"INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE"}
+_FORBIDDEN_DDL = {"DROP", "ALTER", "CREATE", "TRUNCATE"}
+_DISALLOWED_KEYWORDS = [
+    "WITH",
+    "UNION",
+    "INTERSECT",
+    "EXCEPT",
+    "OVER",
+    "ROLLUP",
+    "CUBE",
+    "GROUPING",
+    "PARTITION",
+]
+
 
 class EntitiesService(BaseService):
     """Service for managing UiPath Data Service entities.
@@ -22,6 +39,10 @@ class EntitiesService(BaseService):
 
     See Also:
         https://docs.uipath.com/data-service/automation-cloud/latest/user-guide/introduction
+
+    !!! warning "Preview Feature"
+        This function is currently experimental.
+        Behavior and parameters are subject to change in future versions.
     """
 
     def __init__(
@@ -390,6 +411,66 @@ class EntitiesService(BaseService):
         return [
             EntityRecord.from_data(data=record, model=schema) for record in records_data
         ]
+
+    @traced(name="entity_query_records", run_type="uipath")
+    def query_entity_records(
+        self,
+        sql_query: str,
+    ) -> List[Dict[str, Any]]:
+        """Query entity records using a validated SQL query.
+
+        PREVIEW: This method is in preview and may change in future releases.
+
+        Args:
+            sql_query (str): A SQL SELECT query to execute against Data Service entities.
+                Only SELECT statements are allowed. Queries without WHERE must include
+                a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+
+        Returns:
+            List[Dict[str, Any]]: A list of result records as dictionaries.
+
+        Raises:
+            ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
+                WHERE/LIMIT, forbidden keywords, subqueries).
+        """
+        return self._query_entities_for_records(sql_query)
+
+    @traced(name="entity_query_records", run_type="uipath")
+    async def query_entity_records_async(
+        self,
+        sql_query: str,
+    ) -> List[Dict[str, Any]]:
+        """Asynchronously query entity records using a validated SQL query.
+
+        PREVIEW: This method is in preview and may change in future releases.
+
+        Args:
+            sql_query (str): A SQL SELECT query to execute against Data Service entities.
+                Only SELECT statements are allowed. Queries without WHERE must include
+                a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+
+        Returns:
+            List[Dict[str, Any]]: A list of result records as dictionaries.
+
+        Raises:
+            ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
+                WHERE/LIMIT, forbidden keywords, subqueries).
+        """
+        return await self._query_entities_for_records_async(sql_query)
+
+    def _query_entities_for_records(self, sql_query: str) -> List[Dict[str, Any]]:
+        self._validate_sql_query(sql_query)
+        spec = self._query_entity_records_spec(sql_query)
+        response = self.request(spec.method, spec.endpoint, json=spec.json)
+        return response.json().get("results", [])
+
+    async def _query_entities_for_records_async(
+        self, sql_query: str
+    ) -> List[Dict[str, Any]]:
+        self._validate_sql_query(sql_query)
+        spec = self._query_entity_records_spec(sql_query)
+        response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
+        return response.json().get("results", [])
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
@@ -874,6 +955,16 @@ class EntitiesService(BaseService):
             params=({"start": start, "limit": limit}),
         )
 
+    def _query_entity_records_spec(
+        self,
+        sql_query: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("datafabric_/api/v1/query/execute"),
+            json={"query": sql_query},
+        )
+
     def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -902,3 +993,100 @@ class EntitiesService(BaseService):
             ),
             json=record_ids,
         )
+
+    def _validate_sql_query(self, sql_query: str) -> None:
+        query = sql_query.strip().rstrip(";").strip()
+        if not query:
+            raise ValueError("SQL query cannot be empty.")
+
+        statements = sqlparse.parse(query)
+        if len(statements) != 1 or not statements[0].tokens:
+            raise ValueError("Only a single SELECT statement is allowed.")
+
+        stmt = statements[0]
+        stmt_type = stmt.get_type()
+
+        if stmt_type != "SELECT":
+            raise ValueError("Only SELECT statements are allowed.")
+
+        keywords = set()
+        for token in stmt.flatten():
+            if token.ttype in Keyword:
+                keywords.add(token.normalized)
+
+        for kw in _FORBIDDEN_DML:
+            if kw in keywords:
+                raise ValueError(f"SQL keyword '{kw}' is not allowed.")
+
+        for kw in _FORBIDDEN_DDL:
+            if kw in keywords:
+                raise ValueError(f"SQL keyword '{kw}' is not allowed.")
+
+        for kw in _DISALLOWED_KEYWORDS:
+            if kw in keywords:
+                raise ValueError(
+                    f"SQL construct '{kw}' is not allowed in entity queries."
+                )
+
+        if self._has_subquery(stmt):
+            raise ValueError("Subqueries are not allowed.")
+
+        has_where = any(isinstance(t, Where) for t in stmt.tokens)
+        has_limit = "LIMIT" in keywords
+        if not has_where and not has_limit:
+            raise ValueError("Queries without WHERE must include a LIMIT clause.")
+
+        projection = self._projection_tokens(stmt)
+        has_wildcard = any(t.ttype is Wildcard for t in projection)
+        if has_wildcard and not has_where:
+            raise ValueError("SELECT * without filtering is not allowed.")
+        if not has_where and self._projection_column_count(projection) > 4:
+            raise ValueError(
+                "Selecting more than 4 columns without filtering is not allowed."
+            )
+
+    @staticmethod
+    def _has_subquery(stmt: sqlparse.sql.Statement) -> bool:
+        """Recursively walk the AST looking for SELECT inside parentheses."""
+
+        def _walk(token: sqlparse.sql.Token) -> bool:
+            if isinstance(token, Parenthesis):
+                for child in token.flatten():
+                    if child.ttype is DML and child.normalized == "SELECT":
+                        return True
+            if hasattr(token, "tokens"):
+                for child in token.tokens:
+                    if _walk(child):
+                        return True
+            return False
+
+        for token in stmt.tokens:
+            if _walk(token):
+                return True
+        return False
+
+    @staticmethod
+    def _projection_tokens(
+        stmt: sqlparse.sql.Statement,
+    ) -> list[sqlparse.sql.Token]:
+        """Extract tokens between the first SELECT and FROM."""
+        tokens: list[sqlparse.sql.Token] = []
+        collecting = False
+        for token in stmt.flatten():
+            if token.ttype is DML and token.normalized == "SELECT":
+                collecting = True
+                continue
+            if token.ttype is Keyword and token.normalized == "FROM":
+                break
+            if collecting:
+                tokens.append(token)
+        return tokens
+
+    @staticmethod
+    def _projection_column_count(
+        projection: list[sqlparse.sql.Token],
+    ) -> int:
+        text = "".join(t.value for t in projection).strip()
+        if not text:
+            return 0
+        return len([part for part in text.split(",") if part.strip()])
