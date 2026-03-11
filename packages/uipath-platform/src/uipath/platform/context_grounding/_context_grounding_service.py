@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
-from typing_extensions import deprecated
 
 import httpx
 from pydantic import Field, TypeAdapter
+from typing_extensions import deprecated
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
