@@ -5,6 +5,7 @@ import os
 import shlex
 import sys
 import tempfile
+import threading
 import time
 from importlib.metadata import entry_points
 from importlib.util import find_spec
@@ -42,13 +43,15 @@ class _ServerState:
     def __init__(self) -> None:
         self.lock: asyncio.Lock | None = None
         self.baseline_env: dict[str, str] | None = None
+        self._init_guard = threading.Lock()
 
     def init(self) -> None:
         """Must be called inside a running event loop at server startup."""
-        if self.lock is not None:
-            return
-        self.lock = asyncio.Lock()
-        self.baseline_env = _pre_dotenv_env.copy()
+        with self._init_guard:
+            if self.lock is not None:
+                return
+            self.lock = asyncio.Lock()
+            self.baseline_env = _pre_dotenv_env.copy()
 
 
 _state = _ServerState()
