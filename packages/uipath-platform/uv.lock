@@ -927,6 +927,15 @@ wheels = [
 ]
 
 [[package]]
+name = "sqlparse"
+version = "0.5.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/76/437d71068094df0726366574cf3432a4ed754217b436eb7429415cf2d480/sqlparse-0.5.5.tar.gz", hash = "sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e", size = 120815, upload-time = "2025-12-19T07:17:45.073Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/4b/359f28a903c13438ef59ebeee215fb25da53066db67b305c125f1c6d2a25/sqlparse-0.5.5-py3-none-any.whl", hash = "sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba", size = 46138, upload-time = "2025-12-19T07:17:46.573Z" },
+]
+
+[[package]]
 name = "stevedore"
 version = "5.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1048,24 +1057,43 @@ wheels = [
 [[package]]
 name = "uipath-core"
 version = "0.5.6"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/8a/d129d33a81865f99d9134391a52f8691f557d95a18a38df4d88917b3e235/uipath_core-0.5.6.tar.gz", hash = "sha256:bebaf2e62111e844739e4f4e4dc47c48bac93b7e6fce6754502a9f4979c41888", size = 112659, upload-time = "2026-03-04T18:04:42.963Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/54/8f/77ab712518aa2a8485a558a0de245ac425e07fd8b74cfa8951550f0aea63/uipath_core-0.5.6-py3-none-any.whl", hash = "sha256:4a741fc760605165b0541b3abb6ade728bfa386e000ace00054bc43995720e5b", size = 42047, upload-time = "2026-03-04T18:04:41.606Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "opentelemetry-instrumentation", specifier = ">=0.60b0,<1.0.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.39.0,<2.0.0" },
+    { name = "pydantic", specifier = ">=2.12.5,<3.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.8.2" },
+    { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-httpx", specifier = ">=0.35.0" },
+    { name = "pytest-mock", specifier = ">=3.11.1" },
+    { name = "pytest-trio", specifier = ">=0.8.0" },
+    { name = "ruff", specifier = ">=0.9.4" },
+    { name = "rust-just", specifier = ">=1.39.0" },
 ]
 
 [[package]]
 name = "uipath-platform"
-version = "0.0.18"
+version = "0.0.19"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic-function-models" },
+    { name = "sqlparse" },
     { name = "tenacity" },
     { name = "truststore" },
     { name = "uipath-core" },
@@ -1090,9 +1118,10 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
+    { name = "sqlparse", specifier = ">=0.5.5" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
-    { name = "uipath-core", specifier = ">=0.5.4,<0.6.0" },
+    { name = "uipath-core", editable = "../uipath-core" },
 ]
 
 [package.metadata.requires-dev]
