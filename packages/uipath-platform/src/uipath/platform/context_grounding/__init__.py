@@ -9,12 +9,18 @@ from .context_grounding import (
     Citation,
     CitationMode,
     ContextGroundingQueryResponse,
+    ContextGroundingSearchResultItem,
     DeepRagContent,
     DeepRagCreationResponse,
     DeepRagResponse,
     DeepRagStatus,
     EphemeralIndexUsage,
     IndexStatus,
+    SearchMode,
+    SemanticSearchOptions,
+    SemanticSearchResult,
+    UnifiedQueryResult,
+    UnifiedSearchScope,
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
@@ -49,6 +55,7 @@ __all__ = [
     "ConnectionSourceConfig",
     "ContextGroundingIndex",
     "ContextGroundingQueryResponse",
+    "ContextGroundingSearchResultItem",
     "ContextGroundingService",
     "CreateIndexPayload",
     "DeepRagCreationResponse",
@@ -64,6 +71,11 @@ __all__ = [
     "Indexer",
     "OneDriveDataSource",
     "OneDriveSourceConfig",
+    "SearchMode",
+    "SemanticSearchOptions",
+    "SemanticSearchResult",
     "SourceConfig",
+    "UnifiedQueryResult",
+    "UnifiedSearchScope",
     "Citation",
 ]
