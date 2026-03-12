@@ -28,6 +28,7 @@ from .orchestrator import (
     FolderService,
     JobsService,
     McpService,
+    OrchestratorSetupService,
     ProcessesService,
     QueuesService,
 )
@@ -160,6 +161,10 @@ class UiPath:
     @property
     def agenthub(self) -> AgentHubService:
         return AgentHubService(self._config, self._execution_context, self.folders)
+
+    @property
+    def orchestrator_setup(self) -> OrchestratorSetupService:
+        return OrchestratorSetupService(self._config, self._execution_context)
 
     @property
     def automation_tracker(self) -> AutomationTrackerService:
