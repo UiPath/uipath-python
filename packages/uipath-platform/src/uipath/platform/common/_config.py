@@ -27,9 +27,12 @@ class ConfigurationManager:
 
     @property
     def config_file_path(self) -> Path:
-        from uipath.platform.common.constants import UIPATH_CONFIG_FILE
+        from uipath.platform.common.constants import (
+            ENV_UIPATH_CONFIG_PATH,
+            UIPATH_CONFIG_FILE,
+        )
 
-        return Path(UIPATH_CONFIG_FILE)
+        return Path(os.environ.get(ENV_UIPATH_CONFIG_PATH, UIPATH_CONFIG_FILE))
 
     @property
     def config_file_name(self) -> str:
