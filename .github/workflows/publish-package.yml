@@ -1,4 +1,4 @@
-name: Publish Package
+name: Build Package
 
 on:
   workflow_call:
@@ -18,7 +18,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
   actions: write
 
 jobs:
@@ -72,24 +71,3 @@ jobs:
         with:
           name: release-dists-${{ inputs.package }}
           path: packages/${{ inputs.package }}/dist/
-
-  publish:
-    name: Publish ${{ inputs.package }}
-    needs: build
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
-        with:
-          name: release-dists-${{ inputs.package }}
-          path: dist/
-
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          verbose: true
-          skip-existing: true

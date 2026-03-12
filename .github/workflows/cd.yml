@@ -36,13 +36,35 @@ jobs:
         run: python .github/scripts/detect_publishable_packages.py
 
   # --- Tier 0: uipath-core (no internal dependencies) ---
-  publish-uipath-core:
+  build-uipath-core:
     needs: detect-publishable-packages
     if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
     uses: ./.github/workflows/publish-package.yml
     with:
       package: uipath-core
       needs-relock: false
+
+  publish-uipath-core:
+    name: Publish uipath-core
+    needs: [detect-publishable-packages, build-uipath-core]
+    if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists-uipath-core
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          skip-existing: true
 
   wait-for-uipath-core:
     name: Wait for uipath-core on PyPI
@@ -72,7 +94,7 @@ jobs:
         run: echo "uipath-core not being published — skipping wait"
 
   # --- Tier 1: uipath-platform (depends on core) ---
-  publish-uipath-platform:
+  build-uipath-platform:
     needs: [detect-publishable-packages, wait-for-uipath-core]
     if: |
       always() &&
@@ -81,6 +103,30 @@ jobs:
     with:
       package: uipath-platform
       needs-relock: true
+
+  publish-uipath-platform:
+    name: Publish uipath-platform
+    needs: [detect-publishable-packages, build-uipath-platform]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists-uipath-platform
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          skip-existing: true
 
   wait-for-uipath-platform:
     name: Wait for uipath-platform on PyPI
@@ -109,7 +155,7 @@ jobs:
         run: echo "uipath-platform not being published — skipping wait"
 
   # --- Tier 2: uipath (depends on core + platform) ---
-  publish-uipath:
+  build-uipath:
     needs: [detect-publishable-packages, wait-for-uipath-platform]
     if: |
       always() &&
@@ -120,3 +166,27 @@ jobs:
       needs-relock: true
     secrets:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+
+  publish-uipath:
+    name: Publish uipath
+    needs: [detect-publishable-packages, build-uipath]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists-uipath
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          skip-existing: true
