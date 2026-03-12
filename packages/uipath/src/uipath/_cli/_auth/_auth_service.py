@@ -3,10 +3,8 @@ import os
 import webbrowser
 
 from uipath._cli._auth._auth_server import HTTPServer
+from uipath._cli._auth._auth_session import AuthSession
 from uipath._cli._auth._oidc_utils import OidcUtils
-from uipath._cli._auth._portal_service import (
-    PortalService,
-)
 from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
 from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
@@ -45,9 +43,8 @@ class AuthService:
         self._authenticate_authorization_code()
 
     def _authenticate_client_credentials(self):
-        assert self._client_id and self._client_secret, (
-            "Client ID and Client Secret must be provided."
-        )
+        if not (self._client_id and self._client_secret):
+            raise ValueError("Client ID and Client Secret must be provided.")
         external_app_service = ExternalApplicationService(self._base_url)
         token_data = external_app_service.get_token_data(
             self._client_id,
@@ -72,50 +69,48 @@ class AuthService:
 
         if tenant_name:
             self._tenant = tenant_name
-            with PortalService(self._domain) as portal_service:
-                portal_service.update_token_data(token_data)
-                tenant_info = portal_service.resolve_tenant_info(self._tenant)
-                env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
+            auth_session = AuthSession(self._domain)
+            auth_session.update_token_data(token_data)
+            tenant_info = auth_session.resolve_tenant_info(self._tenant)
+            env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
         else:
             self._console.warning("Could not extract tenant from --base-url.")
         update_env_file(env_vars)
 
     def _authenticate_authorization_code(self) -> None:
-        with PortalService(self._domain) as portal_service:
-            if not self._force and self._can_reuse_existing_token(portal_service):
-                return
+        auth_session = AuthSession(self._domain)
+        if not self._force and self._can_reuse_existing_token(auth_session):
+            return
 
-            token_data = self._perform_oauth_flow()
-            portal_service.update_token_data(token_data)
-            update_auth_file(token_data)
+        token_data = self._perform_oauth_flow()
+        auth_session.update_token_data(token_data)
+        update_auth_file(token_data)
 
-            tenant_info = portal_service.resolve_tenant_info(self._tenant)
-            uipath_url = portal_service.build_tenant_url()
+        tenant_info = auth_session.resolve_tenant_info(self._tenant)
+        uipath_url = auth_session.build_tenant_url()
 
-            update_env_file(
-                {
-                    "UIPATH_ACCESS_TOKEN": token_data.access_token,
-                    "UIPATH_URL": uipath_url,
-                    "UIPATH_TENANT_ID": tenant_info["tenant_id"],
-                    "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
-                }
-            )
+        update_env_file(
+            {
+                "UIPATH_ACCESS_TOKEN": token_data.access_token,
+                "UIPATH_URL": uipath_url,
+                "UIPATH_TENANT_ID": tenant_info["tenant_id"],
+                "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
+            }
+        )
 
-            try:
-                portal_service.enable_studio_web(uipath_url)
-            except Exception:
-                self._console.error(
-                    "Could not prepare the environment. Please try again."
-                )
+        try:
+            auth_session.enable_studio_web(uipath_url)
+        except Exception:
+            self._console.error("Could not prepare the environment. Please try again.")
 
-    def _can_reuse_existing_token(self, portal_service: PortalService) -> bool:
+    def _can_reuse_existing_token(self, auth_session: AuthSession) -> bool:
         if (
             os.getenv("UIPATH_URL")
             and os.getenv("UIPATH_TENANT_ID")
             and os.getenv("UIPATH_ORGANIZATION_ID")
         ):
             try:
-                portal_service.ensure_valid_token()
+                auth_session.ensure_valid_token()
                 return True
             except Exception:
                 self._console.error(
