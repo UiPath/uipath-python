@@ -47,3 +47,11 @@ def set_llm_concurrency(limit: int) -> None:
     _llm_concurrency_limit = limit
     _llm_semaphore = None
     _llm_semaphore_loop = None
+
+
+def reset_llm_concurrency() -> None:
+    """Reset LLM concurrency to default for per-job isolation."""
+    global _llm_concurrency_limit, _llm_semaphore, _llm_semaphore_loop
+    _llm_concurrency_limit = DEFAULT_LLM_CONCURRENCY
+    _llm_semaphore = None
+    _llm_semaphore_loop = None

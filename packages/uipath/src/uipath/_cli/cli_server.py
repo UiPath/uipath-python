@@ -5,6 +5,7 @@ import os
 import shlex
 import sys
 import tempfile
+import threading
 import time
 from importlib.metadata import entry_points
 from importlib.util import find_spec
@@ -12,6 +13,8 @@ from typing import Any
 
 import click
 from aiohttp import ClientSession, UnixConnector, web
+
+from uipath._cli import _pre_dotenv_env
 
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
@@ -40,13 +43,15 @@ class _ServerState:
     def __init__(self) -> None:
         self.lock: asyncio.Lock | None = None
         self.baseline_env: dict[str, str] | None = None
+        self._init_guard = threading.Lock()
 
     def init(self) -> None:
         """Must be called inside a running event loop at server startup."""
-        if self.lock is not None:
-            return
-        self.lock = asyncio.Lock()
-        self.baseline_env = os.environ.copy()
+        with self._init_guard:
+            if self.lock is not None:
+                return
+            self.lock = asyncio.Lock()
+            self.baseline_env = _pre_dotenv_env.copy()
 
 
 _state = _ServerState()
@@ -208,12 +213,14 @@ async def handle_start(request: web.Request) -> web.Response:
         original_cwd = os.getcwd()
 
         try:
-            # Start from server baseline + request env vars only.
-            # This ensures no env vars from previous requests leak through.
-            os.environ.clear()
-            os.environ.update(_state.baseline_env)
+            # Build target env before touching os.environ to minimize the
+            # window where the environment is empty (clear+update is not atomic).
+            job_env = dict(_state.baseline_env)
             if isinstance(env_vars, dict):
-                os.environ.update(env_vars)
+                job_env.update(env_vars)
+
+            os.environ.clear()
+            os.environ.update(job_env)
 
             if working_dir and isinstance(working_dir, str):
                 try:
