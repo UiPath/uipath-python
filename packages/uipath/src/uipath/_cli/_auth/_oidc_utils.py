@@ -4,9 +4,8 @@ import json
 import os
 from urllib.parse import urlencode, urlparse
 
-import httpx
+from uipath.platform.orchestrator import StudioWebService
 
-from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
 from ._url_utils import build_service_url
@@ -26,31 +25,6 @@ def generate_code_verifier_and_challenge():
 
 def get_state_param() -> str:
     return base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
-
-
-def _get_version_from_api(domain: str) -> str | None:
-    """Fetch the version from the UiPath orchestrator API.
-
-    Args:
-        domain: The UiPath domain (e.g., 'https://alpha.uipath.com')
-
-    Returns:
-        The version string (e.g., '25.10.0-beta.415') or None if unable to fetch
-    """
-    try:
-        version_url = build_service_url(domain, "/orchestrator_/api/status/version")
-        client_kwargs = get_httpx_client_kwargs()
-        # Override timeout for version check
-        client_kwargs["timeout"] = 5.0
-
-        with httpx.Client(**client_kwargs) as client:
-            response = client.get(version_url)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("version")
-    except Exception:
-        # Silently fail and return None if we can't fetch the version
-        return None
 
 
 def _is_cloud_domain(domain: str) -> bool:
@@ -92,7 +66,7 @@ def _select_config_file(domain: str) -> str:
         return "auth_config_cloud.json"
 
     # Try to get version from API
-    version = _get_version_from_api(domain)
+    version = StudioWebService.get_server_version(domain)
 
     # If we can't determine version, fallback to cloud config
     if version is None:

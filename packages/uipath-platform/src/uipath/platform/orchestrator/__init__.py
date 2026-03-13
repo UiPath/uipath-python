@@ -11,6 +11,7 @@ from ._jobs_service import JobsService
 from ._mcp_service import McpService
 from ._processes_service import ProcessesService
 from ._queues_service import QueuesService
+from ._studio_web_service import StudioWebService
 from .assets import Asset, UserAsset
 from .attachment import Attachment
 from .buckets import Bucket, BucketFile
@@ -34,6 +35,7 @@ __all__ = [
     "McpService",
     "ProcessesService",
     "QueuesService",
+    "StudioWebService",
     "Asset",
     "UserAsset",
     "Attachment",

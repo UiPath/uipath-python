@@ -3,10 +3,10 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
-from httpx import HTTPStatusError, Request
+from httpx import HTTPStatusError
 
 from ..errors import EnrichedException
-from ._http_config import get_httpx_client_kwargs
+from ..identity import IdentityService
 from .auth import TokenData
 from .constants import ENV_BASE_URL
 
@@ -21,16 +21,6 @@ class ExternalApplicationService:
             )
         self._base_url = resolved_base_url
         self._domain = self._extract_environment_from_base_url(self._base_url)
-
-    def get_token_url(self) -> str:
-        """Get the token URL for the specified domain."""
-        match self._domain:
-            case "alpha":
-                return "https://alpha.uipath.com/identity_/connect/token"
-            case "staging":
-                return "https://staging.uipath.com/identity_/connect/token"
-            case _:  # cloud (default)
-                return "https://cloud.uipath.com/identity_/connect/token"
 
     def _is_valid_domain_or_subdomain(self, hostname: str, domain: str) -> bool:
         """Check if hostname is either an exact match or a valid subdomain of the domain.
@@ -87,53 +77,45 @@ class ExternalApplicationService:
         Returns:
             Token data if successful
         """
-        token_url = self.get_token_url()
-
-        data = {
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "scope": scope,
+        domain_map = {
+            "alpha": "https://alpha.uipath.com",
+            "staging": "https://staging.uipath.com",
         }
+        domain = domain_map.get(self._domain, "https://cloud.uipath.com")
 
         try:
-            with httpx.Client(**get_httpx_client_kwargs()) as client:
-                response = client.post(token_url, data=data)
-                match response.status_code:
-                    case 200:
-                        return TokenData.model_validate(response.json())
-                    case 400:
-                        raise EnrichedException(
-                            HTTPStatusError(
-                                message="Invalid client credentials or request parameters.",
-                                request=Request(
-                                    data=data, url=token_url, method="post"
-                                ),
-                                response=response,
-                            )
+            return IdentityService.get_client_credentials_token(
+                domain=domain,
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope,
+            )
+        except HTTPStatusError as e:
+            match e.response.status_code:
+                case 400:
+                    raise EnrichedException(
+                        HTTPStatusError(
+                            message="Invalid client credentials or request parameters.",
+                            request=e.request,
+                            response=e.response,
                         )
-                    case 401:
-                        raise EnrichedException(
-                            HTTPStatusError(
-                                message="Unauthorized: Invalid client credentials.",
-                                request=Request(
-                                    data=data, url=token_url, method="post"
-                                ),
-                                response=response,
-                            )
+                    ) from e
+                case 401:
+                    raise EnrichedException(
+                        HTTPStatusError(
+                            message="Unauthorized: Invalid client credentials.",
+                            request=e.request,
+                            response=e.response,
                         )
-                    case _:
-                        raise EnrichedException(
-                            HTTPStatusError(
-                                message=f"Authentication failed with unexpected status: {response.status_code}",
-                                request=Request(
-                                    data=data, url=token_url, method="post"
-                                ),
-                                response=response,
-                            )
+                    ) from e
+                case _:
+                    raise EnrichedException(
+                        HTTPStatusError(
+                            message=f"Authentication failed with unexpected status: {e.response.status_code}",
+                            request=e.request,
+                            response=e.response,
                         )
-        except EnrichedException:
-            raise
+                    ) from e
         except httpx.RequestError as e:
             raise Exception(f"Network error during authentication: {e}") from e
         except Exception as e:

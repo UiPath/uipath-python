@@ -9,13 +9,12 @@ compatibility with release/2025.10 branches or later.
 
 import json
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from uipath._cli._auth._oidc_utils import (
     OidcUtils,
-    _get_version_from_api,
     _is_cloud_domain,
     _select_config_file,
 )
@@ -121,47 +120,6 @@ class TestOidcUtils:
         """Test _is_cloud_domain correctly identifies cloud domains."""
         assert _is_cloud_domain(domain) == expected
 
-    def test_get_version_from_api_success(self):
-        """Test _get_version_from_api successfully fetches version."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "version": "25.10.0-beta.415",
-            "timestamp": "2025-10-23T19:08:22Z",
-            "deployment": "ServiceFabric",
-        }
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
-        with patch("httpx.Client", return_value=mock_client):
-            version = _get_version_from_api("https://custom.domain.com")
-            assert version == "25.10.0-beta.415"
-
-    def test_get_version_from_api_timeout(self):
-        """Test _get_version_from_api handles timeouts gracefully."""
-        mock_client = MagicMock()
-        mock_client.get.side_effect = TimeoutError
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
-        with patch("httpx.Client", return_value=mock_client):
-            version = _get_version_from_api("https://custom.domain.com")
-            assert version is None
-
-    def test_get_version_from_api_network_error(self):
-        """Test _get_version_from_api handles network errors gracefully."""
-        mock_client = MagicMock()
-        mock_client.get.side_effect = Exception("Network error")
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
-        with patch("httpx.Client", return_value=mock_client):
-            version = _get_version_from_api("https://custom.domain.com")
-            assert version is None
-
     @pytest.mark.parametrize(
         "domain,mock_version,expected_config",
         [
@@ -186,7 +144,7 @@ class TestOidcUtils:
     def test_select_config_file(self, domain, mock_version, expected_config):
         """Test _select_config_file selects the correct config based on domain and version."""
         with patch(
-            "uipath._cli._auth._oidc_utils._get_version_from_api",
+            "uipath._cli._auth._oidc_utils.StudioWebService.get_server_version",
             return_value=mock_version,
         ):
             config_file = _select_config_file(domain)
@@ -212,17 +170,11 @@ class TestOidcUtils:
 
     def test_get_auth_config_with_25_10_version(self):
         """Test get_auth_config with version 25.10 uses auth_config_25_10.json."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"version": "25.10.0-beta.415"}
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
         with (
-            patch("httpx.Client", return_value=mock_client),
+            patch(
+                "uipath._cli._auth._oidc_utils.StudioWebService.get_server_version",
+                return_value="25.10.0-beta.415",
+            ),
             patch(
                 "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port",
                 return_value=8104,
