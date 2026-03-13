@@ -1,0 +1,53 @@
+# UiPath SDK
+
+## UiPath SDK
+
+- [Assets](https://uipath.github.io/uipath-python/core/assets/index.md)
+- [Attachments](https://uipath.github.io/uipath-python/core/attachments/index.md)
+- [Buckets](https://uipath.github.io/uipath-python/core/buckets/index.md)
+- [Connections](https://uipath.github.io/uipath-python/core/connections/index.md)
+- [Context Grounding](https://uipath.github.io/uipath-python/core/context_grounding/index.md)
+- [Documents](https://uipath.github.io/uipath-python/core/documents/index.md)
+- [Documents](https://uipath.github.io/uipath-python/core/documents_models/index.md)
+- [Entities](https://uipath.github.io/uipath-python/core/entities/index.md)
+- [Environment Variables](https://uipath.github.io/uipath-python/core/environment_variables/index.md)
+- [Getting Started](https://uipath.github.io/uipath-python/core/getting_started/index.md)
+- [Guardrails](https://uipath.github.io/uipath-python/core/guardrails/index.md)
+- [Jobs](https://uipath.github.io/uipath-python/core/jobs/index.md)
+- [LLM Gateway](https://uipath.github.io/uipath-python/core/llm_gateway/index.md)
+- [Processes](https://uipath.github.io/uipath-python/core/processes/index.md)
+- [Queues](https://uipath.github.io/uipath-python/core/queues/index.md)
+- [Release Notes](https://uipath.github.io/uipath-python/core/release_notes/index.md)
+- [Resource Catalog](https://uipath.github.io/uipath-python/core/resource_catalog/index.md)
+- [Tasks](https://uipath.github.io/uipath-python/core/tasks/index.md)
+- [Tracing](https://uipath.github.io/uipath-python/core/traced/index.md)
+- [CLI Reference](https://uipath.github.io/uipath-python/cli/index.md)
+
+## UiPath MCP SDK
+
+- [How To Pack Binary](https://uipath.github.io/uipath-python/mcp/how_to_pack_binary/index.md)
+- [Getting Started](https://uipath.github.io/uipath-python/mcp/quick_start/index.md)
+
+## UiPath LangChain SDK
+
+- [Chat Models](https://uipath.github.io/uipath-python/langchain/chat_models/index.md)
+- [Context Grounding](https://uipath.github.io/uipath-python/langchain/context_grounding/index.md)
+- [Human In The Loop](https://uipath.github.io/uipath-python/langchain/human_in_the_loop/index.md)
+- [Getting Started](https://uipath.github.io/uipath-python/langchain/quick_start/index.md)
+
+## UiPath LlamaIndex SDK
+
+- [Context Grounding](https://uipath.github.io/uipath-python/llamaindex/context_grounding/index.md)
+- [Human In The Loop](https://uipath.github.io/uipath-python/llamaindex/human_in_the_loop/index.md)
+- [LLMs and Embeddings](https://uipath.github.io/uipath-python/llamaindex/llms_and_embeddings/index.md)
+- [Getting Started](https://uipath.github.io/uipath-python/llamaindex/quick_start/index.md)
+
+## UiPath OpenAI Agents SDK
+
+- [Getting Started](https://uipath.github.io/uipath-python/openai-agents/quick_start/index.md)
+
+## Contributing & Resources
+
+- [How To Contribute](https://uipath.github.io/uipath-python/CONTRIBUTING/index.md)
+- [FAQ](https://uipath.github.io/uipath-python/FAQ/index.md)
+
