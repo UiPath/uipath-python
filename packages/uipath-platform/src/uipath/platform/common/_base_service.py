@@ -71,13 +71,9 @@ class BaseService:
 
         self._url = UiPathUrl(self._config.base_url)
 
-        default_client_kwargs = get_httpx_client_kwargs()
-
-        client_kwargs = {
-            **default_client_kwargs,  # SSL, proxy, timeout, redirects
-            "base_url": self._url.base_url,
-            "headers": Headers(self.default_headers),
-        }
+        client_kwargs = get_httpx_client_kwargs(headers=self.default_headers)
+        client_kwargs["base_url"] = self._url.base_url
+        client_kwargs["headers"] = Headers(client_kwargs.get("headers", {}))
 
         self._client = Client(**client_kwargs)
         self._client_async = AsyncClient(**client_kwargs)

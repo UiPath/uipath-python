@@ -136,9 +136,9 @@ class LlmOpsHttpExporter(SpanExporter):
                 "UIPATH_ORGANIZATION_ID", ""
             )
 
-        client_kwargs = get_httpx_client_kwargs()
+        client_kwargs = get_httpx_client_kwargs(headers=self.headers)
 
-        self.http_client = httpx.Client(**client_kwargs, headers=self.headers)
+        self.http_client = httpx.Client(**client_kwargs)
         self.trace_id = trace_id
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
