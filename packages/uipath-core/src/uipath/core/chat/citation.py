@@ -54,7 +54,7 @@ class UiPathConversationCitationSourceUrl(UiPathConversationCitationSourceBase):
 class UiPathConversationCitationSourceMedia(UiPathConversationCitationSourceBase):
     """Represents a citation source that references media, such as a PDF document."""
 
-    mime_type: str | None = Field(..., alias="mimeType")
+    mime_type: str | None = Field(None, alias="mimeType")
     download_url: str | None = Field(None, alias="downloadUrl")
     page_number: str | None = Field(None, alias="pageNumber")
 
