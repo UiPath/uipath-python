@@ -34,27 +34,34 @@ def create_ssl_context():
         )
 
 
-def get_httpx_client_kwargs() -> Dict[str, Any]:
-    """Get standardized httpx client configuration."""
+def get_httpx_client_kwargs(
+    headers: Dict[str, str] | None = None,
+) -> Dict[str, Any]:
+    """Get standardized httpx client configuration.
+
+    Args:
+        headers: Optional headers to merge with platform headers (e.g. licensing).
+            Caller headers take priority on key conflicts.
+    """
     client_kwargs: Dict[str, Any] = {"follow_redirects": True, "timeout": 30.0}
-    # Check environment variable to disable SSL verification
     disable_ssl_env = os.environ.get("UIPATH_DISABLE_SSL_VERIFY", "").lower()
     disable_ssl_from_env = disable_ssl_env in ("1", "true", "yes", "on")
 
     if disable_ssl_from_env:
         client_kwargs["verify"] = False
     else:
-        # Use system certificates with truststore fallback
         client_kwargs["verify"] = create_ssl_context()
-
-    # Auto-detect proxy from environment variables (httpx handles this automatically)
-    # HTTP_PROXY, HTTPS_PROXY, NO_PROXY are read by httpx by default
 
     from ._config import UiPathConfig
     from .constants import HEADER_LICENSING_CONTEXT
 
+    merged_headers: Dict[str, str] = {}
     licensing_context = UiPathConfig.licensing_context
     if licensing_context:
-        client_kwargs["headers"] = {HEADER_LICENSING_CONTEXT: licensing_context}
+        merged_headers[HEADER_LICENSING_CONTEXT] = licensing_context
+    if headers:
+        merged_headers.update(headers)
+    if merged_headers:
+        client_kwargs["headers"] = merged_headers
 
     return client_kwargs
