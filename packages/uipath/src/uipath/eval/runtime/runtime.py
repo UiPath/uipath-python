@@ -86,6 +86,7 @@ from .context import UiPathEvalContext
 from .events import (
     EvalItemExceptionDetails,
     EvalRunCreatedEvent,
+    EvalRunStatusUpdateEvent,
     EvalRunUpdatedEvent,
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
@@ -504,6 +505,7 @@ class UiPathEvalRuntime:
             evaluation_run_results = UiPathEvalRunResult(
                 evaluation_name=eval_item.name, evaluation_run_results=[]
             )
+            agent_execution_succeeded = False
 
             try:
                 try:
@@ -626,6 +628,17 @@ class UiPathEvalRuntime:
                     # The evaluation will be completed when resumed
                     return evaluation_run_results
 
+                # Agent execution succeeded - mark flag and move to Running
+                # (evaluation/scoring phase is about to begin)
+                agent_execution_succeeded = True
+                await self.event_bus.publish(
+                    EvaluationEvents.MOVE_EVAL_RUN_TO_RUNNING,
+                    EvalRunStatusUpdateEvent(
+                        execution_id=execution_id,
+                    ),
+                    wait_for_completion=False,
+                )
+
                 if self.context.verbose:
                     evaluation_run_results.agent_execution_output = (
                         convert_eval_execution_output_to_serializable(
@@ -739,6 +752,7 @@ class UiPathEvalRuntime:
                     exception_details=exception_details,
                     spans=[],
                     logs=[],
+                    workload_failed=not agent_execution_succeeded,
                 )
                 if isinstance(e, EvaluationRuntimeException):
                     eval_run_updated_event.spans = e.spans
