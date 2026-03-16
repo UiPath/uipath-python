@@ -2,7 +2,6 @@
 
 from uipath.eval.models import BooleanEvaluationResult, EvaluationResult
 
-from .._helpers.output_path import resolve_output_path
 from ..models.models import AgentExecution
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
@@ -41,30 +40,8 @@ class LegacyExactMatchEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating exact match (True/False)
         """
-        actual_output = agent_execution.agent_output
-        expected_output = evaluation_criteria.expected_output
-
-        if self.target_output_key and self.target_output_key != "*":
-            if isinstance(actual_output, dict) and isinstance(expected_output, dict):
-                actual_resolved = True
-                expected_resolved = True
-
-                try:
-                    actual_output = resolve_output_path(
-                        actual_output, self.target_output_key
-                    )
-                except (KeyError, IndexError, TypeError):
-                    actual_resolved = False
-
-                try:
-                    expected_output = resolve_output_path(
-                        expected_output, self.target_output_key
-                    )
-                except (KeyError, IndexError, TypeError):
-                    expected_resolved = False
-
-                if not actual_resolved or not expected_resolved:
-                    actual_output = expected_output = {}
+        actual_output = self.get_targeted_field(agent_execution.agent_output)
+        expected_output = self.get_targeted_field(evaluation_criteria.expected_output)
 
         return BooleanEvaluationResult(
             score=self._canonical_json(actual_output)
