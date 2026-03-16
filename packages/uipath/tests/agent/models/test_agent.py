@@ -4,6 +4,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from uipath.agent.models.agent import (
+    AgentA2aResourceConfig,
     AgentBooleanOperator,
     AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
@@ -3528,3 +3529,216 @@ class TestDataFabricContextConfig:
         }
         parsed = AgentContextResourceConfig.model_validate(config)
         assert parsed.datafabric_entity_identifiers == []
+
+    def test_a2a_resource(self):
+        """Test that AgentDefinition can load A2A resources."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-a2a-resource",
+            "name": "Agent with A2A Resource",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."}
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "a2a",
+                    "id": "755e2f7d-5a3d-47f3-8e9d-7ff0bf226357",
+                    "name": "Philosopher Agent",
+                    "slug": "philosopher-agent",
+                    "description": "A philosophical agent that answers questions with wisdom and philosopher quotes",
+                    "agentCardUrl": "",
+                    "isActive": True,
+                    "cachedAgentCard": {
+                        "name": "Philosopher Agent",
+                        "description": "Philosopher Agent assistant",
+                        "url": "https://philosopher-agent.example.com/a2a/5045dca3",
+                        "supportedInterfaces": [
+                            {
+                                "url": "https://philosopher-agent.example.com/a2a/5045dca3",
+                                "protocolBinding": "jsonrpc",
+                                "protocolVersion": "1.0",
+                            }
+                        ],
+                        "capabilities": {
+                            "streaming": True,
+                            "pushNotifications": False,
+                            "stateTransitionHistory": False,
+                        },
+                        "defaultInputModes": [
+                            "application/json",
+                            "text/plain",
+                        ],
+                        "defaultOutputModes": [
+                            "application/json",
+                            "text/plain",
+                        ],
+                        "skills": [
+                            {
+                                "id": "5045dca3-main",
+                                "name": "Philosopher Agent Capabilities",
+                                "description": "Philosopher Agent assistant",
+                                "tags": ["assistant", "langgraph"],
+                                "examples": [],
+                                "inputModes": [
+                                    "application/json",
+                                    "text/plain",
+                                ],
+                                "outputModes": [
+                                    "application/json",
+                                    "text/plain",
+                                ],
+                                "metadata": {
+                                    "inputSchema": {
+                                        "required": ["messages"],
+                                        "properties": ["messages"],
+                                        "supportsA2A": True,
+                                    }
+                                },
+                            }
+                        ],
+                        "version": "0.7.70",
+                    },
+                    "createdAt": "2026-03-15T10:12:47.9073065",
+                    "createdBy": "f4bc4946-baed-4083-82b9-03d334bbacbe",
+                    "updatedAt": None,
+                    "updatedBy": None,
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate A2A resource
+        a2a_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.A2A
+        ]
+        assert len(a2a_resources) == 1
+        a2a_resource = a2a_resources[0]
+        assert isinstance(a2a_resource, AgentA2aResourceConfig)
+        assert a2a_resource.name == "Philosopher Agent"
+        assert a2a_resource.slug == "philosopher-agent"
+        assert (
+            a2a_resource.description
+            == "A philosophical agent that answers questions with wisdom and philosopher quotes"
+        )
+        assert a2a_resource.is_active is True
+        assert a2a_resource.agent_card_url == ""
+        assert a2a_resource.id == "755e2f7d-5a3d-47f3-8e9d-7ff0bf226357"
+        assert a2a_resource.created_at == "2026-03-15T10:12:47.9073065"
+        assert a2a_resource.created_by == "f4bc4946-baed-4083-82b9-03d334bbacbe"
+        assert a2a_resource.updated_at is None
+        assert a2a_resource.updated_by is None
+
+        # Validate cached agent card is a plain dict
+        card = a2a_resource.cached_agent_card
+        assert isinstance(card, dict)
+        assert card["name"] == "Philosopher Agent"
+        assert card["url"] == "https://philosopher-agent.example.com/a2a/5045dca3"
+        assert card["version"] == "0.7.70"
+        assert len(card["supportedInterfaces"]) == 1
+        assert card["supportedInterfaces"][0]["protocolBinding"] == "jsonrpc"
+        assert card["capabilities"]["streaming"] is True
+        assert len(card["skills"]) == 1
+        assert card["skills"][0]["name"] == "Philosopher Agent Capabilities"
+
+    def test_a2a_resource_without_cached_card(self):
+        """Test A2A resource with no cachedAgentCard."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-a2a-no-card",
+            "name": "Agent with minimal A2A",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [{"role": "System", "content": "You are an assistant."}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "a2a",
+                    "id": "abc-123",
+                    "name": "Minimal A2A Agent",
+                    "slug": "minimal-a2a",
+                    "description": "A minimal A2A agent",
+                    "isActive": False,
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        a2a_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.A2A
+        ]
+        assert len(a2a_resources) == 1
+        a2a_resource = a2a_resources[0]
+        assert isinstance(a2a_resource, AgentA2aResourceConfig)
+        assert a2a_resource.name == "Minimal A2A Agent"
+        assert a2a_resource.slug == "minimal-a2a"
+        assert a2a_resource.is_active is False
+        assert a2a_resource.cached_agent_card is None
+        assert a2a_resource.agent_card_url == ""
+        assert a2a_resource.created_at is None
+
+    def test_a2a_resource_case_insensitive(self):
+        """Test that A2A resource type is parsed case-insensitively."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-a2a-case",
+            "name": "Agent A2A case test",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [{"role": "System", "content": "You are an assistant."}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "A2A",
+                    "id": "case-test-id",
+                    "name": "Case Test Agent",
+                    "slug": "case-test",
+                    "description": "Testing case insensitive parsing",
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        a2a_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.A2A
+        ]
+        assert len(a2a_resources) == 1
+        assert isinstance(a2a_resources[0], AgentA2aResourceConfig)
