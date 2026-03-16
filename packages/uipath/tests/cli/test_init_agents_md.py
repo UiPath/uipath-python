@@ -172,6 +172,14 @@ class TestGenerateAgentMdFiles:
 class TestInitWithAgentsMd:
     """Test the init command with default AGENTS.md creation."""
 
+    def _generate_pyproject(self):
+        with open("pyproject.toml", "w") as f:
+            f.write(
+                '[project]\nname = "test-project"\nversion = "0.1.0"\n'
+                'description = "Test"\nauthors = [{name = "Test"}]\n'
+                'requires-python = ">=3.11"\n'
+            )
+
     def test_init_creates_agent_files_by_default(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
@@ -196,6 +204,7 @@ class TestInitWithAgentsMd:
                 mock_as_file.return_value.__enter__.return_value = temp_source
                 mock_as_file.return_value.__exit__.return_value = None
 
+                self._generate_pyproject()
                 result = runner.invoke(cli, ["init"])
 
                 assert result.exit_code == 0
@@ -238,6 +247,7 @@ class TestInitWithAgentsMd:
                 mock_as_file.return_value.__enter__.return_value = temp_source
                 mock_as_file.return_value.__exit__.return_value = None
 
+                self._generate_pyproject()
                 # Run init (AGENTS.md creation is now default)
                 result = runner.invoke(cli, ["init"])
 

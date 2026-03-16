@@ -1,4 +1,5 @@
 import asyncio
+import enum
 import importlib.resources
 import json
 import logging
@@ -32,9 +33,12 @@ from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 from .._utils.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._telemetry import track_command
+from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
+from ._utils._constants import AGENT_INITIAL_CODE_VERSION, SCHEMA_VERSION
+from ._utils._project_files import read_toml_project
 from .middlewares import Middlewares
-from .models.runtime_schema import Bindings
+from .models.runtime_schema import Bindings, EntryPoint
 from .models.uipath_json_schema import UiPathJsonConfig
 
 console = ConsoleLogger()
@@ -43,6 +47,11 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = "uipath.json"
 
 GRAPH_INDENT = "    "
+
+
+class Action(str, enum.Enum):
+    CREATED = "Created"
+    UPDATED = "Updated"
 
 
 def create_telemetry_config_file(target_directory: str) -> None:
@@ -76,7 +85,7 @@ def generate_env_file(target_directory):
         relative_path = os.path.relpath(env_path, target_directory)
         with open(env_path, "w"):
             pass
-        console.success(f"Created '{relative_path}' file.")
+        console.success(f"{Action.CREATED.value} '{relative_path}' file.")
 
 
 def generate_agent_md_file(
@@ -142,12 +151,12 @@ def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) 
 
     if any_overridden:
         console.success(
-            f"Updated {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
+            f"{Action.UPDATED.value} {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
         )
         return
 
     console.success(
-        f"Created {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
+        f"{Action.CREATED.value} {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
     )
 
 
@@ -194,6 +203,78 @@ def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
         json.dump(json_object, entry_points_file, indent=4)
 
     return entry_points_file_path
+
+
+def write_uiproj_file(
+    entry_point_schemas: list[UiPathRuntimeSchema],
+    current_directory: str,
+) -> None:
+    """Write project.uiproj file, warning if the project type changed.
+
+    Args:
+        entry_point_schemas: The entrypoint schemas from runtime discovery.
+        current_directory: The project root directory.
+
+    """
+    entry_point_models = [
+        EntryPoint.model_validate(ep.model_dump(by_alias=True, exclude_unset=True))
+        for ep in entry_point_schemas
+    ]
+    project_type = determine_project_type(entry_point_models).capitalize()
+
+    toml_data = read_toml_project(os.path.join(current_directory, "pyproject.toml"))
+    project_name = toml_data["name"]
+    project_description = toml_data.get("description")
+
+    uiproj_file_path = Path(current_directory) / str(UiPathConfig.uiproj_file_path)
+    if uiproj_file_path.exists():
+        action = Action.UPDATED.value
+        with open(uiproj_file_path, "r") as f:
+            existing = json.load(f)
+        existing_type = existing.get("ProjectType")
+        if existing_type and existing_type != project_type:
+            console.warning(
+                f'Project type changed from "{existing_type}" to "{project_type}".'
+            )
+    else:
+        action = Action.CREATED.value
+
+    json_object = {
+        "ProjectType": project_type,
+        "Name": project_name,
+        "Description": project_description,
+        "MainFile": None,
+    }
+
+    with open(uiproj_file_path, "w") as f:
+        json.dump(json_object, f, indent=2)
+
+    console.success(f"{action} '{UiPathConfig.uiproj_file_path}' file.")
+
+
+def write_studio_metadata_file(directory: str) -> None:
+    """Write studio_metadata.json with initial codeVersion and schemaVersion.
+
+    Args:
+        directory: The project root directory.
+    """
+    local_metadata_file = os.path.join(
+        directory, str(UiPathConfig.studio_metadata_file_path)
+    )
+    if os.path.exists(local_metadata_file):
+        return
+
+    metadata = {
+        "schemaVersion": SCHEMA_VERSION,
+        "codeVersion": AGENT_INITIAL_CODE_VERSION,
+    }
+    os.makedirs(os.path.dirname(local_metadata_file), exist_ok=True)
+    with open(local_metadata_file, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    console.success(
+        f"{Action.CREATED.value} '{os.path.relpath(local_metadata_file, directory)}' file."
+    )
 
 
 def write_mermaid_files(entry_points: list[UiPathRuntimeSchema]) -> list[Path]:
@@ -342,7 +423,7 @@ def init(no_agents_md_override: bool) -> None:
                 if not config_path.exists():
                     config = UiPathJsonConfig.create_default()
                     config.save_to_file(config_path)
-                    console.success(f"Created '{config_path}' file.")
+                    console.success(f"{Action.CREATED.value} '{config_path}' file.")
                 else:
                     console.info(f"'{config_path}' already exists, skipping.")
 
@@ -352,7 +433,7 @@ def init(no_agents_md_override: bool) -> None:
                     bindings_path = write_bindings_file(
                         Bindings(version="2.0", resources=[])
                     )
-                    console.success(f"Created '{bindings_path}' file.")
+                    console.success(f"{Action.CREATED.value} '{bindings_path}' file.")
                 else:
                     console.info(f"'{bindings_path}' already exists, skipping.")
 
@@ -391,15 +472,18 @@ def init(no_agents_md_override: bool) -> None:
                 # Write entry-points.json with all schemas
                 entry_points_path = write_entry_points_file(entry_point_schemas)
                 console.success(
-                    f"Created '{entry_points_path}' file with {len(entry_point_schemas)} entrypoint(s)."
+                    f"{Action.CREATED.value} '{entry_points_path}' file with {len(entry_point_schemas)} entrypoint(s)."
                 )
 
                 # Write mermaid diagrams for each entrypoint
                 mermaid_paths = write_mermaid_files(entry_point_schemas)
                 if mermaid_paths and len(mermaid_paths) > 0:
                     console.success(
-                        f"Created {len(mermaid_paths)} mermaid diagram file(s)."
+                        f"{Action.CREATED.value} {len(mermaid_paths)} mermaid diagram file(s)."
                     )
+
+                write_uiproj_file(entry_point_schemas, current_directory)
+                write_studio_metadata_file(current_directory)
 
                 return entry_point_schemas
 

@@ -3,18 +3,18 @@ import os
 import uuid
 import zipfile
 from string import Template
-from typing import Any
 
 import click
 from pydantic import TypeAdapter
 
-from uipath._cli.models.runtime_schema import Bindings
+from uipath._cli.models.runtime_schema import Bindings, EntryPoint, EntryPoints
 from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
 from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 from uipath.platform.common import UiPathConfig
 
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._telemetry import track_command
+from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     ensure_config_file,
@@ -72,24 +72,23 @@ def validate_config_structure(config_data):
 
 
 def generate_operate_file(
-    entryPoints: list[dict[str, Any]], runtimeOptions: RuntimeOptions, dependencies=None
+    entrypoints: list[EntryPoint], runtimeOptions: RuntimeOptions, dependencies=None
 ):
-    if not entryPoints:
+    if not entrypoints:
         raise ValueError(
             "No entry points found in entry-points.json. Please run 'uipath init' to generate valid entry points."
         )
 
     project_id = get_project_id()
 
-    first_entry = entryPoints[0]
-    file_path = first_entry["filePath"]
-    type = first_entry["type"]
+    project_type = determine_project_type(entrypoints)
+    first_entry = entrypoints[0]
 
     operate_json_data = {
         "$schema": schema,
         "projectId": project_id,
-        "main": file_path,
-        "contentType": type,
+        "main": first_entry.file_path,
+        "contentType": project_type,
         "targetFramework": "Portable",
         "targetRuntime": "python",
         "runtimeOptions": {
@@ -105,11 +104,13 @@ def generate_operate_file(
     return operate_json_data
 
 
-def generate_entrypoints_file(entryPoints):
+def generate_entrypoints_file(entrypoints: list[EntryPoint]):
     entrypoint_json_data = {
         "$schema": schema,
         "$id": "entry-points.json",
-        "entryPoints": entryPoints,
+        "entryPoints": [
+            ep.model_dump(by_alias=True, exclude_none=True) for ep in entrypoints
+        ],
     }
 
     return entrypoint_json_data
@@ -184,15 +185,15 @@ def generate_psmdcp_content(projectName, version, description, authors):
     return [random_file_name, Template(content).substitute(variables)]
 
 
-def generate_package_descriptor_content(entryPoints):
+def generate_package_descriptor_content(entrypoints: list[EntryPoint]):
     files = {
         "operate.json": "content/operate.json",
         "entry-points.json": "content/entry-points.json",
         "bindings.json": "content/bindings_v2.json",
     }
 
-    for entry in entryPoints:
-        files[entry["filePath"]] = entry["filePath"]
+    for entry in entrypoints:
+        files[entry.file_path] = entry.file_path
 
     package_descriptor_content = {
         "$schema": "https://cloud.uipath.com/draft/2024-12/package-descriptor",
@@ -222,12 +223,13 @@ def pack_fn(
     entry_points_file_path = os.path.join(
         directory, str(UiPathConfig.entry_points_file_path)
     )
-    entry_points: list[dict[str, Any]] = []
     if not os.path.exists(entry_points_file_path):
         raise Exception("'entry-points.json' file not found. Please run 'uipath init'.")
-    else:
-        with open(entry_points_file_path, "r") as f:
-            entry_points = json.load(f).get("entryPoints", [])
+
+    with open(entry_points_file_path, "r") as f:
+        entry_points_data = EntryPoints.model_validate(json.load(f))
+
+    entrypoints = entry_points_data.entrypoints
 
     config_path = os.path.join(directory, "uipath.json")
     if not os.path.exists(config_path):
@@ -237,7 +239,7 @@ def pack_fn(
         config_data = TypeAdapter(UiPathJsonConfig).validate_python(json.load(f))
 
     operate_file = generate_operate_file(
-        entry_points, config_data.runtime_options, dependencies
+        entrypoints, config_data.runtime_options, dependencies
     )
 
     # try to read bindings from bindings.json
@@ -257,7 +259,7 @@ def pack_fn(
         f"/{project_name}.nuspec",
         f"/package/services/metadata/core-properties/{psmdcp_file_name}",
     )
-    package_descriptor_content = generate_package_descriptor_content(entry_points)
+    package_descriptor_content = generate_package_descriptor_content(entrypoints)
 
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)

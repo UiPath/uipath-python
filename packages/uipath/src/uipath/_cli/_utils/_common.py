@@ -15,6 +15,7 @@ from uipath.platform.common import (
 )
 
 from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
+from ..models.runtime_schema import EntryPoint
 from ..spinner import Spinner
 from ._console import ConsoleLogger
 from ._studio_project import (
@@ -104,6 +105,36 @@ def clean_directory(directory: str) -> None:
 
         if os.path.isfile(file_path) and file_name.endswith(".py"):
             os.remove(file_path)
+
+
+def determine_project_type(entrypoints: list[EntryPoint]) -> str:
+    """Determine the project type from entrypoints.
+
+    Returns the type of the first entrypoint, or "function" if no entrypoints exist.
+    Logs a warning if there are multiple entrypoint types.
+
+    Args:
+        entrypoints: List of EntryPoint objects.
+
+    Returns:
+        The project type string (e.g. "agent" or "function").
+    """
+    if not entrypoints:
+        return "function"
+
+    unique_types = set(ep.type for ep in entrypoints)
+    chosen_type = entrypoints[0].type
+
+    if len(unique_types) > 1:
+        console = ConsoleLogger()
+        types_str = ", ".join(sorted(unique_types))
+        console.warning(
+            f"Mixed entrypoint types detected: [{types_str}]. "
+            f'Defaulting project type to "{chosen_type}". '
+            f"We recommend using a single type for all entrypoints."
+        )
+
+    return chosen_type
 
 
 async def ensure_coded_agent_project(studio_client: StudioClient):
