@@ -130,6 +130,7 @@ class TestResourceOverrides:
                 "deployed": [
                     {
                         "systemName": "app-key-123",
+                        "deploymentTitle": "Overwritten App Name",
                         "deploymentFolder": {
                             "fullyQualifiedName": "Overwritten/App/Folder"
                         },
