@@ -9,12 +9,11 @@ from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
-from ..common._folder_context import FolderContext
+from ..common._folder_context import FolderContext, _folder_path_header
 from ..common._models import Endpoint, RequestSpec
 from ..common.constants import (
     ENV_TENANT_ID,
     HEADER_FOLDER_KEY,
-    HEADER_FOLDER_PATH,
     HEADER_TENANT_ID,
 )
 from .task_schema import TaskSchema
@@ -320,11 +319,11 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
 def folder_headers(
     app_folder_key: Optional[str], app_folder_path: Optional[str]
 ) -> Dict[str, str]:
-    headers = {}
+    headers: Dict[str, str] = {}
     if app_folder_key:
         headers[HEADER_FOLDER_KEY] = app_folder_key
     elif app_folder_path:
-        headers[HEADER_FOLDER_PATH] = app_folder_path
+        headers.update(_folder_path_header(app_folder_path))
     return headers
 
 

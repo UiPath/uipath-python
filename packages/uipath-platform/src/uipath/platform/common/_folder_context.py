@@ -1,12 +1,31 @@
 from os import environ as env
 from typing import Any, Optional
+from urllib.parse import quote
 
 from uipath.platform.common.constants import (
     ENV_FOLDER_KEY,
     ENV_FOLDER_PATH,
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
+    HEADER_FOLDER_PATH_ENCODED,
 )
+
+# All printable ASCII chars (0x20–0x7E) — passed to quote() so only
+# non-ASCII bytes get percent-encoded while preserving spaces, slashes, etc.
+_ASCII_PRINTABLE = "".join(chr(c) for c in range(0x20, 0x7F))
+
+
+def _folder_path_header(folder_path: str) -> dict[str, str]:
+    """Return the appropriate folder path header.
+
+    Uses the encoded header variant with percent-encoding when the path
+    contains non-ASCII characters, since HTTP headers require ASCII values.
+    """
+    try:
+        folder_path.encode("ascii")
+        return {HEADER_FOLDER_PATH: folder_path}
+    except UnicodeEncodeError:
+        return {HEADER_FOLDER_PATH_ENCODED: quote(folder_path, safe=_ASCII_PRINTABLE)}
 
 
 def header_folder(
@@ -19,7 +38,7 @@ def header_folder(
     if folder_key is not None and folder_key != "":
         headers[HEADER_FOLDER_KEY] = folder_key
     if folder_path is not None and folder_path != "":
-        headers[HEADER_FOLDER_PATH] = folder_path
+        headers.update(_folder_path_header(folder_path))
 
     return headers
 
@@ -63,6 +82,6 @@ class FolderContext:
         if self._folder_key is not None:
             return {HEADER_FOLDER_KEY: self._folder_key}
         elif self._folder_path is not None:
-            return {HEADER_FOLDER_PATH: self._folder_path}
+            return _folder_path_header(self._folder_path)
         else:
             return {}
