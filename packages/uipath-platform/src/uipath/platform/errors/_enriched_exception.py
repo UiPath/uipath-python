@@ -1,18 +1,29 @@
+from dataclasses import dataclass
+from functools import cached_property
+
 from httpx import HTTPStatusError
+
+
+@dataclass(frozen=True)
+class ExtractedErrorInfo:
+    message: str | None = None
+    error_code: str | None = None
+    trace_id: str | None = None
 
 
 class EnrichedException(Exception):
     """Enriched HTTP error with detailed request/response information.
 
-    This exception wraps HTTPStatusError and provides additional context about
-    the failed HTTP request, including URL, method, status code, and response content.
+    Wraps HTTPStatusError with URL, method, status code, and truncated response
+    content in __str__. For structured error fields, use ``error_info`` which
+    delegates to per-service extractors.
     """
 
     def __init__(self, error: HTTPStatusError) -> None:
-        # Extract the relevant details from the HTTPStatusError
-        self.status_code = error.response.status_code if error.response else "Unknown"
-        self.url = str(error.request.url) if error.request else "Unknown"
-        self.http_method = (
+        self._http_error = error
+        self.status_code: int = error.response.status_code if error.response else 0
+        self.url: str = str(error.request.url) if error.request else "Unknown"
+        self.http_method: str = (
             error.request.method
             if error.request and error.request.method
             else "Unknown"
@@ -34,5 +45,19 @@ class EnrichedException(Exception):
             f"\nResponse Content: {self.response_content}"
         )
 
-        # Initialize the parent Exception class with the formatted message
         super().__init__(enriched_message)
+
+    @cached_property
+    def error_info(self) -> ExtractedErrorInfo | None:
+        """Service-aware extraction of message, error_code, trace_id."""
+        from ._extractors._router import extract_error_info
+
+        resp = self._http_error.response
+        if resp is None or not resp.content:
+            return None
+        try:
+            body = resp.content.decode("utf-8")
+        except Exception:
+            return None
+        content_type = resp.headers.get("content-type") if resp is not None else None
+        return extract_error_info(self.url, body, content_type)
