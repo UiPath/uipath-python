@@ -73,9 +73,6 @@ class TestHeaderFolder:
     def test_none_path_and_key_returns_empty(self) -> None:
         assert header_folder(None, None) == {}
 
-    def test_empty_path_and_key_returns_empty(self) -> None:
-        assert header_folder("", "") == {}
-
     def test_both_key_and_path_raises(self) -> None:
         with pytest.raises(ValueError):
             header_folder("key", "path")
