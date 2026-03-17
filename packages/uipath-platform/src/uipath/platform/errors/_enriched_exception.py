@@ -17,24 +17,42 @@ class EnrichedException(Exception):
     Wraps HTTPStatusError with URL, method, status code, and truncated response
     content in __str__. For structured error fields, use ``error_info`` which
     delegates to per-service extractors.
+
+    Does not retain a reference to the original HTTPStatusError — all needed
+    data is eagerly extracted. Callers needing the raw response can still
+    access ``__cause__`` (set by ``raise EnrichedException(e) from e``).
     """
 
     def __init__(self, error: HTTPStatusError) -> None:
-        self._http_error = error
-        self.status_code: int = error.response.status_code if error.response else 0
+        # while status code 0 is the correct one according to http standard;
+        # it has a totally oposite meaning as return codes in CLIs;
+        # opted for -1 to avoid confusion
+        self.status_code: int = error.response.status_code if error.response else -1
         self.url: str = str(error.request.url) if error.request else "Unknown"
         self.http_method: str = (
             error.request.method
             if error.request and error.request.method
             else "Unknown"
         )
+
+        self._response_body: str | None = None
+        self._content_type: str | None = None
+        if error.response is not None:
+            self._content_type = error.response.headers.get("content-type")
+            if error.response.content:
+                try:
+                    self._response_body = error.response.content.decode("utf-8")
+                except Exception:
+                    pass
+
         max_content_length = 200
-        if error.response and error.response.content:
-            content = error.response.content.decode("utf-8")
-            if len(content) > max_content_length:
-                self.response_content = content[:max_content_length] + "... (truncated)"
+        if self._response_body:
+            if len(self._response_body) > max_content_length:
+                self.response_content = (
+                    self._response_body[:max_content_length] + "... (truncated)"
+                )
             else:
-                self.response_content = content
+                self.response_content = self._response_body
         else:
             self.response_content = "No content"
 
@@ -52,12 +70,6 @@ class EnrichedException(Exception):
         """Service-aware extraction of message, error_code, trace_id."""
         from ._extractors._router import extract_error_info
 
-        resp = self._http_error.response
-        if resp is None or not resp.content:
+        if not self._response_body:
             return None
-        try:
-            body = resp.content.decode("utf-8")
-        except Exception:
-            return None
-        content_type = resp.headers.get("content-type") if resp is not None else None
-        return extract_error_info(self.url, body, content_type)
+        return extract_error_info(self.url, self._response_body, self._content_type)

@@ -13,11 +13,23 @@ _RFC7807_CONTENT_TYPES = frozenset(
 )
 
 
+_RFC7807_REQUIRED = {"detail", "title"}
+_RFC7807_SUPPORTING = {"type", "status", "instance"}
+
+
 def is_rfc7807_content_type(content_type: str | None) -> bool:
     """Check if the content type indicates an RFC 7807 response."""
     if not content_type:
         return False
     return content_type.split(";")[0].strip().lower() in _RFC7807_CONTENT_TYPES
+
+
+def looks_like_rfc7807(body: dict[str, Any]) -> bool:
+    """Structural heuristic: has detail/title + at least 2 RFC 7807 keys."""
+    keys = body.keys()
+    has_required = bool(_RFC7807_REQUIRED & keys)
+    supporting_count = len((_RFC7807_REQUIRED | _RFC7807_SUPPORTING) & keys)
+    return has_required and supporting_count >= 2
 
 
 def extract_rfc7807(body: dict[str, Any]) -> ExtractedErrorInfo:

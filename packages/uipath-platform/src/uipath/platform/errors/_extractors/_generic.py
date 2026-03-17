@@ -8,17 +8,11 @@ from typing import Any
 
 from .._enriched_exception import ExtractedErrorInfo
 from ._helpers import get_field, get_str_field, get_typed_field
-from ._rfc7807 import extract_rfc7807
-
-_RFC7807_KEYS = {"type", "title", "status", "detail", "instance"}
-
-
-def _looks_like_rfc7807(body: dict[str, Any]) -> bool:
-    return len(_RFC7807_KEYS & body.keys()) >= 2
+from ._rfc7807 import extract_rfc7807, looks_like_rfc7807
 
 
 def extract_generic(body: dict[str, Any]) -> ExtractedErrorInfo:
-    if _looks_like_rfc7807(body):
+    if looks_like_rfc7807(body):
         return extract_rfc7807(body)
 
     message: str | None
