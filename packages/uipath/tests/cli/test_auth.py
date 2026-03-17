@@ -104,21 +104,37 @@ class TestAuth:
         with (
             patch("uipath._cli._auth._auth_service.webbrowser.open") as mock_open,
             patch("uipath._cli._auth._auth_service.HTTPServer") as mock_server,
-            patch(
-                "uipath._cli._auth._auth_service.PortalService"
-            ) as mock_portal_service,
+            patch("uipath._cli._auth._auth_service.AuthSession") as mock_auth_session,
+            patch("uipath.platform.UiPath") as mock_uipath,
         ):
+            mock_uipath.return_value.orchestrator_setup.enable_first_run_async = (
+                AsyncMock()
+            )
             mock_server.return_value.start = AsyncMock(
                 return_value={"access_token": "test_token"}
             )
-            mock_portal_service.return_value.__enter__.return_value.get_tenants_and_organizations.return_value = {
-                "tenants": [{"name": "DefaultTenant", "id": "tenant-id"}],
-                "organization": {"name": "DefaultOrg", "id": "org-id"},
-            }
-            mock_portal_service.return_value.__enter__.return_value._select_tenant.return_value = {
-                "tenant_id": "tenant-id",
-                "organization_id": "org-id",
-            }
+            session = mock_auth_session.return_value
+            session.get_tenants_and_organizations = AsyncMock(
+                return_value={
+                    "tenants": [{"name": "DefaultTenant", "id": "tenant-id"}],
+                    "organization": {"name": "DefaultOrg", "id": "org-id"},
+                }
+            )
+            session._select_tenant = AsyncMock(
+                return_value={
+                    "tenant_id": "tenant-id",
+                    "organization_id": "org-id",
+                }
+            )
+            session.resolve_tenant_info = AsyncMock(
+                return_value={
+                    "tenant_id": "tenant-id",
+                    "organization_id": "org-id",
+                }
+            )
+            session.build_tenant_url = AsyncMock(
+                return_value=expected_select_tenant_return,
+            )
 
             with runner.isolated_filesystem():
                 for key, value in env_vars.items():
@@ -159,31 +175,40 @@ class TestAuth:
         with (
             patch("uipath._cli._auth._auth_service.webbrowser.open") as mock_open,
             patch("uipath._cli._auth._auth_service.HTTPServer") as mock_server,
-            patch(
-                "uipath._cli._auth._auth_service.PortalService"
-            ) as mock_portal_service,
+            patch("uipath._cli._auth._auth_service.AuthSession") as mock_auth_session,
             patch(
                 "uipath._cli._auth._url_utils.resolve_domain",
                 return_value="https://alpha.uipath.com",
             ),
+            patch("uipath.platform.UiPath") as mock_uipath,
         ):
+            mock_uipath.return_value.orchestrator_setup.enable_first_run_async = (
+                AsyncMock()
+            )
             mock_server.return_value.start = AsyncMock(
                 return_value={"access_token": "test_token"}
             )
 
-            portal = mock_portal_service.return_value.__enter__.return_value
-            portal.get_tenants_and_organizations.return_value = {
-                "tenants": [
-                    {"name": "MyTenantName", "id": "tenant-id"},
-                    {"name": "OtherTenant", "id": "other-id"},
-                ],
-                "organization": {"name": "MyOrg", "id": "org-id"},
-            }
-            portal.resolve_tenant_info.return_value = {
-                "tenant_id": "tenant-id",
-                "organization_id": "org-id",
-            }
-            portal.selected_tenant = "MyTenantName"
+            session = mock_auth_session.return_value
+            session.get_tenants_and_organizations = AsyncMock(
+                return_value={
+                    "tenants": [
+                        {"name": "MyTenantName", "id": "tenant-id"},
+                        {"name": "OtherTenant", "id": "other-id"},
+                    ],
+                    "organization": {"name": "MyOrg", "id": "org-id"},
+                }
+            )
+            session.resolve_tenant_info = AsyncMock(
+                return_value={
+                    "tenant_id": "tenant-id",
+                    "organization_id": "org-id",
+                }
+            )
+            session.build_tenant_url = AsyncMock(
+                return_value="https://alpha.uipath.com/MyOrg/MyTenantName",
+            )
+            session.selected_tenant = "MyTenantName"
             with runner.isolated_filesystem():
                 result = runner.invoke(
                     cli, ["auth", "--alpha", "--tenant", "MyTenantName", "--force"]
@@ -192,4 +217,4 @@ class TestAuth:
                 assert result.exit_code == 0, result.output
                 mock_open.assert_called_once()
 
-                portal.resolve_tenant_info.assert_called_once_with("MyTenantName")
+                session.resolve_tenant_info.assert_called_once_with("MyTenantName")

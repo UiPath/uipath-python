@@ -77,7 +77,7 @@ Running `uipath init` will process these function definitions and create the cor
 For step-by-step debugging with breakpoints and variable inspection (supported from `2.0.66` onward):
 ```console
 # Install debugpy package
-[uv] pip install debugpy
+uv pip install debugpy
 # Run agent with debugging enabled
 uipath run [ENTRYPOINT] [INPUT] --debug
 ```

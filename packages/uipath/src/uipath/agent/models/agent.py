@@ -100,6 +100,7 @@ class AgentResourceType(str, CaseInsensitiveEnum):
     CONTEXT = "context"
     ESCALATION = "escalation"
     MCP = "mcp"
+    A2A = "a2a"
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
@@ -306,6 +307,7 @@ class BaseAgentResourceConfig(BaseCfg):
         AgentResourceType.CONTEXT,
         AgentResourceType.ESCALATION,
         AgentResourceType.MCP,
+        AgentResourceType.A2A,
         AgentResourceType.UNKNOWN,
     ] = Field(alias="$resourceType")
 
@@ -462,6 +464,25 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     dynamic_tools: DynamicToolsMode = Field(
         default=DynamicToolsMode.NONE, alias="dynamicTools"
     )
+
+
+class AgentA2aResourceConfig(BaseAgentResourceConfig):
+    """Agent A2A resource configuration model."""
+
+    resource_type: Literal[AgentResourceType.A2A] = Field(
+        alias="$resourceType", default=AgentResourceType.A2A, frozen=True
+    )
+    id: str
+    slug: str = Field(..., alias="slug")
+    agent_card_url: str = Field(default="", alias="agentCardUrl")
+    is_active: bool = Field(default=True, alias="isActive")
+    cached_agent_card: Optional[Dict[str, Any]] = Field(
+        default=None, alias="cachedAgentCard"
+    )
+    created_at: Optional[str] = Field(default=None, alias="createdAt")
+    created_by: Optional[str] = Field(default=None, alias="createdBy")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
+    updated_by: Optional[str] = Field(default=None, alias="updatedBy")
 
 
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
@@ -879,6 +900,7 @@ AgentResourceConfig = Annotated[
         AgentContextResourceConfig,
         EscalationResourceConfig,  # nested discrim on 'escalation_type'
         AgentMcpResourceConfig,
+        AgentA2aResourceConfig,
         AgentUnknownResourceConfig,  # when parent sets resource_type="Unknown"
     ],
     Field(discriminator="resource_type"),
@@ -1224,7 +1246,7 @@ class AgentDefinition(BaseModel):
 
     @staticmethod
     def _normalize_resources(v: Dict[str, Any]) -> None:
-        KNOWN_RES = {"tool", "context", "escalation", "mcp"}
+        KNOWN_RES = {"tool", "context", "escalation", "mcp", "a2a"}
         TOOL_MAP = {
             "agent": "Agent",
             "process": "Process",

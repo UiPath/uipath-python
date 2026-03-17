@@ -39,7 +39,7 @@ jobs:
   build-uipath-core:
     needs: detect-publishable-packages
     if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
-    uses: ./.github/workflows/publish-package.yml
+    uses: ./.github/workflows/build-package.yml
     with:
       package: uipath-core
       needs-relock: false
@@ -99,7 +99,7 @@ jobs:
     if: |
       always() &&
       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
-    uses: ./.github/workflows/publish-package.yml
+    uses: ./.github/workflows/build-package.yml
     with:
       package: uipath-platform
       needs-relock: true
@@ -160,7 +160,7 @@ jobs:
     if: |
       always() &&
       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
-    uses: ./.github/workflows/publish-package.yml
+    uses: ./.github/workflows/build-package.yml
     with:
       package: uipath
       needs-relock: true
