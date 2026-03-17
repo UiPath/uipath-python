@@ -1,6 +1,6 @@
+from base64 import b64encode
 from os import environ as env
 from typing import Any, Optional
-from urllib.parse import quote
 
 from uipath.platform.common.constants import (
     ENV_FOLDER_KEY,
@@ -10,22 +10,20 @@ from uipath.platform.common.constants import (
     HEADER_FOLDER_PATH_ENCODED,
 )
 
-# All printable ASCII chars (0x20–0x7E) — passed to quote() so only
-# non-ASCII bytes get percent-encoded while preserving spaces, slashes, etc.
-_ASCII_PRINTABLE = "".join(chr(c) for c in range(0x20, 0x7F))
-
 
 def _folder_path_header(folder_path: str) -> dict[str, str]:
     """Return the appropriate folder path header.
 
-    Uses the encoded header variant with percent-encoding when the path
-    contains non-ASCII characters, since HTTP headers require ASCII values.
+    Uses the encoded header variant when the path contains non-ASCII
+    characters, since HTTP headers require ASCII values. The Orchestrator
+    expects Base64(UTF-16LE) in the encoded header.
     """
     try:
         folder_path.encode("ascii")
         return {HEADER_FOLDER_PATH: folder_path}
     except UnicodeEncodeError:
-        return {HEADER_FOLDER_PATH_ENCODED: quote(folder_path, safe=_ASCII_PRINTABLE)}
+        encoded = b64encode(folder_path.encode("utf-16-le")).decode("ascii")
+        return {HEADER_FOLDER_PATH_ENCODED: encoded}
 
 
 def header_folder(
