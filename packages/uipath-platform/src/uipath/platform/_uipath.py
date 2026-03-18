@@ -7,6 +7,7 @@ from uipath.platform.automation_tracker import AutomationTrackerService
 
 from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
+from .agenthub._remote_a2a_service import RemoteA2aService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
@@ -161,6 +162,10 @@ class UiPath:
     @property
     def agenthub(self) -> AgentHubService:
         return AgentHubService(self._config, self._execution_context, self.folders)
+
+    @property
+    def remote_a2a(self) -> RemoteA2aService:
+        return RemoteA2aService(self._config, self._execution_context, self.folders)
 
     @property
     def orchestrator_setup(self) -> OrchestratorSetupService:
