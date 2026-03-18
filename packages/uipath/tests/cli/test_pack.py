@@ -20,6 +20,28 @@ def create_bindings_file():
         json.dump(bindings_content, f, indent=4)
 
 
+def create_entry_points_file(entrypoint_type: str = "function"):
+    """Helper to create a default entry-points.json file for tests."""
+    entry_points_content = {
+        "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+        "$id": "entry-points.json",
+        "entryPoints": [
+            {
+                "filePath": "main",
+                "uniqueId": "00000000-0000-0000-0000-000000000000",
+                "type": entrypoint_type,
+                "input": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                },
+                "output": {"type": "string"},
+            }
+        ],
+    }
+    with open("entry-points.json", "w") as f:
+        json.dump(entry_points_content, f, indent=4)
+
+
 def create_uipath_json(
     functions: dict[str, str] | None = None, pack_options: dict | None = None
 ):
@@ -82,12 +104,7 @@ class TestPack:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
             create_bindings_file()
-
-            # Mock middleware and run init
-            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
-                mock_middleware.return_value = MiddlewareResult(should_continue=True)
-                init_result = runner.invoke(cli, ["init"], env={})
-                assert init_result.exit_code == 0
+            create_entry_points_file()
 
             result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
@@ -112,12 +129,7 @@ class TestPack:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
             create_bindings_file()
-
-            # Mock middleware and run init
-            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
-                mock_middleware.return_value = MiddlewareResult(should_continue=True)
-                init_result = runner.invoke(cli, ["init"], env={})
-                assert init_result.exit_code == 0
+            create_entry_points_file()
 
             result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
@@ -141,12 +153,7 @@ class TestPack:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
             create_bindings_file()
-
-            # Mock middleware and run init
-            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
-                mock_middleware.return_value = MiddlewareResult(should_continue=True)
-                init_result = runner.invoke(cli, ["init"], env={})
-                assert init_result.exit_code == 0
+            create_entry_points_file()
 
             result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
@@ -170,12 +177,7 @@ class TestPack:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
             create_bindings_file()
-
-            # Mock middleware and run init
-            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
-                mock_middleware.return_value = MiddlewareResult(should_continue=True)
-                init_result = runner.invoke(cli, ["init"], env={})
-                assert init_result.exit_code == 0
+            create_entry_points_file()
 
             result = runner.invoke(cli, ["pack", "./"], env={})
             assert result.exit_code == 1
@@ -1079,30 +1081,31 @@ class TestPack:
 
     def test_generate_operate_file(self, runner: CliRunner, temp_dir: str) -> None:
         """Test generating operate.json from entry-points."""
+        from uipath._cli.models.runtime_schema import EntryPoint
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             create_bindings_file()
 
-            # Create entry-points structure (from entry-points.json)
-            entry_points = [
-                {
-                    "filePath": "agent1.py",
-                    "uniqueId": "agent1-id",
-                    "type": "agent",
-                    "input": {"type": "object", "properties": {}},
-                    "output": {"type": "object", "properties": {}},
-                }
+            entrypoints = [
+                EntryPoint(
+                    filePath="agent1.py",
+                    uniqueId="agent1-id",
+                    type="agent",
+                    input={"type": "object", "properties": {}},
+                    output={"type": "object", "properties": {}},
+                )
             ]
 
             operate_data = cli_pack.generate_operate_file(
-                entry_points, RuntimeOptions(is_conversational=False)
+                entrypoints, RuntimeOptions(is_conversational=False)
             )
 
             assert (
                 operate_data["$schema"]
                 == "https://cloud.uipath.com/draft/2024-12/entry-point"
             )
-            assert operate_data["main"] == entry_points[0]["filePath"]
-            assert operate_data["contentType"] == entry_points[0]["type"]
+            assert operate_data["main"] == "agent1.py"
+            assert operate_data["contentType"] == "agent"
             assert operate_data["targetFramework"] == "Portable"
             assert operate_data["targetRuntime"] == "python"
             assert operate_data["runtimeOptions"] == {
@@ -1120,66 +1123,72 @@ class TestPack:
 
     def test_generate_entrypoints_file(self, runner: CliRunner, temp_dir: str) -> None:
         """Test generating entry-points.json from entry-points structure."""
-        entry_points = [
-            {
-                "filePath": "agent1.py",
-                "uniqueId": "agent1-id",
-                "type": "agent",
-                "input": {"type": "object", "properties": {}},
-                "output": {"type": "object", "properties": {}},
-            },
-            {
-                "filePath": "agent2.py",
-                "uniqueId": "agent2-id",
-                "type": "agent",
-                "input": {"type": "object", "properties": {}},
-                "output": {"type": "object", "properties": {}},
-            },
+        from uipath._cli.models.runtime_schema import EntryPoint
+
+        entrypoints = [
+            EntryPoint(
+                filePath="agent1.py",
+                uniqueId="agent1-id",
+                type="agent",
+                input={"type": "object", "properties": {}},
+                output={"type": "object", "properties": {}},
+            ),
+            EntryPoint(
+                filePath="agent2.py",
+                uniqueId="agent2-id",
+                type="agent",
+                input={"type": "object", "properties": {}},
+                output={"type": "object", "properties": {}},
+            ),
         ]
 
-        entrypoints_data = cli_pack.generate_entrypoints_file(entry_points)
+        entrypoints_data = cli_pack.generate_entrypoints_file(entrypoints)
 
         assert (
             entrypoints_data["$schema"]
             == "https://cloud.uipath.com/draft/2024-12/entry-point"
         )
         assert entrypoints_data["$id"] == "entry-points.json"
-        assert entrypoints_data["entryPoints"] == entry_points
+        assert len(entrypoints_data["entryPoints"]) == 2
+        assert entrypoints_data["entryPoints"][0]["filePath"] == "agent1.py"
+        assert entrypoints_data["entryPoints"][1]["filePath"] == "agent2.py"
 
     def test_package_descriptor_content(self, runner: CliRunner, temp_dir: str) -> None:
         """Test generating package-descriptor.json content."""
-        entry_points = [
-            {
-                "filePath": "agent1.py",
-                "uniqueId": "agent1-id",
-                "type": "agent",
-                "input": {"type": "object", "properties": {}},
-                "output": {"type": "object", "properties": {}},
-            },
-            {
-                "filePath": "agent2.py",
-                "uniqueId": "agent2-id",
-                "type": "agent",
-                "input": {"type": "object", "properties": {}},
-                "output": {"type": "object", "properties": {}},
-            },
+        from uipath._cli.models.runtime_schema import EntryPoint
+
+        entrypoints = [
+            EntryPoint(
+                filePath="agent1.py",
+                uniqueId="agent1-id",
+                type="agent",
+                input={"type": "object", "properties": {}},
+                output={"type": "object", "properties": {}},
+            ),
+            EntryPoint(
+                filePath="agent2.py",
+                uniqueId="agent2-id",
+                type="agent",
+                input={"type": "object", "properties": {}},
+                output={"type": "object", "properties": {}},
+            ),
         ]
 
         expected_files = {
             "operate.json": "content/operate.json",
             "entry-points.json": "content/entry-points.json",
             "bindings.json": "content/bindings_v2.json",
+            "agent1.py": "agent1.py",
+            "agent2.py": "agent2.py",
         }
-        for entry in entry_points:
-            expected_files[entry["filePath"]] = entry["filePath"]
 
-        content = cli_pack.generate_package_descriptor_content(entry_points)
+        content = cli_pack.generate_package_descriptor_content(entrypoints)
 
         assert (
             content["$schema"]
             == "https://cloud.uipath.com/draft/2024-12/package-descriptor"
         )
-        assert len(content["files"]) == 3 + len(entry_points)
+        assert len(content["files"]) == 5
         assert content["files"] == expected_files
 
     def test_is_conversational_in_operate_json(
@@ -1248,3 +1257,38 @@ class TestPack:
                     operate_data["runtimeOptions"]["requiresUserInteraction"] is False
                 )
                 assert operate_data["runtimeOptions"]["isAttended"] is False
+
+    def test_pack_warns_mixed_entrypoint_types(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that pack warns when there are mixed entrypoint types."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("agent.py", "w") as f:
+                f.write("def agent_main(input: str) -> str: return input")
+            with open("func.py", "w") as f:
+                f.write("def func_main(input: str) -> str: return input")
+
+            uipath_config = {
+                "agents": {"my_agent": "agent.py:agent_main"},
+                "functions": {"my_func": "func.py:func_main"},
+            }
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            create_bindings_file()
+
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code == 0
+            assert "Mixed entrypoint types detected: [" in result.output
+            assert (
+                "We recommend using a single type for all entrypoints" in result.output
+            )

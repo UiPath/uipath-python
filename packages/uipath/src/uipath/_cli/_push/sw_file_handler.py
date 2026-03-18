@@ -443,6 +443,14 @@ class SwFileHandler:
             with open(local_metadata_file, "r") as f:
                 metadata = json.load(f)
 
+        # ensure push-related fields are always present for cloud workspace
+        # context: on initial init the CLI creates a minimal studio_metadata.json file
+        # which does not contain lastPushAuthor and lastPushDate
+        if "lastPushAuthor" not in metadata:
+            metadata["lastPushAuthor"] = author
+        if "lastPushDate" not in metadata:
+            metadata["lastPushDate"] = datetime.now(timezone.utc).isoformat()
+
         existing = remote_files.get(".uipath/studio_metadata.json")
         if existing:
             try:

@@ -19,4 +19,9 @@ Entry point definitions with JSON Schema-based input/output contracts.
 
 - [Spec](entry-points.spec.md) | [Schema](entry-points.schema.json)
 
+### `project.uiproj` - Project Metadata
+Project-level metadata for StudioWeb integration. Auto-generated and auto-updated by `uipath init`.
+
+- [Spec](uiproj.spec.md) | [Schema](uiproj.schema.json)
+
 

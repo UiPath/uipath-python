@@ -131,6 +131,12 @@ class ConfigurationManager:
         return Path(ENTRY_POINTS_FILE)
 
     @property
+    def uiproj_file_path(self) -> Path:
+        from uipath.platform.common.constants import UIPROJ_FILE
+
+        return Path(UIPROJ_FILE)
+
+    @property
     def studio_metadata_file_path(self) -> Path:
         from uipath.platform.common.constants import STUDIO_METADATA_FILE
 

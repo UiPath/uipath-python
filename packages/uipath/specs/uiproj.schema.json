@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cloud.uipath.com/draft/2024-12/uiproj",
+  "title": "UiPath Project Configuration",
+  "description": "Project-level metadata for UiPath coded automation projects, used by StudioWeb",
+  "type": "object",
+  "required": ["ProjectType", "Name", "MainFile"],
+  "properties": {
+    "ProjectType": {
+      "type": "string",
+      "description": "The type of project, determined from uipath.json entrypoints",
+      "enum": ["Agent", "Function"]
+    },
+    "Name": {
+      "type": "string",
+      "description": "Project name, sourced from pyproject.toml [project].name"
+    },
+    "Description": {
+      "type": ["string", "null"],
+      "description": "Project description, sourced from pyproject.toml [project].description"
+    },
+    "MainFile": {
+      "type": ["string", "null"],
+      "description": "Main file path. Required by StudioWeb but not used for coded agents",
+      "default": null
+    }
+  },
+  "additionalProperties": false
+}
