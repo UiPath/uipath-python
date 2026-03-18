@@ -282,6 +282,9 @@ class BaseResourceProperties(BaseCfg):
     """Base resource properties model."""
 
     example_calls: Optional[list[ExampleCall]] = Field(None, alias="exampleCalls")
+    require_conversational_confirmation: bool = Field(
+        default=False, alias="requireConversationalConfirmation"
+    )
 
 
 class AgentToolSettings(BaseCfg):
