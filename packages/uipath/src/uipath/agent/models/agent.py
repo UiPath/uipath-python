@@ -474,11 +474,13 @@ class AgentA2aResourceConfig(BaseAgentResourceConfig):
     )
     id: str
     slug: str = Field(..., alias="slug")
+    a2a_url: str = Field(default="", alias="a2aUrl")
     agent_card_url: str = Field(default="", alias="agentCardUrl")
     is_active: bool = Field(default=True, alias="isActive")
     cached_agent_card: Optional[Dict[str, Any]] = Field(
         default=None, alias="cachedAgentCard"
     )
+    folder_path: Optional[str] = Field(default=None, alias="folderPath")
     created_at: Optional[str] = Field(default=None, alias="createdAt")
     created_by: Optional[str] = Field(default=None, alias="createdBy")
     updated_at: Optional[str] = Field(default=None, alias="updatedAt")
