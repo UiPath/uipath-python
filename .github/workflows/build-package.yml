@@ -61,7 +61,12 @@ jobs:
 
       - name: Re-lock against PyPI
         if: inputs.needs-relock
-        run: uv lock --no-sources --no-cache
+        run: |
+          for i in 1 2 3; do
+            uv lock --no-sources --no-cache && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
 
       - name: Build
         run: uv build --no-sources --package ${{ inputs.package }}
