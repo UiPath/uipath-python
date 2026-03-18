@@ -16,7 +16,7 @@ Available exceptions:
 
 from ._base_url_missing_error import BaseUrlMissingError
 from ._batch_transform_not_complete_exception import BatchTransformNotCompleteException
-from ._enriched_exception import EnrichedException
+from ._enriched_exception import EnrichedException, ExtractedErrorInfo
 from ._folder_not_found_exception import FolderNotFoundException
 from ._ingestion_in_progress_exception import IngestionInProgressException
 from ._operation_failed_exception import OperationFailedException
@@ -28,10 +28,11 @@ __all__ = [
     "BaseUrlMissingError",
     "BatchTransformNotCompleteException",
     "EnrichedException",
+    "ExtractedErrorInfo",
     "FolderNotFoundException",
     "IngestionInProgressException",
-    "SecretMissingError",
-    "OperationNotCompleteException",
     "OperationFailedException",
+    "OperationNotCompleteException",
+    "SecretMissingError",
     "UnsupportedDataSourceException",
 ]
