@@ -24,6 +24,7 @@ from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
+from .runtimes import get_factory_search_path
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -118,7 +119,10 @@ def debug(
                     try:
                         trigger_poll_interval: float = 5.0
 
-                        factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                        factory = UiPathRuntimeFactoryRegistry.get(
+                            search_path=get_factory_search_path(entrypoint),
+                            context=ctx,
+                        )
                         factory_settings = await factory.get_settings()
                         trace_settings = (
                             factory_settings.trace_settings

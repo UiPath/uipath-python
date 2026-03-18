@@ -34,6 +34,7 @@ from uipath.tracing import (
 )
 
 from ._utils._console import ConsoleLogger
+from .runtimes import get_factory_search_path
 
 logger = logging.getLogger(__name__)
 console = ConsoleLogger()
@@ -350,7 +351,10 @@ def eval(
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
 
-                    runtime_factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
+                    runtime_factory = UiPathRuntimeFactoryRegistry.get(
+                        search_path=get_factory_search_path(entrypoint),
+                        context=ctx,
+                    )
 
                     try:
                         # Auto-discover entrypoint and eval set using the runtime factory
