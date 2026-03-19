@@ -151,8 +151,8 @@ class ConfigurationManager:
         """Whether this job was spawned by a debug session (e.g. Maestro solution debug).
 
         Orchestrator sets isDebug=true in InternalArguments for jobs whose
-        root parent is a debug job. Used to override licensing to the
-        developer's debug quota instead of requiring Agent Units.
+        root parent is a debug job. Used to override licensing to consume
+        from the user's debug quota (if applicable) instead of consumable units.
         """
         return self._read_internal_argument("isDebug") is True
 
