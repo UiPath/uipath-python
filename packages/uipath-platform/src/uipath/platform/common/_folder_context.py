@@ -11,7 +11,7 @@ from uipath.platform.common.constants import (
 )
 
 
-def _folder_path_header(folder_path: str) -> dict[str, str]:
+def folder_path_header(folder_path: str) -> dict[str, str]:
     """Return the appropriate folder path header.
 
     Uses the encoded header variant when the path contains non-ASCII
@@ -36,7 +36,7 @@ def header_folder(
     if folder_key is not None and folder_key != "":
         headers[HEADER_FOLDER_KEY] = folder_key
     if folder_path is not None and folder_path != "":
-        headers.update(_folder_path_header(folder_path))
+        headers.update(folder_path_header(folder_path))
 
     return headers
 
@@ -80,6 +80,6 @@ class FolderContext:
         if self._folder_key is not None:
             return {HEADER_FOLDER_KEY: self._folder_key}
         elif self._folder_path is not None:
-            return _folder_path_header(self._folder_path)
+            return folder_path_header(self._folder_path)
         else:
             return {}

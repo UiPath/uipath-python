@@ -4,7 +4,7 @@ from typing import Optional
 from .constants import HEADER_FOLDER_KEY, HEADER_FOLDER_PATH, HEADER_FOLDER_PATH_ENCODED
 
 
-def _folder_path_header(folder_path: str) -> dict[str, str]:
+def folder_path_header(folder_path: str) -> dict[str, str]:
     """Return the appropriate folder path header.
 
     Uses the encoded header variant when the path contains non-ASCII
@@ -29,6 +29,6 @@ def header_folder(
     if folder_key is not None and folder_key != "":
         headers[HEADER_FOLDER_KEY] = folder_key
     if folder_path is not None and folder_path != "":
-        headers.update(_folder_path_header(folder_path))
+        headers.update(folder_path_header(folder_path))
 
     return headers

@@ -12,7 +12,7 @@ import pytest
 
 from uipath.platform.common._folder_context import (
     FolderContext,
-    _folder_path_header,
+    folder_path_header,
     header_folder,
 )
 from uipath.platform.common.constants import (
@@ -21,34 +21,34 @@ from uipath.platform.common.constants import (
     HEADER_FOLDER_PATH_ENCODED,
 )
 
-# --- _folder_path_header() ---
+# --- folder_path_header() ---
 
 
 class TestFolderPathHeader:
     def test_ascii_path_uses_plain_header(self) -> None:
-        headers = _folder_path_header("MyFolder/SubFolder")
+        headers = folder_path_header("MyFolder/SubFolder")
         assert headers == {HEADER_FOLDER_PATH: "MyFolder/SubFolder"}
 
     def test_non_ascii_path_uses_encoded_header(self) -> None:
         path = "VA\xa0Certificate"
-        headers = _folder_path_header(path)
+        headers = folder_path_header(path)
         assert HEADER_FOLDER_PATH not in headers
         assert HEADER_FOLDER_PATH_ENCODED in headers
 
     def test_encoded_value_is_base64_utf16le(self) -> None:
         path = "Debug_Poétry Writer"
-        headers = _folder_path_header(path)
+        headers = folder_path_header(path)
         value = headers[HEADER_FOLDER_PATH_ENCODED]
         decoded = b64decode(value).decode("utf-16-le")
         assert decoded == path
 
     def test_encoded_value_is_ascii_safe(self) -> None:
-        headers = _folder_path_header("VA\xa0Certificate/Poétry")
+        headers = folder_path_header("VA\xa0Certificate/Poétry")
         headers[HEADER_FOLDER_PATH_ENCODED].encode("ascii")
 
     def test_round_trip_with_non_breaking_space(self) -> None:
         path = "VA\xa0Certificate of Eligibility Agent"
-        headers = _folder_path_header(path)
+        headers = folder_path_header(path)
         decoded = b64decode(headers[HEADER_FOLDER_PATH_ENCODED]).decode("utf-16-le")
         assert decoded == path
 
