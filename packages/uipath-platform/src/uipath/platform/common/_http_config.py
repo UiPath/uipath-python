@@ -34,6 +34,16 @@ def create_ssl_context():
         )
 
 
+def is_ssl_verification_disabled() -> bool:
+    """Check if SSL verification is disabled via UIPATH_DISABLE_SSL_VERIFY."""
+    return os.environ.get("UIPATH_DISABLE_SSL_VERIFY", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def get_httpx_client_kwargs(
     headers: Dict[str, str] | None = None,
 ) -> Dict[str, Any]:
@@ -44,10 +54,8 @@ def get_httpx_client_kwargs(
             Caller headers take priority on key conflicts.
     """
     client_kwargs: Dict[str, Any] = {"follow_redirects": True, "timeout": 30.0}
-    disable_ssl_env = os.environ.get("UIPATH_DISABLE_SSL_VERIFY", "").lower()
-    disable_ssl_from_env = disable_ssl_env in ("1", "true", "yes", "on")
 
-    if disable_ssl_from_env:
+    if is_ssl_verification_disabled():
         client_kwargs["verify"] = False
     else:
         client_kwargs["verify"] = create_ssl_context()

@@ -18,7 +18,7 @@ from ._endpoints_manager import EndpointManager
 from ._execution_context import UiPathExecutionContext
 from ._external_application_service import ExternalApplicationService
 from ._folder_context import FolderContext, header_folder
-from ._http_config import get_httpx_client_kwargs
+from ._http_config import get_httpx_client_kwargs, is_ssl_verification_disabled
 from ._models import Endpoint, RequestSpec
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
 from ._span_utils import UiPathSpan, _SpanUtils
@@ -93,6 +93,7 @@ __all__ = [
     "UiPathUrl",
     "user_agent_value",
     "get_httpx_client_kwargs",
+    "is_ssl_verification_disabled",
     "resource_override",
     "header_folder",
     "validate_pagination_params",

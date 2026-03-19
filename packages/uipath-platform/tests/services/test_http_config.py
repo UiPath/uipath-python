@@ -3,13 +3,37 @@ from unittest.mock import PropertyMock, patch
 import pytest
 
 from uipath.platform.common._config import ConfigurationManager
-from uipath.platform.common._http_config import get_httpx_client_kwargs
+from uipath.platform.common._http_config import (
+    get_httpx_client_kwargs,
+    is_ssl_verification_disabled,
+)
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure licensing-related env vars are clean for every test."""
     monkeypatch.delenv("UIPATH_DISABLE_SSL_VERIFY", raising=False)
+
+
+class TestIsSslVerificationDisabled:
+    """Tests for is_ssl_verification_disabled()."""
+
+    def test_disabled_when_not_set(self) -> None:
+        assert is_ssl_verification_disabled() is False
+
+    @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "on"])
+    def test_disabled_with_truthy_values(
+        self, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        monkeypatch.setenv("UIPATH_DISABLE_SSL_VERIFY", value)
+        assert is_ssl_verification_disabled() is True
+
+    @pytest.mark.parametrize("value", ["0", "false", "no", "off", ""])
+    def test_enabled_with_falsy_values(
+        self, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        monkeypatch.setenv("UIPATH_DISABLE_SSL_VERIFY", value)
+        assert is_ssl_verification_disabled() is False
 
 
 class TestGetHttpxClientKwargsHeaders:
