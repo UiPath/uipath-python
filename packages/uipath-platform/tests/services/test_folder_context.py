@@ -114,24 +114,3 @@ class TestFolderContextHeaders:
         monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
         ctx = FolderContext()
         assert ctx.folder_headers == {}
-
-
-# --- folder_headers() in _tasks_service ---
-
-
-class TestTasksServiceFolderHeaders:
-    def test_non_ascii_app_folder_path_uses_encoded_header(self) -> None:
-        from uipath.platform.action_center._tasks_service import folder_headers
-
-        path = "Solutions/VA\xa0Certificate"
-        headers = folder_headers(None, path)
-        assert HEADER_FOLDER_PATH not in headers
-        value = headers[HEADER_FOLDER_PATH_ENCODED]
-        value.encode("ascii")
-        assert b64decode(value).decode("utf-16-le") == path
-
-    def test_app_folder_key_takes_precedence(self) -> None:
-        from uipath.platform.action_center._tasks_service import folder_headers
-
-        headers = folder_headers("key-123", "path/with\xa0space")
-        assert headers == {HEADER_FOLDER_KEY: "key-123"}

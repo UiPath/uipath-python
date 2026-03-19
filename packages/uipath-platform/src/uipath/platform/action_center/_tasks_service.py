@@ -9,11 +9,10 @@ from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
-from ..common._folder_context import FolderContext, folder_path_header
+from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from ..common.constants import (
     ENV_TENANT_ID,
-    HEADER_FOLDER_KEY,
     HEADER_TENANT_ID,
 )
 from .task_schema import TaskSchema
@@ -161,8 +160,17 @@ def _create_spec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
         json=json_payload,
-        headers=folder_headers(app_folder_key, app_folder_path),
+        headers=_app_folder_headers(app_folder_key, app_folder_path),
     )
+
+
+def _app_folder_headers(
+    app_folder_key: Optional[str], app_folder_path: Optional[str]
+) -> Dict[str, str]:
+    if app_folder_key:
+        return header_folder(app_folder_key, None)
+    else:
+        return header_folder(None, app_folder_path)
 
 
 def _normalize_priority(priority: str | None) -> str | None:
@@ -198,13 +206,15 @@ def _normalize_priority(priority: str | None) -> str | None:
 
 
 def _retrieve_action_spec(
-    action_key: str, app_folder_key: str, app_folder_path: str
+    action_key: str,
+    app_folder_key: Optional[str],
+    app_folder_path: Optional[str],
 ) -> RequestSpec:
     return RequestSpec(
         method="GET",
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
         params={"taskKey": action_key},
-        headers=folder_headers(app_folder_key, app_folder_path),
+        headers=_app_folder_headers(app_folder_key, app_folder_path),
     )
 
 
@@ -314,17 +324,6 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
         params={"search": app_name, "filterByDeploymentTitle": "true"},
         headers={HEADER_TENANT_ID: tenant_id},
     )
-
-
-def folder_headers(
-    app_folder_key: Optional[str], app_folder_path: Optional[str]
-) -> Dict[str, str]:
-    headers: dict[str, str] = {}
-    if app_folder_key:
-        headers[HEADER_FOLDER_KEY] = app_folder_key
-    elif app_folder_path:
-        headers.update(folder_path_header(app_folder_path))
-    return headers
 
 
 class TasksService(FolderContext, BaseService):
@@ -525,8 +524,8 @@ class TasksService(FolderContext, BaseService):
     def retrieve(
         self,
         action_key: str,
-        app_folder_path: str = "",
-        app_folder_key: str = "",
+        app_folder_path: Optional[str] = None,
+        app_folder_key: Optional[str] = None,
         app_name: str | None = None,
     ) -> Task:
         """Retrieves a task by its key synchronously.
@@ -559,8 +558,8 @@ class TasksService(FolderContext, BaseService):
     async def retrieve_async(
         self,
         action_key: str,
-        app_folder_path: str = "",
-        app_folder_key: str = "",
+        app_folder_path: Optional[str] = None,
+        app_folder_key: Optional[str] = None,
         app_name: str | None = None,
     ) -> Task:
         """Retrieves a task by its key asynchronously.
