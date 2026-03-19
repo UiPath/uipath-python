@@ -148,7 +148,7 @@ class ConfigurationManager:
 
     @property
     def is_rooted_to_debug_job(self) -> bool:
-        """Whether the root Orchestrator job is a debug session (isDebug in InternalArguments)."""
+        """Whether this job, which may be a deployed process, is rooted to a debug session (e.g. Maestro solution debug)."""
         return self._read_internal_argument("isDebug") is True
 
     @property
