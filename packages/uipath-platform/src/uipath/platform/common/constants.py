@@ -27,6 +27,7 @@ ENV_UIPATH_CONFIG_PATH = "UIPATH_CONFIG_PATH"
 # Headers
 HEADER_FOLDER_KEY = "x-uipath-folderkey"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
+HEADER_FOLDER_PATH_ENCODED = "x-uipath-folderpath-encoded"
 HEADER_USER_AGENT = "x-uipath-user-agent"
 HEADER_TENANT_ID = "x-uipath-tenantid"
 HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
