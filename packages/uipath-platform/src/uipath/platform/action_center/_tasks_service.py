@@ -160,17 +160,8 @@ def _create_spec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
         json=json_payload,
-        headers=_app_folder_headers(app_folder_key, app_folder_path),
+        headers=header_folder(app_folder_key, app_folder_path),
     )
-
-
-def _app_folder_headers(
-    app_folder_key: Optional[str], app_folder_path: Optional[str]
-) -> Dict[str, str]:
-    if app_folder_key:
-        return header_folder(app_folder_key, None)
-    else:
-        return header_folder(None, app_folder_path)
 
 
 def _normalize_priority(priority: str | None) -> str | None:
@@ -214,7 +205,7 @@ def _retrieve_action_spec(
         method="GET",
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
         params={"taskKey": action_key},
-        headers=_app_folder_headers(app_folder_key, app_folder_path),
+        headers=header_folder(app_folder_key, app_folder_path),
     )
 
 
