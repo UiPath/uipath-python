@@ -13,7 +13,7 @@ from ._bindings import (
     ResourceOverwritesContext,
     resource_override,
 )
-from ._config import UiPathApiConfig, UiPathConfig, apply_debug_licensing_override
+from ._config import UiPathApiConfig, UiPathConfig
 from ._endpoints_manager import EndpointManager
 from ._execution_context import UiPathExecutionContext
 from ._external_application_service import ExternalApplicationService
@@ -107,7 +107,6 @@ __all__ = [
     "_SpanUtils",
     "resolve_service_url",
     "inject_routing_headers",
-    "apply_debug_licensing_override",
 ]
 
 from .validation import validate_pagination_params
