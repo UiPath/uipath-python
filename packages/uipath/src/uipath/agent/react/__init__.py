@@ -7,6 +7,7 @@ from .conversational_prompts import (
     PromptUserSettings,
     get_chat_system_prompt,
 )
+from .conversational_voice_prompts import get_voice_system_prompt
 from .prompts import AGENT_SYSTEM_PROMPT_TEMPLATE
 from .tools import (
     END_EXECUTION_TOOL,
@@ -25,4 +26,5 @@ __all__ = [
     "RaiseErrorToolSchemaModel",
     "PromptUserSettings",
     "get_chat_system_prompt",
+    "get_voice_system_prompt",
 ]
