@@ -485,6 +485,7 @@ class AgentA2aResourceConfig(BaseAgentResourceConfig):
     created_by: Optional[str] = Field(default=None, alias="createdBy")
     updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     updated_by: Optional[str] = Field(default=None, alias="updatedBy")
+    advanced_persistance: bool = Field(default=False, alias="advancedPersistance")
 
 
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
