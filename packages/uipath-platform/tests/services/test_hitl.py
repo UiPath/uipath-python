@@ -1126,7 +1126,7 @@ class TestHitlProcessor:
                 title=create_action.title,
                 app_name=create_action.app_name,
                 app_folder_path=create_action.app_folder_path,
-                app_folder_key="",
+                app_folder_key=None,
                 app_key="",
                 assignee="",
                 recipient="",
