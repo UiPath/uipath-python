@@ -4,7 +4,7 @@ import json
 import os
 from urllib.parse import urlencode, urlparse
 
-from uipath.platform.orchestrator import get_server_version_async
+from uipath.platform.orchestrator import get_server_info_async
 
 from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
@@ -50,10 +50,11 @@ async def _select_config_file(domain: str) -> str:
 
     Logic:
     1. If domain is alpha/staging/cloud.uipath.com -> use auth_config_cloud.json
-    2. Otherwise, try to get version from API
-    3. If version starts with '25.10' -> use auth_config_25_10.json
-    4. If version can't be determined -> fallback to auth_config_cloud.json
-    5. Otherwise -> fallback to auth_config_cloud.json
+    2. Otherwise, fetch server info from API
+    3. If deployment is not 'ServiceFabric' (cloud deployment) -> use auth_config_cloud.json
+    4. If version starts with '25.10' (AS release 25.10) -> use auth_config_25_10.json
+    5. If version starts with '26.3' (AS release 25.10.2) -> use auth_config_25_10_2.json
+    6. Otherwise (unknown version) -> use auth_config_25_10_2.json
 
     Args:
         domain: The UiPath domain
@@ -65,19 +66,25 @@ async def _select_config_file(domain: str) -> str:
     if _is_cloud_domain(domain):
         return "auth_config_cloud.json"
 
-    # Try to get version from API
-    version = await get_server_version_async(domain)
+    # Fetch full server info
+    info = await get_server_info_async(domain)
 
-    # If we can't determine version, fallback to cloud config
-    if version is None:
+    # Non-ServiceFabric deployments are cloud
+    if info is None or info.get("deployment") != "ServiceFabric":
         return "auth_config_cloud.json"
 
-    # Check if version is 25.10.*
+    version = info.get("version") or ""
+
+    # Check if version is 25.10.* (AS release 25.10)
     if version.startswith("25.10"):
         return "auth_config_25_10.json"
 
-    # Default fallback to cloud config
-    return "auth_config_cloud.json"
+    # Check if version is 26.3.* (AS release 25.10.2)
+    if version.startswith("26.3"):
+        return "auth_config_25_10_2.json"
+
+    # Default fallback to latest AS release config
+    return "auth_config_25_10_2.json"
 
 
 class OidcUtils:
