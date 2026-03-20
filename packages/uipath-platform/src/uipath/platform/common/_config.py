@@ -147,6 +147,11 @@ class ConfigurationManager:
         return self._read_internal_argument("licensingContext")
 
     @property
+    def is_rooted_to_debug_job(self) -> bool:
+        """Whether this job, which may be a deployed process, is rooted to a debug session (e.g. Maestro solution debug)."""
+        return self._read_internal_argument("isDebug") is True
+
+    @property
     def is_tracing_enabled(self) -> bool:
         from uipath.platform.common.constants import ENV_TRACING_ENABLED
 

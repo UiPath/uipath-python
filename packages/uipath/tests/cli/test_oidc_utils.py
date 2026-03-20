@@ -121,32 +121,66 @@ class TestOidcUtils:
         assert _is_cloud_domain(domain) == expected
 
     @pytest.mark.parametrize(
-        "domain,mock_version,expected_config",
+        "domain,mock_info,expected_config",
         [
-            # Cloud domains should always use auth_config_cloud.json
+            # Cloud domains always use auth_config_cloud.json (no API call needed)
             ("https://alpha.uipath.com", None, "auth_config_cloud.json"),
             ("https://staging.uipath.com", None, "auth_config_cloud.json"),
             ("https://cloud.uipath.com", None, "auth_config_cloud.json"),
-            # Version 25.10.* should use auth_config_25_10.json
+            # Non-ServiceFabric deployments (cloud releases) use auth_config_cloud.json
             (
                 "https://custom.domain.com",
-                "25.10.0-beta.415",
+                {"version": "26.3.0-s188.574", "deployment": None},
+                "auth_config_cloud.json",
+            ),
+            (
+                "https://custom.domain.com",
+                {"version": "25.10.0-s99", "deployment": "Kubernetes"},
+                "auth_config_cloud.json",
+            ),
+            # API unreachable uses auth_config_cloud.json
+            ("https://custom.domain.com", None, "auth_config_cloud.json"),
+            # ServiceFabric + 25.10.* (AS release 25.10) uses auth_config_25_10.json
+            (
+                "https://custom.domain.com",
+                {"version": "25.10.0-beta.415", "deployment": "ServiceFabric"},
                 "auth_config_25_10.json",
             ),
-            ("https://custom.domain.com", "25.10.1", "auth_config_25_10.json"),
-            # Other versions should fallback to cloud config
-            ("https://custom.domain.com", "24.10.0", "auth_config_cloud.json"),
-            ("https://custom.domain.com", "26.1.0", "auth_config_cloud.json"),
-            # Unable to determine version should fallback to cloud config
-            ("https://custom.domain.com", None, "auth_config_cloud.json"),
+            (
+                "https://custom.domain.com",
+                {"version": "25.10.1", "deployment": "ServiceFabric"},
+                "auth_config_25_10.json",
+            ),
+            # ServiceFabric + 26.3.* (AS release 25.10.2) uses auth_config_25_10_2.json
+            (
+                "https://custom.domain.com",
+                {"version": "26.3.0-beta.188", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
+            (
+                "https://custom.domain.com",
+                {"version": "26.3.1", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
+            # ServiceFabric + unknown version falls back to latest AS config
+            (
+                "https://custom.domain.com",
+                {"version": "24.10.0", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
+            (
+                "https://custom.domain.com",
+                {"version": "26.1.0", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
         ],
     )
-    async def test_select_config_file(self, domain, mock_version, expected_config):
-        """Test _select_config_file selects the correct config based on domain and version."""
+    async def test_select_config_file(self, domain, mock_info, expected_config):
+        """Test _select_config_file selects the correct config based on domain and server info."""
         with patch(
-            "uipath._cli._auth._oidc_utils.get_server_version_async",
+            "uipath._cli._auth._oidc_utils.get_server_info_async",
             new_callable=AsyncMock,
-            return_value=mock_version,
+            return_value=mock_info,
         ):
             config_file = await _select_config_file(domain)
             assert config_file == expected_config
@@ -170,12 +204,15 @@ class TestOidcUtils:
             assert config["port"] == 8104
 
     async def test_get_auth_config_with_25_10_version(self):
-        """Test get_auth_config with version 25.10 uses auth_config_25_10.json."""
+        """Test get_auth_config with AS 25.10 ServiceFabric deployment uses auth_config_25_10.json."""
         with (
             patch(
-                "uipath._cli._auth._oidc_utils.get_server_version_async",
+                "uipath._cli._auth._oidc_utils.get_server_info_async",
                 new_callable=AsyncMock,
-                return_value="25.10.0-beta.415",
+                return_value={
+                    "version": "25.10.0-beta.415",
+                    "deployment": "ServiceFabric",
+                },
             ),
             patch(
                 "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port",

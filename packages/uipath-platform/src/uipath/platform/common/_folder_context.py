@@ -1,3 +1,4 @@
+from base64 import b64encode
 from os import environ as env
 from typing import Any, Optional
 
@@ -6,7 +7,23 @@ from uipath.platform.common.constants import (
     ENV_FOLDER_PATH,
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
+    HEADER_FOLDER_PATH_ENCODED,
 )
+
+
+def folder_path_header(folder_path: str) -> dict[str, str]:
+    """Return the appropriate folder path header.
+
+    Uses the encoded header variant when the path contains non-ASCII
+    characters, since HTTP headers require ASCII values. The Orchestrator
+    expects Base64(UTF-16LE) in the encoded header.
+    """
+    try:
+        folder_path.encode("ascii")
+        return {HEADER_FOLDER_PATH: folder_path}
+    except UnicodeEncodeError:
+        encoded = b64encode(folder_path.encode("utf-16-le")).decode("ascii")
+        return {HEADER_FOLDER_PATH_ENCODED: encoded}
 
 
 def header_folder(
@@ -19,7 +36,7 @@ def header_folder(
     if folder_key is not None and folder_key != "":
         headers[HEADER_FOLDER_KEY] = folder_key
     if folder_path is not None and folder_path != "":
-        headers[HEADER_FOLDER_PATH] = folder_path
+        headers.update(folder_path_header(folder_path))
 
     return headers
 
@@ -63,6 +80,6 @@ class FolderContext:
         if self._folder_key is not None:
             return {HEADER_FOLDER_KEY: self._folder_key}
         elif self._folder_path is not None:
-            return {HEADER_FOLDER_PATH: self._folder_path}
+            return folder_path_header(self._folder_path)
         else:
             return {}

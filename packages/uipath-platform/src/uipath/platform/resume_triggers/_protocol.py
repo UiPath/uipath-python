@@ -595,8 +595,8 @@ class UiPathResumeTriggerCreator:
             action = await uipath.tasks.create_async(
                 title=value.title,
                 app_name=value.app_name if value.app_name else "",
-                app_folder_path=value.app_folder_path if value.app_folder_path else "",
-                app_folder_key=value.app_folder_key if value.app_folder_key else "",
+                app_folder_path=value.app_folder_path or None,
+                app_folder_key=value.app_folder_key or None,
                 app_key=value.app_key if value.app_key else "",
                 assignee=value.assignee if value.assignee else "",
                 recipient=value.recipient if value.recipient else "",

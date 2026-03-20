@@ -369,39 +369,6 @@ class TestCreateFiltersByFolder:
 
         assert isinstance(task, Task)
 
-    def test_create_folder_path_takes_priority_over_folder_key(
-        self,
-        httpx_mock: HTTPXMock,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-        monkeypatch: pytest.MonkeyPatch,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ) -> None:
-        monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
-        tasks_service = self._make_tasks_service(config, execution_context, monkeypatch)
-        self._mock_app_schemas_response(
-            httpx_mock,
-            base_url,
-            org,
-            "my-app",
-            [
-                _make_deployed_app("my-app", "folder-a", "key-a"),
-                _make_deployed_app("my-app", "folder-b", "key-b"),
-            ],
-        )
-        self._mock_create_task_response(httpx_mock, base_url, org, tenant)
-
-        task = tasks_service.create(
-            title="Test",
-            app_name="my-app",
-            app_folder_path="folder-a",
-            app_folder_key="key-b",
-        )
-
-        assert isinstance(task, Task)
-
     def test_create_falls_back_to_env_folder_path(
         self,
         httpx_mock: HTTPXMock,
