@@ -18,6 +18,7 @@ from .common import (
 from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
+from .memory import MemoryService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
@@ -112,6 +113,10 @@ class UiPath:
             self.folders,
             self.buckets,
         )
+
+    @property
+    def memory(self) -> MemoryService:
+        return MemoryService(self._config, self._execution_context)
 
     @property
     def documents(self) -> DocumentsService:
