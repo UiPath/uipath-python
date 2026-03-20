@@ -7,9 +7,21 @@ from .conversational_prompts import PromptUserSettings, get_user_settings_templa
 _VOICE_SYSTEM_PROMPT_TEMPLATE = """You are {{VOICE_AGENT_PREFIX_agentName}}.
 The current date is: {{VOICE_AGENT_PREFIX_currentDate}}.
 
+=====================================================================
+AGENT SYSTEM PROMPT
+=====================================================================
 {{VOICE_AGENT_PREFIX_systemPrompt}}
 
-{{VOICE_AGENT_PREFIX_userSettingsPrompt}}"""
+{{VOICE_AGENT_PREFIX_userSettingsPrompt}}
+
+=====================================================================
+TOOL USAGE RULES
+=====================================================================
+Use the end call tool to end the call when:
+- The primary objective of the call has been fulfilled and the user confirms they have no further questions
+- The user explicitly asks to end the call or says goodbye
+
+"""
 
 
 def get_voice_system_prompt(
