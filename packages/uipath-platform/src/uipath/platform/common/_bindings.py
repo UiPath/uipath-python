@@ -147,7 +147,7 @@ class ResourceOverwritesContext:
                 list(overwrites.keys()),
             )
         else:
-            logger.debug("Resource overwrites context entered: no overwrites loaded")
+            logger.info("Resource overwrites context entered: no overwrites loaded")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -227,7 +227,7 @@ def resource_override(
                         all_args[folder_identifier] = (
                             matched_overwrite.folder_identifier
                         )
-                    logger.debug(
+                    logger.info(
                         "Resource overwrite applied for %s on %s: %s='%s' -> '%s', %s='%s' -> '%s'",
                         resource_type,
                         func.__name__,
@@ -239,7 +239,7 @@ def resource_override(
                         matched_overwrite.folder_identifier,
                     )
                 else:
-                    logger.debug(
+                    logger.info(
                         "No resource overwrite matched for %s key='%s' on %s",
                         resource_type,
                         key,

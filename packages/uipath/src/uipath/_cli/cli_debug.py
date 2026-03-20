@@ -187,7 +187,7 @@ def debug(
                             ):
                                 await execute_debug_runtime()
                         else:
-                            logger.debug(
+                            logger.info(
                                 "No UIPATH_PROJECT_ID configured, executing without resource overwrites"
                             )
                             await execute_debug_runtime()

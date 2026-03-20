@@ -1,3 +1,4 @@
+import logging
 from base64 import b64encode
 from os import environ as env
 from typing import Any, Optional
@@ -9,6 +10,8 @@ from uipath.platform.common.constants import (
     HEADER_FOLDER_PATH,
     HEADER_FOLDER_PATH_ENCODED,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def folder_path_header(folder_path: str) -> dict[str, str]:
@@ -38,6 +41,15 @@ def header_folder(
     if folder_path is not None and folder_path != "":
         headers.update(folder_path_header(folder_path))
 
+    if headers:
+        logger.info("Folder headers resolved: %s", headers)
+    else:
+        logger.info(
+            "No folder headers resolved (folder_key=%s, folder_path=%s)",
+            folder_key,
+            folder_path,
+        )
+
     return headers
 
 
@@ -60,6 +72,12 @@ class FolderContext:
             self._folder_path: str | None = env[ENV_FOLDER_PATH]
         except KeyError:
             self._folder_path = None
+
+        logger.info(
+            "FolderContext initialized: folder_key=%s, folder_path=%s",
+            self._folder_key,
+            self._folder_path,
+        )
 
         super().__init__(**kwargs)
 
