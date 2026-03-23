@@ -11,7 +11,7 @@ from tenacity import RetryCallState
 
 from ..errors import EnrichedException
 
-RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 429, 502, 503, 504})
+RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 429, 502, 503, 504, 524})
 NON_RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({400, 401, 403, 404, 413, 422})
 
 
