@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "id": "simple-test",
+  "name": "Simple Test",
+  "evaluatorRefs": ["LineByLineExactMatch"],
+  "evaluations": [
+    {
+      "id": "test-1",
+      "name": "Single test",
+      "inputs": {
+        "items": ["apple"]
+      },
+      "evaluationCriterias": {
+        "LineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple"
+          }
+        }
+      }
+    }
+  ]
+}

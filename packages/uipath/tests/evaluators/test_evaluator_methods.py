@@ -297,6 +297,155 @@ class TestExactMatchEvaluator:
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
 
+    @pytest.mark.asyncio
+    async def test_exact_match_line_by_line_all_match(self) -> None:
+        """Test line-by-line evaluation with all lines matching."""
+        config = {
+            "name": "ExactMatchLineByLineTest",
+            "case_sensitive": False,
+            "line_by_line_evaluator": True,
+            "line_delimiter": "\n",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        # Multi-line output
+        agent_execution = AgentExecution(
+            agent_input={"input": "Test input"},
+            agent_output="line1\nline2\nline3",
+            agent_trace=[],
+        )
+        criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            agent_execution, criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0  # All 3 lines match
+        assert result.details is not None
+        assert hasattr(result.details, "line_by_line_results")
+        assert hasattr(result.details, "total_lines_actual")
+        assert hasattr(result.details, "total_lines_expected")
+        assert result.details.total_lines_actual == 3
+        assert result.details.total_lines_expected == 3
+        assert len(result.details.line_by_line_results) == 3
+
+    @pytest.mark.asyncio
+    async def test_exact_match_line_by_line_partial_match(self) -> None:
+        """Test line-by-line evaluation with some lines not matching."""
+        config = {
+            "name": "ExactMatchLineByLineTest",
+            "case_sensitive": False,
+            "line_by_line_evaluator": True,
+            "line_delimiter": "\n",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        # Multi-line output with 2 out of 3 lines matching
+        agent_execution = AgentExecution(
+            agent_input={"input": "Test input"},
+            agent_output="line1\nwrong\nline3",
+            agent_trace=[],
+        )
+        criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            agent_execution, criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        # 2 out of 3 lines match = 0.666...
+        assert math.isclose(result.score, 2.0 / 3.0, rel_tol=0.01)
+        assert result.details is not None
+        assert hasattr(result.details, "line_by_line_results")
+        assert len(result.details.line_by_line_results) == 3
+        # Check first line matches
+        assert result.details.line_by_line_results[0].score == 1.0
+        # Check second line doesn't match
+        assert result.details.line_by_line_results[1].score == 0.0
+        # Check third line matches
+        assert result.details.line_by_line_results[2].score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_exact_match_line_by_line_custom_delimiter(self) -> None:
+        """Test line-by-line evaluation with custom delimiter."""
+        config = {
+            "name": "ExactMatchLineByLineTest",
+            "case_sensitive": False,
+            "line_by_line_evaluator": True,
+            "line_delimiter": "|",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        # Pipe-delimited output
+        agent_execution = AgentExecution(
+            agent_input={"input": "Test input"},
+            agent_output="part1|part2|part3",
+            agent_trace=[],
+        )
+        criteria = OutputEvaluationCriteria(expected_output="part1|part2|part3")  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            agent_execution, criteria
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        assert result.details is not None
+        assert hasattr(result.details, "line_by_line_results")
+        assert len(result.details.line_by_line_results) == 3
+
+    @pytest.mark.asyncio
+    async def test_exact_match_line_by_line_has_individual_results(self) -> None:
+        """Test that line-by-line evaluation attaches individual line results."""
+        config = {
+            "name": "ExactMatchLineByLineTest",
+            "case_sensitive": False,
+            "line_by_line_evaluator": True,
+            "line_delimiter": "\n",
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+
+        # Multi-line output with 2 out of 3 lines matching
+        agent_execution = AgentExecution(
+            agent_input={"input": "Test input"},
+            agent_output="line1\nwrong\nline3",
+            agent_trace=[],
+        )
+        criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            agent_execution, criteria
+        )
+
+        # Check that the result has the _line_by_line_results attribute
+        assert hasattr(result, "_line_by_line_results")
+        line_by_line_container = result._line_by_line_results
+
+        # Verify we have 3 individual line results
+        assert len(line_by_line_container.line_results) == 3
+
+        # Check each line result
+        line1_num, line1_result = line_by_line_container.line_results[0]
+        assert line1_num == 1
+        assert line1_result.score == 1.0
+
+        line2_num, line2_result = line_by_line_container.line_results[1]
+        assert line2_num == 2
+        assert line2_result.score == 0.0
+
+        line3_num, line3_result = line_by_line_container.line_results[2]
+        assert line3_num == 3
+        assert line3_result.score == 1.0
+
 
 class TestContainsEvaluator:
     """Test ContainsEvaluator.evaluate() method."""
