@@ -221,7 +221,7 @@ class ContextGroundingSearchResultItem(BaseModel):
         arbitrary_types_allowed=True,
         extra="allow",
     )
-    id: Optional[str] = Field(default=None, alias="id")
+    id: Optional[str | int] = Field(default=None, alias="id")
     content: str = Field(alias="content")
     source: str = Field(alias="source")
     page_number: int | str = Field(alias="page_number")
