@@ -551,7 +551,7 @@ class StudioClient:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
         if not os.path.exists(UiPathConfig.bindings_file_path):
-            logger.debug(
+            logger.warning(
                 "Bindings file not found at %s, no overwrites to fetch from Studio",
                 UiPathConfig.bindings_file_path,
             )
@@ -587,7 +587,7 @@ class StudioClient:
         for key, value in data.items():
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
-        logger.debug(
+        logger.info(
             "Loaded %d resource overwrite(s) from Studio API for solution %s: %s",
             len(overwrites),
             solution_id,
