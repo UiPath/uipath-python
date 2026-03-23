@@ -1,11 +1,8 @@
-import logging
 import os
 from functools import cached_property
 from pathlib import Path
 
 from pydantic import BaseModel
-
-logger = logging.getLogger(__name__)
 
 
 class UiPathApiConfig(BaseModel):
@@ -21,6 +18,20 @@ class ConfigurationManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"project_id={self.project_id!r}, "
+            f"folder_key={self.folder_key!r}, "
+            f"folder_path={self.folder_path!r}, "
+            f"base_url={self.base_url!r}, "
+            f"tenant_id={self.tenant_id!r}, "
+            f"organization_id={self.organization_id!r}, "
+            f"job_key={self.job_key!r}, "
+            f"process_uuid={self.process_uuid!r}, "
+            f"process_version={self.process_version!r})"
+        )
 
     @property
     def bindings_file_path(self) -> Path:
@@ -165,23 +176,6 @@ class ConfigurationManager:
         from uipath.platform.common.constants import ENV_TRACING_ENABLED
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
-
-    def log_config(self) -> None:
-        """Log the current configuration values at INFO level."""
-        logger.info(
-            "UiPathConfig: project_id=%s, folder_key=%s, folder_path=%s, "
-            "base_url=%s, tenant_id=%s, organization_id=%s, job_key=%s, "
-            "process_uuid=%s, process_version=%s",
-            self.project_id,
-            self.folder_key,
-            self.folder_path,
-            self.base_url,
-            self.tenant_id,
-            self.organization_id,
-            self.job_key,
-            self.process_uuid,
-            self.process_version,
-        )
 
     def _read_internal_argument(self, key: str) -> str | None:
         internal_args = self._internal_arguments
