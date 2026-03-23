@@ -179,21 +179,6 @@ def debug(
                                     await chat_runtime.dispose()
                                 await runtime.dispose()
 
-                        logger.info(
-                            "UiPathConfig: project_id=%s, folder_key=%s, folder_path=%s, "
-                            "base_url=%s, tenant_id=%s, organization_id=%s, job_key=%s, "
-                            "process_uuid=%s, process_version=%s",
-                            UiPathConfig.project_id,
-                            UiPathConfig.folder_key,
-                            UiPathConfig.folder_path,
-                            UiPathConfig.base_url,
-                            UiPathConfig.tenant_id,
-                            UiPathConfig.organization_id,
-                            UiPathConfig.job_key,
-                            UiPathConfig.process_uuid,
-                            UiPathConfig.process_version,
-                        )
-
                         if project_id := UiPathConfig.project_id:
                             studio_client = StudioClient(project_id)
 

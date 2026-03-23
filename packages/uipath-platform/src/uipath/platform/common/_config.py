@@ -1,6 +1,9 @@
+import logging
 import os
 from functools import cached_property
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 
@@ -162,6 +165,23 @@ class ConfigurationManager:
         from uipath.platform.common.constants import ENV_TRACING_ENABLED
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
+
+    def log_config(self) -> None:
+        """Log the current configuration values at INFO level."""
+        logger.info(
+            "UiPathConfig: project_id=%s, folder_key=%s, folder_path=%s, "
+            "base_url=%s, tenant_id=%s, organization_id=%s, job_key=%s, "
+            "process_uuid=%s, process_version=%s",
+            self.project_id,
+            self.folder_key,
+            self.folder_path,
+            self.base_url,
+            self.tenant_id,
+            self.organization_id,
+            self.job_key,
+            self.process_uuid,
+            self.process_version,
+        )
 
     def _read_internal_argument(self, key: str) -> str | None:
         internal_args = self._internal_arguments
