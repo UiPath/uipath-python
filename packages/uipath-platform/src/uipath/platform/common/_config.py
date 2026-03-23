@@ -3,9 +3,9 @@ import os
 from functools import cached_property
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class UiPathApiConfig(BaseModel):
