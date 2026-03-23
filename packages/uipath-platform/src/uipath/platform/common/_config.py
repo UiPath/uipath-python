@@ -19,6 +19,20 @@ class ConfigurationManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"project_id={self.project_id!r}, "
+            f"folder_key={self.folder_key!r}, "
+            f"folder_path={self.folder_path!r}, "
+            f"base_url={self.base_url!r}, "
+            f"tenant_id={self.tenant_id!r}, "
+            f"organization_id={self.organization_id!r}, "
+            f"job_key={self.job_key!r}, "
+            f"process_uuid={self.process_uuid!r}, "
+            f"process_version={self.process_version!r})"
+        )
+
     @property
     def bindings_file_path(self) -> Path:
         from uipath.platform.common.constants import UIPATH_BINDINGS_FILE
@@ -81,6 +95,12 @@ class ConfigurationManager:
         from uipath.platform.common.constants import ENV_FOLDER_KEY
 
         return os.getenv(ENV_FOLDER_KEY, None)
+
+    @property
+    def folder_path(self) -> str | None:
+        from uipath.platform.common.constants import ENV_FOLDER_PATH
+
+        return os.getenv(ENV_FOLDER_PATH, None)
 
     @property
     def process_uuid(self) -> str | None:
