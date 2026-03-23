@@ -173,11 +173,14 @@ async def may_override_files(
 
     local_version_display = local_code_version if local_code_version else "Not Set"
 
-    try:
-        push_date = datetime.fromisoformat(remote_metadata.last_push_date)
-        formatted_date = push_date.strftime("%b %d, %Y at %I:%M %p UTC")
-    except (ValueError, TypeError):
-        formatted_date = remote_metadata.last_push_date
+    if not remote_metadata.last_push_date:
+        formatted_date = "unknown"
+    else:
+        try:
+            push_date = datetime.fromisoformat(remote_metadata.last_push_date)
+            formatted_date = push_date.strftime("%b %d, %Y at %I:%M %p UTC")
+        except (ValueError, TypeError):
+            formatted_date = remote_metadata.last_push_date
 
     console = ConsoleLogger()
     console.warning("Your local version is behind the remote version.")

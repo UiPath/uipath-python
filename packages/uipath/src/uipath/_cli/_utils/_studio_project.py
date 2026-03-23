@@ -476,8 +476,8 @@ class StudioProjectMetadata(BaseModel):
     )
 
     schema_version: int = Field(alias="schemaVersion")
-    last_push_date: str = Field(alias="lastPushDate")
-    last_push_author: str = Field(alias="lastPushAuthor")
+    last_push_date: str | None = Field(alias="lastPushDate", default=None)
+    last_push_author: str | None = Field(alias="lastPushAuthor", default=None)
     code_version: str = Field(alias="codeVersion")
 
 
