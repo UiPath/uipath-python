@@ -2,7 +2,6 @@ from functools import cached_property
 from typing import Optional
 
 from pydantic import ValidationError
-
 from uipath.platform.automation_tracker import AutomationTrackerService
 
 from .action_center import TasksService

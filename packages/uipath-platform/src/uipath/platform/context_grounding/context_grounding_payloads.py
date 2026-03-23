@@ -5,7 +5,6 @@ from typing import Any, Dict, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
-
 from uipath.platform.common.constants import (
     CONFLUENCE_DATA_SOURCE_REQUEST,
     DROPBOX_DATA_SOURCE_REQUEST,

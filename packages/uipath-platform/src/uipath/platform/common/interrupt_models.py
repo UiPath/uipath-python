@@ -3,7 +3,6 @@
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 from uipath.platform.context_grounding.context_grounding_index import (
     ContextGroundingIndex,
 )
