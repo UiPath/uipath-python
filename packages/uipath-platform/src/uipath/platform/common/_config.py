@@ -178,7 +178,7 @@ class ConfigurationManager:
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
 
     def reset(self) -> None:
-        """Reset mutable state for per-job isolation in pooled server mode."""
+        """Reset mutable cached state to defaults."""
         self.studio_solution_id = None
         # Invalidate cached_property by removing from instance __dict__
         self.__dict__.pop("_internal_arguments", None)
