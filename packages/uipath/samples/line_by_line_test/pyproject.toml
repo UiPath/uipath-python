@@ -1,0 +1,19 @@
+[project]
+name = "line-by-line-test"
+version = "0.1.0"
+description = "Sample agent demonstrating line-by-line evaluation"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+requires-python = ">=3.11"
+dependencies = [
+  # Use the version from your PR on TestPyPI
+  "uipath>=2.10.30.dev1014810000,<2.10.30.dev1014820000"
+]
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.uv.sources]
+uipath = { index = "testpypi" }
