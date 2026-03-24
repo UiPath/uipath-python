@@ -11,6 +11,7 @@ import pytest
 
 from uipath.eval.evaluators import LegacyExactMatchEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.output_evaluator import LineByLineEvaluationDetails
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -613,6 +614,7 @@ async def test_line_by_line_all_match():
     # All lines match, so score should be 1.0
     assert result.score == 1.0
     assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
     assert result.details.total_lines_actual == 3
     assert result.details.total_lines_expected == 3
     assert len(result.details.line_by_line_results) == 3
@@ -646,6 +648,7 @@ async def test_line_by_line_partial_match():
     # 2 out of 3 lines match, so score should be ~0.67
     assert 0.6 < result.score < 0.7
     assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
     assert result.details.total_lines_actual == 3
     assert result.details.total_lines_expected == 3
     assert len(result.details.line_by_line_results) == 3
@@ -683,6 +686,7 @@ async def test_line_by_line_with_target_output_key():
     # All lines match, so score should be 1.0
     assert result.score == 1.0
     assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
     assert result.details.total_lines_actual == 3
     assert result.details.total_lines_expected == 3
 
@@ -714,6 +718,7 @@ async def test_line_by_line_custom_delimiter():
     # All items match, so score should be 1.0
     assert result.score == 1.0
     assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
     assert result.details.total_lines_actual == 3
     assert result.details.total_lines_expected == 3
     assert len(result.details.line_by_line_results) == 3
@@ -746,6 +751,7 @@ async def test_line_by_line_unequal_line_counts():
     # 2 out of 3 lines match (third line is missing), so score should be ~0.67
     assert 0.6 < result.score < 0.7
     assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
     assert result.details.total_lines_actual == 2
     assert result.details.total_lines_expected == 3
     assert len(result.details.line_by_line_results) == 3  # Evaluates max(2, 3) lines
