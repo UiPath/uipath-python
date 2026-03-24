@@ -1648,8 +1648,49 @@ class TestConnectorActivityInvocation:
 
         requests = httpx_mock.get_requests()
         sent_request = requests[1]
+        assert "unknown_param" not in sent_request.url.params
+        assert "unknown_param" not in str(sent_request.url.path)
+        assert "unknown_param" not in sent_request.headers
         request_json = json.loads(sent_request.content.decode())
         assert "unknown_param" not in request_json
+
+    def test_invoke_activity_unknown_parameter_is_ignored_multipart(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        multipart_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test that unknown parameters are ignored in multipart requests."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "unknown_param": "value",  # This parameter doesn't exist in metadata
+        }
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            status_code=200,
+            json={},
+        )
+
+        service.invoke_activity(
+            activity_metadata=multipart_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        requests = httpx_mock.get_requests()
+        sent_request = requests[1]
+
+        assert "unknown_param" not in sent_request.url.params
+        assert "unknown_param" not in str(sent_request.url.path)
+        assert "unknown_param" not in sent_request.headers
+        body = sent_request.content.decode("utf-8", errors="replace")
+        assert "unknown_param" not in body
 
     def test_invoke_activity_unsupported_content_type_raises_error(
         self,
