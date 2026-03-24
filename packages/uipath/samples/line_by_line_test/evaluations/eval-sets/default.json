@@ -4,7 +4,8 @@
   "name": "Line-by-Line Evaluation Test",
   "evaluatorRefs": [
     "LineByLineExactMatch",
-    "RegularExactMatch"
+    "RegularExactMatch",
+    "LegacyLineByLineExactMatch"
   ],
   "evaluations": [
     {
@@ -23,6 +24,12 @@
           "expectedOutput": {
             "result": "Item: apple\nItem: banana\nItem: cherry"
           }
+        },
+        "LegacyLineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: banana\nItem: cherry"
+          },
+          "expectedAgentBehavior": ""
         }
       }
     },
@@ -42,6 +49,12 @@
           "expectedOutput": {
             "result": "Item: apple\nItem: WRONG\nItem: cherry"
           }
+        },
+        "LegacyLineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: WRONG\nItem: cherry"
+          },
+          "expectedAgentBehavior": ""
         }
       }
     },
@@ -61,6 +74,12 @@
           "expectedOutput": {
             "result": "Item: orange"
           }
+        },
+        "LegacyLineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: orange"
+          },
+          "expectedAgentBehavior": ""
         }
       }
     }

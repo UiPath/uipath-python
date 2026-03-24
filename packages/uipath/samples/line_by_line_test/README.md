@@ -45,33 +45,41 @@ uv run uipath eval main evaluations/eval-sets/default.json --workers 1
 
 ## Evaluation Results
 
-The sample includes three test cases:
+The sample includes three test cases with three evaluators:
+- **LineByLineExactMatch** - New evaluator with line-by-line support
+- **RegularExactMatch** - New evaluator without line-by-line (for comparison)
+- **LegacyLineByLineExactMatch** - Legacy evaluator with line-by-line support
 
-1. **All lines match exactly** - Both evaluators score 1.0
-2. **One line doesn't match** - Line-by-line: 0.67, Regular: 0.0 (shows partial credit!)
-3. **Single item** - Both evaluators score 1.0
+Test cases:
+1. **All lines match exactly** - All evaluators score 1.0
+2. **One line doesn't match** - Line-by-line evaluators: 0.67, Regular: 0.0 (shows partial credit!)
+3. **Single item** - All evaluators score 1.0
 
 Expected output:
 ```
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
-┃  Evaluation                   ┃  LineByLineExactMatch  ┃  RegularExactMatch  ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
-│  Test all lines match         │                   1.0  │                1.0  │
-│  Test when one line doesn't   │                   0.7  │                0.0  │  ← Key difference!
-│  Test with single item        │                   1.0  │                1.0  │
-├───────────────────────────────┼────────────────────────┼─────────────────────┤
-│  Average                      │                   0.9  │                0.7  │
-└───────────────────────────────┴────────────────────────┴─────────────────────┘
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  Evaluation                   ┃  LineByLineExactMatch  ┃  RegularExactMatch  ┃  LegacyLineByLineExactMatch  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│  Test all lines match         │                   1.0  │                1.0  │                          1.0  │
+│  Test when one line doesn't   │                   0.7  │                0.0  │                          0.7  │  ← Key difference!
+│  Test with single item        │                   1.0  │                1.0  │                          1.0  │
+├───────────────────────────────┼────────────────────────┼─────────────────────┼───────────────────────────────┤
+│  Average                      │                   0.9  │                0.7  │                          0.9  │
+└───────────────────────────────┴────────────────────────┴─────────────────────┴───────────────────────────────┘
 ```
 
 ## Configuration
 
 ### Evaluator Configuration
 
+#### New Evaluators (Version-based)
+
 The line-by-line evaluator is configured in `evaluations/evaluators/line-by-line-exact-match.json`:
 
 ```json
 {
+  "version": "1.0",
+  "evaluatorTypeId": "uipath-exact-match",
   "evaluatorConfig": {
     "name": "LineByLineExactMatch",
     "targetOutputKey": "result",
@@ -81,8 +89,23 @@ The line-by-line evaluator is configured in `evaluations/evaluators/line-by-line
 }
 ```
 
-Key options:
-- `lineByLineEvaluator`: Enable line-by-line evaluation (default: `false`)
+#### Legacy Evaluators (Category/Type-based)
+
+Legacy evaluators also support line-by-line evaluation in `evaluations/evaluators/legacy-line-by-line-exact-match.json`:
+
+```json
+{
+  "category": "Deterministic",
+  "type": "Equals",
+  "name": "LegacyLineByLineExactMatch",
+  "targetOutputKey": "result",
+  "lineByLineEvaluation": true,
+  "lineDelimiter": "\n"
+}
+```
+
+Key options for both evaluator types:
+- `lineByLineEvaluator`/`lineByLineEvaluation`: Enable line-by-line evaluation (default: `false`)
 - `lineDelimiter`: Delimiter to split lines (default: `"\n"`)
 
 ### Custom Delimiters
@@ -102,15 +125,16 @@ You can use any delimiter:
 
 ```
 line_by_line_test/
-├── main.py                              # Simple agent that outputs one item per line
-├── uipath.json                          # Agent configuration
-├── pyproject.toml                       # Dependencies (uses TestPyPI)
+├── main.py                                      # Simple agent that outputs one item per line
+├── uipath.json                                  # Agent configuration
+├── pyproject.toml                               # Dependencies (uses TestPyPI)
 └── evaluations/
     ├── evaluators/
-    │   ├── line-by-line-exact-match.json    # Line-by-line evaluator
-    │   └── regular-exact-match.json          # Regular evaluator (for comparison)
+    │   ├── line-by-line-exact-match.json           # New line-by-line evaluator
+    │   ├── regular-exact-match.json                 # New regular evaluator (for comparison)
+    │   └── legacy-line-by-line-exact-match.json    # Legacy line-by-line evaluator
     └── eval-sets/
-        └── default.json                      # Test cases
+        └── default.json                             # Test cases
 ```
 
 ## Learn More
