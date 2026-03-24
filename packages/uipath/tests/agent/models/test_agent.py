@@ -1647,6 +1647,63 @@ class TestAgentBuilderConfig:
             == AgentContextRetrievalMode.UNKNOWN
         )
 
+    def test_context_settings_variant_case_insensitive(self):
+        """Test that context query setting variant handles different casings."""
+
+        json_data = {
+            "id": "test-variant-case",
+            "name": "Agent with mixed-case variants",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "context",
+                    "folderPath": "TestFolder",
+                    "indexName": "Test Index",
+                    "settings": {
+                        "threshold": 0.5,
+                        "resultCount": 5,
+                        "retrievalMode": "semantic",
+                        "query": {
+                            "value": "{{searchQuery}}",
+                            "variant": "Argument",
+                        },
+                        "folderPathPrefix": {
+                            "variant": "Static",
+                            "value": "/docs",
+                        },
+                    },
+                    "name": "Test Context",
+                    "description": "Context with mixed-case variants",
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        context_resource = config.resources[0]
+        assert isinstance(context_resource, AgentContextResourceConfig)
+        assert context_resource.settings is not None
+        assert (
+            context_resource.settings.query.variant
+            == AgentToolArgumentPropertiesVariant.ARGUMENT
+        )
+        assert context_resource.settings.folder_path_prefix is not None
+        assert (
+            context_resource.settings.folder_path_prefix.variant
+            == AgentToolArgumentPropertiesVariant.STATIC
+        )
+
     def test_agent_with_unknown_resource_type(self):
         """Test that AgentDefinition handles unknown resource types gracefully"""
 

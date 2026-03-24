@@ -325,7 +325,7 @@ class AgentContextQuerySetting(BaseCfg):
 
     value: str | None = Field(default=None)
     description: str | None = Field(default=None)
-    variant: str | None = Field(default=None)
+    variant: AgentToolArgumentPropertiesVariant | None = Field(default=None)
 
 
 class AgentContextValueSetting(BaseCfg):
@@ -373,7 +373,9 @@ class AgentContextSettings(BaseCfg):
     retrieval_mode: AgentContextRetrievalMode = Field(alias="retrievalMode")
     threshold: float = Field(default=0)
     query: AgentContextQuerySetting = Field(
-        default_factory=lambda: AgentContextQuerySetting(variant="dynamic")
+        default_factory=lambda: AgentContextQuerySetting(
+            variant=AgentToolArgumentPropertiesVariant.DYNAMIC
+        )
     )
     folder_path_prefix: Optional[AgentContextQuerySetting] = Field(
         None, alias="folderPathPrefix"
