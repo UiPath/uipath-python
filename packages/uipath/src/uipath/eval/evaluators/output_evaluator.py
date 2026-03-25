@@ -1,6 +1,7 @@
 """Base class for all output evaluator configurations."""
 
 import json
+from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeVar, Union
 
 from pydantic import BaseModel, Field
@@ -14,9 +15,21 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
+from .line_by_line_utils import (
+    split_into_lines,
+)
 
 if TYPE_CHECKING:
     from ..models import EvaluationResult
+
+
+class AggregationMethod(str, Enum):
+    """Aggregation methods for line-by-line evaluation scores."""
+
+    AVERAGE = "average"
+    MAX = "max"
+    MIN = "min"
+    MEDIAN = "median"
 
 
 class LineEvaluationDetail(BaseModel):
@@ -35,7 +48,7 @@ class LineByLineEvaluationDetails(BaseModel):
     line_by_line_results: list[LineEvaluationDetail]
     total_lines_actual: int
     total_lines_expected: int
-    aggregation_method: str = "average"
+    aggregation_method: AggregationMethod = AggregationMethod.AVERAGE
 
 
 class LineByLineEvaluationResult(BaseModel):
@@ -48,7 +61,7 @@ class LineByLineEvaluationResult(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     line_results: list[tuple[int, Any]]  # (line_number, result)
-    aggregation_method: str = "average"
+    aggregation_method: AggregationMethod = AggregationMethod.AVERAGE
 
 
 class OutputEvaluationCriteria(BaseEvaluationCriteria):
@@ -165,21 +178,6 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                 ) from e
         return self._normalize_numbers(expected_output)
 
-    def _split_into_lines(self, output: Any) -> list[str]:
-        """Split output into lines using the configured delimiter.
-
-        Args:
-            output: The output to split (will be converted to string)
-
-        Returns:
-            List of lines (strings)
-        """
-        output_str = str(output)
-        delimiter = self.evaluator_config.line_delimiter
-        lines = output_str.split(delimiter)
-        # Filter out empty lines
-        return [line for line in lines if line.strip()]
-
     async def validate_and_evaluate_criteria(
         self,
         agent_execution: "AgentExecution",
@@ -233,119 +231,59 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         Returns:
             NumericEvaluationResult with aggregated score
         """
-        from ..models import NumericEvaluationResult
+        from .line_by_line_utils import build_line_by_line_result, evaluate_lines
 
         # Get the full actual and expected outputs before splitting
         actual_output = self._get_actual_output(agent_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
 
-        # Split into lines
-        actual_lines = self._split_into_lines(actual_output)
-        expected_lines = self._split_into_lines(expected_output)
+        # Split into lines using utility function
+        actual_lines = split_into_lines(
+            actual_output,
+            self.evaluator_config.line_delimiter,
+            self.evaluator_config.target_output_key,
+        )
+        expected_lines = split_into_lines(
+            expected_output,
+            self.evaluator_config.line_delimiter,
+            self.evaluator_config.target_output_key,
+        )
 
         # Store original agent execution data
         original_agent_output = agent_execution.agent_output
 
-        # Evaluate each line
-        line_results: list[tuple[int, "EvaluationResult"]] = []
-        line_details = []
-        max_lines = max(len(actual_lines), len(expected_lines))
+        # Create function to build line criteria
+        def create_line_criteria(expected_line: str) -> Any:
+            from .line_by_line_utils import wrap_line_in_structure
 
-        for i in range(max_lines):
-            actual_line = actual_lines[i] if i < len(actual_lines) else ""
-            expected_line = expected_lines[i] if i < len(expected_lines) else ""
-
-            # Wrap lines in the same structure as original output for targetOutputKey
-            # If targetOutputKey is "*", use the line directly
-            # Otherwise, wrap it in a dict with the targetOutputKey
-            line_agent_output: Any
-            line_expected_output: Any
-            if self.evaluator_config.target_output_key == "*":
-                line_agent_output = actual_line
-                line_expected_output = expected_line
-            else:
-                line_agent_output = {
-                    self.evaluator_config.target_output_key: actual_line
-                }
-                line_expected_output = {
-                    self.evaluator_config.target_output_key: expected_line
-                }
-
-            # Create a modified agent execution with this line as output
-            line_agent_execution = AgentExecution(
-                agent_input=agent_execution.agent_input,
-                agent_output=line_agent_output,
-                agent_trace=agent_execution.agent_trace,
-                expected_agent_behavior=agent_execution.expected_agent_behavior,
-                simulation_instructions=agent_execution.simulation_instructions,
+            line_expected_output = wrap_line_in_structure(
+                expected_line, self.evaluator_config.target_output_key
             )
-
-            # Create modified criteria with this line as expected output
             line_criteria_dict = evaluation_criteria.model_dump()
             if "expected_output" in line_criteria_dict:
                 line_criteria_dict["expected_output"] = line_expected_output
+            return type(evaluation_criteria).model_validate(line_criteria_dict)
 
-            line_criteria = type(evaluation_criteria).model_validate(line_criteria_dict)
-
-            # Evaluate this line
-            line_result = await self.evaluate(line_agent_execution, line_criteria)
-            line_results.append((i + 1, line_result))  # Store line number with result
-
-            # Build line detail for summary
-            line_detail = LineEvaluationDetail(
-                line_number=i + 1,
-                actual=actual_line,
-                expected=expected_line,
-                score=line_result.score,
-                details=line_result.details
-                if hasattr(line_result, "details")
-                else None,
-            )
-            line_details.append(line_detail)
+        # Evaluate all lines using utility function
+        line_details, line_results = await evaluate_lines(
+            actual_lines=actual_lines,
+            expected_lines=expected_lines,
+            target_output_key=self.evaluator_config.target_output_key,
+            agent_execution=agent_execution,
+            evaluate_fn=self.evaluate,
+            create_line_criteria_fn=create_line_criteria,
+        )
 
         # Restore original agent output
         agent_execution.agent_output = original_agent_output
 
-        # Aggregate scores
-        if not line_results:
-            aggregated_score = 0.0
-        else:
-            scores = []
-            for _line_num, result in line_results:
-                if hasattr(result, "score"):
-                    score = result.score
-                    # Convert boolean to float
-                    if isinstance(score, bool):
-                        scores.append(1.0 if score else 0.0)
-                    else:
-                        scores.append(float(score))
-            aggregated_score = sum(scores) / len(scores) if scores else 0.0
-
-        # Build details with per-line summary
-        details = LineByLineEvaluationDetails(
-            line_by_line_results=line_details,
-            total_lines_actual=len(actual_lines),
-            total_lines_expected=len(expected_lines),
-            aggregation_method="average",
+        # Build and return the aggregated result using utility function
+        return build_line_by_line_result(
+            line_details=line_details,
+            line_results=line_results,
+            actual_lines=actual_lines,
+            expected_lines=expected_lines,
         )
-
-        # Create the aggregated result with line results attached
-        aggregated_result = NumericEvaluationResult(
-            score=aggregated_score,
-            details=details,
-        )
-
-        # Attach line results container for runtime to extract
-        # This allows storing each line result as a separate entry
-        setattr(  # noqa: B010
-            aggregated_result,
-            "_line_by_line_results",
-            LineByLineEvaluationResult(
-                line_results=line_results, aggregation_method="average"
-            ),
-        )
-
-        return aggregated_result
 
 
 # NOTE: This evaluator is only used in coded evaluators.

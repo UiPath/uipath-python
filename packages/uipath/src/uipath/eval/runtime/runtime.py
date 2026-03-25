@@ -140,9 +140,9 @@ def compute_evaluator_scores(
         datapoint_id = eval_run_result.evaluation_name
         for eval_run_result_dto in eval_run_result.evaluation_run_results:
             evaluator_name = eval_run_result_dto.evaluator_name
-            # Skip validation for line-by-line sub-results (they have " (Line N)" suffix)
+            # Skip validation for line-by-line sub-results
             # These are individual line results that shouldn't be aggregated
-            if " (Line " in evaluator_name:
+            if eval_run_result_dto.is_line_result:
                 continue
             if evaluator_name not in evaluator_reducers:
                 known = sorted(evaluator_reducers.keys())
@@ -695,6 +695,7 @@ class UiPathEvalRuntime:
                                     evaluator_name=line_evaluator_name,
                                     result=line_dto_result,
                                     evaluator_id=f"{evaluator.id}_line_{line_number}",
+                                    is_line_result=True,
                                 )
                             )
 

@@ -45,17 +45,23 @@ uv run uipath eval main evaluations/eval-sets/default.json --workers 1
 
 ## Evaluation Results
 
-The sample includes three test cases with three evaluators:
+The sample includes three test cases with five evaluators:
+
+### ExactMatch Evaluators
 - **LineByLineExactMatch** - New evaluator with line-by-line support
 - **RegularExactMatch** - New evaluator without line-by-line (for comparison)
 - **LegacyLineByLineExactMatch** - Legacy evaluator with line-by-line support
 
+### Contains Evaluators
+- **LineByLineContains** - New evaluator with line-by-line support (checks if each line contains the search text)
+- **RegularContains** - New evaluator without line-by-line (checks if the entire output contains the search text)
+
 Test cases:
 1. **All lines match exactly** - All evaluators score 1.0
-2. **One line doesn't match** - Line-by-line evaluators: 0.67, Regular: 0.0 (shows partial credit!)
+2. **One line doesn't match** - Line-by-line ExactMatch: 0.67, Regular ExactMatch: 0.0 (shows partial credit!)
 3. **Single item** - All evaluators score 1.0
 
-Expected output:
+Expected output (showing ExactMatch evaluators):
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  Evaluation                   ┃  LineByLineExactMatch  ┃  RegularExactMatch  ┃  LegacyLineByLineExactMatch  ┃
@@ -67,6 +73,8 @@ Expected output:
 │  Average                      │                   0.9  │                0.7  │                          0.9  │
 └───────────────────────────────┴────────────────────────┴─────────────────────┴───────────────────────────────┘
 ```
+
+Contains evaluators will all score 1.0 since all test outputs contain "Item:".
 
 ## Configuration
 
@@ -104,9 +112,59 @@ Legacy evaluators also support line-by-line evaluation in `evaluations/evaluator
 }
 ```
 
-Key options for both evaluator types:
+#### Contains Evaluators
+
+The Contains evaluator checks if the output contains a specific search text. In line-by-line mode, it checks each line independently:
+
+**Line-by-line Contains** (`evaluations/evaluators/line-by-line-contains.json`):
+```json
+{
+  "version": "1.0",
+  "evaluatorTypeId": "uipath-contains",
+  "evaluatorConfig": {
+    "name": "LineByLineContains",
+    "target_output_key": "result",
+    "line_by_line_evaluator": true,
+    "line_delimiter": "\n",
+    "case_sensitive": false,
+    "negated": false
+  }
+}
+```
+
+**Regular Contains** (`evaluations/evaluators/regular-contains.json`):
+```json
+{
+  "version": "1.0",
+  "evaluatorTypeId": "uipath-contains",
+  "evaluatorConfig": {
+    "name": "RegularContains",
+    "target_output_key": "result",
+    "line_by_line_evaluator": false,
+    "case_sensitive": false,
+    "negated": false
+  }
+}
+```
+
+In evaluation criteria, specify the search text:
+```json
+{
+  "LineByLineContains": {
+    "searchText": "Item:"
+  }
+}
+```
+
+**Behavior difference**:
+- **Line-by-line**: Checks if each line contains "Item:", gives partial credit (e.g., 2/3 if one line is missing it)
+- **Regular**: Checks if the entire output contains "Item:" at least once, returns 1.0 or 0.0
+
+Key options for all evaluator types:
 - `lineByLineEvaluator`/`lineByLineEvaluation`: Enable line-by-line evaluation (default: `false`)
 - `lineDelimiter`: Delimiter to split lines (default: `"\n"`)
+- `case_sensitive`: Case-sensitive comparison (default: `false` for Contains, `true` for ExactMatch)
+- `negated`: Invert the result (default: `false`, only for Contains)
 
 ### Custom Delimiters
 
@@ -130,11 +188,13 @@ line_by_line_test/
 ├── pyproject.toml                               # Dependencies (uses TestPyPI)
 └── evaluations/
     ├── evaluators/
-    │   ├── line-by-line-exact-match.json           # New line-by-line evaluator
-    │   ├── regular-exact-match.json                 # New regular evaluator (for comparison)
-    │   └── legacy-line-by-line-exact-match.json    # Legacy line-by-line evaluator
+    │   ├── line-by-line-exact-match.json           # New line-by-line ExactMatch evaluator
+    │   ├── regular-exact-match.json                 # New regular ExactMatch evaluator
+    │   ├── legacy-line-by-line-exact-match.json    # Legacy line-by-line ExactMatch evaluator
+    │   ├── line-by-line-contains.json              # New line-by-line Contains evaluator
+    │   └── regular-contains.json                    # New regular Contains evaluator
     └── eval-sets/
-        └── default.json                             # Test cases
+        └── default.json                             # Test cases with all 5 evaluators
 ```
 
 ## Learn More

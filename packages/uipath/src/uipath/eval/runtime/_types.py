@@ -53,6 +53,7 @@ class UiPathEvalRunResultDto(BaseModel):
     evaluator_name: str
     evaluator_id: str
     result: EvaluationResultDto
+    is_line_result: bool = False  # True if this is a line-by-line sub-result
 
 
 class UiPathEvalRunResult(BaseModel):

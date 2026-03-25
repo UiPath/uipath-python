@@ -5,14 +5,20 @@
   "evaluatorRefs": [
     "LineByLineExactMatch",
     "RegularExactMatch",
-    "LegacyLineByLineExactMatch"
+    "LegacyLineByLineExactMatch",
+    "LineByLineContains",
+    "RegularContains"
   ],
   "evaluations": [
     {
       "id": "test-all-lines-match",
       "name": "Test all lines match exactly",
       "inputs": {
-        "items": ["apple", "banana", "cherry"]
+        "items": [
+          "apple",
+          "banana",
+          "cherry"
+        ]
       },
       "evaluationCriterias": {
         "LineByLineExactMatch": {
@@ -30,6 +36,12 @@
             "result": "Item: apple\nItem: banana\nItem: cherry"
           },
           "expectedAgentBehavior": ""
+        },
+        "LineByLineContains": {
+          "searchText": "apple"
+        },
+        "RegularContains": {
+          "searchText": "apple"
         }
       }
     },
@@ -37,7 +49,11 @@
       "id": "test-partial-line-mismatch",
       "name": "Test when one line doesn't match",
       "inputs": {
-        "items": ["apple", "banana", "cherry"]
+        "items": [
+          "apple",
+          "banana",
+          "cherry"
+        ]
       },
       "evaluationCriterias": {
         "LineByLineExactMatch": {
@@ -55,6 +71,12 @@
             "result": "Item: apple\nItem: WRONG\nItem: cherry"
           },
           "expectedAgentBehavior": ""
+        },
+        "LineByLineContains": {
+          "searchText": "Item:"
+        },
+        "RegularContains": {
+          "searchText": "Item:"
         }
       }
     },
@@ -62,7 +84,9 @@
       "id": "test-single-item",
       "name": "Test with single item",
       "inputs": {
-        "items": ["orange"]
+        "items": [
+          "orange"
+        ]
       },
       "evaluationCriterias": {
         "LineByLineExactMatch": {
@@ -80,6 +104,12 @@
             "result": "Item: orange"
           },
           "expectedAgentBehavior": ""
+        },
+        "LineByLineContains": {
+          "searchText": "Item:"
+        },
+        "RegularContains": {
+          "searchText": "Item:"
         }
       }
     }

@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "evaluatorTypeId": "uipath-contains",
+  "id": "LineByLineContains",
+  "name": "LineByLineContains",
+  "evaluatorConfig": {
+    "name": "LineByLineContains",
+    "target_output_key": "result",
+    "line_by_line_evaluator": true,
+    "line_delimiter": "\n",
+    "case_sensitive": false,
+    "negated": false
+  }
+}
