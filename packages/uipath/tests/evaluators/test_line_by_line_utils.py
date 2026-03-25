@@ -9,7 +9,10 @@ from uipath.eval.evaluators.line_by_line_utils import (
     split_into_lines,
     wrap_line_in_structure,
 )
-from uipath.eval.evaluators.output_evaluator import LineEvaluationDetail
+from uipath.eval.evaluators.output_evaluator import (
+    LineByLineEvaluationDetails,
+    LineEvaluationDetail,
+)
 from uipath.eval.models.models import AgentExecution, NumericEvaluationResult
 
 
@@ -285,6 +288,7 @@ class TestBuildLineByLineResult:
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
         assert hasattr(result, "_line_by_line_results")
+        assert isinstance(result.details, LineByLineEvaluationDetails)
         assert result.details.total_lines_actual == 2
         assert result.details.total_lines_expected == 2
 
@@ -346,6 +350,7 @@ class TestBuildLineByLineResult:
         )
 
         assert isinstance(result, NumericEvaluationResult)
+        assert isinstance(result.details, LineByLineEvaluationDetails)
         assert result.details.total_lines_actual == 1
         assert result.details.total_lines_expected == 2
         assert result.score == 0.5  # 1/2
