@@ -15,6 +15,11 @@ from ..models.models import (
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
 )
+from .attachment_utils import (
+    download_attachment_as_string,
+    extract_attachment_id,
+    is_job_attachment_uri,
+)
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluatorConfig,
@@ -179,6 +184,9 @@ class BaseLegacyEvaluator(
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
         """Extract actual output from agent execution.
 
+        If the output is a job attachment URI, downloads the attachment
+        and returns its content as a string.
+
         Args:
             agent_execution: The agent execution
 
@@ -189,14 +197,22 @@ class BaseLegacyEvaluator(
 
         # If target_output_key is "*", return full output
         if self.target_output_key == "*":
-            return agent_output
-
+            result = agent_output
         # Otherwise, extract specific key
-        if isinstance(agent_output, dict) and self.target_output_key in agent_output:
-            return agent_output[self.target_output_key]
+        elif isinstance(agent_output, dict) and self.target_output_key in agent_output:
+            result = agent_output[self.target_output_key]
+        else:
+            # Fallback to full output
+            result = agent_output
 
-        # Fallback to full output
-        return agent_output
+        # Check if result is a job attachment URI and download if so
+        if is_job_attachment_uri(result):
+            # At this point we know result is a string
+            assert isinstance(result, str)
+            attachment_id = extract_attachment_id(result)
+            result = download_attachment_as_string(attachment_id)
+
+        return result
 
     @abstractmethod
     async def evaluate(
