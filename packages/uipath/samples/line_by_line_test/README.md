@@ -25,8 +25,6 @@ This sample uses the UiPath package from TestPyPI:
 # Install dependencies
 uv sync
 
-# Or manually install
-uv pip install --index-url https://test.pypi.org/simple/ "uipath>=2.10.30.dev1014810000,<2.10.30.dev1014820000"
 ```
 
 ## Usage
