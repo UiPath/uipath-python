@@ -13,6 +13,7 @@ from ._bindings import (
     ResourceOverwritesContext,
     resource_override,
 )
+from ._bindings_service import BindingsService
 from ._config import UiPathApiConfig, UiPathConfig
 from ._endpoints_manager import EndpointManager
 from ._execution_context import UiPathExecutionContext
@@ -99,6 +100,7 @@ __all__ = [
     "validate_pagination_params",
     "EndpointManager",
     "jsonschema_to_pydantic",
+    "BindingsService",
     "ConnectionResourceOverwrite",
     "GenericResourceOverwrite",
     "ResourceOverwrite",

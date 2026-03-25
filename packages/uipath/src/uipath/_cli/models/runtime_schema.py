@@ -18,6 +18,8 @@ class BindingResourceValue(BaseModelWithDefaultConfig):
     default_value: str = Field(..., alias="defaultValue")
     is_expression: bool = Field(..., alias="isExpression")
     display_name: str = Field(..., alias="displayName")
+    description: str | None = Field(default=None, alias="description")
+    property_name: str | None = Field(default=None, alias="propertyName")
 
 
 # TODO: create stronger binding resource definition with discriminator based on resource enum.

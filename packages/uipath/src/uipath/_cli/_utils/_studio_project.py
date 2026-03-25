@@ -584,7 +584,10 @@ class StudioClient:
         data = response.json()
         overwrites = {}
 
+        logger.info("Received resource overwrites response from Studio API: %s", data)
+        
         for key, value in data.items():
+            logger.debug("Parsing overwrite for key '%s' with value: %s", key, value)
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         logger.info(
