@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
@@ -41,7 +41,7 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
     """Legacy evaluator that uses an LLM to judge the quality of agent output."""
 
     prompt: str
-    model: str
+    model: str = Field(default="same-as-agent")
     actual_output_placeholder: str = "{{ActualOutput}}"
     expected_output_placeholder: str = "{{ExpectedOutput}}"
     llm: Optional[UiPathLlmChatService] = None
