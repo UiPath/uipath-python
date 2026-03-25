@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "id": "LineByLineExactMatch",
+  "description": "Evaluates each line of output separately using exact match",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "LineByLineExactMatch",
+    "targetOutputKey": "result",
+    "lineByLineEvaluator": true,
+    "lineDelimiter": "\n",
+    "ignoreCase": false,
+    "negated": false
+  }
+}

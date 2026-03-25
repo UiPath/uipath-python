@@ -1,0 +1,12 @@
+[project]
+name = "line-by-line-test"
+version = "0.1.0"
+description = "Sample agent demonstrating line-by-line evaluation"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+requires-python = ">=3.11"
+dependencies = [
+  "uipath"
+]
+
+[tool.uv.sources]
+uipath = { path = "../..", editable = true }

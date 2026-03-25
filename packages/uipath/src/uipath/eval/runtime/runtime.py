@@ -140,6 +140,10 @@ def compute_evaluator_scores(
         datapoint_id = eval_run_result.evaluation_name
         for eval_run_result_dto in eval_run_result.evaluation_run_results:
             evaluator_name = eval_run_result_dto.evaluator_name
+            # Skip validation for line-by-line sub-results
+            # These are individual line results that shouldn't be aggregated
+            if eval_run_result_dto.is_line_result:
+                continue
             if evaluator_name not in evaluator_reducers:
                 known = sorted(evaluator_reducers.keys())
                 raise ValueError(
@@ -668,6 +672,34 @@ class UiPathEvalRuntime:
                         else None,
                     )
 
+                    # Check if this is a line-by-line evaluation result
+                    if hasattr(evaluation_result, "_line_by_line_results"):
+                        line_by_line_container = evaluation_result._line_by_line_results
+
+                        # Store each line result as a separate entry
+                        for (
+                            line_number,
+                            line_result,
+                        ) in line_by_line_container.line_results:
+                            line_dto_result = (
+                                EvaluationResultDto.from_evaluation_result(line_result)
+                            )
+
+                            # Add line number to the evaluator name for identification
+                            line_evaluator_name = (
+                                f"{evaluator.name} (Line {line_number})"
+                            )
+
+                            evaluation_run_results.evaluation_run_results.append(
+                                UiPathEvalRunResultDto(
+                                    evaluator_name=line_evaluator_name,
+                                    result=line_dto_result,
+                                    evaluator_id=f"{evaluator.id}_line_{line_number}",
+                                    is_line_result=True,
+                                )
+                            )
+
+                    # Store the aggregated result
                     dto_result = EvaluationResultDto.from_evaluation_result(
                         evaluation_result
                     )

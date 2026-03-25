@@ -1,0 +1,117 @@
+{
+  "version": "1.0",
+  "id": "line-by-line-test",
+  "name": "Line-by-Line Evaluation Test",
+  "evaluatorRefs": [
+    "LineByLineExactMatch",
+    "RegularExactMatch",
+    "LegacyLineByLineExactMatch",
+    "LineByLineContains",
+    "RegularContains"
+  ],
+  "evaluations": [
+    {
+      "id": "test-all-lines-match",
+      "name": "Test all lines match exactly",
+      "inputs": {
+        "items": [
+          "apple",
+          "banana",
+          "cherry"
+        ]
+      },
+      "evaluationCriterias": {
+        "LineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: banana\nItem: cherry"
+          }
+        },
+        "RegularExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: banana\nItem: cherry"
+          }
+        },
+        "LegacyLineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: banana\nItem: cherry"
+          },
+          "expectedAgentBehavior": ""
+        },
+        "LineByLineContains": {
+          "searchText": "apple"
+        },
+        "RegularContains": {
+          "searchText": "apple"
+        }
+      }
+    },
+    {
+      "id": "test-partial-line-mismatch",
+      "name": "Test when one line doesn't match",
+      "inputs": {
+        "items": [
+          "apple",
+          "banana",
+          "cherry"
+        ]
+      },
+      "evaluationCriterias": {
+        "LineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: WRONG\nItem: cherry"
+          }
+        },
+        "RegularExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: WRONG\nItem: cherry"
+          }
+        },
+        "LegacyLineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: apple\nItem: WRONG\nItem: cherry"
+          },
+          "expectedAgentBehavior": ""
+        },
+        "LineByLineContains": {
+          "searchText": "Item:"
+        },
+        "RegularContains": {
+          "searchText": "Item:"
+        }
+      }
+    },
+    {
+      "id": "test-single-item",
+      "name": "Test with single item",
+      "inputs": {
+        "items": [
+          "orange"
+        ]
+      },
+      "evaluationCriterias": {
+        "LineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: orange"
+          }
+        },
+        "RegularExactMatch": {
+          "expectedOutput": {
+            "result": "Item: orange"
+          }
+        },
+        "LegacyLineByLineExactMatch": {
+          "expectedOutput": {
+            "result": "Item: orange"
+          },
+          "expectedAgentBehavior": ""
+        },
+        "LineByLineContains": {
+          "searchText": "Item:"
+        },
+        "RegularContains": {
+          "searchText": "Item:"
+        }
+      }
+    }
+  ]
+}

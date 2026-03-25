@@ -34,6 +34,7 @@ from .llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectorySimulationEvaluator,
 )
 from .multiclass_classification_evaluator import MulticlassClassificationEvaluator
+from .output_evaluator import AggregationMethod
 from .tool_call_args_evaluator import ToolCallArgsEvaluator
 from .tool_call_count_evaluator import ToolCallCountEvaluator
 from .tool_call_order_evaluator import ToolCallOrderEvaluator
@@ -84,4 +85,5 @@ __all__ = [
     "BaseEvaluatorConfig",
     "BaseEvaluatorJustification",
     "LLMJudgeJustification",
+    "AggregationMethod",
 ]
