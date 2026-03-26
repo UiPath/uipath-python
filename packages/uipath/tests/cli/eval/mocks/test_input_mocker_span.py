@@ -9,6 +9,7 @@ from pytest_httpx import HTTPXMock
 from uipath.core.tracing import UiPathTraceManager
 from uipath.eval.mocks._cache_manager import CacheManager
 from uipath.eval.mocks._input_mocker import generate_llm_input
+from uipath.eval.mocks._mocker import UiPathInputMockingError
 from uipath.eval.mocks._types import InputMockingStrategy, ModelSettings
 
 
@@ -225,7 +226,7 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
         }
 
         # Call should fail due to invalid JSON
-        with pytest.raises(Exception):  # Will raise UiPathInputMockingError
+        with pytest.raises(UiPathInputMockingError):
             await generate_llm_input(
                 mocking_strategy,
                 input_schema,
