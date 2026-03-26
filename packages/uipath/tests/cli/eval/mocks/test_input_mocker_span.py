@@ -1,6 +1,5 @@
 """Tests for Simulate Input span attributes."""
 
-
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -77,7 +76,7 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
             model=ModelSettings(
                 model="gpt-4o-mini-2024-07-18",
                 temperature=0.0,
-                max_tokens=150,
+                maxTokens=150,
             ),
         )
 
@@ -103,7 +102,7 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
         assert result == {"name": "Alice", "greeting_style": "formal"}
 
         # Get captured spans
-        spans: list[ReadableSpan] = span_exporter.get_finished_spans()
+        spans: list[ReadableSpan] = list(span_exporter.get_finished_spans())
 
         # Find the "Simulate Input" span
         simulate_input_spans = [s for s in spans if s.name == "Simulate Input"]
@@ -135,6 +134,7 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
         # Verify input.value contains the function parameters
         input_value = simulate_span.attributes.get("input.value")
         assert input_value is not None
+        assert isinstance(input_value, str)
         assert "mocking_strategy" in input_value
         assert "input_schema" in input_value
         assert "expected_behavior" in input_value
@@ -147,6 +147,7 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
         # Verify output contains the generated input
         output_value = simulate_span.attributes.get("output.value")
         assert output_value is not None
+        assert isinstance(output_value, str)
         assert '"name": "Alice"' in output_value
         assert '"greeting_style": "formal"' in output_value
 
@@ -233,7 +234,7 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
             )
 
         # Get captured spans
-        spans: list[ReadableSpan] = span_exporter.get_finished_spans()
+        spans: list[ReadableSpan] = list(span_exporter.get_finished_spans())
 
         # Find the "Simulate Input" span
         simulate_input_spans = [s for s in spans if s.name == "Simulate Input"]
@@ -242,6 +243,7 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
         simulate_span = simulate_input_spans[0]
 
         # Custom attributes should still be present (set at function start)
+        assert simulate_span.attributes is not None
         assert simulate_span.attributes.get("span_type") == "simulatedInput"
         assert simulate_span.attributes.get("type") == "simulatedInput"
         assert simulate_span.attributes.get("uipath.custom_instrumentation") is True
