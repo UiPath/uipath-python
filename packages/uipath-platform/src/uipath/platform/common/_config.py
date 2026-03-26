@@ -1,6 +1,7 @@
 import os
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -183,12 +184,12 @@ class ConfigurationManager:
         # Invalidate cached_property by removing from instance __dict__
         self.__dict__.pop("_internal_arguments", None)
 
-    def _read_internal_argument(self, key: str) -> str | None:
+    def _read_internal_argument(self, key: str) -> Any:
         internal_args = self._internal_arguments
         return internal_args.get(key) if internal_args else None
 
     @cached_property
-    def _internal_arguments(self) -> dict[str, str] | None:
+    def _internal_arguments(self) -> dict[str, Any] | None:
         import json
 
         try:
