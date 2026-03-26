@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import urlparse
 
 from uipath.core.chat import (
+    UiPathConversationErrorEvent,
+    UiPathConversationErrorStartEvent,
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
@@ -23,6 +25,72 @@ from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
 logger = logging.getLogger(__name__)
+
+
+class CASErrorId:
+    """Error IDs for the Conversational Agent Service (CAS), matching the Temporal backend."""
+
+    LICENSING = "AGENT_LICENSING_CONSUMPTION_VALIDATION_FAILED"
+    INCOMPLETE_RESPONSE = "AGENT_RESPONSE_IS_INCOMPLETE"
+    MAX_STEPS_REACHED = "AGENT_MAXIMUM_SEQUENTIAL_STEPS_REACHED"
+    INVALID_INPUT = "AGENT_INVALID_INPUT"
+    DEFAULT_ERROR = "AGENT_RUNTIME_ERROR"
+
+
+# User-facing messages for each CAS error ID, matching the Temporal backend.
+_CAS_ERROR_MESSAGES: dict[str, str] = {
+    CASErrorId.LICENSING: "Your action could not be completed. You've used all your units for this period. Please contact your administrator to add more units or wait until your allowance replenishes, then try again.",
+    CASErrorId.INCOMPLETE_RESPONSE: "Could not obtain a full response from the model through streamed completion call.",
+    CASErrorId.MAX_STEPS_REACHED: "Maximum number of sequential steps reached. You may send a new message to tell the agent to continue.",
+    CASErrorId.DEFAULT_ERROR: "An unexpected error has occurred.",
+}
+
+# Error code suffix mappings to CAS error IDs.
+_CAS_ERROR_ID_MAP: dict[str, str] = {
+    "LICENSE_NOT_AVAILABLE": CASErrorId.LICENSING,
+    "UNSUCCESSFUL_STOP_REASON": CASErrorId.INCOMPLETE_RESPONSE,
+    "TERMINATION_MAX_ITERATIONS": CASErrorId.MAX_STEPS_REACHED,
+    "INVALID_INPUT_FILE_EXTENSION": CASErrorId.INVALID_INPUT,
+    "MISSING_INPUT_FILE": CASErrorId.INVALID_INPUT,
+    "INPUT_INVALID_JSON": CASErrorId.INVALID_INPUT,
+}
+
+
+def _extract_error_info(error: Exception) -> tuple[str, str]:
+    """Extract an error code and a user-facing message from an exception.
+
+    For UiPathBaseRuntimeError (structured errors), extracts code and builds
+    a message from title + detail. For other exceptions, returns defaults.
+    """
+    from uipath.runtime.errors import UiPathBaseRuntimeError
+
+    if isinstance(error, UiPathBaseRuntimeError):
+        info = error.error_info
+        code = info.code or CASErrorId.DEFAULT_ERROR
+        title = info.title or ""
+        detail = info.detail.split("\n")[0] if info.detail else ""
+        if title and detail:
+            message = f"{title}. {detail}"
+        else:
+            message = title or detail or _CAS_ERROR_MESSAGES[CASErrorId.DEFAULT_ERROR]
+        return code, message
+
+    return CASErrorId.DEFAULT_ERROR, _CAS_ERROR_MESSAGES[CASErrorId.DEFAULT_ERROR]
+
+
+def _resolve_cas_error(error: Exception) -> tuple[str, str]:
+    """Map an exception to a CAS error ID and user-facing message.
+
+    Extracts the error code from the exception, then checks the code suffix
+    against known mappings. For recognized errors, uses a hardcoded message
+    matching the Temporal backend. For unrecognized errors, passes through
+    the extracted message.
+    """
+    error_code, error_message = _extract_error_info(error)
+    suffix = error_code.rsplit(".", 1)[-1] if error_code else ""
+    cas_error_id = _CAS_ERROR_ID_MAP.get(suffix, CASErrorId.DEFAULT_ERROR)
+    cas_message = _CAS_ERROR_MESSAGES.get(cas_error_id) or error_message
+    return cas_error_id, cas_message
 
 
 class SocketIOChatBridge:
@@ -245,6 +313,54 @@ class SocketIOChatBridge:
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
+
+    async def emit_exchange_error_event(self, error: Exception) -> None:
+        """Send an exchange error event to signal an error to the UI.
+
+        Extracts error information from the exception and maps it to
+        CAS-specific error IDs and messages matching the Temporal backend
+        for frontend consistency.
+
+        Args:
+            error: The exception that caused the error.
+        """
+        if self._client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+
+        # Extract and map error to CAS-specific error ID and message.
+        cas_error_id, cas_message = _resolve_cas_error(error)
+
+        try:
+            exchange_error_event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    error=UiPathConversationErrorEvent(
+                        error_id=cas_error_id,
+                        start=UiPathConversationErrorStartEvent(
+                            message=cas_message,
+                        ),
+                    ),
+                ),
+            )
+
+            event_data = exchange_error_event.model_dump(
+                mode="json", exclude_none=True, by_alias=True
+            )
+
+            if self._websocket_disabled:
+                logger.info(
+                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                )
+            else:
+                await self._client.emit("ConversationEvent", event_data)
+
+        except Exception as e:
+            logger.error(f"Error sending exchange error event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
         if self._client and self._connected_event.is_set():
