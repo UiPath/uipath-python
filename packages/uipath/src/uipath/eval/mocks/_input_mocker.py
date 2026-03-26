@@ -4,6 +4,8 @@ import json
 from datetime import datetime
 from typing import Any
 
+from opentelemetry import trace
+
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
@@ -57,7 +59,7 @@ Based on the above information, provide a realistic input to the LLM agent. Your
 OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA in valid JSON. Do not include any explanations, quotation marks, or markdown."""
 
 
-@traced(name="__mocker__", recording=False)
+@traced(name="Simulate Input")
 async def generate_llm_input(
     mocking_strategy: InputMockingStrategy,
     input_schema: dict[str, Any],
@@ -65,6 +67,13 @@ async def generate_llm_input(
     expected_output: dict[str, Any],
 ) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
+    # Set custom span attributes to match agents repo pattern
+    current_span = trace.get_current_span()
+    if current_span and current_span.is_recording():
+        current_span.set_attribute("span_type", "simulatedInput")
+        current_span.set_attribute("type", "simulatedInput")
+        current_span.set_attribute("uipath.custom_instrumentation", True)
+
     try:
         uipath = UiPath()
         llm = UiPathLlmChatService(

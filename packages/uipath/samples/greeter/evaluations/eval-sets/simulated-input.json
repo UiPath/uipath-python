@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "id": "SimulatedInputEvalSet",
+  "name": "Greeter Simulated Input Evaluation Set",
+  "evaluatorRefs": [
+    "JsonSimilarityEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "test-formal-greeting-simulated",
+      "name": "Test Formal Greeting with Simulated Input",
+      "inputs": {},
+      "evaluationCriterias": {
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "message": "Good day, Alice. It is a pleasure to meet you.",
+            "recipient": "Alice",
+            "style": "formal"
+          }
+        }
+      },
+      "inputMockingStrategy": {
+        "prompt": "Generate a formal greeting request for a person named Alice. The name field must be exactly 'Alice' and the greeting_style field must be exactly 'formal'."
+      }
+    },
+    {
+      "id": "test-casual-greeting-simulated",
+      "name": "Test Casual Greeting with Simulated Input",
+      "inputs": {},
+      "evaluationCriterias": {
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "message": "Hey Bob, what's up?",
+            "recipient": "Bob",
+            "style": "casual"
+          }
+        }
+      },
+      "inputMockingStrategy": {
+        "prompt": "Generate a casual greeting request for a person named Bob. The name field must be exactly 'Bob' and the greeting_style field must be exactly 'casual'."
+      }
+    },
+    {
+      "id": "test-enthusiastic-greeting-simulated",
+      "name": "Test Enthusiastic Greeting with Simulated Input",
+      "inputs": {},
+      "evaluationCriterias": {
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "message": "Wow! Hi Charlie!! So great to see you!!!",
+            "recipient": "Charlie",
+            "style": "enthusiastic"
+          }
+        }
+      },
+      "inputMockingStrategy": {
+        "prompt": "Generate an enthusiastic greeting request. The name field must be exactly 'Charlie' and the greeting_style field must be exactly 'enthusiastic'."
+      }
+    }
+  ]
+}
