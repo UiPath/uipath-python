@@ -10,7 +10,6 @@ from urllib.parse import urlencode, urlparse
 
 from uipath._utils.constants import (
     ENV_FOLDER_KEY,
-    ENV_SYNTHETIC_USER_ID,
 )
 from uipath.core.chat import (
     UiPathConversationEvent,
@@ -407,13 +406,11 @@ def get_chat_bridge(
     host = parsed.netloc
     conversation_id = context.conversation_id
     folder_key = os.environ.get(ENV_FOLDER_KEY)
-    synthetic_user_id = os.environ.get(ENV_SYNTHETIC_USER_ID)
 
-    # Build query params for CAS: conversationId, folderKey, syntheticUserId (RunAsMe=false validation per CAS contract)
+    # Build query params for CAS: conversationId + folderKey (for RunAsMe=false folder-scoped validation).
     query_params: dict[str, str] = {
         "conversationId": conversation_id,
         "folderKey": folder_key or "",
-        "syntheticUserId": synthetic_user_id or "",
     }
     query_params = {k: v for k, v in query_params.items() if v}
     query_string = urlencode(query_params)
