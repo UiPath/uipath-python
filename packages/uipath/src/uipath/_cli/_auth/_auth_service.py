@@ -1,0 +1,153 @@
+import os
+import webbrowser
+
+from uipath._cli._auth._auth_server import HTTPServer
+from uipath._cli._auth._auth_session import AuthSession
+from uipath._cli._auth._oidc_utils import OidcUtils
+from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
+from uipath._cli._auth._utils import get_parsed_token_data
+from uipath._cli._utils._console import ConsoleLogger
+from uipath._utils._auth import update_env_file
+from uipath.platform.common import ExternalApplicationService, TokenData
+
+from ._utils import update_auth_file
+
+
+class AuthService:
+    def __init__(
+        self,
+        environment: str | None,
+        *,
+        force: bool,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        base_url: str | None = None,
+        tenant: str | None = None,
+        scope: str | None = None,
+    ):
+        self._force = force
+        self._console = ConsoleLogger()
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._base_url = base_url
+        self._tenant = tenant
+        self._domain = resolve_domain(self._base_url, environment)
+        self._scope = scope
+
+    async def authenticate(self) -> None:
+        if self._client_id and self._client_secret:
+            await self._authenticate_client_credentials()
+            return
+
+        await self._authenticate_authorization_code()
+
+    async def _authenticate_client_credentials(self):
+        if not (self._client_id and self._client_secret):
+            raise ValueError("Client ID and Client Secret must be provided.")
+        external_app_service = ExternalApplicationService(self._base_url)
+        token_data = await external_app_service.get_token_data_async(
+            self._client_id,
+            self._client_secret,
+            self._scope,
+        )
+
+        organization_name, tenant_name = extract_org_tenant(
+            external_app_service._base_url
+        )
+        if not (organization_name and tenant_name):
+            self._console.warning(
+                "--base-url should include both organization and tenant, "
+                "e.g., 'https://cloud.uipath.com/{organization}/{tenant}'."
+            )
+
+        env_vars = {
+            "UIPATH_ACCESS_TOKEN": token_data.access_token,
+            "UIPATH_URL": external_app_service._base_url,
+            "UIPATH_ORGANIZATION_ID": get_parsed_token_data(token_data).get("prt_id"),
+        }
+
+        if tenant_name:
+            self._tenant = tenant_name
+            auth_session = AuthSession(self._domain)
+            auth_session.update_token_data(token_data)
+            tenant_info = await auth_session.resolve_tenant_info(self._tenant)
+            env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
+        else:
+            self._console.warning("Could not extract tenant from --base-url.")
+        update_env_file(env_vars)
+
+    async def _authenticate_authorization_code(self) -> None:
+        auth_session = AuthSession(self._domain)
+        if not self._force and await self._can_reuse_existing_token(auth_session):
+            return
+
+        token_data = await self._perform_oauth_flow()
+        auth_session.update_token_data(token_data)
+        update_auth_file(token_data)
+
+        tenant_info = await auth_session.resolve_tenant_info(self._tenant)
+        uipath_url = await auth_session.build_tenant_url()
+
+        update_env_file(
+            {
+                "UIPATH_ACCESS_TOKEN": token_data.access_token,
+                "UIPATH_URL": uipath_url,
+                "UIPATH_TENANT_ID": tenant_info["tenant_id"],
+                "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
+            }
+        )
+
+        try:
+            from uipath.platform import UiPath
+
+            await UiPath(
+                base_url=uipath_url, secret=token_data.access_token
+            ).orchestrator_setup.enable_first_run_async()
+        except Exception as e:
+            self._console.error(
+                f"Could not prepare the environment. Please try again. {e}"
+            )
+
+    async def _can_reuse_existing_token(self, auth_session: AuthSession) -> bool:
+        if (
+            os.getenv("UIPATH_URL")
+            and os.getenv("UIPATH_TENANT_ID")
+            and os.getenv("UIPATH_ORGANIZATION_ID")
+        ):
+            try:
+                await auth_session.ensure_valid_token()
+                return True
+            except Exception:
+                self._console.error(
+                    "Authentication token is invalid. Please reauthenticate using the '--force' flag."
+                )
+        return False
+
+    async def _perform_oauth_flow(self) -> TokenData:
+        auth_config = await OidcUtils.get_auth_config(self._domain)
+        auth_url, code_verifier, state = OidcUtils.get_auth_url(
+            self._domain, auth_config
+        )
+        self._open_browser(auth_url)
+
+        server = HTTPServer(
+            port=auth_config["port"],
+            redirect_uri=auth_config["redirect_uri"],
+            client_id=auth_config["client_id"],
+        )
+        token_data = await server.start(state, code_verifier, self._domain)
+
+        if not token_data:
+            self._console.error(
+                "Authentication failed. Please try again.",
+            )
+
+        return TokenData.model_validate(token_data)
+
+    def _open_browser(self, url: str) -> None:
+        # Try to open browser. Always print the fallback link.
+        webbrowser.open(url, new=1)
+        self._console.link(
+            "If a browser window did not open, please open the following URL in your browser:",
+            url,
+        )

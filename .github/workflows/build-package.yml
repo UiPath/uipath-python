@@ -1,0 +1,78 @@
+name: Build Package
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: 'Package directory name (e.g. uipath-core)'
+        required: true
+        type: string
+      needs-relock:
+        description: 'Whether to re-lock against PyPI before building (for packages with internal dependencies)'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      APPLICATIONINSIGHTS_CONNECTION_STRING:
+        required: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    name: Build ${{ inputs.package }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/${{ inputs.package }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "packages/${{ inputs.package }}/.python-version"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Update AGENTS.md
+        if: inputs.package == 'uipath'
+        run: uv run python scripts/update_agents_md.py
+
+      - name: Replace connection string placeholder
+        if: inputs.package == 'uipath'
+        run: |
+          originalfile="src/uipath/telemetry/_constants.py"
+          tmpfile=$(mktemp)
+          trap 'rm -f "$tmpfile"' EXIT
+          rsync -a --no-whole-file --ignore-existing "$originalfile" "$tmpfile"
+          envsubst '$CONNECTION_STRING' < "$originalfile" > "$tmpfile" && mv "$tmpfile" "$originalfile"
+        env:
+          CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+
+      - name: Re-lock against PyPI
+        if: inputs.needs-relock
+        run: |
+          for i in 1 2 3; do
+            uv lock --no-sources --no-cache && break
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+
+      - name: Build
+        run: uv build --no-sources --package ${{ inputs.package }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dists-${{ inputs.package }}
+          path: packages/${{ inputs.package }}/dist/

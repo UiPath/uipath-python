@@ -1,0 +1,76 @@
+name: uipath-core - Test Runtime
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened, labeled ]
+
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: contains(github.event.pull_request.labels.*.name, 'test:uipath-runtime')
+    steps:
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build uipath-core package
+        working-directory: packages/uipath-core
+        run: uv build
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: uipath-core-wheel
+          path: packages/uipath-core/dist/*.whl
+
+  test-uipath-runtime:
+    needs: [build-wheels]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python-version: [ "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-latest, windows-latest ]
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: uipath-core-wheel
+          path: wheels
+
+      - name: Checkout uipath-runtime-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-runtime-python'
+          path: 'uipath-runtime-python'
+
+      - name: Update uipath-core version
+        shell: bash
+        working-directory: uipath-runtime-python
+        run: uv add ../wheels/*.whl --dev
+
+      - name: Run uipath-runtime tests
+        working-directory: uipath-runtime-python
+        run: |
+          uv sync --all-extras
+          uv run pytest

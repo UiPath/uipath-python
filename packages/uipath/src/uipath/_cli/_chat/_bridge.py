@@ -1,0 +1,564 @@
+"""Chat bridge implementations for conversational agents."""
+
+import asyncio
+import json
+import logging
+import os
+import uuid
+from typing import Any
+from urllib.parse import urlencode, urlparse
+
+from uipath._utils.constants import (
+    ENV_FOLDER_KEY,
+)
+from uipath.core.chat import (
+    UiPathConversationErrorEvent,
+    UiPathConversationErrorStartEvent,
+    UiPathConversationEvent,
+    UiPathConversationExchangeEndEvent,
+    UiPathConversationExchangeEvent,
+    UiPathConversationInterruptEndEvent,
+    UiPathConversationInterruptEvent,
+    UiPathConversationMessageEvent,
+    UiPathConversationToolCallConfirmationInterruptStartEvent,
+    UiPathConversationToolCallConfirmationValue,
+)
+from uipath.core.triggers import UiPathResumeTrigger
+from uipath.runtime.chat import UiPathChatProtocol
+from uipath.runtime.context import UiPathRuntimeContext
+
+logger = logging.getLogger(__name__)
+
+
+class CASErrorId:
+    """Error IDs for the Conversational Agent Service (CAS), matching the Temporal backend."""
+
+    LICENSING = "AGENT_LICENSING_CONSUMPTION_VALIDATION_FAILED"
+    INCOMPLETE_RESPONSE = "AGENT_RESPONSE_IS_INCOMPLETE"
+    MAX_STEPS_REACHED = "AGENT_MAXIMUM_SEQUENTIAL_STEPS_REACHED"
+    INVALID_INPUT = "AGENT_INVALID_INPUT"
+    DEFAULT_ERROR = "AGENT_RUNTIME_ERROR"
+
+
+# User-facing messages for each CAS error ID, matching the Temporal backend.
+_CAS_ERROR_MESSAGES: dict[str, str] = {
+    CASErrorId.LICENSING: "Your action could not be completed. You've used all your units for this period. Please contact your administrator to add more units or wait until your allowance replenishes, then try again.",
+    CASErrorId.INCOMPLETE_RESPONSE: "Could not obtain a full response from the model through streamed completion call.",
+    CASErrorId.MAX_STEPS_REACHED: "Maximum number of sequential steps reached. You may send a new message to tell the agent to continue.",
+    CASErrorId.DEFAULT_ERROR: "An unexpected error has occurred.",
+}
+
+# Error code suffix mappings to CAS error IDs.
+_CAS_ERROR_ID_MAP: dict[str, str] = {
+    "LICENSE_NOT_AVAILABLE": CASErrorId.LICENSING,
+    "UNSUCCESSFUL_STOP_REASON": CASErrorId.INCOMPLETE_RESPONSE,
+    "TERMINATION_MAX_ITERATIONS": CASErrorId.MAX_STEPS_REACHED,
+    "INVALID_INPUT_FILE_EXTENSION": CASErrorId.INVALID_INPUT,
+    "MISSING_INPUT_FILE": CASErrorId.INVALID_INPUT,
+    "INPUT_INVALID_JSON": CASErrorId.INVALID_INPUT,
+}
+
+
+def _extract_error_info(error: Exception) -> tuple[str, str]:
+    """Extract an error code and a user-facing message from an exception.
+
+    For UiPathBaseRuntimeError (structured errors), extracts code and builds
+    a message from title + detail. For other exceptions, returns defaults.
+    """
+    from uipath.runtime.errors import UiPathBaseRuntimeError
+
+    if isinstance(error, UiPathBaseRuntimeError):
+        info = error.error_info
+        code = info.code or CASErrorId.DEFAULT_ERROR
+        title = info.title or ""
+        detail = info.detail.split("\n")[0] if info.detail else ""
+        if title and detail:
+            message = f"{title}. {detail}"
+        else:
+            message = title or detail or _CAS_ERROR_MESSAGES[CASErrorId.DEFAULT_ERROR]
+        return code, message
+
+    return CASErrorId.DEFAULT_ERROR, _CAS_ERROR_MESSAGES[CASErrorId.DEFAULT_ERROR]
+
+
+def _resolve_cas_error(error: Exception) -> tuple[str, str]:
+    """Map an exception to a CAS error ID and user-facing message.
+
+    Extracts the error code from the exception, then checks the code suffix
+    against known mappings. For recognized errors, uses a hardcoded message
+    matching the Temporal backend. For unrecognized errors, passes through
+    the extracted message.
+    """
+    error_code, error_message = _extract_error_info(error)
+    suffix = error_code.rsplit(".", 1)[-1] if error_code else ""
+    cas_error_id = _CAS_ERROR_ID_MAP.get(suffix, CASErrorId.DEFAULT_ERROR)
+    cas_message = _CAS_ERROR_MESSAGES.get(cas_error_id) or error_message
+    return cas_error_id, cas_message
+
+
+class SocketIOChatBridge:
+    """WebSocket-based chat bridge for streaming conversational events to CAS.
+
+    Implements UiPathChatBridgeProtocol using python-socketio library.
+    """
+
+    def __init__(
+        self,
+        websocket_url: str,
+        websocket_path: str,
+        conversation_id: str,
+        exchange_id: str,
+        headers: dict[str, str],
+        auth: dict[str, Any] | None = None,
+    ):
+        """Initialize the WebSocket chat bridge.
+
+        Args:
+            websocket_url: The WebSocket server URL to connect to
+            conversation_id: The conversation ID for this session
+            exchange_id: The exchange ID for this session
+            headers: HTTP headers to send during connection
+            auth: Optional authentication data to send during connection
+        """
+        self.websocket_url = websocket_url
+        self.websocket_path = websocket_path
+        self.conversation_id = conversation_id
+        self.exchange_id = exchange_id
+        self.auth = auth
+        self.headers = headers
+        self._client: Any | None = None
+        self._connected_event = asyncio.Event()
+
+        # Interrupt state for HITL round-trip
+        self._interrupt_end_event = asyncio.Event()
+        self._interrupt_end_value: UiPathConversationInterruptEndEvent | None = None
+        self._current_message_id: str | None = None
+
+        # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
+        # interrupting the debugging session. Events will be logged instead of being sent.
+        self._websocket_disabled = os.environ.get("CAS_WEBSOCKET_DISABLED") == "true"
+
+    async def connect(self, timeout: float = 10.0) -> None:
+        """Establish WebSocket connection to the server.
+
+        Args:
+            timeout: Connection timeout in seconds (default: 10.0)
+
+        Raises:
+            RuntimeError: If connection fails or times out
+
+        Example:
+            ```python
+            manager = WebSocketManager("http://localhost:3000")
+            await manager.connect()
+            ```
+        """
+        if self._client is not None:
+            logger.warning("WebSocket client already connected")
+            return
+
+        # Create new SocketIO client
+        # Lazy import to avoid dependency if not used, improve startup time
+        from socketio import AsyncClient  # type: ignore[import-untyped]
+
+        self._client = AsyncClient(
+            logger=logger,
+            engineio_logger=logger,
+        )
+
+        # Register connection event handlers
+        self._client.on("connect", self._handle_connect)
+        self._client.on("disconnect", self._handle_disconnect)
+        self._client.on("connect_error", self._handle_connect_error)
+        self._client.on("ConversationEvent", self._handle_conversation_event)
+
+        self._connected_event.clear()
+
+        if self._websocket_disabled:
+            logger.warning(
+                "SocketIOChatBridge is in debug mode. Not connecting websocket."
+            )
+        else:
+            try:
+                # Attempt to connect with timeout
+                await asyncio.wait_for(
+                    self._client.connect(
+                        url=self.websocket_url,
+                        socketio_path=self.websocket_path,
+                        headers=self.headers,
+                        auth=self.auth,
+                        transports=["websocket"],
+                    ),
+                    timeout=timeout,
+                )
+
+                await asyncio.wait_for(self._connected_event.wait(), timeout=timeout)
+
+            except asyncio.TimeoutError as e:
+                error_message = (
+                    f"Failed to connect to WebSocket server within {timeout}s timeout"
+                )
+                logger.error(error_message)
+                await self._cleanup_client()
+                raise RuntimeError(error_message) from e
+
+            except Exception as e:
+                error_message = f"Failed to connect to WebSocket server: {e}"
+                logger.error(error_message)
+                await self._cleanup_client()
+                raise RuntimeError(error_message) from e
+
+    async def disconnect(self) -> None:
+        """Close the WebSocket connection gracefully.
+
+        Sends an exchange end event before disconnecting to signal that the
+        exchange is complete. Uses stored conversation/exchange IDs.
+        """
+        if self._client is None:
+            logger.warning("WebSocket client not connected")
+            return
+
+        try:
+            # Wait for last event to be sent (usually endExchange). Without this, it seems that the disconnect races
+            # with the send and sometimes the last event isn't sent. Since the wait happens after the agent has
+            # completed it doesn't add latency for the user, but it does create a larger window where the job isn't
+            # suspended or terminated yet and a new input message is received from the user. CAS expects coded
+            # conversational agent jobs to suspend at the end of an exchange, and for low code agent jobs to terminate
+            # at the end of an exchange. CAS will resume or re-start jobs when a new user input message is received. To
+            # handle the race condition should an input be received before the job is actually suspended or terminated,
+            # CAS waits for running jobs to suspend or terminate before resuming or starting a new job. Note that this
+            # window exists even without this additional wait, but would usually be much smaller so is less of a
+            # concern.
+            await asyncio.sleep(1)
+            await self._client.disconnect()
+        except Exception as e:
+            logger.error(f"Error during WebSocket disconnect: {e}")
+        finally:
+            await self._cleanup_client()
+
+    async def emit_message_event(
+        self, message_event: UiPathConversationMessageEvent
+    ) -> None:
+        """Wrap and send a message event to the WebSocket server.
+
+        Args:
+            message_event: UiPathConversationMessageEvent to wrap and send
+
+        Raises:
+            RuntimeError: If client is not connected
+        """
+        if self._client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+
+        try:
+            # Wrap message event with conversation/exchange IDs
+            wrapped_event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    message=message_event,
+                ),
+            )
+
+            event_data = wrapped_event.model_dump(
+                mode="json", exclude_none=True, by_alias=True
+            )
+
+            if self._websocket_disabled:
+                logger.info(
+                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                )
+            else:
+                await self._client.emit("ConversationEvent", event_data)
+
+            # Store the current message ID, used for emitting interrupt events.
+            self._current_message_id = message_event.message_id
+
+        except Exception as e:
+            logger.error(f"Error sending conversation event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send conversation event: {e}") from e
+
+    async def emit_exchange_end_event(self) -> None:
+        """Send an exchange end event.
+
+        Raises:
+           RuntimeError: If client is not connected
+        """
+        if self._client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+
+        try:
+            exchange_end_event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    end=UiPathConversationExchangeEndEvent(),
+                ),
+            )
+
+            event_data = exchange_end_event.model_dump(
+                mode="json", exclude_none=True, by_alias=True
+            )
+
+            if self._websocket_disabled:
+                logger.info(
+                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                )
+            else:
+                await self._client.emit("ConversationEvent", event_data)
+
+        except Exception as e:
+            logger.error(f"Error sending conversation event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send conversation event: {e}") from e
+
+    async def emit_exchange_error_event(self, error: Exception) -> None:
+        """Send an exchange error event to signal an error to the UI.
+
+        Extracts error information from the exception and maps it to
+        CAS-specific error IDs and messages matching the Temporal backend
+        for frontend consistency.
+
+        Args:
+            error: The exception that caused the error.
+        """
+        if self._client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+
+        # Extract and map error to CAS-specific error ID and message.
+        cas_error_id, cas_message = _resolve_cas_error(error)
+
+        try:
+            exchange_error_event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    error=UiPathConversationErrorEvent(
+                        error_id=cas_error_id,
+                        start=UiPathConversationErrorStartEvent(
+                            message=cas_message,
+                        ),
+                    ),
+                ),
+            )
+
+            event_data = exchange_error_event.model_dump(
+                mode="json", exclude_none=True, by_alias=True
+            )
+
+            if self._websocket_disabled:
+                logger.info(
+                    f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                )
+            else:
+                await self._client.emit("ConversationEvent", event_data)
+
+        except Exception as e:
+            logger.error(f"Error sending exchange error event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send exchange error event: {e}") from e
+
+    async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
+        if self._client and self._connected_event.is_set():
+            try:
+                # Clear previous interrupt state and generate new interrupt_id
+                self._interrupt_id = str(uuid.uuid4())
+
+                # Ensure we have a valid message_id
+                if self._current_message_id is None:
+                    raise RuntimeError(
+                        "Cannot emit interrupt event: no current message_id set"
+                    )
+
+                # Ensure api_resume is not None
+                if resume_trigger.api_resume is None:
+                    raise RuntimeError(
+                        "Cannot emit interrupt event: api_resume is None"
+                    )
+
+                interrupt_event = UiPathConversationEvent(
+                    conversation_id=self.conversation_id,
+                    exchange=UiPathConversationExchangeEvent(
+                        exchange_id=self.exchange_id,
+                        message=UiPathConversationMessageEvent(
+                            message_id=self._current_message_id,
+                            interrupt=UiPathConversationInterruptEvent(
+                                interrupt_id=self._interrupt_id,
+                                start=UiPathConversationToolCallConfirmationInterruptStartEvent(
+                                    type="uipath_cas_tool_call_confirmation",
+                                    value=UiPathConversationToolCallConfirmationValue(
+                                        **resume_trigger.api_resume.request
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+
+                event_data = interrupt_event.model_dump(
+                    mode="json", exclude_none=True, by_alias=True
+                )
+                if self._websocket_disabled:
+                    logger.info(
+                        f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
+                    )
+                else:
+                    await self._client.emit("ConversationEvent", event_data)
+            except Exception as e:
+                logger.warning(f"Error sending interrupt event: {e}")
+
+    async def wait_for_resume(self) -> dict[str, Any]:
+        """Wait for the interrupt_end event to be received.
+
+        Returns:
+            Resume data from the interrupt end event
+        """
+        self._interrupt_end_event.clear()
+        self._interrupt_end_value = None
+
+        await self._interrupt_end_event.wait()
+
+        if self._interrupt_end_value:
+            return self._interrupt_end_value.model_dump(mode="python", by_alias=False)
+        return {}
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if the WebSocket is currently connected.
+
+        Returns:
+            True if connected, False otherwise
+        """
+        return self._client is not None and self._connected_event.is_set()
+
+    async def _handle_connect(self) -> None:
+        """Handle successful connection event."""
+        logger.info("WebSocket connection established")
+        self._connected_event.set()
+
+    async def _handle_disconnect(self) -> None:
+        """Handle disconnection event."""
+        logger.info("WebSocket connection closed")
+        self._connected_event.clear()
+
+    async def _handle_connect_error(self, data: Any) -> None:
+        """Handle connection error event."""
+        logger.error(f"WebSocket connection error: {data}")
+
+    async def _handle_conversation_event(
+        self, event: dict[str, Any], _sid: str
+    ) -> None:
+
+        try:
+            parsed_event = UiPathConversationEvent(**event)
+            if (
+                parsed_event.exchange
+                and parsed_event.exchange.message
+                and parsed_event.exchange.message.interrupt
+                and parsed_event.exchange.message.interrupt.end
+            ):
+                interrupt = parsed_event.exchange.message.interrupt
+
+                if interrupt.interrupt_id == self._interrupt_id:
+                    logger.info(
+                        f"Received endInterrupt for interrupt_id: {self._interrupt_id}"
+                    )
+                    self._interrupt_end_value = interrupt.end
+                    self._interrupt_end_event.set()
+        except Exception as e:
+            logger.warning(f"Error parsing conversation event: {e}")
+
+    async def _cleanup_client(self) -> None:
+        """Clean up client resources."""
+        self._connected_event.clear()
+        self._client = None
+
+
+def get_chat_bridge(
+    context: UiPathRuntimeContext,
+) -> UiPathChatProtocol:
+    """Factory to get WebSocket chat bridge for conversational agents.
+
+    Args:
+        context: The runtime context containing environment configuration
+        conversation_id: The conversation ID for this session
+        exchange_id: The exchange ID for this session
+
+    Returns:
+        WebSocketChatBridge instance configured for CAS
+
+    Raises:
+        RuntimeError: If UIPATH_URL is not set or invalid
+
+    Example:
+        ```python
+        bridge = get_chat_bridge(context, "conv-123", "exch-456")
+        await bridge.connect()
+        await bridge.emit_message_event(message_event)
+        await bridge.disconnect(conversation_id, exchange_id)
+        ```
+    """
+    assert context.conversation_id is not None, "conversation_id must be set in context"
+    assert context.exchange_id is not None, "exchange_id must be set in context"
+
+    # Extract host from UIPATH_URL
+    base_url = os.environ.get("UIPATH_URL")
+    if not base_url:
+        raise RuntimeError(
+            "UIPATH_URL environment variable required for conversational mode"
+        )
+
+    parsed = urlparse(base_url)
+    if not parsed.netloc:
+        raise RuntimeError(f"Invalid UIPATH_URL format: {base_url}")
+
+    host = parsed.netloc
+    conversation_id = context.conversation_id
+    folder_key = os.environ.get(ENV_FOLDER_KEY)
+
+    # Build query params for CAS: conversationId + folderKey (for RunAsMe=false folder-scoped validation).
+    query_params: dict[str, str] = {
+        "conversationId": conversation_id,
+        "folderKey": folder_key or "",
+    }
+    query_params = {k: v for k, v in query_params.items() if v}
+    query_string = urlencode(query_params)
+
+    # Construct WebSocket URL for CAS
+    websocket_url = f"wss://{host}?{query_string}"
+    websocket_path = "autopilotforeveryone_/websocket_/socket.io"
+
+    if os.environ.get("CAS_WEBSOCKET_HOST"):
+        websocket_url = f"ws://{os.environ.get('CAS_WEBSOCKET_HOST')}?{query_string}"
+        websocket_path = "/socket.io"
+        logger.warning(
+            f"CAS_WEBSOCKET_HOST is set. Using websocket_url '{websocket_url}{websocket_path}'."
+        )
+
+    # Build headers from context
+    headers = {
+        "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
+        "X-UiPath-Internal-TenantId": f"{context.tenant_id}"
+        or os.environ.get("UIPATH_TENANT_ID", ""),
+        "X-UiPath-Internal-AccountId": f"{context.org_id}"
+        or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
+        "X-UiPath-ConversationId": conversation_id,
+    }
+
+    return SocketIOChatBridge(
+        websocket_url=websocket_url,
+        websocket_path=websocket_path,
+        conversation_id=conversation_id,
+        exchange_id=context.exchange_id,
+        headers=headers,
+    )
+
+
+__all__ = ["get_chat_bridge"]

@@ -6,9 +6,9 @@ on:
     branches:
       - main
     paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - "pyproject.toml"
+      - "packages/uipath/docs/**"
+      - "packages/uipath/mkdocs.yml"
+      - "packages/uipath/pyproject.toml"
   repository_dispatch:
     types: [publish-docs]
 
@@ -31,9 +31,10 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version-file: ".python-version"
+          python-version-file: "packages/uipath/.python-version"
 
       - name: Install dependencies
+        working-directory: packages/uipath
         run: uv sync --all-extras
 
       - name: Clone plugins
@@ -43,15 +44,17 @@ jobs:
           git clone https://x-access-token:${{ secrets.REPO_ACCESS }}@github.com/UiPath/uipath-mcp-python plugins/uipath-mcp-python
 
       - name: Symlink plugin docs
+        working-directory: packages/uipath
         run: |
-          ln -s ../plugins/uipath-langchain-python/docs docs/langchain
-          ln -s ../plugins/uipath-integrations-python/packages/uipath-llamaindex/docs docs/llamaindex
-          ln -s ../plugins/uipath-integrations-python/packages/uipath-openai-agents/docs docs/openai-agents
-          ln -s ../plugins/uipath-mcp-python/docs docs/mcp
+          ln -s ../../../plugins/uipath-langchain-python/docs docs/langchain
+          ln -s ../../../plugins/uipath-integrations-python/packages/uipath-llamaindex/docs docs/llamaindex
+          ln -s ../../../plugins/uipath-integrations-python/packages/uipath-openai-agents/docs docs/openai-agents
+          ln -s ../../../plugins/uipath-mcp-python/docs docs/mcp
           ls -a docs/langchain
           ls -a docs/llamaindex
           ls -a docs/openai-agents
           ls -a docs/mcp
 
       - name: Publish Docs
+        working-directory: packages/uipath
         run: uv run mkdocs gh-deploy --force

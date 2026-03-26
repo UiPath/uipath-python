@@ -1,0 +1,653 @@
+"""Studio Web File Handler for managing file operations in UiPath projects."""
+
+import json
+import logging
+import os
+from datetime import datetime, timezone
+from typing import AsyncIterator
+
+import click
+
+from uipath._cli.models.uipath_json_schema import PackOptions
+from uipath.platform.common import UiPathConfig
+
+from ...platform.errors import EnrichedException
+from .._utils._common import get_claim_from_token
+from .._utils._console import ConsoleLogger
+from .._utils._constants import (
+    AGENT_INITIAL_CODE_VERSION,
+    SCHEMA_VERSION,
+)
+from .._utils._project_files import (
+    FileInfo,
+    UpdateEvent,
+    compute_normalized_hash,
+    files_to_include,
+    read_toml_project,
+)
+from .._utils._studio_project import (
+    AddedResource,
+    ModifiedResource,
+    ProjectFile,
+    ProjectFolder,
+    ProjectStructure,
+    StructuralMigration,
+    StudioClient,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SwFileHandler:
+    """Handler for Studio Web file operations.
+
+    This class encapsulates all file operations for UiPath Studio Web projects,
+    including uploading, updating, deleting, and managing project structure.
+
+    Attributes:
+        directory: Local project directory
+        include_uv_lock: Whether to include uv.lock file
+    """
+
+    def __init__(
+        self,
+        project_id: str,
+        directory: str,
+        include_uv_lock: bool = True,
+        studio_client: StudioClient | None = None,
+    ) -> None:
+        """Initialize the SwFileHandler.
+
+        Args:
+            project_id: The ID of the UiPath project
+            directory: Local project directory
+            include_uv_lock: Whether to include uv.lock file
+            studio_client: Optional; an existing StudioClient instance to reuse instead of creating a new one.
+        """
+        self.directory = directory
+        self.include_uv_lock = include_uv_lock
+        self.console = ConsoleLogger()
+        self._studio_client = studio_client or StudioClient(project_id)
+        self._project_structure: ProjectStructure | None = None
+
+    def _get_folder_by_name(
+        self, structure: ProjectStructure, folder_name: str
+    ) -> ProjectFolder | None:
+        """Get a folder from the project structure by name.
+
+        Args:
+            structure: The project structure
+            folder_name: Name of the folder to find
+
+        Returns:
+            Optional[ProjectFolder]: The found folder or None
+        """
+        for folder in structure.folders:
+            if folder.name == folder_name:
+                return folder
+        return None
+
+    def collect_all_files(
+        self,
+        folder: ProjectFolder,
+        files_dict: dict[str, ProjectFile],
+        current_path: str = "",
+    ) -> None:
+        """Recursively collect all files from a folder with computed paths.
+
+        Args:
+            folder: The folder to traverse
+            files_dict: Dictionary to store files (indexed by name)
+            current_path: The current path prefix for files in this folder
+        """
+        # Add files from current folder
+        for file in folder.files:
+            file_path = f"{current_path}/{file.name}" if current_path else file.name
+            files_dict[file_path] = file
+
+        # Recursively process subfolders
+        for subfolder in folder.folders:
+            subfolder_path = (
+                f"{current_path}/{subfolder.name}" if current_path else subfolder.name
+            )
+            self.collect_all_files(subfolder, files_dict, subfolder_path)
+
+    def _get_remote_files(
+        self,
+        structure: ProjectStructure,
+    ) -> dict[str, ProjectFile]:
+        """Get all files from the project structure indexed by name.
+
+        Args:
+            structure: The project structure
+
+        Returns:
+            files:  dictionary with file paths as keys
+        """
+        files: dict[str, ProjectFile] = {}
+        self.collect_all_files(structure, files)
+
+        return files
+
+    async def _process_file_uploads(
+        self,
+        local_files: list[FileInfo],
+        remote_files: dict[str, ProjectFile],
+    ) -> list[UpdateEvent]:
+        """Process all file uploads.
+
+        This method:
+        1. Compares local files with remote files
+        2. Builds a structural migration with added/modified/deleted resources
+        3. Performs the structural migration
+        4. Cleans up empty folders
+
+        Args:
+            local_files: List of files to upload
+            remote_files: Dictionary of existing files
+
+        Returns:
+            List of FileOperationUpdate objects describing all file operations
+
+        Raises:
+            Exception: If any file upload fails
+        """
+        structural_migration = StructuralMigration(
+            deleted_resources=[], added_resources=[], modified_resources=[]
+        )
+        processed_source_files: set[str] = set()
+        updates: list[UpdateEvent] = []
+
+        for local_file in local_files:
+            if not os.path.exists(local_file.file_path):
+                logger.info(f"File not found: '{local_file.file_path}'")
+                continue
+
+            remote_file = remote_files.get(
+                local_file.relative_path.replace("\\", "/"), None
+            )
+
+            if remote_file:
+                processed_source_files.add(remote_file.id)
+
+                try:
+                    remote_response = (
+                        await self._studio_client.download_project_file_async(
+                            remote_file
+                        )
+                    )
+                    remote_content = remote_response.read().decode("utf-8")
+                    remote_hash = compute_normalized_hash(remote_content)
+
+                    with open(local_file.file_path, "r", encoding="utf-8") as f:
+                        local_content = f.read()
+                        local_hash = compute_normalized_hash(local_content)
+
+                    # Only update if content differs
+                    if local_hash != remote_hash:
+                        structural_migration.modified_resources.append(
+                            ModifiedResource(
+                                id=remote_file.id,
+                                content_file_path=local_file.file_path,
+                            )
+                        )
+                        updates.append(
+                            UpdateEvent(
+                                file_path=local_file.file_path,
+                                status="updating",
+                                message=f"Updating '{local_file.file_name}'",
+                            )
+                        )
+                    else:
+                        # Content is the same, no need to update
+                        updates.append(
+                            UpdateEvent(
+                                file_path=local_file.file_path,
+                                status="up_to_date",
+                                message=f"File '{local_file.file_name}' is up to date",
+                            )
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to compare file '{local_file.file_path}': {e}"
+                    )
+                    # If comparison fails, proceed with update
+                    structural_migration.modified_resources.append(
+                        ModifiedResource(
+                            id=remote_file.id, content_file_path=local_file.file_path
+                        )
+                    )
+                    updates.append(
+                        UpdateEvent(
+                            file_path=local_file.file_path,
+                            status="updating",
+                            message=f"Updating '{local_file.file_name}'",
+                        )
+                    )
+            else:
+                # File doesn't exist remotely - mark for upload
+                parent_path = os.path.dirname(local_file.relative_path)
+                structural_migration.added_resources.append(
+                    AddedResource(
+                        content_file_path=local_file.file_path,
+                        parent_path=f"{parent_path}" if parent_path != "" else None,
+                    )
+                )
+                updates.append(
+                    UpdateEvent(
+                        file_path=local_file.file_path,
+                        status="uploading",
+                        message=f"Uploading '{local_file.file_name}'",
+                    )
+                )
+
+        # Identify and add deleted files (files that exist remotely but not locally)
+        deleted_files = self._collect_deleted_files(
+            remote_files,
+            processed_source_files,
+            files_to_ignore=["studio_metadata.json"],
+            directories_to_ignore=[
+                name
+                for name, condition in [
+                    ("evals", not UiPathConfig.has_legacy_eval_folder),
+                    ("evaluations", not UiPathConfig.has_eval_folder),
+                ]
+                if condition
+            ],
+        )
+        structural_migration.deleted_resources.extend(deleted_files)
+
+        # Add delete updates
+        for file_id in deleted_files:
+            file_name = next(
+                (name for name, f in remote_files.items() if f.id == file_id),
+                file_id,
+            )
+            updates.append(
+                UpdateEvent(
+                    file_path=file_name,
+                    status="deleting",
+                    message=f"Deleting '{file_name}'",
+                )
+            )
+
+        # Prepare metadata file
+        update_metadata_event = await self._prepare_metadata_file(
+            structural_migration, remote_files
+        )
+        if update_metadata_event:
+            updates.append(update_metadata_event)
+
+        # Perform the structural migration (uploads/updates/deletes all files)
+        await self._studio_client.perform_structural_migration_async(
+            structural_migration
+        )
+
+        # Clean up empty folders after migration
+        await self._cleanup_empty_folders()
+
+        return updates
+
+    def _collect_deleted_files(
+        self,
+        remote_files: dict[str, ProjectFile],
+        processed_source_file_ids: set[str],
+        files_to_ignore: list[str] | None = None,
+        directories_to_ignore: list[str] | None = None,
+    ) -> set[str]:
+        """Identify remote files that no longer exist locally.
+
+        Args:
+            remote_files: Dictionary of existing remote files
+            processed_source_file_ids: Set of file IDs that were processed (exist locally)
+
+        Returns:
+            Set of file IDs to delete
+        """
+        deleted_file_ids: set[str] = set()
+
+        if not files_to_ignore:
+            files_to_ignore = []
+
+        if not directories_to_ignore:
+            directories_to_ignore = []
+
+        for file_path, remote_file in remote_files.items():
+            if any(
+                [
+                    file_path.startswith(directory_name)
+                    for directory_name in directories_to_ignore
+                ]
+            ):
+                continue
+            if (
+                remote_file.id not in processed_source_file_ids
+                and remote_file.name not in files_to_ignore
+            ):
+                deleted_file_ids.add(remote_file.id)
+
+        return deleted_file_ids
+
+    async def _cleanup_empty_folders(self) -> None:
+        """Delete empty folders from the project structure.
+
+        This method:
+        1. Gets the current project structure
+        2. Recursively finds all empty folders
+        3. Deletes each empty folder
+        """
+        structure = await self._studio_client.get_project_structure_async(force=True)
+
+        empty_folders = self._find_empty_folders(structure)
+
+        if empty_folders:
+            for folder in empty_folders:
+                await self._studio_client.delete_item_async(folder["id"])
+                logger.info(f"Deleted empty folder: '{folder['name']}'")
+
+    def _find_empty_folders(self, folder: ProjectFolder) -> list[dict[str, str]]:
+        """Recursively find all empty folders.
+
+        Args:
+            folder: The folder to check
+
+        Returns:
+            List of empty folder info dictionaries with 'id' and 'name' keys
+        """
+        empty_folders: list[dict[str, str]] = []
+
+        for subfolder in folder.folders:
+            # Recursively check subfolders first
+            empty_folders.extend(self._find_empty_folders(subfolder))
+
+            # Check if current subfolder is empty after processing its children
+            if self._is_folder_empty(subfolder):
+                if subfolder.id is not None:
+                    empty_folders.append({"id": subfolder.id, "name": subfolder.name})
+
+        return empty_folders
+
+    def _is_folder_empty(self, folder: ProjectFolder) -> bool:
+        """Check if a folder is empty (no files and no non-empty subfolders).
+
+        Args:
+            folder: The folder to check
+
+        Returns:
+            True if the folder is empty, False otherwise
+        """
+        if folder.files:
+            return False
+
+        if not folder.folders:
+            return True
+
+        # If folder has subfolders, check if all subfolders are empty
+        for subfolder in folder.folders:
+            if not self._is_folder_empty(subfolder):
+                return False
+
+        return True
+
+    async def _prepare_metadata_file(
+        self,
+        structural_migration: StructuralMigration,
+        remote_files: dict[str, ProjectFile],
+    ) -> UpdateEvent:
+        """Prepare .uipath/studio_metadata.json file.
+
+        This method:
+        1. Checks if file exists locally, initializes with defaults if not
+        2. Extracts author from JWT token or pyproject.toml
+        3. Downloads existing studio_metadata.json from remote if it exists to increment code version
+
+        Args:
+            structural_migration: The structural migration to add resources to
+            remote_files: Dictionary of remote files
+
+        Returns:
+            FileOperationUpdate describing the operation, or None if error occurred
+        """
+
+        def get_author_from_token_or_toml() -> str:
+            """Get author from JWT token or fall back to pyproject.toml."""
+            try:
+                preferred_username = get_claim_from_token("preferred_username")
+                if preferred_username:
+                    return preferred_username
+            except Exception:
+                # fallback to toml
+                pass
+
+            toml_data = read_toml_project(
+                os.path.join(self.directory, "pyproject.toml")
+            )
+            return toml_data.get("authors", "").strip()
+
+        author = get_author_from_token_or_toml()
+
+        local_metadata_file = os.path.join(
+            self.directory, str(UiPathConfig.studio_metadata_file_path)
+        )
+        if not os.path.exists(local_metadata_file):
+            metadata = {
+                "schemaVersion": SCHEMA_VERSION,
+                "lastPushDate": datetime.now(timezone.utc).isoformat(),
+                "lastPushAuthor": author,
+                "codeVersion": AGENT_INITIAL_CODE_VERSION,
+            }
+            os.makedirs(os.path.dirname(local_metadata_file), exist_ok=True)
+            with open(local_metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+        else:
+            with open(local_metadata_file, "r") as f:
+                metadata = json.load(f)
+
+        # ensure push-related fields are always present for cloud workspace
+        # context: on initial init the CLI creates a minimal studio_metadata.json file
+        # which does not contain lastPushAuthor and lastPushDate
+        if "lastPushAuthor" not in metadata:
+            metadata["lastPushAuthor"] = author
+        if "lastPushDate" not in metadata:
+            metadata["lastPushDate"] = datetime.now(timezone.utc).isoformat()
+
+        existing = remote_files.get(".uipath/studio_metadata.json")
+        if existing:
+            try:
+                existing_metadata = (
+                    await self._studio_client.download_project_file_async(existing)
+                ).json()
+                version_parts = existing_metadata["codeVersion"].split(".")
+                if len(version_parts) >= 3:
+                    # Increment patch version (0.1.0 -> 0.1.1)
+                    version_parts[-1] = str(int(version_parts[-1]) + 1)
+                    metadata["codeVersion"] = ".".join(version_parts)
+                    metadata["lastPushDate"] = datetime.now(timezone.utc).isoformat()
+                else:
+                    # Invalid version format, use default with patch = 1
+                    metadata["codeVersion"] = AGENT_INITIAL_CODE_VERSION[:-1] + "1"
+                    metadata["lastPushDate"] = datetime.now(timezone.utc).isoformat()
+            except Exception:
+                logger.info(
+                    "Could not parse existing metadata file, using default version"
+                )
+
+            with open(local_metadata_file, "w") as f:
+                f.write(json.dumps(metadata))
+
+            structural_migration.modified_resources.append(
+                ModifiedResource(
+                    id=existing.id,
+                    content_string=json.dumps(metadata),
+                )
+            )
+            return UpdateEvent(
+                file_path=".uipath/studio_metadata.json",
+                status="updating",
+                message="Updating '.uipath/studio_metadata.json'",
+            )
+        else:
+            structural_migration.added_resources.append(
+                AddedResource(
+                    file_name="studio_metadata.json",
+                    content_string=json.dumps(metadata),
+                    parent_path=".uipath",
+                )
+            )
+            return UpdateEvent(
+                file_path=".uipath/studio_metadata.json",
+                status="uploading",
+                message="Uploading '.uipath/studio_metadata.json'",
+            )
+
+    async def upload_source_files(
+        self, pack_options: PackOptions | None = None
+    ) -> AsyncIterator[UpdateEvent]:
+        """Main method to upload source files to the UiPath project.
+
+        This method:
+        1. Gets project structure (or creates if it doesn't exist)
+        2. Collects local files to upload
+        3. Processes file uploads (yields progress updates)
+        4. Performs structural migration
+        5. Cleans up empty folders
+
+        Args:
+            settings: File handling settings (includes/excludes)
+
+        Yields:
+            FileOperationUpdate: Progress updates for each file operation
+
+        Raises:
+            Exception: If any step in the process fails
+        """
+        # Get or create project structure
+        try:
+            structure = await self._studio_client.get_project_structure_async()
+        except EnrichedException as e:
+            if e.status_code == 404:
+                # Project structure doesn't exist - create empty structure and lock
+                structure = ProjectStructure(name="", files=[], folders=[])
+                await self._studio_client._put_lock()
+            else:
+                raise
+
+        remote_files = self._get_remote_files(structure)
+
+        # Get files to upload and process them
+        local_files, skipped_files = files_to_include(
+            pack_options,
+            self.directory,
+            self.include_uv_lock,
+        )
+
+        # Log skipped files from root evals folder
+        if skipped_files:
+            evals_folder_path = os.path.join(self.directory, "evals")
+            logger.info(
+                f"Skipping {len(skipped_files)} file(s) in evals folder ({evals_folder_path}): {', '.join(skipped_files)}"
+            )
+            for skipped_file in skipped_files:
+                yield UpdateEvent(
+                    file_path=skipped_file,
+                    status="skipped",
+                    message=f"Skipping '{skipped_file}' (evals folder)",
+                )
+
+        updates = await self._process_file_uploads(local_files, remote_files)
+
+        # Yield all updates
+        for update in updates:
+            yield update
+
+    async def _process_file_sync(
+        self,
+        local_file_path: str,
+        remote_files: dict[str, ProjectFile],
+        parent_path: str,
+        destination_prefix: str,
+        structural_migration: StructuralMigration,
+        processed_ids: set[str],
+    ) -> None:
+        """Process a single local file for upload or update to remote.
+
+        Args:
+            local_file_path: Path to the local file to sync
+            remote_files: Dictionary of remote files indexed by filename
+            parent_path: Parent path for new file creation
+            destination_prefix: Prefix for destination path in console output
+            structural_migration: Migration object to append resources to
+            processed_ids: Set to track processed remote file IDs
+        """
+        file_name = os.path.basename(local_file_path)
+        remote_file = remote_files.get(file_name)
+        destination = f"{destination_prefix}/{file_name}"
+
+        if remote_file:
+            processed_ids.add(remote_file.id)
+
+            # Download remote file and compare with local
+            try:
+                remote_response = await self._studio_client.download_project_file_async(
+                    remote_file
+                )
+                remote_content = remote_response.read().decode("utf-8")
+                remote_hash = compute_normalized_hash(remote_content)
+
+                with open(local_file_path, "r", encoding="utf-8") as f:
+                    local_content = f.read()
+                    local_hash = compute_normalized_hash(local_content)
+
+                # Only update if content differs
+                if local_hash != remote_hash:
+                    structural_migration.modified_resources.append(
+                        ModifiedResource(
+                            id=remote_file.id, content_file_path=local_file_path
+                        )
+                    )
+                    self.console.info(
+                        f"Updating {click.style(destination, fg='yellow')}"
+                    )
+
+                else:
+                    # Content is the same, no need to update
+                    self.console.info(f"File '{destination}' is up to date")
+            except Exception as e:
+                logger.warning(f"Failed to compare file '{local_file_path}': {e}")
+                # If comparison fails, proceed with update
+                structural_migration.modified_resources.append(
+                    ModifiedResource(
+                        id=remote_file.id, content_file_path=local_file_path
+                    )
+                )
+                self.console.info(f"Updating {click.style(destination, fg='yellow')}")
+        else:
+            structural_migration.added_resources.append(
+                AddedResource(
+                    content_file_path=local_file_path, parent_path=parent_path
+                )
+            )
+            self.console.info(f"Uploading to {click.style(destination, fg='cyan')}")
+
+    def _collect_deleted_remote_files(
+        self,
+        remote_files: dict[str, ProjectFile],
+        processed_ids: set[str],
+        destination_prefix: str,
+        structural_migration: StructuralMigration,
+    ) -> None:
+        """Collect remote files that no longer exist locally for deletion.
+
+        Args:
+            remote_files: Dictionary of remote files indexed by filename
+            processed_ids: Set of remote file IDs that were processed
+            destination_prefix: Prefix for destination path in console output
+            structural_migration: Migration object to append deleted resources to
+        """
+        for file_name, remote_file in remote_files.items():
+            if remote_file.id not in processed_ids:
+                structural_migration.deleted_resources.append(remote_file.id)
+                destination = f"{destination_prefix}/{file_name}"
+                self.console.info(
+                    f"Deleting {click.style(destination, fg='bright_red')}"
+                )

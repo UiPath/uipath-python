@@ -1,0 +1,118 @@
+[project]
+name = "uipath-platform"
+version = "0.1.11"
+description = "HTTP client library for programmatic access to UiPath Platform"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.28.1",
+  "tenacity>=9.0.0",
+  "truststore>=0.10.1",
+  "uipath-core>=0.5.8, <0.6.0",
+  "pydantic-function-models>=0.1.11",
+  "sqlparse>=0.5.5",
+]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+
+]
+maintainers = [
+  { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
+  { name = "Cristian Pufu", email = "cristian.pufu@uipath.com" },
+]
+
+[project.urls]
+Homepage = "https://uipath.com"
+Repository = "https://github.com/UiPath/uipath-python"
+Documentation = "https://uipath.github.io/uipath-python/"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "bandit>=1.8.2",
+  "mypy>=1.19.0",
+  "ruff>=0.9.4",
+  "rust-just>=1.39.0",
+  "pytest>=7.4.0",
+  "pytest-asyncio>=1.0.0",
+  "pytest-httpx>=0.35.0",
+  "pytest-trio>=0.8.0",
+  "pytest-cov>=4.1.0",
+  "pytest-mock>=3.11.1",
+  "pre-commit>=4.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uipath"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+exclude = ["samples/**", "testcases/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "D"]
+ignore = ["D417"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = []
+
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+"tests/**" = ["D"]
+"*_test.py" = ["D"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+explicit_package_bases = true
+namespace_packages = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+
+disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-ra -q --cov=src/uipath --cov-report=term-missing"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.uv.sources]
+uipath-core = { path = "../uipath-core", editable = true }
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true

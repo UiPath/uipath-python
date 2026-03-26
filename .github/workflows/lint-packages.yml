@@ -1,0 +1,215 @@
+name: Lint Packages
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changed-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+      count: ${{ steps.detect.outputs.count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Detect changed packages
+        id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python .github/scripts/detect_changed_packages.py
+
+  lint-uipath-core:
+    name: Lint uipath-core
+    needs: detect-changed-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if package changed
+        id: check
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-core")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        run: echo "Skipping - no changes to uipath-core"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "packages/uipath-core/.python-version"
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-core
+        run: uv sync --locked --all-extras
+
+      - name: Check static types
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-core
+        run: uv run mypy --config-file pyproject.toml .
+
+      - name: Check linting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-core
+        run: uv run ruff check .
+
+      - name: Check formatting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-core
+        run: uv run ruff format --check .
+
+  lint-uipath-platform:
+    name: Lint uipath-platform
+    needs: detect-changed-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if package changed
+        id: check
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-platform")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        run: echo "Skipping - no changes to uipath-platform"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "packages/uipath-platform/.python-version"
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv sync --locked --all-extras
+
+      - name: Check static types
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv run mypy --config-file pyproject.toml .
+
+      - name: Check linting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv run ruff check .
+
+      - name: Check formatting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv run ruff format --check .
+
+  lint-uipath:
+    name: Lint uipath
+    needs: detect-changed-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if package changed
+        id: check
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        run: echo "Skipping - no changes to uipath"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "packages/uipath/.python-version"
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv sync --locked --all-extras
+
+      - name: Check static types
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv run mypy --config-file pyproject.toml .
+
+      - name: Check linting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv run ruff check .
+
+      - name: Check formatting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv run ruff format --check .
+
+      - name: Check httpx.Client() usage
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath
+        run: uv run python scripts/lint_httpx_client.py
+
+  lint-gate:
+    name: Lint
+    needs: [lint-uipath-core, lint-uipath-platform, lint-uipath]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check lint results
+        run: |
+          if [[ "${{ needs.lint-uipath-core.result }}" == "failure" || \
+                "${{ needs.lint-uipath-platform.result }}" == "failure" || \
+                "${{ needs.lint-uipath.result }}" == "failure" ]]; then
+            echo "Lint failed"
+            exit 1
+          fi
+          echo "All lint checks passed"

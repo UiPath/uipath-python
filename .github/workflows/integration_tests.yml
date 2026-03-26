@@ -1,8 +1,6 @@
-name: Integration testing
+name: uipath - Integration Tests
 
 on:
-  push:
-    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
 
@@ -12,29 +10,71 @@ permissions:
   actions: read
 
 jobs:
+  detect-changed-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.detect.outputs.packages }}
+      count: ${{ steps.detect.outputs.count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Detect changed packages
+        id: detect
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python .github/scripts/detect_changed_packages.py
+
   discover-testcases:
+    needs: [detect-changed-packages]
+    if: needs.detect-changed-packages.outputs.count > 0
     runs-on: ubuntu-latest
     outputs:
       testcases: ${{ steps.discover.outputs.testcases }}
+      count: ${{ steps.discover.outputs.count }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Discover testcases
       id: discover
+      env:
+        PACKAGES: ${{ needs.detect-changed-packages.outputs.packages }}
       run: |
-        # Find all testcase folders (excluding common folders like README, etc.)
-        testcase_dirs=$(find testcases -maxdepth 1 -type d -name "*-*" | sed 's|testcases/||' | sort)
+        # Discover testcases from all affected packages
+        all_testcases="[]"
 
-        echo "Found testcase directories:"
-        echo "$testcase_dirs"
+        for package in $(echo "$PACKAGES" | jq -r '.[]'); do
+          testcases_dir="packages/$package/testcases"
+          if [ -d "$testcases_dir" ]; then
+            testcase_dirs=$(find "$testcases_dir" -maxdepth 1 -type d -name "*-*" | sed "s|$testcases_dir/||" | sort)
+            if [ -n "$testcase_dirs" ]; then
+              echo "Found testcases in $package:"
+              echo "$testcase_dirs"
+              # Add as package/testcase entries
+              package_testcases=$(echo "$testcase_dirs" | jq -R -c --arg pkg "$package" '{package: $pkg, testcase: .}')
+              all_testcases=$(echo "$all_testcases" | jq -c --argjson new "[$( echo "$package_testcases" | paste -sd, )]" '. + $new')
+            fi
+          fi
+        done
 
-        # Convert to JSON array for matrix
-        testcases_json=$(echo "$testcase_dirs" | jq -R -s -c 'split("\n")[:-1]')
-        echo "testcases=$testcases_json" >> $GITHUB_OUTPUT
+        echo "All testcases: $all_testcases"
+        count=$(echo "$all_testcases" | jq 'length')
+        echo "testcases=$all_testcases" >> $GITHUB_OUTPUT
+        echo "count=$count" >> $GITHUB_OUTPUT
 
   integration-tests:
     needs: [discover-testcases]
+    if: needs.discover-testcases.outputs.count > 0
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/astral-sh/uv:python3.12-bookworm
@@ -47,13 +87,14 @@ jobs:
         testcase: ${{ fromJson(needs.discover-testcases.outputs.testcases) }}
         environment: [alpha, cloud, staging]
 
-    name: "${{ matrix.testcase }} / ${{ matrix.environment }}"
+    name: "${{ matrix.testcase.testcase }} / ${{ matrix.environment }}"
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Install dependencies
+      working-directory: packages/${{ matrix.testcase.package }}
       run: uv sync
 
     - name: Run testcase
@@ -68,12 +109,13 @@ jobs:
         TELEMETRY_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
         APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
-      working-directory: testcases/${{ matrix.testcase }}
+      working-directory: packages/${{ matrix.testcase.package }}/testcases/${{ matrix.testcase.testcase }}
       run: |
         # If any errors occur execution will stop with exit code
         set -e
 
-        echo "Running testcase: ${{ matrix.testcase }}"
+        echo "Running testcase: ${{ matrix.testcase.testcase }}"
+        echo "Package: ${{ matrix.testcase.package }}"
         echo "Environment: ${{ matrix.environment }}"
         echo "Working directory: $(pwd)"
 
@@ -82,12 +124,20 @@ jobs:
         bash ../common/validate_output.sh
 
   summarize-results:
-    needs: [integration-tests]
+    needs: [detect-changed-packages, discover-testcases, integration-tests]
     runs-on: ubuntu-latest
-    if: always() # This ensures the job runs even if the tests fail
+    if: always()
     steps:
       - name: Check integration tests status
         run: |
+          if [[ "${{ needs.detect-changed-packages.outputs.count }}" == "0" ]]; then
+            echo "No packages changed - skipping integration tests"
+            exit 0
+          fi
+          if [[ "${{ needs.discover-testcases.outputs.count }}" == "0" ]]; then
+            echo "No testcases found for changed packages - skipping"
+            exit 0
+          fi
           if [[ "${{ needs.integration-tests.result }}" == "success" ]]; then
             echo "All integration tests passed"
           else

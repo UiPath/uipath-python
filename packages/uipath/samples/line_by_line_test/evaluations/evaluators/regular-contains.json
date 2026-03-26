@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "evaluatorTypeId": "uipath-contains",
+  "id": "RegularContains",
+  "name": "RegularContains",
+  "evaluatorConfig": {
+    "name": "RegularContains",
+    "target_output_key": "result",
+    "line_by_line_evaluator": false,
+    "case_sensitive": false,
+    "negated": false
+  }
+}
