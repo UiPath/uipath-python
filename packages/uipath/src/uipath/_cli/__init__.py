@@ -133,6 +133,71 @@ class LazyGroup(click.Group):
             return _load_command(cmd_name)
         return None
 
+    def invoke(self, ctx):
+        from uipath._cli._utils._console import OutputMode
+
+        try:
+            result = super().invoke(ctx)
+
+            # After successful command execution, emit collected output
+            cli_ctx = ctx.obj
+            if isinstance(cli_ctx, CliContext) and cli_ctx.output_mode is not OutputMode.TEXT:
+                from uipath._cli._utils._console import ConsoleLogger
+
+                logger = ConsoleLogger()
+                logger.emit()
+
+            return result
+
+        except (SystemExit, click.exceptions.Exit):
+            raise
+
+        except click.ClickException as e:
+            cli_ctx = getattr(ctx, "obj", None)
+            if isinstance(cli_ctx, CliContext) and cli_ctx.output_mode is not OutputMode.TEXT:
+                import json as json_mod
+
+                from uipath._cli._utils._console import ConsoleLogger
+
+                logger = ConsoleLogger()
+                error_output = {"status": "error", "error": e.format_message()}
+                if logger._messages:
+                    error_output["messages"] = list(logger._messages)
+
+                click.echo(
+                    json_mod.dumps(error_output, indent=2, default=str), err=True
+                )
+                ctx.exit(1)
+            else:
+                raise
+
+        except Exception as e:
+            cli_ctx = getattr(ctx, "obj", None)
+            if isinstance(cli_ctx, CliContext) and cli_ctx.output_mode is not OutputMode.TEXT:
+                import json as json_mod
+
+                from uipath._cli._utils._console import CLIError, ConsoleLogger
+
+                logger = ConsoleLogger()
+
+                if isinstance(e, CLIError):
+                    messages = e.messages
+                    error_msg = e.message
+                else:
+                    messages = list(logger._messages)
+                    error_msg = str(e)
+
+                error_output = {"status": "error", "error": error_msg}
+                if messages:
+                    error_output["messages"] = messages
+
+                click.echo(
+                    json_mod.dumps(error_output, indent=2, default=str), err=True
+                )
+                ctx.exit(1)
+            else:
+                raise
+
     def format_help(self, ctx, formatter):
         format_value = _get_format_from_argv()
 
@@ -144,6 +209,18 @@ class LazyGroup(click.Group):
             ctx.exit(0)
         else:
             super().format_help(ctx, formatter)
+
+
+def _parse_output_mode(value: str) -> "OutputMode":
+    """Convert click Choice string to OutputMode enum."""
+    from uipath._cli._utils._console import OutputMode
+
+    _FORMAT_TO_MODE = {
+        "text": OutputMode.TEXT,
+        "json": OutputMode.JSON,
+        "csv": OutputMode.CSV,
+    }
+    return _FORMAT_TO_MODE[value]
 
 
 @click.command(cls=LazyGroup, invoke_without_command=True)
@@ -164,8 +241,8 @@ class LazyGroup(click.Group):
 )
 @click.option(
     "--format",
-    type=click.Choice(["json", "table", "csv"]),
-    default="table",
+    type=click.Choice(["json", "text", "csv"]),
+    default="text",
     help="Output format for commands",
 )
 @click.option(
@@ -190,12 +267,21 @@ def cli(
         uipath deploy
         uipath buckets list --folder-path "Shared"
     """  # noqa: D301
+    output_mode = _parse_output_mode(format)
     ctx.obj = CliContext(
-        output_format=format,
+        output_mode=output_mode,
         debug=debug,
     )
 
     setup_logging(should_debug=debug)
+
+    from uipath._cli._utils._console import OutputMode
+
+    if output_mode is not OutputMode.TEXT:
+        from uipath._cli._utils._console import ConsoleLogger
+
+        logger = ConsoleLogger()
+        logger.output_mode = output_mode
 
     if lv:
         try:
