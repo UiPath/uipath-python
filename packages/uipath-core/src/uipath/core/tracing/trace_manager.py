@@ -78,8 +78,8 @@ class _DelegatingSpanProcessor(SpanProcessor):
         return all(p.force_flush(timeout_millis) for p in self._processors)
 
     def shutdown(self) -> None:
-        # No-op: this processor lives for the entire process lifetime.
-        pass
+        for p in self._processors:
+            p.shutdown()
 
 
 class UiPathTraceManager:

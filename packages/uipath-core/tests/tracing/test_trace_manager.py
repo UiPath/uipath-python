@@ -119,13 +119,16 @@ class TestDelegatingSpanProcessor:
 
         assert dp.force_flush(timeout_millis=5000) is False
 
-    def test_shutdown_is_noop(self) -> None:
+    def test_shutdown_delegates_to_children(self) -> None:
         dp = _DelegatingSpanProcessor()
         p1 = MagicMock(spec=SpanProcessor)
+        p2 = MagicMock(spec=SpanProcessor)
         dp.add(p1)
+        dp.add(p2)
         dp.shutdown()
-        # Children should still be active after delegator shutdown
-        assert len(dp._processors) == 1
+        p1.shutdown.assert_called_once()
+        p2.shutdown.assert_called_once()
+        assert len(dp._processors) == 2
 
 
 class TestTraceManagerShutdown:
