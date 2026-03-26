@@ -322,4 +322,24 @@ class EntityRecordsBatchResponse(BaseModel):
     failure_records: List[EntityRecord] = Field(alias="failureRecords")
 
 
+class EntityRouting(BaseModel):
+    """A single entity-to-folder routing entry for query execution."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entity_name: str = Field(alias="entityName")
+    folder_id: str = Field(alias="folderId")
+    override_entity_name: Optional[str] = Field(
+        default=None, alias="overrideEntityName"
+    )
+
+
+class QueryRoutingContext(BaseModel):
+    """Routing context that maps entities to their folders for multi-entity queries."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entity_routings: List[EntityRouting] = Field(alias="entityRoutings")
+
+
 Entity.model_rebuild()

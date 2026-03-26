@@ -14,6 +14,7 @@ from .entities import (
     Entity,
     EntityRecord,
     EntityRecordsBatchResponse,
+    QueryRoutingContext,
 )
 
 _FORBIDDEN_DML = {"INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE"}
@@ -416,6 +417,7 @@ class EntitiesService(BaseService):
     def query_entity_records(
         self,
         sql_query: str,
+        routing_context: Optional["QueryRoutingContext"] = None,
     ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
@@ -425,6 +427,9 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+            routing_context (Optional[QueryRoutingContext]): Per-entity routing context
+                for multi-folder queries. When present, included in the request body
+                and takes precedence over the folder header on the backend.
 
         Returns:
             List[Dict[str, Any]]: A list of result records as dictionaries.
@@ -433,12 +438,15 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return self._query_entities_for_records(sql_query)
+        return self._query_entities_for_records(
+            sql_query, routing_context=routing_context
+        )
 
     @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(
         self,
         sql_query: str,
+        routing_context: Optional["QueryRoutingContext"] = None,
     ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
@@ -448,6 +456,9 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+            routing_context (Optional[QueryRoutingContext]): Per-entity routing context
+                for multi-folder queries. When present, included in the request body
+                and takes precedence over the folder header on the backend.
 
         Returns:
             List[Dict[str, Any]]: A list of result records as dictionaries.
@@ -456,20 +467,32 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return await self._query_entities_for_records_async(sql_query)
+        return await self._query_entities_for_records_async(
+            sql_query, routing_context=routing_context
+        )
 
-    def _query_entities_for_records(self, sql_query: str) -> List[Dict[str, Any]]:
+    def _query_entities_for_records(
+        self,
+        sql_query: str,
+        *,
+        routing_context: Optional["QueryRoutingContext"] = None,
+    ) -> List[Dict[str, Any]]:
         self._validate_sql_query(sql_query)
-        spec = self._query_entity_records_spec(sql_query)
+        spec = self._query_entity_records_spec(sql_query, routing_context)
         response = self.request(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
 
     async def _query_entities_for_records_async(
-        self, sql_query: str
+        self,
+        sql_query: str,
+        *,
+        routing_context: Optional["QueryRoutingContext"] = None,
     ) -> List[Dict[str, Any]]:
         self._validate_sql_query(sql_query)
-        spec = self._query_entity_records_spec(sql_query)
-        response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
+        spec = self._query_entity_records_spec(sql_query, routing_context)
+        response = await self.request_async(
+            spec.method, spec.endpoint, json=spec.json
+        )
         return response.json().get("results", [])
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
@@ -958,11 +981,17 @@ class EntitiesService(BaseService):
     def _query_entity_records_spec(
         self,
         sql_query: str,
+        routing_context: Optional["QueryRoutingContext"] = None,
     ) -> RequestSpec:
+        body: Dict[str, Any] = {"query": sql_query}
+        if routing_context:
+            body["routingContext"] = routing_context.model_dump(
+                by_alias=True, exclude_none=True
+            )
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("datafabric_/api/v1/query/execute"),
-            json={"query": sql_query},
+            json=body,
         )
 
     def _insert_batch_spec(self, entity_key: str, records: List[Any]) -> RequestSpec:
