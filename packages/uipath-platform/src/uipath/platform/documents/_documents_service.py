@@ -2299,6 +2299,11 @@ class DocumentsService(FolderContext, BaseService):
             operation_id=operation_id,
         )
 
+    @resource_override(
+        resource_type="bucket",
+        resource_identifier="storage_bucket_name",
+        folder_identifier="action_folder",
+    )
     @traced(name="documents_create_validate_extraction_action", run_type="uipath")
     def create_validate_extraction_action(
         self,
@@ -2360,6 +2365,11 @@ class DocumentsService(FolderContext, BaseService):
             operation_id=operation_id,
         )
 
+    @resource_override(
+        resource_type="bucket",
+        resource_identifier="storage_bucket_name",
+        folder_identifier="action_folder",
+    )
     @traced(name="documents_create_validate_extraction_action_async", run_type="uipath")
     async def create_validate_extraction_action_async(
         self,
