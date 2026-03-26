@@ -1,6 +1,6 @@
 [project]
 name = "uipath-platform"
-version = "0.1.10"
+version = "0.1.11"
 description = "HTTP client library for programmatic access to UiPath Platform"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -8,7 +8,7 @@ dependencies = [
   "httpx>=0.28.1",
   "tenacity>=9.0.0",
   "truststore>=0.10.1",
-  "uipath-core>=0.5.4, <0.6.0",
+  "uipath-core>=0.5.8, <0.6.0",
   "pydantic-function-models>=0.1.11",
   "sqlparse>=0.5.5",
 ]
