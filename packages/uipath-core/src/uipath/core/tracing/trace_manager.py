@@ -25,7 +25,7 @@ class UiPathTraceManager:
     """
 
     def __init__(self):
-        """Initialize a trace manager."""
+        """Initialize a trace manager test."""
         trace.set_tracer_provider(TracerProvider())
         # If a previous provider set, reuse it.
         current_provider = trace.get_tracer_provider()
