@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "id": "LineByLineContains",
+  "description": "Evaluates each line of attachment separately using contains",
+  "evaluatorTypeId": "uipath-contains",
+  "evaluatorConfig": {
+    "name": "LineByLineContains",
+    "targetOutputKey": "report",
+    "lineByLineEvaluator": true,
+    "lineDelimiter": "\n",
+    "ignoreCase": true,
+    "negated": false
+  }
+}

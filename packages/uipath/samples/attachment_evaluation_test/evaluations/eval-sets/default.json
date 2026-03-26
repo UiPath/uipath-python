@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "id": "attachment-evaluation-test",
+  "name": "Attachment Evaluation Tests",
+  "description": "Test cases for evaluating agent outputs stored as job attachments",
+  "evaluatorRefs": [
+    "ReportContentMatch",
+    "ReportContainsKeyword",
+    "LineByLineContains"
+  ],
+  "evaluations": [
+    {
+      "id": "test-sales-report-exact-match",
+      "name": "Test sales report exact match",
+      "description": "Verify the sales report content matches exactly",
+      "inputs": {
+        "task": "Generate sales report"
+      },
+      "evaluationCriterias": {
+        "ReportContentMatch": {
+          "expectedOutput": {
+            "report": "Sales Report Q4 2024\n\nTotal Revenue: $1,250,000\nNew Customers: 45\nCustomer Retention: 92%\nTop Product: Enterprise Suite\n"
+          }
+        },
+        "ReportContainsKeyword": {
+          "searchText": "Revenue"
+        }
+      }
+    },
+    {
+      "id": "test-inventory-report-contains",
+      "name": "Test inventory report contains keywords",
+      "description": "Verify the inventory report contains expected keywords",
+      "inputs": {
+        "task": "Generate inventory report"
+      },
+      "evaluationCriterias": {
+        "ReportContainsKeyword": {
+          "searchText": "Warehouse"
+        }
+      }
+    },
+    {
+      "id": "test-employee-report-line-by-line",
+      "name": "Test employee report line-by-line",
+      "description": "Verify employee report lines contain expected text",
+      "inputs": {
+        "task": "Generate employee report"
+      },
+      "evaluationCriterias": {
+        "LineByLineContains": {
+          "searchText": "Employee"
+        }
+      }
+    },
+    {
+      "id": "test-generic-report-exact-match",
+      "name": "Test generic report exact match",
+      "description": "Verify generic report content",
+      "inputs": {
+        "task": "Complete project review"
+      },
+      "evaluationCriterias": {
+        "ReportContentMatch": {
+          "expectedOutput": {
+            "report": "Task Report: Complete project review\n\nStatus: Completed\nDate: 2024-03-25\nSummary: Task has been successfully completed.\nNotes: All requirements met.\n"
+          }
+        },
+        "ReportContainsKeyword": {
+          "searchText": "Completed"
+        }
+      }
+    },
+    {
+      "id": "test-partial-match-with-contains",
+      "name": "Test partial match with contains",
+      "description": "Verify report contains specific information",
+      "inputs": {
+        "task": "Generate sales report"
+      },
+      "evaluationCriterias": {
+        "ReportContainsKeyword": {
+          "searchText": "Q4 2024"
+        }
+      }
+    }
+  ]
+}

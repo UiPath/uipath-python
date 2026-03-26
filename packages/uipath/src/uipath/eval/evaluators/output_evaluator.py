@@ -9,6 +9,11 @@ from pydantic import BaseModel, Field
 from .._helpers.output_path import resolve_output_path
 from ..models import AgentExecution
 from ..models.models import UiPathEvaluationError, UiPathEvaluationErrorCategory
+from .attachment_utils import (
+    download_attachment_as_string,
+    extract_attachment_id,
+    is_job_attachment_uri,
+)
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -123,7 +128,11 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         return obj
 
     def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
-        """Get the actual output from the agent execution."""
+        """Get the actual output from the agent execution.
+
+        If the output is a job attachment URI, downloads the attachment
+        and returns its content as a string.
+        """
         if self.evaluator_config.target_output_key != "*":
             try:
                 result = resolve_output_path(
@@ -139,6 +148,12 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                 ) from e
         else:
             result = agent_execution.agent_output
+
+        # Check if result is a job attachment URI and download if so
+        if is_job_attachment_uri(result):
+            attachment_id = extract_attachment_id(result)
+            result = download_attachment_as_string(attachment_id)
+
         return self._normalize_numbers(result)
 
     def _get_full_expected_output(self, evaluation_criteria: T) -> Any:
