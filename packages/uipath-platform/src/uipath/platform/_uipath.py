@@ -115,7 +115,7 @@ class UiPath:
 
     @property
     def memory(self) -> MemoryService:
-        return MemoryService(self._config, self._execution_context)
+        return MemoryService(self._config, self._execution_context, self.folders)
 
     @property
     def documents(self) -> DocumentsService:

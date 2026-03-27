@@ -14,6 +14,7 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
+from ..orchestrator._folder_service import FolderService
 from .memory import (
     EpisodicMemoryCreateRequest,
     EpisodicMemoryIndex,
@@ -45,8 +46,10 @@ class MemoryService(FolderContext, BaseService):
         self,
         config: UiPathApiConfig,
         execution_context: UiPathExecutionContext,
+        folders_service: FolderService,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._folders_service = folders_service
 
     # ── Index operations (ECS) ─────────────────────────────────────────
 
@@ -422,8 +425,30 @@ class MemoryService(FolderContext, BaseService):
 
     # ── Private spec builders ─────────────────────────────────────────
 
-    def _resolve_folder(self, folder_key: Optional[str]) -> Optional[str]:
-        return folder_key or self._folder_key
+    def _resolve_folder(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Resolve the folder key, supporting folder_path lookup for serverless.
+
+        Priority:
+        1. Explicit folder_key argument
+        2. Explicit folder_path argument → resolve via FolderService
+        3. UIPATH_FOLDER_KEY env var (via FolderContext._folder_key)
+        4. UIPATH_FOLDER_PATH env var → resolve via FolderService
+        """
+        if folder_key is None and folder_path is not None:
+            folder_key = self._folders_service.retrieve_key(folder_path=folder_path)
+
+        if folder_key is None and folder_path is None:
+            folder_key = self._folder_key or (
+                self._folders_service.retrieve_key(folder_path=self._folder_path)
+                if self._folder_path
+                else None
+            )
+
+        return folder_key
 
     # -- ECS specs --
 
