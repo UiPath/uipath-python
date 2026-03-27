@@ -43,6 +43,7 @@ The configuration supports multiple resource types:
 4. **index** - Search indexes
 5. **apps** - Action center apps
 6. **connection** - External connections
+7. **Property** - Connector-defined resource properties (e.g. SharePoint folder IDs selected at design time)
 
 
 ---
@@ -53,7 +54,7 @@ Each resource in the `resources` array has the following structure:
 
 ```json
 {
-  "resource": "asset|process|bucket|index|connection",
+  "resource": "asset|process|bucket|index|connection|Property",
   "key": "unique_key",
   "value": { ... },
   "metadata": { ... }
@@ -64,7 +65,7 @@ Each resource in the `resources` array has the following structure:
 
 | Property | Type | Required | Description |
 |----------|------|----------|-------------|
-| `resource` | `string` | Yes | Resource type (one of the five types) |
+| `resource` | `string` | Yes | Resource type (one of the seven types) |
 | `key` | `string` | Yes | Unique identifier for this resource |
 | `value` | `object` | Yes | Resource-specific configuration |
 | `metadata` | `object` | No | Additional metadata for the binding |
@@ -303,6 +304,101 @@ Connections define external system integrations.
 
 ---
 
+### 7. Property
+
+Property bindings represent connector-defined resources that a user browses and selects at design time (e.g. a SharePoint folder, an OneDrive file). They are child resources of a parent Connection binding and contain **arbitrary sub-properties** with resolved values.
+
+**Key Format:** `<parent-connection-uuid>.<label>`
+
+**Example:**
+
+```json
+{
+  "resource": "Property",
+  "key": "775694d9-4c5b-430f-bf47-6079b0ce8623.SharePoint Invoices folder",
+  "value": {
+    "FullName": {
+      "defaultValue": "Invoices",
+      "isExpression": false,
+      "displayName": "File or folder",
+      "description": "Select a file or folder",
+      "propertyName": "BrowserItemFriendlyName"
+    },
+    "ID": {
+      "defaultValue": "017NI543GXSYR5TZEZOBHJQNL6I2H4VA3M",
+      "isExpression": false,
+      "displayName": "File or folder",
+      "description": "The file or folder of interest",
+      "propertyName": "BrowserItemId"
+    },
+    "ParentDriveID": {
+      "defaultValue": "b!fFiPzsQBgk2xGTJUTRo5jryva9eCrqNPowK3pN2kXWKF90cVuHqnS4RUsG9j1cRt",
+      "isExpression": false,
+      "displayName": "Drive",
+      "description": "The drive (OneDrive/SharePoint) of file or folder",
+      "propertyName": "BrowserDriveId"
+    }
+  },
+  "metadata": {
+    "ActivityName": "SharePoint Invoices folder",
+    "BindingsVersion": "2.1",
+    "ObjectName": "CuratedFile",
+    "DisplayLabel": "FullName",
+    "ParentResourceKey": "Connection.775694d9-4c5b-430f-bf47-6079b0ce8623"
+  }
+}
+```
+
+**Property-Specific Metadata:**
+- `ParentResourceKey`: The key of the parent Connection resource (`"Connection.<uuid>"`)
+- `ObjectName`: The connector-defined object type (e.g. `"CuratedFile"`)
+- `DisplayLabel`: The sub-property used as the primary display value
+
+---
+
+## Using Bindings at Runtime
+
+The `BindingsService` allows users to dynamically query resources configured at design time (and overwritten at runtime) directly from `bindings.json`. You can access any binding resource type (Properties, assets, queues, etc.) by passing its key.
+
+**Querying Connector `Property` Bindings:**
+```python
+from uipath import UiPath
+sdk = UiPath()
+
+# Get a single sub-property value
+folder_id = sdk.bindings.get_property(
+    "775694d9-4c5b-430f-bf47-6079b0ce8623.SharePoint Invoices folder", 
+    "ID"
+) # → "017NI543..."
+
+# You can also use just a suffix of the key:
+folder_id = sdk.bindings.get_property("SharePoint Invoices folder", "ID")
+
+# Get all sub-properties as a dict
+props = sdk.bindings.get_property("SharePoint Invoices folder")
+# → {"FullName": "Invoices", "ID": "017NI543...", "ParentDriveID": "b!fFiPz..."}
+```
+
+**Querying Standard Bindings (Assets, Buckets, etc.):**
+```python
+from uipath import UiPath
+sdk = UiPath()
+
+# For a specific sub-property
+asset_folder_path = sdk.bindings.get_property("DatabaseConnectionString.Production", "folderPath")
+# → "Production"
+
+# Get all sub-properties
+asset_props = sdk.bindings.get_property("DatabaseConnectionString.Production")
+# → {'name': 'DatabaseConnectionString', 'folderPath': 'Production'}
+```
+
+---
+
+## Value Object Structure
+
+---
+
 ## Value Object Structure
 
 ### For Assets, Processes, Buckets, Apps and Indexes
@@ -334,13 +430,31 @@ Connections define external system integrations.
 }
 ```
 
-### Property Definition Fields
+### For Property bindings
+
+The keys and number of sub-properties are connector-defined and vary by connector activity. Each sub-property follows this structure:
+
+```json
+{
+  "<SubPropertyName>": {
+    "defaultValue": "resolved_value",
+    "isExpression": false,
+    "displayName": "Human-readable label",
+    "description": "Optional longer description",
+    "propertyName": "ConnectorInternalPropertyName"
+  }
+}
+```
+
+### Sub-property Definition Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `defaultValue` | `string` | Yes | The default value for this property |
+| `defaultValue` | `string` | Yes | The resolved value for this sub-property |
 | `isExpression` | `boolean` | Yes | Whether the value is a dynamic expression (usually `false`) |
 | `displayName` | `string` | Yes | Human-readable name shown in UI |
+| `description` | `string` | No | Optional longer description of the sub-property |
+| `propertyName` | `string` | No | Internal connector property name |
 
 ---
 
@@ -352,11 +466,13 @@ Metadata provides additional context about the resource binding.
 
 | Field | Type | Description | Applicable To |
 |-------|------|-------------|---------------|
-| `ActivityName` | `string` | Activity used to access the resource | asset, process, bucket, index |
+| `ActivityName` | `string` | Activity used to access the resource | asset, process, bucket, index, Property |
 | `BindingsVersion` | `string` | Version of the bindings schema | All resources |
-| `DisplayLabel` | `string` | Label format for display | asset, process, bucket, index |
+| `DisplayLabel` | `string` | Label format for display | asset, process, bucket, index, Property |
 | `Connector` | `string` | Type of connector | connection |
 | `UseConnectionService` | `string` | Whether to use connection service | connection |
+| `ObjectName` | `string` | Connector-defined object type | Property |
+| `ParentResourceKey` | `string` | Key of the parent Connection resource (`"Connection.<uuid>"`) | Property |
 
 ---
 
@@ -486,6 +602,40 @@ Metadata provides additional context about the resource binding.
                 "BindingsVersion": "2.2",
                 "Connector": "Salesforce",
                 "UseConnectionService": "True"
+            }
+        },
+        {
+            "resource": "Property",
+            "key": "775694d9-4c5b-430f-bf47-6079b0ce8623.SharePoint Invoices folder",
+            "value": {
+                "FullName": {
+                    "defaultValue": "Invoices",
+                    "isExpression": false,
+                    "displayName": "File or folder",
+                    "description": "Select a file or folder",
+                    "propertyName": "BrowserItemFriendlyName"
+                },
+                "ID": {
+                    "defaultValue": "017NI543GXSYR5TZEZOBHJQNL6I2H4VA3M",
+                    "isExpression": false,
+                    "displayName": "File or folder",
+                    "description": "The file or folder of interest",
+                    "propertyName": "BrowserItemId"
+                },
+                "ParentDriveID": {
+                    "defaultValue": "b!fFiPzsQBgk2xGTJUTRo5jryva9eCrqNPowK3pN2kXWKF90cVuHqnS4RUsG9j1cRt",
+                    "isExpression": false,
+                    "displayName": "Drive",
+                    "description": "The drive (OneDrive/SharePoint) of file or folder",
+                    "propertyName": "BrowserDriveId"
+                }
+            },
+            "metadata": {
+                "ActivityName": "SharePoint Invoices folder",
+                "BindingsVersion": "2.1",
+                "ObjectName": "CuratedFile",
+                "DisplayLabel": "FullName",
+                "ParentResourceKey": "Connection.775694d9-4c5b-430f-bf47-6079b0ce8623"
             }
         }
     ]

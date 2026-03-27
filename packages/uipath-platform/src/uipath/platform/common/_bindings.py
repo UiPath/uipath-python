@@ -42,11 +42,22 @@ class ResourceOverwrite(BaseModel, ABC):
         """The folder location identifier for this resource."""
         pass
 
+    @property
+    @abstractmethod
+    def properties(self) -> dict[str, Any]:
+        """A dictionary of properties provided by this overwrite."""
+        pass
+
 
 class GenericResourceOverwrite(ResourceOverwrite):
-    resource_type: Literal["process", "index", "app", "asset", "bucket", "mcpServer"]
-    name: str = Field(alias="name")
-    folder_path: str = Field(alias="folderPath")
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+    resource_type: Literal["process", "index", "app", "asset", "bucket", "mcpserver", "property", "mcpServer"]
+    name: str = Field(default="", alias="name")
+    folder_path: str = Field(default="", alias="folderPath")
+
+    @property
+    def properties(self) -> dict[str, Any]:
+        return self.model_extra or {}
 
     @property
     def resource_identifier(self) -> str:
@@ -70,6 +81,10 @@ class ConnectionResourceOverwrite(ResourceOverwrite):
         populate_by_name=True,
         extra="ignore",
     )
+
+    @property
+    def properties(self) -> dict[str, Any]:
+        return self.model_dump(by_alias=True, exclude={"resource_type"})
 
     @property
     def resource_identifier(self) -> str:
@@ -109,7 +124,7 @@ class ResourceOverwriteParser:
         Returns:
             The appropriate ResourceOverwrite subclass instance
         """
-        resource_type = key.split(".")[0]
+        resource_type = key.split(".")[0].lower()
         value_with_type = {"resource_type": resource_type, **value}
         return cls._adapter.validate_python(value_with_type)
 
@@ -138,6 +153,9 @@ class ResourceOverwritesContext:
                 len(existing),
             )
         overwrites = await self.get_overwrites_callable()
+
+        logger.debug("ResourceOverwritesContext loading overwrites: %s", overwrites)
+
         self._token = _resource_overwrites.set(overwrites)
         self.overwrites_count = len(overwrites)
         if overwrites:

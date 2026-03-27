@@ -11,6 +11,7 @@ from .agenthub._remote_a2a_service import RemoteA2aService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
+    BindingsService,
     ExternalApplicationService,
     UiPathApiConfig,
     UiPathExecutionContext,
@@ -75,6 +76,10 @@ class UiPath:
                 elif error["loc"][0] == "secret":
                     raise SecretMissingError() from e
         self._execution_context = UiPathExecutionContext()
+
+    @cached_property
+    def bindings(self) -> BindingsService:
+        return BindingsService()
 
     @property
     def api_client(self) -> ApiClient:
