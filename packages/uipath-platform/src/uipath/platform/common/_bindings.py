@@ -239,7 +239,7 @@ def resource_override(
                         matched_overwrite.folder_identifier,
                     )
                 else:
-                    logger.debug(
+                    logger.info(
                         "No resource overwrite matched for %s key='%s' on %s",
                         resource_type,
                         key,
