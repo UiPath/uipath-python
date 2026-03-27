@@ -40,8 +40,17 @@ def _require_env(name: str) -> str:
 
 @pytest.fixture(scope="module")
 def sdk() -> UiPath:
-    """Create a real UiPath client from env vars."""
+    """Create a real UiPath client from env vars.
+
+    Supports two auth modes:
+    - Token-based: UIPATH_URL + UIPATH_ACCESS_TOKEN (from `uipath auth`)
+    - Client credentials: UIPATH_URL + UIPATH_CLIENT_ID + UIPATH_CLIENT_SECRET (CI)
+    """
     _require_env("UIPATH_URL")
+    client_id = os.environ.get("UIPATH_CLIENT_ID")
+    client_secret = os.environ.get("UIPATH_CLIENT_SECRET")
+    if client_id and client_secret:
+        return UiPath(client_id=client_id, client_secret=client_secret)
     _require_env("UIPATH_ACCESS_TOKEN")
     return UiPath()
 
@@ -58,7 +67,21 @@ def base_url() -> str:
 
 @pytest.fixture(scope="module")
 def access_token() -> str:
-    return _require_env("UIPATH_ACCESS_TOKEN")
+    """Get an access token for raw HTTP calls (feedback creation).
+
+    In client credentials mode, creates a UiPath instance to exchange
+    credentials for a token.
+    """
+    token = os.environ.get("UIPATH_ACCESS_TOKEN")
+    if token:
+        return token
+    client_id = os.environ.get("UIPATH_CLIENT_ID")
+    client_secret = os.environ.get("UIPATH_CLIENT_SECRET")
+    if client_id and client_secret:
+        client = UiPath(client_id=client_id, client_secret=client_secret)
+        return client._config.secret
+    pytest.skip("No access token or client credentials available")
+    return ""  # unreachable
 
 
 @pytest.fixture(scope="module")
