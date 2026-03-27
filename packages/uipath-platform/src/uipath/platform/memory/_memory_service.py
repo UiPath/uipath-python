@@ -5,7 +5,7 @@ Ingest and search go through LLMOps, which enriches traces/feedback
 before forwarding to ECS.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from uipath.core.tracing import traced
 
@@ -456,7 +456,7 @@ class MemoryService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder(folder_key)
-        params: dict = {}
+        params: dict[str, Any] = {}
         if filter is not None:
             params["$filter"] = filter
         if orderby is not None:
@@ -499,7 +499,7 @@ class MemoryService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder(folder_key)
-        params: dict = {}
+        params: dict[str, Any] = {}
         if memory_space_name is not None:
             params["memorySpaceName"] = memory_space_name
         return RequestSpec(
