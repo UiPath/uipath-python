@@ -8,7 +8,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.entities import Entity
+from uipath.platform.entities import Entity, EntityRouting, QueryRoutingOverrideContext
 from uipath.platform.entities._entities_service import EntitiesService
 
 
@@ -389,3 +389,80 @@ class TestEntitiesService:
 
         assert result == [{"id": "c1"}]
         service.request_async.assert_called_once()
+
+    def test_query_entity_records_with_routing_context(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": [{"id": 1}]}
+        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        routing = QueryRoutingOverrideContext(
+            entity_routings=[
+                EntityRouting(entity_name="Customers", folder_id="folder-1"),
+                EntityRouting(
+                    entity_name="Orders",
+                    folder_id="folder-2",
+                    override_entity_name="OrdersV2",
+                ),
+            ]
+        )
+
+        result = service.query_entity_records(
+            "SELECT id FROM Customers LIMIT 10", routing_context=routing
+        )
+
+        assert result == [{"id": 1}]
+        call_kwargs = service.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["query"] == "SELECT id FROM Customers LIMIT 10"
+        assert body["routingContext"] == {
+            "entityRoutings": [
+                {"entityName": "Customers", "folderId": "folder-1"},
+                {
+                    "entityName": "Orders",
+                    "folderId": "folder-2",
+                    "overrideEntityName": "OrdersV2",
+                },
+            ]
+        }
+
+    @pytest.mark.anyio
+    async def test_query_entity_records_async_with_routing_context(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": [{"id": "c1"}]}
+        service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        routing = QueryRoutingOverrideContext(
+            entity_routings=[
+                EntityRouting(entity_name="Customers", folder_id="folder-1"),
+            ]
+        )
+
+        result = await service.query_entity_records_async(
+            "SELECT id FROM Customers WHERE id = 'c1'",
+            routing_context=routing,
+        )
+
+        assert result == [{"id": "c1"}]
+        call_kwargs = service.request_async.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert "routingContext" in body
+
+    def test_query_entity_records_without_routing_context_omits_key(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records("SELECT id FROM Customers WHERE id > 0")
+
+        call_kwargs = service.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert "routingContext" not in body
