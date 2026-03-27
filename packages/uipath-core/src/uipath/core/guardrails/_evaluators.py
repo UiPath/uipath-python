@@ -68,6 +68,26 @@ def extract_field_value(path: str, data: dict[str, Any]) -> list[Any]:
         field_name, array_depth = _parse_path_segment(part)
 
         if isinstance(current, dict):
+            if not field_name and array_depth != ArrayDepth.NONE:
+                # Path segment is purely array notation (e.g. [*]) with no
+                # field name.  This happens when the root data is a
+                # dict-wrapped array (e.g. {"output": [...]}) and the
+                # original path starts with [*].  Iterate over all list
+                # values in the dict so the array elements are reached.
+                for value in current.values():
+                    if isinstance(value, list):
+                        if array_depth == ArrayDepth.MATRIX:
+                            for row in value:
+                                if isinstance(row, list):
+                                    for item in row:
+                                        _traverse(item, next_parts)
+                                else:
+                                    _traverse(row, next_parts)
+                        else:  # SINGLE
+                            for item in value:
+                                _traverse(item, next_parts)
+                return
+
             if field_name not in current:
                 return
             next_value = current.get(field_name)
