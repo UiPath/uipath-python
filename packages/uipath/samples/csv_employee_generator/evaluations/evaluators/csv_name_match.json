@@ -1,0 +1,12 @@
+{
+  "fileName": "csv_name_match.json",
+  "id": "csv-name-match",
+  "name": "CSV Name Column Match",
+  "description": "Checks if the Name column matches in the CSV output",
+  "category": 0,
+  "type": 10,
+  "targetSubOutputKey": "Name",
+  "targetOutputKey": "csv_data",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-01T00:00:00Z"
+}

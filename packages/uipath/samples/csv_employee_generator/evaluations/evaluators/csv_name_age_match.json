@@ -1,0 +1,12 @@
+{
+  "fileName": "csv_name_age_match.json",
+  "id": "csv-name-age-match",
+  "name": "CSV Name and Age Match",
+  "description": "Checks if Name and Age columns match in the CSV output",
+  "category": 0,
+  "type": 10,
+  "targetSubOutputKey": "Name,Age",
+  "targetOutputKey": "csv_data",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-01T00:00:00Z"
+}

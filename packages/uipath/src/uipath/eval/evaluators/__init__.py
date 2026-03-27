@@ -17,6 +17,7 @@ from .contains_evaluator import ContainsEvaluator
 from .exact_match_evaluator import ExactMatchEvaluator
 from .json_similarity_evaluator import JsonSimilarityEvaluator
 from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
+from .legacy_csv_exact_match_evaluator import LegacyCSVExactMatchEvaluator
 from .legacy_exact_match_evaluator import LegacyExactMatchEvaluator
 from .legacy_faithfulness_evaluator import LegacyFaithfulnessEvaluator
 from .legacy_json_similarity_evaluator import LegacyJsonSimilarityEvaluator
@@ -59,6 +60,7 @@ __all__ = [
     # Legacy evaluators
     "BaseLegacyEvaluator",
     "LegacyContextPrecisionEvaluator",
+    "LegacyCSVExactMatchEvaluator",
     "LegacyExactMatchEvaluator",
     "LegacyFaithfulnessEvaluator",
     "LegacyLlmAsAJudgeEvaluator",

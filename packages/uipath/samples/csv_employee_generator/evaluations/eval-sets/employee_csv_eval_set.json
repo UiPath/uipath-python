@@ -1,0 +1,130 @@
+{
+  "id": "employee-csv-eval",
+  "name": "Employee CSV Generator Evaluation",
+  "description": "Tests the CSV employee generator agent with various scenarios",
+  "fileName": "employee_csv_eval_set.json",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-01T00:00:00Z",
+  "evaluatorRefs": [
+    "csv-name-match",
+    "csv-name-age-match",
+    "csv-line-by-line-name"
+  ],
+  "evaluations": [
+    {
+      "id": "eng-3-name-only",
+      "name": "Engineering - 3 employees - Name only",
+      "inputs": {
+        "department": "Engineering",
+        "count": 3
+      },
+      "expectedOutput": {
+        "csv_data": "Name,Age,Role\nAlice Johnson,28,Software Engineer\nBob Smith,32,Senior Engineer\nCarol Davis,26,DevOps Engineer"
+      },
+      "evaluationCriterias": {
+        "csv-name-match": null,
+        "csv-name-age-match": null,
+        "csv-line-by-line-name": null
+      },
+      "evalSetId": "employee-csv-eval",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "eng-3-name-age",
+      "name": "Engineering - 3 employees - Name and Age",
+      "inputs": {
+        "department": "Engineering",
+        "count": 3
+      },
+      "expectedOutput": {
+        "csv_data": "Name,Age,Role\nAlice Johnson,28,Software Engineer\nBob Smith,32,Senior Engineer\nCarol Davis,26,DevOps Engineer"
+      },
+      "evaluationCriterias": {
+        "csv-name-match": null,
+        "csv-name-age-match": null,
+        "csv-line-by-line-name": null
+      },
+      "evalSetId": "employee-csv-eval",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "sales-2-name-age",
+      "name": "Sales - 2 employees - Name and Age",
+      "inputs": {
+        "department": "Sales",
+        "count": 2
+      },
+      "expectedOutput": {
+        "csv_data": "Name,Age,Role\nFrank Brown,30,Sales Rep\nGrace Lee,27,Account Manager"
+      },
+      "evaluationCriterias": {
+        "csv-name-match": null,
+        "csv-name-age-match": null,
+        "csv-line-by-line-name": null
+      },
+      "evalSetId": "employee-csv-eval",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "hr-2-line-by-line",
+      "name": "HR - 2 employees - Line by line Name check",
+      "inputs": {
+        "department": "HR",
+        "count": 2
+      },
+      "expectedOutput": {
+        "csv_data": "Name,Age,Role\nKelly White,34,HR Manager\nLiam Garcia,28,Recruiter"
+      },
+      "evaluationCriterias": {
+        "csv-name-match": null,
+        "csv-name-age-match": null,
+        "csv-line-by-line-name": null
+      },
+      "evalSetId": "employee-csv-eval",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "eng-wrong-name-fail",
+      "name": "Engineering - Wrong name (should fail)",
+      "inputs": {
+        "department": "Engineering",
+        "count": 3
+      },
+      "expectedOutput": {
+        "csv_data": "Name,Age,Role\nWrong Name,28,Software Engineer\nBob Smith,32,Senior Engineer\nCarol Davis,26,DevOps Engineer"
+      },
+      "evaluationCriterias": {
+        "csv-name-match": null,
+        "csv-name-age-match": null,
+        "csv-line-by-line-name": null
+      },
+      "evalSetId": "employee-csv-eval",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "eng-partial-match",
+      "name": "Engineering - Line by line with partial match",
+      "inputs": {
+        "department": "Engineering",
+        "count": 3
+      },
+      "expectedOutput": {
+        "csv_data": "Name,Age,Role\nAlice Johnson,28,Software Engineer\nWrong Name,32,Senior Engineer\nCarol Davis,26,DevOps Engineer"
+      },
+      "evaluationCriterias": {
+        "csv-name-match": null,
+        "csv-name-age-match": null,
+        "csv-line-by-line-name": null
+      },
+      "evalSetId": "employee-csv-eval",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "updatedAt": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "modelSettings": []
+}
