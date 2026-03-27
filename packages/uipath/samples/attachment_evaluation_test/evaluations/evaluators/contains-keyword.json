@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "id": "ReportContainsKeyword",
+  "description": "Checks if attachment content contains expected keywords",
+  "evaluatorTypeId": "uipath-contains",
+  "evaluatorConfig": {
+    "name": "ReportContainsKeyword",
+    "targetOutputKey": "report",
+    "ignoreCase": true,
+    "negated": false
+  }
+}

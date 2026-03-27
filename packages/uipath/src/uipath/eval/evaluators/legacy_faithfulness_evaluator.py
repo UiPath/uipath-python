@@ -3,6 +3,8 @@
 import json
 from typing import Any, Optional
 
+from pydantic import Field
+
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 
@@ -39,7 +41,7 @@ class LegacyFaithfulnessEvaluator(
     The final score is the percentage of claims that are grounded.
     """
 
-    model: str
+    model: str = Field(default="same-as-agent")
     llm: Optional[UiPathLlmChatService] = None
 
     def model_post_init(self, __context: Any):

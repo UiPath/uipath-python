@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "id": "BasicGreeterEvalSet",
+  "name": "Basic Greeter Evaluation Set (No Simulation)",
+  "evaluatorRefs": [
+    "JsonSimilarityEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "test-formal-greeting",
+      "name": "Test Formal Greeting",
+      "inputs": {
+        "name": "Alice",
+        "greeting_style": "formal"
+      },
+      "evaluationCriterias": {
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "message": "Good day, Alice. It is a pleasure to meet you.",
+            "recipient": "Alice",
+            "style": "formal"
+          }
+        }
+      }
+    },
+    {
+      "id": "test-casual-greeting",
+      "name": "Test Casual Greeting",
+      "inputs": {
+        "name": "Bob",
+        "greeting_style": "casual"
+      },
+      "evaluationCriterias": {
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "message": "Hey Bob, what's up?",
+            "recipient": "Bob",
+            "style": "casual"
+          }
+        }
+      }
+    },
+    {
+      "id": "test-enthusiastic-greeting",
+      "name": "Test Enthusiastic Greeting",
+      "inputs": {
+        "name": "Charlie",
+        "greeting_style": "enthusiastic"
+      },
+      "evaluationCriterias": {
+        "JsonSimilarityEvaluator": {
+          "expectedOutput": {
+            "message": "Wow! Hi Charlie!! So great to see you!!!",
+            "recipient": "Charlie",
+            "style": "enthusiastic"
+          }
+        }
+      }
+    }
+  ]
+}
