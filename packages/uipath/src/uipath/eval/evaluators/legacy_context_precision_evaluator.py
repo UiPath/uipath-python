@@ -4,6 +4,8 @@ import ast
 import json
 from typing import Any, Optional
 
+from pydantic import Field
+
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 
@@ -99,7 +101,7 @@ class LegacyContextPrecisionEvaluator(
     The final score is the mean of all chunk relevancy scores (normalized to 0-1).
     """
 
-    model: str
+    model: str = Field(default="same-as-agent")
     query_placeholder: str = "{{Query}}"
     chunks_placeholder: str = "{{Chunks}}"
     llm: Optional[UiPathLlmChatService] = None

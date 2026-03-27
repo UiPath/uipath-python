@@ -4,7 +4,7 @@ import logging
 from typing import Any, Optional
 
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
@@ -42,7 +42,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
     """Legacy evaluator that analyzes the trajectory/path taken to reach outputs."""
 
     prompt: str
-    model: str
+    model: str = Field(default="same-as-agent")
     expected_agent_behavior_placeholder: str = "{{ExpectedAgentBehavior}}"
     agent_run_history_placeholder: str = "{{AgentRunHistory}}"
     llm: Optional[UiPathLlmChatService] = None
