@@ -98,9 +98,12 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q --cov=src/uipath --cov-report=term-missing"
+addopts = "-ra -q --cov=src/uipath --cov-report=term-missing -m 'not e2e'"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests against real ECS/LLMOps (requires UIPATH_URL, UIPATH_ACCESS_TOKEN, UIPATH_FOLDER_KEY)",
+]
 
 [tool.coverage.report]
 show_missing = true
