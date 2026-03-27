@@ -27,6 +27,7 @@ from .base_legacy_evaluator import (
     LegacyEvaluationCriteria,
     LegacyEvaluatorConfig,
 )
+from .evaluator_utils import _call_llm_with_logging
 from .legacy_llm_helpers import create_evaluation_tool, extract_tool_call_response
 
 logger = logging.getLogger(__name__)
@@ -181,5 +182,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
             "tool_choice": tool_choice,
         }
 
-        response = await self.llm.chat_completions(**request_data)
+        response = await _call_llm_with_logging(
+            self.llm.chat_completions, request_data, model
+        )
         return extract_tool_call_response(response, model)

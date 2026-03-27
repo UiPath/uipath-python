@@ -1,7 +1,5 @@
 """LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
 
-import copy
-import json
 import logging
 from abc import abstractmethod
 from collections.abc import Callable
@@ -31,6 +29,7 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
+from .evaluator_utils import _call_llm_with_logging
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
 
@@ -278,84 +277,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             )
 
-        # Log the request details (exclude non-JSON-serializable objects)
-        logger.info(
-            f"🤖 Calling LLM evaluator with model: {model} (using function calling)"
-        )
-        max_tokens_str = (
-            str(max_tokens_value) if max_tokens_value is not None else "unset"
-        )
-        logger.debug(
-            f"Request data: model={model}, max_tokens={max_tokens_str}, temperature={self.evaluator_config.temperature}, tool_choice=required"
-        )
-
-        # Log full request body for debugging
-        request_body_for_log = copy.deepcopy(request_data)
-        # Convert tool_choice to dict for logging
-        if "tool_choice" in request_body_for_log:
-            request_body_for_log["tool_choice"] = request_body_for_log[
-                "tool_choice"
-            ].model_dump()
-        # Convert tools to dict for logging
-        if "tools" in request_body_for_log:
-            request_body_for_log["tools"] = [
-                t.model_dump() for t in request_body_for_log["tools"]
-            ]
-        logger.info(
-            f"📤 Full request body:\n{json.dumps(request_body_for_log, indent=2)}"
-        )
-
-        try:
-            response = await self.llm_service(**request_data)
-        except Exception as e:
-            # Enhanced error logging with details
-            logger.error("=" * 80)
-            logger.error("❌ LLM REQUEST FAILED")
-            logger.error("=" * 80)
-            logger.error(f"Model: {model}")
-            logger.error("API Endpoint: Normalized API (/llm/api/chat/completions)")
-            logger.error(f"Error Type: {type(e).__name__}")
-            logger.error(f"Error Message: {str(e)}")
-
-            # Try to extract HTTP error details if available
-            if hasattr(e, "response"):
-                logger.error(
-                    f"HTTP Status Code: {e.response.status_code if hasattr(e.response, 'status_code') else 'N/A'}"
-                )
-                try:
-                    error_body = (
-                        e.response.json()
-                        if hasattr(e.response, "json")
-                        else str(e.response.content)
-                    )
-                    logger.error(
-                        f"Response Body: {json.dumps(error_body, indent=2) if isinstance(error_body, dict) else error_body}"
-                    )
-                except Exception:
-                    logger.error(
-                        f"Response Body: {str(e.response.content) if hasattr(e.response, 'content') else 'N/A'}"
-                    )
-
-            max_tokens_str = (
-                str(self.evaluator_config.max_tokens)
-                if self.evaluator_config.max_tokens is not None
-                else "unset"
-            )
-            logger.error(
-                f"Request Details: model={model}, max_tokens={max_tokens_str}, temperature={self.evaluator_config.temperature}, tool_choice=required"
-            )
-            logger.error("=" * 80)
-
-            raise UiPathEvaluationError(
-                code="FAILED_TO_GET_LLM_RESPONSE",
-                title="Failed to get LLM response",
-                detail=f"Model: {model}, Error: {type(e).__name__}: {str(e)}",
-                category=UiPathEvaluationErrorCategory.SYSTEM,
-            ) from e
-
-        # Log successful response
-        logger.info(f"✅ LLM response received successfully from {model}")
-        logger.debug(f"Response: {response}")
+        response = await _call_llm_with_logging(self.llm_service, request_data, model)
 
         # Extract structured output from tool call
         return self._extract_tool_call_response(response, model)
