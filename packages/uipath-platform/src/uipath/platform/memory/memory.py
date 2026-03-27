@@ -56,13 +56,13 @@ class FieldSettings(BaseModel):
 
 
 class SearchField(BaseModel):
-    """A field in a search request, with optional per-field settings."""
+    """A field in a search request, with per-field settings."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     key_path: List[str] = Field(..., alias="keyPath", min_length=1)
     value: str = Field(..., alias="value", min_length=1)
-    settings: Optional[FieldSettings] = Field(None, alias="settings")
+    settings: FieldSettings = Field(default_factory=FieldSettings, alias="settings")
 
 
 class SearchSettings(BaseModel):

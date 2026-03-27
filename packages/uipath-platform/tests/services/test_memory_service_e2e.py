@@ -189,7 +189,7 @@ class TestMemoryServiceE2E:
             timeout=30.0,
         ) as client:
             resp = client.post(
-                "/llmops_/api/Agent/feedback",
+                "/llmopstenant_/api/Agent/feedback",
                 json=feedback_payload,
             )
             # If feedback creation fails (e.g. LLMOps not available),

@@ -28,8 +28,8 @@ from .memory import (
 )
 
 _ECS_BASE = "/ecs_/v2/episodicmemories"
-_LLMOPS_AGENT_BASE = "/llmops_/api/Agent/memory"
-_LLMOPS_MEMORY_BASE = "/llmops_/api/Memory"
+_LLMOPS_AGENT_BASE = "/llmopstenant_/api/Agent/memory"
+_LLMOPS_MEMORY_BASE = "/llmopstenant_/api/Memory"
 
 
 class MemoryService(FolderContext, BaseService):
