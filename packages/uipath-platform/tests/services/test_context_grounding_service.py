@@ -376,6 +376,153 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_async/{version}"
         )
 
+    def test_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-id-1",
+                        "name": "index-one",
+                        "lastIngestionStatus": "Completed",
+                    },
+                    {
+                        "id": "index-id-2",
+                        "name": "index-two",
+                        "lastIngestionStatus": "Queued",
+                    },
+                ]
+            },
+        )
+
+        indexes = service.list()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 2
+        assert all(isinstance(i, ContextGroundingIndex) for i in indexes)
+        assert indexes[0].id == "index-id-1"
+        assert indexes[0].name == "index-one"
+        assert indexes[1].id == "index-id-2"
+        assert indexes[1].name == "index-two"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[1].method == "GET"
+        assert (
+            sent_requests[1].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/indexes?%24expand=dataSource"
+        )
+        assert HEADER_USER_AGENT in sent_requests[1].headers
+        assert (
+            sent_requests[1].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.list/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_list_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-id-1",
+                        "name": "index-one",
+                        "lastIngestionStatus": "Completed",
+                    },
+                ]
+            },
+        )
+
+        indexes = await service.list_async()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 1
+        assert isinstance(indexes[0], ContextGroundingIndex)
+        assert indexes[0].id == "index-id-1"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[1].method == "GET"
+        assert (
+            sent_requests[1].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/indexes?%24expand=dataSource"
+        )
+        assert HEADER_USER_AGENT in sent_requests[1].headers
+        assert (
+            sent_requests[1].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.list_async/{version}"
+        )
+
+    def test_list_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$expand=dataSource",
+            status_code=200,
+            json={"value": []},
+        )
+
+        indexes = service.list()
+
+        assert indexes == []
+
     def test_retrieve_across_folders(
         self,
         httpx_mock: HTTPXMock,

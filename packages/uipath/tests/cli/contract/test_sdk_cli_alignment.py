@@ -7,7 +7,7 @@ These tests catch:
 """
 
 import inspect
-from typing import Any
+from typing import Any, cast
 
 import click
 import pytest
@@ -118,6 +118,18 @@ def assert_cli_sdk_alignment(
 # Parameter mappings: CLI param name → SDK param name
 # Used when CLI uses more user-friendly names than SDK
 PARAM_MAPPINGS = {
+    # context-grounding: --index maps to SDK 'name', --folder maps to SDK 'folder_path'
+    "context-grounding_list": {},
+    "context-grounding_retrieve": {
+        "index_name": "name",
+    },
+    "context-grounding_search": {
+        "index_name": "name",
+    },
+    # ingest/delete: SDK takes an index *object*, not a name. CLI's --index is a
+    # lookup key used to call retrieve() internally — it has no direct SDK counterpart.
+    "context-grounding_ingest": {},
+    "context-grounding_delete": {},
     "buckets_files_download": {
         "bucket_name": "name",
         "remote_path": "blob_file_path",
@@ -154,6 +166,13 @@ PARAM_MAPPINGS = {
 # SDK parameters to exclude for specific commands
 # Used when SDK has optional params that CLI doesn't expose
 SDK_EXCLUSIONS = {
+    # context-grounding: ingest/delete take an index *object*; CLI uses --index name
+    # then retrieves internally — so the SDK 'index' object param is not a CLI option.
+    "context-grounding_list": set(),
+    "context-grounding_retrieve": set(),
+    "context-grounding_search": set(),
+    "context-grounding_ingest": {"index"},
+    "context-grounding_delete": {"index"},
     "buckets_list": {
         "name",
         "skip",
@@ -188,6 +207,12 @@ SDK_EXCLUSIONS = {
 @pytest.mark.parametrize(
     "service,command,sdk_class,sdk_method",
     [
+        # Context Grounding
+        ("context-grounding", "list", "ContextGroundingService", "list"),
+        ("context-grounding", "retrieve", "ContextGroundingService", "retrieve"),
+        ("context-grounding", "search", "ContextGroundingService", "search"),
+        ("context-grounding", "ingest", "ContextGroundingService", "ingest_data"),
+        ("context-grounding", "delete", "ContextGroundingService", "delete_index"),
         # Buckets - bucket operations
         ("buckets", "list", "BucketsService", "list"),
         ("buckets", "retrieve", "BucketsService", "retrieve"),
@@ -212,29 +237,48 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
     This test runs on every commit to catch SDK/CLI drift early.
     """
     from uipath._cli import services as cli_services
+    from uipath.platform import context_grounding as cg_module
     from uipath.platform import orchestrator
 
-    # Get SDK class and method
-    sdk_cls = getattr(orchestrator, sdk_class)
+    # SDK class lookup: context-grounding lives in context_grounding, not orchestrator
+    if sdk_class == "ContextGroundingService":
+        sdk_cls = getattr(cg_module, sdk_class)
+    else:
+        sdk_cls = getattr(orchestrator, sdk_class)
     sdk_meth = getattr(sdk_cls, sdk_method)
 
-    # Get CLI service group and command
-    # Handle nested subgroups (e.g., "buckets_files")
-    if "_" in service:
-        # Nested subgroup (e.g., "buckets_files")
-        parts = service.split("_")
-        service_group = getattr(cli_services, parts[0])  # Get "buckets"
-        subgroup = service_group.commands[parts[1]]  # Get "files" subgroup
+    # Services that are nested sub-groups (e.g. "buckets_files" means
+    # cli_services.buckets.commands["files"].commands[command]).
+    # All other service keys resolve directly to a cli_services attribute
+    # (hyphens are converted to underscores: "context-grounding" → context_grounding).
+    NESTED_SERVICES = {"buckets_files"}
+
+    def _get_service_group(name: str) -> click.Group:
+        """Resolve a cli_services attribute, converting hyphens to underscores."""
+        return getattr(cli_services, name.replace("-", "_"))
+
+    if service in NESTED_SERVICES:
+        parent_name, sub_name = service.split("_", 1)
+        service_group = _get_service_group(parent_name)
+        subgroup = cast(click.Group, service_group.commands[sub_name])
         cli_cmd = subgroup.commands[command.replace("_", "-")]
     else:
-        # Top-level service group
-        service_group = getattr(cli_services, service)
+        service_group = _get_service_group(service)
         cli_cmd = service_group.commands[command.replace("_", "-")]
+
+    # CLI-only options per command (beyond the global CLI_ONLY_OPTIONS set).
+    CLI_EXCLUSIONS: dict[str, set[str]] = {
+        # ingest/delete use --index to look up the index object via retrieve();
+        # index_name is a CLI-only lookup key with no direct SDK parameter counterpart.
+        "context-grounding_ingest": {"index_name"},
+        "context-grounding_delete": {"index_name"},
+    }
 
     # Get mappings and exclusions for this command
     mapping_key = f"{service}_{command}"
     param_mappings = PARAM_MAPPINGS.get(mapping_key, {})
     sdk_exclusions = SDK_EXCLUSIONS.get(mapping_key, set())
+    cli_exclusions = CLI_EXCLUSIONS.get(mapping_key, set())
 
     # Run alignment check
     assert_cli_sdk_alignment(
@@ -242,6 +286,7 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
         sdk_meth,
         param_mappings=param_mappings,
         exclude_sdk=sdk_exclusions,
+        exclude_cli=cli_exclusions,
     )
 
 
