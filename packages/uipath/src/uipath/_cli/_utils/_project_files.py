@@ -460,6 +460,9 @@ def files_to_include(
 
         dirs[:] = included_dirs
         for file in files:
+            if file.startswith("."):
+                continue
+
             file_extension = os.path.splitext(file)[1].lower()
             file_path = os.path.join(root, file)
             file_name = os.path.basename(file_path)
