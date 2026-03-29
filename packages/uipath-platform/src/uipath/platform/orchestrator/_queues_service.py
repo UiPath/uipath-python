@@ -1,12 +1,13 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from httpx import Response
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
+from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
-from ..common._folder_context import FolderContext
+from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from .queues import (
     CommitType,
@@ -28,71 +29,133 @@ class QueuesService(FolderContext, BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_list_items", run_type="uipath")
-    def list_items(self) -> Response:
+    def list_items(
+        self,
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Response:
         """Retrieves a list of queue items from the Orchestrator.
 
+        Args:
+            queue_name (Optional[str]): The name of the queue to filter items by.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
+
         Returns:
             Response: HTTP response containing the list of queue items.
         """
-        spec = self._list_items_spec()
-        response = self.request(spec.method, url=spec.endpoint)
+        spec = self._list_items_spec(
+            queue_name=queue_name, folder_key=folder_key, folder_path=folder_path
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, params=spec.params, headers=spec.headers
+        )
 
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_list_items", run_type="uipath")
-    async def list_items_async(self) -> Response:
+    async def list_items_async(
+        self,
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Response:
         """Asynchronously retrieves a list of queue items from the Orchestrator.
 
+        Args:
+            queue_name (Optional[str]): The name of the queue to filter items by.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
+
         Returns:
             Response: HTTP response containing the list of queue items.
         """
-        spec = self._list_items_spec()
-        response = await self.request_async(spec.method, url=spec.endpoint)
+        spec = self._list_items_spec(
+            queue_name=queue_name, folder_key=folder_key, folder_path=folder_path
+        )
+        response = await self.request_async(
+            spec.method, url=spec.endpoint, params=spec.params, headers=spec.headers
+        )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_create_item", run_type="uipath")
-    def create_item(self, item: Union[Dict[str, Any], QueueItem]) -> Response:
+    def create_item(
+        self,
+        item: Union[Dict[str, Any], QueueItem],
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Response:
         """Creates a new queue item in the Orchestrator.
 
         Args:
             item: Queue item data, either as a dictionary or QueueItem instance.
+            queue_name (Optional[str]): The name of the queue. Overrides item.name when provided.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response containing the created queue item details.
 
         Related Activity: [Add Queue Item](https://docs.uipath.com/ACTIVITIES/other/latest/workflow/add-queue-item)
         """
-        spec = self._create_item_spec(item)
-        response = self.request(spec.method, url=spec.endpoint, json=spec.json)
+        spec = self._create_item_spec(
+            item, queue_name=queue_name, folder_key=folder_key, folder_path=folder_path
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_create_item", run_type="uipath")
     async def create_item_async(
-        self, item: Union[Dict[str, Any], QueueItem]
+        self,
+        item: Union[Dict[str, Any], QueueItem],
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Asynchronously creates a new queue item in the Orchestrator.
 
         Args:
             item: Queue item data, either as a dictionary or QueueItem instance.
+            queue_name (Optional[str]): The name of the queue. Overrides item.name when provided.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response containing the created queue item details.
 
         Related Activity: [Add Queue Item](https://docs.uipath.com/ACTIVITIES/other/latest/workflow/add-queue-item)
         """
-        spec = self._create_item_spec(item)
+        spec = self._create_item_spec(
+            item, queue_name=queue_name, folder_key=folder_key, folder_path=folder_path
+        )
         response = await self.request_async(
-            spec.method, url=spec.endpoint, json=spec.json
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_create_items", run_type="uipath")
     def create_items(
         self,
         items: List[Union[Dict[str, Any], QueueItem]],
         queue_name: str,
         commit_type: CommitType,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Creates multiple queue items in bulk.
 
@@ -100,20 +163,34 @@ class QueuesService(FolderContext, BaseService):
             items: List of queue items to create, each either a dictionary or QueueItem instance.
             queue_name: Name of the target queue.
             commit_type: Type of commit operation to use for the bulk operation.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response containing the bulk operation result.
         """
-        spec = self._create_items_spec(items, queue_name, commit_type)
-        response = self.request(spec.method, url=spec.endpoint, json=spec.json)
+        spec = self._create_items_spec(
+            items,
+            queue_name,
+            commit_type,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_create_items", run_type="uipath")
     async def create_items_async(
         self,
         items: List[Union[Dict[str, Any], QueueItem]],
         queue_name: str,
         commit_type: CommitType,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Asynchronously creates multiple queue items in bulk.
 
@@ -121,129 +198,223 @@ class QueuesService(FolderContext, BaseService):
             items: List of queue items to create, each either a dictionary or QueueItem instance.
             queue_name: Name of the target queue.
             commit_type: Type of commit operation to use for the bulk operation.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response containing the bulk operation result.
         """
-        spec = self._create_items_spec(items, queue_name, commit_type)
+        spec = self._create_items_spec(
+            items,
+            queue_name,
+            commit_type,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         response = await self.request_async(
-            spec.method, url=spec.endpoint, json=spec.json
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_create_transaction_item", run_type="uipath")
     def create_transaction_item(
-        self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
+        self,
+        item: Union[Dict[str, Any], TransactionItem],
+        queue_name: Optional[str] = None,
+        no_robot: bool = False,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Creates a new transaction item in a queue.
 
         Args:
             item: Transaction item data, either as a dictionary or TransactionItem instance.
+            queue_name (Optional[str]): The name of the queue. Overrides item.name when provided.
             no_robot: If True, the transaction will not be associated with a robot. Defaults to False.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response containing the transaction item details.
         """
-        spec = self._create_transaction_item_spec(item, no_robot)
-        response = self.request(spec.method, url=spec.endpoint, json=spec.json)
+        spec = self._create_transaction_item_spec(
+            item,
+            queue_name=queue_name,
+            no_robot=no_robot,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_create_transaction_item", run_type="uipath")
     async def create_transaction_item_async(
-        self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
+        self,
+        item: Union[Dict[str, Any], TransactionItem],
+        queue_name: Optional[str] = None,
+        no_robot: bool = False,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Asynchronously creates a new transaction item in a queue.
 
         Args:
             item: Transaction item data, either as a dictionary or TransactionItem instance.
+            queue_name (Optional[str]): The name of the queue. Overrides item.name when provided.
             no_robot: If True, the transaction will not be associated with a robot. Defaults to False.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response containing the transaction item details.
         """
-        spec = self._create_transaction_item_spec(item, no_robot)
+        spec = self._create_transaction_item_spec(
+            item,
+            queue_name=queue_name,
+            no_robot=no_robot,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
         response = await self.request_async(
-            spec.method, url=spec.endpoint, json=spec.json
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_update_progress_of_transaction_item", run_type="uipath")
     def update_progress_of_transaction_item(
-        self, transaction_key: str, progress: str
+        self,
+        transaction_key: str,
+        progress: str,
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Updates the progress of a transaction item.
 
         Args:
             transaction_key: Unique identifier of the transaction.
             progress: Progress message to set.
+            queue_name (Optional[str]): The name of the queue the transaction belongs to.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response confirming the progress update.
 
         Related Activity: [Set Transaction Progress](https://docs.uipath.com/activities/other/latest/workflow/set-transaction-progress)
         """
-        spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
-        response = self.request(spec.method, url=spec.endpoint, json=spec.json)
+        spec = self._update_progress_of_transaction_item_spec(
+            transaction_key, progress, folder_key=folder_key, folder_path=folder_path
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_update_progress_of_transaction_item", run_type="uipath")
     async def update_progress_of_transaction_item_async(
-        self, transaction_key: str, progress: str
+        self,
+        transaction_key: str,
+        progress: str,
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Asynchronously updates the progress of a transaction item.
 
         Args:
             transaction_key: Unique identifier of the transaction.
             progress: Progress message to set.
+            queue_name (Optional[str]): The name of the queue the transaction belongs to.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response confirming the progress update.
 
         Related Activity: [Set Transaction Progress](https://docs.uipath.com/activities/other/latest/workflow/set-transaction-progress)
         """
-        spec = self._update_progress_of_transaction_item_spec(transaction_key, progress)
+        spec = self._update_progress_of_transaction_item_spec(
+            transaction_key, progress, folder_key=folder_key, folder_path=folder_path
+        )
         response = await self.request_async(
-            spec.method, url=spec.endpoint, json=spec.json
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_complete_transaction_item", run_type="uipath")
     def complete_transaction_item(
-        self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
+        self,
+        transaction_key: str,
+        result: Union[Dict[str, Any], TransactionItemResult],
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Completes a transaction item with the specified result.
 
         Args:
             transaction_key: Unique identifier of the transaction to complete.
             result: Result data for the transaction, either as a dictionary or TransactionItemResult instance.
+            queue_name (Optional[str]): The name of the queue the transaction belongs to.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response confirming the transaction completion.
 
         Related Activity: [Set Transaction Status](https://docs.uipath.com/activities/other/latest/workflow/set-transaction-status)
         """
-        spec = self._complete_transaction_item_spec(transaction_key, result)
-        response = self.request(spec.method, url=spec.endpoint, json=spec.json)
+        spec = self._complete_transaction_item_spec(
+            transaction_key, result, folder_key=folder_key, folder_path=folder_path
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json()
 
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_complete_transaction_item", run_type="uipath")
     async def complete_transaction_item_async(
-        self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
+        self,
+        transaction_key: str,
+        result: Union[Dict[str, Any], TransactionItemResult],
+        queue_name: Optional[str] = None,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Response:
         """Asynchronously completes a transaction item with the specified result.
 
         Args:
             transaction_key: Unique identifier of the transaction to complete.
             result: Result data for the transaction, either as a dictionary or TransactionItemResult instance.
+            queue_name (Optional[str]): The name of the queue the transaction belongs to.
+            folder_key (Optional[str]): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Overrides the default one set in the SDK config.
 
         Returns:
             Response: HTTP response confirming the transaction completion.
 
         Related Activity: [Set Transaction Status](https://docs.uipath.com/activities/other/latest/workflow/set-transaction-status)
         """
-        spec = self._complete_transaction_item_spec(transaction_key, result)
+        spec = self._complete_transaction_item_spec(
+            transaction_key, result, folder_key=folder_key, folder_path=folder_path
+        )
         response = await self.request_async(
-            spec.method, url=spec.endpoint, json=spec.json
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
         return response.json()
 
@@ -251,21 +422,47 @@ class QueuesService(FolderContext, BaseService):
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
 
-    def _list_items_spec(self) -> RequestSpec:
+    def _list_items_spec(
+        self,
+        *,
+        queue_name: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        params = {}
+        if queue_name is not None:
+            params["$filter"] = f"QueueDefinitionName eq '{queue_name}'"
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/orchestrator_/odata/QueueItems"),
+            params=params,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
-    def _create_item_spec(self, item: Union[Dict[str, Any], QueueItem]) -> RequestSpec:
+    def _create_item_spec(
+        self,
+        item: Union[Dict[str, Any], QueueItem],
+        *,
+        queue_name: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
         if isinstance(item, dict):
             queue_item = QueueItem(**item)
         elif isinstance(item, QueueItem):
             queue_item = item
 
-        json_payload = {
-            "itemData": queue_item.model_dump(exclude_unset=True, by_alias=True)
-        }
+        item_data = queue_item.model_dump(exclude_unset=True, by_alias=True)
+        resolved_name = queue_name or item_data.get("Name")
+        if resolved_name is None:
+            raise ValueError(
+                "queue_name must be provided either via the queue_name parameter or item.name"
+            )
+        item_data["Name"] = resolved_name
+
+        json_payload = {"itemData": item_data}
 
         return RequestSpec(
             method="POST",
@@ -273,6 +470,9 @@ class QueuesService(FolderContext, BaseService):
                 "/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem"
             ),
             json=json_payload,
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     def _create_items_spec(
@@ -280,6 +480,9 @@ class QueuesService(FolderContext, BaseService):
         items: List[Union[Dict[str, Any], QueueItem]],
         queue_name: str,
         commit_type: CommitType,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -296,35 +499,55 @@ class QueuesService(FolderContext, BaseService):
                     for item in items
                 ],
             },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     def _create_transaction_item_spec(
-        self, item: Union[Dict[str, Any], TransactionItem], no_robot: bool = False
+        self,
+        item: Union[Dict[str, Any], TransactionItem],
+        *,
+        queue_name: Optional[str] = None,
+        no_robot: bool = False,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
         if isinstance(item, dict):
             transaction_item = TransactionItem(**item)
         elif isinstance(item, TransactionItem):
             transaction_item = item
 
+        transaction_data = transaction_item.model_dump(
+            exclude_unset=True, by_alias=True
+        )
+        resolved_name = queue_name or transaction_data.get("Name")
+        if resolved_name is None:
+            raise ValueError(
+                "queue_name must be provided either via the queue_name parameter or item.name"
+            )
+        transaction_data["Name"] = resolved_name
+        if not no_robot:
+            transaction_data["RobotIdentifier"] = self._execution_context.robot_key
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
                 "/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction"
             ),
-            json={
-                "transactionData": {
-                    **transaction_item.model_dump(exclude_unset=True, by_alias=True),
-                    **(
-                        {"RobotIdentifier": self._execution_context.robot_key}
-                        if not no_robot
-                        else {}
-                    ),
-                }
+            json={"transactionData": transaction_data},
+            headers={
+                **header_folder(folder_key, folder_path),
             },
         )
 
     def _update_progress_of_transaction_item_spec(
-        self, transaction_key: str, progress: str
+        self,
+        transaction_key: str,
+        progress: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
         return RequestSpec(
             method="POST",
@@ -332,10 +555,18 @@ class QueuesService(FolderContext, BaseService):
                 f"/orchestrator_/odata/QueueItems({transaction_key})/UiPathODataSvc.SetTransactionProgress"
             ),
             json={"progress": progress},
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
         )
 
     def _complete_transaction_item_spec(
-        self, transaction_key: str, result: Union[Dict[str, Any], TransactionItemResult]
+        self,
+        transaction_key: str,
+        result: Union[Dict[str, Any], TransactionItemResult],
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> RequestSpec:
         if isinstance(result, dict):
             transaction_result = TransactionItemResult(**result)
@@ -351,5 +582,8 @@ class QueuesService(FolderContext, BaseService):
                 "transactionResult": transaction_result.model_dump(
                     exclude_unset=True, by_alias=True
                 )
+            },
+            headers={
+                **header_folder(folder_key, folder_path),
             },
         )

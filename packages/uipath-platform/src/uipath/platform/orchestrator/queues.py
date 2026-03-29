@@ -1,10 +1,11 @@
 """Models for Orchestrator Queues API."""
 
+import warnings
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 from typing_extensions import Annotated
 
 
@@ -42,10 +43,24 @@ class QueueItem(BaseModel):
             return value.isoformat() if value else None
         return value
 
-    name: str = Field(
-        description="The name of the queue into which the item will be added.",
+    name: Optional[str] = Field(
+        default=None,
+        description="Deprecated: use queue_name on the service method instead. The name of the queue into which the item will be added.",
         alias="Name",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def warn_name_deprecated(cls, values: Any) -> Any:
+        """Emit a deprecation warning when the 'name' field is used directly."""
+        if isinstance(values, dict) and ("name" in values or "Name" in values):
+            warnings.warn(
+                "The 'name' field on QueueItem is deprecated. Pass queue_name to the service method instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return values
+
     priority: Optional[QueueItemPriority] = Field(
         default=None,
         description="Sets the processing importance for a given item.",
@@ -113,10 +128,24 @@ class TransactionItem(BaseModel):
             return value.isoformat() if value else None
         return value
 
-    name: str = Field(
-        description="The name of the queue in which to search for the next item or in which to insert the item before marking it as InProgress and sending it to the robot.",
+    name: Optional[str] = Field(
+        default=None,
+        description="Deprecated: use queue_name on the service method instead. The name of the queue in which to search for the next item or in which to insert the item before marking it as InProgress and sending it to the robot.",
         alias="Name",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def warn_name_deprecated(cls, values: Any) -> Any:
+        """Emit a deprecation warning when the 'name' field is used directly."""
+        if isinstance(values, dict) and ("name" in values or "Name" in values):
+            warnings.warn(
+                "The 'name' field on TransactionItem is deprecated. Pass queue_name to the service method instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return values
+
     robot_identifier: Optional[str] = Field(
         default=None,
         description="The unique key identifying the robot that sent the request.",
