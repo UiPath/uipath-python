@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from uipath.telemetry._track import (
     _AppInsightsEventClient,
+    _DiagnosticSender,
     _parse_connection_string,
     _TelemetryClient,
     flush_events,
@@ -706,3 +707,102 @@ class TestTelemetryExceptionHandling:
 
         assert _AppInsightsEventClient._initialized is True
         assert _AppInsightsEventClient._client is None
+
+
+class TestDiagnosticSender:
+    """Test _DiagnosticSender retry, re-queue, and discard logic."""
+
+    def _make_sender(self):
+        """Create a _DiagnosticSender with a mock queue."""
+        sender = _DiagnosticSender.__new__(_DiagnosticSender)
+        sender._service_endpoint_uri = "https://example.com/v2/track"
+        sender._timeout = 10
+        sender._queue = MagicMock()
+        return sender
+
+    def _make_data_item(self, send_attempts=None):
+        item = MagicMock()
+        item.write.return_value = {"name": "test"}
+        if send_attempts is not None:
+            item._send_attempts = send_attempts
+        else:
+            del item._send_attempts
+        return item
+
+    @patch("urllib.request.urlopen")
+    def test_successful_send_does_not_requeue(self, mock_urlopen):
+        """Test that a 2xx response returns early without re-queuing."""
+        sender = self._make_sender()
+        mock_response = MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_urlopen.return_value = mock_response
+
+        data = [self._make_data_item()]
+        sender.send(data)
+
+        sender._queue.put.assert_not_called()
+
+    @patch("urllib.request.urlopen")
+    def test_http_400_discards_without_requeue(self, mock_urlopen):
+        """Test that HTTP 400 logs a warning and returns before retry logic."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com", code=400, msg="Bad Request", hdrs={}, fp=None
+        )
+
+        data = [self._make_data_item()]
+        sender.send(data)
+
+        sender._queue.put.assert_not_called()
+
+    @patch("urllib.request.urlopen")
+    def test_multiple_fresh_items_all_requeued_on_failure(self, mock_urlopen):
+        """Test that all fresh items in a batch are re-queued on failure."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com", code=503, msg="Unavailable", hdrs={}, fp=None
+        )
+
+        items = [self._make_data_item() for _ in range(3)]
+        sender.send(items)
+
+        assert sender._queue.put.call_count == 3
+        for item in items:
+            assert item._send_attempts == 1
+
+    @patch("urllib.request.urlopen")
+    def test_item_with_one_prior_attempt_is_discarded(self, mock_urlopen):
+        """Test that an already-retried item (attempt=1) is discarded on next failure."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com", code=500, msg="Server Error", hdrs={}, fp=None
+        )
+
+        item = self._make_data_item(send_attempts=1)  # already retried once
+        sender.send([item])
+
+        sender._queue.put.assert_not_called()
+
+    @patch("urllib.request.urlopen")
+    def test_mixed_batch_requeues_fresh_discards_retried(self, mock_urlopen):
+        """Test a batch with both fresh and already-retried items."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com", code=502, msg="Bad Gateway", hdrs={}, fp=None
+        )
+
+        fresh_item = self._make_data_item()  # no prior attempts
+        retried_item = self._make_data_item(send_attempts=1)  # already retried
+
+        sender.send([fresh_item, retried_item])
+
+        sender._queue.put.assert_called_once_with(fresh_item)
+        assert fresh_item._send_attempts == 1

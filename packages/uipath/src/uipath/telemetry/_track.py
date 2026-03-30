@@ -202,9 +202,18 @@ class _DiagnosticSender(SynchronousSender):
         except Exception as e:
             _logger.warning("AppInsights send: %s (%s)", type(e).__name__, e)
 
-        # Re-queue unsent data
+        # Re-queue unsent data up to 2 attempts, then discard
+        max_retries = 2
         for data in data_to_send:
-            self._queue.put(data)
+            attempt = getattr(data, "_send_attempts", 0) + 1
+            if attempt < max_retries:
+                data._send_attempts = attempt
+                self._queue.put(data)
+            else:
+                _logger.warning(
+                    "AppInsights send: discarding item after %d failed attempts",
+                    attempt,
+                )
 
 
 class _AppInsightsEventClient:
