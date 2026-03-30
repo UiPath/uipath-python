@@ -4,6 +4,7 @@ from os import environ as env
 from typing import Optional
 
 from pydantic import BaseModel
+
 from uipath.platform.common.constants import (
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
