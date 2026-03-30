@@ -1610,8 +1610,14 @@ class TestWrappedArrayOutputEvaluation:
         # All emails contain "iana" so every field violates the rule → guardrail fails.
         output_data = {
             "output": [
-                {"author": {"emailAddress": "briana.smith@test.com"}, "body": "comment1"},
-                {"author": {"emailAddress": "adriana.jones@test.com"}, "body": "comment2"},
+                {
+                    "author": {"emailAddress": "briana.smith@test.com"},
+                    "body": "comment1",
+                },
+                {
+                    "author": {"emailAddress": "adriana.jones@test.com"},
+                    "body": "comment2",
+                },
             ]
         }
         result = service.evaluate_post_deterministic_guardrail(
@@ -1652,8 +1658,14 @@ class TestWrappedArrayOutputEvaluation:
         )
         output_data = {
             "output": [
-                {"author": {"emailAddress": "mike.wilson@test.com"}, "body": "comment1"},
-                {"author": {"emailAddress": "sarah.clark@test.com"}, "body": "comment2"},
+                {
+                    "author": {"emailAddress": "mike.wilson@test.com"},
+                    "body": "comment1",
+                },
+                {
+                    "author": {"emailAddress": "sarah.clark@test.com"},
+                    "body": "comment2",
+                },
             ]
         }
         result = service.evaluate_post_deterministic_guardrail(
