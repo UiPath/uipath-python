@@ -749,7 +749,7 @@ class TestDiagnosticSender:
 
         sender = self._make_sender()
         mock_urlopen.side_effect = HTTPError(
-            url="https://example.com", code=400, msg="Bad Request", hdrs={}, fp=None
+            url="https://example.com", code=400, msg="Bad Request", hdrs=MagicMock(), fp=None
         )
 
         data = [self._make_data_item()]
@@ -764,7 +764,7 @@ class TestDiagnosticSender:
 
         sender = self._make_sender()
         mock_urlopen.side_effect = HTTPError(
-            url="https://example.com", code=503, msg="Unavailable", hdrs={}, fp=None
+            url="https://example.com", code=503, msg="Unavailable", hdrs=MagicMock(), fp=None
         )
 
         items = [self._make_data_item() for _ in range(3)]
@@ -781,7 +781,7 @@ class TestDiagnosticSender:
 
         sender = self._make_sender()
         mock_urlopen.side_effect = HTTPError(
-            url="https://example.com", code=500, msg="Server Error", hdrs={}, fp=None
+            url="https://example.com", code=500, msg="Server Error", hdrs=MagicMock(), fp=None
         )
 
         item = self._make_data_item(send_attempts=1)  # already retried once
@@ -796,7 +796,7 @@ class TestDiagnosticSender:
 
         sender = self._make_sender()
         mock_urlopen.side_effect = HTTPError(
-            url="https://example.com", code=502, msg="Bad Gateway", hdrs={}, fp=None
+            url="https://example.com", code=502, msg="Bad Gateway", hdrs=MagicMock(), fp=None
         )
 
         fresh_item = self._make_data_item()  # no prior attempts
