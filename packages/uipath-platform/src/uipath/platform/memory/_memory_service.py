@@ -1,8 +1,8 @@
 """Episodic Memory service.
 
-Index management (create/list/get/delete) goes through ECS v2.
-Ingest and search go through LLMOps, which enriches traces/feedback
-before forwarding to ECS.
+Index management (create/list) goes through ECS v2.
+Search and escalation memory operations go through LLMOps, which
+enriches traces/feedback before forwarding to ECS.
 """
 
 from typing import Any, Optional
@@ -19,18 +19,14 @@ from .memory import (
     EpisodicMemoryCreateRequest,
     EpisodicMemoryIndex,
     EpisodicMemoryListResponse,
-    FeedbackMemoryStatus,
-    MemoryIngestRequest,
-    MemoryIngestResponse,
-    MemoryItemResponse,
-    MemoryItemUpdateRequest,
+    EscalationMemoryIngestRequest,
+    EscalationMemorySearchResponse,
     MemorySearchRequest,
     MemorySearchResponse,
 )
 
 _ECS_BASE = "/ecs_/v2/episodicmemories"
 _LLMOPS_AGENT_BASE = "/llmopstenant_/api/Agent/memory"
-_LLMOPS_MEMORY_BASE = "/llmopstenant_/api/Memory"
 
 
 class MemoryService(FolderContext, BaseService):
@@ -38,8 +34,9 @@ class MemoryService(FolderContext, BaseService):
 
     Agent Memory allows agents to persist context across jobs using dynamic
     few-shot retrieval. Memory indexes are folder-scoped and managed via ECS.
-    Ingestion and search are routed through LLMOps, which handles
-    trace/feedback enrichment and system prompt injection.
+    Search is routed through LLMOps, which handles trace/feedback enrichment
+    and system prompt injection. Escalation memory enables agents to recall
+    previously resolved escalation outcomes.
     """
 
     def __init__(
@@ -152,139 +149,6 @@ class MemoryService(FolderContext, BaseService):
         ).json()
         return EpisodicMemoryListResponse.model_validate(response)
 
-    @traced(name="memory_get", run_type="uipath")
-    def get(
-        self,
-        key: str,
-        folder_key: Optional[str] = None,
-    ) -> EpisodicMemoryIndex:
-        """Get a single episodic memory index by ID.
-
-        Args:
-            key: The GUID of the memory index.
-            folder_key: The folder key for the operation.
-
-        Returns:
-            EpisodicMemoryIndex: The memory index.
-        """
-        spec = self._get_spec(key, folder_key)
-        response = self.request(
-            spec.method,
-            spec.endpoint,
-            headers=spec.headers,
-        ).json()
-        return EpisodicMemoryIndex.model_validate(response)
-
-    @traced(name="memory_get", run_type="uipath")
-    async def get_async(
-        self,
-        key: str,
-        folder_key: Optional[str] = None,
-    ) -> EpisodicMemoryIndex:
-        """Asynchronously get a single episodic memory index by ID."""
-        spec = self._get_spec(key, folder_key)
-        response = (
-            await self.request_async(
-                spec.method,
-                spec.endpoint,
-                headers=spec.headers,
-            )
-        ).json()
-        return EpisodicMemoryIndex.model_validate(response)
-
-    @traced(name="memory_delete_index", run_type="uipath")
-    def delete_index(
-        self,
-        key: str,
-        folder_key: Optional[str] = None,
-    ) -> None:
-        """Delete an episodic memory index.
-
-        Args:
-            key: The GUID of the memory index.
-            folder_key: The folder key for the operation.
-        """
-        spec = self._delete_index_spec(key, folder_key)
-        self.request(
-            spec.method,
-            spec.endpoint,
-            headers=spec.headers,
-        )
-
-    @traced(name="memory_delete_index", run_type="uipath")
-    async def delete_index_async(
-        self,
-        key: str,
-        folder_key: Optional[str] = None,
-    ) -> None:
-        """Asynchronously delete an episodic memory index."""
-        spec = self._delete_index_spec(key, folder_key)
-        await self.request_async(
-            spec.method,
-            spec.endpoint,
-            headers=spec.headers,
-        )
-
-    # ── Ingest (LLMOps) ───────────────────────────────────────────────
-
-    @traced(name="memory_ingest", run_type="uipath")
-    def ingest(
-        self,
-        memory_space_id: str,
-        feedback_id: str,
-        memory_space_name: Optional[str] = None,
-        attributes: Optional[str] = None,
-        folder_key: Optional[str] = None,
-    ) -> MemoryIngestResponse:
-        """Ingest a memory item via LLMOps.
-
-        LLMOps extracts fields from the trace/feedback and forwards
-        the ingestion to ECS.
-
-        Args:
-            memory_space_id: The GUID of the memory space (ECS index).
-            feedback_id: The GUID of the feedback to ingest from.
-            memory_space_name: Optional name for the memory space.
-            attributes: Optional JSON-encoded attributes.
-            folder_key: The folder key for the operation.
-
-        Returns:
-            MemoryIngestResponse: The ID of the created memory item.
-        """
-        spec = self._ingest_spec(memory_space_id, memory_space_name, folder_key)
-        body = MemoryIngestRequest(feedback_id=feedback_id, attributes=attributes)
-        response = self.request(
-            spec.method,
-            spec.endpoint,
-            params=spec.params,
-            json=body.model_dump(by_alias=True, exclude_none=True),
-            headers=spec.headers,
-        ).json()
-        return MemoryIngestResponse.model_validate(response)
-
-    @traced(name="memory_ingest", run_type="uipath")
-    async def ingest_async(
-        self,
-        memory_space_id: str,
-        feedback_id: str,
-        memory_space_name: Optional[str] = None,
-        attributes: Optional[str] = None,
-        folder_key: Optional[str] = None,
-    ) -> MemoryIngestResponse:
-        """Asynchronously ingest a memory item via LLMOps."""
-        spec = self._ingest_spec(memory_space_id, memory_space_name, folder_key)
-        body = MemoryIngestRequest(feedback_id=feedback_id, attributes=attributes)
-        response = (
-            await self.request_async(
-                spec.method,
-                spec.endpoint,
-                params=spec.params,
-                json=body.model_dump(by_alias=True, exclude_none=True),
-                headers=spec.headers,
-            )
-        ).json()
-        return MemoryIngestResponse.model_validate(response)
-
     # ── Search (LLMOps) ───────────────────────────────────────────────
 
     @traced(name="memory_search", run_type="uipath")
@@ -335,91 +199,94 @@ class MemoryService(FolderContext, BaseService):
         ).json()
         return MemorySearchResponse.model_validate(response)
 
-    # ── Memory item operations (LLMOps) ───────────────────────────────
+    # ── Escalation memory (LLMOps) ────────────────────────────────────
 
-    @traced(name="memory_patch", run_type="uipath")
-    def patch_memory(
+    @traced(name="memory_escalation_search", run_type="uipath")
+    def escalation_search(
         self,
         memory_space_id: str,
-        memory_item_id: str,
-        status: FeedbackMemoryStatus,
+        request: MemorySearchRequest,
         folder_key: Optional[str] = None,
-    ) -> MemoryItemResponse:
-        """Update a memory item's status (Enabled/Disabled) via LLMOps.
+    ) -> EscalationMemorySearchResponse:
+        """Search escalation memory for previously resolved outcomes.
+
+        Allows agents to recall past escalation resolutions to avoid
+        re-escalating for similar situations.
 
         Args:
-            memory_space_id: The GUID of the memory space.
-            memory_item_id: The GUID of the memory item.
-            status: The new status.
+            memory_space_id: The GUID of the memory space (ECS index).
+            request: The search request payload (same as regular search).
             folder_key: The folder key for the operation.
 
         Returns:
-            MemoryItemResponse: The updated memory item.
+            EscalationMemorySearchResponse: Matched escalation outcomes.
         """
-        spec = self._patch_memory_spec(memory_space_id, memory_item_id, folder_key)
-        body = MemoryItemUpdateRequest(status=status)
+        spec = self._escalation_search_spec(memory_space_id, folder_key)
         response = self.request(
             spec.method,
             spec.endpoint,
-            json=body.model_dump(by_alias=True),
+            json=request.model_dump(by_alias=True, exclude_none=True),
             headers=spec.headers,
         ).json()
-        return MemoryItemResponse.model_validate(response)
+        return EscalationMemorySearchResponse.model_validate(response)
 
-    @traced(name="memory_patch", run_type="uipath")
-    async def patch_memory_async(
+    @traced(name="memory_escalation_search", run_type="uipath")
+    async def escalation_search_async(
         self,
         memory_space_id: str,
-        memory_item_id: str,
-        status: FeedbackMemoryStatus,
+        request: MemorySearchRequest,
         folder_key: Optional[str] = None,
-    ) -> MemoryItemResponse:
-        """Asynchronously update a memory item's status via LLMOps."""
-        spec = self._patch_memory_spec(memory_space_id, memory_item_id, folder_key)
-        body = MemoryItemUpdateRequest(status=status)
+    ) -> EscalationMemorySearchResponse:
+        """Asynchronously search escalation memory."""
+        spec = self._escalation_search_spec(memory_space_id, folder_key)
         response = (
             await self.request_async(
                 spec.method,
                 spec.endpoint,
-                json=body.model_dump(by_alias=True),
+                json=request.model_dump(by_alias=True, exclude_none=True),
                 headers=spec.headers,
             )
         ).json()
-        return MemoryItemResponse.model_validate(response)
+        return EscalationMemorySearchResponse.model_validate(response)
 
-    @traced(name="memory_delete", run_type="uipath")
-    def delete_memory(
+    @traced(name="memory_escalation_ingest", run_type="uipath")
+    def escalation_ingest(
         self,
         memory_space_id: str,
-        memory_item_id: str,
+        request: EscalationMemoryIngestRequest,
         folder_key: Optional[str] = None,
     ) -> None:
-        """Delete a memory item by ID via LLMOps.
+        """Ingest a resolved escalation outcome into memory.
+
+        Persists the outcome so future agent runs can recall it
+        without re-escalating.
 
         Args:
-            memory_space_id: The GUID of the memory space.
-            memory_item_id: The GUID of the memory item.
+            memory_space_id: The GUID of the memory space (ECS index).
+            request: The escalation ingest payload.
             folder_key: The folder key for the operation.
         """
-        spec = self._delete_memory_spec(memory_space_id, memory_item_id, folder_key)
+        spec = self._escalation_ingest_spec(memory_space_id, folder_key)
         self.request(
             spec.method,
             spec.endpoint,
+            json=request.model_dump(by_alias=True, exclude_none=True),
             headers=spec.headers,
         )
 
-    @traced(name="memory_delete", run_type="uipath")
-    async def delete_memory_async(
+    @traced(name="memory_escalation_ingest", run_type="uipath")
+    async def escalation_ingest_async(
         self,
         memory_space_id: str,
-        memory_item_id: str,
+        request: EscalationMemoryIngestRequest,
         folder_key: Optional[str] = None,
     ) -> None:
-        """Asynchronously delete a memory item by ID via LLMOps."""
-        spec = self._delete_memory_spec(memory_space_id, memory_item_id, folder_key)
+        """Asynchronously ingest a resolved escalation outcome."""
+        spec = self._escalation_ingest_spec(memory_space_id, folder_key)
         await self.request_async(
             spec.method,
             spec.endpoint,
+            json=request.model_dump(by_alias=True, exclude_none=True),
             headers=spec.headers,
         )
 
@@ -497,42 +364,7 @@ class MemoryService(FolderContext, BaseService):
             headers={**header_folder(folder_key, None)},
         )
 
-    def _get_spec(self, key: str, folder_key: Optional[str] = None) -> RequestSpec:
-        folder_key = self._resolve_folder(folder_key)
-        return RequestSpec(
-            method="GET",
-            endpoint=Endpoint(f"{_ECS_BASE}/{key}"),
-            headers={**header_folder(folder_key, None)},
-        )
-
-    def _delete_index_spec(
-        self, key: str, folder_key: Optional[str] = None
-    ) -> RequestSpec:
-        folder_key = self._resolve_folder(folder_key)
-        return RequestSpec(
-            method="DELETE",
-            endpoint=Endpoint(f"{_ECS_BASE}/{key}"),
-            headers={**header_folder(folder_key, None)},
-        )
-
     # -- LLMOps specs --
-
-    def _ingest_spec(
-        self,
-        memory_space_id: str,
-        memory_space_name: Optional[str],
-        folder_key: Optional[str] = None,
-    ) -> RequestSpec:
-        folder_key = self._resolve_folder(folder_key)
-        params: dict[str, Any] = {}
-        if memory_space_name is not None:
-            params["memorySpaceName"] = memory_space_name
-        return RequestSpec(
-            method="POST",
-            endpoint=Endpoint(f"{_LLMOPS_AGENT_BASE}/{memory_space_id}/ingest"),
-            params=params,
-            headers={**header_folder(folder_key, None)},
-        )
 
     def _search_spec(
         self,
@@ -546,32 +378,30 @@ class MemoryService(FolderContext, BaseService):
             headers={**header_folder(folder_key, None)},
         )
 
-    def _patch_memory_spec(
+    def _escalation_search_spec(
         self,
         memory_space_id: str,
-        memory_item_id: str,
         folder_key: Optional[str] = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder(folder_key)
         return RequestSpec(
-            method="PATCH",
+            method="POST",
             endpoint=Endpoint(
-                f"{_LLMOPS_MEMORY_BASE}/{memory_space_id}/items/{memory_item_id}"
+                f"{_LLMOPS_AGENT_BASE}/{memory_space_id}/escalation/search"
             ),
             headers={**header_folder(folder_key, None)},
         )
 
-    def _delete_memory_spec(
+    def _escalation_ingest_spec(
         self,
         memory_space_id: str,
-        memory_item_id: str,
         folder_key: Optional[str] = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder(folder_key)
         return RequestSpec(
-            method="DELETE",
+            method="POST",
             endpoint=Endpoint(
-                f"{_LLMOPS_MEMORY_BASE}/{memory_space_id}/items/{memory_item_id}"
+                f"{_LLMOPS_AGENT_BASE}/{memory_space_id}/escalation/ingest"
             ),
             headers={**header_folder(folder_key, None)},
         )

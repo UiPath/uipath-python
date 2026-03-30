@@ -1,7 +1,8 @@
 """Pydantic models for the Episodic Memory API.
 
-Index management goes through ECS v2.  Ingest and search go through LLMOps,
+Index management goes through ECS v2.  Search goes through LLMOps,
 which enriches traces/feedback before forwarding to ECS.
+Escalation memory operations also go through LLMOps.
 """
 
 from enum import Enum
@@ -24,13 +25,6 @@ class EpisodicMemoryStatus(str, Enum):
 
     active = "active"
     inactive = "inactive"
-
-
-class FeedbackMemoryStatus(str, Enum):
-    """Status of a memory item (LLMOps)."""
-
-    Enabled = "Enabled"
-    Disabled = "Disabled"
 
 
 # ── Shared field models (used by both ECS and LLMOps) ─────────────────
@@ -84,7 +78,6 @@ class MemoryMatchField(BaseModel):
     value: str = Field(..., alias="value")
     weight: float = Field(..., alias="weight")
     score: float = Field(..., alias="score")
-    semantic_score: float = Field(..., alias="semanticScore")
     weighted_score: float = Field(..., alias="weightedScore")
 
 
@@ -99,14 +92,6 @@ class EpisodicMemoryCreateRequest(BaseModel):
     name: str = Field(..., alias="name", max_length=128, min_length=1)
     description: Optional[str] = Field(None, alias="description", max_length=1024)
     is_encrypted: Optional[bool] = Field(None, alias="isEncrypted")
-
-
-class EpisodicMemoryPatchRequest(BaseModel):
-    """Request payload for updating a memory item's status (ECS)."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    status: EpisodicMemoryStatus = Field(..., alias="status")
 
 
 # ── ECS response models ───────────────────────────────────────────────
@@ -133,29 +118,6 @@ class EpisodicMemoryListResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     value: List[EpisodicMemoryIndex] = Field(default_factory=list, alias="value")
-
-
-# ── LLMOps ingest models ──────────────────────────────────────────────
-
-
-class MemoryIngestRequest(BaseModel):
-    """Request payload for ingesting a memory via LLMOps Agent endpoint.
-
-    LLMOps extracts fields from the trace/feedback and forwards to ECS.
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    feedback_id: str = Field(..., alias="feedbackId")
-    attributes: Optional[str] = Field(None, alias="attributes")
-
-
-class MemoryIngestResponse(BaseModel):
-    """Response from LLMOps ingest, containing the new memory item ID."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    memory_item_id: str = Field(..., alias="memoryItemId")
 
 
 # ── LLMOps search models ──────────────────────────────────────────────
@@ -201,26 +163,45 @@ class MemorySearchResponse(BaseModel):
     system_prompt_injection: str = Field("", alias="systemPromptInjection")
 
 
-# ── LLMOps memory item CRUD models ────────────────────────────────────
+# ── LLMOps escalation memory models ──────────────────────────────────
 
 
-class MemoryItemUpdateRequest(BaseModel):
-    """Request payload for updating a memory item's status via LLMOps."""
+class EscalationMemoryIngestRequest(BaseModel):
+    """Request payload for ingesting an escalation outcome into memory.
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    status: FeedbackMemoryStatus = Field(..., alias="status")
-
-
-class MemoryItemResponse(BaseModel):
-    """Response for a memory item from LLMOps."""
+    Used by the escalation tool to persist resolved outcomes so
+    future runs can recall them without re-escalating.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 
-    memory_item_id: str = Field(..., alias="memoryItemId")
-    memory_space_id: str = Field(..., alias="memorySpaceId")
-    feedback_id: Optional[str] = Field(None, alias="feedbackId")
-    status: Optional[FeedbackMemoryStatus] = Field(None, alias="status")
-    memory_space_name: Optional[str] = Field(None, alias="memorySpaceName")
+    span_id: str = Field(..., alias="spanId")
+    trace_id: str = Field(..., alias="traceId")
+    answer: str = Field(..., alias="answer")
+    attributes: str = Field(..., alias="attributes")
     user_id: Optional[str] = Field(None, alias="userId")
-    update_time: Optional[str] = Field(None, alias="updateTime")
+
+
+class CachedRecall(BaseModel):
+    """A cached escalation answer retrieved from memory."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    output: Optional[Any] = Field(None, alias="output")
+    outcome: Optional[str] = Field(None, alias="outcome")
+
+
+class EscalationMemoryMatch(BaseModel):
+    """A single match from an escalation memory search."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    answer: Optional[CachedRecall] = Field(None, alias="answer")
+
+
+class EscalationMemorySearchResponse(BaseModel):
+    """Response from LLMOps escalation memory search."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    results: Optional[List[EscalationMemoryMatch]] = Field(None, alias="results")
