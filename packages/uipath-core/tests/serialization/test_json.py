@@ -636,3 +636,24 @@ class TestSimpleSerializeDefaults:
 
         # Seventh sublist: Booleans and None
         assert parsed[6] == [True, False, None]
+
+    def test_dataclass_with_unpicklable_field_falls_back_to_str(self) -> None:
+        """Test dataclass containing unpicklable objects (e.g. SimpleQueue) falls back to str().
+
+        dataclasses.asdict() uses copy.deepcopy internally, which fails on objects
+        that cannot be pickled (like _queue.SimpleQueue found in httpx clients).
+        The serializer should gracefully fall back to str() instead of raising.
+        """
+        import queue
+
+        @dataclass
+        class DataclassWithQueue:
+            name: str
+            internal: Any
+
+        obj = DataclassWithQueue(name="test", internal=queue.SimpleQueue())
+        data = {"obj": obj}
+        result = serialize_json(data)
+        parsed = json.loads(result)
+        assert isinstance(parsed["obj"], str)
+        assert "DataclassWithQueue" in parsed["obj"]
