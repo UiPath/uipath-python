@@ -9,8 +9,9 @@ All services are explicitly imported to ensure:
 
 from .cli_assets import assets
 from .cli_buckets import buckets
+from .cli_context_grounding import context_grounding
 
-__all__ = ["assets", "buckets", "register_service_commands"]
+__all__ = ["assets", "buckets", "context_grounding", "register_service_commands"]
 
 
 def register_service_commands(cli_group):
@@ -31,7 +32,7 @@ def register_service_commands(cli_group):
     Industry Precedent:
         AWS CLI, Azure CLI, and gcloud all use explicit registration.
     """
-    services = [assets, buckets]
+    services = [assets, buckets, context_grounding]
 
     for service in services:
         cli_group.add_command(service)

@@ -361,6 +361,62 @@ class ContextGroundingService(FolderContext, BaseService):
         except StopIteration as e:
             raise Exception("ContextGroundingIndex not found") from e
 
+    @traced(name="contextgrounding_list", run_type="uipath")
+    def list(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """List all context grounding indexes in a folder.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: All indexes in the folder.
+        """
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        response = self.request(
+            "GET",
+            Endpoint("/ecs_/v2/indexes"),
+            params={"$expand": "dataSource"},
+            headers={**header_folder(folder_key, None)},
+        ).json()
+        return [
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
+        ]
+
+    @traced(name="contextgrounding_list", run_type="uipath")
+    async def list_async(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously list all context grounding indexes in a folder.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: All indexes in the folder.
+        """
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        response = (
+            await self.request_async(
+                "GET",
+                Endpoint("/ecs_/v2/indexes"),
+                params={"$expand": "dataSource"},
+                headers={**header_folder(folder_key, None)},
+            )
+        ).json()
+        return [
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
+        ]
+
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
     def retrieve_by_id(
         self,
@@ -542,7 +598,7 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     def create_ephemeral_index(
-        self, usage: EphemeralIndexUsage, attachments: list[str]
+        self, usage: EphemeralIndexUsage, attachments: List[str]
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
@@ -570,7 +626,7 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     async def create_ephemeral_index_async(
-        self, usage: EphemeralIndexUsage, attachments: list[str]
+        self, usage: EphemeralIndexUsage, attachments: List[str]
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
@@ -661,7 +717,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -737,7 +793,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -813,7 +869,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -859,7 +915,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -1741,7 +1797,7 @@ class ContextGroundingService(FolderContext, BaseService):
     def _create_ephemeral_spec(
         self,
         usage: str,
-        attachments: list[str],
+        attachments: List[str],
     ) -> RequestSpec:
         """Create request spec for ephemeral index creation.
 
@@ -1834,7 +1890,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return data_source.model_dump(by_alias=True, exclude_none=True)
 
-    def _build_ephemeral_data_source(self, attachments: list[str]) -> Dict[str, Any]:
+    def _build_ephemeral_data_source(self, attachments: List[str]) -> Dict[str, Any]:
         """Build data source configuration from typed source config.
 
         Args:
@@ -2002,7 +2058,7 @@ class ContextGroundingService(FolderContext, BaseService):
         index_id: str,
         name: str,
         enable_web_search_grounding: bool,
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: str | None,
         target_file_name: str | None,
         prompt: str,
@@ -2052,7 +2108,7 @@ class ContextGroundingService(FolderContext, BaseService):
         index_id: str | None,
         name: str,
         enable_web_search_grounding: bool,
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: str | None,
         prompt: str,
     ) -> RequestSpec:
