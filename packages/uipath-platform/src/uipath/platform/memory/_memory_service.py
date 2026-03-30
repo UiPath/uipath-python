@@ -25,7 +25,7 @@ from .memory import (
     MemorySearchResponse,
 )
 
-_ECS_BASE = "/ecs_/v2/episodicmemories"
+_MEMORY_SPACES_BASE = "/ecs_/v2/episodicmemories"
 _LLMOPS_AGENT_BASE = "/llmopstenant_/api/Agent/memory"
 
 
@@ -86,7 +86,17 @@ class MemoryService(FolderContext, BaseService):
         is_encrypted: Optional[bool] = None,
         folder_key: Optional[str] = None,
     ) -> EpisodicMemoryIndex:
-        """Asynchronously create a new episodic memory index."""
+        """Asynchronously create a new episodic memory index.
+
+        Args:
+            name: The name of the memory index (max 128 chars).
+            description: Optional description (max 1024 chars).
+            is_encrypted: Whether the index should be encrypted.
+            folder_key: The folder key for the operation.
+
+        Returns:
+            EpisodicMemoryIndex: The created memory index.
+        """
         spec = self._create_spec(name, description, is_encrypted, folder_key)
         response = (
             await self.request_async(
@@ -137,7 +147,18 @@ class MemoryService(FolderContext, BaseService):
         skip: Optional[int] = None,
         folder_key: Optional[str] = None,
     ) -> EpisodicMemoryListResponse:
-        """Asynchronously list episodic memory indexes."""
+        """Asynchronously list episodic memory indexes.
+
+        Args:
+            filter: OData $filter expression.
+            orderby: OData $orderby expression.
+            top: Maximum number of results.
+            skip: Number of results to skip.
+            folder_key: The folder key for the operation.
+
+        Returns:
+            EpisodicMemoryListResponse: The list of memory indexes.
+        """
         spec = self._list_spec(filter, orderby, top, skip, folder_key)
         response = (
             await self.request_async(
@@ -187,7 +208,19 @@ class MemoryService(FolderContext, BaseService):
         request: MemorySearchRequest,
         folder_key: Optional[str] = None,
     ) -> MemorySearchResponse:
-        """Asynchronously search episodic memory via LLMOps."""
+        """Asynchronously search episodic memory via LLMOps.
+
+        Returns search results with scores and a systemPromptInjection
+        string ready for the agent loop.
+
+        Args:
+            memory_space_id: The GUID of the memory space (ECS index).
+            request: The search request payload.
+            folder_key: The folder key for the operation.
+
+        Returns:
+            MemorySearchResponse: Results, metadata, and system prompt injection.
+        """
         spec = self._search_spec(memory_space_id, folder_key)
         response = (
             await self.request_async(
@@ -237,7 +270,19 @@ class MemoryService(FolderContext, BaseService):
         request: MemorySearchRequest,
         folder_key: Optional[str] = None,
     ) -> EscalationMemorySearchResponse:
-        """Asynchronously search escalation memory."""
+        """Asynchronously search escalation memory for previously resolved outcomes.
+
+        Allows agents to recall past escalation resolutions to avoid
+        re-escalating for similar situations.
+
+        Args:
+            memory_space_id: The GUID of the memory space (ECS index).
+            request: The search request payload (same as regular search).
+            folder_key: The folder key for the operation.
+
+        Returns:
+            EscalationMemorySearchResponse: Matched escalation outcomes.
+        """
         spec = self._escalation_search_spec(memory_space_id, folder_key)
         response = (
             await self.request_async(
@@ -281,7 +326,16 @@ class MemoryService(FolderContext, BaseService):
         request: EscalationMemoryIngestRequest,
         folder_key: Optional[str] = None,
     ) -> None:
-        """Asynchronously ingest a resolved escalation outcome."""
+        """Asynchronously ingest a resolved escalation outcome into memory.
+
+        Persists the outcome so future agent runs can recall it
+        without re-escalating.
+
+        Args:
+            memory_space_id: The GUID of the memory space (ECS index).
+            request: The escalation ingest payload.
+            folder_key: The folder key for the operation.
+        """
         spec = self._escalation_ingest_spec(memory_space_id, folder_key)
         await self.request_async(
             spec.method,
@@ -334,7 +388,7 @@ class MemoryService(FolderContext, BaseService):
         )
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(f"{_ECS_BASE}/create"),
+            endpoint=Endpoint(f"{_MEMORY_SPACES_BASE}/create"),
             json=body.model_dump(by_alias=True, exclude_none=True),
             headers={**header_folder(folder_key, None)},
         )
@@ -359,7 +413,7 @@ class MemoryService(FolderContext, BaseService):
             params["$skip"] = skip
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(_ECS_BASE),
+            endpoint=Endpoint(_MEMORY_SPACES_BASE),
             params=params,
             headers={**header_folder(folder_key, None)},
         )
