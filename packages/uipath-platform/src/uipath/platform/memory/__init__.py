@@ -4,10 +4,8 @@ from ._memory_service import MemoryService
 from .memory import (
     CachedRecall,
     EpisodicMemoryCreateRequest,
-    EpisodicMemoryField,
     EpisodicMemoryIndex,
     EpisodicMemoryListResponse,
-    EpisodicMemoryStatus,
     EscalationMemoryIngestRequest,
     EscalationMemoryMatch,
     EscalationMemorySearchResponse,
@@ -24,10 +22,8 @@ from .memory import (
 __all__ = [
     "CachedRecall",
     "EpisodicMemoryCreateRequest",
-    "EpisodicMemoryField",
     "EpisodicMemoryIndex",
     "EpisodicMemoryListResponse",
-    "EpisodicMemoryStatus",
     "EscalationMemoryIngestRequest",
     "EscalationMemoryMatch",
     "EscalationMemorySearchResponse",

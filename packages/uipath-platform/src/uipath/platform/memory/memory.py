@@ -20,23 +20,7 @@ class SearchMode(str, Enum):
     Semantic = "Semantic"
 
 
-class EpisodicMemoryStatus(str, Enum):
-    """Status of an individual memory record (ECS)."""
-
-    active = "active"
-    inactive = "inactive"
-
-
 # ── Shared field models (used by both ECS and LLMOps) ─────────────────
-
-
-class EpisodicMemoryField(BaseModel):
-    """A field with a key path and value, used in ECS ingest requests."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    key_path: List[str] = Field(..., alias="keyPath", min_length=1)
-    value: str = Field(..., alias="value", min_length=1)
 
 
 class FieldSettings(BaseModel):
