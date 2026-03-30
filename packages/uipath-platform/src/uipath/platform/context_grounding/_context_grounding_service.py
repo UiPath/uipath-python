@@ -1690,6 +1690,184 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_list", run_type="uipath")
+    def list_indexes(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """List all context grounding indexes in a folder.
+
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to listing across all folders.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of all indexes in the folder.
+        """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if not resolved_folder_key:
+            return self.retrieve_across_folders()
+
+        spec = self._list_spec(folder_key=resolved_folder_key)
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_list", run_type="uipath")
+    async def list_indexes_async(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously list all context grounding indexes in a folder.
+
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to listing across all folders.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of all indexes in the folder.
+        """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if not resolved_folder_key:
+            return await self.retrieve_across_folders_async()
+
+        spec = self._list_spec(folder_key=resolved_folder_key)
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_delete_by_name", run_type="uipath")
+    def delete_by_name(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Delete a context grounding index by its name.
+
+        This method retrieves the index by name and then deletes it.
+
+        Args:
+            name (str): The name of the context index to delete.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+        """
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+        self.delete_index(index, folder_key=folder_key, folder_path=folder_path)
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_delete_by_name", run_type="uipath")
+    async def delete_by_name_async(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Asynchronously delete a context grounding index by its name.
+
+        This method retrieves the index by name and then deletes it.
+
+        Args:
+            name (str): The name of the context index to delete.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+        """
+        index = await self.retrieve_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+        await self.delete_index_async(
+            index, folder_key=folder_key, folder_path=folder_path
+        )
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_exists", run_type="uipath")
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_ingest_by_name", run_type="uipath")
+    def ingest_by_name(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Trigger ingestion on a context grounding index by its name.
+
+        This method retrieves the index by name and then triggers data ingestion.
+
+        Args:
+            name (str): The name of the context index to ingest.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+            IngestionInProgressException: If ingestion is already in progress.
+        """
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+        self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_ingest_by_name", run_type="uipath")
+    async def ingest_by_name_async(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Asynchronously trigger ingestion on a context grounding index by its name.
+
+        This method retrieves the index by name and then triggers data ingestion.
+
+        Args:
+            name (str): The name of the context index to ingest.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+            IngestionInProgressException: If ingestion is already in progress.
+        """
+        index = await self.retrieve_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+        await self.ingest_data_async(
+            index, folder_key=folder_key, folder_path=folder_path
+        )
+
     def _ingest_spec(
         self,
         key: str,
@@ -1720,6 +1898,24 @@ class ContextGroundingService(FolderContext, BaseService):
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes/allacrossfolders"),
             params=params,
+        )
+
+    def _list_spec(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes"),
+            params={
+                "$expand": "dataSource",
+            },
+            headers={
+                **header_folder(folder_key, None),
+            },
         )
 
     def _retrieve_spec(
