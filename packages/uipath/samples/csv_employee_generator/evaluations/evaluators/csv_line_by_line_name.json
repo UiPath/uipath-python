@@ -1,0 +1,14 @@
+{
+  "fileName": "csv_line_by_line_name.json",
+  "id": "csv-line-by-line-name",
+  "name": "CSV Line-by-Line Name Match",
+  "description": "Checks if Name column matches for each row in the CSV output",
+  "category": 0,
+  "type": 10,
+  "targetSubOutputKey": "Name",
+  "targetOutputKey": "csv_data",
+  "lineByLineEvaluation": true,
+  "lineDelimiter": "\n",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-01T00:00:00Z"
+}

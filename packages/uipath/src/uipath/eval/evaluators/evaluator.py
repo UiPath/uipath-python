@@ -15,6 +15,7 @@ from . import (
     ContainsEvaluator,
     ExactMatchEvaluator,
     JsonSimilarityEvaluator,
+    LegacyCSVExactMatchEvaluator,
     LegacyExactMatchEvaluator,
     LegacyJsonSimilarityEvaluator,
     LegacyLlmAsAJudgeEvaluator,
@@ -68,6 +69,8 @@ def legacy_evaluator_discriminator(data: Any) -> str:
                         return "LegacyEqualsEvaluator"
                     case LegacyEvaluatorType.JsonSimilarity:
                         return "LegacyJsonSimilarityEvaluator"
+                    case LegacyEvaluatorType.CSVColumnExactMatch:
+                        return "LegacyCSVExactMatchEvaluator"
                     case _:
                         return "LegacyUnknownEvaluator"
             case _:
@@ -93,6 +96,10 @@ LegacyEvaluator = Annotated[
         Annotated[
             LegacyJsonSimilarityEvaluator,
             Tag("LegacyJsonSimilarityEvaluator"),
+        ],
+        Annotated[
+            LegacyCSVExactMatchEvaluator,
+            Tag("LegacyCSVExactMatchEvaluator"),
         ],
         Annotated[
             UnknownLegacyEvaluator,
