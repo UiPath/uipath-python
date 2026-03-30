@@ -7,14 +7,14 @@ from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.memory import (
-    EpisodicMemoryIndex,
-    EpisodicMemoryListResponse,
     EscalationMemoryIngestRequest,
     EscalationMemorySearchResponse,
     MemoryMatch,
     MemoryMatchField,
     MemorySearchRequest,
     MemorySearchResponse,
+    MemorySpace,
+    MemorySpaceListResponse,
     SearchField,
     SearchMode,
     SearchSettings,
@@ -120,7 +120,7 @@ class TestMemoryService:
                 description="A test memory space",
             )
 
-            assert isinstance(result, EpisodicMemoryIndex)
+            assert isinstance(result, MemorySpace)
             assert result.id == "aaaa-bbbb-cccc-dddd"
             assert result.name == "test-memory-space"
             assert result.memories_count == 5
@@ -194,7 +194,7 @@ class TestMemoryService:
 
             result = service.list()
 
-            assert isinstance(result, EpisodicMemoryListResponse)
+            assert isinstance(result, MemorySpaceListResponse)
             assert len(result.value) == 1
             assert result.value[0].name == "test-memory-space"
 
@@ -219,7 +219,7 @@ class TestMemoryService:
                 skip=5,
             )
 
-            assert isinstance(result, EpisodicMemoryListResponse)
+            assert isinstance(result, MemorySpaceListResponse)
 
         def test_list_empty(
             self,
@@ -237,7 +237,7 @@ class TestMemoryService:
 
             result = service.list()
 
-            assert isinstance(result, EpisodicMemoryListResponse)
+            assert isinstance(result, MemorySpaceListResponse)
             assert len(result.value) == 0
 
     class TestSearch:

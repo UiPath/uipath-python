@@ -3,9 +3,6 @@
 from ._memory_service import MemoryService
 from .memory import (
     CachedRecall,
-    EpisodicMemoryCreateRequest,
-    EpisodicMemoryIndex,
-    EpisodicMemoryListResponse,
     EscalationMemoryIngestRequest,
     EscalationMemoryMatch,
     EscalationMemorySearchResponse,
@@ -14,6 +11,9 @@ from .memory import (
     MemoryMatchField,
     MemorySearchRequest,
     MemorySearchResponse,
+    MemorySpace,
+    MemorySpaceCreateRequest,
+    MemorySpaceListResponse,
     SearchField,
     SearchMode,
     SearchSettings,
@@ -21,9 +21,6 @@ from .memory import (
 
 __all__ = [
     "CachedRecall",
-    "EpisodicMemoryCreateRequest",
-    "EpisodicMemoryIndex",
-    "EpisodicMemoryListResponse",
     "EscalationMemoryIngestRequest",
     "EscalationMemoryMatch",
     "EscalationMemorySearchResponse",
@@ -33,6 +30,9 @@ __all__ = [
     "MemorySearchRequest",
     "MemorySearchResponse",
     "MemoryService",
+    "MemorySpace",
+    "MemorySpaceCreateRequest",
+    "MemorySpaceListResponse",
     "SearchField",
     "SearchMode",
     "SearchSettings",

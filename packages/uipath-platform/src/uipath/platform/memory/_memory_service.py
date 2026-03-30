@@ -1,6 +1,6 @@
-"""Episodic Memory service.
+"""Memory Spaces service.
 
-Index management (create/list) goes through ECS v2.
+Memory space CRUD (create/list) goes through ECS v2.
 Search and escalation memory operations go through LLMOps, which
 enriches traces/feedback before forwarding to ECS.
 """
@@ -16,13 +16,13 @@ from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from ..orchestrator._folder_service import FolderService
 from .memory import (
-    EpisodicMemoryCreateRequest,
-    EpisodicMemoryIndex,
-    EpisodicMemoryListResponse,
     EscalationMemoryIngestRequest,
     EscalationMemorySearchResponse,
     MemorySearchRequest,
     MemorySearchResponse,
+    MemorySpace,
+    MemorySpaceCreateRequest,
+    MemorySpaceListResponse,
 )
 
 _MEMORY_SPACES_BASE = "/ecs_/v2/episodicmemories"
@@ -30,10 +30,10 @@ _LLMOPS_AGENT_BASE = "/llmopstenant_/api/Agent/memory"
 
 
 class MemoryService(FolderContext, BaseService):
-    """Service for Agent Episodic Memory.
+    """Service for Agent Memory Spaces.
 
     Agent Memory allows agents to persist context across jobs using dynamic
-    few-shot retrieval. Memory indexes are folder-scoped and managed via ECS.
+    few-shot retrieval. Memory spaces are folder-scoped and managed via ECS.
     Search is routed through LLMOps, which handles trace/feedback enrichment
     and system prompt injection. Escalation memory enables agents to recall
     previously resolved escalation outcomes.
@@ -48,7 +48,7 @@ class MemoryService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    # ── Index operations (ECS) ─────────────────────────────────────────
+    # ── Memory space operations (ECS) ──────────────────────────────────
 
     @traced(name="memory_create", run_type="uipath")
     def create(
@@ -57,17 +57,17 @@ class MemoryService(FolderContext, BaseService):
         description: Optional[str] = None,
         is_encrypted: Optional[bool] = None,
         folder_key: Optional[str] = None,
-    ) -> EpisodicMemoryIndex:
-        """Create a new episodic memory index.
+    ) -> MemorySpace:
+        """Create a new memory space.
 
         Args:
-            name: The name of the memory index (max 128 chars).
+            name: The name of the memory space (max 128 chars).
             description: Optional description (max 1024 chars).
-            is_encrypted: Whether the index should be encrypted.
+            is_encrypted: Whether the memory space should be encrypted.
             folder_key: The folder key for the operation.
 
         Returns:
-            EpisodicMemoryIndex: The created memory index.
+            MemorySpace: The created memory space.
         """
         spec = self._create_spec(name, description, is_encrypted, folder_key)
         response = self.request(
@@ -76,7 +76,7 @@ class MemoryService(FolderContext, BaseService):
             json=spec.json,
             headers=spec.headers,
         ).json()
-        return EpisodicMemoryIndex.model_validate(response)
+        return MemorySpace.model_validate(response)
 
     @traced(name="memory_create", run_type="uipath")
     async def create_async(
@@ -85,17 +85,17 @@ class MemoryService(FolderContext, BaseService):
         description: Optional[str] = None,
         is_encrypted: Optional[bool] = None,
         folder_key: Optional[str] = None,
-    ) -> EpisodicMemoryIndex:
-        """Asynchronously create a new episodic memory index.
+    ) -> MemorySpace:
+        """Asynchronously create a new memory space.
 
         Args:
-            name: The name of the memory index (max 128 chars).
+            name: The name of the memory space (max 128 chars).
             description: Optional description (max 1024 chars).
-            is_encrypted: Whether the index should be encrypted.
+            is_encrypted: Whether the memory space should be encrypted.
             folder_key: The folder key for the operation.
 
         Returns:
-            EpisodicMemoryIndex: The created memory index.
+            MemorySpace: The created memory space.
         """
         spec = self._create_spec(name, description, is_encrypted, folder_key)
         response = (
@@ -106,7 +106,7 @@ class MemoryService(FolderContext, BaseService):
                 headers=spec.headers,
             )
         ).json()
-        return EpisodicMemoryIndex.model_validate(response)
+        return MemorySpace.model_validate(response)
 
     @traced(name="memory_list", run_type="uipath")
     def list(
@@ -116,8 +116,8 @@ class MemoryService(FolderContext, BaseService):
         top: Optional[int] = None,
         skip: Optional[int] = None,
         folder_key: Optional[str] = None,
-    ) -> EpisodicMemoryListResponse:
-        """List episodic memory indexes with optional OData query parameters.
+    ) -> MemorySpaceListResponse:
+        """List memory spaces with optional OData query parameters.
 
         Args:
             filter: OData $filter expression.
@@ -127,7 +127,7 @@ class MemoryService(FolderContext, BaseService):
             folder_key: The folder key for the operation.
 
         Returns:
-            EpisodicMemoryListResponse: The list of memory indexes.
+            MemorySpaceListResponse: The list of memory spaces.
         """
         spec = self._list_spec(filter, orderby, top, skip, folder_key)
         response = self.request(
@@ -136,7 +136,7 @@ class MemoryService(FolderContext, BaseService):
             params=spec.params,
             headers=spec.headers,
         ).json()
-        return EpisodicMemoryListResponse.model_validate(response)
+        return MemorySpaceListResponse.model_validate(response)
 
     @traced(name="memory_list", run_type="uipath")
     async def list_async(
@@ -146,8 +146,8 @@ class MemoryService(FolderContext, BaseService):
         top: Optional[int] = None,
         skip: Optional[int] = None,
         folder_key: Optional[str] = None,
-    ) -> EpisodicMemoryListResponse:
-        """Asynchronously list episodic memory indexes.
+    ) -> MemorySpaceListResponse:
+        """Asynchronously list memory spaces.
 
         Args:
             filter: OData $filter expression.
@@ -157,7 +157,7 @@ class MemoryService(FolderContext, BaseService):
             folder_key: The folder key for the operation.
 
         Returns:
-            EpisodicMemoryListResponse: The list of memory indexes.
+            MemorySpaceListResponse: The list of memory spaces.
         """
         spec = self._list_spec(filter, orderby, top, skip, folder_key)
         response = (
@@ -168,7 +168,7 @@ class MemoryService(FolderContext, BaseService):
                 headers=spec.headers,
             )
         ).json()
-        return EpisodicMemoryListResponse.model_validate(response)
+        return MemorySpaceListResponse.model_validate(response)
 
     # ── Search (LLMOps) ───────────────────────────────────────────────
 
@@ -179,13 +179,13 @@ class MemoryService(FolderContext, BaseService):
         request: MemorySearchRequest,
         folder_key: Optional[str] = None,
     ) -> MemorySearchResponse:
-        """Search episodic memory via LLMOps.
+        """Search a memory space via LLMOps.
 
         Returns search results with scores and a systemPromptInjection
         string ready for the agent loop.
 
         Args:
-            memory_space_id: The GUID of the memory space (ECS index).
+            memory_space_id: The GUID of the memory space.
             request: The search request payload.
             folder_key: The folder key for the operation.
 
@@ -208,13 +208,13 @@ class MemoryService(FolderContext, BaseService):
         request: MemorySearchRequest,
         folder_key: Optional[str] = None,
     ) -> MemorySearchResponse:
-        """Asynchronously search episodic memory via LLMOps.
+        """Asynchronously search a memory space via LLMOps.
 
         Returns search results with scores and a systemPromptInjection
         string ready for the agent loop.
 
         Args:
-            memory_space_id: The GUID of the memory space (ECS index).
+            memory_space_id: The GUID of the memory space.
             request: The search request payload.
             folder_key: The folder key for the operation.
 
@@ -247,7 +247,7 @@ class MemoryService(FolderContext, BaseService):
         re-escalating for similar situations.
 
         Args:
-            memory_space_id: The GUID of the memory space (ECS index).
+            memory_space_id: The GUID of the memory space.
             request: The search request payload (same as regular search).
             folder_key: The folder key for the operation.
 
@@ -276,7 +276,7 @@ class MemoryService(FolderContext, BaseService):
         re-escalating for similar situations.
 
         Args:
-            memory_space_id: The GUID of the memory space (ECS index).
+            memory_space_id: The GUID of the memory space.
             request: The search request payload (same as regular search).
             folder_key: The folder key for the operation.
 
@@ -307,7 +307,7 @@ class MemoryService(FolderContext, BaseService):
         without re-escalating.
 
         Args:
-            memory_space_id: The GUID of the memory space (ECS index).
+            memory_space_id: The GUID of the memory space.
             request: The escalation ingest payload.
             folder_key: The folder key for the operation.
         """
@@ -332,7 +332,7 @@ class MemoryService(FolderContext, BaseService):
         without re-escalating.
 
         Args:
-            memory_space_id: The GUID of the memory space (ECS index).
+            memory_space_id: The GUID of the memory space.
             request: The escalation ingest payload.
             folder_key: The folder key for the operation.
         """
@@ -381,7 +381,7 @@ class MemoryService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder(folder_key)
-        body = EpisodicMemoryCreateRequest(
+        body = MemorySpaceCreateRequest(
             name=name,
             description=description,
             is_encrypted=is_encrypted,

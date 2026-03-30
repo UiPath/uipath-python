@@ -16,11 +16,11 @@ import pytest
 
 from uipath.platform import UiPath
 from uipath.platform.memory import (
-    EpisodicMemoryIndex,
-    EpisodicMemoryListResponse,
     EscalationMemorySearchResponse,
     MemorySearchRequest,
     MemorySearchResponse,
+    MemorySpace,
+    MemorySpaceListResponse,
     SearchField,
     SearchMode,
     SearchSettings,
@@ -78,8 +78,8 @@ class TestMemoryServiceE2E:
 
     # ── Index CRUD (ECS) ──────────────────────────────────────────
 
-    def test_create_index(self, memory_index: EpisodicMemoryIndex) -> None:
-        """Verify index creation returns a well-formed EpisodicMemoryIndex."""
+    def test_create_index(self, memory_index: MemorySpace) -> None:
+        """Verify index creation returns a well-formed MemorySpace."""
         assert memory_index.id, "Index ID should be set"
         assert memory_index.name.startswith("sdk-e2e-test-")
         assert memory_index.folder_key, "Folder key should be populated"
@@ -88,7 +88,7 @@ class TestMemoryServiceE2E:
     def test_list_indexes(
         self,
         sdk: UiPath,
-        memory_index: EpisodicMemoryIndex,
+        memory_index: MemorySpace,
         folder_key: str,
     ) -> None:
         """Verify list with OData filter returns our index."""
@@ -96,7 +96,7 @@ class TestMemoryServiceE2E:
             filter=f"Name eq '{memory_index.name}'",
             folder_key=folder_key,
         )
-        assert isinstance(result, EpisodicMemoryListResponse)
+        assert isinstance(result, MemorySpaceListResponse)
         names = [idx.name for idx in result.value]
         assert memory_index.name in names
 
@@ -105,7 +105,7 @@ class TestMemoryServiceE2E:
     def test_search_empty_index(
         self,
         sdk: UiPath,
-        memory_index: EpisodicMemoryIndex,
+        memory_index: MemorySpace,
         folder_key: str,
     ) -> None:
         """Search an empty index — should return empty results and systemPromptInjection."""
@@ -138,7 +138,7 @@ class TestMemoryServiceE2E:
     def test_escalation_search_empty_index(
         self,
         sdk: UiPath,
-        memory_index: EpisodicMemoryIndex,
+        memory_index: MemorySpace,
         folder_key: str,
     ) -> None:
         """Search escalation memory on empty index — should return valid response."""

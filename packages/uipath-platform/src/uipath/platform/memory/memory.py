@@ -1,6 +1,6 @@
-"""Pydantic models for the Episodic Memory API.
+"""Pydantic models for the Memory Spaces API.
 
-Index management goes through ECS v2.  Search goes through LLMOps,
+Memory space CRUD goes through ECS v2. Search goes through LLMOps,
 which enriches traces/feedback before forwarding to ECS.
 Escalation memory operations also go through LLMOps.
 """
@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SearchMode(str, Enum):
-    """Search mode for episodic memory queries."""
+    """Search mode for memory space queries."""
 
     Hybrid = "Hybrid"
     Semantic = "Semantic"
@@ -65,11 +65,11 @@ class MemoryMatchField(BaseModel):
     weighted_score: float = Field(..., alias="weightedScore")
 
 
-# ── ECS request models (index CRUD) ───────────────────────────────────
+# ── ECS request models (memory space CRUD) ────────────────────────────
 
 
-class EpisodicMemoryCreateRequest(BaseModel):
-    """Request payload for creating an episodic memory index (ECS)."""
+class MemorySpaceCreateRequest(BaseModel):
+    """Request payload for creating a memory space (ECS)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -81,8 +81,8 @@ class EpisodicMemoryCreateRequest(BaseModel):
 # ── ECS response models ───────────────────────────────────────────────
 
 
-class EpisodicMemoryIndex(BaseModel):
-    """An episodic memory index (folder-scoped, from ECS)."""
+class MemorySpace(BaseModel):
+    """A memory space (folder-scoped, from ECS)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -96,12 +96,12 @@ class EpisodicMemoryIndex(BaseModel):
     is_encrypted: bool = Field(default=False, alias="isEncrypted")
 
 
-class EpisodicMemoryListResponse(BaseModel):
-    """OData response from listing episodic memory indexes (ECS)."""
+class MemorySpaceListResponse(BaseModel):
+    """OData response from listing memory spaces (ECS)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
-    value: List[EpisodicMemoryIndex] = Field(default_factory=list, alias="value")
+    value: List[MemorySpace] = Field(default_factory=list, alias="value")
 
 
 # ── LLMOps search models ──────────────────────────────────────────────
