@@ -1567,3 +1567,110 @@ class TestMissingFieldPassesValidation:
             guardrail=guardrail,
         )
         assert result.result == GuardrailValidationResultType.PASSED
+
+
+class TestWrappedArrayOutputEvaluation:
+    """Test that guardrails work when tool output is a dict-wrapped array.
+
+    When a tool returns a JSON array, _extract_tool_output_data wraps it as
+    {"output": [...]}.  Field paths starting with [*] (e.g. [*].author.email)
+    must still resolve correctly against the wrapped structure.
+    """
+
+    def test_word_rule_on_wrapped_array_output_detects_violation(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="test-wrapped-array",
+            name="Wrapped Array Guardrail",
+            description="Test wrapped array output",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                WordRule(
+                    rule_type="word",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(
+                                path="[*].author.emailAddress",
+                                source=FieldSource.OUTPUT,
+                            )
+                        ],
+                    ),
+                    detects_violation=lambda s: "iana" in s,
+                    rule_description="email contains 'iana'",
+                ),
+            ],
+        )
+        # Simulates output from _extract_tool_output_data when tool returns an array.
+        # All emails contain "iana" so every field violates the rule → guardrail fails.
+        output_data = {
+            "output": [
+                {
+                    "author": {"emailAddress": "briana.smith@test.com"},
+                    "body": "comment1",
+                },
+                {
+                    "author": {"emailAddress": "adriana.jones@test.com"},
+                    "body": "comment2",
+                },
+            ]
+        }
+        result = service.evaluate_post_deterministic_guardrail(
+            input_data={},
+            output_data=output_data,
+            guardrail=guardrail,
+        )
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+
+    def test_word_rule_on_wrapped_array_output_passes_when_no_match(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="test-wrapped-array",
+            name="Wrapped Array Guardrail",
+            description="Test wrapped array output",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["test"]
+            ),
+            rules=[
+                WordRule(
+                    rule_type="word",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(
+                                path="[*].author.emailAddress",
+                                source=FieldSource.OUTPUT,
+                            )
+                        ],
+                    ),
+                    detects_violation=lambda s: "iana" in s,
+                    rule_description="email contains 'iana'",
+                ),
+            ],
+        )
+        output_data = {
+            "output": [
+                {
+                    "author": {"emailAddress": "mike.wilson@test.com"},
+                    "body": "comment1",
+                },
+                {
+                    "author": {"emailAddress": "sarah.clark@test.com"},
+                    "body": "comment2",
+                },
+            ]
+        }
+        result = service.evaluate_post_deterministic_guardrail(
+            input_data={},
+            output_data=output_data,
+            guardrail=guardrail,
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
