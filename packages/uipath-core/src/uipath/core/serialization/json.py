@@ -67,6 +67,15 @@ def serialize_defaults(
         >>> serialize_json(user)
         '{"name": "Alice", "created_at": "2024-01-01T12:00:00"}'
     """
+    try:
+        return _serialize_defaults_inner(obj)
+    except Exception:
+        return str(obj)
+
+
+def _serialize_defaults_inner(
+    obj: Any,
+) -> dict[str, Any] | list[Any] | str | int | float | bool | None:
     # Handle Pydantic BaseModel instances
     if hasattr(obj, "model_dump") and not isinstance(obj, type):
         return obj.model_dump(exclude_none=True, mode="json")
@@ -97,7 +106,7 @@ def serialize_defaults(
 
     # Handle enums - recursively serialize the value
     if isinstance(obj, Enum):
-        return serialize_defaults(obj.value)
+        return _serialize_defaults_inner(obj.value)
 
     # Handle sets and tuples
     if isinstance(obj, (set, tuple)):
