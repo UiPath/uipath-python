@@ -267,6 +267,16 @@ class _SpanUtils:
             ]
             attributes_dict["links"] = links_list
 
+        # Add process context attributes from environment variables
+        for env_key, attr_key in (
+            ("PROJECT_KEY", "agentId"),
+            ("UIPATH_PROCESS_KEY", "agentName"),
+            ("UIPATH_PROCESS_VERSION", "agentVersion"),
+        ):
+            value = env.get(env_key)
+            if value:
+                attributes_dict[attr_key] = value
+
         span_type_value = attributes_dict.get("span_type", "OpenTelemetry")
         span_type = str(span_type_value)
 
