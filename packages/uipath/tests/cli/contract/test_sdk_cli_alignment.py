@@ -118,18 +118,43 @@ def assert_cli_sdk_alignment(
 # Parameter mappings: CLI param name → SDK param name
 # Used when CLI uses more user-friendly names than SDK
 PARAM_MAPPINGS = {
-    # context-grounding: --index maps to SDK 'name', --folder maps to SDK 'folder_path'
+    # context-grounding: --index-name maps to SDK 'name'
     "context-grounding_list": {},
     "context-grounding_retrieve": {
+        "index_name": "name",
+    },
+    "context-grounding_create": {
         "index_name": "name",
     },
     "context-grounding_search": {
         "index_name": "name",
     },
-    # ingest/delete: SDK takes an index *object*, not a name. CLI's --index is a
-    # lookup key used to call retrieve() internally — it has no direct SDK counterpart.
-    "context-grounding_ingest": {},
-    "context-grounding_delete": {},
+    "context-grounding_ingest": {
+        "index_name": "name",
+    },
+    "context-grounding_delete": {
+        "index_name": "name",
+    },
+    # deep-rag/batch-transform: --task-name maps to SDK 'name'
+    "context-grounding_deep-rag_start": {
+        "task_name": "name",
+    },
+    "context-grounding_deep-rag_retrieve": {
+        "task_id": "id",
+    },
+    "context-grounding_batch-transform_start": {
+        "task_name": "name",
+        "prefix": "storage_bucket_folder_path_prefix",
+        "target_file": "target_file_name",
+        "web_search": "enable_web_search_grounding",
+    },
+    "context-grounding_batch-transform_retrieve": {
+        "task_id": "id",
+    },
+    "context-grounding_batch-transform_download": {
+        "task_id": "id",
+        "output_file": "destination_path",
+    },
     "buckets_files_download": {
         "bucket_name": "name",
         "remote_path": "blob_file_path",
@@ -166,13 +191,17 @@ PARAM_MAPPINGS = {
 # SDK parameters to exclude for specific commands
 # Used when SDK has optional params that CLI doesn't expose
 SDK_EXCLUSIONS = {
-    # context-grounding: ingest/delete take an index *object*; CLI uses --index name
-    # then retrieves internally — so the SDK 'index' object param is not a CLI option.
     "context-grounding_list": set(),
     "context-grounding_retrieve": set(),
-    "context-grounding_search": set(),
-    "context-grounding_ingest": {"index"},
-    "context-grounding_delete": {"index"},
+    "context-grounding_create": {"source", "embeddings_enabled", "is_encrypted"},
+    "context-grounding_search": {"scope", "number_of_results"},
+    "context-grounding_ingest": set(),
+    "context-grounding_delete": set(),
+    "context-grounding_deep-rag_start": set(),
+    "context-grounding_deep-rag_retrieve": {"index_name"},
+    "context-grounding_batch-transform_start": {"output_columns"},
+    "context-grounding_batch-transform_retrieve": {"index_name"},
+    "context-grounding_batch-transform_download": {"index_name", "validate_status"},
     "buckets_list": {
         "name",
         "skip",
@@ -208,11 +237,42 @@ SDK_EXCLUSIONS = {
     "service,command,sdk_class,sdk_method",
     [
         # Context Grounding
-        ("context-grounding", "list", "ContextGroundingService", "list"),
+        ("context-grounding", "list", "ContextGroundingService", "list_indexes"),
         ("context-grounding", "retrieve", "ContextGroundingService", "retrieve"),
-        ("context-grounding", "search", "ContextGroundingService", "search"),
-        ("context-grounding", "ingest", "ContextGroundingService", "ingest_data"),
-        ("context-grounding", "delete", "ContextGroundingService", "delete_index"),
+        ("context-grounding", "create", "ContextGroundingService", "create_index"),
+        ("context-grounding", "search", "ContextGroundingService", "unified_search"),
+        ("context-grounding", "ingest", "ContextGroundingService", "ingest_by_name"),
+        ("context-grounding", "delete", "ContextGroundingService", "delete_by_name"),
+        (
+            "context-grounding_deep-rag",
+            "start",
+            "ContextGroundingService",
+            "start_deep_rag",
+        ),
+        (
+            "context-grounding_deep-rag",
+            "retrieve",
+            "ContextGroundingService",
+            "retrieve_deep_rag",
+        ),
+        (
+            "context-grounding_batch-transform",
+            "start",
+            "ContextGroundingService",
+            "start_batch_transform",
+        ),
+        (
+            "context-grounding_batch-transform",
+            "retrieve",
+            "ContextGroundingService",
+            "retrieve_batch_transform",
+        ),
+        (
+            "context-grounding_batch-transform",
+            "download",
+            "ContextGroundingService",
+            "download_batch_transform_result",
+        ),
         # Buckets - bucket operations
         ("buckets", "list", "BucketsService", "list"),
         ("buckets", "retrieve", "BucketsService", "retrieve"),
@@ -251,7 +311,11 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
     # cli_services.buckets.commands["files"].commands[command]).
     # All other service keys resolve directly to a cli_services attribute
     # (hyphens are converted to underscores: "context-grounding" → context_grounding).
-    NESTED_SERVICES = {"buckets_files"}
+    NESTED_SERVICES = {
+        "buckets_files",
+        "context-grounding_deep-rag",
+        "context-grounding_batch-transform",
+    }
 
     def _get_service_group(name: str) -> click.Group:
         """Resolve a cli_services attribute, converting hyphens to underscores."""
@@ -268,10 +332,12 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
 
     # CLI-only options per command (beyond the global CLI_ONLY_OPTIONS set).
     CLI_EXCLUSIONS: dict[str, set[str]] = {
-        # ingest/delete use --index to look up the index object via retrieve();
-        # index_name is a CLI-only lookup key with no direct SDK parameter counterpart.
-        "context-grounding_ingest": {"index_name"},
-        "context-grounding_delete": {"index_name"},
+        # retrieve: --index-id routes to retrieve_by_id, not retrieve — exclude from alignment
+        "context-grounding_retrieve": {"index_id"},
+        # create: CLI-only options that build the source object internally
+        "context-grounding_create": {"source_file", "bucket_source", "file_type"},
+        # batch-transform start: --columns-file is CLI-only (reads JSON, builds output_columns)
+        "context-grounding_batch-transform_start": {"columns_file"},
     }
 
     # Get mappings and exclusions for this command
