@@ -305,3 +305,4 @@ class UnifiedQueryResult(BaseModel):
         default=None, alias="semanticResults"
     )
     explanation: Optional[str] = Field(default=None)
+    index_id: Optional[str] = Field(default=None, alias="indexId")

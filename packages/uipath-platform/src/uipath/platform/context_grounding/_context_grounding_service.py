@@ -1503,7 +1503,9 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return UnifiedQueryResult.model_validate(response.json())
+        result = UnifiedQueryResult.model_validate(response.json())
+        result.index_id = str(index.id)
+        return result
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_unified_search", run_type="uipath")
@@ -1562,7 +1564,9 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return UnifiedQueryResult.model_validate(response.json())
+        result = UnifiedQueryResult.model_validate(response.json())
+        result.index_id = str(index.id)
+        return result
 
     @traced(name="contextgrounding_ingest_data", run_type="uipath")
     def ingest_data(
