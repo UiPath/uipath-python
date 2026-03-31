@@ -103,7 +103,7 @@ def retrieve_index(
             folder_path=folder_path,
             folder_key=folder_key,
         )
-        return ContextGroundingIndex(**raw)
+        return ContextGroundingIndex.model_validate(raw)
 
     assert index_name is not None  # validated above
     name = index_name
@@ -183,7 +183,7 @@ def create_index(
     if source_file:
         from pydantic import TypeAdapter
 
-        from uipath.platform.context_grounding import BucketSourceConfig, SourceConfig
+        from uipath.platform.context_grounding import SourceConfig
 
         with open(source_file) as f:
             source_data = json_module.load(f)
