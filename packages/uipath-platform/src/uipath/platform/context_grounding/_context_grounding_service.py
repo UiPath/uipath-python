@@ -1723,7 +1723,8 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
 
         return [
-            ContextGroundingIndex.model_validate(item) for item in response["value"]
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
         ]
 
     @resource_override(resource_type="index")
@@ -1761,7 +1762,8 @@ class ContextGroundingService(FolderContext, BaseService):
         ).json()
 
         return [
-            ContextGroundingIndex.model_validate(item) for item in response["value"]
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
         ]
 
     @resource_override(resource_type="index")
@@ -1814,8 +1816,6 @@ class ContextGroundingService(FolderContext, BaseService):
             index, folder_key=folder_key, folder_path=folder_path
         )
 
-    @resource_override(resource_type="index")
-    @traced(name="contextgrounding_exists", run_type="uipath")
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_ingest_by_name", run_type="uipath")
     def ingest_by_name(
@@ -1903,10 +1903,7 @@ class ContextGroundingService(FolderContext, BaseService):
     def _list_spec(
         self,
         folder_key: Optional[str] = None,
-        folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
-
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes"),
