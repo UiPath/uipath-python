@@ -325,15 +325,29 @@ class _AppInsightsEventClient:
             _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
 
     @staticmethod
-    def flush() -> None:
-        """Flush any pending telemetry events."""
-        if _AppInsightsEventClient._client:
+    def flush(timeout: float = 5.0) -> None:
+        """Flush any pending telemetry events.
+
+        Blocks for up to ``timeout`` seconds waiting for the flush to complete.
+        On the happy path (network reachable) the flush finishes well within the
+        timeout and no data is lost.  When the ingestion endpoint is unreachable
+        (e.g. Automation Suite / CI with restricted egress) the synchronous sender
+        would otherwise retry indefinitely, preventing the process from exiting and
+        leaving eval runs stuck in Running state.  The flush runs in a daemon thread
+        so that if it does not finish within ``timeout`` seconds it is abandoned
+        rather than blocking the process indefinitely.
+        """
+        import threading
+
+        if not _AppInsightsEventClient._client:
+            return
+
+        def _do_flush() -> None:
             try:
-                _AppInsightsEventClient._client.flush()
-                # Check if items remain after flush (indicates send failure)
+                _AppInsightsEventClient._client.flush()  # type: ignore[union-attr]
                 try:
                     remaining = (
-                        _AppInsightsEventClient._client.channel.queue._queue.qsize()
+                        _AppInsightsEventClient._client.channel.queue._queue.qsize()  # type: ignore[union-attr]
                     )
                     if remaining > 0:
                         _logger.warning(
@@ -343,9 +357,16 @@ class _AppInsightsEventClient:
                 except Exception:
                     pass
             except Exception as e:
-                # Log but don't raise - telemetry should never break the main application
                 _logger.warning(f"Failed to flush telemetry events: {e}")
                 _logger.debug("Telemetry flush error", exc_info=True)
+
+        thread = threading.Thread(target=_do_flush, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        if thread.is_alive():
+            _logger.warning(
+                "AppInsights flush: timed out after %.1fs, abandoning send", timeout
+            )
 
     @staticmethod
     def register_atexit_flush() -> None:
