@@ -3111,7 +3111,7 @@ class TestContextGroundingService:
         response = await service.unified_search_async(
             name="test-index",
             query="test query",
-            search_mode=SearchMode.AUTO,
+            search_mode=SearchMode.SEMANTIC,
         )
 
         assert isinstance(response, UnifiedQueryResult)

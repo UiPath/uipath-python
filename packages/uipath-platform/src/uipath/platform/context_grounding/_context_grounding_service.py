@@ -1456,7 +1456,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         query: str,
-        search_mode: SearchMode = SearchMode.AUTO,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
         number_of_results: int = 10,
         threshold: float = 0.0,
         scope: Optional[UnifiedSearchScope] = None,
@@ -1471,7 +1471,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Args:
             name (str): The name of the context index to search in.
             query (str): The search query in natural language.
-            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            search_mode (SearchMode): The search mode to use. Defaults to SEMANTIC.
             number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
@@ -1511,7 +1511,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         query: str,
-        search_mode: SearchMode = SearchMode.AUTO,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
         number_of_results: int = 10,
         threshold: float = 0.0,
         scope: Optional[UnifiedSearchScope] = None,
@@ -1526,7 +1526,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Args:
             name (str): The name of the context index to search in.
             query (str): The search query in natural language.
-            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            search_mode (SearchMode): The search mode to use. Defaults to SEMANTIC.
             number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
@@ -2162,7 +2162,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         index_id: str,
         query: str,
-        search_mode: SearchMode = SearchMode.AUTO,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
         number_of_results: int = 10,
         threshold: float = 0.0,
         scope: Optional[UnifiedSearchScope] = None,
