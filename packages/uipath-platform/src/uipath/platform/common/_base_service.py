@@ -67,7 +67,6 @@ _TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
 
 
 def _inject_trace_context(headers: dict[str, str]) -> None:
-
     """Inject UiPath trace context header from the active OTEL span."""
     span = trace.get_current_span()
     ctx = span.get_span_context()
@@ -75,8 +74,6 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
         headers[_TRACE_PARENT_HEADER] = (
             f"00-{format_trace_id(ctx.trace_id)}-{format_span_id(ctx.span_id)}-01"
         )
-
-        print(f"DEBUG: Injecting {_TRACE_PARENT_HEADER} = {headers[_TRACE_PARENT_HEADER]}")
 
 
 class BaseService:
