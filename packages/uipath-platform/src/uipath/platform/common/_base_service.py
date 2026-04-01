@@ -71,7 +71,9 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
     span = trace.get_current_span()
     ctx = span.get_span_context()
     if ctx.trace_id and ctx.span_id:
-        headers[_TRACE_PARENT_HEADER] = f"00-{format_trace_id(ctx.trace_id)}-{format_span_id(ctx.span_id)}-01"
+        headers[_TRACE_PARENT_HEADER] = (
+            f"00-{format_trace_id(ctx.trace_id)}-{format_span_id(ctx.span_id)}-01"
+        )
 
 
 class BaseService:
