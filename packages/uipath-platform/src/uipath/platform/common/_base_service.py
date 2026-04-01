@@ -3,8 +3,6 @@ import types
 from logging import getLogger
 from typing import Any, Literal, Union
 
-from opentelemetry import trace
-
 from httpx import (
     URL,
     AsyncClient,
@@ -13,6 +11,7 @@ from httpx import (
     HTTPStatusError,
     Response,
 )
+from opentelemetry import trace
 from tenacity import (
     retry,
     retry_if_exception,
