@@ -785,7 +785,9 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
             headers=spec.headers,
         )
-        return BatchTransformCreationResponse.model_validate(response.json())
+        result = BatchTransformCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id)
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_batch_transform_async", run_type="uipath")
@@ -861,7 +863,9 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
             headers=spec.headers,
         )
-        return BatchTransformCreationResponse.model_validate(response.json())
+        result = BatchTransformCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id)
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_batch_transform", run_type="uipath")
@@ -907,7 +911,9 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
             headers=spec.headers,
         )
-        return BatchTransformCreationResponse.model_validate(response.json())
+        result = BatchTransformCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id) if index_id else None
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_batch_transform_async", run_type="uipath")
@@ -953,7 +959,9 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
             headers=spec.headers,
         )
-        return BatchTransformCreationResponse.model_validate(response.json())
+        result = BatchTransformCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id) if index_id else None
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_retrieve_batch_transform", run_type="uipath")
@@ -1185,7 +1193,9 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return DeepRagCreationResponse.model_validate(response.json())
+        result = DeepRagCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id)
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag_async", run_type="uipath")
@@ -1248,7 +1258,9 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return DeepRagCreationResponse.model_validate(response.json())
+        result = DeepRagCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id)
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag", run_type="uipath")
@@ -1289,7 +1301,9 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return DeepRagCreationResponse.model_validate(response.json())
+        result = DeepRagCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id) if index_id else None
+        return result
 
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag_async", run_type="uipath")
@@ -1330,7 +1344,9 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
-        return DeepRagCreationResponse.model_validate(response.json())
+        result = DeepRagCreationResponse.model_validate(response.json())
+        result.index_id = str(index_id) if index_id else None
+        return result
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_search", run_type="uipath")

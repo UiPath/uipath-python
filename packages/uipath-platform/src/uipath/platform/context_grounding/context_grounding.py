@@ -128,6 +128,7 @@ class BatchTransformCreationResponse(BaseModel):
     id: str
     last_batch_rag_status: DeepRagStatus = Field(alias="lastBatchRagStatus")
     error_message: str | None = Field(alias="errorMessage", default=None)
+    index_id: Optional[str] = Field(default=None, alias="indexId")
 
 
 class BatchTransformResponse(BaseModel):
@@ -175,6 +176,7 @@ class DeepRagCreationResponse(BaseModel):
     id: str
     last_deep_rag_status: DeepRagStatus = Field(alias="lastDeepRagStatus")
     created_date: str = Field(alias="createdDate")
+    index_id: Optional[str] = Field(default=None, alias="indexId")
 
 
 class ContextGroundingMetadata(BaseModel):
