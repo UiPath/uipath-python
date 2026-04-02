@@ -1,6 +1,9 @@
 """Test span nesting behavior for traced decorators."""
 
+import random
+
 from opentelemetry import trace
+from opentelemetry.trace import SpanContext, TraceFlags
 
 from tests.conftest import SpanCapture
 
@@ -63,6 +66,53 @@ def test_external_span_provider_returns_none(span_capture: SpanCapture):
 
     spans = span_capture.get_spans()
     assert len(spans) == 1
+
+
+def test_different_trace_ids_prefers_otel_current_span(span_capture: SpanCapture):
+    """When OTEL current span and external span have different trace IDs,
+    get_parent_context should prefer the OTEL current span (agent trace)."""
+    from uipath.core.tracing.decorators import traced
+    from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    # Create an OTEL span with a known trace ID (simulates agent runtime)
+    agent_trace_id = random.getrandbits(128)
+    agent_span_context = SpanContext(
+        trace_id=agent_trace_id,
+        span_id=random.getrandbits(64),
+        is_remote=True,
+        trace_flags=TraceFlags(0x01),
+    )
+    agent_span = trace.NonRecordingSpan(agent_span_context)
+
+    # Create an external span with a DIFFERENT trace ID (simulates OpenInference)
+    external_tracer = trace.get_tracer("openinference")
+    external_span = external_tracer.start_span("external_span")
+    assert external_span.get_span_context().trace_id != agent_trace_id
+
+    # Register external provider that returns the external span
+    UiPathSpanUtils.register_current_span_provider(lambda: external_span)
+
+    # Set the agent span as OTEL current span and call a traced function
+    with trace.use_span(agent_span, end_on_exit=False):
+
+        @traced(name="sdk_call")
+        def sdk_call():
+            return "result"
+
+        result = sdk_call()
+        assert result == "result"
+
+    external_span.end()
+
+    # Clean up
+    UiPathSpanUtils.register_current_span_provider(None)
+
+    spans = span_capture.get_spans()
+    sdk_span = next((s for s in spans if s.name == "sdk_call"), None)
+    assert sdk_span is not None
+
+    # The sdk_call span should inherit the agent's trace ID, not the external one
+    assert sdk_span.context.trace_id == agent_trace_id
 
 
 def test_external_span_provider_raises_exception(span_capture: SpanCapture):
