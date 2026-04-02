@@ -508,26 +508,19 @@ def test_non_recording_parent_picks_external_when_outside_context(
 def test_ctx_parameter_required_when_external_deeper_than_current(
     span_capture: SpanCapture,
 ):
-    """Test that trace.get_current_span(ctx) is required when external span is deeper.
+    """Test that OTEL span is preferred when trace IDs differ from external span.
 
     Scenario:
-    1. Create an external span (depth 0)
-    2. Create a deeper nested external span (depth 1) - this becomes current external
-    3. Create an OTel span INSIDE the deepest external context
-    4. Register the deepest external span as the external provider
-    5. Create a non-recording span
+    1. Create an external span hierarchy (depth 0 and depth 1)
+    2. Create an OTel span in a separate context
+    3. Register the deeper external span as the external provider
+    4. Create a non-recording span
 
-    Expected behavior with trace.get_current_span(ctx):
+    Expected behavior:
     - get_parent_context() compares: current OTel span vs external span
-    - External span is deeper (depth 1), so it's chosen
-    - trace.get_current_span(ctx) gets the external span from ctx
-    - Non-recording span is parented to external
-
-    Bug with trace.get_current_span() without ctx:
-    - trace.get_current_span() (no args) returns the OTel span (from thread-local)
-    - Non-recording span gets parented to OTel span (wrong!)
-
-    This test PASSES with the fix (ctx parameter) and FAILS without it.
+    - They have different trace IDs (different tracing systems)
+    - OTEL current span is preferred to preserve the agent trace ID
+    - Non-recording span is parented to OTel span
     """
     from opentelemetry import trace
 
@@ -619,29 +612,19 @@ def test_ctx_parameter_required_when_external_deeper_than_current(
             "Recording child of non-recording parent should not be captured due to ParentBased sampler"
         )
 
-        # Step 2: Verify the non-recording span was parented to external_deep (deeper)
-        # NOT to otel_span (which is current in thread-local context)
-        non_recording_id = None
+        # Step 2: When trace IDs differ between OTEL and external spans,
+        # the OTEL current span takes priority (agent trace ID preservation).
+        # The non-recording span should be parented to otel_span, not external_deep.
+        non_recording_parented_to_otel = False
         for span_id, parent_id in _span_registry._parent_map.items():
-            stored_span = _span_registry.get_span(span_id)
-            if stored_span is not None and parent_id == external_deep_id:
-                non_recording_id = span_id
+            if parent_id == otel_span_id:
+                non_recording_parented_to_otel = True
                 break
 
-        assert non_recording_id is not None, (
-            "CRITICAL: Non-recording span should be parented to external_deep (deeper). "
-            "This requires using trace.get_current_span(ctx) NOT trace.get_current_span(). "
-            "With trace.get_current_span() alone, it would pick the OTel span "
-            "(which is current in thread-local context), not the external span."
+        assert non_recording_parented_to_otel, (
+            "When OTEL and external spans have different trace IDs, "
+            "the OTEL current span should be preferred to preserve the agent trace ID."
         )
-
-        # Verify it's NOT parented to the OTel span
-        for _span_id, parent_id in _span_registry._parent_map.items():
-            if parent_id == otel_span_id:
-                raise AssertionError(
-                    "Non-recording span should NOT be parented to otel_span. "
-                    "This indicates trace.get_current_span() was used instead of trace.get_current_span(ctx)."
-                )
 
         _span_registry.clear()
 
