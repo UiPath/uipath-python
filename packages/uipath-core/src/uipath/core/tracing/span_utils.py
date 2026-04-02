@@ -269,9 +269,6 @@ class UiPathSpanUtils:
         current_trace_id = current_span.get_span_context().trace_id
         external_trace_id = external_span.get_span_context().trace_id
         if current_trace_id != external_trace_id:
-            logger.debug(
-                "Traced Context: Different trace IDs -> returning current_span (agent trace)",
-            )
             return current_span
 
         # Same trace ID, use depth as tiebreaker
