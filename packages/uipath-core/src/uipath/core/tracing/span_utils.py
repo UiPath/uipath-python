@@ -264,7 +264,17 @@ class UiPathSpanUtils:
             return external_span
 
         # Neither is an ancestor of the other - they're in different branches
-        # Use depth as tiebreaker
+        # If trace IDs differ, the spans belong to different tracing systems.
+        # Prefer the OTEL current_span which carries the agent's trace ID.
+        current_trace_id = current_span.get_span_context().trace_id
+        external_trace_id = external_span.get_span_context().trace_id
+        if current_trace_id != external_trace_id:
+            logger.debug(
+                "Traced Context: Different trace IDs -> returning current_span (agent trace)",
+            )
+            return current_span
+
+        # Same trace ID, use depth as tiebreaker
         current_depth = _span_registry.calculate_depth(current_span_id)
         external_depth = _span_registry.calculate_depth(external_span_id)
 
