@@ -616,7 +616,7 @@ def test_ctx_parameter_required_when_external_deeper_than_current(
         # the OTEL current span takes priority (agent trace ID preservation).
         # The non-recording span should be parented to otel_span, not external_deep.
         non_recording_parented_to_otel = False
-        for span_id, parent_id in _span_registry._parent_map.items():
+        for _span_id, parent_id in _span_registry._parent_map.items():
             if parent_id == otel_span_id:
                 non_recording_parented_to_otel = True
                 break
