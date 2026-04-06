@@ -1039,18 +1039,34 @@ class EntitiesService(BaseService):
         resolved = await self._resolve_folder_paths_to_ids_async()
         return self._build_routing_context_from_resolved_map(resolved)
 
+    @staticmethod
+    def _is_folder_key(value: str) -> bool:
+        """Check if the value is already a folder key (UUID format)."""
+        import re
+
+        return bool(
+            re.match(
+                r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                value,
+                re.IGNORECASE,
+            )
+        )
+
     def _resolve_folder_paths_to_ids(self) -> Optional[dict[str, str]]:
         if not self._folders_map:
             return None
 
         resolved: dict[str, str] = {}
-        for folder_path in set(self._folders_map.values()):
+        for folder_value in set(self._folders_map.values()):
+            if self._is_folder_key(folder_value):
+                resolved[folder_value] = folder_value
+                continue
             if self._folders_service is not None:
-                folder_key = self._folders_service.retrieve_folder_key(folder_path)
+                folder_key = self._folders_service.retrieve_folder_key(folder_value)
                 if folder_key is not None:
-                    resolved[folder_path] = folder_key
+                    resolved[folder_value] = folder_key
                     continue
-            resolved[folder_path] = folder_path
+            resolved[folder_value] = folder_value
 
         return resolved
 
@@ -1059,15 +1075,18 @@ class EntitiesService(BaseService):
             return None
 
         resolved: dict[str, str] = {}
-        for folder_path in set(self._folders_map.values()):
+        for folder_value in set(self._folders_map.values()):
+            if self._is_folder_key(folder_value):
+                resolved[folder_value] = folder_value
+                continue
             if self._folders_service is not None:
                 folder_key = await self._folders_service.retrieve_folder_key_async(
-                    folder_path
+                    folder_value
                 )
                 if folder_key is not None:
-                    resolved[folder_path] = folder_key
+                    resolved[folder_value] = folder_key
                     continue
-            resolved[folder_path] = folder_path
+            resolved[folder_value] = folder_value
 
         return resolved
 
