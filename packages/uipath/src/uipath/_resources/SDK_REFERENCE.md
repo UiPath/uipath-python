@@ -500,10 +500,10 @@ sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, sta
 sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
 
 # Query entity records using a validated SQL query.
-sdk.entities.query_entity_records(sql_query: str, routing_context: Optional[uipath.platform.entities.entities.QueryRoutingOverrideContext]=None) -> typing.List[typing.Dict[str, typing.Any]]
+sdk.entities.query_entity_records(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
 
 # Asynchronously query entity records using a validated SQL query.
-sdk.entities.query_entity_records_async(sql_query: str, routing_context: Optional[uipath.platform.entities.entities.QueryRoutingOverrideContext]=None) -> typing.List[typing.Dict[str, typing.Any]]
+sdk.entities.query_entity_records_async(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
 
 # Retrieve an entity by its key.
 sdk.entities.retrieve(entity_key: str) -> uipath.platform.entities.entities.Entity
