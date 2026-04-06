@@ -227,7 +227,7 @@ class BaseGuardrail(BaseModel):
     name: str
     description: str | None = None
     enabled_for_evals: bool = Field(True, alias="enabledForEvals")
-    selector: GuardrailSelector
+    selector: GuardrailSelector | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

@@ -723,6 +723,7 @@ class TestAgentBuilderConfig:
             == "This validator is designed to detect personally identifiable information using Azure Cognitive Services"
         )
         assert agent_builtin_guardrail.enabled_for_evals is True
+        assert agent_builtin_guardrail.selector is not None
         assert agent_builtin_guardrail.selector.scopes == ["Tool"]
         assert agent_builtin_guardrail.selector.match_names == ["StringToNumber"]
 
