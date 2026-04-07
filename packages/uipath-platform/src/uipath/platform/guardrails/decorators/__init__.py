@@ -7,19 +7,27 @@ teach the decorator how to wrap their specific object types.
 
 from ._actions import BlockAction, LogAction, LoggingSeverityLevel
 from ._core import GuardrailExclude
-from ._enums import GuardrailExecutionStage, PIIDetectionEntityType
+from ._enums import (
+    GuardrailExecutionStage,
+    HarmfulContentEntityType,
+    IntellectualPropertyEntityType,
+    PIIDetectionEntityType,
+)
 from ._exceptions import GuardrailBlockException
 from ._guardrail import guardrail
-from ._models import GuardrailAction, PIIDetectionEntity
+from ._models import GuardrailAction, HarmfulContentEntity, PIIDetectionEntity
 from ._registry import GuardrailTargetAdapter, register_guardrail_adapter
 from .validators import (
     BuiltInGuardrailValidator,
     CustomGuardrailValidator,
     CustomValidator,
     GuardrailValidatorBase,
+    HarmfulContentValidator,
+    IntellectualPropertyValidator,
     PIIValidator,
     PromptInjectionValidator,
     RuleFunction,
+    UserPromptAttacksValidator,
 )
 
 __all__ = [
@@ -29,11 +37,17 @@ __all__ = [
     "GuardrailValidatorBase",
     "BuiltInGuardrailValidator",
     "CustomGuardrailValidator",
+    "HarmfulContentValidator",
+    "IntellectualPropertyValidator",
     "PIIValidator",
     "PromptInjectionValidator",
+    "UserPromptAttacksValidator",
     "CustomValidator",
     "RuleFunction",
     # Models & enums
+    "HarmfulContentEntity",
+    "HarmfulContentEntityType",
+    "IntellectualPropertyEntityType",
     "PIIDetectionEntity",
     "PIIDetectionEntityType",
     "GuardrailExecutionStage",

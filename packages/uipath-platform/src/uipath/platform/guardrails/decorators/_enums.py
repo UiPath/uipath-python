@@ -42,3 +42,22 @@ class PIIDetectionEntityType(str, Enum):
     USUK_PASSPORT_NUMBER = "UsukPassportNumber"
     URL = "URL"
     IP_ADDRESS = "IPAddress"
+
+
+class HarmfulContentEntityType(str, Enum):
+    """Harmful content entity types supported by UiPath guardrails.
+
+    These entities correspond to the Azure Content Safety categories.
+    """
+
+    HATE = "Hate"
+    SELF_HARM = "SelfHarm"
+    SEXUAL = "Sexual"
+    VIOLENCE = "Violence"
+
+
+class IntellectualPropertyEntityType(str, Enum):
+    """Intellectual property entity types supported by UiPath guardrails."""
+
+    TEXT = "Text"
+    CODE = "Code"
