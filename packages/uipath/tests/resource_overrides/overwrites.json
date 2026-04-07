@@ -28,9 +28,5 @@
   "mcpServer.mcp_server_name": {
     "name": "Overwritten MCP Server Name",
     "folderPath": "Overwritten/MCPServer/Folder"
-  },
-  "entity.entity_name": {
-    "name": "Overwritten Entity Name",
-    "folderId": "overwritten-entity-folder-id-123"
   }
 }

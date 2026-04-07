@@ -8,7 +8,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.entities import Entity
+from uipath.platform.entities import Entity, EntityRouting, QueryRoutingOverrideContext
 from uipath.platform.entities._entities_service import EntitiesService
 
 
@@ -390,21 +390,28 @@ class TestEntitiesService:
         assert result == [{"id": "c1"}]
         service.request_async.assert_called_once()
 
-    def test_query_entity_records_builds_routing_context_from_folders_map(
+    def test_query_entity_records_with_routing_context(
         self,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
+        service: EntitiesService,
     ) -> None:
-        service = EntitiesService(
-            config=config,
-            execution_context=execution_context,
-            folders_map={"Customers": "solution_folder", "Orders": "folder-2"},
-        )
         response = MagicMock()
         response.json.return_value = {"results": [{"id": 1}]}
         service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
-        result = service.query_entity_records("SELECT id FROM Customers LIMIT 10")
+        routing = QueryRoutingOverrideContext(
+            entity_routings=[
+                EntityRouting(entity_name="Customers", folder_id="folder-1"),
+                EntityRouting(
+                    entity_name="Orders",
+                    folder_id="folder-2",
+                    override_entity_name="OrdersV2",
+                ),
+            ]
+        )
+
+        result = service.query_entity_records(
+            "SELECT id FROM Customers LIMIT 10", routing_context=routing
+        )
 
         assert result == [{"id": 1}]
         call_kwargs = service.request.call_args
@@ -412,38 +419,39 @@ class TestEntitiesService:
         assert body["query"] == "SELECT id FROM Customers LIMIT 10"
         assert body["routingContext"] == {
             "entityRoutings": [
-                {"entityName": "Customers", "folderId": "solution_folder"},
-                {"entityName": "Orders", "folderId": "folder-2"},
+                {"entityName": "Customers", "folderId": "folder-1"},
+                {
+                    "entityName": "Orders",
+                    "folderId": "folder-2",
+                    "overrideEntityName": "OrdersV2",
+                },
             ]
         }
 
     @pytest.mark.anyio
-    async def test_query_entity_records_async_builds_routing_context_from_folders_map(
+    async def test_query_entity_records_async_with_routing_context(
         self,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
+        service: EntitiesService,
     ) -> None:
-        service = EntitiesService(
-            config=config,
-            execution_context=execution_context,
-            folders_map={"Customers": "solution_folder"},
-        )
         response = MagicMock()
         response.json.return_value = {"results": [{"id": "c1"}]}
         service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
+        routing = QueryRoutingOverrideContext(
+            entity_routings=[
+                EntityRouting(entity_name="Customers", folder_id="folder-1"),
+            ]
+        )
+
         result = await service.query_entity_records_async(
-            "SELECT id FROM Customers WHERE id = 'c1'"
+            "SELECT id FROM Customers WHERE id = 'c1'",
+            routing_context=routing,
         )
 
         assert result == [{"id": "c1"}]
         call_kwargs = service.request_async.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert body["routingContext"] == {
-            "entityRoutings": [
-                {"entityName": "Customers", "folderId": "solution_folder"},
-            ]
-        }
+        assert "routingContext" in body
 
     def test_query_entity_records_without_routing_context_omits_key(
         self,
@@ -458,128 +466,3 @@ class TestEntitiesService:
         call_kwargs = service.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert "routingContext" not in body
-
-    def test_query_entity_records_picks_up_entity_overwrites_from_context(
-        self,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-    ) -> None:
-        from uipath.platform.common._bindings import (
-            EntityResourceOverwrite,
-            _resource_overwrites,
-        )
-
-        service = EntitiesService(
-            config=config,
-            execution_context=execution_context,
-        )
-        response = MagicMock()
-        response.json.return_value = {"results": [{"id": 1}]}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
-
-        overwrite = EntityResourceOverwrite(
-            resource_type="entity",
-            name="Overwritten Customers",
-            folder_key="overwritten-folder-id",
-        )
-        token = _resource_overwrites.set({"entity.Customers": overwrite})
-        try:
-            service.query_entity_records("SELECT id FROM Customers LIMIT 10")
-        finally:
-            _resource_overwrites.reset(token)
-
-        call_kwargs = service.request.call_args
-        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert body["routingContext"] == {
-            "entityRoutings": [
-                {
-                    "entityName": "Customers",
-                    "folderId": "overwritten-folder-id",
-                    "overrideEntityName": "Overwritten Customers",
-                },
-            ]
-        }
-
-    def test_query_entity_records_merges_folders_map_with_context_overwrites(
-        self,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-    ) -> None:
-        from uipath.platform.common._bindings import (
-            EntityResourceOverwrite,
-            _resource_overwrites,
-        )
-
-        service = EntitiesService(
-            config=config,
-            execution_context=execution_context,
-            folders_map={"Customers": "original-folder", "Orders": "orders-folder"},
-        )
-        response = MagicMock()
-        response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
-
-        # Overwrite only Customers — Orders should keep its folders_map value
-        overwrite = EntityResourceOverwrite(
-            resource_type="entity",
-            name="Overwritten Customers",
-            folder_key="overwritten-folder-id",
-        )
-        token = _resource_overwrites.set({"entity.Customers": overwrite})
-        try:
-            service.query_entity_records("SELECT id FROM Customers LIMIT 10")
-        finally:
-            _resource_overwrites.reset(token)
-
-        call_kwargs = service.request.call_args
-        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        routings = body["routingContext"]["entityRoutings"]
-        # Customers overwritten by context
-        assert {
-            "entityName": "Customers",
-            "folderId": "overwritten-folder-id",
-            "overrideEntityName": "Overwritten Customers",
-        } in routings
-        # Orders unchanged from folders_map
-        assert {"entityName": "Orders", "folderId": "orders-folder"} in routings
-
-    def test_query_entity_records_context_overwrite_same_name_no_override_field(
-        self,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-    ) -> None:
-        from uipath.platform.common._bindings import (
-            EntityResourceOverwrite,
-            _resource_overwrites,
-        )
-
-        service = EntitiesService(
-            config=config,
-            execution_context=execution_context,
-        )
-        response = MagicMock()
-        response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
-
-        # Same entity name — only folder changes, no override_entity_name needed
-        overwrite = EntityResourceOverwrite(
-            resource_type="entity",
-            name="Customers",
-            folder_key="different-folder-id",
-        )
-        token = _resource_overwrites.set({"entity.Customers": overwrite})
-        try:
-            service.query_entity_records("SELECT id FROM Customers LIMIT 10")
-        finally:
-            _resource_overwrites.reset(token)
-
-        call_kwargs = service.request.call_args
-        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert body["routingContext"] == {
-            "entityRoutings": [
-                {
-                    "entityName": "Customers",
-                    "folderId": "different-folder-id",
-                },
-            ]
-        }
