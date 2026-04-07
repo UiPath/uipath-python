@@ -139,9 +139,7 @@ class UiPath:
 
     @property
     def entities(self) -> EntitiesService:
-        return EntitiesService(
-            self._config, self._execution_context, folders_service=self.folders
-        )
+        return EntitiesService(self._config, self._execution_context)
 
     @cached_property
     def resource_catalog(self) -> ResourceCatalogService:

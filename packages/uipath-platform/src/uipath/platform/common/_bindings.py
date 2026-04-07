@@ -45,7 +45,7 @@ class ResourceOverwrite(BaseModel, ABC):
 
 class GenericResourceOverwrite(ResourceOverwrite):
     resource_type: Literal[
-        "process", "index", "app", "asset", "bucket", "mcpServer", "queue"
+        "process", "index", "app", "asset", "bucket", "mcpServer", "queue", "entity"
     ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
@@ -57,20 +57,6 @@ class GenericResourceOverwrite(ResourceOverwrite):
     @property
     def folder_identifier(self) -> str:
         return self.folder_path
-
-
-class EntityResourceOverwrite(ResourceOverwrite):
-    resource_type: Literal["entity"]
-    name: str = Field(alias="name")
-    folder_key: str = Field(alias="folderId")
-
-    @property
-    def resource_identifier(self) -> str:
-        return self.name
-
-    @property
-    def folder_identifier(self) -> str:
-        return self.folder_key
 
 
 class ConnectionResourceOverwrite(ResourceOverwrite):
@@ -97,9 +83,7 @@ class ConnectionResourceOverwrite(ResourceOverwrite):
 
 
 ResourceOverwriteUnion = Annotated[
-    Union[
-        GenericResourceOverwrite, EntityResourceOverwrite, ConnectionResourceOverwrite
-    ],
+    Union[GenericResourceOverwrite, ConnectionResourceOverwrite],
     Field(discriminator="resource_type"),
 ]
 

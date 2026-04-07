@@ -310,11 +310,6 @@ class TestResourceOverrides:
         assert mcp_server.resource_identifier == "Overwritten MCP Server Name"
         assert mcp_server.folder_identifier == "Overwritten/MCPServer/Folder"
 
-        # Verify entity overwrite
-        entity = parsed_overwrites["entity.entity_name"]
-        assert entity.resource_identifier == "Overwritten Entity Name"
-        assert entity.folder_identifier == "overwritten-entity-folder-id-123"
-
     def test_overrides_decorator_should_pop_kwargs_dict_when_present(self):
         from uipath.platform.common import resource_override
 
