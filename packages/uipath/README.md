@@ -26,6 +26,7 @@ This [quickstart guide](https://uipath.github.io/uipath-python/) walks you throu
     -   [Authentication](#authentication)
     -   [Initialize a Project](#initialize-a-project)
     -   [Debug a Project](#debug-a-project)
+    -   [Visualize Traces](#visualize-traces)
     -   [Package a Project](#package-a-project)
     -   [Publish a Package](#publish-a-package)
 -   [Project Structure](#project-structure)
@@ -154,6 +155,18 @@ uipath run ENTRYPOINT [INPUT]
 ```
 
 Executes a Python script with the provided JSON input arguments.
+
+### Visualize Traces
+
+```bash
+# Capture a trace
+uipath run main '{"query": "hello"}' --trace-file traces.jsonl
+
+# Visualize the agent trajectory
+uipath trace traces.jsonl
+```
+
+Renders a tree view of the agent's execution showing tool calls, LLM invocations, inputs/outputs, and timing. Also works with eval traces (`uipath eval --trace-file`) — use `--contains "function_name"` to find specific runs across an eval set.
 
 ### Package a Project
 

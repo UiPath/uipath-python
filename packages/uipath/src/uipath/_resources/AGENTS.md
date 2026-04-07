@@ -17,5 +17,5 @@ This documentation is split into multiple files for efficient context loading. L
    - **Contains:** All SDK services and methods with full signatures and type annotations
 
 3. **@.agent/CLI_REFERENCE.md** - CLI commands documentation
-   - **When to load:** Working with `uipath init`, `uipath run`, or `uipath eval` commands
+   - **When to load:** Working with `uipath init`, `uipath run`, `uipath eval`, or `uipath trace` commands
    - **Contains:** Command syntax, options, usage examples, and workflows

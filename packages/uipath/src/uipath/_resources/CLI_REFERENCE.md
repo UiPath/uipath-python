@@ -9,6 +9,7 @@ The UiPath Python SDK provides a comprehensive CLI for managing coded agents and
 | `init` | Initialize agent project | Creating a new agent or updating schema |
 | `run` | Execute agent | Running agent locally or testing |
 | `eval` | Evaluate agent | Testing agent performance with evaluation sets |
+| `trace` | Visualize execution trace | Inspecting agent trajectory after a run or eval |
 
 ---
 
@@ -153,6 +154,61 @@ uv run uipath eval --output-file eval_results.json
 
 ---
 
+### `uipath trace`
+
+**Description:** Visualize an agent execution trace. Reads JSONL trace files produced by `uipath run --trace-file` or `uipath eval --trace-file`, or eval verbose JSON output from `uipath eval --verbose --output-file`. Renders a span tree showing the agent's trajectory with timing, inputs, outputs, and tool calls.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `file` | Yes | Path to the trace file (`.jsonl` or `.json`) |
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--name` | value | `None` | Filter spans by name (glob pattern, e.g. `"agent*"`) |
+| `--contains` | value | `None` | Show full subtrees containing a span matching this name (glob pattern) |
+| `--eval-id` | value | `None` | Show trace for a specific evaluation by name (eval JSON only) |
+| `--span-type` | value | `None` | Filter by `span_type` attribute (e.g. `TOOL`, `function_call_async`) |
+| `--status` | choice | `None` | Filter by span status: `ok`, `error`, or `unset` |
+| `--no-input` | flag | false | Hide input values |
+| `--no-output` | flag | false | Hide output values |
+| `--full` | flag | false | Show all span attributes with no truncation |
+
+**Usage Examples:**
+
+```bash
+# Capture traces from a run, then visualize
+uv run uipath run main '{"query": "hello"}' --trace-file traces.jsonl
+uv run uipath trace traces.jsonl
+
+# Quick structural overview (no input/output noise)
+uv run uipath trace traces.jsonl --no-input --no-output
+
+# Show only tool calls
+uv run uipath trace traces.jsonl --span-type TOOL
+
+# Show only errored spans
+uv run uipath trace traces.jsonl --status error
+
+# From an eval: find the run where a specific function was called
+uv run uipath eval main eval-set.json --trace-file traces.jsonl
+uv run uipath trace traces.jsonl --contains "get_random*"
+
+# Full detail on a specific span (no truncation)
+uv run uipath trace traces.jsonl --name "search_flights" --full
+
+# Visualize eval verbose output
+uv run uipath eval main eval-set.json --verbose --output-file results.json
+uv run uipath trace results.json --eval-id "test-case-1"
+```
+
+**When to use:** Run this command to inspect what your agent did during a run — which tools it called, what inputs/outputs it produced, where errors occurred, and how long each step took. Especially useful for debugging failing evaluations by capturing traces with `--trace-file` and then using `--contains` to find specific runs.
+
+---
+
 ### Common Workflows
 
 **1. Creating a New Agent:**
@@ -174,6 +230,10 @@ uv run uipath run main.py '{"input": "test"}' --debug
 
 # Test with input file
 uv run uipath run main.py --file test_input.json --output-file test_output.json
+
+# Run with tracing, then inspect the trajectory
+uv run uipath run main.py '{"input": "test"}' --trace-file traces.jsonl
+uv run uipath trace traces.jsonl
 ```
 
 **3. Schema Updates:**

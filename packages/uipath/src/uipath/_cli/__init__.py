@@ -45,6 +45,7 @@ _LAZY_COMMANDS = {
     "server": "cli_server",
     "register": "cli_register",
     "debug": "cli_debug",
+    "trace": "cli_trace",
     "assets": "services.cli_assets",
     "buckets": "services.cli_buckets",
     "context-grounding": "services.cli_context_grounding",

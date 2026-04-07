@@ -1,0 +1,71 @@
+{
+  "evaluationSetName": "weather-eval-set",
+  "evaluationSetResults": [
+    {
+      "evaluationName": "test-weather-query",
+      "evaluationRunResults": [
+        {
+          "evaluatorName": "exact-match",
+          "evaluatorId": "eval-001",
+          "result": {
+            "score": 100.0,
+            "evaluationTime": 0.05
+          },
+          "isLineResult": false
+        }
+      ],
+      "agentExecutionOutput": {
+        "executionTime": 2.3,
+        "trace": {
+          "spans": [
+            {
+              "name": "agent",
+              "status": "ok",
+              "parent_name": null,
+              "attributes": {
+                "span_type": "function_call_async",
+                "run_type": "agent",
+                "input.value": "{\"query\": \"What is the weather?\"}",
+                "output.value": "{\"answer\": \"15C and cloudy\"}"
+              },
+              "events": []
+            },
+            {
+              "name": "get_weather",
+              "status": "ok",
+              "parent_name": "agent",
+              "attributes": {
+                "span_type": "TOOL",
+                "openinference.span.kind": "TOOL",
+                "tool.name": "get_weather",
+                "input.value": "{\"city\": \"London\"}",
+                "output.value": "{\"temp\": 15}"
+              },
+              "events": []
+            }
+          ]
+        },
+        "result": {
+          "output": {"answer": "15C and cloudy"},
+          "status": "Successful",
+          "error": null
+        }
+      }
+    },
+    {
+      "evaluationName": "test-no-trace",
+      "evaluationRunResults": [
+        {
+          "evaluatorName": "contains",
+          "evaluatorId": "eval-002",
+          "result": {
+            "score": 0.0,
+            "evaluationTime": 0.01
+          },
+          "isLineResult": false
+        }
+      ],
+      "agentExecutionOutput": null
+    }
+  ]
+}
