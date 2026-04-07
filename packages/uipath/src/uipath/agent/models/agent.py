@@ -135,6 +135,8 @@ class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     ASSET_USER_EMAIL = "AssetUserEmail"
     GROUP_NAME = "GroupName"
     ASSET_GROUP_NAME = "AssetGroupName"
+    ARGUMENT_EMAIL = "ArgumentEmail"
+    ARGUMENT_GROUP_NAME = "ArgumentGroupName"
 
 
 class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
@@ -481,6 +483,8 @@ _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType]
     5: AgentEscalationRecipientType.GROUP_NAME,
     "staticgroupname": AgentEscalationRecipientType.GROUP_NAME,
     6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
+    7: AgentEscalationRecipientType.ARGUMENT_EMAIL,
+    8: AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,
 }
 
 
@@ -536,8 +540,37 @@ class AssetRecipient(BaseEscalationRecipient):
     folder_path: str = Field(..., alias="folderPath")
 
 
+class ArgumentEmailRecipient(BaseEscalationRecipient):
+    """Argument email recipient resolved from a named input argument.
+
+    The argument_path supports dot-notation for nested input fields (e.g. "user.email").
+    """
+
+    type: Literal[AgentEscalationRecipientType.ARGUMENT_EMAIL,] = Field(
+        ..., alias="type"
+    )
+    argument_path: str = Field(..., alias="argumentName")
+
+
+class ArgumentGroupNameRecipient(BaseEscalationRecipient):
+    """Argument group name recipient resolved from a named input argument.
+
+    The argument_path supports dot-notation for nested input fields (e.g. "team.groupName").
+    """
+
+    type: Literal[AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,] = Field(
+        ..., alias="type"
+    )
+    argument_path: str = Field(..., alias="argumentName")
+
+
 AgentEscalationRecipient = Annotated[
-    Union[StandardRecipient, AssetRecipient],
+    Union[
+        StandardRecipient,
+        AssetRecipient,
+        ArgumentEmailRecipient,
+        ArgumentGroupNameRecipient,
+    ],
     Field(discriminator="type"),
     BeforeValidator(_normalize_recipient_type),
 ]

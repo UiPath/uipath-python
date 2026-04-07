@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
     AgentA2aResourceConfig,
@@ -43,6 +43,8 @@ from uipath.agent.models.agent import (
     AgentUnknownToolResourceConfig,
     AgentWordOperator,
     AgentWordRule,
+    ArgumentEmailRecipient,
+    ArgumentGroupNameRecipient,
     AssetRecipient,
     BatchTransformFileExtension,
     BatchTransformWebSearchGrounding,
@@ -3789,3 +3791,49 @@ class TestDataFabricContextConfig:
         ]
         assert len(a2a_resources) == 1
         assert isinstance(a2a_resources[0], AgentA2aResourceConfig)
+
+
+class TestArgumentRecipientDeserialization:
+    def test_argument_email_recipient_by_type_int(self):
+        payload = {"type": 7, "argumentName": "assigneeEmail"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentEmailRecipient)
+        assert recipient.argument_path == "assigneeEmail"
+        assert recipient.type == AgentEscalationRecipientType.ARGUMENT_EMAIL
+
+    def test_argument_group_name_recipient_by_type_int(self):
+        payload = {"type": 8, "argumentName": "assigneeGroup"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentGroupNameRecipient)
+        assert recipient.argument_path == "assigneeGroup"
+        assert recipient.type == AgentEscalationRecipientType.ARGUMENT_GROUP_NAME
+
+    def test_argument_email_recipient_by_type_string(self):
+        payload = {"type": "ArgumentEmail", "argumentName": "emailArg"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentEmailRecipient)
+        assert recipient.argument_path == "emailArg"
+
+    def test_argument_group_name_recipient_by_type_string(self):
+        payload = {"type": "ArgumentGroupName", "argumentName": "groupArg"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentGroupNameRecipient)
+        assert recipient.argument_path == "groupArg"
+
+    def test_argument_email_recipient_missing_argument_name_raises(self):
+        payload = {"type": 7}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_argument_group_name_recipient_missing_argument_name_raises(self):
+        payload = {"type": 8}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
