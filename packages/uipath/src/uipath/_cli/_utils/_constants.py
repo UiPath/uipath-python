@@ -1,5 +1,8 @@
 BINDINGS_VERSION = "2.2"
 
+# Default directory for trace files produced by ``--trace-file``
+TRACES_DIR = ".uipath/traces"
+
 # studio_metadata.json constants
 SCHEMA_VERSION = 1
 AGENT_INITIAL_CODE_VERSION = "1.0.0"

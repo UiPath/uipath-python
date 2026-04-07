@@ -154,7 +154,9 @@ Visualize an agent execution trace. Reads JSONL trace files produced by `uipath 
 <!-- termynal -->
 
 ```shell
-> uipath trace traces.jsonl
+> uipath run main '{"query": "hello"}' --trace-file
+Trace written to .uipath/traces/run_2026-04-07T14-58-30.jsonl
+> uipath trace view .uipath/traces/run_2026-04-07T14-58-30.jsonl
 Trace abcdef12…34567890
 └── agent (12.5s) ✓
     ├── input: {"messages": [{"role": "user", "content": "Book a flight..."}]}
@@ -171,10 +173,19 @@ Trace abcdef12…34567890
 ```
 
 /// tip
+Use `--trace-file` without a path to automatically write traces to `.uipath/traces/`, then use `uipath trace list` to find them:
+```console
+uipath run main '{"query": "hello"}' --trace-file
+uipath trace list
+uipath trace view .uipath/traces/run_2026-04-07T14-58-30.jsonl
+```
+///
+
+/// tip
 Use `--contains` to search across eval traces and extract full agent trajectories where a specific function was called:
 ```console
 uipath eval main eval-set.json --trace-file traces.jsonl
-uipath trace traces.jsonl --contains "get_random*"
+uipath trace view traces.jsonl --contains "get_random*"
 ```
 ///
 

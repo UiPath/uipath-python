@@ -160,10 +160,13 @@ Executes a Python script with the provided JSON input arguments.
 
 ```bash
 # Capture a trace
-uipath run main '{"query": "hello"}' --trace-file traces.jsonl
+uipath run main '{"query": "hello"}' --trace-file
+
+# List available traces
+uipath trace list
 
 # Visualize the agent trajectory
-uipath trace traces.jsonl
+uipath trace view .uipath/traces/run_2026-04-07T14-58-30.jsonl
 ```
 
 Renders a tree view of the agent's execution showing tool calls, LLM invocations, inputs/outputs, and timing. Also works with eval traces (`uipath eval --trace-file`) — use `--contains "function_name"` to find specific runs across an eval set.

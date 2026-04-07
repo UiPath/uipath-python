@@ -9,7 +9,8 @@ The UiPath Python SDK provides a comprehensive CLI for managing coded agents and
 | `init` | Initialize agent project | Creating a new agent or updating schema |
 | `run` | Execute agent | Running agent locally or testing |
 | `eval` | Evaluate agent | Testing agent performance with evaluation sets |
-| `trace` | Visualize execution trace | Inspecting agent trajectory after a run or eval |
+| `trace view` | Visualize execution trace | Inspecting agent trajectory after a run or eval |
+| `trace list` | List trace files | Finding trace files in a directory |
 
 ---
 
@@ -59,7 +60,7 @@ uv run uipath init --infer-bindings
 | `-f`, `--file` | value | `Sentinel.UNSET` | File path for the .json input |
 | `--input-file` | value | `Sentinel.UNSET` | Alias for '-f/--file' arguments |
 | `--output-file` | value | `Sentinel.UNSET` | File path where the output will be written |
-| `--trace-file` | value | `Sentinel.UNSET` | File path where the trace spans will be written (JSON Lines format) |
+| `--trace-file` | value | `Sentinel.UNSET` | Write trace spans to a file. Optionally provide a path; defaults to .uipath/traces/. |
 | `--state-file` | value | `Sentinel.UNSET` | File path where the state file is stored for persisting execution state. If not provided, a temporary file will be used. |
 | `--debug` | flag | false | Enable debugging with debugpy. The process will wait for a debugger to attach. |
 | `--debug-port` | value | `5678` | Port for the debug server (default: 5678) |
@@ -76,6 +77,9 @@ uv run uipath run main.py --file input.json
 
 # Run agent and save output to file
 uv run uipath run agent '{"task": "Process data"}' --output-file result.json
+
+# Run agent with automatic trace output
+uv run uipath run main.py '{"query": "hello"}' --trace-file
 
 # Run agent with debugging enabled
 uv run uipath run main.py '{"input": "test"}' --debug --debug-port 5678
@@ -126,7 +130,7 @@ uv run uipath run --resume
 | `--enable-mocker-cache` | flag | false | Enable caching for LLM mocker responses |
 | `--report-coverage` | flag | false | Report evaluation coverage |
 | `--model-settings-id` | value | `"default"` | Model settings ID from evaluation set to override agent settings (default: 'default') |
-| `--trace-file` | value | `Sentinel.UNSET` | File path where traces will be written in JSONL format |
+| `--trace-file` | value | `Sentinel.UNSET` | Write trace spans to a file. Optionally provide a path; defaults to .uipath/traces/. |
 | `--max-llm-concurrency` | value | `20` | Maximum concurrent LLM requests (default: 20) |
 | `--resume` | flag | false | Resume execution from a previous suspended state |
 | `--verbose` | flag | false | Include agent execution output (trace, result) in the output file |
@@ -154,7 +158,7 @@ uv run uipath eval --output-file eval_results.json
 
 ---
 
-### `uipath trace`
+### `uipath trace view`
 
 **Description:** Visualize an agent execution trace. Reads JSONL trace files produced by `uipath run --trace-file` or `uipath eval --trace-file`, or eval verbose JSON output from `uipath eval --verbose --output-file`. Renders a span tree showing the agent's trajectory with timing, inputs, outputs, and tool calls.
 
@@ -181,31 +185,56 @@ uv run uipath eval --output-file eval_results.json
 
 ```bash
 # Capture traces from a run, then visualize
-uv run uipath run main '{"query": "hello"}' --trace-file traces.jsonl
-uv run uipath trace traces.jsonl
+uv run uipath run main '{"query": "hello"}' --trace-file
+uv run uipath trace list
+uv run uipath trace view .uipath/traces/run_2026-04-07T14-58-30.jsonl
 
 # Quick structural overview (no input/output noise)
-uv run uipath trace traces.jsonl --no-input --no-output
+uv run uipath trace view traces.jsonl --no-input --no-output
 
 # Show only tool calls
-uv run uipath trace traces.jsonl --span-type TOOL
+uv run uipath trace view traces.jsonl --span-type TOOL
 
 # Show only errored spans
-uv run uipath trace traces.jsonl --status error
+uv run uipath trace view traces.jsonl --status error
 
 # From an eval: find the run where a specific function was called
 uv run uipath eval main eval-set.json --trace-file traces.jsonl
-uv run uipath trace traces.jsonl --contains "get_random*"
+uv run uipath trace view traces.jsonl --contains "get_random*"
 
 # Full detail on a specific span (no truncation)
-uv run uipath trace traces.jsonl --name "search_flights" --full
+uv run uipath trace view traces.jsonl --name "search_flights" --full
 
 # Visualize eval verbose output
 uv run uipath eval main eval-set.json --verbose --output-file results.json
-uv run uipath trace results.json --eval-id "test-case-1"
+uv run uipath trace view results.json --eval-id "test-case-1"
 ```
 
 **When to use:** Run this command to inspect what your agent did during a run — which tools it called, what inputs/outputs it produced, where errors occurred, and how long each step took. Especially useful for debugging failing evaluations by capturing traces with `--trace-file` and then using `--contains` to find specific runs.
+
+---
+
+### `uipath trace list`
+
+**Description:** Find and list trace files in a directory. Scans the directory recursively for JSONL trace files and eval verbose JSON output.
+
+**Arguments:**
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `directory` | No | Directory to scan (default: `.uipath/traces`) |
+
+**Usage Examples:**
+
+```bash
+# List traces in the default directory
+uv run uipath trace list
+
+# List traces in a specific directory
+uv run uipath trace list ./experiments
+```
+
+**When to use:** Run this command to find trace files previously created with `--trace-file`. Shows file name, format, span count, size, and when it was last modified.
 
 ---
 
@@ -232,8 +261,9 @@ uv run uipath run main.py '{"input": "test"}' --debug
 uv run uipath run main.py --file test_input.json --output-file test_output.json
 
 # Run with tracing, then inspect the trajectory
-uv run uipath run main.py '{"input": "test"}' --trace-file traces.jsonl
-uv run uipath trace traces.jsonl
+uv run uipath run main.py '{"input": "test"}' --trace-file
+uv run uipath trace list
+uv run uipath trace view .uipath/traces/run_2026-04-07T14-58-30.jsonl
 ```
 
 **3. Schema Updates:**

@@ -222,9 +222,10 @@ def _discover_eval_sets() -> list[Path]:
 )
 @click.option(
     "--trace-file",
-    required=False,
-    type=click.Path(exists=False),
-    help="File path where traces will be written in JSONL format",
+    is_flag=False,
+    flag_value="__auto__",
+    default=None,
+    help="Write traces to a file. Optionally provide a path; defaults to .uipath/traces/.",
 )
 @click.option(
     "--max-llm-concurrency",
@@ -284,6 +285,9 @@ def eval(
         input_overrides: Input field overrides mapping (direct field override with deep merge)
         resume: Resume execution from a previous suspended state
     """
+    from uipath._cli.cli_trace import resolve_trace_file
+
+    trace_file = resolve_trace_file(trace_file, "eval")
     set_llm_concurrency(max_llm_concurrency)
 
     should_register_progress_reporter = setup_reporting_prereq(no_report)

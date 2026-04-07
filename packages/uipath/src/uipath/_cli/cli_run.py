@@ -75,9 +75,10 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
 )
 @click.option(
     "--trace-file",
-    required=False,
-    type=click.Path(exists=False),
-    help="File path where the trace spans will be written (JSON Lines format)",
+    is_flag=False,
+    flag_value="__auto__",
+    default=None,
+    help="Write trace spans to a file. Optionally provide a path; defaults to .uipath/traces/.",
 )
 @click.option(
     "--state-file",
@@ -116,7 +117,10 @@ def run(
     keep_state_file: bool,
 ) -> None:
     """Execute the project."""
+    from uipath._cli.cli_trace import resolve_trace_file
+
     input_file = file or input_file
+    trace_file = resolve_trace_file(trace_file, "run")
 
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
