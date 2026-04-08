@@ -67,20 +67,32 @@ _TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
 
 
 def _inject_trace_context(headers: dict[str, str]) -> None:
-    """Inject UiPath trace context header from the active OTEL span.
+    """Inject UiPath trace context header.
 
-    Prefers the LLMOps tool span (from ContextVar) over the raw OTEL span,
-    so the header carries the span ID visible in the LLMOps trace.
+    Trace ID: uses the agent trace ID from UIPATH_TRACE_ID env var (same
+    remapping the LLMOps exporter applies), falling back to the OTEL trace ID.
+    Span ID: uses the LLMOps tool span (via external span provider) so the
+    span ID matches what's visible in the LLMOps trace UI.
     """
     from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    from ._config import UiPathConfig
+    from ._span_utils import _SpanUtils
 
     llmops_span = UiPathSpanUtils.get_external_current_span()
     span = llmops_span or trace.get_current_span()
     ctx = span.get_span_context()
-    if ctx.trace_id and ctx.span_id:
-        headers[_TRACE_PARENT_HEADER] = (
-            f"00-{format_trace_id(ctx.trace_id)}-{format_span_id(ctx.span_id)}-01"
-        )
+    if not (ctx.trace_id and ctx.span_id):
+        return
+
+    config_trace_id = UiPathConfig.trace_id
+    trace_id = (
+        _SpanUtils.normalize_trace_id(config_trace_id)
+        if config_trace_id
+        else format_trace_id(ctx.trace_id)
+    )
+    span_id = format_span_id(ctx.span_id)
+    headers[_TRACE_PARENT_HEADER] = f"00-{trace_id}-{span_id}-01"
 
 
 class BaseService:
