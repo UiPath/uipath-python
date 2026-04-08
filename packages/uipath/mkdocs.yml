@@ -120,10 +120,12 @@ nav:
 plugins:
   - search
   - llmstxt:
+      full_output: llms-full.txt
       sections:
         "UiPath SDK":
           - core/*.md
           - cli/*.md
+          - eval/*.md
         "UiPath MCP SDK":
           - mcp/*.md
         "UiPath LangChain SDK":
