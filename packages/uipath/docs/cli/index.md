@@ -145,6 +145,43 @@ uipath run agent '{\"topic\":\"uipath\"}'
 
 ::: mkdocs-click
     :module: uipath._cli
+    :command: trace
+    :depth: 1
+    :style: table
+
+Visualize an agent execution trace. Reads JSONL trace files produced by `uipath run --trace-file` or `uipath eval --trace-file`, and renders a span tree showing the agent's trajectory.
+
+<!-- termynal -->
+
+```shell
+> uipath trace traces.jsonl
+Trace abcdef12…34567890
+└── agent (12.5s) ✓
+    ├── input: {"messages": [{"role": "user", "content": "Book a flight..."}]}
+    ├── LLM (gpt-4o) (2.2s) ✓
+    │   └── tokens: prompt=847, completion=156, total=1003
+    ├── 🔧 search_flights (1.7s) ✓
+    │   ├── input: {"origin": "SFO", "destination": "NRT"}
+    │   └── output: {"flights": [...]}
+    ├── LLM (gpt-4o) (1.8s) ✓
+    │   └── tokens: prompt=1456, completion=203, total=1659
+    └── 🔧 book_flight (1.2s) ✓
+        └── output: {"confirmation": {"booking_ref": "BK-UA837"}}
+9 spans total
+```
+
+/// tip
+Use `--contains` to search across eval traces and extract full agent trajectories where a specific function was called:
+```console
+uipath eval main eval-set.json --trace-file traces.jsonl
+uipath trace traces.jsonl --contains "get_random*"
+```
+///
+
+---
+
+::: mkdocs-click
+    :module: uipath._cli
     :command: pack
     :depth: 1
     :style: table
