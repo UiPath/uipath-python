@@ -383,7 +383,9 @@ def eval(
                         )
 
                         if (
-                            ctx.job_id or should_register_progress_reporter
+                            ctx.job_id
+                            or ctx.log_to_file
+                            or should_register_progress_reporter
                         ) and UiPathConfig.is_tracing_enabled:
                             # Live tracking for Orchestrator or Studio Web
                             # Uses UIPATH_TRACE_ID from environment for trace correlation
