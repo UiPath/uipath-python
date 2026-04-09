@@ -467,17 +467,10 @@ class AgentA2aResourceConfig(BaseAgentResourceConfig):
     )
     id: str
     slug: str = Field(..., alias="slug")
-    agent_card_url: str = Field(default="", alias="agentCardUrl")
-    is_active: bool = Field(default=True, alias="isActive")
+    folder_path: str = Field(alias="folderPath")
     cached_agent_card: Optional[Dict[str, Any]] = Field(
         default=None, alias="cachedAgentCard"
     )
-    created_at: Optional[str] = Field(default=None, alias="createdAt")
-    created_by: Optional[str] = Field(default=None, alias="createdBy")
-    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
-    updated_by: Optional[str] = Field(default=None, alias="updatedBy")
-    a2a_url: str = Field(default="", alias="a2aUrl")
-    folder_path: Optional[str] = Field(default=None, alias="folderPath")
 
 
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {

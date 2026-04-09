@@ -3614,8 +3614,7 @@ class TestDataFabricContextConfig:
                     "name": "Philosopher Agent",
                     "slug": "philosopher-agent",
                     "description": "A philosophical agent that answers questions with wisdom and philosopher quotes",
-                    "agentCardUrl": "",
-                    "isActive": True,
+                    "folderPath": "shared",
                     "cachedAgentCard": {
                         "name": "Philosopher Agent",
                         "description": "Philosopher Agent assistant",
@@ -3666,10 +3665,6 @@ class TestDataFabricContextConfig:
                         ],
                         "version": "0.7.70",
                     },
-                    "createdAt": "2026-03-15T10:12:47.9073065",
-                    "createdBy": "f4bc4946-baed-4083-82b9-03d334bbacbe",
-                    "updatedAt": None,
-                    "updatedBy": None,
                 }
             ],
             "features": [],
@@ -3693,13 +3688,8 @@ class TestDataFabricContextConfig:
             a2a_resource.description
             == "A philosophical agent that answers questions with wisdom and philosopher quotes"
         )
-        assert a2a_resource.is_active is True
-        assert a2a_resource.agent_card_url == ""
         assert a2a_resource.id == "755e2f7d-5a3d-47f3-8e9d-7ff0bf226357"
-        assert a2a_resource.created_at == "2026-03-15T10:12:47.9073065"
-        assert a2a_resource.created_by == "f4bc4946-baed-4083-82b9-03d334bbacbe"
-        assert a2a_resource.updated_at is None
-        assert a2a_resource.updated_by is None
+        assert a2a_resource.folder_path == "shared"
 
         # Validate cached agent card is a plain dict
         card = a2a_resource.cached_agent_card
@@ -3737,7 +3727,7 @@ class TestDataFabricContextConfig:
                     "name": "Minimal A2A Agent",
                     "slug": "minimal-a2a",
                     "description": "A minimal A2A agent",
-                    "isActive": False,
+                    "folderPath": "shared",
                 }
             ],
             "features": [],
@@ -3756,10 +3746,8 @@ class TestDataFabricContextConfig:
         assert isinstance(a2a_resource, AgentA2aResourceConfig)
         assert a2a_resource.name == "Minimal A2A Agent"
         assert a2a_resource.slug == "minimal-a2a"
-        assert a2a_resource.is_active is False
+        assert a2a_resource.folder_path == "shared"
         assert a2a_resource.cached_agent_card is None
-        assert a2a_resource.agent_card_url == ""
-        assert a2a_resource.created_at is None
 
     def test_a2a_resource_case_insensitive(self):
         """Test that A2A resource type is parsed case-insensitively."""
@@ -3785,6 +3773,7 @@ class TestDataFabricContextConfig:
                     "name": "Case Test Agent",
                     "slug": "case-test",
                     "description": "Testing case insensitive parsing",
+                    "folderPath": "shared",
                 }
             ],
             "features": [],
