@@ -182,6 +182,10 @@ class LLMMocker(Mocker):
                     else {}
                 )
 
+                # Use the agent's configured model when no simulation-specific model is set
+                if "model" not in completion_kwargs and self.context.agent_model:
+                    completion_kwargs["model"] = self.context.agent_model
+
                 formatted_prompt = PROMPT.format(**prompt_generation_args)
 
                 cache_key_data = {

@@ -65,6 +65,7 @@ async def generate_llm_input(
     input_schema: dict[str, Any],
     expected_behavior: str,
     expected_output: dict[str, Any],
+    agent_model: str | None = None,
 ) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
     # Set custom span attributes to match agents repo pattern
@@ -116,6 +117,10 @@ async def generate_llm_input(
             if model_parameters
             else {}
         )
+
+        # Use the agent's configured model when no simulation-specific model is set
+        if "model" not in completion_kwargs and agent_model:
+            completion_kwargs["model"] = agent_model
 
         if cache_manager is not None:
             cache_key_data = {

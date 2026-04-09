@@ -127,6 +127,7 @@ class MockingContext(BaseModel):
     strategy: MockingStrategy | None
     inputs: dict[str, Any] = Field(default_factory=lambda: {})
     name: str = Field(default="debug")
+    agent_model: str | None = Field(default=None)
 
 
 class ExampleCall(BaseModel):

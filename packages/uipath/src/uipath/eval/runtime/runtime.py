@@ -534,6 +534,7 @@ class UiPathEvalRuntime:
                             strategy=eval_item.mocking_strategy,
                             name=eval_item.name,
                             inputs=eval_item.inputs,
+                            agent_model=self.context.agent_model,
                         ),
                         eval_set_run_id=self.context.eval_set_run_id,
                     )
@@ -816,6 +817,7 @@ class UiPathEvalRuntime:
             (await self.get_schema()).input,
             expected_behavior=eval_item.expected_agent_behavior or "",
             expected_output=expected_output,
+            agent_model=self.context.agent_model,
         )
         updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
         return updated_eval_item

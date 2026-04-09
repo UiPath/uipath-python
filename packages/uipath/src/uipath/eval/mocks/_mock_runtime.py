@@ -34,6 +34,20 @@ from ._types import (
 logger = logging.getLogger(__name__)
 
 
+def _read_agent_model() -> str | None:
+    """Read the agent's configured model from agent.json in current directory."""
+    agent_path = Path.cwd() / "agent.json"
+    if not agent_path.exists():
+        return None
+    try:
+        with open(agent_path, "r", encoding="utf-8") as f:
+            agent_data = json.load(f)
+        return agent_data.get("settings", {}).get("model")
+    except Exception as e:
+        logger.warning(f"Failed to read agent model from agent.json: {e}")
+        return None
+
+
 def load_simulation_config() -> MockingContext | None:
     """Load simulation.json from current directory and convert to MockingContext.
 
@@ -70,11 +84,15 @@ def load_simulation_config() -> MockingContext | None:
             tools_to_simulate=tools_to_simulate,
         )
 
+        # Read agent model so simulations use the same model as the agent
+        agent_model = _read_agent_model()
+
         # Create MockingContext for debugging
         mocking_context = MockingContext(
             strategy=mocking_strategy,
             name="debug-simulation",
             inputs={},
+            agent_model=agent_model,
         )
 
         logger.info(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
