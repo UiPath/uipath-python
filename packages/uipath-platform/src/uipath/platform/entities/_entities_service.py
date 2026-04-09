@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional, Type
 
 import sqlparse
@@ -7,15 +8,31 @@ from sqlparse.tokens import DML, Keyword, Wildcard
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
+from ..common._bindings import _resource_overwrites
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
+from ..common.constants import HEADER_FOLDER_KEY
+from ..orchestrator._folder_service import FolderService
+from ._entity_resolution import (
+    RoutingStrategy,
+    build_resolution_service,
+    create_resolution_plan,
+    create_resolution_plan_async,
+    create_routing_strategy,
+    fetch_resolved_entities,
+    fetch_resolved_entities_async,
+)
 from .entities import (
+    DataFabricEntityItem,
     Entity,
     EntityRecord,
     EntityRecordsBatchResponse,
+    EntitySetResolution,
     QueryRoutingOverrideContext,
 )
+
+logger = logging.getLogger(__name__)
 
 _FORBIDDEN_DML = {"INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE"}
 _FORBIDDEN_DDL = {"DROP", "ALTER", "CREATE", "TRUNCATE"}
@@ -47,9 +64,22 @@ class EntitiesService(BaseService):
     """
 
     def __init__(
-        self, config: UiPathApiConfig, execution_context: UiPathExecutionContext
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Optional[FolderService] = None,
+        folders_map: Optional[Dict[str, str]] = None,
+        entity_name_overrides: Optional[Dict[str, str]] = None,
+        routing_context: Optional[QueryRoutingOverrideContext] = None,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._folders_service = folders_service
+        self._routing_strategy: RoutingStrategy = create_routing_strategy(
+            folders_map=folders_map,
+            effective_entity_names=entity_name_overrides,
+            routing_context=routing_context,
+            folders_service=folders_service,
+        )
 
     @traced(name="entity_retrieve", run_type="uipath")
     def retrieve(self, entity_key: str) -> Entity:
@@ -126,6 +156,44 @@ class EntitiesService(BaseService):
 
         response = await self.request_async(spec.method, spec.endpoint)
 
+        return Entity.model_validate(response.json())
+
+    @traced(name="entity_retrieve_by_name", run_type="uipath")
+    def retrieve_by_name(
+        self, entity_name: str, folder_key: Optional[str] = None
+    ) -> Entity:
+        """Retrieve an entity by its name.
+
+        The server resolves the entity within the folder identified by
+        ``folder_key``.  When omitted the default folder from the
+        execution context is used.
+
+        Args:
+            entity_name: The name of the entity.
+            folder_key: Optional folder key for disambiguation.
+        """
+        spec = self._retrieve_by_name_spec(entity_name)
+        headers = self._folder_key_headers(folder_key)
+        response = self.request(spec.method, spec.endpoint, headers=headers)
+        return Entity.model_validate(response.json())
+
+    @traced(name="entity_retrieve_by_name", run_type="uipath")
+    async def retrieve_by_name_async(
+        self, entity_name: str, folder_key: Optional[str] = None
+    ) -> Entity:
+        """Asynchronously retrieve an entity by its name.
+
+        The server resolves the entity within the folder identified by
+        ``folder_key``.  When omitted the default folder from the
+        execution context is used.
+
+        Args:
+            entity_name: The name of the entity.
+            folder_key: Optional folder key for disambiguation.
+        """
+        spec = self._retrieve_by_name_spec(entity_name)
+        headers = self._folder_key_headers(folder_key)
+        response = await self.request_async(spec.method, spec.endpoint, headers=headers)
         return Entity.model_validate(response.json())
 
     @traced(name="list_entities", run_type="uipath")
@@ -417,7 +485,6 @@ class EntitiesService(BaseService):
     def query_entity_records(
         self,
         sql_query: str,
-        routing_context: Optional[QueryRoutingOverrideContext] = None,
     ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
@@ -427,9 +494,10 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
-            routing_context (Optional[QueryRoutingOverrideContext]): Per-entity routing context
-                for multi-folder queries. When present, included in the request body
-                and takes precedence over the folder header on the backend.
+
+        Notes:
+            A routing context is always derived from the configured ``folders_map``
+            when present and included in the request body.
 
         Returns:
             List[Dict[str, Any]]: A list of result records as dictionaries.
@@ -438,15 +506,12 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return self._query_entities_for_records(
-            sql_query, routing_context=routing_context
-        )
+        return self._query_entities_for_records(sql_query)
 
     @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(
         self,
         sql_query: str,
-        routing_context: Optional[QueryRoutingOverrideContext] = None,
     ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
@@ -456,9 +521,10 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
-            routing_context (Optional[QueryRoutingOverrideContext]): Per-entity routing context
-                for multi-folder queries. When present, included in the request body
-                and takes precedence over the folder header on the backend.
+
+        Notes:
+            A routing context is always derived from the configured ``folders_map``
+            when present and included in the request body.
 
         Returns:
             List[Dict[str, Any]]: A list of result records as dictionaries.
@@ -467,17 +533,84 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return await self._query_entities_for_records_async(
-            sql_query, routing_context=routing_context
+        return await self._query_entities_for_records_async(sql_query)
+
+    @traced(name="resolve_entity_set", run_type="uipath")
+    def resolve_entity_set(
+        self,
+        items: list[DataFabricEntityItem],
+    ) -> EntitySetResolution:
+        """Resolve an agent entity set, applying resource overwrites."""
+        plan = create_resolution_plan(
+            items,
+            _resource_overwrites.get() or {},
+            lambda folder_path: (
+                self._folders_service.retrieve_key(folder_path=folder_path)
+                if self._folders_service is not None
+                else None
+            ),
+        )
+        entities = fetch_resolved_entities(
+            plan,
+            self.retrieve,
+            self.retrieve_by_name,
+            logger,
+        )
+        resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]
+            config=self._config,
+            execution_context=self._execution_context,
+            folders_service=self._folders_service,
+            plan=plan,
+            service_factory=EntitiesService,
+        )
+        return EntitySetResolution(
+            entities=entities,
+            entities_service=resolution_service,
+        )
+
+    @traced(name="resolve_entity_set", run_type="uipath")
+    async def resolve_entity_set_async(
+        self,
+        items: list[DataFabricEntityItem],
+    ) -> EntitySetResolution:
+        """Resolve an agent entity set, applying resource overwrites."""
+
+        async def _resolve_folder_path(folder_path: str) -> Optional[str]:
+            if self._folders_service is None:
+                return None
+            return await self._folders_service.retrieve_key_async(
+                folder_path=folder_path
+            )
+
+        plan = await create_resolution_plan_async(
+            items,
+            _resource_overwrites.get() or {},
+            _resolve_folder_path,
+        )
+        entities = await fetch_resolved_entities_async(
+            plan,
+            self.retrieve_async,
+            self.retrieve_by_name_async,
+            logger,
+        )
+        resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]
+            config=self._config,
+            execution_context=self._execution_context,
+            folders_service=self._folders_service,
+            plan=plan,
+            service_factory=EntitiesService,
+        )
+        return EntitySetResolution(
+            entities=entities,
+            entities_service=resolution_service,
         )
 
     def _query_entities_for_records(
         self,
         sql_query: str,
-        *,
-        routing_context: Optional[QueryRoutingOverrideContext] = None,
     ) -> List[Dict[str, Any]]:
         self._validate_sql_query(sql_query)
+        routing_context = self._routing_strategy.resolve()
         spec = self._query_entity_records_spec(sql_query, routing_context)
         response = self.request(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
@@ -485,10 +618,9 @@ class EntitiesService(BaseService):
     async def _query_entities_for_records_async(
         self,
         sql_query: str,
-        *,
-        routing_context: Optional[QueryRoutingOverrideContext] = None,
     ) -> List[Dict[str, Any]]:
         self._validate_sql_query(sql_query)
+        routing_context = await self._routing_strategy.resolve_async()
         spec = self._query_entity_records_spec(sql_query, routing_context)
         response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
@@ -956,6 +1088,21 @@ class EntitiesService(BaseService):
             endpoint=Endpoint(f"datafabric_/api/Entity/{entity_key}"),
         )
 
+    def _retrieve_by_name_spec(
+        self,
+        entity_name: str,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_name}/metadata"),
+        )
+
+    @staticmethod
+    def _folder_key_headers(folder_key: Optional[str]) -> dict[str, str]:
+        if folder_key:
+            return {HEADER_FOLDER_KEY: folder_key}
+        return {}
+
     def _list_entities_spec(self) -> RequestSpec:
         return RequestSpec(
             method="GET",
@@ -1117,3 +1264,9 @@ class EntitiesService(BaseService):
         if not text:
             return 0
         return len([part for part in text.split(",") if part.strip()])
+
+
+# Resolve the forward reference to EntitiesService in EntitySetResolution.
+# The model uses TYPE_CHECKING to avoid circular imports in entities.py,
+# so we must rebuild it here where EntitiesService is fully defined.
+EntitySetResolution.model_rebuild()

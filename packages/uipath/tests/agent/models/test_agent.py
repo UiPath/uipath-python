@@ -3529,10 +3529,10 @@ class TestDataFabricContextConfig:
         assert len(parsed.entity_set) == 2
         assert parsed.entity_set[0].id == "abc-123"
         assert parsed.entity_set[0].name == "Customers"
-        assert parsed.entity_set[0].folder_id == "folder-1"
+        assert parsed.entity_set[0].folder_key == "folder-1"
         assert parsed.entity_set[0].description == "Customer records"
-        assert parsed.entity_set[0].reference_key is None
-        assert parsed.entity_set[1].reference_key == "orders-ref"
+        assert parsed.entity_set[0].entity_key is None
+        assert parsed.entity_set[1].entity_key == "orders-ref"
         assert parsed.entity_set[1].description is None
 
     def test_is_datafabric(self):

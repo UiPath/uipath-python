@@ -500,10 +500,16 @@ sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, sta
 sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
 
 # Query entity records using a validated SQL query.
-sdk.entities.query_entity_records(sql_query: str, routing_context: Optional[uipath.platform.entities.entities.QueryRoutingOverrideContext]=None) -> typing.List[typing.Dict[str, typing.Any]]
+sdk.entities.query_entity_records(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
 
 # Asynchronously query entity records using a validated SQL query.
-sdk.entities.query_entity_records_async(sql_query: str, routing_context: Optional[uipath.platform.entities.entities.QueryRoutingOverrideContext]=None) -> typing.List[typing.Dict[str, typing.Any]]
+sdk.entities.query_entity_records_async(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
+
+# Resolve an agent entity set, applying resource overwrites.
+sdk.entities.resolve_entity_set(items: list[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
+
+# Resolve an agent entity set, applying resource overwrites.
+sdk.entities.resolve_entity_set_async(items: list[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
 
 # Retrieve an entity by its key.
 sdk.entities.retrieve(entity_key: str) -> uipath.platform.entities.entities.Entity
@@ -511,11 +517,18 @@ sdk.entities.retrieve(entity_key: str) -> uipath.platform.entities.entities.Enti
 # Asynchronously retrieve an entity by its key.
 sdk.entities.retrieve_async(entity_key: str) -> uipath.platform.entities.entities.Entity
 
+# Retrieve an entity by its name.
+sdk.entities.retrieve_by_name(entity_name: str, folder_key: Optional[str]=None) -> uipath.platform.entities.entities.Entity
+
+# Asynchronously retrieve an entity by its name.
+sdk.entities.retrieve_by_name_async(entity_name: str, folder_key: Optional[str]=None) -> uipath.platform.entities.entities.Entity
+
 # Update multiple records in an entity in a single batch operation.
 sdk.entities.update_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously update multiple records in an entity in a single batch operation.
 sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+
 
 ```
 

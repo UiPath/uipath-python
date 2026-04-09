@@ -1,10 +1,25 @@
 """Entities models for UiPath Platform API interactions."""
 
+from __future__ import annotations
+
 from enum import Enum
 from types import EllipsisType
-from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
+
+if TYPE_CHECKING:
+    from ._entities_service import EntitiesService
 
 
 class ReferenceType(Enum):
@@ -340,6 +355,29 @@ class QueryRoutingOverrideContext(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     entity_routings: List[EntityRouting] = Field(alias="entityRoutings")
+
+
+class DataFabricEntityItem(BaseModel):
+    """A single Data Fabric entity reference from agent configuration."""
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+    id: str
+    entity_key: Optional[str] = Field(None, alias="referenceKey")
+    name: str
+    folder_key: str = Field(alias="folderId")
+    description: Optional[str] = None
+
+
+class EntitySetResolution(BaseModel):
+    """Result of resolving an agent entity set with overwrites applied."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    entities: list[Entity]
+    entities_service: EntitiesService
 
 
 Entity.model_rebuild()

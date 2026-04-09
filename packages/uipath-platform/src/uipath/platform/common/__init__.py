@@ -7,6 +7,7 @@ from ._api_client import ApiClient
 from ._base_service import BaseService
 from ._bindings import (
     ConnectionResourceOverwrite,
+    EntityResourceOverwrite,
     GenericResourceOverwrite,
     ResourceOverwrite,
     ResourceOverwriteParser,
@@ -100,6 +101,7 @@ __all__ = [
     "EndpointManager",
     "jsonschema_to_pydantic",
     "ConnectionResourceOverwrite",
+    "EntityResourceOverwrite",
     "GenericResourceOverwrite",
     "ResourceOverwrite",
     "ResourceOverwriteParser",
