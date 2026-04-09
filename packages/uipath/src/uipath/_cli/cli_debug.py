@@ -9,6 +9,7 @@ from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath.core.tracing import UiPathTraceManager
 from uipath.eval.mocks import UiPathMockRuntime
+from uipath.eval.mocks._mock_runtime import load_simulation_config
 from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -163,15 +164,19 @@ def debug(
                                 trigger_poll_interval=trigger_poll_interval,
                             )
 
-                            # Get agent model from runtime schema for simulations
+                            # Build mocking context with agent model for simulations
                             schema = await runtime.get_schema()
                             agent_model = None
                             if schema.metadata and "settings" in schema.metadata:
                                 agent_model = schema.metadata["settings"].get("model")
 
+                            mocking_context = load_simulation_config(
+                                agent_model=agent_model
+                            )
+
                             mock_runtime = UiPathMockRuntime(
                                 delegate=debug_runtime,
-                                agent_model=agent_model,
+                                mocking_context=mocking_context,
                             )
 
                             try:

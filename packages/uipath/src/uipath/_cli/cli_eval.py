@@ -428,14 +428,13 @@ def eval(
 
                         eval_context.runtime_schema = await runtime.get_schema()
 
-                        eval_context.agent_model = _get_agent_model(
-                            eval_context.runtime_schema
-                        )
+                        agent_model = _get_agent_model(eval_context.runtime_schema)
+                        eval_context.agent_model = agent_model
 
                         eval_context.evaluators = await EvalHelpers.load_evaluators(
                             resolved_eval_set_path,
                             eval_context.evaluation_set,
-                            eval_context.agent_model,
+                            agent_model,
                         )
 
                         # Runtime is not required anymore.
