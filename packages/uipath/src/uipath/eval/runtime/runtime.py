@@ -870,6 +870,7 @@ class UiPathEvalRuntime:
                     span_collector=self.span_collector,
                     execution_id=execution_id,
                     eval_set_run_id=eval_set_run_id,
+                    agent_model=self.context.agent_model,
                 )
 
             execution_runtime = UiPathExecutionRuntime(

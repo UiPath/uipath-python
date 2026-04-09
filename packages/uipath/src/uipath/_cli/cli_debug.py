@@ -163,8 +163,15 @@ def debug(
                                 trigger_poll_interval=trigger_poll_interval,
                             )
 
+                            # Get agent model from runtime schema for simulations
+                            schema = await runtime.get_schema()
+                            agent_model = None
+                            if schema.metadata and "settings" in schema.metadata:
+                                agent_model = schema.metadata["settings"].get("model")
+
                             mock_runtime = UiPathMockRuntime(
                                 delegate=debug_runtime,
+                                agent_model=agent_model,
                             )
 
                             try:

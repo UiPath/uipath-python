@@ -34,21 +34,7 @@ from ._types import (
 logger = logging.getLogger(__name__)
 
 
-def _read_agent_model() -> str | None:
-    """Read the agent's configured model from agent.json in current directory."""
-    agent_path = Path.cwd() / "agent.json"
-    if not agent_path.exists():
-        return None
-    try:
-        with open(agent_path, "r", encoding="utf-8") as f:
-            agent_data = json.load(f)
-        return agent_data.get("settings", {}).get("model")
-    except Exception as e:
-        logger.warning(f"Failed to read agent model from agent.json: {e}")
-        return None
-
-
-def load_simulation_config() -> MockingContext | None:
+def load_simulation_config(agent_model: str | None = None) -> MockingContext | None:
     """Load simulation.json from current directory and convert to MockingContext.
 
     Returns:
@@ -83,9 +69,6 @@ def load_simulation_config() -> MockingContext | None:
             prompt=simulation_data.get("instructions", ""),
             tools_to_simulate=tools_to_simulate,
         )
-
-        # Read agent model so simulations use the same model as the agent
-        agent_model = _read_agent_model()
 
         # Create MockingContext for debugging
         mocking_context = MockingContext(
@@ -151,9 +134,17 @@ class UiPathMockRuntime:
         span_collector: ExecutionSpanCollector | None = None,
         execution_id: str | None = None,
         eval_set_run_id: str | None = None,
+        agent_model: str | None = None,
     ):
         self.delegate = delegate
-        self._mocking_context = mocking_context or load_simulation_config()
+        self._mocking_context = mocking_context or load_simulation_config(
+            agent_model=agent_model
+        )
+        # If mocking_context was passed without agent_model, inject it
+        if self._mocking_context and not self._mocking_context.agent_model and agent_model:
+            self._mocking_context = self._mocking_context.model_copy(
+                update={"agent_model": agent_model}
+            )
         self._span_collector = span_collector or ExecutionSpanCollector()
         self._execution_id = execution_id or str(uuid.uuid4())
         self._eval_set_run_id = eval_set_run_id
