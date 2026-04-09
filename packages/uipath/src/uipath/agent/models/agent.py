@@ -35,6 +35,7 @@ from uipath.core.guardrails import (
 )
 from uipath.eval.mocks import ExampleCall
 from uipath.platform.connections import Connection
+from uipath.platform.entities import DataFabricEntityItem
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
@@ -392,16 +393,6 @@ class AgentContextSettings(BaseCfg):
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
     )
-
-
-class DataFabricEntityItem(BaseCfg):
-    """A single Data Fabric entity reference."""
-
-    id: str
-    reference_key: Optional[str] = Field(None, alias="referenceKey")
-    name: str
-    folder_id: str = Field(alias="folderId")
-    description: Optional[str] = None
 
 
 class AgentContextResourceConfig(BaseAgentResourceConfig):

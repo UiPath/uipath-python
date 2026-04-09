@@ -5,12 +5,14 @@ This module contains models related to UiPath Entities service.
 
 from ._entities_service import EntitiesService
 from .entities import (
+    DataFabricEntityItem,
     Entity,
     EntityField,
     EntityFieldMetadata,
     EntityRecord,
     EntityRecordsBatchResponse,
     EntityRouting,
+    EntitySetResolution,
     ExternalField,
     ExternalObject,
     ExternalSourceFields,
@@ -22,12 +24,14 @@ from .entities import (
 )
 
 __all__ = [
+    "DataFabricEntityItem",
     "EntitiesService",
     "Entity",
     "EntityField",
     "EntityRecord",
     "EntityFieldMetadata",
     "EntityRouting",
+    "EntitySetResolution",
     "FieldDataType",
     "FieldMetadata",
     "EntityRecordsBatchResponse",
