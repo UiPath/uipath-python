@@ -10,7 +10,7 @@ from pydantic import BaseModel, TypeAdapter
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
-from uipath.platform.chat._llm_gateway_service import _cleanup_schema
+from uipath.platform.chat._llm_gateway_service import ChatModels, _cleanup_schema
 
 from .._execution_context import (
     eval_set_run_id_context,
@@ -186,7 +186,9 @@ class LLMMocker(Mocker):
                 if "model" not in completion_kwargs and self.context.agent_model:
                     completion_kwargs["model"] = self.context.agent_model
 
-                simulation_model = completion_kwargs.get("model", "default")
+                simulation_model = completion_kwargs.get(
+                    "model", ChatModels.gpt_4_1_mini_2025_04_14
+                )
                 logger.info(
                     f"Simulating tool '{function_name}' using model: {simulation_model}"
                 )

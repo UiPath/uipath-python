@@ -10,6 +10,7 @@ from opentelemetry import trace
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
+from uipath.platform.chat._llm_gateway_service import ChatModels
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
@@ -125,7 +126,9 @@ async def generate_llm_input(
         if "model" not in completion_kwargs and agent_model:
             completion_kwargs["model"] = agent_model
 
-        simulation_model = completion_kwargs.get("model", "default")
+        simulation_model = completion_kwargs.get(
+            "model", ChatModels.gpt_4_1_mini_2025_04_14
+        )
         logger.info(f"Simulating input generation using model: {simulation_model}")
 
         if cache_manager is not None:
