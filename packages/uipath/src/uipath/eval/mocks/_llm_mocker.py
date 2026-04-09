@@ -182,10 +182,6 @@ class LLMMocker(Mocker):
                     else {}
                 )
 
-                # Use the agent's configured model when no simulation-specific model is set
-                if "model" not in completion_kwargs and self.context.agent_model:
-                    completion_kwargs["model"] = self.context.agent_model
-
                 simulation_model = completion_kwargs.get(
                     "model", ChatModels.gpt_4_1_mini_2025_04_14
                 )

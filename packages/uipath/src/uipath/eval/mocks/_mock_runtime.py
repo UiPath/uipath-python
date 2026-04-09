@@ -28,6 +28,7 @@ from ._types import (
     LLMMockingStrategy,
     MockingContext,
     MockingStrategyType,
+    ModelSettings,
     ToolSimulation,
 )
 
@@ -63,11 +64,12 @@ def load_simulation_config(agent_model: str | None = None) -> MockingContext | N
         if not tools_to_simulate:
             return None
 
-        # Create LLM mocking strategy
+        # Create LLM mocking strategy with the agent's model
         mocking_strategy = LLMMockingStrategy(
             type=MockingStrategyType.LLM,
             prompt=simulation_data.get("instructions", ""),
             tools_to_simulate=tools_to_simulate,
+            model=ModelSettings(model=agent_model) if agent_model else None,
         )
 
         # Create MockingContext for debugging
@@ -75,7 +77,6 @@ def load_simulation_config(agent_model: str | None = None) -> MockingContext | N
             strategy=mocking_strategy,
             name="debug-simulation",
             inputs={},
-            agent_model=agent_model,
         )
 
         logger.info(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
@@ -140,15 +141,6 @@ class UiPathMockRuntime:
         self._mocking_context = mocking_context or load_simulation_config(
             agent_model=agent_model
         )
-        # If mocking_context was passed without agent_model, inject it
-        if (
-            self._mocking_context
-            and not self._mocking_context.agent_model
-            and agent_model
-        ):
-            self._mocking_context = self._mocking_context.model_copy(
-                update={"agent_model": agent_model}
-            )
         self._span_collector = span_collector or ExecutionSpanCollector()
         self._execution_id = execution_id or str(uuid.uuid4())
         self._eval_set_run_id = eval_set_run_id
