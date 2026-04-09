@@ -25,7 +25,6 @@ from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
-    UiPathRuntimeSchema,
 )
 from uipath.telemetry._track import flush_events
 from uipath.tracing import (
@@ -63,27 +62,6 @@ def setup_reporting_prereq(no_report: bool) -> bool:
         if folder_key:
             os.environ["UIPATH_FOLDER_KEY"] = folder_key
     return True
-
-
-def _get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
-    """Get agent model from the runtime schema metadata.
-
-    The model is read from schema.metadata["settings"]["model"] which is
-    populated by the low-code agents runtime from agent.json.
-
-    Returns:
-        The model name from agent settings, or None if not found.
-    """
-    try:
-        if schema.metadata and "settings" in schema.metadata:
-            settings = schema.metadata["settings"]
-            model = settings.get("model")
-            if model:
-                logger.debug(f"Got agent model from schema.metadata: {model}")
-                return model
-        return None
-    except Exception:
-        return None
 
 
 def _resolve_model_settings_override(
@@ -431,7 +409,6 @@ def eval(
                         eval_context.evaluators = await EvalHelpers.load_evaluators(
                             resolved_eval_set_path,
                             eval_context.evaluation_set,
-                            _get_agent_model(eval_context.runtime_schema),
                         )
 
                         # Runtime is not required anymore.

@@ -1,6 +1,7 @@
 """LLM Input Mocker implementation."""
 
 import json
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -9,6 +10,7 @@ from opentelemetry import trace
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
+from uipath.platform.chat._llm_gateway_service import ChatModels
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
@@ -16,6 +18,8 @@ from ._mocker import UiPathInputMockingError
 from ._types import (
     InputMockingStrategy,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_input_mocking_prompt(
@@ -116,6 +120,11 @@ async def generate_llm_input(
             if model_parameters
             else {}
         )
+
+        simulation_model = completion_kwargs.get(
+            "model", ChatModels.gpt_4_1_mini_2025_04_14
+        )
+        logger.info(f"Simulating input generation using model: {simulation_model}")
 
         if cache_manager is not None:
             cache_key_data = {

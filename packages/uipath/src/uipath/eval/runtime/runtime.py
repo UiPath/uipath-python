@@ -47,13 +47,14 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 from .._execution_context import ExecutionSpanCollector
 from ..evaluators.base_evaluator import GenericBaseEvaluator
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
+from ..helpers import get_agent_model
 from ..mocks._cache_manager import CacheManager
 from ..mocks._input_mocker import (
     generate_llm_input,
 )
 from ..mocks._mock_context import cache_manager_context
 from ..mocks._mock_runtime import UiPathMockRuntime
-from ..mocks._types import MockingContext
+from ..mocks._types import LLMMockingStrategy, MockingContext, ModelSettings
 from ..models import EvaluationResult
 from ..models.evaluation_set import (
     EvaluationItem,
@@ -526,12 +527,25 @@ class UiPathEvalRuntime:
                                 eval_item=eval_item,
                             ),
                         )
+                    # Set agent model on the mocking strategy if not already set
+                    mocking_strategy = eval_item.mocking_strategy
+                    if (
+                        mocking_strategy
+                        and isinstance(mocking_strategy, LLMMockingStrategy)
+                        and not mocking_strategy.model
+                    ):
+                        mocking_model = get_agent_model(self.context.runtime_schema)
+                        if mocking_model:
+                            mocking_strategy = mocking_strategy.model_copy(
+                                update={"model": ModelSettings(model=mocking_model)}
+                            )
+
                     agent_execution_output = await self.execute_runtime(
                         eval_item,
                         execution_id,
                         input_overrides=self.context.input_overrides,
                         mocking_context=MockingContext(
-                            strategy=eval_item.mocking_strategy,
+                            strategy=mocking_strategy,
                             name=eval_item.name,
                             inputs=eval_item.inputs,
                         ),
@@ -811,8 +825,18 @@ class UiPathEvalRuntime:
             or getattr(eval_item, "expected_output", None)
             or {}
         )
+        # Set agent model on the input mocking strategy if not already set
+        input_strategy = eval_item.input_mocking_strategy
+        # If input strategy does not specify a model, extract it
+        if input_strategy and not input_strategy.model:
+            input_generation_model = get_agent_model(self.context.runtime_schema)
+            if input_generation_model:
+                input_strategy = input_strategy.model_copy(
+                    update={"model": ModelSettings(model=input_generation_model)}
+                )
+
         generated_input = await generate_llm_input(
-            eval_item.input_mocking_strategy,
+            input_strategy,
             (await self.get_schema()).input,
             expected_behavior=eval_item.expected_agent_behavior or "",
             expected_output=expected_output,
