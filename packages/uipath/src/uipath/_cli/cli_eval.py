@@ -17,7 +17,7 @@ from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
-from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers
+from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers, get_agent_model
 from uipath.eval.models.evaluation_set import EvaluationSet
 from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
@@ -409,6 +409,7 @@ def eval(
                         eval_context.evaluators = await EvalHelpers.load_evaluators(
                             resolved_eval_set_path,
                             eval_context.evaluation_set,
+                            get_agent_model(eval_context.runtime_schema),
                         )
 
                         # Runtime is not required anymore.
