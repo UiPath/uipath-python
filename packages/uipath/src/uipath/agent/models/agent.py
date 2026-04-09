@@ -485,6 +485,8 @@ class AgentA2aResourceConfig(BaseAgentResourceConfig):
     created_by: Optional[str] = Field(default=None, alias="createdBy")
     updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     updated_by: Optional[str] = Field(default=None, alias="updatedBy")
+    a2a_url: str = Field(default="", alias="a2aUrl")
+    folder_path: Optional[str] = Field(default=None, alias="folderPath")
 
 
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
