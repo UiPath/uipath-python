@@ -64,12 +64,21 @@ def load_simulation_config(agent_model: str | None = None) -> MockingContext | N
         if not tools_to_simulate:
             return None
 
-        # Create LLM mocking strategy with the agent's model
+        # Honor model from simulation config if specified, otherwise use the agent model
+        simulation_model = simulation_data.get("model")
+        model = (
+            ModelSettings(model=simulation_model)
+            if simulation_model
+            else ModelSettings(model=agent_model)
+            if agent_model
+            else None
+        )
+
         mocking_strategy = LLMMockingStrategy(
             type=MockingStrategyType.LLM,
             prompt=simulation_data.get("instructions", ""),
             tools_to_simulate=tools_to_simulate,
-            model=ModelSettings(model=agent_model) if agent_model else None,
+            model=model,
         )
 
         # Create MockingContext for debugging
