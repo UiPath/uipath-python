@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from uipath.runtime.schema import UiPathRuntimeSchema
+
 from .evaluators.base_evaluator import GenericBaseEvaluator
 from .evaluators.evaluator_factory import EvaluatorFactory
 from .mocks._types import InputMockingStrategy, LLMMockingStrategy
@@ -277,3 +279,24 @@ class EvalHelpers:
             )
 
         return evaluators
+
+
+def get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
+    """Get agent model from the runtime schema metadata.
+
+    The model is read from schema.metadata["settings"]["model"] which is
+    populated by the low-code agents runtime from agent.json.
+
+    Returns:
+        The model name from agent settings, or None if not found.
+    """
+    try:
+        if schema.metadata and "settings" in schema.metadata:
+            settings = schema.metadata["settings"]
+            model = settings.get("model")
+            if model:
+                logger.debug(f"Got agent model from schema.metadata: {model}")
+                return model
+        return None
+    except Exception:
+        return None

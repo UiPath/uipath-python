@@ -144,12 +144,9 @@ class UiPathMockRuntime:
         span_collector: ExecutionSpanCollector | None = None,
         execution_id: str | None = None,
         eval_set_run_id: str | None = None,
-        agent_model: str | None = None,
     ):
         self.delegate = delegate
-        self._mocking_context = mocking_context or load_simulation_config(
-            agent_model=agent_model
-        )
+        self._mocking_context = mocking_context or load_simulation_config()
         self._span_collector = span_collector or ExecutionSpanCollector()
         self._execution_id = execution_id or str(uuid.uuid4())
         self._eval_set_run_id = eval_set_run_id
