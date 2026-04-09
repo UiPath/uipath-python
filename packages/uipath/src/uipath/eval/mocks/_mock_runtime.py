@@ -141,7 +141,11 @@ class UiPathMockRuntime:
             agent_model=agent_model
         )
         # If mocking_context was passed without agent_model, inject it
-        if self._mocking_context and not self._mocking_context.agent_model and agent_model:
+        if (
+            self._mocking_context
+            and not self._mocking_context.agent_model
+            and agent_model
+        ):
             self._mocking_context = self._mocking_context.model_copy(
                 update={"agent_model": agent_model}
             )
