@@ -1,6 +1,7 @@
 """LLM Input Mocker implementation."""
 
 import json
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -16,6 +17,8 @@ from ._mocker import UiPathInputMockingError
 from ._types import (
     InputMockingStrategy,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_input_mocking_prompt(
@@ -121,6 +124,9 @@ async def generate_llm_input(
         # Use the agent's configured model when no simulation-specific model is set
         if "model" not in completion_kwargs and agent_model:
             completion_kwargs["model"] = agent_model
+
+        simulation_model = completion_kwargs.get("model", "default")
+        logger.info(f"Simulating input generation using model: {simulation_model}")
 
         if cache_manager is not None:
             cache_key_data = {

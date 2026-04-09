@@ -186,6 +186,11 @@ class LLMMocker(Mocker):
                 if "model" not in completion_kwargs and self.context.agent_model:
                     completion_kwargs["model"] = self.context.agent_model
 
+                simulation_model = completion_kwargs.get("model", "default")
+                logger.info(
+                    f"Simulating tool '{function_name}' using model: {simulation_model}"
+                )
+
                 formatted_prompt = PROMPT.format(**prompt_generation_args)
 
                 cache_key_data = {
