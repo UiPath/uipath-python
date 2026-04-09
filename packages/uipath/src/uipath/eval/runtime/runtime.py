@@ -532,13 +532,14 @@ class UiPathEvalRuntime:
                         mocking_strategy
                         and isinstance(mocking_strategy, LLMMockingStrategy)
                         and not mocking_strategy.model
-                        and self.context.agent_model
                     ):
-                        mocking_strategy = mocking_strategy.model_copy(
-                            update={
-                                "model": ModelSettings(model=self.context.agent_model)
-                            }
-                        )
+                        from ..._cli.cli_eval import _get_agent_model
+
+                        mocking_model = _get_agent_model(self.context.runtime_schema)
+                        if mocking_model:
+                            mocking_strategy = mocking_strategy.model_copy(
+                                update={"model": ModelSettings(model=mocking_model)}
+                            )
 
                     agent_execution_output = await self.execute_runtime(
                         eval_item,
@@ -827,10 +828,15 @@ class UiPathEvalRuntime:
         )
         # Set agent model on the input mocking strategy if not already set
         input_strategy = eval_item.input_mocking_strategy
-        if input_strategy and not input_strategy.model and self.context.agent_model:
-            input_strategy = input_strategy.model_copy(
-                update={"model": ModelSettings(model=self.context.agent_model)}
-            )
+        # If input strategy does not specify a model, extract it
+        if input_strategy and not input_strategy.model:
+            from ..._cli.cli_eval import _get_agent_model
+
+            input_generation_model = _get_agent_model(self.context.runtime_schema)
+            if input_generation_model:
+                input_strategy = input_strategy.model_copy(
+                    update={"model": ModelSettings(model=input_generation_model)}
+                )
 
         generated_input = await generate_llm_input(
             input_strategy,

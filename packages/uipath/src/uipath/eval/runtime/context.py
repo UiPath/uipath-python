@@ -27,4 +27,3 @@ class UiPathEvalContext:
     input_overrides: dict[str, Any] | None = None
     resume: bool = False
     job_id: str | None = None
-    agent_model: str | None = None
