@@ -26,6 +26,23 @@ class PIIDetectionEntity:
             )
 
 
+@dataclass
+class HarmfulContentEntity:
+    """Harmful content entity configuration with severity threshold.
+
+    Args:
+        name: The entity type name (e.g. ``HarmfulContentEntityType.VIOLENCE``).
+        threshold: Severity threshold (0 to 6) for detection. Defaults to ``2``.
+    """
+
+    name: str
+    threshold: int = 2
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.threshold <= 6:
+            raise ValueError(f"Threshold must be between 0 and 6, got {self.threshold}")
+
+
 class GuardrailAction(ABC):
     """Interface for defining custom actions when a guardrail violation is detected.
 
