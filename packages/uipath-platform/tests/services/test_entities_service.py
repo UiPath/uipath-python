@@ -267,6 +267,41 @@ class TestEntitiesService:
                     limit=1,
                 )
 
+    def test_retrieve_records_without_start_and_limit(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{str(entity_key)}/read",
+            status_code=200,
+            json={
+                "totalCount": 1,
+                "value": [
+                    {"Id": "12345", "name": "record_name", "integer_field": 10},
+                ],
+            },
+        )
+
+        records = service.list_records(entity_key=str(entity_key))
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        # Verify no start or limit query params are sent
+        assert "start" not in str(sent_request.url.params)
+        assert "limit" not in str(sent_request.url.params)
+
+        assert isinstance(records, list)
+        assert len(records) == 1
+        assert records[0].id == "12345"
+
     @pytest.mark.parametrize(
         "sql_query",
         [

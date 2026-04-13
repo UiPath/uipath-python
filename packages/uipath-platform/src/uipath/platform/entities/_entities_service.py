@@ -1115,12 +1115,17 @@ class EntitiesService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> RequestSpec:
+        params: dict[str, Any] = {}
+        if start is not None:
+            params["start"] = start
+        if limit is not None:
+            params["limit"] = limit
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
                 f"datafabric_/api/EntityService/entity/{entity_key}/read"
             ),
-            params=({"start": start, "limit": limit}),
+            params=params,
         )
 
     def _query_entity_records_spec(
