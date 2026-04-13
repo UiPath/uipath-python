@@ -75,7 +75,9 @@ def _extract_error_info(error: Exception) -> tuple[str, str]:
             message = title or detail or _CAS_ERROR_MESSAGES[CASErrorId.DEFAULT_ERROR]
         return code, message
 
-    return CASErrorId.DEFAULT_ERROR, _CAS_ERROR_MESSAGES[CASErrorId.DEFAULT_ERROR]
+    return CASErrorId.DEFAULT_ERROR, str(error) or _CAS_ERROR_MESSAGES[
+        CASErrorId.DEFAULT_ERROR
+    ]
 
 
 def _resolve_cas_error(error: Exception) -> tuple[str, str]:
@@ -89,7 +91,10 @@ def _resolve_cas_error(error: Exception) -> tuple[str, str]:
     error_code, error_message = _extract_error_info(error)
     suffix = error_code.rsplit(".", 1)[-1] if error_code else ""
     cas_error_id = _CAS_ERROR_ID_MAP.get(suffix, CASErrorId.DEFAULT_ERROR)
-    cas_message = _CAS_ERROR_MESSAGES.get(cas_error_id) or error_message
+    if cas_error_id == CASErrorId.DEFAULT_ERROR:
+        cas_message = error_message
+    else:
+        cas_message = _CAS_ERROR_MESSAGES.get(cas_error_id) or error_message
     return cas_error_id, cas_message
 
 
