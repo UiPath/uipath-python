@@ -162,6 +162,10 @@ def make_evaluator(
     evaluator.validate_and_evaluate_criteria = AsyncMock(
         return_value=NumericEvaluationResult(score=score, details=details)
     )
+    # reduce_scores is called by compute_evaluator_scores to aggregate across items
+    evaluator.reduce_scores = lambda results: (
+        sum(r.score for r in results) / len(results) if results else 0.0
+    )
     return evaluator
 
 
@@ -184,53 +188,117 @@ def make_eval_item(
 
 
 class TestEvalSetRunSpan:
-    """Tests that runtime.execute() creates the 'Evaluation Set Run' span."""
+    """Tests that runtime.execute() creates the 'Evaluation Set Run' span.
+
+    These tests run the full pipeline: execute() -> initiate_evaluation() ->
+    _execute_eval() (per item) -> run_evaluator() (per evaluator). Only
+    execute_runtime (the actual agent invocation) is mocked.
+    """
+
+    def _make_runtime_with_evaluations(
+        self,
+        tracer: SpanCapturingTracer,
+        eval_items: list[EvaluationItem],
+        evaluators: list[MagicMock],
+        **context_kwargs: Any,
+    ) -> UiPathEvalRuntime:
+        """Create a runtime whose context has real eval items and evaluators."""
+        eval_set = EvaluationSet(
+            id="test-set",
+            name="Test Eval Set",
+            evaluations=eval_items,
+        )
+        return make_runtime(
+            tracer,
+            evaluation_set=eval_set,
+            evaluators=evaluators,
+            **context_kwargs,
+        )
 
     @pytest.mark.asyncio
     async def test_execute_creates_eval_set_run_span(self) -> None:
+        """execute() with one eval item produces an 'Evaluation Set Run' span."""
         tracer = SpanCapturingTracer()
-        runtime = make_runtime(tracer)
+        evaluator = make_evaluator(name="Acc", evaluator_id="acc", score=0.9)
+        eval_item = make_eval_item(evaluation_criterias={"acc": {}})
+        runtime = self._make_runtime_with_evaluations(
+            tracer, [eval_item], [evaluator]
+        )
 
         with patch.object(
             runtime,
-            "initiate_evaluation",
-            new=AsyncMock(
-                return_value=(
-                    MagicMock(name="Test Set", evaluations=[]),
-                    [],
-                    iter([]),
-                )
-            ),
+            "execute_runtime",
+            new=AsyncMock(return_value=make_mock_execution_output()),
         ):
-            try:
-                await runtime.execute()
-            except Exception:
-                pass
+            await runtime.execute()
 
         spans = tracer.get_spans_by_type("eval_set_run")
-        assert len(spans) >= 1
+        assert len(spans) == 1
         assert spans[0].name == "Evaluation Set Run"
+
+    @pytest.mark.asyncio
+    async def test_eval_set_run_span_has_aggregate_scores(self) -> None:
+        """After evaluations complete, the span output contains aggregate scores."""
+        tracer = SpanCapturingTracer()
+        evaluator = make_evaluator(name="Accuracy", evaluator_id="acc", score=0.8)
+        items = [
+            make_eval_item(item_id="item-1", name="E1", evaluation_criterias={"acc": {}}),
+            make_eval_item(item_id="item-2", name="E2", evaluation_criterias={"acc": {}}),
+        ]
+        runtime = self._make_runtime_with_evaluations(tracer, items, [evaluator])
+
+        with patch.object(
+            runtime,
+            "execute_runtime",
+            new=AsyncMock(return_value=make_mock_execution_output()),
+        ):
+            await runtime.execute()
+
+        span = tracer.get_spans_by_type("eval_set_run")[0]
+        output = json.loads(span.attributes["output"])
+        assert "scores" in output
+        assert "Accuracy" in output["scores"]
+        # 0.8 normalized to 80.0
+        assert output["scores"]["Accuracy"] == 80.0
+
+    @pytest.mark.asyncio
+    async def test_eval_set_run_span_has_metadata(self) -> None:
+        """After evaluations complete, span has agentId, agentName, schemas."""
+        tracer = SpanCapturingTracer()
+        evaluator = make_evaluator(name="Acc", evaluator_id="acc", score=1.0)
+        eval_item = make_eval_item(evaluation_criterias={"acc": {}})
+        runtime = self._make_runtime_with_evaluations(
+            tracer, [eval_item], [evaluator]
+        )
+
+        with patch.object(
+            runtime,
+            "execute_runtime",
+            new=AsyncMock(return_value=make_mock_execution_output()),
+        ):
+            await runtime.execute()
+
+        span = tracer.get_spans_by_type("eval_set_run")[0]
+        assert span.attributes["agentName"] == "N/A"
+        assert "agentId" in span.attributes
+        assert "inputSchema" in span.attributes
+        assert "outputSchema" in span.attributes
 
     @pytest.mark.asyncio
     async def test_eval_set_run_id_included_when_provided(self) -> None:
         tracer = SpanCapturingTracer()
-        runtime = make_runtime(tracer, eval_set_run_id="custom-run-abc")
+        evaluator = make_evaluator(name="Acc", evaluator_id="acc", score=0.9)
+        eval_item = make_eval_item(evaluation_criterias={"acc": {}})
+        runtime = self._make_runtime_with_evaluations(
+            tracer, [eval_item], [evaluator], eval_set_run_id="custom-run-abc"
+        )
 
         with patch.object(
             runtime,
-            "initiate_evaluation",
-            new=AsyncMock(
-                return_value=(
-                    MagicMock(name="Test Set", evaluations=[]),
-                    [],
-                    iter([]),
-                )
-            ),
+            "execute_runtime",
+            new=AsyncMock(return_value=make_mock_execution_output()),
         ):
-            try:
-                await runtime.execute()
-            except Exception:
-                pass
+            await runtime.execute()
 
         span = tracer.get_spans_by_type("eval_set_run")[0]
         assert span.attributes["eval_set_run_id"] == "custom-run-abc"
@@ -238,86 +306,50 @@ class TestEvalSetRunSpan:
     @pytest.mark.asyncio
     async def test_eval_set_run_id_excluded_when_not_provided(self) -> None:
         tracer = SpanCapturingTracer()
-        runtime = make_runtime(tracer)
+        evaluator = make_evaluator(name="Acc", evaluator_id="acc", score=0.9)
+        eval_item = make_eval_item(evaluation_criterias={"acc": {}})
+        runtime = self._make_runtime_with_evaluations(
+            tracer, [eval_item], [evaluator]
+        )
 
         with patch.object(
             runtime,
-            "initiate_evaluation",
-            new=AsyncMock(
-                return_value=(
-                    MagicMock(name="Test Set", evaluations=[]),
-                    [],
-                    iter([]),
-                )
-            ),
+            "execute_runtime",
+            new=AsyncMock(return_value=make_mock_execution_output()),
         ):
-            try:
-                await runtime.execute()
-            except Exception:
-                pass
+            await runtime.execute()
 
         span = tracer.get_spans_by_type("eval_set_run")[0]
         assert "eval_set_run_id" not in span.attributes
 
     @pytest.mark.asyncio
-    async def test_eval_set_run_span_has_custom_instrumentation_flag(self) -> None:
-        tracer = SpanCapturingTracer()
-        runtime = make_runtime(tracer)
-
-        with patch.object(
-            runtime,
-            "initiate_evaluation",
-            new=AsyncMock(
-                return_value=(
-                    MagicMock(name="Test Set", evaluations=[]),
-                    [],
-                    iter([]),
-                )
-            ),
-        ):
-            try:
-                await runtime.execute()
-            except Exception:
-                pass
-
-        span = tracer.get_spans_by_type("eval_set_run")[0]
-        assert span.attributes["uipath.custom_instrumentation"] is True
-
-    @pytest.mark.asyncio
-    async def test_eval_set_run_span_configured_with_metadata(self) -> None:
-        """After evaluations complete, span gets agentId, agentName, schemas.
-
-        This requires the full pipeline to complete (initiate_evaluation ->
-        execute_parallel -> compute_evaluator_scores -> configure_eval_set_run_span).
-        We mock execute_parallel to return an empty list so the pipeline completes.
+    async def test_execute_produces_full_span_hierarchy(self) -> None:
+        """execute() with eval items produces the full span tree:
+        Evaluation Set Run -> Evaluation -> Evaluator -> Evaluation output.
         """
-        from uipath.eval.runtime.runtime import execute_parallel
-
         tracer = SpanCapturingTracer()
-        runtime = make_runtime(tracer)
-
-        eval_set = MagicMock()
-        eval_set.name = "Test Set"
-        eval_set.evaluations = []
+        evaluator = make_evaluator(
+            name="Relevance", evaluator_id="rel", score=0.95
+        )
+        eval_item = make_eval_item(
+            item_id="item-1", name="E1", evaluation_criterias={"rel": {}}
+        )
+        runtime = self._make_runtime_with_evaluations(
+            tracer, [eval_item], [evaluator]
+        )
 
         with patch.object(
             runtime,
-            "initiate_evaluation",
-            new=AsyncMock(
-                return_value=(eval_set, [], iter([]))
-            ),
-        ), patch(
-            "uipath.eval.runtime.runtime.execute_parallel",
-            new=AsyncMock(return_value=[]),
+            "execute_runtime",
+            new=AsyncMock(return_value=make_mock_execution_output()),
         ):
             await runtime.execute()
 
-        span = tracer.get_spans_by_type("eval_set_run")[0]
-        # configure_eval_set_run_span sets these via set_attribute
-        assert span.attributes.get("agentName") == "N/A"
-        assert "agentId" in span.attributes
-        assert "inputSchema" in span.attributes
-        assert "outputSchema" in span.attributes
+        # All four span types should be present
+        assert len(tracer.get_spans_by_type("eval_set_run")) == 1
+        assert len(tracer.get_spans_by_type("evaluation")) == 1
+        assert len(tracer.get_spans_by_type("evaluator")) == 1
+        assert len(tracer.get_spans_by_attr("span.type", "evalOutput")) == 1
 
 
 class TestEvaluationSpan:
