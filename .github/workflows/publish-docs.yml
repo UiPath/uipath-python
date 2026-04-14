@@ -9,6 +9,10 @@ on:
       - "packages/uipath/docs/**"
       - "packages/uipath/mkdocs.yml"
       - "packages/uipath/pyproject.toml"
+      - "packages/uipath-platform/src/**"
+      - "packages/uipath-platform/pyproject.toml"
+      - "packages/uipath-core/src/**"
+      - "packages/uipath-core/pyproject.toml"
   repository_dispatch:
     types: [publish-docs]
 
