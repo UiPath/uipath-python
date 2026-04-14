@@ -101,8 +101,8 @@ def make_mock_execution_output(
 
 
 def make_evaluator(
-    name: str = "ExactMatchEvaluator",
-    evaluator_id: str = "exact-match-evaluator",
+    name: str = "MockEvaluator",
+    evaluator_id: str = "mock-evaluator",
     score: float = 0.95,
     details: Any = None,
 ) -> MagicMock:
@@ -207,14 +207,8 @@ class TestEvalSetRunSpan:
 
     @pytest.mark.asyncio
     async def test_span_created_with_correct_name_and_type(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=0.9,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"exact-match-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         spans = tracer.get_spans_by_type("eval_set_run")
@@ -225,39 +219,29 @@ class TestEvalSetRunSpan:
     @pytest.mark.asyncio
     async def test_aggregate_scores_from_multiple_items(self) -> None:
         """Scores are averaged across all eval items and written to the span."""
-        evaluator = make_evaluator(
-            name="JsonSimilarityEvaluator",
-            evaluator_id="json-similarity-evaluator",
-            score=0.8,
-        )
+        evaluator = make_evaluator(score=0.8)
         items = [
             make_eval_item(
                 item_id="calculator-addition",
                 name="Calculator addition test",
-                evaluation_criterias={"json-similarity-evaluator": {}},
+                evaluation_criterias={"mock-evaluator": {}},
             ),
             make_eval_item(
                 item_id="calculator-subtraction",
                 name="Calculator subtraction test",
-                evaluation_criterias={"json-similarity-evaluator": {}},
+                evaluation_criterias={"mock-evaluator": {}},
             ),
         ]
         tracer, _ = await run_evaluation(items, [evaluator])
 
         span = tracer.get_spans_by_type("eval_set_run")[0]
         output = json.loads(span.attributes["output"])
-        assert output["scores"]["JsonSimilarityEvaluator"] == 80.0  # 0.8 -> 80.0
+        assert output["scores"]["MockEvaluator"] == 80.0  # 0.8 -> 80.0
 
     @pytest.mark.asyncio
     async def test_metadata_attributes(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=1.0,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"exact-match-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=1.0)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_type("eval_set_run")[0]
@@ -268,14 +252,8 @@ class TestEvalSetRunSpan:
 
     @pytest.mark.asyncio
     async def test_eval_set_run_id_included_when_provided(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=0.9,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"exact-match-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation(
             [item], [evaluator], eval_set_run_id="run-2024-04-14-001"
         )
@@ -285,14 +263,8 @@ class TestEvalSetRunSpan:
 
     @pytest.mark.asyncio
     async def test_eval_set_run_id_excluded_when_not_provided(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=0.9,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"exact-match-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_type("eval_set_run")[0]
@@ -304,21 +276,17 @@ class TestEvaluationSpan:
 
     @pytest.mark.asyncio
     async def test_one_span_per_eval_item(self) -> None:
-        evaluator = make_evaluator(
-            name="ContainsEvaluator",
-            evaluator_id="contains-evaluator",
-            score=0.9,
-        )
+        evaluator = make_evaluator(score=0.9)
         items = [
             make_eval_item(
                 item_id="greeting-english",
                 name="English greeting test",
-                evaluation_criterias={"contains-evaluator": {}},
+                evaluation_criterias={"mock-evaluator": {}},
             ),
             make_eval_item(
                 item_id="greeting-spanish",
                 name="Spanish greeting test",
-                evaluation_criterias={"contains-evaluator": {}},
+                evaluation_criterias={"mock-evaluator": {}},
             ),
         ]
         tracer, _ = await run_evaluation(items, [evaluator])
@@ -328,15 +296,11 @@ class TestEvaluationSpan:
 
     @pytest.mark.asyncio
     async def test_span_has_eval_item_attributes(self) -> None:
-        evaluator = make_evaluator(
-            name="ContainsEvaluator",
-            evaluator_id="contains-evaluator",
-            score=0.9,
-        )
+        evaluator = make_evaluator(score=0.9)
         item = make_eval_item(
             item_id="sentiment-positive-review",
             name="Positive review sentiment check",
-            evaluation_criterias={"contains-evaluator": {}},
+            evaluation_criterias={"mock-evaluator": {}},
         )
         tracer, _ = await run_evaluation([item], [evaluator])
 
@@ -348,31 +312,21 @@ class TestEvaluationSpan:
 
     @pytest.mark.asyncio
     async def test_span_configured_with_per_item_scores(self) -> None:
-        evaluator = make_evaluator(
-            name="JsonSimilarityEvaluator",
-            evaluator_id="json-similarity-evaluator",
-            score=0.85,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"json-similarity-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.85)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_type("evaluation")[0]
         output = json.loads(span.attributes["output"])
         assert "scores" in output
-        assert "JsonSimilarityEvaluator" in output["scores"]
+        assert "MockEvaluator" in output["scores"]
 
     @pytest.mark.asyncio
     async def test_span_has_metadata(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=0.9,
-        )
+        evaluator = make_evaluator(score=0.9)
         item = make_eval_item(
             inputs={"query": "What is the capital of France?"},
-            evaluation_criterias={"exact-match-evaluator": {}},
+            evaluation_criterias={"mock-evaluator": {}},
         )
         tracer, _ = await run_evaluation([item], [evaluator])
 
@@ -386,24 +340,20 @@ class TestEvaluatorSpan:
 
     @pytest.mark.asyncio
     async def test_span_has_correct_name_and_attributes(self) -> None:
-        evaluator = make_evaluator(
-            name="LLMJudgeTrajectoryEvaluator",
-            evaluator_id="llm-judge-trajectory",
-            score=0.9,
-        )
+        evaluator = make_evaluator(score=0.9)
         item = make_eval_item(
             item_id="multi-step-tool-use",
-            name="Multi-step tool use trajectory",
-            evaluation_criterias={"llm-judge-trajectory": {}},
+            name="Multi-step tool use test case",
+            evaluation_criterias={"mock-evaluator": {}},
         )
         tracer, _ = await run_evaluation([item], [evaluator])
 
         spans = tracer.get_spans_by_type("evaluator")
         assert len(spans) == 1
         span = spans[0]
-        assert span.name == "Evaluator: LLMJudgeTrajectoryEvaluator"
-        assert span.attributes["evaluator_id"] == "llm-judge-trajectory"
-        assert span.attributes["evaluator_name"] == "LLMJudgeTrajectoryEvaluator"
+        assert span.name == "Evaluator: MockEvaluator"
+        assert span.attributes["evaluator_id"] == "mock-evaluator"
+        assert span.attributes["evaluator_name"] == "MockEvaluator"
         assert span.attributes["eval_item_id"] == "multi-step-tool-use"
         assert span.attributes["uipath.custom_instrumentation"] is True
 
@@ -411,26 +361,20 @@ class TestEvaluatorSpan:
     async def test_multiple_evaluators_produce_multiple_spans(self) -> None:
         evaluators = [
             make_evaluator(
-                name="ExactMatchEvaluator",
-                evaluator_id="exact-match-evaluator",
-                score=0.9,
+                name="MockEvaluatorA", evaluator_id="mock-evaluator-a", score=0.9
             ),
             make_evaluator(
-                name="JsonSimilarityEvaluator",
-                evaluator_id="json-similarity-evaluator",
-                score=0.8,
+                name="MockEvaluatorB", evaluator_id="mock-evaluator-b", score=0.8
             ),
             make_evaluator(
-                name="LLMJudgeOutputEvaluator",
-                evaluator_id="llm-judge-output-evaluator",
-                score=0.7,
+                name="MockEvaluatorC", evaluator_id="mock-evaluator-c", score=0.7
             ),
         ]
         item = make_eval_item(
             evaluation_criterias={
-                "exact-match-evaluator": {},
-                "json-similarity-evaluator": {},
-                "llm-judge-output-evaluator": {},
+                "mock-evaluator-a": {},
+                "mock-evaluator-b": {},
+                "mock-evaluator-c": {},
             }
         )
         tracer, _ = await run_evaluation([item], evaluators)
@@ -439,28 +383,24 @@ class TestEvaluatorSpan:
         assert len(spans) == 3
         span_names = {s.name for s in spans}
         assert span_names == {
-            "Evaluator: ExactMatchEvaluator",
-            "Evaluator: JsonSimilarityEvaluator",
-            "Evaluator: LLMJudgeOutputEvaluator",
+            "Evaluator: MockEvaluatorA",
+            "Evaluator: MockEvaluatorB",
+            "Evaluator: MockEvaluatorC",
         }
 
     @pytest.mark.asyncio
     async def test_multiple_items_each_get_evaluator_spans(self) -> None:
-        evaluator = make_evaluator(
-            name="ContainsEvaluator",
-            evaluator_id="contains-evaluator",
-            score=0.9,
-        )
+        evaluator = make_evaluator(score=0.9)
         items = [
             make_eval_item(
                 item_id="invoice-extraction",
                 name="Invoice data extraction",
-                evaluation_criterias={"contains-evaluator": {}},
+                evaluation_criterias={"mock-evaluator": {}},
             ),
             make_eval_item(
                 item_id="receipt-extraction",
                 name="Receipt data extraction",
-                evaluation_criterias={"contains-evaluator": {}},
+                evaluation_criterias={"mock-evaluator": {}},
             ),
         ]
         tracer, _ = await run_evaluation(items, [evaluator])
@@ -476,14 +416,8 @@ class TestEvaluationOutputSpan:
 
     @pytest.mark.asyncio
     async def test_span_created_with_correct_attributes(self) -> None:
-        evaluator = make_evaluator(
-            name="ToolCallArgsEvaluator",
-            evaluator_id="tool-call-args-evaluator",
-            score=0.75,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"tool-call-args-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.75)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         output_spans = tracer.get_spans_by_attr("span.type", "evalOutput")
@@ -491,20 +425,14 @@ class TestEvaluationOutputSpan:
         span = output_spans[0]
         assert span.name == "Evaluation output"
         assert span.attributes["value"] == 0.75
-        assert span.attributes["evaluatorId"] == "tool-call-args-evaluator"
+        assert span.attributes["evaluatorId"] == "mock-evaluator"
         assert span.attributes["openinference.span.kind"] == "CHAIN"
         assert span.attributes["uipath.custom_instrumentation"] is True
 
     @pytest.mark.asyncio
     async def test_output_json_has_normalized_score_and_type(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=0.85,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"exact-match-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.85)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_attr("span.type", "evalOutput")[0]
@@ -514,23 +442,16 @@ class TestEvaluationOutputSpan:
 
     @pytest.mark.asyncio
     async def test_justification_from_pydantic_details(self) -> None:
-        class SemanticSimilarityDetails(BaseModel):
+        class MockEvaluatorDetails(BaseModel):
             justification: str
             similarity_score: float = 0.0
 
-        details = SemanticSimilarityDetails(
+        details = MockEvaluatorDetails(
             justification="Agent output is semantically equivalent to expected output",
             similarity_score=0.92,
         )
-        evaluator = make_evaluator(
-            name="LLMJudgeOutputEvaluator",
-            evaluator_id="llm-judge-output-evaluator",
-            score=0.92,
-            details=details,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"llm-judge-output-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.92, details=details)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_attr("span.type", "evalOutput")[0]
@@ -542,14 +463,10 @@ class TestEvaluationOutputSpan:
     @pytest.mark.asyncio
     async def test_justification_from_string_details(self) -> None:
         evaluator = make_evaluator(
-            name="BinaryClassificationEvaluator",
-            evaluator_id="binary-classification-evaluator",
             score=0.8,
             details="Output correctly classified as positive sentiment",
         )
-        item = make_eval_item(
-            evaluation_criterias={"binary-classification-evaluator": {}}
-        )
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_attr("span.type", "evalOutput")[0]
@@ -560,15 +477,8 @@ class TestEvaluationOutputSpan:
 
     @pytest.mark.asyncio
     async def test_no_justification_when_no_details(self) -> None:
-        evaluator = make_evaluator(
-            name="ExactMatchEvaluator",
-            evaluator_id="exact-match-evaluator",
-            score=1.0,
-            details=None,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"exact-match-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=1.0, details=None)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_attr("span.type", "evalOutput")[0]
@@ -581,15 +491,11 @@ class TestSpanHierarchy:
     @pytest.mark.asyncio
     async def test_full_span_tree(self) -> None:
         """One item + one evaluator produces all four span types."""
-        evaluator = make_evaluator(
-            name="ToolCallOrderEvaluator",
-            evaluator_id="tool-call-order-evaluator",
-            score=0.95,
-        )
+        evaluator = make_evaluator(score=0.95)
         item = make_eval_item(
             item_id="booking-flow-happy-path",
             name="Booking flow happy path",
-            evaluation_criterias={"tool-call-order-evaluator": {}},
+            evaluation_criterias={"mock-evaluator": {}},
         )
         tracer, _ = await run_evaluation([item], [evaluator])
 
@@ -601,22 +507,16 @@ class TestSpanHierarchy:
     @pytest.mark.asyncio
     async def test_span_ordering(self) -> None:
         """Spans are created in the correct order: parent before child."""
-        evaluator = make_evaluator(
-            name="ContainsEvaluator",
-            evaluator_id="contains-evaluator",
-            score=0.9,
-        )
-        item = make_eval_item(
-            evaluation_criterias={"contains-evaluator": {}}
-        )
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         names = [s.name for s in tracer.captured_spans]
         assert names.index("Evaluation Set Run") < names.index("Evaluation")
         assert names.index("Evaluation") < names.index(
-            "Evaluator: ContainsEvaluator"
+            "Evaluator: MockEvaluator"
         )
-        assert names.index("Evaluator: ContainsEvaluator") < names.index(
+        assert names.index("Evaluator: MockEvaluator") < names.index(
             "Evaluation output"
         )
 
@@ -625,14 +525,10 @@ class TestSpanHierarchy:
         """Two items x two evaluators produces the expected span counts."""
         evaluators = [
             make_evaluator(
-                name="ExactMatchEvaluator",
-                evaluator_id="exact-match-evaluator",
-                score=0.9,
+                name="MockEvaluatorA", evaluator_id="mock-evaluator-a", score=0.9
             ),
             make_evaluator(
-                name="JsonSimilarityEvaluator",
-                evaluator_id="json-similarity-evaluator",
-                score=0.8,
+                name="MockEvaluatorB", evaluator_id="mock-evaluator-b", score=0.8
             ),
         ]
         items = [
@@ -640,16 +536,16 @@ class TestSpanHierarchy:
                 item_id="api-response-format",
                 name="API response format validation",
                 evaluation_criterias={
-                    "exact-match-evaluator": {},
-                    "json-similarity-evaluator": {},
+                    "mock-evaluator-a": {},
+                    "mock-evaluator-b": {},
                 },
             ),
             make_eval_item(
                 item_id="error-handling-graceful",
                 name="Graceful error handling check",
                 evaluation_criterias={
-                    "exact-match-evaluator": {},
-                    "json-similarity-evaluator": {},
+                    "mock-evaluator-a": {},
+                    "mock-evaluator-b": {},
                 },
             ),
         ]
