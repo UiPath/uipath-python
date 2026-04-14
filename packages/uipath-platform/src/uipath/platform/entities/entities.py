@@ -222,6 +222,25 @@ class SourceJoinCriteria(BaseModel):
     related_source_field_name: str = Field(alias="relatedSourceFieldName")
 
 
+class ChoiceSetValue(BaseModel):
+    """Model representing a single value within a choice set."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    id: str = Field(alias="Id")
+    name: str = Field(alias="Name")
+    display_name: str = Field(alias="DisplayName")
+    number_id: int = Field(alias="NumberId")
+    created_time: str | None = Field(default=None, alias="CreateTime")
+    updated_time: str | None = Field(default=None, alias="UpdateTime")
+    created_by: str | None = Field(default=None, alias="CreatedBy")
+    updated_by: str | None = Field(default=None, alias="UpdatedBy")
+    record_owner: str | None = Field(default=None, alias="RecordOwner")
+
+
 class EntityRecord(BaseModel):
     """Model representing a record within an entity."""
 

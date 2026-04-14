@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 from dataclasses import make_dataclass
@@ -12,7 +13,7 @@ from uipath.platform.common._bindings import (
     EntityResourceOverwrite,
     _resource_overwrites,
 )
-from uipath.platform.entities import DataFabricEntityItem, Entity
+from uipath.platform.entities import ChoiceSetValue, DataFabricEntityItem, Entity
 from uipath.platform.entities._entities_service import EntitiesService
 
 
@@ -810,3 +811,243 @@ class TestEntitiesService:
                 },
             ]
         }
+
+    def test_list_choicesets(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/choiceset",
+            status_code=200,
+            json=[
+                {
+                    "name": "Status",
+                    "displayName": "Status",
+                    "entityType": "ChoiceSet",
+                    "description": "Status choices",
+                    "isRbacEnabled": False,
+                    "id": "cs-001",
+                },
+                {
+                    "name": "Priority",
+                    "displayName": "Priority",
+                    "entityType": "ChoiceSet",
+                    "description": "Priority levels",
+                    "isRbacEnabled": False,
+                    "id": "cs-002",
+                },
+            ],
+        )
+
+        choicesets = service.list_choicesets()
+
+        assert isinstance(choicesets, list)
+        assert len(choicesets) == 2
+        assert choicesets[0].name == "Status"
+        assert choicesets[0].entity_type == "ChoiceSet"
+        assert choicesets[0].id == "cs-001"
+        assert choicesets[1].name == "Priority"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.method == "GET"
+        assert str(sent_request.url).endswith("/datafabric_/api/Entity/choiceset")
+
+    @pytest.mark.anyio
+    async def test_list_choicesets_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/choiceset",
+            status_code=200,
+            json=[
+                {
+                    "name": "Role",
+                    "displayName": "Role",
+                    "entityType": "ChoiceSet",
+                    "isRbacEnabled": False,
+                    "id": "cs-003",
+                },
+            ],
+        )
+
+        choicesets = await service.list_choicesets_async()
+
+        assert len(choicesets) == 1
+        assert choicesets[0].name == "Role"
+        assert choicesets[0].id == "cs-003"
+
+    def test_get_choiceset_values(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        choiceset_id = "cs-001"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{choiceset_id}/query_expansion",
+            status_code=200,
+            json={
+                "totalRecordCount": 3,
+                "jsonValue": json.dumps(
+                    [
+                        {
+                            "Id": "v1",
+                            "Name": "Active",
+                            "DisplayName": "Active",
+                            "NumberId": 0,
+                            "CreateTime": "2026-01-01T00:00:00Z",
+                            "UpdateTime": "2026-01-01T00:00:00Z",
+                        },
+                        {
+                            "Id": "v2",
+                            "Name": "Inactive",
+                            "DisplayName": "Inactive",
+                            "NumberId": 1,
+                            "CreateTime": "2026-01-01T00:00:00Z",
+                            "UpdateTime": "2026-01-01T00:00:00Z",
+                        },
+                        {
+                            "Id": "v3",
+                            "Name": "Pending",
+                            "DisplayName": "Pending",
+                            "NumberId": 2,
+                        },
+                    ]
+                ),
+            },
+        )
+
+        values = service.get_choiceset_values(choiceset_id)
+
+        assert isinstance(values, list)
+        assert len(values) == 3
+        assert isinstance(values[0], ChoiceSetValue)
+        assert values[0].id == "v1"
+        assert values[0].name == "Active"
+        assert values[0].display_name == "Active"
+        assert values[0].number_id == 0
+        assert values[1].number_id == 1
+        assert values[2].name == "Pending"
+        assert values[2].created_by is None
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.method == "POST"
+
+    def test_get_choiceset_values_with_pagination(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        choiceset_id = "cs-001"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{choiceset_id}/query_expansion?start=0&limit=2",
+            status_code=200,
+            json={
+                "totalRecordCount": 5,
+                "jsonValue": json.dumps(
+                    [
+                        {
+                            "Id": "v1",
+                            "Name": "Active",
+                            "DisplayName": "Active",
+                            "NumberId": 0,
+                        },
+                        {
+                            "Id": "v2",
+                            "Name": "Inactive",
+                            "DisplayName": "Inactive",
+                            "NumberId": 1,
+                        },
+                    ]
+                ),
+            },
+        )
+
+        values = service.get_choiceset_values(choiceset_id, start=0, limit=2)
+
+        assert len(values) == 2
+        assert values[0].name == "Active"
+        assert values[1].name == "Inactive"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert "start=0" in str(sent_request.url)
+        assert "limit=2" in str(sent_request.url)
+
+    @pytest.mark.anyio
+    async def test_get_choiceset_values_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        choiceset_id = "cs-002"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{choiceset_id}/query_expansion",
+            status_code=200,
+            json={
+                "totalRecordCount": 1,
+                "jsonValue": json.dumps(
+                    [
+                        {
+                            "Id": "v1",
+                            "Name": "ReadOnly",
+                            "DisplayName": "Read Only",
+                            "NumberId": 0,
+                        },
+                    ]
+                ),
+            },
+        )
+
+        values = await service.get_choiceset_values_async(choiceset_id)
+
+        assert len(values) == 1
+        assert values[0].display_name == "Read Only"
+        assert values[0].number_id == 0
+
+    def test_get_choiceset_values_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        choiceset_id = "cs-empty"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{choiceset_id}/query_expansion",
+            status_code=200,
+            json={
+                "totalRecordCount": 0,
+                "jsonValue": "[]",
+            },
+        )
+
+        values = service.get_choiceset_values(choiceset_id)
+
+        assert values == []

@@ -5,6 +5,7 @@ This module contains models related to UiPath Entities service.
 
 from ._entities_service import EntitiesService
 from .entities import (
+    ChoiceSetValue,
     DataFabricEntityItem,
     Entity,
     EntityField,
@@ -24,6 +25,7 @@ from .entities import (
 )
 
 __all__ = [
+    "ChoiceSetValue",
     "DataFabricEntityItem",
     "EntitiesService",
     "Entity",
