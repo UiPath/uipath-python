@@ -334,6 +334,53 @@ class TestEvaluationSpan:
         assert span.attributes["agentName"] == "N/A"
         assert "agentId" in span.attributes
 
+    @pytest.mark.asyncio
+    async def test_span_has_input_data(self) -> None:
+        """The evaluation span carries the eval item's inputs as serialized JSON."""
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(
+            inputs={"query": "Summarize this document", "max_tokens": 100},
+            evaluation_criterias={"mock-evaluator": {}},
+        )
+        tracer, _ = await run_evaluation([item], [evaluator])
+
+        span = tracer.get_spans_by_type("evaluation")[0]
+        assert "input" in span.attributes
+        input_data = json.loads(span.attributes["input"])
+        assert input_data["query"] == "Summarize this document"
+        assert input_data["max_tokens"] == 100
+
+    @pytest.mark.asyncio
+    async def test_span_has_error_status_when_agent_fails(self) -> None:
+        """When the agent returns an error, the evaluation span gets ERROR status."""
+        from opentelemetry.trace import StatusCode
+
+        evaluator = make_evaluator(score=0.0)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
+        error_output = make_mock_execution_output(
+            error="Agent failed: connection timeout",
+        )
+        tracer, _ = await run_evaluation(
+            [item], [evaluator], execution_output=error_output
+        )
+
+        span = tracer.get_spans_by_type("evaluation")[0]
+        assert span._status is not None
+        assert span._status.status_code == StatusCode.ERROR
+
+    @pytest.mark.asyncio
+    async def test_span_has_ok_status_on_success(self) -> None:
+        """When the agent succeeds, the evaluation span gets OK status."""
+        from opentelemetry.trace import StatusCode
+
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
+        tracer, _ = await run_evaluation([item], [evaluator])
+
+        span = tracer.get_spans_by_type("evaluation")[0]
+        assert span._status is not None
+        assert span._status.status_code == StatusCode.OK
+
 
 class TestEvaluatorSpan:
     """Tests for the 'Evaluator: {name}' span — one per evaluator per item."""
