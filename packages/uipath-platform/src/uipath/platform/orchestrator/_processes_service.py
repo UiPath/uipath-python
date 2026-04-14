@@ -50,6 +50,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
         parent_operation_id: Optional[str] = None,
+        run_as_me: Optional[bool] = None,
         **kwargs: Any,
     ) -> Job:
         """Start execution of a process by its name.
@@ -63,6 +64,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
             parent_operation_id (Optional[str]): The parent operation ID for BTS tracking correlation.
+            run_as_me (Optional[bool]): If True, the job will run under the calling user's identity.
 
         Returns:
             Job: The job execution details.
@@ -100,6 +102,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_path=folder_path,
             parent_span_id=kwargs.get("parent_span_id"),
             parent_operation_id=parent_operation_id,
+            run_as_me=run_as_me,
         )
         response = self.request(
             spec.method,
@@ -123,6 +126,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
         parent_operation_id: Optional[str] = None,
+        run_as_me: Optional[bool] = None,
         **kwargs: Any,
     ) -> Job:
         """Asynchronously start execution of a process by its name.
@@ -136,6 +140,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
             parent_operation_id (Optional[str]): The parent operation ID for BTS tracking correlation.
+            run_as_me (Optional[bool]): If True, the job will run under the calling user's identity.
 
         Returns:
             Job: The job execution details.
@@ -168,6 +173,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_path=folder_path,
             parent_span_id=kwargs.get("parent_span_id"),
             parent_operation_id=parent_operation_id,
+            run_as_me=run_as_me,
         )
 
         response = await self.request_async(
@@ -313,12 +319,16 @@ class ProcessesService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         parent_span_id: Optional[str] = None,
         parent_operation_id: Optional[str] = None,
+        run_as_me: Optional[bool] = None,
     ) -> RequestSpec:
         payload: Dict[str, Any] = {"ReleaseName": name, **(input_data or {})}
         self._add_tracing(payload, UiPathConfig.trace_id, parent_span_id)
 
         if parent_operation_id:
             payload["ParentOperationId"] = parent_operation_id
+
+        if run_as_me is not None:
+            payload["RunAsMe"] = run_as_me
 
         request_spec = RequestSpec(
             method="POST",

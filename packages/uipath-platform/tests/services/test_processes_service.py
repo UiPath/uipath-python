@@ -471,3 +471,96 @@ class TestProcessesService:
             job_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ProcessesService.invoke_async/{version}"
         )
+
+    def test_invoke_with_run_as_me_true(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        process_name = "test-process"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "test-job-key",
+                        "State": "Running",
+                        "Id": 123,
+                        "FolderKey": "test-folder-key",
+                    }
+                ]
+            },
+        )
+
+        service.invoke(process_name, run_as_me=True)
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        payload = json.loads(sent_request.content.decode("utf-8"))
+        assert payload["startInfo"]["RunAsMe"] is True
+
+    def test_invoke_with_run_as_me_false(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        process_name = "test-process"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "test-job-key",
+                        "State": "Running",
+                        "Id": 123,
+                        "FolderKey": "test-folder-key",
+                    }
+                ]
+            },
+        )
+
+        service.invoke(process_name, run_as_me=False)
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        payload = json.loads(sent_request.content.decode("utf-8"))
+        assert payload["startInfo"]["RunAsMe"] is False
+
+    def test_invoke_without_run_as_me_excludes_from_payload(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        process_name = "test-process"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "test-job-key",
+                        "State": "Running",
+                        "Id": 123,
+                        "FolderKey": "test-folder-key",
+                    }
+                ]
+            },
+        )
+
+        service.invoke(process_name)
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        payload = json.loads(sent_request.content.decode("utf-8"))
+        assert "RunAsMe" not in payload["startInfo"]

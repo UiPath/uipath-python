@@ -178,11 +178,21 @@ class ConfigurationManager:
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
 
+    @property
+    def is_conversational(self) -> bool:
+        """Whether the current job is a conversational agent.
+
+        Reads from runtimeOptions.isConversational in the config file.
+        """
+        runtime_opts = self._runtime_options
+        return bool(runtime_opts.get("isConversational")) if runtime_opts else False
+
     def reset(self) -> None:
         """Reset mutable cached state to defaults."""
         self.studio_solution_id = None
         # Invalidate cached_property by removing from instance __dict__
         self.__dict__.pop("_internal_arguments", None)
+        self.__dict__.pop("_runtime_options", None)
 
     def _read_internal_argument(self, key: str) -> Any:
         internal_args = self._internal_arguments
@@ -196,6 +206,17 @@ class ConfigurationManager:
             with open(self.config_file_path, "r") as f:
                 data = json.load(f)
                 return data.get("runtime", {}).get("internalArguments")
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+
+    @cached_property
+    def _runtime_options(self) -> dict[str, Any] | None:
+        import json
+
+        try:
+            with open(self.config_file_path, "r") as f:
+                data = json.load(f)
+                return data.get("runtimeOptions")
         except (FileNotFoundError, json.JSONDecodeError):
             return None
 
