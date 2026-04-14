@@ -242,13 +242,32 @@ class TestEvalSetRunSpan:
     async def test_metadata_attributes(self) -> None:
         evaluator = make_evaluator(score=1.0)
         item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
+        tracer, _ = await run_evaluation(
+            [item], [evaluator], execution_id="eval-set-run-exec-123"
+        )
+
+        span = tracer.get_spans_by_type("eval_set_run")[0]
+        assert span.attributes["agentId"] == "eval-set-run-exec-123"
+        assert span.attributes["agentName"] == "N/A"
+
+        input_schema = json.loads(span.attributes["inputSchema"])
+        assert input_schema["type"] == "object"
+        assert "x" in input_schema["properties"]
+
+        output_schema = json.loads(span.attributes["outputSchema"])
+        assert output_schema["type"] == "object"
+
+    @pytest.mark.asyncio
+    async def test_span_has_ok_status_on_success(self) -> None:
+        from opentelemetry.trace import StatusCode
+
+        evaluator = make_evaluator(score=0.9)
+        item = make_eval_item(evaluation_criterias={"mock-evaluator": {}})
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_type("eval_set_run")[0]
-        assert span.attributes["agentName"] == "N/A"
-        assert "agentId" in span.attributes
-        assert "inputSchema" in span.attributes
-        assert "outputSchema" in span.attributes
+        assert span._status is not None
+        assert span._status.status_code == StatusCode.OK
 
     @pytest.mark.asyncio
     async def test_eval_set_run_id_included_when_provided(self) -> None:
@@ -325,14 +344,16 @@ class TestEvaluationSpan:
     async def test_span_has_metadata(self) -> None:
         evaluator = make_evaluator(score=0.9)
         item = make_eval_item(
+            item_id="capital-city-query",
             inputs={"query": "What is the capital of France?"},
             evaluation_criterias={"mock-evaluator": {}},
         )
         tracer, _ = await run_evaluation([item], [evaluator])
 
         span = tracer.get_spans_by_type("evaluation")[0]
+        # agentId is set to the eval item's execution_id (== str(eval_item.id))
+        assert span.attributes["agentId"] == "capital-city-query"
         assert span.attributes["agentName"] == "N/A"
-        assert "agentId" in span.attributes
 
     @pytest.mark.asyncio
     async def test_span_has_input_data(self) -> None:
@@ -486,6 +507,7 @@ class TestEvaluationOutputSpan:
         output = json.loads(span.attributes["output"])
         assert output["type"] == 1
         assert output["score"] == 85.0  # 0.85 normalized to 0-100
+        assert output["evaluatorId"] == "mock-evaluator"
 
     @pytest.mark.asyncio
     async def test_justification_from_pydantic_details(self) -> None:
@@ -504,6 +526,12 @@ class TestEvaluationOutputSpan:
         span = tracer.get_spans_by_attr("span.type", "evalOutput")[0]
         assert (
             span.attributes["justification"]
+            == "Agent output is semantically equivalent to expected output"
+        )
+        # justification also appears in the output JSON
+        output = json.loads(span.attributes["output"])
+        assert (
+            output["justification"]
             == "Agent output is semantically equivalent to expected output"
         )
 
@@ -530,6 +558,9 @@ class TestEvaluationOutputSpan:
 
         span = tracer.get_spans_by_attr("span.type", "evalOutput")[0]
         assert "justification" not in span.attributes
+        # justification also absent from output JSON (exclude_none=True)
+        output = json.loads(span.attributes["output"])
+        assert "justification" not in output
 
 
 class TestSpanHierarchy:
