@@ -1,3 +1,4 @@
+import json as json_module
 import logging
 from typing import Any, Dict, List, Optional, Type
 
@@ -24,6 +25,7 @@ from ._entity_resolution import (
     fetch_resolved_entities_async,
 )
 from .entities import (
+    ChoiceSetValue,
     DataFabricEntityItem,
     Entity,
     EntityRecord,
@@ -281,6 +283,99 @@ class EntitiesService(BaseService):
 
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
+
+    @traced(name="list_choicesets", run_type="uipath")
+    def list_choicesets(self) -> List[Entity]:
+        """List all choice sets in Data Service.
+
+        Returns:
+            List[Entity]: A list of all choice set entities.
+
+        Examples:
+            List all choice sets::
+
+                choicesets = entities_service.list_choicesets()
+                for cs in choicesets:
+                    print(f"{cs.display_name} ({cs.id})")
+        """
+        spec = self._list_choicesets_spec()
+        response = self.request(spec.method, spec.endpoint)
+        return [Entity.model_validate(item) for item in response.json()]
+
+    @traced(name="list_choicesets", run_type="uipath")
+    async def list_choicesets_async(self) -> List[Entity]:
+        """Asynchronously list all choice sets in Data Service.
+
+        Returns:
+            List[Entity]: A list of all choice set entities.
+        """
+        spec = self._list_choicesets_spec()
+        response = await self.request_async(spec.method, spec.endpoint)
+        return [Entity.model_validate(item) for item in response.json()]
+
+    @traced(name="get_choiceset_values", run_type="uipath")
+    def get_choiceset_values(
+        self,
+        choiceset_id: str,
+        start: int | None = None,
+        limit: int | None = None,
+    ) -> List[ChoiceSetValue]:
+        """Get the values of a choice set by its ID.
+
+        Args:
+            choiceset_id: The unique identifier of the choice set.
+            start: Optional offset for pagination.
+            limit: Optional page size for pagination.
+
+        Returns:
+            List[ChoiceSetValue]: The values in the choice set, each containing
+                id, name, display_name, and number_id.
+
+        Examples:
+            Get all values in a choice set::
+
+                values = entities_service.get_choiceset_values("choiceset-id")
+                for v in values:
+                    print(f"{v.number_id}: {v.display_name}")
+        """
+        spec = self._get_choiceset_values_spec(choiceset_id, start=start, limit=limit)
+        response = self.request(
+            spec.method, spec.endpoint, params=spec.params, json=spec.json
+        )
+        data = response.json()
+        raw_values = data.get("jsonValue", "[]")
+        items = (
+            json_module.loads(raw_values) if isinstance(raw_values, str) else raw_values
+        )
+        return [ChoiceSetValue.model_validate(item) for item in items]
+
+    @traced(name="get_choiceset_values", run_type="uipath")
+    async def get_choiceset_values_async(
+        self,
+        choiceset_id: str,
+        start: int | None = None,
+        limit: int | None = None,
+    ) -> List[ChoiceSetValue]:
+        """Asynchronously get the values of a choice set by its ID.
+
+        Args:
+            choiceset_id: The unique identifier of the choice set.
+            start: Optional offset for pagination.
+            limit: Optional page size for pagination.
+
+        Returns:
+            List[ChoiceSetValue]: The values in the choice set.
+        """
+        spec = self._get_choiceset_values_spec(choiceset_id, start=start, limit=limit)
+        response = await self.request_async(
+            spec.method, spec.endpoint, params=spec.params, json=spec.json
+        )
+        data = response.json()
+        raw_values = data.get("jsonValue", "[]")
+        items = (
+            json_module.loads(raw_values) if isinstance(raw_values, str) else raw_values
+        )
+        return [ChoiceSetValue.model_validate(item) for item in items]
 
     @traced(name="entity_list_records", run_type="uipath")
     def list_records(
@@ -1171,6 +1266,32 @@ class EntitiesService(BaseService):
                 f"datafabric_/api/EntityService/entity/{entity_key}/delete-batch"
             ),
             json=record_ids,
+        )
+
+    def _list_choicesets_spec(self) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("datafabric_/api/Entity/choiceset"),
+        )
+
+    def _get_choiceset_values_spec(
+        self,
+        choiceset_id: str,
+        start: int | None = None,
+        limit: int | None = None,
+    ) -> RequestSpec:
+        params: dict[str, Any] = {}
+        if start is not None:
+            params["start"] = start
+        if limit is not None:
+            params["limit"] = limit
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                f"datafabric_/api/EntityService/entity/{choiceset_id}/query_expansion"
+            ),
+            params=params,
+            json={},
         )
 
     def _validate_sql_query(self, sql_query: str) -> None:
