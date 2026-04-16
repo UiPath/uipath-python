@@ -37,6 +37,7 @@ HEADER_PROCESS_KEY = "x-uipath-processkey"
 HEADER_TRACE_ID = "x-uipath-traceid"
 HEADER_AGENTHUB_CONFIG = "x-uipath-agenthub-config"
 HEADER_LLMGATEWAY_BYO_CONNECTION_ID = "x-uipath-llmgateway-byoisconnectionid"
+HEADER_MODE = "x-uipath-mode"
 HEADER_SW_LOCK_KEY = "x-uipath-sw-lockkey"
 HEADER_LICENSING_CONTEXT = "x-uipath-licensing-context"
 
