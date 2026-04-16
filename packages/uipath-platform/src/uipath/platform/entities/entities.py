@@ -16,7 +16,7 @@ from typing import (
     get_origin,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, create_model
 
 if TYPE_CHECKING:
     from ._entities_service import EntitiesService
@@ -140,7 +140,7 @@ class FieldMetadata(BaseModel):
     reference_field: Optional["EntityField"] = Field(
         default=None, alias="referenceField"
     )
-    reference_type: ReferenceType = Field(alias="referenceType")
+    reference_type: Optional[ReferenceType] = Field(default=None, alias="referenceType")
     sql_type: "FieldDataType" = Field(alias="sqlType")
     is_required: bool = Field(alias="isRequired")
     display_name: str = Field(alias="displayName")
@@ -212,14 +212,21 @@ class SourceJoinCriteria(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,
         validate_by_alias=True,
+        extra="allow",
     )
-    id: str
-    entity_id: str = Field(alias="entityId")
-    join_field_name: str = Field(alias="joinFieldName")
-    join_type: str = Field(alias="joinType")
-    related_source_object_id: str = Field(alias="relatedSourceObjectId")
-    related_source_object_field_name: str = Field(alias="relatedSourceObjectFieldName")
-    related_source_field_name: str = Field(alias="relatedSourceFieldName")
+    id: Optional[str] = None
+    entity_id: Optional[str] = Field(default=None, alias="entityId")
+    join_field_name: Optional[str] = Field(default=None, alias="joinFieldName")
+    join_type: Optional[str] = Field(default=None, alias="joinType")
+    related_source_object_id: Optional[str] = Field(
+        default=None, alias="relatedSourceObjectId"
+    )
+    related_source_object_field_name: Optional[str] = Field(
+        default=None, alias="relatedSourceObjectFieldName"
+    )
+    related_source_field_name: Optional[str] = Field(
+        default=None, alias="relatedSourceFieldName"
+    )
 
 
 class ChoiceSetValue(BaseModel):
@@ -326,11 +333,16 @@ class Entity(BaseModel):
     entity_type: str = Field(alias="entityType")
     description: Optional[str] = Field(default=None, alias="description")
     fields: Optional[List[FieldMetadata]] = Field(default=None, alias="fields")
-    external_fields: Optional[List[ExternalSourceFields]] = Field(
-        default=None, alias="externalFields"
+    external_fields: Optional[
+        List[ExternalField | ExternalSourceFields | Dict[str, Any]]
+    ] = Field(
+        default=None,
+        alias="externalFields",
     )
-    source_join_criteria: Optional[List[SourceJoinCriteria]] = Field(
-        default=None, alias="sourceJoinCriteria"
+    source_join_criteria: Optional[List[SourceJoinCriteria | Dict[str, Any]]] = Field(
+        default=None,
+        validation_alias=AliasChoices("sourceJoinCriteria", "sourceJoinCriterias"),
+        alias="sourceJoinCriteria",
     )
     record_count: Optional[int] = Field(default=None, alias="recordCount")
     storage_size_in_mb: Optional[float] = Field(default=None, alias="storageSizeInMB")
