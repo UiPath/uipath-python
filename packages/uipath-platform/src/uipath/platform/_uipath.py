@@ -22,6 +22,7 @@ from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
 from .guardrails import GuardrailsService
+from .memory import MemoryService
 from .orchestrator import (
     AssetsService,
     AttachmentsService,
@@ -112,6 +113,10 @@ class UiPath:
             self.folders,
             self.buckets,
         )
+
+    @property
+    def memory(self) -> MemoryService:
+        return MemoryService(self._config, self._execution_context, self.folders)
 
     @property
     def documents(self) -> DocumentsService:
