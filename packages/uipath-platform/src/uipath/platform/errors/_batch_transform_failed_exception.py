@@ -7,7 +7,6 @@ class BatchTransformFailedException(Exception):
 
     def __init__(self, batch_transform_id: str, status: str):
         self.message = (
-            f"Batch transform '{batch_transform_id}' failed. "
-            f"Status: {status}"
+            f"Batch transform '{batch_transform_id}' failed. Status: {status}"
         )
         super().__init__(self.message)
