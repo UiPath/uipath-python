@@ -2749,6 +2749,71 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_ephemeral_index_async/{version}"
         )
 
+    def test_create_ephemeral_index_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=200,
+            json={
+                "id": "ephemeral-index-id",
+                "name": "ephemeral-index",
+                "lastIngestionStatus": "Queued",
+            },
+        )
+
+        attachment_ids = [str(uuid.uuid4())]
+        service.create_ephemeral_index(
+            usage="DeepRAG",
+            attachments=attachment_ids,
+            folder_key="test-folder-key",
+        )
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests is not None
+        assert "x-uipath-folderkey" in sent_requests[0].headers
+        assert sent_requests[0].headers["x-uipath-folderkey"] == "test-folder-key"
+
+    @pytest.mark.anyio
+    async def test_create_ephemeral_index_async_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=200,
+            json={
+                "id": "ephemeral-index-id",
+                "name": "ephemeral-index",
+                "lastIngestionStatus": "Queued",
+            },
+        )
+
+        attachment_ids = [str(uuid.uuid4())]
+        await service.create_ephemeral_index_async(
+            usage="DeepRAG",
+            attachments=attachment_ids,
+            folder_key="test-folder-key",
+        )
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests is not None
+        assert "x-uipath-folderkey" in sent_requests[0].headers
+        assert sent_requests[0].headers["x-uipath-folderkey"] == "test-folder-key"
+
     @pytest.mark.anyio
     async def test_download_batch_transform_result_async_creates_nested_directories(
         self,
