@@ -8,6 +8,7 @@ Available exceptions:
 - FolderNotFoundException: Raised when a folder cannot be found
 - UnsupportedDataSourceException: Raised when an operation is attempted on an unsupported data source type
 - IngestionInProgressException: Raised when a search is attempted on an index during ingestion
+- BatchTransformFailedException: Raised when a batch transform has failed
 - BatchTransformNotCompleteException: Raised when attempting to get results from an incomplete batch transform
 - OperationNotCompleteException: Raised when attempting to get results from an incomplete operation
 - OperationFailedException: Raised when an operation has failed
@@ -15,6 +16,7 @@ Available exceptions:
 """
 
 from ._base_url_missing_error import BaseUrlMissingError
+from ._batch_transform_failed_exception import BatchTransformFailedException
 from ._batch_transform_not_complete_exception import BatchTransformNotCompleteException
 from ._enriched_exception import EnrichedException, ExtractedErrorInfo
 from ._folder_not_found_exception import FolderNotFoundException
@@ -26,6 +28,7 @@ from ._unsupported_data_source_exception import UnsupportedDataSourceException
 
 __all__ = [
     "BaseUrlMissingError",
+    "BatchTransformFailedException",
     "BatchTransformNotCompleteException",
     "EnrichedException",
     "ExtractedErrorInfo",

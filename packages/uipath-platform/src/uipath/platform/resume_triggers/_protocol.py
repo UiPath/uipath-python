@@ -53,6 +53,7 @@ from uipath.platform.context_grounding.context_grounding_index import (
     ContextGroundingIndex,
 )
 from uipath.platform.errors import (
+    BatchTransformFailedException,
     BatchTransformNotCompleteException,
     OperationNotCompleteException,
 )
@@ -323,6 +324,11 @@ class UiPathResumeTriggerReader:
                                 "index_name", trigger.payload
                             ),
                         )
+                    except BatchTransformFailedException as e:
+                        raise UiPathFaultedTriggerError(
+                            ErrorCategory.USER,
+                            f"{e.message}",
+                        ) from e
                     except BatchTransformNotCompleteException as e:
                         raise UiPathPendingTriggerError(
                             ErrorCategory.SYSTEM,
