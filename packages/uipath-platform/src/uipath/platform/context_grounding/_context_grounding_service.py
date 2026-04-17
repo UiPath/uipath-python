@@ -598,20 +598,29 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     def create_ephemeral_index(
-        self, usage: EphemeralIndexUsage, attachments: List[str]
+        self,
+        usage: EphemeralIndexUsage,
+        attachments: List[str],
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
         Args:
             usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+            folder_key (Optional[str]): The folder key to scope the ephemeral index to.
+            folder_path (Optional[str]): The folder path to scope the ephemeral index to (resolved to a key if folder_key is not provided).
 
         Returns:
             ContextGroundingIndex: The created index information.
         """
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
+            folder_key=folder_key,
         )
 
         response = self.request(
@@ -626,20 +635,29 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     async def create_ephemeral_index_async(
-        self, usage: EphemeralIndexUsage, attachments: List[str]
+        self,
+        usage: EphemeralIndexUsage,
+        attachments: List[str],
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
         Args:
             usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+            folder_key (Optional[str]): The folder key to scope the ephemeral index to.
+            folder_path (Optional[str]): The folder path to scope the ephemeral index to (resolved to a key if folder_key is not provided).
 
         Returns:
             ContextGroundingIndex: The created index information.
         """
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
+            folder_key=folder_key,
         )
 
         response = await self.request_async(
@@ -1991,12 +2009,14 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         usage: str,
         attachments: List[str],
+        folder_key: str | None = None,
     ) -> RequestSpec:
         """Create request spec for ephemeral index creation.
 
         Args:
             usage (str): The task in which the ephemeral index will be used for
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+            folder_key (Optional[str]): The folder key to scope the ephemeral index to.
 
         Returns:
             RequestSpec for the create index request
@@ -2012,7 +2032,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={},
+            headers={**header_folder(folder_key, None)},
         )
 
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
