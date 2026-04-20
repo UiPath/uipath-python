@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional, Type
 
 import sqlparse
 from httpx import Response
-from sqlparse.sql import Parenthesis, Where
-from sqlparse.tokens import DML, Keyword, Wildcard
+from sqlparse.sql import Function, Identifier, IdentifierList, Parenthesis, Where
+from sqlparse.tokens import DML, Keyword, Whitespace, Wildcard
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -49,6 +49,7 @@ _DISALLOWED_KEYWORDS = [
     "GROUPING",
     "PARTITION",
 ]
+_AGGREGATE_FUNCTIONS = ("COUNT", "SUM", "AVG", "MIN", "MAX")
 
 
 class EntitiesService(BaseService):
@@ -177,6 +178,7 @@ class EntitiesService(BaseService):
         spec = self._retrieve_by_name_spec(entity_name)
         headers = self._folder_key_headers(folder_key)
         response = self.request(spec.method, spec.endpoint, headers=headers)
+
         return Entity.model_validate(response.json())
 
     @traced(name="entity_retrieve_by_name", run_type="uipath")
@@ -196,6 +198,7 @@ class EntitiesService(BaseService):
         spec = self._retrieve_by_name_spec(entity_name)
         headers = self._folder_key_headers(folder_key)
         response = await self.request_async(spec.method, spec.endpoint, headers=headers)
+
         return Entity.model_validate(response.json())
 
     @traced(name="list_entities", run_type="uipath")
@@ -1333,17 +1336,101 @@ class EntitiesService(BaseService):
 
         has_where = any(isinstance(t, Where) for t in stmt.tokens)
         has_limit = "LIMIT" in keywords
-        if not has_where and not has_limit:
-            raise ValueError("Queries without WHERE must include a LIMIT clause.")
+        has_from = "FROM" in keywords
+
+        if not has_from:
+            raise ValueError("Queries must include a FROM clause.")
 
         projection = self._projection_tokens(stmt)
-        has_wildcard = any(t.ttype is Wildcard for t in projection)
-        if has_wildcard and not has_where:
-            raise ValueError("SELECT * without filtering is not allowed.")
+
+        if self._projection_has_count_star(projection):
+            raise ValueError(
+                "COUNT(*) is not supported. Use COUNT(column_name) instead."
+            )
+
+        has_aggregate = self._projection_has_aggregate(projection)
+
+        if not has_where and not has_limit and not has_aggregate:
+            raise ValueError("Queries without WHERE must include a LIMIT clause.")
+
+        has_bare_wildcard = self._projection_has_bare_wildcard(projection)
+        if has_bare_wildcard:
+            raise ValueError("SELECT * is not allowed. Specify column names instead.")
         if not has_where and self._projection_column_count(projection) > 4:
             raise ValueError(
                 "Selecting more than 4 columns without filtering is not allowed."
             )
+
+    @staticmethod
+    def _projection_has_aggregate(
+        projection: list[sqlparse.sql.Token],
+    ) -> bool:
+        """Check whether the projection contains an aggregate function call."""
+
+        def _has_agg(token: sqlparse.sql.Token) -> bool:
+            if isinstance(token, Function):
+                return token.get_name().upper() in _AGGREGATE_FUNCTIONS
+            if isinstance(token, Identifier):
+                return any(_has_agg(child) for child in token.tokens)
+            return False
+
+        for node in projection:
+            if _has_agg(node):
+                return True
+            if isinstance(node, IdentifierList):
+                if any(_has_agg(child) for child in node.tokens):
+                    return True
+        return False
+
+    @staticmethod
+    def _projection_has_count_star(
+        projection: list[sqlparse.sql.Token],
+    ) -> bool:
+        """Check whether projection contains COUNT(*)."""
+
+        def _is_count_star(func: Function) -> bool:
+            if func.get_name().upper() != "COUNT":
+                return False
+            return any(t.ttype is Wildcard for t in func.flatten())
+
+        def _has_count_star(token: sqlparse.sql.Token) -> bool:
+            if isinstance(token, Function):
+                return _is_count_star(token)
+            if isinstance(token, Identifier):
+                return any(_has_count_star(child) for child in token.tokens)
+            return False
+
+        for node in projection:
+            if _has_count_star(node):
+                return True
+            if isinstance(node, IdentifierList):
+                if any(_has_count_star(child) for child in node.tokens):
+                    return True
+        return False
+
+    @staticmethod
+    def _projection_has_bare_wildcard(
+        projection: list[sqlparse.sql.Token],
+    ) -> bool:
+        """Check for a bare ``*`` or qualified ``table.*`` outside a function."""
+
+        def _identifier_has_wildcard(ident: Identifier) -> bool:
+            return any(t.ttype is Wildcard for t in ident.tokens)
+
+        for node in projection:
+            if node.ttype is Wildcard:
+                return True
+            if isinstance(node, Identifier) and _identifier_has_wildcard(node):
+                return True
+            if isinstance(node, IdentifierList):
+                for child in node.tokens:
+                    if child.ttype is Wildcard:
+                        return True
+                    if isinstance(child, Identifier) and _identifier_has_wildcard(
+                        child
+                    ):
+                        return True
+        return False
 
     @staticmethod
     def _has_subquery(stmt: sqlparse.sql.Statement) -> bool:
@@ -1369,16 +1456,18 @@ class EntitiesService(BaseService):
     def _projection_tokens(
         stmt: sqlparse.sql.Statement,
     ) -> list[sqlparse.sql.Token]:
-        """Extract tokens between the first SELECT and FROM."""
+        """Extract non-flattened AST nodes between the first SELECT and FROM."""
         tokens: list[sqlparse.sql.Token] = []
         collecting = False
-        for token in stmt.flatten():
+        for token in stmt.tokens:
             if token.ttype is DML and token.normalized == "SELECT":
                 collecting = True
                 continue
-            if token.ttype is Keyword and token.normalized == "FROM":
+            if token.ttype is Keyword and token.normalized in ("FROM", "INTO"):
                 break
-            if collecting:
+            if token.ttype is Keyword and token.normalized == "DISTINCT":
+                continue
+            if collecting and token.ttype is not Whitespace:
                 tokens.append(token)
         return tokens
 
@@ -1386,10 +1475,14 @@ class EntitiesService(BaseService):
     def _projection_column_count(
         projection: list[sqlparse.sql.Token],
     ) -> int:
-        text = "".join(t.value for t in projection).strip()
-        if not text:
-            return 0
-        return len([part for part in text.split(",") if part.strip()])
+        for node in projection:
+            if isinstance(node, IdentifierList):
+                return len(list(node.get_identifiers()))
+            if isinstance(node, (Identifier, Function)):
+                return 1
+            if node.ttype is Wildcard:
+                return 1
+        return 0
 
 
 # Resolve the forward reference to EntitiesService in EntitySetResolution.

@@ -308,7 +308,12 @@ class TestEntitiesService:
         [
             "SELECT id FROM Customers WHERE id = 1",
             "SELECT id, name FROM Customers LIMIT 10",
-            "SELECT * FROM Customers WHERE status = 'Active'",
+            "SELECT COUNT(id) FROM Customers",
+            "SELECT SUM(amount) FROM Orders",
+            "SELECT AVG(price) FROM Products",
+            "SELECT MIN(created), MAX(created) FROM Events",
+            "SELECT COUNT(id) AS total, SUM(amount) AS amt FROM Orders",
+            "SELECT COUNT(id), name FROM Customers LIMIT 10",
             "SELECT id, name, email, phone FROM Customers LIMIT 5",
             "SELECT DISTINCT id FROM Customers WHERE id > 100",
             "SELECT id FROM Customers WHERE name = 'foo;bar'",
@@ -357,8 +362,48 @@ class TestEntitiesService:
                 "Queries without WHERE must include a LIMIT clause.",
             ),
             (
+                "SELECT UPPER(name) FROM Customers",
+                "Queries without WHERE must include a LIMIT clause.",
+            ),
+            (
+                "SELECT COALESCE(name, 'N/A') FROM Customers",
+                "Queries without WHERE must include a LIMIT clause.",
+            ),
+            (
+                "SELECT 1 LIMIT 1",
+                "Queries must include a FROM clause.",
+            ),
+            (
+                "SELECT COUNT(*) FROM Customers",
+                "COUNT(*) is not supported. Use COUNT(column_name) instead.",
+            ),
+            (
+                "SELECT COUNT(*), name FROM Customers LIMIT 10",
+                "COUNT(*) is not supported. Use COUNT(column_name) instead.",
+            ),
+            (
+                "SELECT COUNT(*) AS total FROM Customers",
+                "COUNT(*) is not supported. Use COUNT(column_name) instead.",
+            ),
+            (
                 "SELECT * FROM Customers LIMIT 10",
-                "SELECT * without filtering is not allowed.",
+                "SELECT * is not allowed. Specify column names instead.",
+            ),
+            (
+                "SELECT Customers.* FROM Customers LIMIT 10",
+                "SELECT * is not allowed. Specify column names instead.",
+            ),
+            (
+                "SELECT t.* FROM Customers t LIMIT 10",
+                "SELECT * is not allowed. Specify column names instead.",
+            ),
+            (
+                "SELECT * FROM Customers WHERE status = 'Active'",
+                "SELECT * is not allowed. Specify column names instead.",
+            ),
+            (
+                "SELECT Customers.* FROM Customers WHERE status = 'Active'",
+                "SELECT * is not allowed. Specify column names instead.",
             ),
             (
                 "SELECT id, name, email, phone, address FROM Customers LIMIT 10",
