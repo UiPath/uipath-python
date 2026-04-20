@@ -1366,15 +1366,20 @@ class EntitiesService(BaseService):
         projection: list[sqlparse.sql.Token],
     ) -> bool:
         """Check whether the projection contains an aggregate function call."""
+
+        def _has_agg(token: sqlparse.sql.Token) -> bool:
+            if isinstance(token, Function):
+                return token.get_name().upper() in _AGGREGATE_FUNCTIONS
+            if isinstance(token, Identifier):
+                return any(_has_agg(child) for child in token.tokens)
+            return False
+
         for node in projection:
-            if isinstance(node, Function):
-                if node.get_name().upper() in _AGGREGATE_FUNCTIONS:
+            if _has_agg(node):
+                return True
+            if isinstance(node, IdentifierList):
+                if any(_has_agg(child) for child in node.tokens):
                     return True
-            if isinstance(node, (Identifier, IdentifierList)):
-                for child in node.tokens:
-                    if isinstance(child, Function):
-                        if child.get_name().upper() in _AGGREGATE_FUNCTIONS:
-                            return True
         return False
 
     @staticmethod
@@ -1388,13 +1393,19 @@ class EntitiesService(BaseService):
                 return False
             return any(t.ttype is Wildcard for t in func.flatten())
 
+        def _has_count_star(token: sqlparse.sql.Token) -> bool:
+            if isinstance(token, Function):
+                return _is_count_star(token)
+            if isinstance(token, Identifier):
+                return any(_has_count_star(child) for child in token.tokens)
+            return False
+
         for node in projection:
-            if isinstance(node, Function) and _is_count_star(node):
+            if _has_count_star(node):
                 return True
-            if isinstance(node, (Identifier, IdentifierList)):
-                for child in node.tokens:
-                    if isinstance(child, Function) and _is_count_star(child):
-                        return True
+            if isinstance(node, IdentifierList):
+                if any(_has_count_star(child) for child in node.tokens):
+                    return True
         return False
 
     @staticmethod

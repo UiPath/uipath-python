@@ -312,6 +312,7 @@ class TestEntitiesService:
             "SELECT SUM(amount) FROM Orders",
             "SELECT AVG(price) FROM Products",
             "SELECT MIN(created), MAX(created) FROM Events",
+            "SELECT COUNT(id) AS total, SUM(amount) AS amt FROM Orders",
             "SELECT COUNT(id), name FROM Customers LIMIT 10",
             "SELECT id, name, email, phone FROM Customers LIMIT 5",
             "SELECT DISTINCT id FROM Customers WHERE id > 100",
@@ -378,6 +379,10 @@ class TestEntitiesService:
             ),
             (
                 "SELECT COUNT(*), name FROM Customers LIMIT 10",
+                "COUNT(*) is not supported. Use COUNT(column_name) instead.",
+            ),
+            (
+                "SELECT COUNT(*) AS total FROM Customers",
                 "COUNT(*) is not supported. Use COUNT(column_name) instead.",
             ),
             (
