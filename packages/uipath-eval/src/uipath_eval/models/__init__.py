@@ -1,6 +1,6 @@
-"""UiPath evaluation module for agent performance assessment."""
+"""UiPath evaluation data models."""
 
-from uipath_eval.models import (
+from uipath_eval.models.models import (
     AgentExecution,
     BooleanEvaluationResult,
     ErrorEvaluationResult,
@@ -31,6 +31,5 @@ __all__ = [
     "NumericEvaluationResult",
     "ErrorEvaluationResult",
     "ToolCall",
-    "EvaluatorType",
     "ToolOutput",
 ]

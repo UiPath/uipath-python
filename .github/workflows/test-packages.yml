@@ -182,9 +182,58 @@ jobs:
 
     continue-on-error: true
 
+  test-uipath-eval:
+    name: Test (uipath-eval, ${{ matrix.python-version }}, ${{ matrix.os }})
+    needs: detect-changed-packages
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check if package changed
+        id: check
+        shell: bash
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-eval")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        shell: bash
+        run: echo "Skipping - no changes to uipath-eval"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv run pytest
+
   test-gate:
     name: Test
-    needs: [test-uipath-core, test-uipath-platform, test-uipath]
+    needs: [test-uipath-core, test-uipath-platform, test-uipath, test-uipath-eval]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -192,7 +241,8 @@ jobs:
         run: |
           if [[ "${{ needs.test-uipath-core.result }}" == "failure" || \
                 "${{ needs.test-uipath-platform.result }}" == "failure" || \
-                "${{ needs.test-uipath.result }}" == "failure" ]]; then
+                "${{ needs.test-uipath.result }}" == "failure" || \
+                "${{ needs.test-uipath-eval.result }}" == "failure" ]]; then
             echo "Tests failed"
             exit 1
           fi

@@ -1,0 +1,79 @@
+{
+  "evaluatorTypeId": "uipath-contains",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "ContainsEvaluationCriteria": {
+        "description": "Evaluation criteria for the contains evaluator.",
+        "properties": {
+          "search_text": {
+            "title": "Search Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search_text"
+        ],
+        "title": "ContainsEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the contains evaluator.",
+    "properties": {
+      "name": {
+        "default": "ContainsEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ContainsEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "target_output_key": {
+        "default": "*",
+        "description": "Key to extract output from agent execution",
+        "title": "Target Output Key",
+        "type": "string"
+      },
+      "case_sensitive": {
+        "default": false,
+        "title": "Case Sensitive",
+        "type": "boolean"
+      },
+      "negated": {
+        "default": false,
+        "title": "Negated",
+        "type": "boolean"
+      }
+    },
+    "title": "ContainsEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Evaluation criteria for the contains evaluator.",
+    "properties": {
+      "search_text": {
+        "title": "Search Text",
+        "type": "string"
+      }
+    },
+    "required": [
+      "search_text"
+    ],
+    "title": "ContainsEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {}
+}

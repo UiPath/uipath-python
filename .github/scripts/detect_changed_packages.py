@@ -18,6 +18,7 @@ from pathlib import Path
 # handled separately via labeler.yml auto-labels.
 DEPENDENTS: dict[str, list[str]] = {
     "uipath-core": ["uipath-platform", "uipath"],
+    "uipath-eval": ["uipath"],
     "uipath-platform": ["uipath"],
 }
 

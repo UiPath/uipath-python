@@ -1,0 +1,106 @@
+{
+  "evaluatorTypeId": "uipath-tool-call-order",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "ToolCallOrderEvaluationCriteria": {
+        "description": "Evaluation criteria for the tool call order evaluator.",
+        "properties": {
+          "tool_calls_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tool Calls Order",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tool_calls_order"
+        ],
+        "title": "ToolCallOrderEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the tool call count evaluator.",
+    "properties": {
+      "name": {
+        "default": "ToolCallOrderEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ToolCallOrderEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "strict": {
+        "default": false,
+        "title": "Strict",
+        "type": "boolean"
+      }
+    },
+    "title": "ToolCallOrderEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Evaluation criteria for the tool call order evaluator.",
+    "properties": {
+      "tool_calls_order": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tool Calls Order",
+        "type": "array"
+      }
+    },
+    "required": [
+      "tool_calls_order"
+    ],
+    "title": "ToolCallOrderEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "description": "Justification for the tool call order evaluator.",
+    "properties": {
+      "actual_tool_calls_order": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Actual Tool Calls Order",
+        "type": "array"
+      },
+      "expected_tool_calls_order": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Expected Tool Calls Order",
+        "type": "array"
+      },
+      "lcs": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Lcs",
+        "type": "array"
+      }
+    },
+    "required": [
+      "actual_tool_calls_order",
+      "expected_tool_calls_order",
+      "lcs"
+    ],
+    "title": "ToolCallOrderEvaluatorJustification",
+    "type": "object"
+  }
+}

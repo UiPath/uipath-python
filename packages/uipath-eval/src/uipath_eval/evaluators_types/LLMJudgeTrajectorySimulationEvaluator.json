@@ -1,0 +1,92 @@
+{
+  "evaluatorTypeId": "uipath-llm-judge-trajectory-simulation",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "TrajectoryEvaluationCriteria": {
+        "description": "Evaluation criteria for trajectory-based evaluations.",
+        "properties": {
+          "expected_agent_behavior": {
+            "title": "Expected Agent Behavior",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_agent_behavior"
+        ],
+        "title": "TrajectoryEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the llm judge simulation trajectory evaluator.",
+    "properties": {
+      "name": {
+        "default": "LLMJudgeTrajectorySimulationEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/TrajectoryEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "prompt": {
+        "default": "As an expert evaluator, determine how well the agent did on a scale of 0-100. Focus on if the simulation was successful and if the agent behaved according to the expected output accounting for alternative valid expressions, and reasonable variations in language while maintaining high standards for accuracy and completeness. Provide your score with a justification, explaining briefly and concisely why you gave that score.\n----\nAgentInput:\n{{UserOrSyntheticInput}}\n----\nSimulationInstructions:\n{{SimulationInstructions}}\n----\nExpectedAgentBehavior:\n{{ExpectedAgentBehavior}}\n----\nAgentRunHistory:\n{{AgentRunHistory}}\n",
+        "title": "Prompt",
+        "type": "string"
+      },
+      "model": {
+        "default": "",
+        "title": "Model",
+        "type": "string"
+      },
+      "temperature": {
+        "default": 0.0,
+        "title": "Temperature",
+        "type": "number"
+      },
+      "max_tokens": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Tokens"
+      }
+    },
+    "title": "LLMJudgeTrajectorySimulationEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Evaluation criteria for trajectory-based evaluations.",
+    "properties": {
+      "expected_agent_behavior": {
+        "title": "Expected Agent Behavior",
+        "type": "string"
+      }
+    },
+    "required": [
+      "expected_agent_behavior"
+    ],
+    "title": "TrajectoryEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "type": "string"
+  }
+}

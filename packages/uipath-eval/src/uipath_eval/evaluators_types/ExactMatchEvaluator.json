@@ -1,0 +1,95 @@
+{
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "OutputEvaluationCriteria": {
+        "description": "Base class for all output evaluation criteria.",
+        "properties": {
+          "expected_output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Expected Output"
+          }
+        },
+        "required": [
+          "expected_output"
+        ],
+        "title": "OutputEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the exact match evaluator.",
+    "properties": {
+      "name": {
+        "default": "ExactMatchEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/OutputEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "target_output_key": {
+        "default": "*",
+        "description": "Key to extract output from agent execution",
+        "title": "Target Output Key",
+        "type": "string"
+      },
+      "case_sensitive": {
+        "default": false,
+        "title": "Case Sensitive",
+        "type": "boolean"
+      },
+      "negated": {
+        "default": false,
+        "title": "Negated",
+        "type": "boolean"
+      }
+    },
+    "title": "ExactMatchEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Base class for all output evaluation criteria.",
+    "properties": {
+      "expected_output": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "title": "Expected Output"
+      }
+    },
+    "required": [
+      "expected_output"
+    ],
+    "title": "OutputEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {}
+}

@@ -1,0 +1,130 @@
+{
+  "evaluatorTypeId": "uipath-tool-call-output",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "ToolCallOutputEvaluationCriteria": {
+        "description": "Evaluation criteria for the tool call order evaluator.",
+        "properties": {
+          "tool_outputs": {
+            "items": {
+              "$ref": "#/$defs/ToolOutput"
+            },
+            "title": "Tool Outputs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tool_outputs"
+        ],
+        "title": "ToolCallOutputEvaluationCriteria",
+        "type": "object"
+      },
+      "ToolOutput": {
+        "description": "Represents a tool output with its output.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output": {
+            "title": "Output",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "output"
+        ],
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the tool call count evaluator.",
+    "properties": {
+      "name": {
+        "default": "ToolCallOutputEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ToolCallOutputEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "strict": {
+        "default": false,
+        "title": "Strict",
+        "type": "boolean"
+      }
+    },
+    "title": "ToolCallOutputEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "$defs": {
+      "ToolOutput": {
+        "description": "Represents a tool output with its output.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output": {
+            "title": "Output",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "output"
+        ],
+        "title": "ToolOutput",
+        "type": "object"
+      }
+    },
+    "description": "Evaluation criteria for the tool call order evaluator.",
+    "properties": {
+      "tool_outputs": {
+        "items": {
+          "$ref": "#/$defs/ToolOutput"
+        },
+        "title": "Tool Outputs",
+        "type": "array"
+      }
+    },
+    "required": [
+      "tool_outputs"
+    ],
+    "title": "ToolCallOutputEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "description": "Justification for the tool call output evaluator.",
+    "properties": {
+      "explained_tool_calls_outputs": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Explained Tool Calls Outputs",
+        "type": "object"
+      }
+    },
+    "required": [
+      "explained_tool_calls_outputs"
+    ],
+    "title": "ToolCallOutputEvaluatorJustification",
+    "type": "object"
+  }
+}

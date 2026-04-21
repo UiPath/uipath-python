@@ -1,0 +1,114 @@
+{
+  "evaluatorTypeId": "uipath-llm-judge-output-semantic-similarity",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "OutputEvaluationCriteria": {
+        "description": "Base class for all output evaluation criteria.",
+        "properties": {
+          "expected_output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Expected Output"
+          }
+        },
+        "required": [
+          "expected_output"
+        ],
+        "title": "OutputEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the LLM judge output evaluator.",
+    "properties": {
+      "name": {
+        "default": "LLMJudgeOutputEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/OutputEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "prompt": {
+        "default": "As an expert evaluator, analyze the semantic similarity of these JSON contents to determine a score from 0-100. Focus on comparing the meaning and contextual equivalence of corresponding fields, accounting for alternative valid expressions, synonyms, and reasonable variations in language while maintaining high standards for accuracy and completeness. Provide your score with a justification, explaining briefly and concisely why you gave that score.\n----\nExpectedOutput:\n{{ExpectedOutput}}\n----\nActualOutput:\n{{ActualOutput}}",
+        "title": "Prompt",
+        "type": "string"
+      },
+      "model": {
+        "default": "",
+        "title": "Model",
+        "type": "string"
+      },
+      "temperature": {
+        "default": 0.0,
+        "title": "Temperature",
+        "type": "number"
+      },
+      "max_tokens": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Tokens"
+      },
+      "target_output_key": {
+        "default": "*",
+        "description": "Key to extract output from agent execution",
+        "title": "Target Output Key",
+        "type": "string"
+      }
+    },
+    "title": "LLMJudgeOutputEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Base class for all output evaluation criteria.",
+    "properties": {
+      "expected_output": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "title": "Expected Output"
+      }
+    },
+    "required": [
+      "expected_output"
+    ],
+    "title": "OutputEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "type": "string"
+  }
+}
