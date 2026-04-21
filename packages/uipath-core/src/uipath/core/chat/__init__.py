@@ -114,6 +114,11 @@ from .tool import (
     UiPathConversationToolCallResult,
     UiPathConversationToolCallStartEvent,
 )
+from .voice import (
+    UiPathVoiceToolCallMessage,
+    UiPathVoiceToolCallRequest,
+    UiPathVoiceToolCallResult,
+)
 
 __all__ = [
     # Root
@@ -189,4 +194,8 @@ __all__ = [
     "UiPathConversationAsyncInputStreamEvent",
     # Meta
     "UiPathConversationMetaEvent",
+    # Voice
+    "UiPathVoiceToolCallRequest",
+    "UiPathVoiceToolCallMessage",
+    "UiPathVoiceToolCallResult",
 ]
