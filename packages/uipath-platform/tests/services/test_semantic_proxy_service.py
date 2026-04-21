@@ -1,6 +1,7 @@
 """Tests for SemanticProxyService."""
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -26,7 +27,7 @@ def service(
 
 
 @pytest.fixture
-def sample_response_json() -> dict:
+def sample_response_json() -> dict[str, Any]:
     return {
         "response": [
             {
@@ -76,7 +77,7 @@ class TestSemanticProxyService:
             base_url: str,
             org: str,
             tenant: str,
-            sample_response_json: dict,
+            sample_response_json: dict[str, Any],
         ) -> None:
             httpx_mock.add_response(
                 url=f"{base_url}{org}{tenant}/semanticproxy_/api/pii-detection",
@@ -110,7 +111,7 @@ class TestSemanticProxyService:
             base_url: str,
             org: str,
             tenant: str,
-            sample_response_json: dict,
+            sample_response_json: dict[str, Any],
         ) -> None:
             httpx_mock.add_response(
                 url=f"{base_url}{org}{tenant}/semanticproxy_/api/pii-detection",
@@ -141,7 +142,7 @@ class TestSemanticProxyService:
             base_url: str,
             org: str,
             tenant: str,
-            sample_response_json: dict,
+            sample_response_json: dict[str, Any],
         ) -> None:
             captured_request: httpx.Request | None = None
 
@@ -202,7 +203,7 @@ class TestSemanticProxyService:
             base_url: str,
             org: str,
             tenant: str,
-            sample_response_json: dict,
+            sample_response_json: dict[str, Any],
         ) -> None:
             captured_request: httpx.Request | None = None
 
@@ -237,7 +238,7 @@ class TestSemanticProxyService:
             base_url: str,
             org: str,
             tenant: str,
-            sample_response_json: dict,
+            sample_response_json: dict[str, Any],
         ) -> None:
             captured_request: httpx.Request | None = None
 

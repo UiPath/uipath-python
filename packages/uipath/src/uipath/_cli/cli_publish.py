@@ -191,12 +191,7 @@ def publish(feed, folder):
                 files = {
                     "file": (package_to_publish_path, f, "application/octet-stream")
                 }
-                response = client.post(
-                    url,
-                    headers=headers,
-                    files=files,
-                    timeout=httpx.Timeout(300.0),
-                )
+                response = client.post(url, headers=headers, files=files)
 
                 if response.status_code == 200:
                     console.success("Package published successfully!")
