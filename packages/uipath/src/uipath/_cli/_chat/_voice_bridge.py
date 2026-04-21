@@ -179,7 +179,10 @@ class VoiceToolCallSession:
     async def _execute_tool_call(self, call: UiPathVoiceToolCallRequest) -> None:
         """Run one tool call and emit its `voice_tool_result`."""
         logger.info(
-            "[Voice] voice_tool_call dispatched: %s (%s)", call.tool_name, call.call_id
+            "[Voice] voice_tool_call dispatched: %s (%s) args=%s",
+            call.tool_name,
+            call.call_id,
+            call.args,
         )
         try:
             tool_result = await self._tool_handler(call)
