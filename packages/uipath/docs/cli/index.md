@@ -82,6 +82,12 @@ Running `uipath init` will process these function definitions and create the cor
 ✓  Created '.uipath/studio_metadata.json' file.
 ✓  Created: CLAUDE.md, CLI_REFERENCE.md, SDK_REFERENCE.md, AGENTS.md, REQUIRED_STRUCTURE.md.
 ```
+
+/// info
+### About the `.mermaid` files
+
+`uipath init` generates one `<entrypoint>.mermaid` file per function/agent containing a static call graph, rendered in the UiPath Orchestrator UI. These files are regenerated on every `uipath init`.
+///
 ---
 
 ::: mkdocs-click
