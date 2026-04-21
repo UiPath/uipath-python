@@ -8,6 +8,7 @@ from uipath.platform.automation_tracker import AutomationTrackerService
 from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
 from .agenthub._remote_a2a_service import RemoteA2aService
+from .automation_ops import AutomationOpsService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
@@ -35,6 +36,7 @@ from .orchestrator import (
     QueuesService,
 )
 from .resource_catalog import ResourceCatalogService
+from .semantic_proxy import SemanticProxyService
 
 
 def _has_valid_client_credentials(
@@ -177,6 +179,14 @@ class UiPath:
     @property
     def orchestrator_setup(self) -> OrchestratorSetupService:
         return OrchestratorSetupService(self._config, self._execution_context)
+
+    @property
+    def automation_ops(self) -> AutomationOpsService:
+        return AutomationOpsService(self._config, self._execution_context)
+
+    @property
+    def semantic_proxy(self) -> SemanticProxyService:
+        return SemanticProxyService(self._config, self._execution_context)
 
     @property
     def automation_tracker(self) -> AutomationTrackerService:
