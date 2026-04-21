@@ -5,7 +5,6 @@ import os
 import urllib.error
 from unittest import mock
 
-import pytest
 
 from check_version_uniqueness import (
     get_package_info,
