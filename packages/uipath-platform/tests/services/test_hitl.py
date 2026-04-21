@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -7,6 +8,7 @@ from pytest_httpx import HTTPXMock
 from uipath.core.errors import ErrorCategory, UiPathFaultedTriggerError
 from uipath.core.triggers import (
     UiPathApiTrigger,
+    UiPathIntegrationTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerName,
     UiPathResumeTriggerType,
@@ -32,11 +34,13 @@ from uipath.platform.common import (
     WaitDocumentExtractionValidation,
     WaitEphemeralIndex,
     WaitEphemeralIndexRaw,
+    WaitIntegrationEvent,
     WaitJob,
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
 )
+from uipath.platform.connections import Connection
 from uipath.platform.context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -501,6 +505,91 @@ class TestHitlReader:
         resume_trigger = UiPathResumeTrigger(
             trigger_type=UiPathResumeTriggerType.API,
             api_resume=UiPathApiTrigger(inbox_id=inbox_id, request="test"),
+        )
+
+        with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+            reader = UiPathResumeTriggerReader()
+            await reader.read_trigger(resume_trigger)
+        assert exc_info.value.category == ErrorCategory.SYSTEM
+
+    @pytest.mark.anyio
+    async def test_read_inbox_trigger(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading an Inbox trigger fetches the IS metadata via GetPayload
+        and then enriches it via /elements_/v1/events/{processedEventId}.
+        """
+        inbox_id = str(uuid.uuid4())
+        processed_event_id = "v2::pp::1777041494382::334071::e374ecd5d0f73c21"
+        inbox_metadata = {
+            "UiPathEventConnector": "uipath-slack",
+            "UiPathEvent": "NEW_MESSAGE",
+            "UiPathEventObjectType": "Message",
+            "UiPathEventObjectId": "C123:1777041494.382",
+            "UiPathAdditionalEventData": json.dumps(
+                {"processedEventId": processed_event_id}
+            ),
+        }
+        enriched_event = {
+            "channel": "alerts",
+            "user": "U456",
+            "text": "hello from slack",
+            "ts": "1777041494.382",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
+            status_code=200,
+            json=inbox_metadata,
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}/elements_/v1/events/{processed_event_id}",
+            status_code=200,
+            json=enriched_event,
+        )
+
+        resume_trigger = UiPathResumeTrigger(
+            trigger_type=UiPathResumeTriggerType.INBOX,
+            integration_resume=UiPathIntegrationTrigger(
+                connector="slack",
+                connection_id=str(uuid.uuid4()),
+                operation="OnMessage",
+                object_name="Message",
+                inbox_id=inbox_id,
+            ),
+        )
+
+        reader = UiPathResumeTriggerReader()
+        result = await reader.read_trigger(resume_trigger)
+        assert result == enriched_event
+
+    @pytest.mark.anyio
+    async def test_read_inbox_trigger_failure(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading an Inbox trigger with a failed payload response."""
+        inbox_id = str(uuid.uuid4())
+
+        httpx_mock.add_response(
+            url=f"{base_url}/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
+            status_code=500,
+        )
+
+        resume_trigger = UiPathResumeTrigger(
+            trigger_type=UiPathResumeTriggerType.INBOX,
+            integration_resume=UiPathIntegrationTrigger(
+                connector="slack",
+                connection_id=str(uuid.uuid4()),
+                operation="OnMessage",
+                object_name="Message",
+                inbox_id=inbox_id,
+            ),
         )
 
         with pytest.raises(UiPathFaultedTriggerError) as exc_info:
@@ -1373,6 +1462,186 @@ class TestHitlProcessor:
         assert resume_trigger.api_resume is not None
         assert isinstance(resume_trigger.api_resume.inbox_id, str)
         assert resume_trigger.api_resume.request == api_input
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_integration_event(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test creating a resume trigger for WaitIntegrationEvent."""
+        connection_id = str(uuid.uuid4())
+        mock_connection = Connection(
+            id=connection_id, name="Slack-Alerts", element_instance_id=1
+        )
+        mock_list_async = AsyncMock(return_value=[mock_connection])
+
+        wait_event = WaitIntegrationEvent(
+            connector="slack",
+            connection_name="Slack-Alerts",
+            connection_folder_path="Shared",
+            operation="OnMessage",
+            object_name="Message",
+            filter_expression="channel == 'alerts'",
+            parameters={"channel_id": "C123"},
+        )
+
+        with patch(
+            "uipath.platform.connections._connections_service.ConnectionsService.list_async",
+            new=mock_list_async,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(wait_event)
+
+        assert resume_trigger is not None
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.INBOX
+        assert resume_trigger.trigger_name == UiPathResumeTriggerName.INBOX
+        assert resume_trigger.api_resume is None
+        assert resume_trigger.integration_resume is not None
+        assert resume_trigger.integration_resume.connector == "slack"
+        assert resume_trigger.integration_resume.connection_id == connection_id
+        assert resume_trigger.integration_resume.operation == "OnMessage"
+        assert resume_trigger.integration_resume.object_name == "Message"
+        assert (
+            resume_trigger.integration_resume.filter_expression == "channel == 'alerts'"
+        )
+        assert resume_trigger.integration_resume.parameters == {"channel_id": "C123"}
+        assert isinstance(resume_trigger.integration_resume.inbox_id, str)
+        uuid.UUID(resume_trigger.integration_resume.inbox_id)
+        mock_list_async.assert_called_once_with(
+            name="Slack-Alerts", folder_path="Shared", connector_key="slack"
+        )
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_integration_event_optional_fields_omitted(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test that filter_expression, parameters, and folder_path are optional."""
+        mock_connection = Connection(
+            id=str(uuid.uuid4()), name="Teams-Default", element_instance_id=2
+        )
+        mock_list_async = AsyncMock(return_value=[mock_connection])
+
+        wait_event = WaitIntegrationEvent(
+            connector="teams",
+            connection_name="Teams-Default",
+            operation="OnReply",
+            object_name="Reply",
+        )
+
+        with patch(
+            "uipath.platform.connections._connections_service.ConnectionsService.list_async",
+            new=mock_list_async,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(wait_event)
+
+        assert resume_trigger.integration_resume is not None
+        assert resume_trigger.integration_resume.filter_expression is None
+        assert resume_trigger.integration_resume.parameters is None
+        mock_list_async.assert_called_once_with(
+            name="Teams-Default", folder_path=None, connector_key="teams"
+        )
+
+    @pytest.mark.anyio
+    async def test_wait_integration_event_serializes_with_camelcase_aliases(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Wire shape: UiPathResumeTrigger.integration_resume must serialize
+        with the field names Orchestrator's ResumeTriggerDto/IntegrationResumeDto
+        expect (PascalCase-ish camelCase).
+        """
+        connection_id = str(uuid.uuid4())
+        mock_connection = Connection(
+            id=connection_id, name="Slack-Alerts", element_instance_id=3
+        )
+        mock_list_async = AsyncMock(return_value=[mock_connection])
+
+        wait_event = WaitIntegrationEvent(
+            connector="slack",
+            connection_name="Slack-Alerts",
+            operation="OnMessage",
+            object_name="Message",
+        )
+
+        with patch(
+            "uipath.platform.connections._connections_service.ConnectionsService.list_async",
+            new=mock_list_async,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(wait_event)
+
+        dumped = resume_trigger.model_dump(by_alias=True, exclude_none=True)
+
+        assert dumped["triggerType"] == UiPathResumeTriggerType.INBOX
+        assert "integrationResume" in dumped
+        integration = dumped["integrationResume"]
+        assert integration["connector"] == "slack"
+        assert integration["connectionId"] == connection_id
+        assert integration["operation"] == "OnMessage"
+        assert integration["objectName"] == "Message"
+        assert "inboxId" in integration
+        uuid.UUID(integration["inboxId"])
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_integration_event_no_match(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Listing returns no exact-name match -> creator raises."""
+        mock_list_async = AsyncMock(return_value=[])
+
+        wait_event = WaitIntegrationEvent(
+            connector="slack",
+            connection_name="Missing-Connection",
+            operation="OnMessage",
+            object_name="Message",
+        )
+
+        with patch(
+            "uipath.platform.connections._connections_service.ConnectionsService.list_async",
+            new=mock_list_async,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            with pytest.raises(UiPathFaultedTriggerError):
+                await processor.create_trigger(wait_event)
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_integration_event_filters_to_exact_match(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """list_async partial-matches; creator must pick the exact-name entry."""
+        target_id = str(uuid.uuid4())
+        # list_async partial-matches; simulate prefix-matching returning extras
+        mock_list_async = AsyncMock(
+            return_value=[
+                Connection(
+                    id=str(uuid.uuid4()),
+                    name="Slack-Alerts-Old",
+                    element_instance_id=4,
+                ),
+                Connection(id=target_id, name="Slack-Alerts", element_instance_id=5),
+            ]
+        )
+
+        wait_event = WaitIntegrationEvent(
+            connector="slack",
+            connection_name="Slack-Alerts",
+            operation="OnMessage",
+            object_name="Message",
+        )
+
+        with patch(
+            "uipath.platform.connections._connections_service.ConnectionsService.list_async",
+            new=mock_list_async,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(wait_event)
+
+        assert resume_trigger.integration_resume is not None
+        assert resume_trigger.integration_resume.connection_id == target_id
 
     @pytest.mark.anyio
     async def test_create_resume_trigger_create_deep_rag(

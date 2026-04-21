@@ -13,6 +13,7 @@ from uipath.core.errors import (
 from uipath.core.serialization import serialize_object
 from uipath.core.triggers import (
     UiPathApiTrigger,
+    UiPathIntegrationTrigger,
     UiPathResumeTrigger,
     UiPathResumeTriggerName,
     UiPathResumeTriggerType,
@@ -43,11 +44,13 @@ from uipath.platform.common.interrupt_models import (
     WaitEphemeralIndex,
     WaitEphemeralIndexRaw,
     WaitEscalation,
+    WaitIntegrationEvent,
     WaitJob,
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
 )
+from uipath.platform.connections import EventArguments
 from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
 from uipath.platform.context_grounding.context_grounding_index import (
     ContextGroundingIndex,
@@ -401,6 +404,23 @@ class UiPathResumeTriggerReader:
                             f"Error fetching API trigger payload for inbox {trigger.api_resume.inbox_id}: {str(e)}",
                         ) from e
 
+            case UiPathResumeTriggerType.INBOX:
+                if trigger.integration_resume and trigger.integration_resume.inbox_id:
+                    try:
+                        inbox_payload = await uipath.jobs.retrieve_inbox_payload_async(
+                            trigger.integration_resume.inbox_id
+                        )
+                        event_args = EventArguments.model_validate(inbox_payload)
+                        return await uipath.connections.retrieve_event_payload_async(
+                            event_args
+                        )
+                    except Exception as e:
+                        raise UiPathFaultedTriggerError(
+                            ErrorCategory.SYSTEM,
+                            f"Failed to get trigger payload"
+                            f"Error fetching Inbox trigger payload for inbox {trigger.integration_resume.inbox_id}: {str(e)}",
+                        ) from e
+
             case _:
                 raise UiPathFaultedTriggerError(
                     ErrorCategory.SYSTEM,
@@ -460,6 +480,9 @@ class UiPathResumeTriggerCreator:
 
                 case UiPathResumeTriggerType.API:
                     self._handle_api_trigger(suspend_value, resume_trigger)
+
+                case UiPathResumeTriggerType.INBOX:
+                    await self._handle_inbox_trigger(suspend_value, resume_trigger)
 
                 case UiPathResumeTriggerType.DEEP_RAG:
                     await self._handle_deep_rag_job_trigger(
@@ -545,6 +568,8 @@ class UiPathResumeTriggerCreator:
             value, (DocumentExtractionValidation, WaitDocumentExtractionValidation)
         ):
             return UiPathResumeTriggerType.IXP_VS_ESCALATION
+        if isinstance(value, WaitIntegrationEvent):
+            return UiPathResumeTriggerType.INBOX
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -579,6 +604,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.BATCH_RAG
         if isinstance(value, (DocumentExtraction, WaitDocumentExtraction)):
             return UiPathResumeTriggerName.EXTRACTION
+        if isinstance(value, WaitIntegrationEvent):
+            return UiPathResumeTriggerName.INBOX
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -899,6 +926,57 @@ class UiPathResumeTriggerCreator:
         """
         resume_trigger.api_resume = UiPathApiTrigger(
             inbox_id=str(uuid.uuid4()), request=serialize_object(value)
+        )
+
+    async def _handle_inbox_trigger(
+        self, value: WaitIntegrationEvent, resume_trigger: UiPathResumeTrigger
+    ) -> None:
+        """Handle Inbox-type resume triggers.
+
+        Resolves `connection_name` (scoped to `connection_folder_path` when
+        provided) to a connection id via the Connections service, populates
+        `integration_resume` with the Integration Services configuration plus a
+        freshly generated `inbox_id`. The Connections-service registration is
+        performed server-side by Orchestrator's `CreateResumeTriggerTaskHandler`
+        once the job suspends.
+
+        Args:
+            value: The suspend value (WaitIntegrationEvent)
+            resume_trigger: The resume trigger to populate
+
+        Raises:
+            Exception: If no connection matches `connection_name`, or if more
+                than one exact match is found.
+        """
+        uipath = UiPath()
+        connections = await uipath.connections.list_async(
+            name=value.connection_name,
+            folder_path=value.connection_folder_path,
+            connector_key=value.connector,
+        )
+        connection = next(
+            (c for c in connections if c.name == value.connection_name), None
+        )
+        if connection is None:
+            raise Exception(
+                f"No connection named '{value.connection_name}' "
+                f"for connector '{value.connector}' found"
+                + (
+                    f" in folder '{value.connection_folder_path}'"
+                    if value.connection_folder_path
+                    else ""
+                )
+            )
+        assert connection.id is not None
+
+        resume_trigger.integration_resume = UiPathIntegrationTrigger(
+            connector=value.connector,
+            connection_id=connection.id,
+            operation=value.operation,
+            object_name=value.object_name,
+            filter_expression=value.filter_expression,
+            parameters=value.parameters,
+            inbox_id=str(uuid.uuid4()),
         )
 
 

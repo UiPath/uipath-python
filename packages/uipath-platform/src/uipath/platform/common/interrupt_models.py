@@ -259,3 +259,23 @@ class WaitDocumentExtractionValidation(BaseModel):
 
     extraction_validation: StartExtractionValidationResponse
     task_url: str | None = None
+
+
+class WaitIntegrationEvent(BaseModel):
+    """Model representing a wait on an Integration Services event.
+
+    Used to suspend a job until a remote event (e.g. Slack message, Teams reply)
+    is delivered by Integration Services. The SDK resolves `connection_name`
+    (scoped to `connection_folder_path` when provided) to the underlying
+    connection id and generates a fresh `inbox_id` when the trigger is created;
+    the rest of the fields describe which remote event to subscribe to via
+    the Connections service.
+    """
+
+    connector: str
+    connection_name: str
+    connection_folder_path: str | None = None
+    operation: str
+    object_name: str
+    filter_expression: str | None = None
+    parameters: dict[str, str] | None = None
