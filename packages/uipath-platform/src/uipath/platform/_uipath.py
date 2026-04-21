@@ -36,6 +36,7 @@ from .orchestrator import (
     QueuesService,
 )
 from .resource_catalog import ResourceCatalogService
+from .semantic_proxy import SemanticProxyService
 
 
 def _has_valid_client_credentials(
@@ -182,6 +183,10 @@ class UiPath:
     @property
     def automation_ops(self) -> AutomationOpsService:
         return AutomationOpsService(self._config, self._execution_context)
+
+    @property
+    def semantic_proxy(self) -> SemanticProxyService:
+        return SemanticProxyService(self._config, self._execution_context)
 
     @property
     def automation_tracker(self) -> AutomationTrackerService:
