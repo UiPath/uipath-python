@@ -659,3 +659,29 @@ def main(input: InputModel) -> InputModel: return input""")
                 metadata = json.load(f)
                 assert metadata["schemaVersion"] == 99
                 assert metadata["codeVersion"] == "5.0.0"
+
+
+class TestWriteMermaidFiles:
+    def test_mermaid_file_starts_with_header_comment(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Generated .mermaid files begin with the clarifying header comment."""
+        from uipath._cli.cli_init import MERMAID_FILE_HEADER, write_mermaid_files
+        from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
+
+        ep = UiPathRuntimeSchema(
+            filePath="main.py",
+            uniqueId="main",
+            type="function",
+            input={},
+            output={},
+            graph=UiPathRuntimeGraph(),
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            paths = write_mermaid_files([ep])
+            assert len(paths) == 1
+            contents = paths[0].read_text()
+            assert contents.startswith(MERMAID_FILE_HEADER)
+            assert "AUTO-GENERATED" in contents
+            assert "uipath init" in contents
