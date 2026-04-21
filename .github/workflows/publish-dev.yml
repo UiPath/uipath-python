@@ -224,4 +224,4 @@ jobs:
       - name: Publish
         run: uv publish --index testpypi
         env:
-          UV_PUBLISH_TOKEN: ${{ matrix.package == 'uipath' && secrets.TESTPYPI_TOKEN || matrix.package == 'uipath-platform' && secrets.TESTPYPI_TOKEN_PLATFORM || secrets.TESTPYPI_TOKEN_CORE }}
+          UV_PUBLISH_TOKEN: ${{ matrix.package == 'uipath' && secrets.TESTPYPI_TOKEN || matrix.package == 'uipath-platform' && secrets.TESTPYPI_TOKEN_PLATFORM || matrix.package == 'uipath-eval' && secrets.TESTPYPI_TOKEN_EVAL || secrets.TESTPYPI_TOKEN_CORE }}

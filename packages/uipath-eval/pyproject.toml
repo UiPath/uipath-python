@@ -60,10 +60,42 @@ indent-width = 4
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "D"]
-ignore = ["D417"]
+ignore = ["D417", "E501"]
 
-[tool.ruff.lint.pydocstring-convention]
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+"tests/**" = ["D"]
+"*_test.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+explicit_package_bases = true
+namespace_packages = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+  "tests.*",
+  "uipath_eval.models.evaluation_set",
+  "uipath_eval.evaluators.legacy_evaluator_utils",
+]
+ignore_errors = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
