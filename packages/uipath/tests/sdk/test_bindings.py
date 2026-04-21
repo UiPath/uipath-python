@@ -391,3 +391,28 @@ class TestConnectionResourceOverwriteAliases:
         assert isinstance(overwrite, ConnectionResourceOverwrite)
         assert overwrite.connection_id == "conn-456"
         assert overwrite.folder_key == "folder2"
+
+
+class TestRemoteA2aAgentResourceOverwrite:
+    """Test that Remote A2A agent resources parse as GenericResourceOverwrite."""
+
+    def test_remote_a2a_agent_resource_overwrite(self):
+        overwrite = GenericResourceOverwrite(
+            resource_type="remoteA2aAgent",
+            name="basica2a",
+            folder_path="Customers/ProjectA",
+        )
+        assert overwrite.resource_type == "remoteA2aAgent"
+        assert overwrite.resource_identifier == "basica2a"
+        assert overwrite.folder_identifier == "Customers/ProjectA"
+
+    def test_parse_remote_a2a_agent(self):
+        """Parser accepts a remoteA2aAgent-keyed overwrite without discriminator error."""
+        overwrite = ResourceOverwriteParser.parse(
+            key="remoteA2aAgent.basica2a.solution_folder",
+            value={"name": "basica2a", "folderPath": "Customers/ProjectA"},
+        )
+        assert isinstance(overwrite, GenericResourceOverwrite)
+        assert overwrite.resource_type == "remoteA2aAgent"
+        assert overwrite.resource_identifier == "basica2a"
+        assert overwrite.folder_identifier == "Customers/ProjectA"
