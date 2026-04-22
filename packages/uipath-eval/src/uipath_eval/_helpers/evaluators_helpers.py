@@ -21,9 +21,6 @@ COMPARATOR_MAPPINGS = {
     "!=": "ne",
 }
 
-COMMUNITY_agents_SUFFIX = "-community-agents"
-
-
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     """Extract the tool call names from execution spans IN ORDER.
 
