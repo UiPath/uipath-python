@@ -180,8 +180,6 @@ jobs:
         working-directory: packages/uipath
         run: uv run pytest
 
-    continue-on-error: true
-
   test-uipath-eval:
     name: Test (uipath-eval, ${{ matrix.python-version }}, ${{ matrix.os }})
     needs: detect-changed-packages
