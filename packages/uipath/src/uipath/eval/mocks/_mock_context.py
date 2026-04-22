@@ -64,11 +64,13 @@ def is_tool_simulated(tool_name: str) -> bool:
 
 
 async def get_mocked_response(
-    func: Callable[[Any], Any], params: dict[str, Any], *args, **kwargs
+    func: Callable[[Any], Any],
+    params: dict[str, Any],
+    invocation: tuple[tuple[Any, ...], dict[str, Any]],
 ) -> Any:
     """Get a mocked response."""
     mocker = mocker_context.get()
     if mocker is None:
         raise UiPathNoMockFoundError()
     else:
-        return await mocker.response(func, params, *args, **kwargs)
+        return await mocker.response(func, params, invocation)

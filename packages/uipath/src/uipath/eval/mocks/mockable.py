@@ -39,7 +39,7 @@ def mocked_response_decorator(func, params: dict[str, Any]):
     """Mocked response decorator."""
 
     async def mock_response_generator(*args, **kwargs):
-        mocked_response = await get_mocked_response(func, params, *args, **kwargs)
+        mocked_response = await get_mocked_response(func, params, (args, kwargs))
 
         # Mocking successful.
         context = UiPathSpanUtils.get_parent_context()
