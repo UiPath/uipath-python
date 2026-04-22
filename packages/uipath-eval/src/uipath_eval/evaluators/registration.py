@@ -65,6 +65,7 @@ def find_base_evaluator_class(file_path: Path) -> str | None:
 
 def load_evaluator_class(file_path: Path, class_name: str) -> Any | None:
     """Dynamically load the evaluator class from the file."""
+    parent_dir: str | None = None
     try:
         parent_dir = str(file_path.parent)
         if parent_dir not in sys.path:
@@ -86,7 +87,7 @@ def load_evaluator_class(file_path: Path, class_name: str) -> Any | None:
         return None
     finally:
         # Remove from sys.path
-        if parent_dir in sys.path:
+        if parent_dir is not None and parent_dir in sys.path:
             sys.path.remove(parent_dir)
 
 
