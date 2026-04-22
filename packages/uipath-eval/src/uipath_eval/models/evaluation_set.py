@@ -150,7 +150,7 @@ class EvaluationSet(BaseModel):
         default_factory=list, alias="modelSettings"
     )
 
-    def extract_selected_evals(self, eval_ids) -> None:
+    def extract_selected_evals(self, eval_ids: list[str]) -> None:
         """Filter evaluations to only include those with specified IDs."""
         selected_evals: list[EvaluationItem] = []
         remaining_ids = set(eval_ids)
@@ -184,7 +184,7 @@ class LegacyEvaluationSet(BaseModel):
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")
 
-    def extract_selected_evals(self, eval_ids) -> None:
+    def extract_selected_evals(self, eval_ids: list[str]) -> None:
         """Filter evaluations to only include those with specified IDs."""
         selected_evals: list[LegacyEvaluationItem] = []
         remaining_ids = set(eval_ids)
