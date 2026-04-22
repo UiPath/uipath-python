@@ -105,14 +105,18 @@ class TestMcpService:
             assert HEADER_FOLDER_KEY in servers_request.headers
             assert servers_request.headers[HEADER_FOLDER_KEY] == "resolved-folder-key"
 
-        def test_list_without_folder_raises_error(
+        def test_list_without_folder_path_falls_back_to_folder_key(
             self,
+            httpx_mock: HTTPXMock,
             config: UiPathApiConfig,
             execution_context: UiPathExecutionContext,
+            base_url: str,
+            org: str,
+            tenant: str,
             monkeypatch: pytest.MonkeyPatch,
         ) -> None:
-            """Test that listing servers without a folder_path raises ValueError."""
-            monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
+            """Test that listing servers without folder_path falls back to folder_key from FolderContext."""
+            monkeypatch.setenv("UIPATH_FOLDER_KEY", "fallback-folder-key")
             monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
 
             folders_service = FolderService(
@@ -124,11 +128,19 @@ class TestMcpService:
                 folders_service=folders_service,
             )
 
-            with pytest.raises(
-                ValueError,
-                match="Cannot obtain folder_key without providing folder_path",
-            ):
-                service.list()
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agenthub_/api/servers",
+                status_code=200,
+                json=[],
+            )
+
+            servers = service.list()
+
+            assert servers == []
+            requests = httpx_mock.get_requests()
+            assert len(requests) == 1
+            assert HEADER_FOLDER_KEY in requests[0].headers
+            assert requests[0].headers[HEADER_FOLDER_KEY] == "fallback-folder-key"
 
         @pytest.mark.anyio
         async def test_list_async(

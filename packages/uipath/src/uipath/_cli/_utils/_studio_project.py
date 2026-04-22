@@ -476,8 +476,8 @@ class StudioProjectMetadata(BaseModel):
     )
 
     schema_version: int = Field(alias="schemaVersion")
-    last_push_date: str = Field(alias="lastPushDate")
-    last_push_author: str = Field(alias="lastPushAuthor")
+    last_push_date: str | None = Field(alias="lastPushDate", default=None)
+    last_push_author: str | None = Field(alias="lastPushAuthor", default=None)
     code_version: str = Field(alias="codeVersion")
 
 
@@ -551,7 +551,7 @@ class StudioClient:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
         if not os.path.exists(UiPathConfig.bindings_file_path):
-            logger.debug(
+            logger.warning(
                 "Bindings file not found at %s, no overwrites to fetch from Studio",
                 UiPathConfig.bindings_file_path,
             )
@@ -587,7 +587,7 @@ class StudioClient:
         for key, value in data.items():
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
-        logger.debug(
+        logger.info(
             "Loaded %d resource overwrite(s) from Studio API for solution %s: %s",
             len(overwrites),
             solution_id,

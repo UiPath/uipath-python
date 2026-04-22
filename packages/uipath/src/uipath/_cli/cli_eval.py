@@ -8,6 +8,7 @@ from typing import Any
 
 import click
 
+from uipath._cli._errors import EntrypointDiscoveryException
 from uipath._cli._evals._console_progress_reporter import ConsoleProgressReporter
 from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
@@ -16,7 +17,7 @@ from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
-from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers
+from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers, get_agent_model
 from uipath.eval.models.evaluation_set import EvaluationSet
 from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
@@ -24,7 +25,6 @@ from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
-    UiPathRuntimeSchema,
 )
 from uipath.telemetry._track import flush_events
 from uipath.tracing import (
@@ -62,27 +62,6 @@ def setup_reporting_prereq(no_report: bool) -> bool:
         if folder_key:
             os.environ["UIPATH_FOLDER_KEY"] = folder_key
     return True
-
-
-def _get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
-    """Get agent model from the runtime schema metadata.
-
-    The model is read from schema.metadata["settings"]["model"] which is
-    populated by the low-code agents runtime from agent.json.
-
-    Returns:
-        The model name from agent settings, or None if not found.
-    """
-    try:
-        if schema.metadata and "settings" in schema.metadata:
-            settings = schema.metadata["settings"]
-            model = settings.get("model")
-            if model:
-                logger.debug(f"Got agent model from schema.metadata: {model}")
-                return model
-        return None
-    except Exception:
-        return None
 
 
 def _resolve_model_settings_override(
@@ -135,12 +114,34 @@ def _resolve_model_settings_override(
     return override if override else None
 
 
-class _EvalDiscoveryError(Exception):
+class _EvalDiscoveryError(EntrypointDiscoveryException):
     """Raised when auto-discovery of entrypoint or eval set fails."""
 
     def __init__(self, entrypoints: list[str], eval_sets: list[Path]):
-        self.entrypoints = entrypoints
+        super().__init__(entrypoints)
         self.eval_sets = eval_sets
+
+    def get_usage_help(self) -> list[str]:
+        lines = super().get_usage_help()
+
+        if self.eval_sets:
+            lines.append("")
+            lines.append("Available eval sets:")
+            for f in self.eval_sets:
+                lines.append(f"  - {f}")
+        else:
+            lines.append("")
+            lines.append(
+                f"No eval sets found in '{EVAL_SETS_DIRECTORY_NAME}/' directory."
+            )
+
+        lines.append("")
+        lines.append("Usage: uipath eval <entrypoint> <eval_set>")
+        if self.entrypoints and self.eval_sets:
+            lines.append(
+                f"Example: uipath eval {self.entrypoints[0]} {self.eval_sets[0]}"
+            )
+        return lines
 
 
 def _discover_eval_sets() -> list[Path]:
@@ -149,39 +150,6 @@ def _discover_eval_sets() -> list[Path]:
     if eval_sets_dir.exists():
         return sorted(eval_sets_dir.glob("*.json"))
     return []
-
-
-def _show_eval_usage_help(entrypoints: list[str], eval_set_files: list[Path]) -> None:
-    """Show available entrypoints and eval sets with usage examples."""
-    lines: list[str] = []
-
-    if entrypoints:
-        lines.append("Available entrypoints:")
-        for name in entrypoints:
-            lines.append(f"  - {name}")
-    else:
-        lines.append(
-            "No entrypoints found. "
-            "Add a 'functions' or 'agents' section to your config file "
-            "(e.g. uipath.json, langgraph.json)."
-        )
-
-    if eval_set_files:
-        lines.append("\nAvailable eval sets:")
-        for f in eval_set_files:
-            lines.append(f"  - {f}")
-    else:
-        lines.append(
-            f"\nNo eval sets found in '{EVAL_SETS_DIRECTORY_NAME}/' directory."
-        )
-
-    lines.append("\nUsage: uipath eval <entrypoint> <eval_set>")
-    if entrypoints and eval_set_files:
-        ep_name = entrypoints[0]
-        es_path = eval_set_files[0]
-        lines.append(f"Example: uipath eval {ep_name} {es_path}")
-
-    click.echo("\n".join(lines))
 
 
 @click.command()
@@ -441,7 +409,7 @@ def eval(
                         eval_context.evaluators = await EvalHelpers.load_evaluators(
                             resolved_eval_set_path,
                             eval_context.evaluation_set,
-                            _get_agent_model(eval_context.runtime_schema),
+                            get_agent_model(eval_context.runtime_schema),
                         )
 
                         # Runtime is not required anymore.
@@ -475,7 +443,13 @@ def eval(
             asyncio.run(execute_eval())
 
         except _EvalDiscoveryError as e:
-            _show_eval_usage_help(e.entrypoints, e.eval_sets)
+            click.echo("\n".join(e.get_usage_help()))
+            if not e.entrypoints:
+                click.echo()
+                console.link(
+                    "uipath.json spec:",
+                    "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
+                )
         except ValueError as e:
             console.error(str(e))
         except Exception as e:

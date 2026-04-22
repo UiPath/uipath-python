@@ -35,6 +35,7 @@ from uipath.core.guardrails import (
 )
 from uipath.eval.mocks import ExampleCall
 from uipath.platform.connections import Connection
+from uipath.platform.entities import DataFabricEntityItem
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
@@ -100,6 +101,7 @@ class AgentResourceType(str, CaseInsensitiveEnum):
     CONTEXT = "context"
     ESCALATION = "escalation"
     MCP = "mcp"
+    A2A = "a2a"
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
@@ -133,6 +135,8 @@ class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     ASSET_USER_EMAIL = "AssetUserEmail"
     GROUP_NAME = "GroupName"
     ASSET_GROUP_NAME = "AssetGroupName"
+    ARGUMENT_EMAIL = "ArgumentEmail"
+    ARGUMENT_GROUP_NAME = "ArgumentGroupName"
 
 
 class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
@@ -142,7 +146,16 @@ class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
     STRUCTURED = "Structured"
     DEEP_RAG = "DeepRAG"
     BATCH_TRANSFORM = "BatchTransform"
+    DATA_FABRIC = "DataFabric"
     UNKNOWN = "Unknown"  # fallback branch discriminator
+
+
+class AgentContextType(str, CaseInsensitiveEnum):
+    """Agent context type enumeration."""
+
+    INDEX = "index"
+    ATTACHMENTS = "attachments"
+    DATA_FABRIC_ENTITY_SET = "datafabricentityset"
 
 
 class AgentMessageRole(str, CaseInsensitiveEnum):
@@ -272,6 +285,9 @@ class BaseResourceProperties(BaseCfg):
     """Base resource properties model."""
 
     example_calls: Optional[list[ExampleCall]] = Field(None, alias="exampleCalls")
+    require_conversational_confirmation: bool = Field(
+        default=False, alias="requireConversationalConfirmation"
+    )
 
 
 class AgentToolSettings(BaseCfg):
@@ -294,6 +310,7 @@ class BaseAgentResourceConfig(BaseCfg):
         AgentResourceType.CONTEXT,
         AgentResourceType.ESCALATION,
         AgentResourceType.MCP,
+        AgentResourceType.A2A,
         AgentResourceType.UNKNOWN,
     ] = Field(alias="$resourceType")
 
@@ -311,7 +328,7 @@ class AgentContextQuerySetting(BaseCfg):
 
     value: str | None = Field(default=None)
     description: str | None = Field(default=None)
-    variant: str | None = Field(default=None)
+    variant: AgentToolArgumentPropertiesVariant | None = Field(default=None)
 
 
 class AgentContextValueSetting(BaseCfg):
@@ -359,7 +376,9 @@ class AgentContextSettings(BaseCfg):
     retrieval_mode: AgentContextRetrievalMode = Field(alias="retrievalMode")
     threshold: float = Field(default=0)
     query: AgentContextQuerySetting = Field(
-        default_factory=lambda: AgentContextQuerySetting(variant="dynamic")
+        default_factory=lambda: AgentContextQuerySetting(
+            variant=AgentToolArgumentPropertiesVariant.DYNAMIC
+        )
     )
     folder_path_prefix: Optional[AgentContextQuerySetting] = Field(
         None, alias="folderPathPrefix"
@@ -384,9 +403,28 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.CONTEXT] = Field(
         alias="$resourceType", default=AgentResourceType.CONTEXT, frozen=True
     )
-    folder_path: str = Field(alias="folderPath")
-    index_name: str = Field(alias="indexName")
-    settings: AgentContextSettings = Field(..., description="Context settings")
+    context_type: Optional[AgentContextType] = Field(None, alias="contextType")
+    folder_path: Optional[str] = Field(None, alias="folderPath")
+    index_name: Optional[str] = Field(None, alias="indexName")
+    settings: Optional[AgentContextSettings] = Field(
+        None, description="Context settings"
+    )
+    entity_set: Optional[List[DataFabricEntityItem]] = Field(None, alias="entitySet")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
+
+    @property
+    def is_datafabric(self) -> bool:
+        """Check if this context is a Data Fabric entity set resource."""
+        return self.context_type == AgentContextType.DATA_FABRIC_ENTITY_SET
+
+    @property
+    def datafabric_entity_identifiers(self) -> list[str]:
+        """Extract entity identifiers from entitySet."""
+        if self.entity_set:
+            return [item.id for item in self.entity_set]
+        return []
 
 
 class AgentMcpTool(BaseCfg):
@@ -423,6 +461,20 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     )
 
 
+class AgentA2aResourceConfig(BaseAgentResourceConfig):
+    """Agent A2A resource configuration model."""
+
+    resource_type: Literal[AgentResourceType.A2A] = Field(
+        alias="$resourceType", default=AgentResourceType.A2A, frozen=True
+    )
+    id: str
+    slug: str = Field(..., alias="slug")
+    folder_path: str = Field(alias="folderPath")
+    cached_agent_card: Optional[Dict[str, Any]] = Field(
+        default=None, alias="cachedAgentCard"
+    )
+
+
 _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType] = {
     1: AgentEscalationRecipientType.USER_ID,
     2: AgentEscalationRecipientType.GROUP_ID,
@@ -431,6 +483,8 @@ _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType]
     5: AgentEscalationRecipientType.GROUP_NAME,
     "staticgroupname": AgentEscalationRecipientType.GROUP_NAME,
     6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
+    7: AgentEscalationRecipientType.ARGUMENT_EMAIL,
+    8: AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,
 }
 
 
@@ -486,8 +540,37 @@ class AssetRecipient(BaseEscalationRecipient):
     folder_path: str = Field(..., alias="folderPath")
 
 
+class ArgumentEmailRecipient(BaseEscalationRecipient):
+    """Argument email recipient resolved from a named input argument.
+
+    The argument_path supports dot-notation for nested input fields (e.g. "user.email").
+    """
+
+    type: Literal[AgentEscalationRecipientType.ARGUMENT_EMAIL,] = Field(
+        ..., alias="type"
+    )
+    argument_path: str = Field(..., alias="argumentName")
+
+
+class ArgumentGroupNameRecipient(BaseEscalationRecipient):
+    """Argument group name recipient resolved from a named input argument.
+
+    The argument_path supports dot-notation for nested input fields (e.g. "team.groupName").
+    """
+
+    type: Literal[AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,] = Field(
+        ..., alias="type"
+    )
+    argument_path: str = Field(..., alias="argumentName")
+
+
 AgentEscalationRecipient = Annotated[
-    Union[StandardRecipient, AssetRecipient],
+    Union[
+        StandardRecipient,
+        AssetRecipient,
+        ArgumentEmailRecipient,
+        ArgumentGroupNameRecipient,
+    ],
     Field(discriminator="type"),
     BeforeValidator(_normalize_recipient_type),
 ]
@@ -838,6 +921,7 @@ AgentResourceConfig = Annotated[
         AgentContextResourceConfig,
         EscalationResourceConfig,  # nested discrim on 'escalation_type'
         AgentMcpResourceConfig,
+        AgentA2aResourceConfig,
         AgentUnknownResourceConfig,  # when parent sets resource_type="Unknown"
     ],
     Field(discriminator="resource_type"),
@@ -1183,7 +1267,7 @@ class AgentDefinition(BaseModel):
 
     @staticmethod
     def _normalize_resources(v: Dict[str, Any]) -> None:
-        KNOWN_RES = {"tool", "context", "escalation", "mcp"}
+        KNOWN_RES = {"tool", "context", "escalation", "mcp", "a2a"}
         TOOL_MAP = {
             "agent": "Agent",
             "process": "Process",
@@ -1199,6 +1283,7 @@ class AgentDefinition(BaseModel):
             "structured": "Structured",
             "deeprag": "DeepRAG",
             "batchtransform": "BatchTransform",
+            "datafabric": "DataFabric",
             "unknown": "Unknown",
         }
 
@@ -1228,14 +1313,15 @@ class AgentDefinition(BaseModel):
                 )
 
             if res["$resourceType"] == "context":
-                settings = res.get("settings", {})
-                rm = settings.get("retrievalMode") or settings.get("retrieval_mode")
-                settings["retrievalMode"] = (
-                    CONTEXT_MODE_MAP.get(rm.lower(), "Unknown")
-                    if isinstance(rm, str)
-                    else "Unknown"
-                )
-                res["settings"] = settings
+                settings = res.get("settings")
+                if settings is not None:
+                    rm = settings.get("retrievalMode") or settings.get("retrieval_mode")
+                    settings["retrievalMode"] = (
+                        CONTEXT_MODE_MAP.get(rm.lower(), "Unknown")
+                        if isinstance(rm, str)
+                        else "Unknown"
+                    )
+                    res["settings"] = settings
 
             out.append(res)
 

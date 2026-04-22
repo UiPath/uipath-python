@@ -10,9 +10,18 @@ from uipath._cli.middlewares import MiddlewareResult
 
 
 class TestInit:
+    def _generate_pyproject(self, project_name: str | None = None):
+        with open("pyproject.toml", "w") as f:
+            f.write(
+                f'[project]\nname = "{project_name if project_name else "test-project"}"\nversion = "0.1.0"\n'
+                'description = "Test"\nauthors = [{name = "Test"}]\n'
+                'requires-python = ">=3.11"\n'
+            )
+
     def test_init_env_file_creation(self, runner: CliRunner, temp_dir: str) -> None:
         """Test .env file creation scenarios."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
             # Test creation of new .env
             result = runner.invoke(cli, ["init"], env={})
             assert result.exit_code == 0
@@ -35,6 +44,7 @@ class TestInit:
     ) -> None:
         """Test that init creates an empty uipath.json with functions structure."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
             result = runner.invoke(cli, ["init"], env={})
             assert result.exit_code == 0
             assert os.path.exists("uipath.json")
@@ -60,7 +70,7 @@ class TestInit:
             uipath_config = {"functions": {"main": "main.py:main"}}
             with open("uipath.json", "w") as f:
                 json.dump(uipath_config, f)
-
+            self._generate_pyproject()
             result = runner.invoke(cli, ["init"], env={})
             assert result.exit_code == 0
 
@@ -88,7 +98,7 @@ class TestInit:
                     error_message="Middleware error",
                     should_include_stacktrace=False,
                 )
-
+                self._generate_pyproject()
                 result = runner.invoke(cli, ["init"], env={})
                 assert result.exit_code == 1
                 assert "Middleware error" in result.output
@@ -120,7 +130,7 @@ class TestInit:
             # Mock middleware to allow execution
             with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
                 mock_middleware.return_value = MiddlewareResult(should_continue=True)
-
+                self._generate_pyproject()
                 result = runner.invoke(cli, ["init"], env={})
 
                 # The command should fail due to invalid syntax
@@ -156,6 +166,7 @@ def main(input: Input) -> Output:
             uipath_config = {"functions": {"main": "test.py:main"}}
             with open("uipath.json", "w") as f:
                 json.dump(uipath_config, f)
+            self._generate_pyproject()
 
             result = runner.invoke(cli, ["init"], env={})
             assert result.exit_code == 0
@@ -269,6 +280,7 @@ def main(input: Input) -> Output:
             uipath_config = {"functions": {"main": "comprehensive_types.py:main"}}
             with open("uipath.json", "w") as f:
                 json.dump(uipath_config, f)
+            self._generate_pyproject()
 
             # Run init command
             result = runner.invoke(cli, ["init"], env={})
@@ -347,6 +359,7 @@ def main(input: Input) -> Output:
             uipath_config = {"functions": {"main": "main.py:main"}}
             with open("uipath.json", "w") as f:
                 json.dump(uipath_config, f)
+            self._generate_pyproject()
 
             result = runner.invoke(cli, ["init"], env={})
             assert result.exit_code == 0
@@ -457,6 +470,8 @@ def main(input: InputModel) -> InputModel: return input""")
             with open("uipath.json", "w") as f:
                 json.dump(uipath_config, f)
 
+            self._generate_pyproject()
+
             result = runner.invoke(cli, ["init"], env={})
 
             assert result.exit_code == 0
@@ -470,3 +485,203 @@ def main(input: InputModel) -> InputModel: return input""")
 
             verify_attachment_schema(input_schema, verify_other_field)
             verify_attachment_schema(output_schema, verify_other_field)
+
+    def test_init_creates_uiproj_with_function_type(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init creates project.uiproj with correct function type."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+
+            uipath_config = {"functions": {"main": "main.py:main"}}
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+
+            self._generate_pyproject("my-project")
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            assert os.path.exists("project.uiproj")
+            assert "Created 'project.uiproj' file" in result.output
+
+            with open("project.uiproj", "r") as f:
+                uiproj = json.load(f)
+                assert uiproj["ProjectType"] == "Function"
+                assert uiproj["Name"] == "my-project"
+                assert uiproj["Description"] == "Test"
+                assert uiproj["MainFile"] is None
+
+    def test_init_creates_uiproj_with_agent_type(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init creates project.uiproj with agent type."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+
+            uipath_config = {"agents": {"main": "main.py:main"}}
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+
+            self._generate_pyproject("my-agent")
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            assert os.path.exists("project.uiproj")
+
+            with open("project.uiproj", "r") as f:
+                uiproj = json.load(f)
+                assert uiproj["ProjectType"] == "Agent"
+                assert uiproj["Name"] == "my-agent"
+
+    def test_init_creates_uiproj_default_function_when_no_entrypoints(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init creates project.uiproj with Function type when no entrypoints."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            assert os.path.exists("project.uiproj")
+
+            with open("project.uiproj", "r") as f:
+                uiproj = json.load(f)
+                assert uiproj["ProjectType"] == "Function"
+
+    def test_init_updates_uiproj_and_warns_on_type_change(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init warns when project type changes in existing uiproj."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+
+            # Create existing uiproj with Agent type
+            with open("project.uiproj", "w") as f:
+                json.dump(
+                    {
+                        "ProjectType": "Agent",
+                        "Name": "my-project",
+                        "Description": None,
+                        "MainFile": None,
+                    },
+                    f,
+                )
+
+            # Configure as function
+            uipath_config = {"functions": {"main": "main.py:main"}}
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            assert 'Project type changed from "Agent" to "Function"' in result.output
+            assert "Updated 'project.uiproj' file" in result.output
+
+            with open("project.uiproj", "r") as f:
+                uiproj = json.load(f)
+                assert uiproj["ProjectType"] == "Function"
+
+    def test_init_mixed_entrypoints_warns(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init warns when there are mixed entrypoint types."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("agent.py", "w") as f:
+                f.write("def agent_main(input: str) -> str: return input")
+
+            with open("func.py", "w") as f:
+                f.write("def func_main(input: str) -> str: return input")
+
+            uipath_config = {
+                "agents": {"my_agent": "agent.py:agent_main"},
+                "functions": {"my_func": "func.py:func_main"},
+            }
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+
+            with open("pyproject.toml", "w") as f:
+                f.write(
+                    '[project]\nname = "mixed-project"\nversion = "0.1.0"\n'
+                    'description = "Mixed"\nauthors = [{name = "Test"}]\n'
+                    'requires-python = ">=3.11"\n'
+                )
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            assert "Mixed entrypoint types detected: [" in result.output
+            assert (
+                "We recommend using a single type for all entrypoints" in result.output
+            )
+
+    def test_init_creates_studio_metadata_file(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init creates .uipath/studio_metadata.json with correct content."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+
+            metadata_path = os.path.join(".uipath", "studio_metadata.json")
+            assert os.path.exists(metadata_path)
+            assert "studio_metadata.json" in result.output
+
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+                assert "schemaVersion" in metadata
+                assert "codeVersion" in metadata
+                assert metadata["schemaVersion"] == 1
+                assert metadata["codeVersion"] == "1.0.0"
+
+    def test_init_does_not_overwrite_existing_studio_metadata(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init does not overwrite existing studio_metadata.json."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
+
+            # Create existing metadata with different values
+            os.makedirs(".uipath", exist_ok=True)
+            existing_metadata = {"schemaVersion": 99, "codeVersion": "5.0.0"}
+            with open(os.path.join(".uipath", "studio_metadata.json"), "w") as f:
+                json.dump(existing_metadata, f)
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+
+            with open(os.path.join(".uipath", "studio_metadata.json"), "r") as f:
+                metadata = json.load(f)
+                assert metadata["schemaVersion"] == 99
+                assert metadata["codeVersion"] == "5.0.0"
+
+
+class TestWriteMermaidFiles:
+    def test_mermaid_file_starts_with_header_comment(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Generated .mermaid files begin with the clarifying header comment."""
+        from uipath._cli.cli_init import MERMAID_FILE_HEADER, write_mermaid_files
+        from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
+
+        ep = UiPathRuntimeSchema(
+            filePath="main.py",
+            uniqueId="main",
+            type="function",
+            input={},
+            output={},
+            graph=UiPathRuntimeGraph(),
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            paths = write_mermaid_files([ep])
+            assert len(paths) == 1
+            contents = paths[0].read_text()
+            assert contents.startswith(MERMAID_FILE_HEADER)
+            assert "AUTO-GENERATED" in contents
+            assert "uipath init" in contents

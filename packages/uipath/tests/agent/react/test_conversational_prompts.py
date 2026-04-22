@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from uipath.agent.react.conversational_prompts import (
     PromptUserSettings,
-    _get_user_settings_template,
     get_chat_system_prompt,
+    get_user_settings_template,
 )
 
 SYSTEM_MESSAGE = "You are a helpful assistant."
@@ -235,23 +235,23 @@ class TestPromptUserSettings:
 
 
 class TestGetUserSettingsTemplate:
-    """Tests for _get_user_settings_template helper."""
+    """Tests for get_user_settings_template helper."""
 
     def test_none_returns_empty(self):
         """Returns empty string when user_settings is None."""
-        result = _get_user_settings_template(None)
+        result = get_user_settings_template(None)
         assert result == ""
 
     def test_empty_settings_returns_empty(self):
         """Returns empty string when all fields are None."""
         settings = PromptUserSettings()
-        result = _get_user_settings_template(settings)
+        result = get_user_settings_template(settings)
         assert result == ""
 
     def test_partial_settings_includes_non_none_only(self):
         """Only includes non-None fields in JSON."""
         settings = PromptUserSettings(name="Test", email="test@example.com")
-        result = _get_user_settings_template(settings)
+        result = get_user_settings_template(settings)
 
         assert "USER CONTEXT" in result
         assert '"name": "Test"' in result or '"name":"Test"' in result
@@ -271,7 +271,7 @@ class TestGetUserSettingsTemplate:
             country="UK",
             timezone="Europe/London",
         )
-        result = _get_user_settings_template(settings)
+        result = get_user_settings_template(settings)
 
         # Extract JSON from the result
         json_match = re.search(r"```json\s*(\{[^`]+\})\s*```", result)

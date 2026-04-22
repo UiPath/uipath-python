@@ -9,8 +9,14 @@ from ._buckets_service import BucketsService
 from ._folder_service import FolderService
 from ._jobs_service import JobsService
 from ._mcp_service import McpService
+from ._orchestrator_setup_service import OrchestratorSetupService
 from ._processes_service import ProcessesService
 from ._queues_service import QueuesService
+from ._server_version import (
+    get_server_info_async,
+    get_server_version,
+    get_server_version_async,
+)
 from .assets import Asset, UserAsset
 from .attachment import Attachment
 from .buckets import Bucket, BucketFile
@@ -34,6 +40,10 @@ __all__ = [
     "McpService",
     "ProcessesService",
     "QueuesService",
+    "OrchestratorSetupService",
+    "get_server_info_async",
+    "get_server_version",
+    "get_server_version_async",
     "Asset",
     "UserAsset",
     "Attachment",

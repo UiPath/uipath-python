@@ -1,10 +1,25 @@
 """Entities models for UiPath Platform API interactions."""
 
+from __future__ import annotations
+
 from enum import Enum
 from types import EllipsisType
-from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, create_model
+
+if TYPE_CHECKING:
+    from ._entities_service import EntitiesService
 
 
 class ReferenceType(Enum):
@@ -125,7 +140,7 @@ class FieldMetadata(BaseModel):
     reference_field: Optional["EntityField"] = Field(
         default=None, alias="referenceField"
     )
-    reference_type: ReferenceType = Field(alias="referenceType")
+    reference_type: Optional[ReferenceType] = Field(default=None, alias="referenceType")
     sql_type: "FieldDataType" = Field(alias="sqlType")
     is_required: bool = Field(alias="isRequired")
     display_name: str = Field(alias="displayName")
@@ -197,14 +212,40 @@ class SourceJoinCriteria(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,
         validate_by_alias=True,
+        extra="allow",
     )
-    id: str
-    entity_id: str = Field(alias="entityId")
-    join_field_name: str = Field(alias="joinFieldName")
-    join_type: str = Field(alias="joinType")
-    related_source_object_id: str = Field(alias="relatedSourceObjectId")
-    related_source_object_field_name: str = Field(alias="relatedSourceObjectFieldName")
-    related_source_field_name: str = Field(alias="relatedSourceFieldName")
+    id: Optional[str] = None
+    entity_id: Optional[str] = Field(default=None, alias="entityId")
+    join_field_name: Optional[str] = Field(default=None, alias="joinFieldName")
+    join_type: Optional[str] = Field(default=None, alias="joinType")
+    related_source_object_id: Optional[str] = Field(
+        default=None, alias="relatedSourceObjectId"
+    )
+    related_source_object_field_name: Optional[str] = Field(
+        default=None, alias="relatedSourceObjectFieldName"
+    )
+    related_source_field_name: Optional[str] = Field(
+        default=None, alias="relatedSourceFieldName"
+    )
+
+
+class ChoiceSetValue(BaseModel):
+    """Model representing a single value within a choice set."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    id: str = Field(alias="Id")
+    name: str = Field(alias="Name")
+    display_name: str = Field(alias="DisplayName")
+    number_id: int = Field(alias="NumberId")
+    created_time: str | None = Field(default=None, alias="CreateTime")
+    updated_time: str | None = Field(default=None, alias="UpdateTime")
+    created_by: str | None = Field(default=None, alias="CreatedBy")
+    updated_by: str | None = Field(default=None, alias="UpdatedBy")
+    record_owner: str | None = Field(default=None, alias="RecordOwner")
 
 
 class EntityRecord(BaseModel):
@@ -292,11 +333,16 @@ class Entity(BaseModel):
     entity_type: str = Field(alias="entityType")
     description: Optional[str] = Field(default=None, alias="description")
     fields: Optional[List[FieldMetadata]] = Field(default=None, alias="fields")
-    external_fields: Optional[List[ExternalSourceFields]] = Field(
-        default=None, alias="externalFields"
+    external_fields: Optional[
+        List[ExternalField | ExternalSourceFields | Dict[str, Any]]
+    ] = Field(
+        default=None,
+        alias="externalFields",
     )
-    source_join_criteria: Optional[List[SourceJoinCriteria]] = Field(
-        default=None, alias="sourceJoinCriteria"
+    source_join_criteria: Optional[List[SourceJoinCriteria | Dict[str, Any]]] = Field(
+        default=None,
+        validation_alias=AliasChoices("sourceJoinCriteria", "sourceJoinCriterias"),
+        alias="sourceJoinCriteria",
     )
     record_count: Optional[int] = Field(default=None, alias="recordCount")
     storage_size_in_mb: Optional[float] = Field(default=None, alias="storageSizeInMB")
@@ -320,6 +366,49 @@ class EntityRecordsBatchResponse(BaseModel):
 
     success_records: List[EntityRecord] = Field(alias="successRecords")
     failure_records: List[EntityRecord] = Field(alias="failureRecords")
+
+
+class EntityRouting(BaseModel):
+    """A single entity-to-folder routing entry for query execution."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entity_name: str = Field(alias="entityName")
+    folder_id: str = Field(alias="folderId")
+    override_entity_name: Optional[str] = Field(
+        default=None, alias="overrideEntityName"
+    )
+
+
+class QueryRoutingOverrideContext(BaseModel):
+    """Routing context that maps entities to their folders for multi-entity queries."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    entity_routings: List[EntityRouting] = Field(alias="entityRoutings")
+
+
+class DataFabricEntityItem(BaseModel):
+    """A single Data Fabric entity reference from agent configuration."""
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+    id: str
+    entity_key: Optional[str] = Field(None, alias="referenceKey")
+    name: str
+    folder_key: str = Field(alias="folderId")
+    description: Optional[str] = None
+
+
+class EntitySetResolution(BaseModel):
+    """Result of resolving an agent entity set with overwrites applied."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    entities: list[Entity]
+    entities_service: EntitiesService
 
 
 Entity.model_rebuild()

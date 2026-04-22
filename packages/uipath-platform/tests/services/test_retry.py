@@ -4,7 +4,6 @@ from tenacity import Future, RetryCallState, Retrying
 from uipath.platform.common.retry import (
     _MAX_BACKOFF_DELAY,
     _MAX_RETRY_AFTER_DELAY,
-    RETRYABLE_STATUS_CODES,
     exponential_backoff_with_jitter,
     extract_retry_after_from_chain,
     is_retryable_platform_exception,
@@ -13,26 +12,6 @@ from uipath.platform.common.retry import (
     platform_wait_strategy,
 )
 from uipath.platform.errors import EnrichedException
-
-
-class TestRetryableStatusCodes:
-    def test_contains_expected_codes(self):
-        assert 408 in RETRYABLE_STATUS_CODES
-        assert 429 in RETRYABLE_STATUS_CODES
-        assert 502 in RETRYABLE_STATUS_CODES
-        assert 503 in RETRYABLE_STATUS_CODES
-        assert 504 in RETRYABLE_STATUS_CODES
-
-    def test_does_not_contain_non_retryable(self):
-        assert 400 not in RETRYABLE_STATUS_CODES
-        assert 401 not in RETRYABLE_STATUS_CODES
-        assert 403 not in RETRYABLE_STATUS_CODES
-        assert 404 not in RETRYABLE_STATUS_CODES
-        assert 500 not in RETRYABLE_STATUS_CODES
-        assert 501 not in RETRYABLE_STATUS_CODES
-
-    def test_is_frozenset(self):
-        assert isinstance(RETRYABLE_STATUS_CODES, frozenset)
 
 
 class TestParseRetryAfter:
@@ -170,13 +149,33 @@ class TestIsRetryablePlatformException:
         err = httpx.TimeoutException("timed out")
         assert is_retryable_platform_exception(err) is True
 
+    def test_enriched_408(self):
+        http_err = _make_http_status_error(408)
+        err = EnrichedException(http_err)
+        assert is_retryable_platform_exception(err) is True
+
     def test_enriched_429(self):
         http_err = _make_http_status_error(429)
         err = EnrichedException(http_err)
         assert is_retryable_platform_exception(err) is True
 
+    def test_enriched_502(self):
+        http_err = _make_http_status_error(502)
+        err = EnrichedException(http_err)
+        assert is_retryable_platform_exception(err) is True
+
     def test_enriched_503(self):
         http_err = _make_http_status_error(503)
+        err = EnrichedException(http_err)
+        assert is_retryable_platform_exception(err) is True
+
+    def test_enriched_504(self):
+        http_err = _make_http_status_error(504)
+        err = EnrichedException(http_err)
+        assert is_retryable_platform_exception(err) is True
+
+    def test_enriched_524_cloudflare_timeout(self):
+        http_err = _make_http_status_error(524)
         err = EnrichedException(http_err)
         assert is_retryable_platform_exception(err) is True
 

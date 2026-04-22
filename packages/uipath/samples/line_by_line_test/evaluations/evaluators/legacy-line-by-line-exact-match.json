@@ -1,0 +1,12 @@
+{
+  "id": "LegacyLineByLineExactMatch",
+  "category": 0,
+  "type": 1,
+  "name": "LegacyLineByLineExactMatch",
+  "description": "Legacy evaluator that evaluates each line separately using exact match",
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-01T00:00:00Z",
+  "targetOutputKey": "result",
+  "lineByLineEvaluation": true,
+  "lineDelimiter": "\n"
+}

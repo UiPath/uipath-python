@@ -1,4 +1,5 @@
-import inspect
+import sys
+import types
 from logging import getLogger
 from typing import Any, Literal, Union
 
@@ -10,6 +11,8 @@ from httpx import (
     HTTPStatusError,
     Response,
 )
+from opentelemetry import trace
+from opentelemetry.trace import format_span_id, format_trace_id
 from tenacity import (
     retry,
     retry_if_exception,
@@ -32,6 +35,65 @@ from .retry import (
     platform_wait_strategy,
 )
 
+_THIS_FILE = __file__
+_MAX_CALLER_FRAMES = 5
+
+
+def _get_caller_component() -> str:
+    try:
+        current: types.FrameType | None = sys._getframe(1)
+        for _ in range(_MAX_CALLER_FRAMES):
+            if current is None:
+                break
+            code = current.f_code
+            if code.co_filename == _THIS_FILE:
+                current = current.f_back
+                continue
+            # Skip frames from third-party libraries (e.g. tenacity)
+            if "site-packages" in code.co_filename:
+                current = current.f_back
+                continue
+            qualname = code.co_qualname
+            if "." in qualname:
+                parts = qualname.rsplit(".", 2)
+                return f"{parts[-2]}.{parts[-1]}"
+            current = current.f_back
+    except Exception:
+        pass
+    return ""
+
+
+_TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
+
+
+def _inject_trace_context(headers: dict[str, str]) -> None:
+    """Inject UiPath trace context header.
+
+    Trace ID: uses the agent trace ID from UIPATH_TRACE_ID env var (same
+    remapping the LLMOps exporter applies), falling back to the OTEL trace ID.
+    Span ID: uses the LLMOps tool span (via external span provider) so the
+    span ID matches what's visible in the LLMOps trace UI.
+    """
+    from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    from ._config import UiPathConfig
+    from ._span_utils import _SpanUtils
+
+    llmops_span = UiPathSpanUtils.get_external_current_span()
+    span = llmops_span or trace.get_current_span()
+    ctx = span.get_span_context()
+    if not (ctx.trace_id and ctx.span_id):
+        return
+
+    config_trace_id = UiPathConfig.trace_id
+    trace_id = (
+        _SpanUtils.normalize_trace_id(config_trace_id)
+        if config_trace_id
+        else format_trace_id(ctx.trace_id)
+    )
+    span_id = format_span_id(ctx.span_id)
+    headers[_TRACE_PARENT_HEADER] = f"00-{trace_id}-{span_id}-01"
+
 
 class BaseService:
     def __init__(
@@ -43,13 +105,9 @@ class BaseService:
 
         self._url = UiPathUrl(self._config.base_url)
 
-        default_client_kwargs = get_httpx_client_kwargs()
-
-        client_kwargs = {
-            **default_client_kwargs,  # SSL, proxy, timeout, redirects
-            "base_url": self._url.base_url,
-            "headers": Headers(self.default_headers),
-        }
+        client_kwargs = get_httpx_client_kwargs(headers=self.default_headers)
+        client_kwargs["base_url"] = self._url.base_url
+        client_kwargs["headers"] = Headers(client_kwargs.get("headers", {}))
 
         self._client = Client(**client_kwargs)
         self._client_async = AsyncClient(**client_kwargs)
@@ -78,29 +136,11 @@ class BaseService:
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
-        try:
-            stack = inspect.stack()
-
-            # use the third frame because of the retry decorator
-            caller_frame = stack[3].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
+        specific_component = _get_caller_component()
 
         kwargs.setdefault("headers", {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
+        _inject_trace_context(kwargs["headers"])
 
         override = resolve_service_url(str(url))
         if override:
@@ -145,6 +185,7 @@ class BaseService:
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
             self._specific_component
         )
+        _inject_trace_context(kwargs["headers"])
 
         override = resolve_service_url(str(url))
         if override:
@@ -181,24 +222,4 @@ class BaseService:
 
     @property
     def _specific_component(self) -> str:
-        try:
-            stack = inspect.stack()
-
-            caller_frame = stack[4].frame
-            function_name = caller_frame.f_code.co_name
-
-            if "self" in caller_frame.f_locals:
-                module_name = type(caller_frame.f_locals["self"]).__name__
-            elif "cls" in caller_frame.f_locals:
-                module_name = caller_frame.f_locals["cls"].__name__
-            else:
-                module_name = ""
-        except Exception:
-            function_name = ""
-            module_name = ""
-
-        specific_component = (
-            f"{module_name}.{function_name}" if module_name and function_name else ""
-        )
-
-        return specific_component
+        return _get_caller_component()

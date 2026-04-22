@@ -25,6 +25,7 @@ from uipath_eval.evaluators import (
 
 # Platform-dependent evaluators (LLM, langchain, uipath-platform) — stay in uipath
 from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
+from .legacy_csv_exact_match_evaluator import LegacyCSVExactMatchEvaluator
 from .legacy_faithfulness_evaluator import LegacyFaithfulnessEvaluator
 from .legacy_llm_as_judge_evaluator import LegacyLlmAsAJudgeEvaluator
 from .legacy_trajectory_evaluator import LegacyTrajectoryEvaluator
@@ -39,6 +40,7 @@ from .llm_judge_trajectory_evaluator import (
     LLMJudgeTrajectoryEvaluator,
     LLMJudgeTrajectorySimulationEvaluator,
 )
+from .output_evaluator import AggregationMethod
 
 EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
     *_EVAL_EVALUATORS,
@@ -51,6 +53,7 @@ __all__ = [
     # Legacy evaluators
     "BaseLegacyEvaluator",
     "LegacyContextPrecisionEvaluator",
+    "LegacyCSVExactMatchEvaluator",
     "LegacyExactMatchEvaluator",
     "LegacyFaithfulnessEvaluator",
     "LegacyLlmAsAJudgeEvaluator",
@@ -77,4 +80,5 @@ __all__ = [
     "BaseEvaluatorConfig",
     "BaseEvaluatorJustification",
     "LLMJudgeJustification",
+    "AggregationMethod",
 ]

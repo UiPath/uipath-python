@@ -494,8 +494,125 @@ class TestPush:
                 f"Unexpected codeVersion. Expected: {expected_code_version}, Got: {actual_code_version}"
             )
 
-    # Continue with remaining test methods - they all follow the same pattern
-    # I'll include abbreviated versions for brevity since the pattern is the same
+    def test_first_push_with_minimal_studio_metadata_from_init(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test first push when studio_metadata.json was created by init (minimal fields).
+
+        When `uipath init` creates studio_metadata.json it only includes
+        schemaVersion and codeVersion. The push command must backfill
+        lastPushAuthor and lastPushDate before uploading.
+        """
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Remote has no studio_metadata.json (first push)
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["entry-points.json"])
+
+            with open("entry-points.json", "w") as f:
+                json.dump(
+                    {
+                        "entryPoints": [
+                            {
+                                "filePath": "main.py",
+                                "uniqueId": "main-id",
+                                "type": "agent",
+                                "input": {"type": "object", "properties": {}},
+                                "output": {"type": "object", "properties": {}},
+                            }
+                        ]
+                    },
+                    f,
+                )
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            with open("uv.lock", "w") as f:
+                f.write('version = 1 \n requires-python = ">=3.11"')
+
+            # Create minimal studio_metadata.json as init would
+            os.mkdir(".uipath")
+            with open(os.path.join(".uipath", "studio_metadata.json"), "w") as f:
+                json.dump(
+                    {
+                        "schemaVersion": 1,
+                        "codeVersion": "1.0.0",
+                    },
+                    f,
+                )
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+            assert "Uploading '.uipath/studio_metadata.json'" in result.output
+
+            structural_migration_request = httpx_mock.get_request(
+                method="POST",
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            )
+            assert structural_migration_request is not None
+            metadata_json_content = extract_metadata_json_from_added_resources(
+                structural_migration_request
+            )
+
+            # Must have backfilled the push-related fields
+            assert metadata_json_content["codeVersion"] == "1.0.0"
+            assert metadata_json_content["schemaVersion"] == 1
+            assert "lastPushAuthor" in metadata_json_content, (
+                "lastPushAuthor should be backfilled on first push"
+            )
+            assert "lastPushDate" in metadata_json_content, (
+                "lastPushDate should be backfilled on first push"
+            )
 
     def test_push_with_api_error(
         self,

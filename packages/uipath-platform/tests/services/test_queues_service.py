@@ -4,7 +4,11 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.common.constants import (
+    HEADER_FOLDER_KEY,
+    HEADER_FOLDER_PATH,
+    HEADER_USER_AGENT,
+)
 from uipath.platform.orchestrator import (
     CommitType,
     QueueItem,
@@ -127,7 +131,6 @@ class TestQueuesService:
         version: str,
     ) -> None:
         queue_item = QueueItem(
-            name="test-queue",
             priority=QueueItemPriority.HIGH,
             specific_content={"key": "value"},
         )
@@ -142,7 +145,7 @@ class TestQueuesService:
             },
         )
 
-        response = service.create_item(queue_item)
+        response = service.create_item(queue_item, queue_name="test-queue")
 
         assert response["Id"] == 1
         assert response["Name"] == "test-queue"
@@ -183,7 +186,6 @@ class TestQueuesService:
         version: str,
     ) -> None:
         queue_item = QueueItem(
-            name="test-queue",
             priority=QueueItemPriority.HIGH,
             specific_content={"key": "value"},
         )
@@ -198,7 +200,7 @@ class TestQueuesService:
             },
         )
 
-        response = await service.create_item_async(queue_item)
+        response = await service.create_item_async(queue_item, queue_name="test-queue")
 
         assert response["Id"] == 1
         assert response["Name"] == "test-queue"
@@ -239,12 +241,10 @@ class TestQueuesService:
     ) -> None:
         queue_items = [
             QueueItem(
-                name="test-queue",
                 priority=QueueItemPriority.HIGH,
                 specific_content={"key": "value"},
             ),
             QueueItem(
-                name="test-queue",
                 priority=QueueItemPriority.LOW,
                 specific_content={"key2": "value2"},
             ),
@@ -298,12 +298,10 @@ class TestQueuesService:
             "commitType": "AllOrNothing",
             "queueItems": [
                 {
-                    "Name": "test-queue",
                     "Priority": "High",
                     "SpecificContent": {"key": "value"},
                 },
                 {
-                    "Name": "test-queue",
                     "Priority": "Low",
                     "SpecificContent": {"key2": "value2"},
                 },
@@ -328,12 +326,10 @@ class TestQueuesService:
     ) -> None:
         queue_items = [
             QueueItem(
-                name="test-queue",
                 priority=QueueItemPriority.HIGH,
                 specific_content={"key": "value"},
             ),
             QueueItem(
-                name="test-queue",
                 priority=QueueItemPriority.LOW,
                 specific_content={"key2": "value2"},
             ),
@@ -387,12 +383,10 @@ class TestQueuesService:
             "commitType": "AllOrNothing",
             "queueItems": [
                 {
-                    "Name": "test-queue",
                     "Priority": "High",
                     "SpecificContent": {"key": "value"},
                 },
                 {
-                    "Name": "test-queue",
                     "Priority": "Low",
                     "SpecificContent": {"key2": "value2"},
                 },
@@ -416,7 +410,6 @@ class TestQueuesService:
     ) -> None:
         reference_value = "TEST-REF-12345"
         queue_item = QueueItem(
-            name="test-queue",
             reference=reference_value,
             priority=QueueItemPriority.HIGH,
             specific_content={"invoice_id": "INV-001"},
@@ -433,7 +426,7 @@ class TestQueuesService:
             },
         )
 
-        response = service.create_item(queue_item)
+        response = service.create_item(queue_item, queue_name="test-queue")
 
         assert response["Id"] == 1
         assert response["Name"] == "test-queue"
@@ -477,7 +470,6 @@ class TestQueuesService:
     ) -> None:
         reference_value = "TEST-REF-12345"
         queue_item = QueueItem(
-            name="test-queue",
             reference=reference_value,
             priority=QueueItemPriority.HIGH,
             specific_content={"invoice_id": "INV-001"},
@@ -494,7 +486,7 @@ class TestQueuesService:
             },
         )
 
-        response = await service.create_item_async(queue_item)
+        response = await service.create_item_async(queue_item, queue_name="test-queue")
 
         assert response["Id"] == 1
         assert response["Name"] == "test-queue"
@@ -536,7 +528,6 @@ class TestQueuesService:
         version: str,
     ) -> None:
         transaction_item = TransactionItem(
-            name="test-queue",
             specific_content={"key": "value"},
         )
         httpx_mock.add_response(
@@ -549,7 +540,9 @@ class TestQueuesService:
             },
         )
 
-        response = service.create_transaction_item(transaction_item)
+        response = service.create_transaction_item(
+            transaction_item, queue_name="test-queue"
+        )
 
         assert response["Id"] == 1
         assert response["Name"] == "test-queue"
@@ -589,7 +582,6 @@ class TestQueuesService:
         version: str,
     ) -> None:
         transaction_item = TransactionItem(
-            name="test-queue",
             specific_content={"key": "value"},
         )
         httpx_mock.add_response(
@@ -602,7 +594,9 @@ class TestQueuesService:
             },
         )
 
-        response = await service.create_transaction_item_async(transaction_item)
+        response = await service.create_transaction_item_async(
+            transaction_item, queue_name="test-queue"
+        )
 
         assert response["Id"] == 1
         assert response["Name"] == "test-queue"
@@ -806,3 +800,373 @@ class TestQueuesService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.complete_transaction_item_async/{version}"
         )
+
+    def test_list_items_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems",
+            status_code=200,
+            json={"value": []},
+        )
+
+        service.list_items(folder_key="custom-folder-key")
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    def test_list_items_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems",
+            status_code=200,
+            json={"value": []},
+        )
+
+        service.list_items(folder_path="Custom/Folder/Path")
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
+
+    @pytest.mark.asyncio
+    async def test_list_items_async_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems",
+            status_code=200,
+            json={"value": []},
+        )
+
+        await service.list_items_async(folder_key="custom-folder-key")
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    def test_create_item_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        queue_item = QueueItem(
+            priority=QueueItemPriority.HIGH,
+            specific_content={"key": "value"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.create_item(
+            queue_item, queue_name="test-queue", folder_key="custom-folder-key"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    def test_create_item_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        queue_item = QueueItem(
+            priority=QueueItemPriority.HIGH,
+            specific_content={"key": "value"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.create_item(
+            queue_item, queue_name="test-queue", folder_path="Custom/Folder/Path"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
+
+    @pytest.mark.asyncio
+    async def test_create_item_async_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        queue_item = QueueItem(
+            priority=QueueItemPriority.HIGH,
+            specific_content={"key": "value"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        await service.create_item_async(
+            queue_item, queue_name="test-queue", folder_key="custom-folder-key"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    def test_create_items_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        queue_items = [
+            QueueItem(
+                priority=QueueItemPriority.HIGH,
+                specific_content={"key": "value"},
+            ),
+        ]
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.BulkAddQueueItems",
+            status_code=200,
+            json={"value": []},
+        )
+
+        service.create_items(
+            queue_items,
+            "test-queue",
+            CommitType.ALL_OR_NOTHING,
+            folder_key="custom-folder-key",
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    @pytest.mark.asyncio
+    async def test_create_items_async_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        queue_items = [
+            QueueItem(
+                priority=QueueItemPriority.HIGH,
+                specific_content={"key": "value"},
+            ),
+        ]
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.BulkAddQueueItems",
+            status_code=200,
+            json={"value": []},
+        )
+
+        await service.create_items_async(
+            queue_items,
+            "test-queue",
+            CommitType.ALL_OR_NOTHING,
+            folder_path="Custom/Folder/Path",
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
+
+    def test_create_transaction_item_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        transaction_item = TransactionItem(
+            specific_content={"key": "value"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.create_transaction_item(
+            transaction_item, queue_name="test-queue", folder_key="custom-folder-key"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    @pytest.mark.asyncio
+    async def test_create_transaction_item_async_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        transaction_item = TransactionItem(
+            specific_content={"key": "value"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        await service.create_transaction_item_async(
+            transaction_item, queue_name="test-queue", folder_path="Custom/Folder/Path"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
+
+    def test_update_progress_of_transaction_item_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        transaction_key = "test-transaction-key"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems({transaction_key})/UiPathODataSvc.SetTransactionProgress",
+            status_code=200,
+            json={"status": "success"},
+        )
+
+        service.update_progress_of_transaction_item(
+            transaction_key, "Processing...", folder_key="custom-folder-key"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    @pytest.mark.asyncio
+    async def test_update_progress_of_transaction_item_async_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        transaction_key = "test-transaction-key"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/QueueItems({transaction_key})/UiPathODataSvc.SetTransactionProgress",
+            status_code=200,
+            json={"status": "success"},
+        )
+
+        await service.update_progress_of_transaction_item_async(
+            transaction_key, "Processing...", folder_path="Custom/Folder/Path"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
+
+    def test_complete_transaction_item_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        transaction_key = "test-transaction-key"
+        result = TransactionItemResult(
+            is_successful=True,
+            output={"result": "success"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues({transaction_key})/UiPathODataSvc.SetTransactionResult",
+            status_code=200,
+            json={"status": "success"},
+        )
+
+        service.complete_transaction_item(
+            transaction_key, result, folder_key="custom-folder-key"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_KEY in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    @pytest.mark.asyncio
+    async def test_complete_transaction_item_async_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        transaction_key = "test-transaction-key"
+        result = TransactionItemResult(
+            is_successful=True,
+            output={"result": "success"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues({transaction_key})/UiPathODataSvc.SetTransactionResult",
+            status_code=200,
+            json={"status": "success"},
+        )
+
+        await service.complete_transaction_item_async(
+            transaction_key, result, folder_path="Custom/Folder/Path"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"

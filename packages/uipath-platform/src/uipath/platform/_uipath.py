@@ -7,6 +7,8 @@ from uipath.platform.automation_tracker import AutomationTrackerService
 
 from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
+from .agenthub._remote_a2a_service import RemoteA2aService
+from .automation_ops import AutomationOpsService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
@@ -21,6 +23,7 @@ from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
 from .guardrails import GuardrailsService
+from .memory import MemoryService
 from .orchestrator import (
     AssetsService,
     AttachmentsService,
@@ -28,10 +31,12 @@ from .orchestrator import (
     FolderService,
     JobsService,
     McpService,
+    OrchestratorSetupService,
     ProcessesService,
     QueuesService,
 )
 from .resource_catalog import ResourceCatalogService
+from .semantic_proxy import SemanticProxyService
 
 
 def _has_valid_client_credentials(
@@ -112,6 +117,10 @@ class UiPath:
         )
 
     @property
+    def memory(self) -> MemoryService:
+        return MemoryService(self._config, self._execution_context, self.folders)
+
+    @property
     def documents(self) -> DocumentsService:
         return DocumentsService(self._config, self._execution_context)
 
@@ -137,7 +146,9 @@ class UiPath:
 
     @property
     def entities(self) -> EntitiesService:
-        return EntitiesService(self._config, self._execution_context)
+        return EntitiesService(
+            self._config, self._execution_context, folders_service=self.folders
+        )
 
     @cached_property
     def resource_catalog(self) -> ResourceCatalogService:
@@ -160,6 +171,22 @@ class UiPath:
     @property
     def agenthub(self) -> AgentHubService:
         return AgentHubService(self._config, self._execution_context, self.folders)
+
+    @property
+    def remote_a2a(self) -> RemoteA2aService:
+        return RemoteA2aService(self._config, self._execution_context, self.folders)
+
+    @property
+    def orchestrator_setup(self) -> OrchestratorSetupService:
+        return OrchestratorSetupService(self._config, self._execution_context)
+
+    @property
+    def automation_ops(self) -> AutomationOpsService:
+        return AutomationOpsService(self._config, self._execution_context)
+
+    @property
+    def semantic_proxy(self) -> SemanticProxyService:
+        return SemanticProxyService(self._config, self._execution_context)
 
     @property
     def automation_tracker(self) -> AutomationTrackerService:

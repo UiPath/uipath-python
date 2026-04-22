@@ -14,7 +14,14 @@ from typing import (
     Union,
 )
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    model_validator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +51,16 @@ class ResourceOverwrite(BaseModel, ABC):
 
 
 class GenericResourceOverwrite(ResourceOverwrite):
-    resource_type: Literal["process", "index", "app", "asset", "bucket", "mcpServer"]
+    resource_type: Literal[
+        "process",
+        "index",
+        "app",
+        "asset",
+        "bucket",
+        "mcpServer",
+        "queue",
+        "remoteA2aAgent",
+    ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
 
@@ -55,6 +71,29 @@ class GenericResourceOverwrite(ResourceOverwrite):
     @property
     def folder_identifier(self) -> str:
         return self.folder_path
+
+
+class EntityResourceOverwrite(ResourceOverwrite):
+    resource_type: Literal["entity"]
+    name: str = Field(alias="name")
+    folder_id: Optional[str] = Field(default=None, alias="folderId")
+    folder_path: Optional[str] = Field(default=None, alias="folderPath")
+
+    @model_validator(mode="after")
+    def validate_folder_identifier(self) -> "EntityResourceOverwrite":
+        if self.folder_id and self.folder_path:
+            raise ValueError("Only one of folderId or folderPath may be provided.")
+        if not self.folder_id and not self.folder_path:
+            raise ValueError("Either folderId or folderPath must be provided.")
+        return self
+
+    @property
+    def resource_identifier(self) -> str:
+        return self.name
+
+    @property
+    def folder_identifier(self) -> str:
+        return self.folder_id or self.folder_path or ""
 
 
 class ConnectionResourceOverwrite(ResourceOverwrite):
@@ -81,7 +120,9 @@ class ConnectionResourceOverwrite(ResourceOverwrite):
 
 
 ResourceOverwriteUnion = Annotated[
-    Union[GenericResourceOverwrite, ConnectionResourceOverwrite],
+    Union[
+        GenericResourceOverwrite, EntityResourceOverwrite, ConnectionResourceOverwrite
+    ],
     Field(discriminator="resource_type"),
 ]
 
@@ -110,8 +151,22 @@ class ResourceOverwriteParser:
             The appropriate ResourceOverwrite subclass instance
         """
         resource_type = key.split(".")[0]
-        value_with_type = {"resource_type": resource_type, **value}
+        normalized_value = cls._normalize_value(resource_type, value)
+        value_with_type = {"resource_type": resource_type, **normalized_value}
         return cls._adapter.validate_python(value_with_type)
+
+    @staticmethod
+    def _normalize_value(resource_type: str, value: dict[str, Any]) -> dict[str, Any]:
+        if resource_type != "entity":
+            return value
+
+        normalized = dict(value)
+        if "folderId" in normalized:
+            normalized["folder_id"] = normalized.pop("folderId")
+        if "folderPath" in normalized:
+            normalized["folder_path"] = normalized.pop("folderPath")
+
+        return normalized
 
 
 _resource_overwrites: ContextVar[Optional[dict[str, ResourceOverwrite]]] = ContextVar(
@@ -239,7 +294,7 @@ def resource_override(
                         matched_overwrite.folder_identifier,
                     )
                 else:
-                    logger.debug(
+                    logger.info(
                         "No resource overwrite matched for %s key='%s' on %s",
                         resource_type,
                         key,

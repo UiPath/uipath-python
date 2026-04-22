@@ -1,7 +1,7 @@
 import asyncio
 import os
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from uipath.core.tracing import traced
 
@@ -9,12 +9,10 @@ from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
-from ..common._folder_context import FolderContext
+from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from ..common.constants import (
     ENV_TENANT_ID,
-    HEADER_FOLDER_KEY,
-    HEADER_FOLDER_PATH,
     HEADER_TENANT_ID,
 )
 from .task_schema import TaskSchema
@@ -162,7 +160,7 @@ def _create_spec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
         json=json_payload,
-        headers=folder_headers(app_folder_key, app_folder_path),
+        headers=header_folder(app_folder_key, app_folder_path),
     )
 
 
@@ -199,13 +197,15 @@ def _normalize_priority(priority: str | None) -> str | None:
 
 
 def _retrieve_action_spec(
-    action_key: str, app_folder_key: str, app_folder_path: str
+    action_key: str,
+    app_folder_key: Optional[str],
+    app_folder_path: Optional[str],
 ) -> RequestSpec:
     return RequestSpec(
         method="GET",
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
         params={"taskKey": action_key},
-        headers=folder_headers(app_folder_key, app_folder_path),
+        headers=header_folder(app_folder_key, app_folder_path),
     )
 
 
@@ -317,17 +317,6 @@ def _retrieve_app_key_spec(app_name: str) -> RequestSpec:
     )
 
 
-def folder_headers(
-    app_folder_key: Optional[str], app_folder_path: Optional[str]
-) -> Dict[str, str]:
-    headers = {}
-    if app_folder_key:
-        headers[HEADER_FOLDER_KEY] = app_folder_key
-    elif app_folder_path:
-        headers[HEADER_FOLDER_PATH] = app_folder_path
-    return headers
-
-
 class TasksService(FolderContext, BaseService):
     """Service for managing UiPath Action Center tasks.
 
@@ -395,12 +384,12 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        app_folder_path = app_folder_path if app_folder_path else self._folder_path
-
         (key, action_schema) = (
             (app_key, None)
             if app_key
-            else await self._get_app_key_and_schema_async(app_name, app_folder_path)
+            else await self._get_app_key_and_schema_async(
+                app_name, app_folder_path, app_folder_key
+            )
         )
         spec = _create_spec(
             title=title,
@@ -481,12 +470,10 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        app_folder_path = app_folder_path if app_folder_path else self._folder_path
-
         (key, action_schema) = (
             (app_key, None)
             if app_key
-            else self._get_app_key_and_schema(app_name, app_folder_path)
+            else self._get_app_key_and_schema(app_name, app_folder_path, app_folder_key)
         )
         spec = _create_spec(
             title=title,
@@ -528,8 +515,8 @@ class TasksService(FolderContext, BaseService):
     def retrieve(
         self,
         action_key: str,
-        app_folder_path: str = "",
-        app_folder_key: str = "",
+        app_folder_path: Optional[str] = None,
+        app_folder_key: Optional[str] = None,
         app_name: str | None = None,
     ) -> Task:
         """Retrieves a task by its key synchronously.
@@ -562,8 +549,8 @@ class TasksService(FolderContext, BaseService):
     async def retrieve_async(
         self,
         action_key: str,
-        app_folder_path: str = "",
-        app_folder_key: str = "",
+        app_folder_path: Optional[str] = None,
+        app_folder_key: Optional[str] = None,
         app_name: str | None = None,
     ) -> Task:
         """Retrieves a task by its key asynchronously.
@@ -588,8 +575,11 @@ class TasksService(FolderContext, BaseService):
         return Task.model_validate(response.json())
 
     async def _get_app_key_and_schema_async(
-        self, app_name: Optional[str], app_folder_path: Optional[str]
-    ) -> Tuple[str, Optional[TaskSchema]]:
+        self,
+        app_name: str | None,
+        app_folder_path: str | None,
+        app_folder_key: str | None,
+    ) -> tuple[str, TaskSchema | None]:
         if not app_name:
             raise Exception("appName or appKey is required")
         spec = _retrieve_app_key_spec(app_name=app_name)
@@ -603,7 +593,7 @@ class TasksService(FolderContext, BaseService):
         )
         try:
             deployed_app = self._extract_deployed_app(
-                response.json()["deployed"], app_folder_path
+                response.json()["deployed"], app_name, app_folder_path, app_folder_key
             )
             action_schema = deployed_app["actionSchema"]
             deployed_app_key = deployed_app["systemName"]
@@ -624,8 +614,11 @@ class TasksService(FolderContext, BaseService):
             raise Exception("Failed to deserialize action schema") from KeyError
 
     def _get_app_key_and_schema(
-        self, app_name: Optional[str], app_folder_path: Optional[str]
-    ) -> Tuple[str, Optional[TaskSchema]]:
+        self,
+        app_name: str | None,
+        app_folder_path: str | None,
+        app_folder_key: str | None,
+    ) -> tuple[str, TaskSchema | None]:
         if not app_name:
             raise Exception("appName or appKey is required")
 
@@ -641,7 +634,7 @@ class TasksService(FolderContext, BaseService):
 
         try:
             deployed_app = self._extract_deployed_app(
-                response.json()["deployed"], app_folder_path
+                response.json()["deployed"], app_name, app_folder_path, app_folder_key
             )
             action_schema = deployed_app["actionSchema"]
             deployed_app_key = deployed_app["systemName"]
@@ -661,27 +654,45 @@ class TasksService(FolderContext, BaseService):
         except KeyError:
             raise Exception("Failed to deserialize action schema") from KeyError
 
-    # should be removed after folder filtering support is added on apps API
     def _extract_deployed_app(
-        self, deployed_apps: List[Dict[str, Any]], app_folder_path: Optional[str]
-    ) -> Dict[str, Any]:
-        if len(deployed_apps) > 1 and not app_folder_path:
-            raise Exception("Multiple app schemas found")
-        try:
-            if app_folder_path:
+        self,
+        deployed_apps: list[dict[str, Any]],
+        app_name: str,
+        app_folder_path: str | None,
+        app_folder_key: str | None,
+    ) -> dict[str, Any]:
+        # try extracting the requested app schema. folder path has priority over folder key
+        filtered_apps_by_name = [
+            app for app in deployed_apps if app["deploymentTitle"] == app_name
+        ]
+        if len(filtered_apps_by_name) < 1:
+            raise Exception(f"App '{app_name}' was not found in the current tenant")
+
+        # priority: app_folder_path -> app_folder_key -> self._folder_path -> self._folder_key
+        candidates = [
+            (app_folder_path, "fullyQualifiedName", "fully qualified name"),
+            (app_folder_key, "key", "identifier"),
+            (self._folder_path, "fullyQualifiedName", "fully qualified name"),
+            (self._folder_key, "key", "identifier"),
+        ]
+
+        for value, field, label in candidates:
+            if not value:
+                continue
+            try:
                 return next(
                     app
-                    for app in deployed_apps
-                    if app["deploymentFolder"]["fullyQualifiedName"] == app_folder_path
+                    for app in filtered_apps_by_name
+                    if app["deploymentFolder"][field] == value
                 )
-            else:
-                return next(
-                    app
-                    for app in deployed_apps
-                    if app["deploymentFolder"]["key"] == self._folder_key
-                )
-        except StopIteration:
-            raise KeyError from StopIteration
+            except StopIteration:
+                raise Exception(
+                    f"App '{app_name}' was not found in folder with {label} '{value}'"
+                ) from StopIteration
+
+        raise Exception(
+            f"App '{app_name}' was found but no folder key or folder path was provided to select a deployment"
+        )
 
     @property
     def custom_headers(self) -> Dict[str, str]:

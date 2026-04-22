@@ -113,6 +113,37 @@ sdk.attachments.upload_async(name: str, content: str | bytes | None=None, source
 
 ```
 
+### Automation Tracker
+
+Automation Tracker service
+
+```python
+# End tracking an operation within a transaction.
+sdk.automation_tracker.end_operation(transaction_id: str, operation_id: str, name: str, fingerprint: str, parent_operation: Optional[str]=None, status: <enum 'OperationStatus="OperationStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# End tracking an operation within a transaction (async).
+sdk.automation_tracker.end_operation_async(transaction_id: str, operation_id: str, name: str, fingerprint: str, parent_operation: Optional[str]=None, status: <enum 'OperationStatus="OperationStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# End tracking a business transaction.
+sdk.automation_tracker.end_transaction(transaction_id: str, name: str, reference: str, fingerprint: str, status: <enum 'TransactionStatus="TransactionStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# End tracking a business transaction (async).
+sdk.automation_tracker.end_transaction_async(transaction_id: str, name: str, reference: str, fingerprint: str, status: <enum 'TransactionStatus="TransactionStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# Start tracking an operation within a transaction.
+sdk.automation_tracker.start_operation(transaction_id: str, operation_id: str, name: str, fingerprint: str, parent_operation: Optional[str]=None, status: <enum 'OperationStatus="OperationStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# Start tracking an operation within a transaction (async).
+sdk.automation_tracker.start_operation_async(transaction_id: str, operation_id: str, name: str, fingerprint: str, parent_operation: Optional[str]=None, status: <enum 'OperationStatus="OperationStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# Start tracking a business transaction.
+sdk.automation_tracker.start_transaction(transaction_id: str, name: str, reference: str, fingerprint: str, status: <enum 'TransactionStatus="TransactionStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+# Start tracking a business transaction (async).
+sdk.automation_tracker.start_transaction_async(transaction_id: str, name: str, reference: str, fingerprint: str, status: <enum 'TransactionStatus="TransactionStatus.UNKNOWN", result: Optional[str]=None, attributes: Optional[Dict[str, str]]=None, timestamp: Optional[datetime.datetime]=None) -> None
+
+```
+
 ### Buckets
 
 Buckets service
@@ -240,11 +271,23 @@ sdk.context_grounding.add_to_index(name: str, blob_file_path: str, content_type:
 # Asynchronously add content to the index.
 sdk.context_grounding.add_to_index_async(name: str, blob_file_path: str, content_type: Optional[str]=None, content: Union[str, bytes, NoneType]=None, source_path: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, ingest_data: bool=True) -> None
 
-# Create a new context grounding index.
-sdk.context_grounding.create_index(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, advanced_ingestion: Optional[bool]=True, preprocessing_request: Optional[str]="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+# Create a new ephemeral context grounding index.
+sdk.context_grounding.create_ephemeral_index(usage: <enum 'EphemeralIndexUsage, attachments: List[str]) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+
+# Create a new ephemeral context grounding index.
+sdk.context_grounding.create_ephemeral_index_async(usage: <enum 'EphemeralIndexUsage, attachments: List[str]) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Create a new context grounding index.
-sdk.context_grounding.create_index_async(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, advanced_ingestion: Optional[bool]=True, preprocessing_request: Optional[str]="#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest", folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.create_index(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, extraction_strategy: Optional[str]=None, embeddings_enabled: Optional[bool]=None, is_encrypted: Optional[bool]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+
+# Create a new context grounding index.
+sdk.context_grounding.create_index_async(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, extraction_strategy: Optional[str]=None, embeddings_enabled: Optional[bool]=None, is_encrypted: Optional[bool]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+
+# Delete a context grounding index by its name.
+sdk.context_grounding.delete_by_name(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Asynchronously delete a context grounding index by its name.
+sdk.context_grounding.delete_by_name_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Delete a context grounding index.
 sdk.context_grounding.delete_index(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
@@ -258,14 +301,38 @@ sdk.context_grounding.download_batch_transform_result(id: str, destination_path:
 # Asynchronously downloads the Batch Transform result file to the specified path.
 sdk.context_grounding.download_batch_transform_result_async(id: str, destination_path: str, validate_status: bool=True, index_name: str | None=None) -> None
 
+# Trigger ingestion on a context grounding index by its name.
+sdk.context_grounding.ingest_by_name(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Asynchronously trigger ingestion on a context grounding index by its name.
+sdk.context_grounding.ingest_by_name_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
 # Ingest data into the context grounding index.
 sdk.context_grounding.ingest_data(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
 # Asynchronously ingest data into the context grounding index.
 sdk.context_grounding.ingest_data_async(index: uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
 
+# List all context grounding indexes in a folder.
+sdk.context_grounding.list(folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
+
+# Asynchronously list all context grounding indexes in a folder.
+sdk.context_grounding.list_async(folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
+
+# List all context grounding indexes in a folder.
+sdk.context_grounding.list_indexes(folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
+
+# Asynchronously list all context grounding indexes in a folder.
+sdk.context_grounding.list_indexes_async(folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
+
 # Retrieve context grounding index information by its name.
 sdk.context_grounding.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+
+# Retrieve all context grounding indexes across all folders.
+sdk.context_grounding.retrieve_across_folders(name: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
+
+# Asynchronously retrieve all context grounding indexes across all folders.
+sdk.context_grounding.retrieve_across_folders_async(name: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
 
 # Asynchronously retrieve context grounding index information by its name.
 sdk.context_grounding.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
@@ -289,22 +356,40 @@ sdk.context_grounding.retrieve_deep_rag(id: str, index_name: str | None=None) ->
 sdk.context_grounding.retrieve_deep_rag_async(id: str, index_name: str | None=None) -> uipath.platform.context_grounding.context_grounding.DeepRagResponse
 
 # Search for contextual information within a specific index.
-sdk.context_grounding.search(name: str, query: str, number_of_results: int=10, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding.ContextGroundingQueryResponse]
+sdk.context_grounding.search(name: str, query: str, number_of_results: int=10, threshold: Optional[float]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding.ContextGroundingQueryResponse]
 
 # Search asynchronously for contextual information within a specific index.
-sdk.context_grounding.search_async(name: str, query: str, number_of_results: int=10, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding.ContextGroundingQueryResponse]
+sdk.context_grounding.search_async(name: str, query: str, number_of_results: int=10, threshold: Optional[float]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding.ContextGroundingQueryResponse]
 
 # Starts a Batch Transform, task on the targeted index.
-sdk.context_grounding.start_batch_transform(name: str, index_name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], output_columns: list[uipath.platform.context_grounding.context_grounding.BatchTransformOutputColumn], storage_bucket_folder_path_prefix: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, enable_web_search_grounding: bool=False, folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformCreationResponse
+sdk.context_grounding.start_batch_transform(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], output_columns: List[uipath.platform.context_grounding.context_grounding.BatchTransformOutputColumn], storage_bucket_folder_path_prefix: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, target_file_name: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, enable_web_search_grounding: bool=False, index_name: str | None=None, index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None, folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformCreationResponse
 
 # Asynchronously starts a Batch Transform, task on the targeted index.
-sdk.context_grounding.start_batch_transform_async(name: str, index_name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], output_columns: list[uipath.platform.context_grounding.context_grounding.BatchTransformOutputColumn], storage_bucket_folder_path_prefix: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, enable_web_search_grounding: bool=False, folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformCreationResponse
+sdk.context_grounding.start_batch_transform_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], output_columns: List[uipath.platform.context_grounding.context_grounding.BatchTransformOutputColumn], storage_bucket_folder_path_prefix: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, target_file_name: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, enable_web_search_grounding: bool=False, index_name: str | None=None, index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None, folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformCreationResponse
+
+# Asynchronously starts a Batch Transform, task on the targeted index.
+sdk.context_grounding.start_batch_transform_ephemeral(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], output_columns: List[uipath.platform.context_grounding.context_grounding.BatchTransformOutputColumn], storage_bucket_folder_path_prefix: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, enable_web_search_grounding: bool=False, index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformCreationResponse
+
+# Asynchronously starts a Batch Transform, task on the targeted index.
+sdk.context_grounding.start_batch_transform_ephemeral_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], output_columns: List[uipath.platform.context_grounding.context_grounding.BatchTransformOutputColumn], storage_bucket_folder_path_prefix: Annotated[str | None, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]=None, enable_web_search_grounding: bool=False, index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformCreationResponse
 
 # Starts a Deep RAG task on the targeted index.
-sdk.context_grounding.start_deep_rag(name: str, index_name: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])], prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
+sdk.context_grounding.start_deep_rag(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_name: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None, index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None, folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
 
 # Asynchronously starts a Deep RAG task on the targeted index.
-sdk.context_grounding.start_deep_rag_async(name: str, index_name: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])], prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
+sdk.context_grounding.start_deep_rag_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_name: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None, index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None, folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
+
+# Asynchronously starts a Deep RAG task on the targeted index.
+sdk.context_grounding.start_deep_rag_ephemeral(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
+
+# Asynchronously starts a Deep RAG task on the targeted index.
+sdk.context_grounding.start_deep_rag_ephemeral_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
+
+# Perform a unified search on a context grounding index.
+sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.AUTO", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+
+# Asynchronously perform a unified search on a context grounding index.
+sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.AUTO", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 ```
 
@@ -324,28 +409,28 @@ Documents service
 
 ```python
 # Classify a document using a DU Modern project.
-sdk.documents.classify(project_type: <enum 'ProjectType, tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
+sdk.documents.classify(project_type: <enum 'ProjectType, tag: Optional[str]=None, version: Optional[int]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
 
 # Asynchronously version of the [`classify`][uipath.platform.documents._documents_service.DocumentsService.classify] method.
-sdk.documents.classify_async(project_type: <enum 'ProjectType, tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
+sdk.documents.classify_async(project_type: <enum 'ProjectType, tag: Optional[str]=None, version: Optional[int]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
 
 # Create a validate classification action for a document based on the classification results. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-classifications).
-sdk.documents.create_validate_classification_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, classification_results: List[uipath.platform.documents.documents.ClassificationResult]) -> uipath.platform.documents.documents.ValidateClassificationAction
+sdk.documents.create_validate_classification_action(classification_results: List[uipath.platform.documents.documents.ClassificationResult], action_title: str, action_priority: Optional[uipath.platform.documents.documents.ActionPriority]=None, action_catalog: Optional[str]=None, action_folder: Optional[str]=None, storage_bucket_name: Optional[str]=None, storage_bucket_directory_path: Optional[str]=None) -> uipath.platform.documents.documents.ValidateClassificationAction
 
 # Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_classification_action] method.
-sdk.documents.create_validate_classification_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, classification_results: List[uipath.platform.documents.documents.ClassificationResult]) -> uipath.platform.documents.documents.ValidateClassificationAction
+sdk.documents.create_validate_classification_action_async(classification_results: List[uipath.platform.documents.documents.ClassificationResult], action_title: str, action_priority: Optional[uipath.platform.documents.documents.ActionPriority]=None, action_catalog: Optional[str]=None, action_folder: Optional[str]=None, storage_bucket_name: Optional[str]=None, storage_bucket_directory_path: Optional[str]=None) -> uipath.platform.documents.documents.ValidateClassificationAction
 
 # Create a validate extraction action for a document based on the extraction response. More details about validation actions can be found in the [official documentation](https://docs.uipath.com/ixp/automation-cloud/latest/user-guide/validating-extractions).
-sdk.documents.create_validate_extraction_action(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.platform.documents.documents.ExtractionResponse) -> uipath.platform.documents.documents.ValidateExtractionAction
+sdk.documents.create_validate_extraction_action(extraction_response: uipath.platform.documents.documents.ExtractionResponse, action_title: str, action_priority: Optional[uipath.platform.documents.documents.ActionPriority]=None, action_catalog: Optional[str]=None, action_folder: Optional[str]=None, storage_bucket_name: Optional[str]=None, storage_bucket_directory_path: Optional[str]=None) -> uipath.platform.documents.documents.ValidateExtractionAction
 
 # Asynchronous version of the [`create_validation_action`][uipath.platform.documents._documents_service.DocumentsService.create_validate_extraction_action] method.
-sdk.documents.create_validate_extraction_action_async(action_title: str, action_priority: <enum 'ActionPriority, action_catalog: str, action_folder: str, storage_bucket_name: str, storage_bucket_directory_path: str, extraction_response: uipath.platform.documents.documents.ExtractionResponse) -> uipath.platform.documents.documents.ValidateExtractionAction
+sdk.documents.create_validate_extraction_action_async(extraction_response: uipath.platform.documents.documents.ExtractionResponse, action_title: str, action_priority: Optional[uipath.platform.documents.documents.ActionPriority]=None, action_catalog: Optional[str]=None, action_folder: Optional[str]=None, storage_bucket_name: Optional[str]=None, storage_bucket_directory_path: Optional[str]=None) -> uipath.platform.documents.documents.ValidateExtractionAction
 
 # Extract predicted data from a document using an DU Modern/IXP project.
-sdk.documents.extract(tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.platform.documents.documents.ClassificationResult]=None, project_type: Optional[uipath.platform.documents.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
+sdk.documents.extract(tag: Optional[str]=None, version: Optional[int]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.platform.documents.documents.ClassificationResult]=None, project_type: Optional[uipath.platform.documents.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
 
 # Asynchronously version of the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method.
-sdk.documents.extract_async(tag: Optional[str]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.platform.documents.documents.ClassificationResult]=None, project_type: Optional[uipath.platform.documents.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
+sdk.documents.extract_async(tag: Optional[str]=None, version: Optional[int]=None, project_name: Optional[str]=None, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None, classification_result: Optional[uipath.platform.documents.documents.ClassificationResult]=None, project_type: Optional[uipath.platform.documents.documents.ProjectType]=None, document_type_name: Optional[str]=None) -> typing.Union[uipath.platform.documents.documents.ExtractionResponse, uipath.platform.documents.documents.ExtractionResponseIXP]
 
 # Get the result of a validate classification action.
 sdk.documents.get_validate_classification_result(validation_action: uipath.platform.documents.documents.ValidateClassificationAction) -> typing.List[uipath.platform.documents.documents.ClassificationResult]
@@ -365,11 +450,23 @@ sdk.documents.retrieve_ixp_extraction_result(project_id: str, tag: str, operatio
 # Asynchronous version of the [`retrieve_ixp_extraction_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_result] method.
 sdk.documents.retrieve_ixp_extraction_result_async(project_id: str, tag: str, operation_id: str) -> uipath.platform.documents.documents.ExtractionResponseIXP
 
+# Retrieve the result of an IXP create validate extraction action operation (single-shot, non-blocking).
+sdk.documents.retrieve_ixp_extraction_validation_result(project_id: str, tag: str, operation_id: str) -> uipath.platform.documents.documents.ValidateExtractionAction
+
+# Asynchronous version of the [`retrieve_ixp_extraction_validation_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_validation_result] method.
+sdk.documents.retrieve_ixp_extraction_validation_result_async(project_id: str, tag: str, operation_id: str) -> uipath.platform.documents.documents.ValidateExtractionAction
+
 # Start an IXP extraction process without waiting for results (non-blocking).
 sdk.documents.start_ixp_extraction(project_name: str, tag: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> uipath.platform.documents.documents.StartExtractionResponse
 
 # Asynchronous version of the [`start_ixp_extraction`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction] method.
 sdk.documents.start_ixp_extraction_async(project_name: str, tag: str, file: Union[IO[bytes], bytes, str, NoneType]=None, file_path: Optional[str]=None) -> uipath.platform.documents.documents.StartExtractionResponse
+
+# Start an IXP extraction validation action without waiting for results (non-blocking).
+sdk.documents.start_ixp_extraction_validation(extraction_response: uipath.platform.documents.documents.ExtractionResponseIXP, action_title: str, action_catalog: Optional[str]=None, action_priority: Optional[uipath.platform.documents.documents.ActionPriority]=None, action_folder: Optional[str]=None, storage_bucket_name: Optional[str]=None, storage_bucket_directory_path: Optional[str]=None) -> uipath.platform.documents.documents.StartExtractionValidationResponse
+
+# Asynchronous version of the [`start_ixp_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction_validation] method.
+sdk.documents.start_ixp_extraction_validation_async(extraction_response: uipath.platform.documents.documents.ExtractionResponseIXP, action_title: str, action_catalog: Optional[str]=None, action_priority: Optional[uipath.platform.documents.documents.ActionPriority]=None, action_folder: Optional[str]=None, storage_bucket_name: Optional[str]=None, storage_bucket_directory_path: Optional[str]=None) -> uipath.platform.documents.documents.StartExtractionValidationResponse
 
 ```
 
@@ -402,17 +499,36 @@ sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, sta
 # Asynchronously list records from an entity with optional pagination and schema validation.
 sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
 
+# Query entity records using a validated SQL query.
+sdk.entities.query_entity_records(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
+
+# Asynchronously query entity records using a validated SQL query.
+sdk.entities.query_entity_records_async(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
+
+# Resolve an agent entity set, applying resource overwrites.
+sdk.entities.resolve_entity_set(items: list[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
+
+# Resolve an agent entity set, applying resource overwrites.
+sdk.entities.resolve_entity_set_async(items: list[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
+
 # Retrieve an entity by its key.
 sdk.entities.retrieve(entity_key: str) -> uipath.platform.entities.entities.Entity
 
 # Asynchronously retrieve an entity by its key.
 sdk.entities.retrieve_async(entity_key: str) -> uipath.platform.entities.entities.Entity
 
+# Retrieve an entity by its name.
+sdk.entities.retrieve_by_name(entity_name: str, folder_key: Optional[str]=None) -> uipath.platform.entities.entities.Entity
+
+# Asynchronously retrieve an entity by its name.
+sdk.entities.retrieve_by_name_async(entity_name: str, folder_key: Optional[str]=None) -> uipath.platform.entities.entities.Entity
+
 # Update multiple records in an entity in a single batch operation.
 sdk.entities.update_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously update multiple records in an entity in a single batch operation.
 sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+
 
 ```
 
@@ -566,16 +682,29 @@ sdk.mcp.retrieve_async(slug: str, folder_path: str | None=None) -> uipath.platfo
 
 ```
 
+### Orchestrator Setup
+
+Orchestrator Setup service
+
+```python
+# Fire-and-forget POST requests to enable first run for StudioWeb.
+sdk.orchestrator_setup.enable_first_run() -> None
+
+# Fire-and-forget POST requests to enable first run for StudioWeb.
+sdk.orchestrator_setup.enable_first_run_async() -> None
+
+```
+
 ### Processes
 
 Processes service
 
 ```python
 # Start execution of a process by its name.
-sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.job.Job
+sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, attachments: Optional[list[uipath.platform.attachments.attachments.Attachment]]=None, parent_operation_id: Optional[str]=None, **kwargs) -> uipath.platform.orchestrator.job.Job
 
 # Asynchronously start execution of a process by its name.
-sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.job.Job
+sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, attachments: Optional[list[uipath.platform.attachments.attachments.Attachment]]=None, parent_operation_id: Optional[str]=None, **kwargs) -> uipath.platform.orchestrator.job.Job
 
 ```
 
@@ -585,40 +714,59 @@ Queues service
 
 ```python
 # Completes a transaction item with the specified result.
-sdk.queues.complete_transaction_item(transaction_key: str, result: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItemResult]) -> httpx.Response
+sdk.queues.complete_transaction_item(transaction_key: str, result: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItemResult], queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously completes a transaction item with the specified result.
-sdk.queues.complete_transaction_item_async(transaction_key: str, result: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItemResult]) -> httpx.Response
+sdk.queues.complete_transaction_item_async(transaction_key: str, result: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItemResult], queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Creates a new queue item in the Orchestrator.
-sdk.queues.create_item(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]) -> httpx.Response
+sdk.queues.create_item(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem], queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously creates a new queue item in the Orchestrator.
-sdk.queues.create_item_async(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]) -> httpx.Response
+sdk.queues.create_item_async(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem], queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Creates multiple queue items in bulk.
-sdk.queues.create_items(items: List[Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
+sdk.queues.create_items(items: List[Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously creates multiple queue items in bulk.
-sdk.queues.create_items_async(items: List[Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType) -> httpx.Response
+sdk.queues.create_items_async(items: List[Union[Dict[str, Any], uipath.platform.orchestrator.queues.QueueItem]], queue_name: str, commit_type: <enum 'CommitType, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Creates a new transaction item in a queue.
-sdk.queues.create_transaction_item(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
+sdk.queues.create_transaction_item(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItem], queue_name: Optional[str]=None, no_robot: bool=False, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously creates a new transaction item in a queue.
-sdk.queues.create_transaction_item_async(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItem], no_robot: bool=False) -> httpx.Response
+sdk.queues.create_transaction_item_async(item: Union[Dict[str, Any], uipath.platform.orchestrator.queues.TransactionItem], queue_name: Optional[str]=None, no_robot: bool=False, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Retrieves a list of queue items from the Orchestrator.
-sdk.queues.list_items() -> httpx.Response
+sdk.queues.list_items(queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously retrieves a list of queue items from the Orchestrator.
-sdk.queues.list_items_async() -> httpx.Response
+sdk.queues.list_items_async(queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Updates the progress of a transaction item.
-sdk.queues.update_progress_of_transaction_item(transaction_key: str, progress: str) -> httpx.Response
+sdk.queues.update_progress_of_transaction_item(transaction_key: str, progress: str, queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
 
 # Asynchronously updates the progress of a transaction item.
-sdk.queues.update_progress_of_transaction_item_async(transaction_key: str, progress: str) -> httpx.Response
+sdk.queues.update_progress_of_transaction_item_async(transaction_key: str, progress: str, queue_name: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
+
+```
+
+### Remote A2A
+
+Remote A2A service
+
+```python
+# List Remote A2A agents.
+sdk.remote_a2a.list(top: int | None=None, skip: int | None=None, search: str | None=None, folder_path: str | None=None) -> typing.List[uipath.platform.agenthub.remote_a2a.RemoteA2aAgent]
+
+# Asynchronously list Remote A2A agents.
+sdk.remote_a2a.list_async(top: int | None=None, skip: int | None=None, search: str | None=None, folder_path: str | None=None) -> typing.List[uipath.platform.agenthub.remote_a2a.RemoteA2aAgent]
+
+# Retrieve a specific Remote A2A agent by slug.
+sdk.remote_a2a.retrieve(slug: str, folder_path: str | None=None) -> uipath.platform.agenthub.remote_a2a.RemoteA2aAgent
+
+# Asynchronously retrieve a specific Remote A2A agent by slug.
+sdk.remote_a2a.retrieve_async(slug: str, folder_path: str | None=None) -> uipath.platform.agenthub.remote_a2a.RemoteA2aAgent
 
 ```
 
@@ -653,16 +801,16 @@ Tasks service
 
 ```python
 # Creates a new task synchronously.
-sdk.tasks.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.platform.action_center.tasks.Task
+sdk.tasks.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None, priority: Optional[str]=None, labels: Optional[List[str]]=None, is_actionable_message_enabled: Optional[bool]=None, actionable_message_metadata: Optional[Dict[str, Any]]=None, source_name: str="Agent") -> uipath.platform.action_center.tasks.Task
 
 # Creates a new action asynchronously.
-sdk.tasks.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None) -> uipath.platform.action_center.tasks.Task
+sdk.tasks.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None, priority: Optional[str]=None, labels: Optional[List[str]]=None, is_actionable_message_enabled: Optional[bool]=None, actionable_message_metadata: Optional[Dict[str, Any]]=None, source_name: str="Agent") -> uipath.platform.action_center.tasks.Task
 
 # Retrieves a task by its key synchronously.
-sdk.tasks.retrieve(action_key: str, app_folder_path: str="", app_folder_key: str="", app_name: str | None=None) -> uipath.platform.action_center.tasks.Task
+sdk.tasks.retrieve(action_key: str, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_name: str | None=None) -> uipath.platform.action_center.tasks.Task
 
 # Retrieves a task by its key asynchronously.
-sdk.tasks.retrieve_async(action_key: str, app_folder_path: str="", app_folder_key: str="", app_name: str | None=None) -> uipath.platform.action_center.tasks.Task
+sdk.tasks.retrieve_async(action_key: str, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_name: str | None=None) -> uipath.platform.action_center.tasks.Task
 
 ```
 

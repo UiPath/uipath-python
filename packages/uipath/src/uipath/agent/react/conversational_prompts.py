@@ -175,13 +175,13 @@ def get_chat_system_prompt(
     )
     prompt = prompt.replace(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_userSettingsPrompt}}",
-        _get_user_settings_template(user_settings),
+        get_user_settings_template(user_settings),
     )
 
     return prompt
 
 
-def _get_user_settings_template(
+def get_user_settings_template(
     user_settings: PromptUserSettings | None,
 ) -> str:
     """Get the user settings template section.

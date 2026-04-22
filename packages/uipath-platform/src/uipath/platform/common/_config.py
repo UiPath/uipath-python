@@ -1,6 +1,7 @@
 import os
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -19,6 +20,20 @@ class ConfigurationManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"project_id={self.project_id!r}, "
+            f"folder_key={self.folder_key!r}, "
+            f"folder_path={self.folder_path!r}, "
+            f"base_url={self.base_url!r}, "
+            f"tenant_id={self.tenant_id!r}, "
+            f"organization_id={self.organization_id!r}, "
+            f"job_key={self.job_key!r}, "
+            f"process_uuid={self.process_uuid!r}, "
+            f"process_version={self.process_version!r})"
+        )
+
     @property
     def bindings_file_path(self) -> Path:
         from uipath.platform.common.constants import UIPATH_BINDINGS_FILE
@@ -27,9 +42,12 @@ class ConfigurationManager:
 
     @property
     def config_file_path(self) -> Path:
-        from uipath.platform.common.constants import UIPATH_CONFIG_FILE
+        from uipath.platform.common.constants import (
+            ENV_UIPATH_CONFIG_PATH,
+            UIPATH_CONFIG_FILE,
+        )
 
-        return Path(UIPATH_CONFIG_FILE)
+        return Path(os.environ.get(ENV_UIPATH_CONFIG_PATH, UIPATH_CONFIG_FILE))
 
     @property
     def config_file_name(self) -> str:
@@ -80,6 +98,12 @@ class ConfigurationManager:
         return os.getenv(ENV_FOLDER_KEY, None)
 
     @property
+    def folder_path(self) -> str | None:
+        from uipath.platform.common.constants import ENV_FOLDER_PATH
+
+        return os.getenv(ENV_FOLDER_PATH, None)
+
+    @property
     def process_uuid(self) -> str | None:
         from uipath.platform.common.constants import ENV_UIPATH_PROCESS_UUID
 
@@ -128,6 +152,12 @@ class ConfigurationManager:
         return Path(ENTRY_POINTS_FILE)
 
     @property
+    def uiproj_file_path(self) -> Path:
+        from uipath.platform.common.constants import UIPROJ_FILE
+
+        return Path(UIPROJ_FILE)
+
+    @property
     def studio_metadata_file_path(self) -> Path:
         from uipath.platform.common.constants import STUDIO_METADATA_FILE
 
@@ -138,17 +168,28 @@ class ConfigurationManager:
         return self._read_internal_argument("licensingContext")
 
     @property
+    def is_rooted_to_debug_job(self) -> bool:
+        """Whether this job, which may be a deployed process, is rooted to a debug session (e.g. Maestro solution debug)."""
+        return self._read_internal_argument("isDebug") is True
+
+    @property
     def is_tracing_enabled(self) -> bool:
         from uipath.platform.common.constants import ENV_TRACING_ENABLED
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
 
-    def _read_internal_argument(self, key: str) -> str | None:
+    def reset(self) -> None:
+        """Reset mutable cached state to defaults."""
+        self.studio_solution_id = None
+        # Invalidate cached_property by removing from instance __dict__
+        self.__dict__.pop("_internal_arguments", None)
+
+    def _read_internal_argument(self, key: str) -> Any:
         internal_args = self._internal_arguments
         return internal_args.get(key) if internal_args else None
 
     @cached_property
-    def _internal_arguments(self) -> dict[str, str] | None:
+    def _internal_arguments(self) -> dict[str, Any] | None:
         import json
 
         try:

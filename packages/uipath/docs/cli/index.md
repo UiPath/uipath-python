@@ -40,9 +40,20 @@ Selected tenant: Tenant1
     :depth: 1
     :style: table
 
-Package requirements (bindings) are dependencies that are required by the automation package for successful execution.
+Initializes a UiPath project by generating all required configuration and metadata files. Run this command when setting up a new project and after modifying your agent's or function's input/output schema.
 
-For more information about package requirements, see  [the official documentation](https://docs.uipath.com/orchestrator/automation-cloud/latest/user-guide/managing-package-requirements)
+### Generated Files
+
+| File | Description |
+|------|-------------|
+| `uipath.json` | Project configuration with entrypoint definitions |
+| `bindings.json` | Resource bindings (assets, processes, buckets, etc.) |
+| `entry-points.json` | Entry point definitions with input/output schemas |
+| `project.uiproj` | Project metadata for StudioWeb integration |
+| `.uipath/studio_metadata.json` | Studio metadata (schema and code version) |
+| `.env` | Environment variables file |
+| `AGENTS.md`, `CLAUDE.md` | Agent documentation and coding assistant instructions |
+| `.agent/CLI_REFERENCE.md`, `.agent/SDK_REFERENCE.md`, `.agent/REQUIRED_STRUCTURE.md` | Agent reference docs |
 
 /// warning
 
@@ -63,8 +74,20 @@ Running `uipath init` will process these function definitions and create the cor
 ```shell
 > uipath init
 ⠋ Initializing UiPath project ...
-✓  Created 'entry-points.json' file.
+✓  Created 'uipath.json' file.
+✓  Created 'bindings.json' file.
+✓  Created 'entry-points.json' file with 1 entrypoint(s).
+✓  Created 1 mermaid diagram file(s).
+✓  Updated 'project.uiproj' file.
+✓  Created '.uipath/studio_metadata.json' file.
+✓  Created: CLAUDE.md, CLI_REFERENCE.md, SDK_REFERENCE.md, AGENTS.md, REQUIRED_STRUCTURE.md.
 ```
+
+/// info
+### About the `.mermaid` files
+
+`uipath init` generates one `<entrypoint>.mermaid` file per function/agent containing a static call graph, rendered in the UiPath Orchestrator UI. These files are regenerated on every `uipath init`.
+///
 ---
 
 ::: mkdocs-click
@@ -77,7 +100,7 @@ Running `uipath init` will process these function definitions and create the cor
 For step-by-step debugging with breakpoints and variable inspection (supported from `2.0.66` onward):
 ```console
 # Install debugpy package
-[uv] pip install debugpy
+uv pip install debugpy
 # Run agent with debugging enabled
 uipath run [ENTRYPOINT] [INPUT] --debug
 ```

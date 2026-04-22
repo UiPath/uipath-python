@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "id": "ReportContentMatch",
+  "description": "Evaluates full attachment content using exact match",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "ReportContentMatch",
+    "targetOutputKey": "report",
+    "ignoreCase": true,
+    "negated": false
+  }
+}

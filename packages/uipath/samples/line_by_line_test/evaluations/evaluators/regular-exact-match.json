@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "id": "RegularExactMatch",
+  "description": "Regular exact match evaluator (for comparison)",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "RegularExactMatch",
+    "targetOutputKey": "result",
+    "lineByLineEvaluator": false,
+    "ignoreCase": false,
+    "negated": false
+  }
+}

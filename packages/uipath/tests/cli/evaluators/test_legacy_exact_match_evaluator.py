@@ -11,6 +11,7 @@ import pytest
 
 from uipath.eval.evaluators import LegacyExactMatchEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.output_evaluator import LineByLineEvaluationDetails
 from uipath.eval.models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
@@ -583,3 +584,174 @@ class TestLegacyExactMatchEvaluator:
         )
 
         assert result.score is True
+
+
+# Line-by-line evaluation tests
+@pytest.mark.asyncio
+async def test_line_by_line_all_match():
+    """Test line-by-line evaluation when all lines match."""
+    with patch("uipath.platform.UiPath"):
+        evaluator = LegacyExactMatchEvaluator(
+            **_make_base_params(),
+            lineByLineEvaluation=True,
+            lineDelimiter="\n",
+        )
+
+    agent_execution = AgentExecution(
+        agent_input={"input": "test"},
+        agent_output="Line 1\nLine 2\nLine 3",
+        agent_trace=[],
+    )
+
+    result = await evaluator.validate_and_evaluate_criteria(
+        agent_execution=agent_execution,
+        evaluation_criteria=LegacyEvaluationCriteria(
+            expected_output="Line 1\nLine 2\nLine 3",
+            expected_agent_behavior="",
+        ),
+    )
+
+    # All lines match, so score should be 1.0
+    assert result.score == 1.0
+    assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
+    assert result.details.total_lines_actual == 3
+    assert result.details.total_lines_expected == 3
+    assert len(result.details.line_by_line_results) == 3
+    assert all(line.score is True for line in result.details.line_by_line_results)
+
+
+@pytest.mark.asyncio
+async def test_line_by_line_partial_match():
+    """Test line-by-line evaluation with partial matches."""
+    with patch("uipath.platform.UiPath"):
+        evaluator = LegacyExactMatchEvaluator(
+            **_make_base_params(),
+            lineByLineEvaluation=True,
+            lineDelimiter="\n",
+        )
+
+    agent_execution = AgentExecution(
+        agent_input={"input": "test"},
+        agent_output="Line 1\nDifferent\nLine 3",
+        agent_trace=[],
+    )
+
+    result = await evaluator.validate_and_evaluate_criteria(
+        agent_execution=agent_execution,
+        evaluation_criteria=LegacyEvaluationCriteria(
+            expected_output="Line 1\nLine 2\nLine 3",
+            expected_agent_behavior="",
+        ),
+    )
+
+    # 2 out of 3 lines match, so score should be ~0.67
+    assert 0.6 < result.score < 0.7
+    assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
+    assert result.details.total_lines_actual == 3
+    assert result.details.total_lines_expected == 3
+    assert len(result.details.line_by_line_results) == 3
+
+    # Check individual line scores
+    assert result.details.line_by_line_results[0].score is True  # Line 1 matches
+    assert result.details.line_by_line_results[1].score is False  # Line 2 doesn't match
+    assert result.details.line_by_line_results[2].score is True  # Line 3 matches
+
+
+@pytest.mark.asyncio
+async def test_line_by_line_with_target_output_key():
+    """Test line-by-line evaluation with targetOutputKey."""
+    with patch("uipath.platform.UiPath"):
+        evaluator = LegacyExactMatchEvaluator(
+            **_make_base_params(target_output_key="result"),
+            lineByLineEvaluation=True,
+            lineDelimiter="\n",
+        )
+
+    agent_execution = AgentExecution(
+        agent_input={"input": "test"},
+        agent_output={"result": "Line 1\nLine 2\nLine 3"},
+        agent_trace=[],
+    )
+
+    result = await evaluator.validate_and_evaluate_criteria(
+        agent_execution=agent_execution,
+        evaluation_criteria=LegacyEvaluationCriteria(
+            expected_output={"result": "Line 1\nLine 2\nLine 3"},
+            expected_agent_behavior="",
+        ),
+    )
+
+    # All lines match, so score should be 1.0
+    assert result.score == 1.0
+    assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
+    assert result.details.total_lines_actual == 3
+    assert result.details.total_lines_expected == 3
+
+
+@pytest.mark.asyncio
+async def test_line_by_line_custom_delimiter():
+    """Test line-by-line evaluation with custom delimiter."""
+    with patch("uipath.platform.UiPath"):
+        evaluator = LegacyExactMatchEvaluator(
+            **_make_base_params(),
+            lineByLineEvaluation=True,
+            lineDelimiter="|",
+        )
+
+    agent_execution = AgentExecution(
+        agent_input={"input": "test"},
+        agent_output="Item1|Item2|Item3",
+        agent_trace=[],
+    )
+
+    result = await evaluator.validate_and_evaluate_criteria(
+        agent_execution=agent_execution,
+        evaluation_criteria=LegacyEvaluationCriteria(
+            expected_output="Item1|Item2|Item3",
+            expected_agent_behavior="",
+        ),
+    )
+
+    # All items match, so score should be 1.0
+    assert result.score == 1.0
+    assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
+    assert result.details.total_lines_actual == 3
+    assert result.details.total_lines_expected == 3
+    assert len(result.details.line_by_line_results) == 3
+
+
+@pytest.mark.asyncio
+async def test_line_by_line_unequal_line_counts():
+    """Test line-by-line evaluation with different line counts."""
+    with patch("uipath.platform.UiPath"):
+        evaluator = LegacyExactMatchEvaluator(
+            **_make_base_params(),
+            lineByLineEvaluation=True,
+            lineDelimiter="\n",
+        )
+
+    agent_execution = AgentExecution(
+        agent_input={"input": "test"},
+        agent_output="Line 1\nLine 2",
+        agent_trace=[],
+    )
+
+    result = await evaluator.validate_and_evaluate_criteria(
+        agent_execution=agent_execution,
+        evaluation_criteria=LegacyEvaluationCriteria(
+            expected_output="Line 1\nLine 2\nLine 3",
+            expected_agent_behavior="",
+        ),
+    )
+
+    # 2 out of 3 lines match (third line is missing), so score should be ~0.67
+    assert 0.6 < result.score < 0.7
+    assert hasattr(result, "details")
+    assert isinstance(result.details, LineByLineEvaluationDetails)
+    assert result.details.total_lines_actual == 2
+    assert result.details.total_lines_expected == 3
+    assert len(result.details.line_by_line_results) == 3  # Evaluates max(2, 3) lines

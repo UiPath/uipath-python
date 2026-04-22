@@ -24,6 +24,9 @@ from uipath.platform.context_grounding import (
     GoogleDriveSourceConfig,
     Indexer,
     OneDriveSourceConfig,
+    SearchMode,
+    UnifiedQueryResult,
+    UnifiedSearchScope,
 )
 from uipath.platform.context_grounding._context_grounding_service import (
     ContextGroundingService,
@@ -39,6 +42,24 @@ def service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> ContextGroundingService:
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
+    folders_service = FolderService(config=config, execution_context=execution_context)
+    buckets_service = BucketsService(config=config, execution_context=execution_context)
+    return ContextGroundingService(
+        config=config,
+        execution_context=execution_context,
+        folders_service=folders_service,
+        buckets_service=buckets_service,
+    )
+
+
+@pytest.fixture
+def service_no_folder(
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> ContextGroundingService:
+    monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
+    monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
     folders_service = FolderService(config=config, execution_context=execution_context)
     buckets_service = BucketsService(config=config, execution_context=execution_context)
     return ContextGroundingService(
@@ -354,6 +375,447 @@ class TestContextGroundingService:
             sent_requests[1].headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_async/{version}"
         )
+
+    def test_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-id-1",
+                        "name": "index-one",
+                        "lastIngestionStatus": "Completed",
+                    },
+                    {
+                        "id": "index-id-2",
+                        "name": "index-two",
+                        "lastIngestionStatus": "Queued",
+                    },
+                ]
+            },
+        )
+
+        indexes = service.list()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 2
+        assert all(isinstance(i, ContextGroundingIndex) for i in indexes)
+        assert indexes[0].id == "index-id-1"
+        assert indexes[0].name == "index-one"
+        assert indexes[1].id == "index-id-2"
+        assert indexes[1].name == "index-two"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[1].method == "GET"
+        assert (
+            sent_requests[1].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/indexes?%24expand=dataSource"
+        )
+        assert HEADER_USER_AGENT in sent_requests[1].headers
+        assert (
+            sent_requests[1].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.list/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_list_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-id-1",
+                        "name": "index-one",
+                        "lastIngestionStatus": "Completed",
+                    },
+                ]
+            },
+        )
+
+        indexes = await service.list_async()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 1
+        assert isinstance(indexes[0], ContextGroundingIndex)
+        assert indexes[0].id == "index-id-1"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[1].method == "GET"
+        assert (
+            sent_requests[1].url
+            == f"{base_url}{org}{tenant}/ecs_/v2/indexes?%24expand=dataSource"
+        )
+        assert HEADER_USER_AGENT in sent_requests[1].headers
+        assert (
+            sent_requests[1].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.list_async/{version}"
+        )
+
+    def test_list_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$expand=dataSource",
+            status_code=200,
+            json={"value": []},
+        )
+
+        indexes = service.list()
+
+        assert indexes == []
+
+    def test_retrieve_across_folders(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-1",
+                        "name": "index-folder-a",
+                        "lastIngestionStatus": "Completed",
+                        "folderKey": "folder-key-a",
+                    },
+                    {
+                        "id": "index-2",
+                        "name": "index-folder-b",
+                        "lastIngestionStatus": "Queued",
+                        "folderKey": "folder-key-b",
+                    },
+                ]
+            },
+        )
+
+        indexes = service.retrieve_across_folders()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 2
+        assert isinstance(indexes[0], ContextGroundingIndex)
+        assert indexes[0].id == "index-1"
+        assert indexes[0].name == "index-folder-a"
+        assert indexes[1].id == "index-2"
+        assert indexes[1].name == "index-folder-b"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+        # Verify no folder key header is sent
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_across_folders/{version}"
+        )
+
+    def test_retrieve_across_folders_with_name_filter(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'my-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-1",
+                        "name": "my-index",
+                        "lastIngestionStatus": "Completed",
+                    },
+                ]
+            },
+        )
+
+        indexes = service.retrieve_across_folders(name="my-index")
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 1
+        assert indexes[0].name == "my-index"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert "allacrossfolders" in str(sent_requests[0].url)
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+    @pytest.mark.anyio
+    async def test_retrieve_across_folders_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "index-1",
+                        "name": "index-folder-a",
+                        "lastIngestionStatus": "Completed",
+                        "folderKey": "folder-key-a",
+                    },
+                    {
+                        "id": "index-2",
+                        "name": "index-folder-b",
+                        "lastIngestionStatus": "Queued",
+                        "folderKey": "folder-key-b",
+                    },
+                ]
+            },
+        )
+
+        indexes = await service.retrieve_across_folders_async()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 2
+        assert isinstance(indexes[0], ContextGroundingIndex)
+        assert indexes[0].id == "index-1"
+        assert indexes[0].name == "index-folder-a"
+        assert indexes[1].id == "index-2"
+        assert indexes[1].name == "index-folder-b"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "GET"
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+        # Verify no folder key header is sent
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_across_folders_async/{version}"
+        )
+
+    def test_retrieve_across_folders_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource",
+            status_code=200,
+            json={"value": []},
+        )
+
+        indexes = service.retrieve_across_folders()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 0
+
+    def test_retrieve_falls_back_to_across_folders_when_no_folder_context(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When no folder_key/folder_path is configured, retrieve should fall back to retrieve_across_folders."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'test-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                        "folderKey": "resolved-folder-key",
+                    }
+                ]
+            },
+        )
+
+        index = service_no_folder.retrieve(name="test-index")
+
+        assert isinstance(index, ContextGroundingIndex)
+        assert index.id == "test-index-id"
+        assert index.name == "test-index"
+        assert index.folder_key == "resolved-folder-key"
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 1
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+    @pytest.mark.anyio
+    async def test_retrieve_async_falls_back_to_across_folders_when_no_folder_context(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When no folder_key/folder_path is configured, retrieve_async should fall back to retrieve_across_folders_async."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'test-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                        "folderKey": "resolved-folder-key",
+                    }
+                ]
+            },
+        )
+
+        index = await service_no_folder.retrieve_async(name="test-index")
+
+        assert isinstance(index, ContextGroundingIndex)
+        assert index.id == "test-index-id"
+        assert index.folder_key == "resolved-folder-key"
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 1
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+
+    def test_search_uses_index_folder_key_when_no_folder_context(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When no folder context is configured, search should use the index's folder_key for the search request."""
+        # retrieve falls back to across_folders
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'test-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                        "folderKey": "resolved-folder-key",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1/search",
+            status_code=200,
+            json=[
+                {
+                    "source": "test-source",
+                    "page_number": "1",
+                    "content": "Test content",
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
+                    "score": 0.95,
+                }
+            ],
+        )
+
+        response = service_no_folder.search(
+            name="test-index", query="test query", number_of_results=1
+        )
+
+        assert len(response) == 1
+        assert response[0].content == "Test content"
+
+        sent_requests = httpx_mock.get_requests()
+        # First request: across_folders retrieve, second: search
+        search_request = sent_requests[1]
+        assert search_request.method == "POST"
+        assert "x-uipath-folderkey" in search_request.headers
+        assert search_request.headers["x-uipath-folderkey"] == "resolved-folder-key"
 
     def test_create_index_bucket(
         self,
@@ -834,6 +1296,33 @@ class TestContextGroundingService:
         with patch.object(
             service._folders_service, "retrieve_key", return_value="test-folder-key"
         ):
+            # Test retrieve_across_folders method (no folder key header)
+            with patch.object(service, "request") as mock_request:
+                mock_response = MagicMock()
+                mock_response.json.return_value = {
+                    "value": [
+                        {
+                            "id": "test-index-id",
+                            "name": "test-index",
+                            "lastIngestionStatus": "Completed",
+                        }
+                    ]
+                }
+                mock_request.return_value = mock_response
+
+                service.retrieve_across_folders()
+
+                assert mock_request.called
+                call_args = mock_request.call_args
+                assert call_args[0][0] == "GET"
+                assert str(call_args[0][1]) == "/ecs_/v2/indexes/allacrossfolders"
+                assert "params" in call_args[1]
+                assert call_args[1]["params"]["$expand"] == "dataSource"
+                # Verify NO folder key header is sent
+                assert "headers" not in call_args[
+                    1
+                ] or "x-uipath-folderkey" not in call_args[1].get("headers", {})
+
             # Test retrieve method
             with patch.object(service, "request") as mock_request:
                 mock_response = MagicMock()
@@ -987,7 +1476,7 @@ class TestContextGroundingService:
     ) -> None:
         citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=id,content,name,createdDate,lastDeepRagStatus,failureReason",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content",
             status_code=200,
             json={
                 "id": "test-task-id",
@@ -1019,7 +1508,7 @@ class TestContextGroundingService:
         assert sent_requests[0].method == "GET"
         assert (
             sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=id%2Ccontent%2Cname%2CcreatedDate%2ClastDeepRagStatus%2CfailureReason"
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content"
         )
 
         assert HEADER_USER_AGENT in sent_requests[0].headers
@@ -1041,7 +1530,7 @@ class TestContextGroundingService:
         citation = Citation(ordinal=1, page_number=1, source="abc", reference="abc")
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content&$select=id,content,name,createdDate,lastDeepRagStatus,failureReason",
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?$expand=content",
             status_code=200,
             json={
                 "id": "test-task-id",
@@ -1073,7 +1562,7 @@ class TestContextGroundingService:
         assert sent_requests[0].method == "GET"
         assert (
             sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content&%24select=id%2Ccontent%2Cname%2CcreatedDate%2ClastDeepRagStatus%2CfailureReason"
+            == f"{base_url}{org}{tenant}/ecs_/v2/deeprag/test-task-id?%24expand=content"
         )
 
         assert HEADER_USER_AGENT in sent_requests[0].headers
@@ -2260,6 +2749,71 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_ephemeral_index_async/{version}"
         )
 
+    def test_create_ephemeral_index_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=200,
+            json={
+                "id": "ephemeral-index-id",
+                "name": "ephemeral-index",
+                "lastIngestionStatus": "Queued",
+            },
+        )
+
+        attachment_ids = [str(uuid.uuid4())]
+        service.create_ephemeral_index(
+            usage="DeepRAG",
+            attachments=attachment_ids,
+            folder_key="test-folder-key",
+        )
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests is not None
+        assert "x-uipath-folderkey" in sent_requests[0].headers
+        assert sent_requests[0].headers["x-uipath-folderkey"] == "test-folder-key"
+
+    @pytest.mark.anyio
+    async def test_create_ephemeral_index_async_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=200,
+            json={
+                "id": "ephemeral-index-id",
+                "name": "ephemeral-index",
+                "lastIngestionStatus": "Queued",
+            },
+        )
+
+        attachment_ids = [str(uuid.uuid4())]
+        await service.create_ephemeral_index_async(
+            usage="DeepRAG",
+            attachments=attachment_ids,
+            folder_key="test-folder-key",
+        )
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests is not None
+        assert "x-uipath-folderkey" in sent_requests[0].headers
+        assert sent_requests[0].headers["x-uipath-folderkey"] == "test-folder-key"
+
     @pytest.mark.anyio
     async def test_download_batch_transform_result_async_creates_nested_directories(
         self,
@@ -2432,3 +2986,275 @@ class TestContextGroundingService:
         assert "/DownloadBlob" in str(download_request.url)
         assert "Authorization" in download_request.headers
         assert download_request.headers["Authorization"].startswith("Bearer ")
+
+    def test_unified_search(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
+                    "values": [
+                        {
+                            "id": "result-1",
+                            "source": "test-source",
+                            "page_number": 1,
+                            "content": "Test content",
+                            "score": 0.95,
+                        }
+                    ],
+                },
+                "explanation": "test explanation",
+            },
+        )
+
+        response = service.unified_search(
+            name="test-index",
+            query="test query",
+            search_mode=SearchMode.SEMANTIC,
+            number_of_results=5,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.explanation == "test explanation"
+        assert response.semantic_results is not None
+        assert response.semantic_results.metadata is not None
+        assert response.semantic_results.metadata.operation_id == "test-op"
+        assert response.semantic_results.metadata.strategy == "test-strategy"
+        assert len(response.semantic_results.values) == 1
+        assert response.semantic_results.values[0].id == "result-1"
+        assert response.semantic_results.values[0].source == "test-source"
+        assert response.semantic_results.values[0].page_number == 1
+        assert response.semantic_results.values[0].content == "Test content"
+        assert response.semantic_results.values[0].score == 0.95
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        search_request = sent_requests[3]
+        assert search_request.method == "POST"
+        assert (
+            str(search_request.url)
+            == f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id"
+        )
+        request_body = json.loads(search_request.content)
+        assert request_body["searchMode"] == "Semantic"
+        assert request_body["query"] == "test query"
+        assert request_body["semanticSearchOptions"]["numberOfResults"] == 5
+
+        assert HEADER_USER_AGENT in search_request.headers
+        assert (
+            search_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.unified_search/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_unified_search_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
+                    "values": [
+                        {
+                            "id": "result-1",
+                            "source": "test-source",
+                            "page_number": 1,
+                            "content": "Test content",
+                            "score": 0.95,
+                        }
+                    ],
+                },
+                "explanation": "test explanation",
+            },
+        )
+
+        response = await service.unified_search_async(
+            name="test-index",
+            query="test query",
+            search_mode=SearchMode.AUTO,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.explanation == "test explanation"
+        assert response.semantic_results is not None
+        assert response.semantic_results.metadata is not None
+        assert len(response.semantic_results.values) == 1
+
+    def test_unified_search_with_scope(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {"values": []},
+                "explanation": None,
+            },
+        )
+
+        scope = UnifiedSearchScope(folder="docs", extension=".pdf")
+
+        response = service.unified_search(
+            name="test-index",
+            query="test query",
+            scope=scope,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+
+        sent_requests = httpx_mock.get_requests()
+        search_request = sent_requests[3]
+        request_body = json.loads(search_request.content)
+        assert "filter" not in request_body
+        assert request_body["scope"]["folder"] == "docs"
+        assert request_body["scope"]["extension"] == ".pdf"

@@ -761,10 +761,6 @@ class ConnectionsService(BaseService):
                 multipart_params[param_name] = value
             elif param_name in activity_metadata.parameter_location_info.body_fields:
                 body_fields[param_name] = value
-            else:
-                raise ValueError(
-                    f"Parameter {param_name} does not exist in activity metadata."
-                )
 
         # path parameter handling
         for key, value in path_params.items():

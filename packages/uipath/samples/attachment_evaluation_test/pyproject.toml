@@ -1,0 +1,12 @@
+[project]
+name = "attachment-evaluation-test"
+version = "0.1.0"
+description = "Sample agent demonstrating job attachment evaluation"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+requires-python = ">=3.11"
+dependencies = [
+  "uipath"
+]
+
+[tool.uv.sources]
+uipath = { path = "../..", editable = true }

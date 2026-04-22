@@ -9,13 +9,12 @@ compatibility with release/2025.10 branches or later.
 
 import json
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from uipath._cli._auth._oidc_utils import (
     OidcUtils,
-    _get_version_from_api,
     _is_cloud_domain,
     _select_config_file,
 )
@@ -121,113 +120,105 @@ class TestOidcUtils:
         """Test _is_cloud_domain correctly identifies cloud domains."""
         assert _is_cloud_domain(domain) == expected
 
-    def test_get_version_from_api_success(self):
-        """Test _get_version_from_api successfully fetches version."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "version": "25.10.0-beta.415",
-            "timestamp": "2025-10-23T19:08:22Z",
-            "deployment": "ServiceFabric",
-        }
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
-        with patch("httpx.Client", return_value=mock_client):
-            version = _get_version_from_api("https://custom.domain.com")
-            assert version == "25.10.0-beta.415"
-
-    def test_get_version_from_api_timeout(self):
-        """Test _get_version_from_api handles timeouts gracefully."""
-        mock_client = MagicMock()
-        mock_client.get.side_effect = TimeoutError
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
-        with patch("httpx.Client", return_value=mock_client):
-            version = _get_version_from_api("https://custom.domain.com")
-            assert version is None
-
-    def test_get_version_from_api_network_error(self):
-        """Test _get_version_from_api handles network errors gracefully."""
-        mock_client = MagicMock()
-        mock_client.get.side_effect = Exception("Network error")
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
-        with patch("httpx.Client", return_value=mock_client):
-            version = _get_version_from_api("https://custom.domain.com")
-            assert version is None
-
     @pytest.mark.parametrize(
-        "domain,mock_version,expected_config",
+        "domain,mock_info,expected_config",
         [
-            # Cloud domains should always use auth_config_cloud.json
+            # Cloud domains always use auth_config_cloud.json (no API call needed)
             ("https://alpha.uipath.com", None, "auth_config_cloud.json"),
             ("https://staging.uipath.com", None, "auth_config_cloud.json"),
             ("https://cloud.uipath.com", None, "auth_config_cloud.json"),
-            # Version 25.10.* should use auth_config_25_10.json
+            # Non-ServiceFabric deployments (cloud releases) use auth_config_cloud.json
             (
                 "https://custom.domain.com",
-                "25.10.0-beta.415",
+                {"version": "26.3.0-s188.574", "deployment": None},
+                "auth_config_cloud.json",
+            ),
+            (
+                "https://custom.domain.com",
+                {"version": "25.10.0-s99", "deployment": "Kubernetes"},
+                "auth_config_cloud.json",
+            ),
+            # API unreachable uses auth_config_cloud.json
+            ("https://custom.domain.com", None, "auth_config_cloud.json"),
+            # ServiceFabric + 25.10.* (AS release 25.10) uses auth_config_25_10.json
+            (
+                "https://custom.domain.com",
+                {"version": "25.10.0-beta.415", "deployment": "ServiceFabric"},
                 "auth_config_25_10.json",
             ),
-            ("https://custom.domain.com", "25.10.1", "auth_config_25_10.json"),
-            # Other versions should fallback to cloud config
-            ("https://custom.domain.com", "24.10.0", "auth_config_cloud.json"),
-            ("https://custom.domain.com", "26.1.0", "auth_config_cloud.json"),
-            # Unable to determine version should fallback to cloud config
-            ("https://custom.domain.com", None, "auth_config_cloud.json"),
+            (
+                "https://custom.domain.com",
+                {"version": "25.10.1", "deployment": "ServiceFabric"},
+                "auth_config_25_10.json",
+            ),
+            # ServiceFabric + 26.3.* (AS release 25.10.2) uses auth_config_25_10_2.json
+            (
+                "https://custom.domain.com",
+                {"version": "26.3.0-beta.188", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
+            (
+                "https://custom.domain.com",
+                {"version": "26.3.1", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
+            # ServiceFabric + unknown version falls back to latest AS config
+            (
+                "https://custom.domain.com",
+                {"version": "24.10.0", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
+            (
+                "https://custom.domain.com",
+                {"version": "26.1.0", "deployment": "ServiceFabric"},
+                "auth_config_25_10_2.json",
+            ),
         ],
     )
-    def test_select_config_file(self, domain, mock_version, expected_config):
-        """Test _select_config_file selects the correct config based on domain and version."""
+    async def test_select_config_file(self, domain, mock_info, expected_config):
+        """Test _select_config_file selects the correct config based on domain and server info."""
         with patch(
-            "uipath._cli._auth._oidc_utils._get_version_from_api",
-            return_value=mock_version,
+            "uipath._cli._auth._oidc_utils.get_server_info_async",
+            new_callable=AsyncMock,
+            return_value=mock_info,
         ):
-            config_file = _select_config_file(domain)
+            config_file = await _select_config_file(domain)
             assert config_file == expected_config
 
-    def test_get_auth_config_without_domain(self):
+    async def test_get_auth_config_without_domain(self):
         """Test get_auth_config without domain parameter uses default config."""
         with patch(
             "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port", return_value=8104
         ):
-            config = OidcUtils.get_auth_config()
+            config = await OidcUtils.get_auth_config()
             assert config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
             assert config["port"] == 8104
 
-    def test_get_auth_config_with_cloud_domain(self):
+    async def test_get_auth_config_with_cloud_domain(self):
         """Test get_auth_config with cloud domain uses auth_config_cloud.json."""
         with patch(
             "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port", return_value=8104
         ):
-            config = OidcUtils.get_auth_config("https://alpha.uipath.com")
+            config = await OidcUtils.get_auth_config("https://alpha.uipath.com")
             assert config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
             assert config["port"] == 8104
 
-    def test_get_auth_config_with_25_10_version(self):
-        """Test get_auth_config with version 25.10 uses auth_config_25_10.json."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"version": "25.10.0-beta.415"}
-        mock_response.raise_for_status = MagicMock()
-
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__.return_value = mock_client
-        mock_client.__exit__ = MagicMock()
-
+    async def test_get_auth_config_with_25_10_version(self):
+        """Test get_auth_config with AS 25.10 ServiceFabric deployment uses auth_config_25_10.json."""
         with (
-            patch("httpx.Client", return_value=mock_client),
+            patch(
+                "uipath._cli._auth._oidc_utils.get_server_info_async",
+                new_callable=AsyncMock,
+                return_value={
+                    "version": "25.10.0-beta.415",
+                    "deployment": "ServiceFabric",
+                },
+            ),
             patch(
                 "uipath._cli._auth._oidc_utils.OidcUtils._find_free_port",
                 return_value=8104,
             ),
         ):
-            config = OidcUtils.get_auth_config("https://custom.domain.com")
+            config = await OidcUtils.get_auth_config("https://custom.domain.com")
             assert config["client_id"] == "36dea5b8-e8bb-423d-8e7b-c808df8f1c00"
             assert config["port"] == 8104

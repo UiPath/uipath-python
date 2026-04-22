@@ -47,6 +47,7 @@ _LAZY_COMMANDS = {
     "debug": "cli_debug",
     "assets": "services.cli_assets",
     "buckets": "services.cli_buckets",
+    "context-grounding": "services.cli_context_grounding",
 }
 
 _RUNTIME_COMMANDS = {"init", "dev", "run", "eval", "debug", "server"}
@@ -78,7 +79,10 @@ def _load_command(name: str):
 
     module_name = _LAZY_COMMANDS[name]
     mod = __import__(f"uipath._cli.{module_name}", fromlist=[name])
-    return getattr(mod, name)
+    # CLI names may use hyphens (e.g. "context-grounding") but Python
+    # attribute names use underscores; convert before getattr.
+    attr_name = name.replace("-", "_")
+    return getattr(mod, attr_name)
 
 
 def __getattr__(name: str):

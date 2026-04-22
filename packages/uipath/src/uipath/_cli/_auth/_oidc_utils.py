@@ -4,9 +4,8 @@ import json
 import os
 from urllib.parse import urlencode, urlparse
 
-import httpx
+from uipath.platform.orchestrator import get_server_info_async
 
-from ..._utils._ssl_context import get_httpx_client_kwargs
 from .._utils._console import ConsoleLogger
 from ._models import AuthConfig
 from ._url_utils import build_service_url
@@ -28,31 +27,6 @@ def get_state_param() -> str:
     return base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8").rstrip("=")
 
 
-def _get_version_from_api(domain: str) -> str | None:
-    """Fetch the version from the UiPath orchestrator API.
-
-    Args:
-        domain: The UiPath domain (e.g., 'https://alpha.uipath.com')
-
-    Returns:
-        The version string (e.g., '25.10.0-beta.415') or None if unable to fetch
-    """
-    try:
-        version_url = build_service_url(domain, "/orchestrator_/api/status/version")
-        client_kwargs = get_httpx_client_kwargs()
-        # Override timeout for version check
-        client_kwargs["timeout"] = 5.0
-
-        with httpx.Client(**client_kwargs) as client:
-            response = client.get(version_url)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("version")
-    except Exception:
-        # Silently fail and return None if we can't fetch the version
-        return None
-
-
 def _is_cloud_domain(domain: str) -> bool:
     """Check if the domain is a cloud domain (alpha, staging, or cloud.uipath.com).
 
@@ -71,15 +45,16 @@ def _is_cloud_domain(domain: str) -> bool:
     ]
 
 
-def _select_config_file(domain: str) -> str:
+async def _select_config_file(domain: str) -> str:
     """Select the appropriate auth config file based on domain and version.
 
     Logic:
     1. If domain is alpha/staging/cloud.uipath.com -> use auth_config_cloud.json
-    2. Otherwise, try to get version from API
-    3. If version starts with '25.10' -> use auth_config_25_10.json
-    4. If version can't be determined -> fallback to auth_config_cloud.json
-    5. Otherwise -> fallback to auth_config_cloud.json
+    2. Otherwise, fetch server info from API
+    3. If deployment is not 'ServiceFabric' (cloud deployment) -> use auth_config_cloud.json
+    4. If version starts with '25.10' (AS release 25.10) -> use auth_config_25_10.json
+    5. If version starts with '26.3' (AS release 25.10.2) -> use auth_config_25_10_2.json
+    6. Otherwise (unknown version) -> use auth_config_25_10_2.json
 
     Args:
         domain: The UiPath domain
@@ -91,19 +66,25 @@ def _select_config_file(domain: str) -> str:
     if _is_cloud_domain(domain):
         return "auth_config_cloud.json"
 
-    # Try to get version from API
-    version = _get_version_from_api(domain)
+    # Fetch full server info
+    info = await get_server_info_async(domain)
 
-    # If we can't determine version, fallback to cloud config
-    if version is None:
+    # Non-ServiceFabric deployments are cloud
+    if info is None or info.get("deployment") != "ServiceFabric":
         return "auth_config_cloud.json"
 
-    # Check if version is 25.10.*
+    version = info.get("version") or ""
+
+    # Check if version is 25.10.* (AS release 25.10)
     if version.startswith("25.10"):
         return "auth_config_25_10.json"
 
-    # Default fallback to cloud config
-    return "auth_config_cloud.json"
+    # Check if version is 26.3.* (AS release 25.10.2)
+    if version.startswith("26.3"):
+        return "auth_config_25_10_2.json"
+
+    # Default fallback to latest AS release config
+    return "auth_config_25_10_2.json"
 
 
 class OidcUtils:
@@ -124,7 +105,7 @@ class OidcUtils:
         return next((p for p in candidates if is_free(p)), None)
 
     @classmethod
-    def get_auth_config(cls, domain: str | None = None) -> AuthConfig:
+    async def get_auth_config(cls, domain: str | None = None) -> AuthConfig:
         """Get the appropriate auth configuration based on domain.
 
         Args:
@@ -136,7 +117,7 @@ class OidcUtils:
         """
         # Select the appropriate config file based on domain
         if domain:
-            config_file = _select_config_file(domain)
+            config_file = await _select_config_file(domain)
         else:
             config_file = "auth_config_cloud.json"
 

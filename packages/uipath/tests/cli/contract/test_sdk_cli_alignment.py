@@ -7,7 +7,7 @@ These tests catch:
 """
 
 import inspect
-from typing import Any
+from typing import Any, cast
 
 import click
 import pytest
@@ -118,6 +118,43 @@ def assert_cli_sdk_alignment(
 # Parameter mappings: CLI param name → SDK param name
 # Used when CLI uses more user-friendly names than SDK
 PARAM_MAPPINGS = {
+    # context-grounding: --index-name maps to SDK 'name'
+    "context-grounding_list": {},
+    "context-grounding_retrieve": {
+        "index_name": "name",
+    },
+    "context-grounding_create": {
+        "index_name": "name",
+    },
+    "context-grounding_search": {
+        "index_name": "name",
+    },
+    "context-grounding_ingest": {
+        "index_name": "name",
+    },
+    "context-grounding_delete": {
+        "index_name": "name",
+    },
+    # deep-rag/batch-transform: --task-name maps to SDK 'name'
+    "context-grounding_deep-rag_start": {
+        "task_name": "name",
+    },
+    "context-grounding_deep-rag_retrieve": {
+        "task_id": "id",
+    },
+    "context-grounding_batch-transform_start": {
+        "task_name": "name",
+        "prefix": "storage_bucket_folder_path_prefix",
+        "target_file": "target_file_name",
+        "web_search": "enable_web_search_grounding",
+    },
+    "context-grounding_batch-transform_retrieve": {
+        "task_id": "id",
+    },
+    "context-grounding_batch-transform_download": {
+        "task_id": "id",
+        "output_file": "destination_path",
+    },
     "buckets_files_download": {
         "bucket_name": "name",
         "remote_path": "blob_file_path",
@@ -154,6 +191,17 @@ PARAM_MAPPINGS = {
 # SDK parameters to exclude for specific commands
 # Used when SDK has optional params that CLI doesn't expose
 SDK_EXCLUSIONS = {
+    "context-grounding_list": set(),
+    "context-grounding_retrieve": set(),
+    "context-grounding_create": {"source", "embeddings_enabled", "is_encrypted"},
+    "context-grounding_search": {"scope", "number_of_results"},
+    "context-grounding_ingest": set(),
+    "context-grounding_delete": set(),
+    "context-grounding_deep-rag_start": set(),
+    "context-grounding_deep-rag_retrieve": {"index_name"},
+    "context-grounding_batch-transform_start": {"output_columns"},
+    "context-grounding_batch-transform_retrieve": {"index_name"},
+    "context-grounding_batch-transform_download": {"index_name", "validate_status"},
     "buckets_list": {
         "name",
         "skip",
@@ -188,6 +236,43 @@ SDK_EXCLUSIONS = {
 @pytest.mark.parametrize(
     "service,command,sdk_class,sdk_method",
     [
+        # Context Grounding
+        ("context-grounding", "list", "ContextGroundingService", "list_indexes"),
+        ("context-grounding", "retrieve", "ContextGroundingService", "retrieve"),
+        ("context-grounding", "create", "ContextGroundingService", "create_index"),
+        ("context-grounding", "search", "ContextGroundingService", "unified_search"),
+        ("context-grounding", "ingest", "ContextGroundingService", "ingest_by_name"),
+        ("context-grounding", "delete", "ContextGroundingService", "delete_by_name"),
+        (
+            "context-grounding_deep-rag",
+            "start",
+            "ContextGroundingService",
+            "start_deep_rag",
+        ),
+        (
+            "context-grounding_deep-rag",
+            "retrieve",
+            "ContextGroundingService",
+            "retrieve_deep_rag",
+        ),
+        (
+            "context-grounding_batch-transform",
+            "start",
+            "ContextGroundingService",
+            "start_batch_transform",
+        ),
+        (
+            "context-grounding_batch-transform",
+            "retrieve",
+            "ContextGroundingService",
+            "retrieve_batch_transform",
+        ),
+        (
+            "context-grounding_batch-transform",
+            "download",
+            "ContextGroundingService",
+            "download_batch_transform_result",
+        ),
         # Buckets - bucket operations
         ("buckets", "list", "BucketsService", "list"),
         ("buckets", "retrieve", "BucketsService", "retrieve"),
@@ -212,29 +297,54 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
     This test runs on every commit to catch SDK/CLI drift early.
     """
     from uipath._cli import services as cli_services
+    from uipath.platform import context_grounding as cg_module
     from uipath.platform import orchestrator
 
-    # Get SDK class and method
-    sdk_cls = getattr(orchestrator, sdk_class)
+    # SDK class lookup: context-grounding lives in context_grounding, not orchestrator
+    if sdk_class == "ContextGroundingService":
+        sdk_cls = getattr(cg_module, sdk_class)
+    else:
+        sdk_cls = getattr(orchestrator, sdk_class)
     sdk_meth = getattr(sdk_cls, sdk_method)
 
-    # Get CLI service group and command
-    # Handle nested subgroups (e.g., "buckets_files")
-    if "_" in service:
-        # Nested subgroup (e.g., "buckets_files")
-        parts = service.split("_")
-        service_group = getattr(cli_services, parts[0])  # Get "buckets"
-        subgroup = service_group.commands[parts[1]]  # Get "files" subgroup
+    # Services that are nested sub-groups (e.g. "buckets_files" means
+    # cli_services.buckets.commands["files"].commands[command]).
+    # All other service keys resolve directly to a cli_services attribute
+    # (hyphens are converted to underscores: "context-grounding" → context_grounding).
+    NESTED_SERVICES = {
+        "buckets_files",
+        "context-grounding_deep-rag",
+        "context-grounding_batch-transform",
+    }
+
+    def _get_service_group(name: str) -> click.Group:
+        """Resolve a cli_services attribute, converting hyphens to underscores."""
+        return getattr(cli_services, name.replace("-", "_"))
+
+    if service in NESTED_SERVICES:
+        parent_name, sub_name = service.split("_", 1)
+        service_group = _get_service_group(parent_name)
+        subgroup = cast(click.Group, service_group.commands[sub_name])
         cli_cmd = subgroup.commands[command.replace("_", "-")]
     else:
-        # Top-level service group
-        service_group = getattr(cli_services, service)
+        service_group = _get_service_group(service)
         cli_cmd = service_group.commands[command.replace("_", "-")]
+
+    # CLI-only options per command (beyond the global CLI_ONLY_OPTIONS set).
+    CLI_EXCLUSIONS: dict[str, set[str]] = {
+        # retrieve: --index-id routes to retrieve_by_id, not retrieve — exclude from alignment
+        "context-grounding_retrieve": {"index_id"},
+        # create: CLI-only options that build the source object internally
+        "context-grounding_create": {"source_file", "bucket_source", "file_type"},
+        # batch-transform start: --columns-file is CLI-only (reads JSON, builds output_columns)
+        "context-grounding_batch-transform_start": {"columns_file"},
+    }
 
     # Get mappings and exclusions for this command
     mapping_key = f"{service}_{command}"
     param_mappings = PARAM_MAPPINGS.get(mapping_key, {})
     sdk_exclusions = SDK_EXCLUSIONS.get(mapping_key, set())
+    cli_exclusions = CLI_EXCLUSIONS.get(mapping_key, set())
 
     # Run alignment check
     assert_cli_sdk_alignment(
@@ -242,6 +352,7 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
         sdk_meth,
         param_mappings=param_mappings,
         exclude_sdk=sdk_exclusions,
+        exclude_cli=cli_exclusions,
     )
 
 

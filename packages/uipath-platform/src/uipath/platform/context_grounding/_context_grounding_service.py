@@ -3,6 +3,7 @@ from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 import httpx
 from pydantic import Field, TypeAdapter
+from typing_extensions import deprecated
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -33,6 +34,9 @@ from .context_grounding import (
     DeepRagCreationResponse,
     DeepRagResponse,
     EphemeralIndexUsage,
+    SearchMode,
+    UnifiedQueryResult,
+    UnifiedSearchScope,
 )
 from .context_grounding_index import ContextGroundingIndex
 from .context_grounding_payloads import (
@@ -193,6 +197,64 @@ class ContextGroundingService(FolderContext, BaseService):
                 index, folder_key=folder_key, folder_path=folder_path
             )
 
+    @traced(name="contextgrounding_retrieve_across_folders", run_type="uipath")
+    def retrieve_across_folders(
+        self,
+        name: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Retrieve all context grounding indexes across all folders.
+
+        This method fetches indexes from all folders without requiring a folder key.
+
+        Args:
+            name (Optional[str]): Optional name filter. If provided, only indexes
+                matching this name will be returned.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of indexes across all folders.
+        """
+        spec = self._retrieve_across_folders_spec(name=name)
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
+    @traced(name="contextgrounding_retrieve_across_folders", run_type="uipath")
+    async def retrieve_across_folders_async(
+        self,
+        name: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously retrieve all context grounding indexes across all folders.
+
+        This method fetches indexes from all folders without requiring a folder key.
+
+        Args:
+            name (Optional[str]): Optional name filter. If provided, only indexes
+                matching this name will be returned.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of indexes across all folders.
+        """
+        spec = self._retrieve_across_folders_spec(name=name)
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+            )
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_retrieve", run_type="uipath")
     def retrieve(
@@ -202,6 +264,9 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
     ) -> ContextGroundingIndex:
         """Retrieve context grounding index information by its name.
+
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to searching across all folders.
 
         Args:
             name (str): The name of the context index to retrieve.
@@ -214,10 +279,17 @@ class ContextGroundingService(FolderContext, BaseService):
         Raises:
             Exception: If no index with the given name is found.
         """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if not resolved_folder_key:
+            indexes = self.retrieve_across_folders(name=name)
+            try:
+                return next(index for index in indexes if index.name == name)
+            except StopIteration as e:
+                raise Exception("ContextGroundingIndex not found") from e
+
         spec = self._retrieve_spec(
             name,
-            folder_key=folder_key,
-            folder_path=folder_path,
+            folder_key=resolved_folder_key,
         )
 
         response = self.request(
@@ -245,6 +317,9 @@ class ContextGroundingService(FolderContext, BaseService):
     ) -> ContextGroundingIndex:
         """Asynchronously retrieve context grounding index information by its name.
 
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to searching across all folders.
+
         Args:
             name (str): The name of the context index to retrieve.
             folder_key (Optional[str]): The key of the folder where the index resides.
@@ -256,10 +331,17 @@ class ContextGroundingService(FolderContext, BaseService):
         Raises:
             Exception: If no index with the given name is found.
         """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if not resolved_folder_key:
+            indexes = await self.retrieve_across_folders_async(name=name)
+            try:
+                return next(index for index in indexes if index.name == name)
+            except StopIteration as e:
+                raise Exception("ContextGroundingIndex not found") from e
+
         spec = self._retrieve_spec(
             name,
-            folder_key=folder_key,
-            folder_path=folder_path,
+            folder_key=resolved_folder_key,
         )
 
         response = (
@@ -278,6 +360,62 @@ class ContextGroundingService(FolderContext, BaseService):
             )
         except StopIteration as e:
             raise Exception("ContextGroundingIndex not found") from e
+
+    @traced(name="contextgrounding_list", run_type="uipath")
+    def list(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """List all context grounding indexes in a folder.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: All indexes in the folder.
+        """
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        response = self.request(
+            "GET",
+            Endpoint("/ecs_/v2/indexes"),
+            params={"$expand": "dataSource"},
+            headers={**header_folder(folder_key, None)},
+        ).json()
+        return [
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
+        ]
+
+    @traced(name="contextgrounding_list", run_type="uipath")
+    async def list_async(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously list all context grounding indexes in a folder.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: All indexes in the folder.
+        """
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        response = (
+            await self.request_async(
+                "GET",
+                Endpoint("/ecs_/v2/indexes"),
+                params={"$expand": "dataSource"},
+                headers={**header_folder(folder_key, None)},
+            )
+        ).json()
+        return [
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
+        ]
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
     def retrieve_by_id(
@@ -460,20 +598,29 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     def create_ephemeral_index(
-        self, usage: EphemeralIndexUsage, attachments: list[str]
+        self,
+        usage: EphemeralIndexUsage,
+        attachments: List[str],
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
         Args:
             usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+            folder_key (Optional[str]): The folder key to scope the ephemeral index to.
+            folder_path (Optional[str]): The folder path to scope the ephemeral index to (resolved to a key if folder_key is not provided).
 
         Returns:
             ContextGroundingIndex: The created index information.
         """
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
+            folder_key=folder_key,
         )
 
         response = self.request(
@@ -488,20 +635,29 @@ class ContextGroundingService(FolderContext, BaseService):
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_create_ephemeral_index", run_type="uipath")
     async def create_ephemeral_index_async(
-        self, usage: EphemeralIndexUsage, attachments: list[str]
+        self,
+        usage: EphemeralIndexUsage,
+        attachments: List[str],
+        folder_key: str | None = None,
+        folder_path: str | None = None,
     ) -> ContextGroundingIndex:
         """Create a new ephemeral context grounding index.
 
         Args:
             usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+            folder_key (Optional[str]): The folder key to scope the ephemeral index to.
+            folder_path (Optional[str]): The folder path to scope the ephemeral index to (resolved to a key if folder_key is not provided).
 
         Returns:
             ContextGroundingIndex: The created index information.
         """
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
+            folder_key=folder_key,
         )
 
         response = await self.request_async(
@@ -579,7 +735,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -626,6 +782,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._batch_transform_creation_spec(
             index_id=index_id,
@@ -654,7 +811,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -701,6 +858,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._batch_transform_creation_spec(
             index_id=index_id,
@@ -729,7 +887,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -775,7 +933,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         prompt: Annotated[str, Field(max_length=250000)],
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: Annotated[
             str | None, Field(max_length=512)
         ] = None,
@@ -1025,6 +1183,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._deep_rag_creation_spec(
             index_id=index_id,
@@ -1087,6 +1246,7 @@ class ContextGroundingService(FolderContext, BaseService):
             if index and index.in_progress_ingestion():
                 raise IngestionInProgressException(index_name=index_name)
             index_id = index.id
+            folder_key = folder_key or index.folder_key
 
         spec = self._deep_rag_creation_spec(
             index_id=index_id,
@@ -1192,15 +1352,19 @@ class ContextGroundingService(FolderContext, BaseService):
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_search", run_type="uipath")
+    @deprecated("Use unified_search instead.")
     def search(
         self,
         name: str,
         query: str,
         number_of_results: int = 10,
+        threshold: Optional[float] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
         """Search for contextual information within a specific index.
+
+        This method is deprecated. Use unified_search instead.
 
         This method performs a semantic search against the specified context index,
         helping to find relevant information that can be used in automation processes.
@@ -1211,6 +1375,7 @@ class ContextGroundingService(FolderContext, BaseService):
             query (str): The search query in natural language.
             number_of_results (int, optional): Maximum number of results to return.
                 Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
 
         Returns:
             List[ContextGroundingQueryResponse]: A list of search results, each containing
@@ -1220,10 +1385,13 @@ class ContextGroundingService(FolderContext, BaseService):
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
 
+        folder_key = folder_key or index.folder_key
+
         spec = self._search_spec(
             name,
             query,
             number_of_results,
+            threshold=threshold if threshold is not None else 0.0,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -1241,15 +1409,19 @@ class ContextGroundingService(FolderContext, BaseService):
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_search", run_type="uipath")
+    @deprecated("Use unified_search_async instead.")
     async def search_async(
         self,
         name: str,
         query: str,
         number_of_results: int = 10,
+        threshold: Optional[float] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> List[ContextGroundingQueryResponse]:
         """Search asynchronously for contextual information within a specific index.
+
+        This method is deprecated. Use unified_search_async instead.
 
         This method performs a semantic search against the specified context index,
         helping to find relevant information that can be used in automation processes.
@@ -1260,6 +1432,7 @@ class ContextGroundingService(FolderContext, BaseService):
             query (str): The search query in natural language.
             number_of_results (int, optional): Maximum number of results to return.
                 Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
 
         Returns:
             List[ContextGroundingQueryResponse]: A list of search results, each containing
@@ -1272,10 +1445,14 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
+
+        folder_key = folder_key or index.folder_key
+
         spec = self._search_spec(
             name,
             query,
             number_of_results,
+            threshold=threshold if threshold is not None else 0.0,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -1290,6 +1467,120 @@ class ContextGroundingService(FolderContext, BaseService):
         return TypeAdapter(List[ContextGroundingQueryResponse]).validate_python(
             response.json()
         )
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_unified_search", run_type="uipath")
+    def unified_search(
+        self,
+        name: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.AUTO,
+        number_of_results: int = 10,
+        threshold: float = 0.0,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> UnifiedQueryResult:
+        """Perform a unified search on a context grounding index.
+
+        This method performs a unified search (v1.2) against the specified context index,
+        supporting both semantic and tabular search modes.
+
+        Args:
+            name (str): The name of the context index to search in.
+            query (str): The search query in natural language.
+            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            number_of_results (int): Maximum number of results to return. Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
+            scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Returns:
+            UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+        """
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+
+        folder_key = folder_key or index.folder_key
+
+        spec = self._unified_search_spec(
+            index_id=index.id,
+            query=query,
+            search_mode=search_mode,
+            number_of_results=number_of_results,
+            threshold=threshold,
+            scope=scope,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return UnifiedQueryResult.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_unified_search", run_type="uipath")
+    async def unified_search_async(
+        self,
+        name: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.AUTO,
+        number_of_results: int = 10,
+        threshold: float = 0.0,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> UnifiedQueryResult:
+        """Asynchronously perform a unified search on a context grounding index.
+
+        This method performs a unified search (v1.2) against the specified context index,
+        supporting both semantic and tabular search modes.
+
+        Args:
+            name (str): The name of the context index to search in.
+            query (str): The search query in natural language.
+            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            number_of_results (int): Maximum number of results to return. Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
+            scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Returns:
+            UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+        """
+        index = await self.retrieve_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+        if index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=name)
+
+        folder_key = folder_key or index.folder_key
+
+        spec = self._unified_search_spec(
+            index_id=index.id,
+            query=query,
+            search_mode=search_mode,
+            number_of_results=number_of_results,
+            threshold=threshold,
+            scope=scope,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return UnifiedQueryResult.model_validate(response.json())
 
     @traced(name="contextgrounding_ingest_data", run_type="uipath")
     def ingest_data(
@@ -1417,6 +1708,184 @@ class ContextGroundingService(FolderContext, BaseService):
             headers=spec.headers,
         )
 
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_list", run_type="uipath")
+    def list_indexes(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """List all context grounding indexes in a folder.
+
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to listing across all folders.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of all indexes in the folder.
+        """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if not resolved_folder_key:
+            return self.retrieve_across_folders()
+
+        spec = self._list_spec(folder_key=resolved_folder_key)
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
+        ]
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_list", run_type="uipath")
+    async def list_indexes_async(
+        self,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously list all context grounding indexes in a folder.
+
+        If no folder_key or folder_path is provided and no folder context is
+        configured, falls back to listing across all folders.
+
+        Args:
+            folder_key (Optional[str]): The key of the folder to list indexes from.
+            folder_path (Optional[str]): The path of the folder to list indexes from.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of all indexes in the folder.
+        """
+        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        if not resolved_folder_key:
+            return await self.retrieve_across_folders_async()
+
+        spec = self._list_spec(folder_key=resolved_folder_key)
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
+            )
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item)
+            for item in response.get("value", [])
+        ]
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_delete_by_name", run_type="uipath")
+    def delete_by_name(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Delete a context grounding index by its name.
+
+        This method retrieves the index by name and then deletes it.
+
+        Args:
+            name (str): The name of the context index to delete.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+        """
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+        self.delete_index(index, folder_key=folder_key, folder_path=folder_path)
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_delete_by_name", run_type="uipath")
+    async def delete_by_name_async(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Asynchronously delete a context grounding index by its name.
+
+        This method retrieves the index by name and then deletes it.
+
+        Args:
+            name (str): The name of the context index to delete.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+        """
+        index = await self.retrieve_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+        await self.delete_index_async(
+            index, folder_key=folder_key, folder_path=folder_path
+        )
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_ingest_by_name", run_type="uipath")
+    def ingest_by_name(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Trigger ingestion on a context grounding index by its name.
+
+        This method retrieves the index by name and then triggers data ingestion.
+
+        Args:
+            name (str): The name of the context index to ingest.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+            IngestionInProgressException: If ingestion is already in progress.
+        """
+        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+        self.ingest_data(index, folder_key=folder_key, folder_path=folder_path)
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_ingest_by_name", run_type="uipath")
+    async def ingest_by_name_async(
+        self,
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Asynchronously trigger ingestion on a context grounding index by its name.
+
+        This method retrieves the index by name and then triggers data ingestion.
+
+        Args:
+            name (str): The name of the context index to ingest.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Raises:
+            Exception: If no index with the given name is found.
+            IngestionInProgressException: If ingestion is already in progress.
+        """
+        index = await self.retrieve_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+        await self.ingest_data_async(
+            index, folder_key=folder_key, folder_path=folder_path
+        )
+
     def _ingest_spec(
         self,
         key: str,
@@ -1428,6 +1897,37 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{key}/ingest"),
+            headers={
+                **header_folder(folder_key, None),
+            },
+        )
+
+    def _retrieve_across_folders_spec(
+        self,
+        name: Optional[str] = None,
+    ) -> RequestSpec:
+        params: Dict[str, str] = {
+            "$expand": "dataSource",
+        }
+        if name:
+            params["$filter"] = f"Name eq '{name}'"
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes/allacrossfolders"),
+            params=params,
+        )
+
+    def _list_spec(
+        self,
+        folder_key: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes"),
+            params={
+                "$expand": "dataSource",
+            },
             headers={
                 **header_folder(folder_key, None),
             },
@@ -1508,13 +2008,15 @@ class ContextGroundingService(FolderContext, BaseService):
     def _create_ephemeral_spec(
         self,
         usage: str,
-        attachments: list[str],
+        attachments: List[str],
+        folder_key: str | None = None,
     ) -> RequestSpec:
         """Create request spec for ephemeral index creation.
 
         Args:
             usage (str): The task in which the ephemeral index will be used for
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
+            folder_key (Optional[str]): The folder key to scope the ephemeral index to.
 
         Returns:
             RequestSpec for the create index request
@@ -1530,7 +2032,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={},
+            headers={**header_folder(folder_key, None)},
         )
 
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
@@ -1601,7 +2103,7 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return data_source.model_dump(by_alias=True, exclude_none=True)
 
-    def _build_ephemeral_data_source(self, attachments: list[str]) -> Dict[str, Any]:
+    def _build_ephemeral_data_source(self, attachments: List[str]) -> Dict[str, Any]:
         """Build data source configuration from typed source config.
 
         Args:
@@ -1654,6 +2156,7 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         query: str,
         number_of_results: int = 10,
+        threshold: float = 0.0,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
@@ -1663,9 +2166,49 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v1/search"),
             json={
-                "query": {"query": query, "numberOfResults": number_of_results},
+                "query": {
+                    "query": query,
+                    "numberOfResults": number_of_results,
+                    "threshold": threshold,
+                },
                 "schema": {"name": name},
             },
+            headers={
+                **header_folder(folder_key, None),
+            },
+        )
+
+    def _unified_search_spec(
+        self,
+        index_id: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.AUTO,
+        number_of_results: int = 10,
+        threshold: float = 0.0,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        json_body: Dict[str, Any] = {
+            "searchMode": search_mode.value
+            if isinstance(search_mode, SearchMode)
+            else search_mode,
+            "query": query,
+            "semanticSearchOptions": {
+                "numberOfResults": number_of_results,
+                "threshold": threshold,
+            },
+        }
+
+        if scope is not None:
+            json_body["scope"] = scope.model_dump(by_alias=True, exclude_none=True)
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(f"/ecs_/v1.2/search/{index_id}"),
+            json=json_body,
             headers={
                 **header_folder(folder_key, None),
             },
@@ -1728,7 +2271,7 @@ class ContextGroundingService(FolderContext, BaseService):
         index_id: str,
         name: str,
         enable_web_search_grounding: bool,
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: str | None,
         target_file_name: str | None,
         prompt: str,
@@ -1778,7 +2321,7 @@ class ContextGroundingService(FolderContext, BaseService):
         index_id: str | None,
         name: str,
         enable_web_search_grounding: bool,
-        output_columns: list[BatchTransformOutputColumn],
+        output_columns: List[BatchTransformOutputColumn],
         storage_bucket_folder_path_prefix: str | None,
         prompt: str,
     ) -> RequestSpec:
@@ -1808,7 +2351,6 @@ class ContextGroundingService(FolderContext, BaseService):
             endpoint=Endpoint(f"/ecs_/v2/deeprag/{id}"),
             params={
                 "$expand": "content",
-                "$select": "id,content,name,createdDate,lastDeepRagStatus,failureReason",
             },
         )
 

@@ -15,6 +15,7 @@ from uipath.platform.common import (
 )
 
 from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
+from ..models.runtime_schema import EntryPoint
 from ..spinner import Spinner
 from ._console import ConsoleLogger
 from ._studio_project import (
@@ -106,6 +107,36 @@ def clean_directory(directory: str) -> None:
             os.remove(file_path)
 
 
+def determine_project_type(entrypoints: list[EntryPoint]) -> str:
+    """Determine the project type from entrypoints.
+
+    Returns the type of the first entrypoint, or "function" if no entrypoints exist.
+    Logs a warning if there are multiple entrypoint types.
+
+    Args:
+        entrypoints: List of EntryPoint objects.
+
+    Returns:
+        The project type string (e.g. "agent" or "function").
+    """
+    if not entrypoints:
+        return "function"
+
+    unique_types = set(ep.type for ep in entrypoints)
+    chosen_type = entrypoints[0].type
+
+    if len(unique_types) > 1:
+        console = ConsoleLogger()
+        types_str = ", ".join(sorted(unique_types))
+        console.warning(
+            f"Mixed entrypoint types detected: [{types_str}]. "
+            f'Defaulting project type to "{chosen_type}". '
+            f"We recommend using a single type for all entrypoints."
+        )
+
+    return chosen_type
+
+
 async def ensure_coded_agent_project(studio_client: StudioClient):
     try:
         await studio_client.ensure_coded_agent_project_async()
@@ -142,11 +173,14 @@ async def may_override_files(
 
     local_version_display = local_code_version if local_code_version else "Not Set"
 
-    try:
-        push_date = datetime.fromisoformat(remote_metadata.last_push_date)
-        formatted_date = push_date.strftime("%b %d, %Y at %I:%M %p UTC")
-    except (ValueError, TypeError):
-        formatted_date = remote_metadata.last_push_date
+    if not remote_metadata.last_push_date:
+        formatted_date = "unknown"
+    else:
+        try:
+            push_date = datetime.fromisoformat(remote_metadata.last_push_date)
+            formatted_date = push_date.strftime("%b %d, %Y at %I:%M %p UTC")
+        except (ValueError, TypeError):
+            formatted_date = remote_metadata.last_push_date
 
     console = ConsoleLogger()
     console.warning("Your local version is behind the remote version.")

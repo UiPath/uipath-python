@@ -1,3 +1,5 @@
+import asyncio
+
 import click
 
 from ._auth._auth_service import AuthService
@@ -52,20 +54,35 @@ def auth(
     tenant: str | None = None,
     scope: str | None = None,
 ):
-    """Authenticate with UiPath Cloud Platform.
+    r"""Authenticate with UiPath Cloud Platform.
 
-    The domain for authentication is determined by the UIPATH_URL environment variable if set.
-    Otherwise, it can be specified with --cloud (default), --staging, or --alpha flags.
+    The authentication domain is determined in the following order:
 
-    Interactive mode (default): Opens browser for OAuth authentication.
+    1. The ``UIPATH_URL`` environment variable (if set).
+    2. A flag: ``--cloud`` (default), ``--staging``, or ``--alpha``.
 
-    Unattended mode: Use --client-id, --client-secret, --base-url and --scope for client credentials flow.
+    **Modes:**
 
-    Network options:
+    - Interactive (default): Opens a browser window for OAuth authentication.
+    - Unattended: Uses the client credentials flow. Requires ``--client-id``,
+      ``--client-secret``, ``--base-url``, and ``--scope``.
 
-    - Set HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables for proxy configuration
-    - Set REQUESTS_CA_BUNDLE to specify a custom CA bundle for SSL verification
-    - Set UIPATH_DISABLE_SSL_VERIFY to disable SSL verification (not recommended)
+    **Environment Variables:**
+
+    - ``HTTP_PROXY`` / ``HTTPS_PROXY`` / ``NO_PROXY`` — proxy configuration.
+    - ``REQUESTS_CA_BUNDLE`` — path to a custom CA bundle for SSL verification.
+    - ``UIPATH_DISABLE_SSL_VERIFY`` — disables SSL verification (not recommended).
+
+    **Examples:**
+
+        Interactive login (opens browser for OAuth):
+
+        $ uipath auth
+
+        Unattended login using client credentials:
+
+        $ uipath auth --base-url https://cloud.uipath.com/organization/tenant --client-id 00000000-0000-0000-0000-000000000000 --client-secret 'secret_value_here'
+
     """
     auth_service = AuthService(
         environment=environment,
@@ -78,7 +95,7 @@ def auth(
     )
     with console.spinner("Authenticating with UiPath ..."):
         try:
-            auth_service.authenticate()
+            asyncio.run(auth_service.authenticate())
             console.success(
                 "Authentication successful.",
             )

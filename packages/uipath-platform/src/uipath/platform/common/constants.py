@@ -22,10 +22,12 @@ ENV_PROCESS_KEY = "UIPATH_PROCESS_KEY"
 ENV_UIPATH_PROCESS_UUID = "UIPATH_PROCESS_UUID"
 ENV_UIPATH_TRACE_ID = "UIPATH_TRACE_ID"
 ENV_UIPATH_PROCESS_VERSION = "UIPATH_PROCESS_VERSION"
+ENV_UIPATH_CONFIG_PATH = "UIPATH_CONFIG_PATH"
 
 # Headers
 HEADER_FOLDER_KEY = "x-uipath-folderkey"
 HEADER_FOLDER_PATH = "x-uipath-folderpath"
+HEADER_FOLDER_PATH_ENCODED = "x-uipath-folderpath-encoded"
 HEADER_USER_AGENT = "x-uipath-user-agent"
 HEADER_TENANT_ID = "x-uipath-tenantid"
 HEADER_INTERNAL_TENANT_ID = "x-uipath-internal-tenantid"
@@ -77,6 +79,7 @@ UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 ENTRY_POINTS_FILE = "entry-points.json"
 STUDIO_METADATA_FILE = "studio_metadata.json"
+UIPROJ_FILE = "project.uiproj"
 
 
 # Folder names

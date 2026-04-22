@@ -130,6 +130,7 @@ class TestResourceOverrides:
                 "deployed": [
                     {
                         "systemName": "app-key-123",
+                        "deploymentTitle": "Overwritten App Name",
                         "deploymentFolder": {
                             "fullyQualifiedName": "Overwritten/App/Folder"
                         },
@@ -308,6 +309,11 @@ class TestResourceOverrides:
         mcp_server = parsed_overwrites["mcpServer.mcp_server_name"]
         assert mcp_server.resource_identifier == "Overwritten MCP Server Name"
         assert mcp_server.folder_identifier == "Overwritten/MCPServer/Folder"
+
+        # Verify entity overwrite
+        entity = parsed_overwrites["entity.entity_name"]
+        assert entity.resource_identifier == "Overwritten Entity Name"
+        assert entity.folder_identifier == "overwritten-entity-folder-id-123"
 
     def test_overrides_decorator_should_pop_kwargs_dict_when_present(self):
         from uipath.platform.common import resource_override

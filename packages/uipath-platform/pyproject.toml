@@ -1,6 +1,6 @@
 [project]
 name = "uipath-platform"
-version = "0.0.15"
+version = "0.1.34"
 description = "HTTP client library for programmatic access to UiPath Platform"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -8,8 +8,9 @@ dependencies = [
   "httpx>=0.28.1",
   "tenacity>=9.0.0",
   "truststore>=0.10.1",
-  "uipath-core>=0.5.4, <0.6.0",
+  "uipath-core>=0.5.8, <0.6.0",
   "pydantic-function-models>=0.1.11",
+  "sqlparse>=0.5.5",
 ]
 classifiers = [
   "Intended Audience :: Developers",
@@ -97,9 +98,12 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q --cov=src/uipath --cov-report=term-missing"
+addopts = "-ra -q --cov=src/uipath --cov-report=term-missing -m 'not e2e'"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests against real ECS/LLMOps (requires UIPATH_URL, UIPATH_ACCESS_TOKEN, UIPATH_FOLDER_KEY)",
+]
 
 [tool.coverage.report]
 show_missing = true

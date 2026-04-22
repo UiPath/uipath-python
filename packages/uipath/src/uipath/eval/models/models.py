@@ -160,6 +160,7 @@ class LegacyEvaluatorType(IntEnum):
     Trajectory = 7
     ContextPrecision = 8
     Faithfulness = 9
+    CSVColumnExactMatch = 10
 
     @classmethod
     def from_int(cls, value: int) -> "LegacyEvaluatorType":

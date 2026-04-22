@@ -128,6 +128,7 @@ uv run uipath run --resume
 | `--trace-file` | value | `Sentinel.UNSET` | File path where traces will be written in JSONL format |
 | `--max-llm-concurrency` | value | `20` | Maximum concurrent LLM requests (default: 20) |
 | `--resume` | flag | false | Resume execution from a previous suspended state |
+| `--verbose` | flag | false | Include agent execution output (trace, result) in the output file |
 
 **Usage Examples:**
 
@@ -613,6 +614,335 @@ Options:
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+---
+
+### `uipath context-grounding`
+
+Manage UiPath Context Grounding indexes.
+
+    Context Grounding indexes store and search contextual information
+    used to enhance AI-enabled automation processes.
+
+    
+    Two index types:
+        Regular   - Persistent, backed by bucket or connection, created via 'create'
+        Ephemeral - Temporary, no Orchestrator folder, created from local files via 'create-ephemeral'
+
+    
+    Examples:
+        uipath context-grounding list --folder-path "Shared"
+    
+
+**Subcommands:**
+
+#### `uipath context-grounding batch-transform`
+
+Manage Batch Transform tasks.
+
+    Batch Transform processes and transforms CSV files from context
+    grounding indexes.
+
+    
+    Examples:
+        uipath context-grounding batch-transform start --help
+    
+
+**`uipath context-grounding batch-transform download`**
+
+Download a Batch Transform result file.
+
+    
+    Examples:
+        uipath context-grounding batch-transform download --task-id abc-123 --output-file result.csv
+    
+
+Options:
+- `--task-id`: ID of the Batch Transform task (default: `Sentinel.UNSET`)
+- `--output-file`: Local destination path for the result file (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding batch-transform retrieve`**
+
+Retrieve a Batch Transform task status.
+
+    
+    Examples:
+        uipath context-grounding batch-transform retrieve --task-id abc-123-def-456
+    
+
+Options:
+- `--task-id`: ID of the Batch Transform task (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding batch-transform start`**
+
+Start a Batch Transform task on an index.
+
+    The index must contain CSV files. Only one file is processed per task.
+
+    
+    Two ways to specify the index:
+        Regular index:   --index-name + --folder-path
+        Ephemeral index: --index-id
+
+    
+    --columns-file is a JSON array defining output columns:
+        [
+          {"name": "entity", "description": "Extracted entity name"},
+          {"name": "category", "description": "Entity category"}
+        ]
+
+    
+    Examples:
+        uipath context-grounding batch-transform start --index-name my-index --task-name my-task --prompt "Extract" --columns-file cols.json
+        uipath context-grounding batch-transform start --index-id abc-123 --task-name my-task --prompt "Extract" --columns-file cols.json
+    
+
+Options:
+- `--index-name`: Name of the context grounding index (default: `Sentinel.UNSET`)
+- `--index-id`: ID of the context grounding index (ephemeral indexes only) (default: `Sentinel.UNSET`)
+- `--task-name`: Name for the Batch Transform task (default: `Sentinel.UNSET`)
+- `--prompt`: Task prompt describing what to process (default: `Sentinel.UNSET`)
+- `--columns-file`: JSON file defining output columns (see format above) (default: `Sentinel.UNSET`)
+- `--target-file`: Specific file name to target in the index (default: `Sentinel.UNSET`)
+- `--prefix`: Storage bucket folder path prefix for filtering files (default: `Sentinel.UNSET`)
+- `--web-search`: Enable web search grounding
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding create`**
+
+Create a new context grounding index (persistent).
+
+    The created index lives in an Orchestrator folder. Ingestion must be
+    triggered separately after creation.
+
+    
+    Two ways to specify the data source:
+        --bucket-source   Bucket name for bucket-backed indexes
+        --source-file     JSON file for connections (use 'source-schema' to see formats)
+
+    
+    Examples:
+        uipath context-grounding create --index-name my-index --bucket-source my-bucket
+        uipath context-grounding create --index-name my-index --source-file config.json
+    
+
+Options:
+- `--index-name`: Name of the index to create (default: `Sentinel.UNSET`)
+- `--source-file`: JSON file with connection source configuration (Google Drive, OneDrive, Dropbox, Confluence) (default: `Sentinel.UNSET`)
+- `--bucket-source`: Bucket name for bucket-backed indexes (default: `Sentinel.UNSET`)
+- `--description`: Description of the index (default: ``)
+- `--extraction-strategy`: Extraction strategy (default: LLMV4) (default: `LLMV4`)
+- `--file-type`: File type filter (e.g., 'pdf', 'txt') (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding create-ephemeral`**
+
+Create an ephemeral index from local files (temporary).
+
+    Uploads files as attachments and creates a temporary index. Reference it
+    in other commands with --index-id (no folder, no name). Ingestion starts
+    automatically. Poll with 'retrieve --index-id <id>' until
+    lastIngestionStatus is Successful before starting a task.
+
+    
+    Supported file types:
+        DeepRAG:  PDF, TXT
+        BatchRAG: CSV
+
+    
+    Examples:
+        uipath context-grounding create-ephemeral --usage DeepRAG --files doc1.pdf --files doc2.pdf
+        uipath context-grounding create-ephemeral --usage BatchRAG --files data.csv
+    
+
+Options:
+- `--usage`: Task type for the ephemeral index (default: `Sentinel.UNSET`)
+- `--files`: Local file paths to upload as attachments (repeatable) (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+#### `uipath context-grounding deep-rag`
+
+Manage Deep RAG tasks.
+
+    Deep RAG performs multi-document research and synthesis on context
+    grounding indexes.
+
+    
+    Examples:
+        uipath context-grounding deep-rag start --help
+    
+
+**`uipath context-grounding deep-rag retrieve`**
+
+Retrieve a Deep RAG task result (status, summary, citations).
+
+    
+    Examples:
+        uipath context-grounding deep-rag retrieve --task-id abc-123-def-456
+    
+
+Options:
+- `--task-id`: ID of the Deep RAG task (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding deep-rag start`**
+
+Start a Deep RAG task on an index.
+
+    
+    Two ways to specify the index:
+        Regular index:   --index-name + --folder-path
+        Ephemeral index: --index-id
+
+    
+    Examples:
+        uipath context-grounding deep-rag start --index-name my-index --folder-path Shared --task-name my-task --prompt "Summarize"
+        uipath context-grounding deep-rag start --index-id abc-123 --task-name my-task --prompt "Summarize"
+    
+
+Options:
+- `--index-name`: Name of the context grounding index (default: `Sentinel.UNSET`)
+- `--index-id`: ID of the context grounding index (ephemeral indexes only) (default: `Sentinel.UNSET`)
+- `--task-name`: Name for the Deep RAG task (default: `Sentinel.UNSET`)
+- `--prompt`: Task prompt describing what to research (default: `Sentinel.UNSET`)
+- `--glob-pattern`: Glob pattern to filter files in the index (default: **) (default: `**`)
+- `--citation-mode`: Citation mode (default: Skip) (default: `Skip`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding delete`**
+
+Delete a context grounding index.
+
+    
+    Examples:
+        uipath context-grounding delete --index-name my-index --confirm
+        uipath context-grounding delete --index-name my-index --dry-run
+    
+
+Options:
+- `--index-name`: Name of the index to delete (default: `Sentinel.UNSET`)
+- `--confirm`: Skip confirmation prompt
+- `--dry-run`: Show what would be deleted without deleting
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding ingest`**
+
+Trigger ingestion on a context grounding index.
+
+    Ingestion runs asynchronously. Use 'retrieve' to poll lastIngestionStatus
+    until it reaches Successful or Failed.
+
+    
+    Examples:
+        uipath context-grounding ingest --index-name my-index --folder-path "Shared"
+    
+
+Options:
+- `--index-name`: Name of the index to ingest (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding list`**
+
+List all context grounding indexes.
+
+    
+    Examples:
+        uipath context-grounding list --folder-path "Shared"
+    
+
+Options:
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding retrieve`**
+
+Retrieve a context grounding index.
+
+    
+    Two ways to specify the index:
+        Regular index:   --index-name + --folder-path
+        Ephemeral index: --index-id
+
+    
+    Examples:
+        uipath context-grounding retrieve --index-name my-index --folder-path "Shared"
+        uipath context-grounding retrieve --index-id abc-123-def-456 --format json
+    
+
+Options:
+- `--index-name`: Name of the index to retrieve (default: `Sentinel.UNSET`)
+- `--index-id`: ID of the index to retrieve (ephemeral indexes only) (default: `Sentinel.UNSET`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding search`**
+
+Search a context grounding index (regular indexes only).
+
+    
+    Examples:
+        uipath context-grounding search --index-name my-index --query "What is the revenue?"
+        uipath context-grounding search --index-name my-index --query "results" --limit 5
+    
+
+Options:
+- `--index-name`: Name of the index to search (default: `Sentinel.UNSET`)
+- `--query`: Search query in natural language (default: `Sentinel.UNSET`)
+- `--limit`: Maximum number of results (default: 10) (default: `10`)
+- `--threshold`: Minimum similarity threshold (default: 0.0) (default: `0.0`)
+- `--search-mode`: Search mode (default: Auto) (default: `Auto`)
+- `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
+- `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
+- `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
+- `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+**`uipath context-grounding source-schema`**
+
+Show JSON source file formats for connection-backed indexes.
+
+    Use this to see the required fields for --source-file when creating
+    an index backed by Google Drive, OneDrive, Dropbox, or Confluence.
+
+    
+    Examples:
+        uipath context-grounding source-schema --type google_drive
+    
+
+Options:
+- `--type`: Show schema for a specific source type (omit to show all) (default: `Sentinel.UNSET`)
 
 ---
 

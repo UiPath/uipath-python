@@ -5,10 +5,13 @@ from unittest.mock import MagicMock, patch
 
 from uipath.telemetry._track import (
     _AppInsightsEventClient,
+    _DiagnosticSender,
     _parse_connection_string,
     _TelemetryClient,
     flush_events,
     is_telemetry_enabled,
+    reset_event_client,
+    set_event_connection_string_provider,
     track,
     track_event,
 )
@@ -81,11 +84,13 @@ class TestAppInsightsEventClient:
         """Reset AppInsightsEventClient state before each test."""
         _AppInsightsEventClient._initialized = False
         _AppInsightsEventClient._client = None
+        _AppInsightsEventClient._connection_string_provider = None
 
     def teardown_method(self):
         """Clean up after each test."""
         _AppInsightsEventClient._initialized = False
         _AppInsightsEventClient._client = None
+        _AppInsightsEventClient._connection_string_provider = None
 
     @patch("uipath.telemetry._track._CONNECTION_STRING", "$CONNECTION_STRING")
     def test_initialize_no_connection_string(self):
@@ -254,6 +259,164 @@ class TestAppInsightsEventClient:
 
         # Should not raise any exception
         _AppInsightsEventClient.flush()
+
+    @patch("uipath.telemetry._track.TelemetryChannel")
+    @patch("uipath.telemetry._track.SynchronousQueue")
+    @patch("uipath.telemetry._track._DiagnosticSender")
+    @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
+    @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
+    def test_connection_string_provider_overrides_default(
+        self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
+    ):
+        """Test that a custom provider is used instead of _get_connection_string."""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        def provider() -> str:
+            return (
+                "InstrumentationKey=from-provider;IngestionEndpoint=https://custom.com/"
+            )
+
+        _AppInsightsEventClient.set_connection_string_provider(provider)
+
+        _AppInsightsEventClient._initialize()
+
+        assert _AppInsightsEventClient._client is mock_client
+        mock_client_class.assert_called_once_with(
+            "from-provider", telemetry_channel=mock_channel_class.return_value
+        )
+        mock_sender_class.assert_called_once_with(
+            service_endpoint_uri="https://custom.com/v2/track"
+        )
+
+    @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
+    def test_connection_string_provider_returning_none_skips_client(self):
+        """Test that provider returning None results in no client."""
+        _AppInsightsEventClient.set_connection_string_provider(lambda: None)
+
+        _AppInsightsEventClient._initialize()
+
+        assert _AppInsightsEventClient._initialized is True
+        assert _AppInsightsEventClient._client is None
+
+    @patch("uipath.telemetry._track.TelemetryChannel")
+    @patch("uipath.telemetry._track.SynchronousQueue")
+    @patch("uipath.telemetry._track._DiagnosticSender")
+    @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
+    @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
+    @patch(
+        "uipath.telemetry._track._CONNECTION_STRING",
+        "InstrumentationKey=builtin-key",
+    )
+    def test_provider_bypasses_builtin_fallback(
+        self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
+    ):
+        """Test that provider prevents fallback to _CONNECTION_STRING."""
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        _AppInsightsEventClient.set_connection_string_provider(
+            lambda: "InstrumentationKey=provider-key"
+        )
+
+        with patch.dict(os.environ, {}, clear=True):
+            _AppInsightsEventClient._initialize()
+
+        # Should use provider-key, not builtin-key
+        mock_client_class.assert_called_once_with(
+            "provider-key", telemetry_channel=mock_channel_class.return_value
+        )
+
+    def test_reset_clears_initialized_and_client(self):
+        """Test that reset clears initialized flag and client."""
+        _AppInsightsEventClient._initialized = True
+        _AppInsightsEventClient._client = MagicMock()
+
+        _AppInsightsEventClient.reset()
+
+        assert _AppInsightsEventClient._initialized is False
+        assert _AppInsightsEventClient._client is None
+
+    def test_reset_flushes_before_clearing(self):
+        """Test that reset flushes pending events before clearing."""
+        mock_client = MagicMock()
+        _AppInsightsEventClient._initialized = True
+        _AppInsightsEventClient._client = mock_client
+
+        _AppInsightsEventClient.reset()
+
+        mock_client.flush.assert_called_once()
+
+    @patch("uipath.telemetry._track.TelemetryChannel")
+    @patch("uipath.telemetry._track.SynchronousQueue")
+    @patch("uipath.telemetry._track._DiagnosticSender")
+    @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
+    @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
+    def test_reset_allows_reinitialization_with_new_connection_string(
+        self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
+    ):
+        """Test that after reset, next initialize reads current env."""
+        mock_client_1 = MagicMock()
+        mock_client_2 = MagicMock()
+        mock_client_class.side_effect = [mock_client_1, mock_client_2]
+
+        # First init with connection string A
+        with patch.dict(
+            os.environ,
+            {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=key-a"},
+        ):
+            _AppInsightsEventClient._initialize()
+
+        assert _AppInsightsEventClient._client is mock_client_1
+
+        # Reset
+        _AppInsightsEventClient.reset()
+
+        # Second init with connection string B
+        with patch.dict(
+            os.environ,
+            {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=key-b"},
+        ):
+            _AppInsightsEventClient._initialize()
+
+        assert _AppInsightsEventClient._client is mock_client_2
+        assert mock_client_class.call_count == 2
+
+
+class TestPublicProviderAndResetFunctions:
+    """Test the public set_event_connection_string_provider and reset_event_client."""
+
+    def setup_method(self) -> None:
+        """Reset state before each test."""
+        _AppInsightsEventClient._initialized = False
+        _AppInsightsEventClient._client = None
+        _AppInsightsEventClient._connection_string_provider = None
+
+    def teardown_method(self) -> None:
+        """Clean up after each test."""
+        _AppInsightsEventClient._initialized = False
+        _AppInsightsEventClient._client = None
+        _AppInsightsEventClient._connection_string_provider = None
+
+    def test_set_event_connection_string_provider_sets_provider(self) -> None:
+        """Test that the public function sets the provider on the client."""
+
+        def provider() -> str:
+            return "InstrumentationKey=test"
+
+        set_event_connection_string_provider(provider)
+
+        assert _AppInsightsEventClient._connection_string_provider is provider
+
+    def test_reset_event_client_resets_state(self) -> None:
+        """Test that the public function resets client state."""
+        _AppInsightsEventClient._initialized = True
+        _AppInsightsEventClient._client = MagicMock()
+
+        reset_event_client()
+
+        assert _AppInsightsEventClient._initialized is False
+        assert _AppInsightsEventClient._client is None
 
 
 class TestTelemetryClient:
@@ -544,3 +707,118 @@ class TestTelemetryExceptionHandling:
 
         assert _AppInsightsEventClient._initialized is True
         assert _AppInsightsEventClient._client is None
+
+
+class TestDiagnosticSender:
+    """Test _DiagnosticSender retry, re-queue, and discard logic."""
+
+    def _make_sender(self):
+        """Create a _DiagnosticSender with a mock queue."""
+        sender = _DiagnosticSender.__new__(_DiagnosticSender)
+        sender._service_endpoint_uri = "https://example.com/v2/track"
+        sender._timeout = 10
+        sender._queue = MagicMock()
+        return sender
+
+    def _make_data_item(self, send_attempts=None):
+        item = MagicMock()
+        item.write.return_value = {"name": "test"}
+        if send_attempts is not None:
+            item._send_attempts = send_attempts
+        else:
+            del item._send_attempts
+        return item
+
+    @patch("urllib.request.urlopen")
+    def test_successful_send_does_not_requeue(self, mock_urlopen):
+        """Test that a 2xx response returns early without re-queuing."""
+        sender = self._make_sender()
+        mock_response = MagicMock()
+        mock_response.getcode.return_value = 200
+        mock_urlopen.return_value = mock_response
+
+        data = [self._make_data_item()]
+        sender.send(data)
+
+        sender._queue.put.assert_not_called()
+
+    @patch("urllib.request.urlopen")
+    def test_http_400_discards_without_requeue(self, mock_urlopen):
+        """Test that HTTP 400 logs a warning and returns before retry logic."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com",
+            code=400,
+            msg="Bad Request",
+            hdrs=MagicMock(),
+            fp=None,
+        )
+
+        data = [self._make_data_item()]
+        sender.send(data)
+
+        sender._queue.put.assert_not_called()
+
+    @patch("urllib.request.urlopen")
+    def test_multiple_fresh_items_all_requeued_on_failure(self, mock_urlopen):
+        """Test that all fresh items in a batch are re-queued on failure."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com",
+            code=503,
+            msg="Unavailable",
+            hdrs=MagicMock(),
+            fp=None,
+        )
+
+        items = [self._make_data_item() for _ in range(3)]
+        sender.send(items)
+
+        assert sender._queue.put.call_count == 3
+        for item in items:
+            assert item._send_attempts == 1
+
+    @patch("urllib.request.urlopen")
+    def test_item_with_one_prior_attempt_is_discarded(self, mock_urlopen):
+        """Test that an already-retried item (attempt=1) is discarded on next failure."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com",
+            code=500,
+            msg="Server Error",
+            hdrs=MagicMock(),
+            fp=None,
+        )
+
+        item = self._make_data_item(send_attempts=1)  # already retried once
+        sender.send([item])
+
+        sender._queue.put.assert_not_called()
+
+    @patch("urllib.request.urlopen")
+    def test_mixed_batch_requeues_fresh_discards_retried(self, mock_urlopen):
+        """Test a batch with both fresh and already-retried items."""
+        from urllib.error import HTTPError
+
+        sender = self._make_sender()
+        mock_urlopen.side_effect = HTTPError(
+            url="https://example.com",
+            code=502,
+            msg="Bad Gateway",
+            hdrs=MagicMock(),
+            fp=None,
+        )
+
+        fresh_item = self._make_data_item()  # no prior attempts
+        retried_item = self._make_data_item(send_attempts=1)  # already retried
+
+        sender.send([fresh_item, retried_item])
+
+        sender._queue.put.assert_called_once_with(fresh_item)
+        assert fresh_item._send_attempts == 1

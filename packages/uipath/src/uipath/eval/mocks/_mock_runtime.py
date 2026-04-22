@@ -28,13 +28,14 @@ from ._types import (
     LLMMockingStrategy,
     MockingContext,
     MockingStrategyType,
+    ModelSettings,
     ToolSimulation,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def load_simulation_config() -> MockingContext | None:
+def load_simulation_config(agent_model: str | None = None) -> MockingContext | None:
     """Load simulation.json from current directory and convert to MockingContext.
 
     Returns:
@@ -63,11 +64,21 @@ def load_simulation_config() -> MockingContext | None:
         if not tools_to_simulate:
             return None
 
-        # Create LLM mocking strategy
+        # Honor model from simulation config if specified, otherwise use the agent model
+        simulation_model = simulation_data.get("model")
+        model = (
+            ModelSettings(model=simulation_model)
+            if simulation_model
+            else ModelSettings(model=agent_model)
+            if agent_model
+            else None
+        )
+
         mocking_strategy = LLMMockingStrategy(
             type=MockingStrategyType.LLM,
             prompt=simulation_data.get("instructions", ""),
             tools_to_simulate=tools_to_simulate,
+            model=model,
         )
 
         # Create MockingContext for debugging

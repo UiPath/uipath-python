@@ -241,6 +241,9 @@ class TestDebugCommandSimulationIntegration:
                     ) as mock_factory_get:
                         mock_runtime = Mock()
                         mock_runtime.dispose = AsyncMock()
+                        mock_runtime.get_schema = AsyncMock(
+                            return_value=Mock(metadata=None)
+                        )
 
                         mock_factory = Mock()
                         mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
@@ -305,6 +308,9 @@ class TestDebugCommandSimulationIntegration:
                     ) as mock_factory_get:
                         mock_runtime = Mock()
                         mock_runtime.dispose = AsyncMock()
+                        mock_runtime.get_schema = AsyncMock(
+                            return_value=Mock(metadata=None)
+                        )
 
                         mock_factory = Mock()
                         mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)

@@ -4,7 +4,7 @@ import os
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
-from typing import Any, Callable, Dict, Mapping, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, Mapping, Optional, Union
 
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import AnyValue
@@ -202,9 +202,18 @@ class _DiagnosticSender(SynchronousSender):
         except Exception as e:
             _logger.warning("AppInsights send: %s (%s)", type(e).__name__, e)
 
-        # Re-queue unsent data
+        # Re-queue unsent data up to 2 attempts, then discard
+        max_retries = 2
         for data in data_to_send:
-            self._queue.put(data)
+            attempt = getattr(data, "_send_attempts", 0) + 1
+            if attempt < max_retries:
+                data._send_attempts = attempt
+                self._queue.put(data)
+            else:
+                _logger.warning(
+                    "AppInsights send: discarding item after %d failed attempts",
+                    attempt,
+                )
 
 
 class _AppInsightsEventClient:
@@ -217,6 +226,18 @@ class _AppInsightsEventClient:
     _initialized = False
     _client: Optional[Any] = None
     _atexit_registered = False
+    _connection_string_provider: ClassVar[Optional[Callable[[], Optional[str]]]] = None
+
+    @staticmethod
+    def set_connection_string_provider(
+        provider: Callable[[], Optional[str]],
+    ) -> None:
+        """Override how the connection string is resolved.
+
+        Args:
+            provider: Zero-arg callable returning a connection string or None.
+        """
+        _AppInsightsEventClient._connection_string_provider = provider
 
     @staticmethod
     def _initialize() -> None:
@@ -234,7 +255,10 @@ class _AppInsightsEventClient:
         if not _HAS_APPINSIGHTS:
             return
 
-        connection_string = _get_connection_string()
+        if _AppInsightsEventClient._connection_string_provider:
+            connection_string = _AppInsightsEventClient._connection_string_provider()
+        else:
+            connection_string = _get_connection_string()
         if not connection_string:
             return
 
@@ -329,6 +353,13 @@ class _AppInsightsEventClient:
         if not _AppInsightsEventClient._atexit_registered:
             atexit.register(_AppInsightsEventClient.flush)
             _AppInsightsEventClient._atexit_registered = True
+
+    @staticmethod
+    def reset() -> None:
+        """Flush pending events and reset so the next call re-initializes."""
+        _AppInsightsEventClient.flush()
+        _AppInsightsEventClient._client = None
+        _AppInsightsEventClient._initialized = False
 
 
 class _TelemetryClient:
@@ -454,6 +485,22 @@ def flush_events() -> None:
     events are sent immediately.
     """
     _AppInsightsEventClient.flush()
+
+
+def set_event_connection_string_provider(
+    provider: Callable[[], Optional[str]],
+) -> None:
+    """Override how the Application Insights connection string is resolved.
+
+    Args:
+        provider: Zero-arg callable returning a connection string or None.
+    """
+    _AppInsightsEventClient.set_connection_string_provider(provider)
+
+
+def reset_event_client() -> None:
+    """Flush pending events and reset so the next ``track_event`` re-initializes."""
+    _AppInsightsEventClient.reset()
 
 
 def track_cli_event(

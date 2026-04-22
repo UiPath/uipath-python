@@ -1,14 +1,16 @@
 from typing import Any
 
 import pytest
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
+    AgentA2aResourceConfig,
     AgentBooleanOperator,
     AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
+    AgentContextType,
     AgentCustomGuardrail,
     AgentDefinition,
     AgentEscalationChannel,
@@ -41,6 +43,8 @@ from uipath.agent.models.agent import (
     AgentUnknownToolResourceConfig,
     AgentWordOperator,
     AgentWordRule,
+    ArgumentEmailRecipient,
+    ArgumentGroupNameRecipient,
     AssetRecipient,
     BatchTransformFileExtension,
     BatchTransformWebSearchGrounding,
@@ -721,6 +725,7 @@ class TestAgentBuilderConfig:
             == "This validator is designed to detect personally identifiable information using Azure Cognitive Services"
         )
         assert agent_builtin_guardrail.enabled_for_evals is True
+        assert agent_builtin_guardrail.selector is not None
         assert agent_builtin_guardrail.selector.scopes == ["Tool"]
         assert agent_builtin_guardrail.selector.match_names == ["StringToNumber"]
 
@@ -1639,9 +1644,67 @@ class TestAgentBuilderConfig:
         context_resource = config.resources[0]
         assert isinstance(context_resource, AgentContextResourceConfig)
         assert context_resource.resource_type == AgentResourceType.CONTEXT
+        assert context_resource.settings is not None
         assert (
             context_resource.settings.retrieval_mode
             == AgentContextRetrievalMode.UNKNOWN
+        )
+
+    def test_context_settings_variant_case_insensitive(self):
+        """Test that context query setting variant handles different casings."""
+
+        json_data = {
+            "id": "test-variant-case",
+            "name": "Agent with mixed-case variants",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "context",
+                    "folderPath": "TestFolder",
+                    "indexName": "Test Index",
+                    "settings": {
+                        "threshold": 0.5,
+                        "resultCount": 5,
+                        "retrievalMode": "semantic",
+                        "query": {
+                            "value": "{{searchQuery}}",
+                            "variant": "Argument",
+                        },
+                        "folderPathPrefix": {
+                            "variant": "Static",
+                            "value": "/docs",
+                        },
+                    },
+                    "name": "Test Context",
+                    "description": "Context with mixed-case variants",
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        context_resource = config.resources[0]
+        assert isinstance(context_resource, AgentContextResourceConfig)
+        assert context_resource.settings is not None
+        assert (
+            context_resource.settings.query.variant
+            == AgentToolArgumentPropertiesVariant.ARGUMENT
+        )
+        assert context_resource.settings.folder_path_prefix is not None
+        assert (
+            context_resource.settings.folder_path_prefix.variant
+            == AgentToolArgumentPropertiesVariant.STATIC
         )
 
     def test_agent_with_unknown_resource_type(self):
@@ -2480,8 +2543,6 @@ class TestAgentBuilderConfig:
                             "outcomeMapping": None,
                             "recipients": [],
                             "type": "actionCenter",
-                            "taskTitle": "Test IXP Escalation",
-                            "priority": "High",
                             "properties": {
                                 "appName": None,
                                 "appVersion": 1,
@@ -3045,6 +3106,7 @@ class TestAgentBuilderConfig:
         context = config.resources[1]
         assert isinstance(context, AgentContextResourceConfig)
         assert context.resource_type == AgentResourceType.CONTEXT
+        assert context.settings is not None
         assert context.settings.retrieval_mode == AgentContextRetrievalMode.SEMANTIC
         assert context.settings.query is not None
         assert (
@@ -3430,3 +3492,348 @@ class TestAgentBuilderConfigResources:
         escalation_resource = config.resources[0]
         assert isinstance(escalation_resource, AgentEscalationResourceConfig)
         assert escalation_resource.escalation_type == 0
+
+
+class TestDataFabricContextConfig:
+    """Tests for Data Fabric context resource configuration."""
+
+    def test_datafabric_context_config_parses(self):
+        """Test v48 format with contextType and entitySet."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [
+                {
+                    "id": "abc-123",
+                    "name": "Customers",
+                    "folderId": "folder-1",
+                    "description": "Customer records",
+                },
+                {
+                    "id": "def-456",
+                    "referenceKey": "orders-ref",
+                    "name": "Orders",
+                    "folderId": "folder-2",
+                    "description": None,
+                },
+            ],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.context_type == AgentContextType.DATA_FABRIC_ENTITY_SET
+        assert parsed.folder_path is None
+        assert parsed.index_name is None
+        assert parsed.settings is None
+        assert parsed.entity_set is not None
+        assert len(parsed.entity_set) == 2
+        assert parsed.entity_set[0].id == "abc-123"
+        assert parsed.entity_set[0].name == "Customers"
+        assert parsed.entity_set[0].folder_key == "folder-1"
+        assert parsed.entity_set[0].description == "Customer records"
+        assert parsed.entity_set[0].entity_key is None
+        assert parsed.entity_set[1].entity_key == "orders-ref"
+        assert parsed.entity_set[1].description is None
+
+    def test_is_datafabric(self):
+        """Test is_datafabric property with datafabricentityset contextType."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [
+                {"id": "abc-123", "name": "E", "folderId": "", "description": None}
+            ],
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.is_datafabric is True
+
+    def test_is_datafabric_false_for_semantic(self):
+        """Test is_datafabric is False for Semantic contexts."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "folderPath": "Shared",
+            "indexName": "my-index",
+            "settings": {"retrievalMode": "Semantic", "resultCount": 5},
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.is_datafabric is False
+
+    def test_datafabric_entity_identifiers(self):
+        """Test entity identifiers extracted from entitySet."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [
+                {"id": "id-1", "name": "E1", "folderId": "", "description": None},
+                {"id": "id-2", "name": "E2", "folderId": "", "description": None},
+            ],
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.datafabric_entity_identifiers == ["id-1", "id-2"]
+
+    def test_datafabric_entity_identifiers_empty(self):
+        """Test empty entity identifiers when no entitySet provided."""
+        config = {
+            "$resourceType": "context",
+            "name": "Test",
+            "description": "",
+            "contextType": "datafabricentityset",
+        }
+        parsed = AgentContextResourceConfig.model_validate(config)
+        assert parsed.datafabric_entity_identifiers == []
+
+    def test_a2a_resource(self):
+        """Test that AgentDefinition can load A2A resources."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-a2a-resource",
+            "name": "Agent with A2A Resource",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."}
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "a2a",
+                    "id": "755e2f7d-5a3d-47f3-8e9d-7ff0bf226357",
+                    "name": "Philosopher Agent",
+                    "slug": "philosopher-agent",
+                    "description": "A philosophical agent that answers questions with wisdom and philosopher quotes",
+                    "folderPath": "shared",
+                    "cachedAgentCard": {
+                        "name": "Philosopher Agent",
+                        "description": "Philosopher Agent assistant",
+                        "url": "https://philosopher-agent.example.com/a2a/5045dca3",
+                        "supportedInterfaces": [
+                            {
+                                "url": "https://philosopher-agent.example.com/a2a/5045dca3",
+                                "protocolBinding": "jsonrpc",
+                                "protocolVersion": "1.0",
+                            }
+                        ],
+                        "capabilities": {
+                            "streaming": True,
+                            "pushNotifications": False,
+                            "stateTransitionHistory": False,
+                        },
+                        "defaultInputModes": [
+                            "application/json",
+                            "text/plain",
+                        ],
+                        "defaultOutputModes": [
+                            "application/json",
+                            "text/plain",
+                        ],
+                        "skills": [
+                            {
+                                "id": "5045dca3-main",
+                                "name": "Philosopher Agent Capabilities",
+                                "description": "Philosopher Agent assistant",
+                                "tags": ["assistant", "langgraph"],
+                                "examples": [],
+                                "inputModes": [
+                                    "application/json",
+                                    "text/plain",
+                                ],
+                                "outputModes": [
+                                    "application/json",
+                                    "text/plain",
+                                ],
+                                "metadata": {
+                                    "inputSchema": {
+                                        "required": ["messages"],
+                                        "properties": ["messages"],
+                                        "supportsA2A": True,
+                                    }
+                                },
+                            }
+                        ],
+                        "version": "0.7.70",
+                    },
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        # Validate A2A resource
+        a2a_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.A2A
+        ]
+        assert len(a2a_resources) == 1
+        a2a_resource = a2a_resources[0]
+        assert isinstance(a2a_resource, AgentA2aResourceConfig)
+        assert a2a_resource.name == "Philosopher Agent"
+        assert a2a_resource.slug == "philosopher-agent"
+        assert (
+            a2a_resource.description
+            == "A philosophical agent that answers questions with wisdom and philosopher quotes"
+        )
+        assert a2a_resource.id == "755e2f7d-5a3d-47f3-8e9d-7ff0bf226357"
+        assert a2a_resource.folder_path == "shared"
+
+        # Validate cached agent card is a plain dict
+        card = a2a_resource.cached_agent_card
+        assert isinstance(card, dict)
+        assert card["name"] == "Philosopher Agent"
+        assert card["url"] == "https://philosopher-agent.example.com/a2a/5045dca3"
+        assert card["version"] == "0.7.70"
+        assert len(card["supportedInterfaces"]) == 1
+        assert card["supportedInterfaces"][0]["protocolBinding"] == "jsonrpc"
+        assert card["capabilities"]["streaming"] is True
+        assert len(card["skills"]) == 1
+        assert card["skills"][0]["name"] == "Philosopher Agent Capabilities"
+
+    def test_a2a_resource_without_cached_card(self):
+        """Test A2A resource with no cachedAgentCard."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-a2a-no-card",
+            "name": "Agent with minimal A2A",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [{"role": "System", "content": "You are an assistant."}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "a2a",
+                    "id": "abc-123",
+                    "name": "Minimal A2A Agent",
+                    "slug": "minimal-a2a",
+                    "description": "A minimal A2A agent",
+                    "folderPath": "shared",
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        a2a_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.A2A
+        ]
+        assert len(a2a_resources) == 1
+        a2a_resource = a2a_resources[0]
+        assert isinstance(a2a_resource, AgentA2aResourceConfig)
+        assert a2a_resource.name == "Minimal A2A Agent"
+        assert a2a_resource.slug == "minimal-a2a"
+        assert a2a_resource.folder_path == "shared"
+        assert a2a_resource.cached_agent_card is None
+
+    def test_a2a_resource_case_insensitive(self):
+        """Test that A2A resource type is parsed case-insensitively."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "test-a2a-case",
+            "name": "Agent A2A case test",
+            "metadata": {"isConversational": False, "storageVersion": "36.0.0"},
+            "messages": [{"role": "System", "content": "You are an assistant."}],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "A2A",
+                    "id": "case-test-id",
+                    "name": "Case Test Agent",
+                    "slug": "case-test",
+                    "description": "Testing case insensitive parsing",
+                    "folderPath": "shared",
+                }
+            ],
+            "features": [],
+            "guardrails": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        a2a_resources = [
+            r for r in config.resources if r.resource_type == AgentResourceType.A2A
+        ]
+        assert len(a2a_resources) == 1
+        assert isinstance(a2a_resources[0], AgentA2aResourceConfig)
+
+
+class TestArgumentRecipientDeserialization:
+    def test_argument_email_recipient_by_type_int(self):
+        payload = {"type": 7, "argumentName": "assigneeEmail"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentEmailRecipient)
+        assert recipient.argument_path == "assigneeEmail"
+        assert recipient.type == AgentEscalationRecipientType.ARGUMENT_EMAIL
+
+    def test_argument_group_name_recipient_by_type_int(self):
+        payload = {"type": 8, "argumentName": "assigneeGroup"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentGroupNameRecipient)
+        assert recipient.argument_path == "assigneeGroup"
+        assert recipient.type == AgentEscalationRecipientType.ARGUMENT_GROUP_NAME
+
+    def test_argument_email_recipient_by_type_string(self):
+        payload = {"type": "ArgumentEmail", "argumentName": "emailArg"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentEmailRecipient)
+        assert recipient.argument_path == "emailArg"
+
+    def test_argument_group_name_recipient_by_type_string(self):
+        payload = {"type": "ArgumentGroupName", "argumentName": "groupArg"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ArgumentGroupNameRecipient)
+        assert recipient.argument_path == "groupArg"
+
+    def test_argument_email_recipient_missing_argument_name_raises(self):
+        payload = {"type": 7}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_argument_group_name_recipient_missing_argument_name_raises(self):
+        payload = {"type": 8}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)

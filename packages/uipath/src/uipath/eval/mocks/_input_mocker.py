@@ -1,12 +1,16 @@
 """LLM Input Mocker implementation."""
 
 import json
+import logging
 from datetime import datetime
 from typing import Any
+
+from opentelemetry import trace
 
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
+from uipath.platform.chat._llm_gateway_service import ChatModels
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
@@ -14,6 +18,8 @@ from ._mocker import UiPathInputMockingError
 from ._types import (
     InputMockingStrategy,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_input_mocking_prompt(
@@ -57,7 +63,7 @@ Based on the above information, provide a realistic input to the LLM agent. Your
 OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA in valid JSON. Do not include any explanations, quotation marks, or markdown."""
 
 
-@traced(name="__mocker__", recording=False)
+@traced(name="Simulate Input")
 async def generate_llm_input(
     mocking_strategy: InputMockingStrategy,
     input_schema: dict[str, Any],
@@ -65,6 +71,13 @@ async def generate_llm_input(
     expected_output: dict[str, Any],
 ) -> dict[str, Any]:
     """Generate synthetic input using an LLM based on the evaluation context."""
+    # Set custom span attributes to match agents repo pattern
+    current_span = trace.get_current_span()
+    if current_span and current_span.is_recording():
+        current_span.set_attribute("span_type", "simulatedInput")
+        current_span.set_attribute("type", "simulatedInput")
+        current_span.set_attribute("uipath.custom_instrumentation", True)
+
     try:
         uipath = UiPath()
         llm = UiPathLlmChatService(
@@ -107,6 +120,11 @@ async def generate_llm_input(
             if model_parameters
             else {}
         )
+
+        simulation_model = completion_kwargs.get(
+            "model", ChatModels.gpt_4_1_mini_2025_04_14
+        )
+        logger.info(f"Simulating input generation using model: {simulation_model}")
 
         if cache_manager is not None:
             cache_key_data = {

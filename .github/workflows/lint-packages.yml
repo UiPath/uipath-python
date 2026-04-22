@@ -68,7 +68,7 @@ jobs:
       - name: Install dependencies
         if: steps.check.outputs.skip != 'true'
         working-directory: packages/uipath-core
-        run: uv sync --locked --no-sources --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Check static types
         if: steps.check.outputs.skip != 'true'
@@ -122,7 +122,7 @@ jobs:
       - name: Install dependencies
         if: steps.check.outputs.skip != 'true'
         working-directory: packages/uipath-platform
-        run: uv sync --locked --no-sources --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Check static types
         if: steps.check.outputs.skip != 'true'
@@ -176,7 +176,7 @@ jobs:
       - name: Install dependencies
         if: steps.check.outputs.skip != 'true'
         working-directory: packages/uipath
-        run: uv sync --locked --no-sources --all-extras
+        run: uv sync --locked --all-extras
 
       - name: Check static types
         if: steps.check.outputs.skip != 'true'
