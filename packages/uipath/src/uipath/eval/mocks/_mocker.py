@@ -16,8 +16,7 @@ class Mocker(ABC):
         self,
         func: Callable[[T], R],
         params: dict[str, Any],
-        *args: T,
-        **kwargs,
+        invocation: tuple[tuple[Any, ...], dict[str, Any]],
     ) -> R:
         """Respond with mocked response."""
         raise NotImplementedError()

@@ -99,11 +99,16 @@ class MockitoMocker(Mocker):
                     stubbed = stubbed.thenRaise(_resolve_value(answer_dict["value"]))
 
     async def response(
-        self, func: Callable[[T], R], params: dict[str, Any], *args: T, **kwargs
+        self,
+        func: Callable[[T], R],
+        params: dict[str, Any],
+        invocation: tuple[tuple[Any, ...], dict[str, Any]],
     ) -> R:
         """Return mocked response or raise appropriate errors."""
         if not isinstance(self.context.strategy, MockitoMockingStrategy):
             raise UiPathMockResponseGenerationError("Mocking strategy misconfigured.")
+
+        args, kwargs = invocation
 
         # No behavior configured → call real function
         is_mocked = any(
