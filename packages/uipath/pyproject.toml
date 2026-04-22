@@ -150,6 +150,7 @@ source = ["src"]
 
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }
+uipath-eval = { path = "../uipath-eval", editable = true }
 uipath-platform = { path = "../uipath-platform", editable = true }
 
 [[tool.uv.index]]

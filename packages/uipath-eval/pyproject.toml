@@ -86,7 +86,6 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = [
   "tests.*",
-  "uipath_eval.models.evaluation_set",
   "uipath_eval.evaluators.legacy_evaluator_utils",
 ]
 ignore_errors = true

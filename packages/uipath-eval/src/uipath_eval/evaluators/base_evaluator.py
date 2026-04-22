@@ -222,7 +222,7 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             ValueError: If no valid evaluation criteria type can be determined from the class definition
         """
         # Special case: if this is the BaseEvaluator class itself, return BaseEvaluationCriteria
-        if cls.__name__ == ("BaseEvaluator" or "BaseEvaluator[Any, Any, Any]"):
+        if cls.__name__ in ("BaseEvaluator", "BaseEvaluator[Any, Any, Any]"):
             return BaseEvaluationCriteria
 
         # Check if Pydantic has already resolved the evaluation_criteria_type field annotation
@@ -282,7 +282,7 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             ValueError: If no valid config type can be determined from the class definition
         """
         # Special case: if this is the BaseEvaluator class itself, return BaseEvaluatorConfig
-        if cls.__name__ == ("BaseEvaluator" or "BaseEvaluator[Any, Any, Any]"):
+        if cls.__name__ in ("BaseEvaluator", "BaseEvaluator[Any, Any, Any]"):
             return BaseEvaluatorConfig
         # Check if Pydantic has already resolved the config_type field annotation
         if not (hasattr(cls, "model_fields") and "config_type" in cls.model_fields):

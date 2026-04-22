@@ -20,7 +20,8 @@ pip install "uipath-eval[llm]"
 ## Usage
 
 ```python
-from uipath_eval import ExactMatchEvaluator, LLMJudgeOutputEvaluator
+from uipath_eval import ExactMatchEvaluator
+from uipath.eval import LLMJudgeOutputEvaluator  # LLM evaluators stay in uipath.eval
 from uipath_eval.models import EvaluationResult
 ```
 
