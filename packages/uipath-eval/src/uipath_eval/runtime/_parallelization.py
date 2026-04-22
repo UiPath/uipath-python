@@ -1,5 +1,8 @@
 import asyncio
+import logging
 from typing import Awaitable, Iterable, TypeVar
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -15,6 +18,7 @@ async def execute_parallel(
 
     # Dictionary to store results with their original indices
     results_dict: dict[int, T] = {}
+    errors: dict[int, BaseException] = {}
 
     # Producer task to fill the queue
     async def producer() -> None:
@@ -42,8 +46,11 @@ async def execute_parallel(
 
                 # Store result with its index to maintain order
                 results_dict[index] = result
+            except Exception as e:
+                logger.warning("Evaluation item %d failed: %s", index, e)
+                errors[index] = e
             finally:
-                # Mark the task as done
+                # Mark the task as done regardless of outcome
                 queue.task_done()
 
     # Start producer
@@ -55,6 +62,12 @@ async def execute_parallel(
     # Wait for producer and all workers to complete
     await producer_task
     await asyncio.gather(*worker_tasks)
+
+    if errors:
+        first_error = next(iter(errors.values()))
+        raise RuntimeError(
+            f"{len(errors)} evaluation(s) failed. First error: {first_error}"
+        ) from first_error
 
     # Return results in the original order
     return [results_dict[i] for i in range(len(results_dict))]
