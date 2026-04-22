@@ -5,13 +5,13 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import ConfigDict, Field
 
+from .._helpers.helpers import track_evaluation_metrics
 from ..models import EvaluationResult
 from ..models.models import (
     AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
 )
-from .._helpers.helpers import track_evaluation_metrics
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluatorConfig,

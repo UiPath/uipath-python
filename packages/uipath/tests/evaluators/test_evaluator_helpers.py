@@ -20,7 +20,7 @@ from uipath.eval._helpers.evaluators_helpers import (
     tool_calls_order_score,
     tool_calls_output_score,
 )
-from uipath.eval.models.models import ToolCall, ToolOutput
+from uipath_eval.models.models import ToolCall, ToolOutput
 
 
 class TestToolCallsOrderScore:

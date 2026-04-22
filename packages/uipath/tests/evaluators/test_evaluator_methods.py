@@ -57,7 +57,7 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluatorJustification,
 )
 from uipath.eval.models import NumericEvaluationResult
-from uipath.eval.models.models import (
+from uipath_eval.models.models import (
     AgentExecution,
     ToolCall,
     ToolOutput,

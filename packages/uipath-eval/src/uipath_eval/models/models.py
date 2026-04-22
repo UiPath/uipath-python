@@ -160,6 +160,7 @@ class LegacyEvaluatorType(IntEnum):
     Trajectory = 7
     ContextPrecision = 8
     Faithfulness = 9
+    CSVColumnExactMatch = 10
 
     @classmethod
     def from_int(cls, value: int) -> "LegacyEvaluatorType":
@@ -264,9 +265,9 @@ class TrajectoryEvaluationTrace(BaseModel):
         """
         # Create a mapping of span IDs to names for parent lookup
         span_id_to_name = {
-            span.get_span_context().span_id: span.name  # pyright: ignore[reportOptionalMemberAccess]
+            ctx.span_id: span.name
             for span in spans
-            if span.get_span_context() is not None
+            if (ctx := span.get_span_context()) is not None
         }
 
         evaluation_spans = [

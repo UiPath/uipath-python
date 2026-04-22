@@ -9,7 +9,7 @@ from typing import Any, Generic, TypeVar
 from pydantic import ConfigDict, Field
 
 from ..models import EvaluationResult
-from ..models.models import (
+from uipath_eval.models.models import (
     AgentExecution,
     ErrorEvaluationResult,
     LegacyEvaluatorCategory,

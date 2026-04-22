@@ -3,8 +3,8 @@
 from typing import Any
 
 # Platform-independent evaluators sourced from uipath-eval
+from uipath_eval.evaluators import EVALUATORS as _EVAL_EVALUATORS
 from uipath_eval.evaluators import (
-    EVALUATORS as _EVAL_EVALUATORS,
     BaseEvaluationCriteria,
     BaseEvaluator,
     BaseEvaluatorConfig,
@@ -14,7 +14,6 @@ from uipath_eval.evaluators import (
     ContainsEvaluator,
     ExactMatchEvaluator,
     JsonSimilarityEvaluator,
-    LegacyExactMatchEvaluator,
     LegacyJsonSimilarityEvaluator,
     MulticlassClassificationEvaluator,
     ToolCallArgsEvaluator,
@@ -26,6 +25,7 @@ from uipath_eval.evaluators import (
 # Platform-dependent evaluators (LLM, langchain, uipath-platform) — stay in uipath
 from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
 from .legacy_csv_exact_match_evaluator import LegacyCSVExactMatchEvaluator
+from .legacy_exact_match_evaluator import LegacyExactMatchEvaluator
 from .legacy_faithfulness_evaluator import LegacyFaithfulnessEvaluator
 from .legacy_llm_as_judge_evaluator import LegacyLlmAsAJudgeEvaluator
 from .legacy_trajectory_evaluator import LegacyTrajectoryEvaluator
