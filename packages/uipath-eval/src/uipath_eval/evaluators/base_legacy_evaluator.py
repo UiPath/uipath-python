@@ -1,9 +1,6 @@
 """Base evaluator abstract class for agent evaluation."""
 
-import functools
-import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
 from pydantic import ConfigDict, Field
@@ -11,38 +8,17 @@ from pydantic import ConfigDict, Field
 from ..models import EvaluationResult
 from ..models.models import (
     AgentExecution,
-    ErrorEvaluationResult,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
 )
+from .._helpers.helpers import track_evaluation_metrics
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluatorConfig,
     GenericBaseEvaluator,
 )
 
-
-def track_evaluation_metrics(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator to track evaluation metrics and handle errors gracefully."""
-
-    @functools.wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> EvaluationResult:
-        start_time = time.time()
-        try:
-            result = await func(*args, **kwargs)
-        except Exception as e:
-            result = ErrorEvaluationResult(
-                details="Exception thrown by evaluator: {}".format(e),
-                evaluation_time=time.time() - start_time,
-            )
-        end_time = time.time()
-        execution_time = end_time - start_time
-
-        result.evaluation_time = execution_time
-        return result
-
-    return wrapper
-
+__all__ = ["track_evaluation_metrics"]
 
 # Legacy evaluator config (non-generic version for simplicity)
 class LegacyEvaluatorConfig(BaseEvaluatorConfig[BaseEvaluationCriteria]):

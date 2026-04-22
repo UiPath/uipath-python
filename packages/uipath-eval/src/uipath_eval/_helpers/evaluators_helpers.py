@@ -66,8 +66,8 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
                 else:
                     arguments = {}
                 tool_calls.append(ToolCall(name=str(tool_name), args=arguments))
-            except (json.JSONDecodeError, SyntaxError, ValueError):
-                # Handle case where input.value is not valid JSON/Python syntax
+            except (SyntaxError, ValueError):
+                # Handle case where input.value is not valid Python syntax
                 tool_calls.append(ToolCall(name=str(tool_name), args={}))
 
     return tool_calls
