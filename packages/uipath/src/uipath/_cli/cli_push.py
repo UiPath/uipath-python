@@ -5,9 +5,17 @@ from urllib.parse import urlparse
 import click
 
 from uipath.platform.common import UiPathConfig
-from uipath.platform.errors import EnrichedException, FolderNotFoundException
+from uipath.platform.errors import EnrichedException
 
-from ..platform.resource_catalog import ResourceType
+from ._push._resolvers import resolve_bindings
+from ._push._resource_actions import (
+    CreateReference,
+    CreateVirtual,
+    ResourceAction,
+    Skip,
+)
+from ._push._summary import ResourceImportSummary
+from ._push._virtual_kinds import fetch_supported_virtual_kinds
 from ._push.sw_file_handler import SwFileHandler
 from ._telemetry import track_command
 from ._utils._common import ensure_coded_agent_project, may_override_files
@@ -22,10 +30,9 @@ from ._utils._project_files import (
 )
 from ._utils._studio_project import (
     ProjectLockUnavailableError,
-    ReferencedResourceFolder,
-    ReferencedResourceRequest,
     Status,
     StudioClient,
+    VirtualResourceRequest,
 )
 from ._utils._uv_helpers import handle_uv_operations
 from .models.runtime_schema import Bindings
@@ -42,133 +49,104 @@ def get_org_scoped_url(base_url: str) -> str:
     return org_scoped_url
 
 
-async def create_resources(studio_client: StudioClient):
+async def create_resources(studio_client: StudioClient) -> None:
     console.info("\nImporting referenced resources to Studio Web project...")
 
     from uipath.platform import UiPath
 
     uipath = UiPath()
-    resource_catalog = uipath.resource_catalog
-    connections = uipath.connections
 
     with open(UiPathConfig.bindings_file_path, "r") as f:
-        bindings_file_content = f.read()
+        bindings = Bindings.model_validate_json(f.read())
 
-    bindings = Bindings.model_validate_json(bindings_file_content)
+    supported_virtual_kinds = await fetch_supported_virtual_kinds(studio_client)
 
-    resources_not_found = 0
-    resources_unchanged = 0
-    resources_created = 0
-    resource_updated = 0
+    summary = ResourceImportSummary()
+    async for action in resolve_bindings(
+        bindings,
+        uipath.resource_catalog,
+        uipath.connections,
+        supported_virtual_kinds,
+    ):
+        await _execute_action(action, studio_client, summary)
 
-    for bindings_resource in bindings.resources:
-        not_found_warning = "was not found and will not be added to the solution."
-        found_resource = None
-        resource_type = bindings_resource.resource
-        if resource_type == "connection":
-            connection_key_resource_value = bindings_resource.value.get("ConnectionId")
-            assert connection_key_resource_value
-            connection_key = connection_key_resource_value.default_value
+    console.info(str(summary))
+
+
+async def _execute_action(
+    action: ResourceAction,
+    studio_client: StudioClient,
+    summary: ResourceImportSummary,
+) -> None:
+    match action:
+        case Skip(message=message):
+            console.warning(message)
+            summary.not_found += 1
+
+        case CreateVirtual(request=request):
             try:
-                connection = await connections.retrieve_async(connection_key)
-            except EnrichedException:
-                resources_not_found += 1
-                assert bindings_resource.metadata is not None
-                connector_name = bindings_resource.metadata.get("Connector")
+                result = await studio_client.create_virtual_resource(request)
+            except EnrichedException as e:
                 console.warning(
-                    f"Connection with key '{connection_key}' of type '{connector_name}' "
-                    f"{not_found_warning}"
+                    f"Failed to create virtual resource '{request.name}' of type "
+                    f"'{request.kind}': {e}"
                 )
-                continue
-            resource_name = connection.name
-            folder_path = connection.folder.get("path")
-        else:
-            name_resource_value = bindings_resource.value.get("name")
-            folder_path_resource_value = bindings_resource.value.get("folderPath")
+                summary.not_found += 1
+                return
+            label = _format_virtual_label(request)
+            match result.status:
+                case Status.ADDED:
+                    console.success(f"{label} created successfully.")
+                    summary.virtual_created += 1
+                case Status.UNCHANGED:
+                    console.info(f"{label} already exists. Skipping...")
+                    summary.virtual_existing += 1
 
-            if not folder_path_resource_value:
-                # guardrail resource, nothing to import
-                continue
-
-            assert name_resource_value
-            resource_name = name_resource_value.default_value
-            folder_path = folder_path_resource_value.default_value
-
-        resources = resource_catalog.list_by_type_async(
-            resource_type=ResourceType.from_string(resource_type),
-            name=resource_name,
-            folder_path=folder_path,
-        )
-
-        try:
-            async for resource in resources:
-                found_resource = resource
-                break
-            await resources.aclose()
-
-        except FolderNotFoundException:
-            pass
-
-        if not found_resource:
-            console.warning(
-                f"Resource '{resource_name}' of type '{resource_type}' at folder path '{folder_path}' "
-                f"{not_found_warning}"
+        case CreateReference(
+            request=request,
+            resource_name=resource_name,
+            kind=kind,
+            sub_type=sub_type,
+        ):
+            response = await studio_client.create_referenced_resource(request)
+            details = (
+                f"(kind = {click.style(kind, fg='cyan')}, "
+                f"type = {click.style(sub_type, fg='cyan')})"
             )
-            resources_not_found += 1
-            continue
+            match response.status:
+                case Status.ADDED:
+                    console.success(
+                        f"Created reference for resource: "
+                        f"{click.style(resource_name, fg='cyan')} {details}"
+                    )
+                    summary.created += 1
+                case Status.UNCHANGED:
+                    console.info(
+                        f"Resource reference already exists "
+                        f"({click.style('unchanged', fg='yellow')}): "
+                        f"{click.style(resource_name, fg='cyan')} {details}"
+                    )
+                    summary.unchanged += 1
+                case Status.UPDATED:
+                    console.info(
+                        f"Resource reference already exists "
+                        f"({click.style('updated', fg='blue')}): "
+                        f"{click.style(resource_name, fg='cyan')} {details}"
+                    )
+                    summary.updated += 1
 
-        referenced_resource_request = ReferencedResourceRequest(
-            key=found_resource.resource_key,
-            kind=found_resource.resource_type,
-            type=found_resource.resource_sub_type,
-            folder=next(
-                ReferencedResourceFolder(
-                    folder_key=folder.key,
-                    fully_qualified_name=folder.fully_qualified_name,
-                    path=folder.path,
-                )
-                for folder in found_resource.folders
-            ),
-        )
-        response = await studio_client.create_referenced_resource(
-            referenced_resource_request
-        )
 
-        resource_details = (
-            f"(kind = {click.style(found_resource.resource_type, fg='cyan')}, "
-            f"type = {click.style(found_resource.resource_sub_type, fg='cyan')})"
-        )
-
-        match response.status:
-            case Status.ADDED:
-                console.success(
-                    f"Created reference for resource: {click.style(resource_name, fg='cyan')} "
-                    f"{resource_details}"
-                )
-                resources_created += 1
-            case Status.UNCHANGED:
-                console.info(
-                    f"Resource reference already exists ({click.style('unchanged', fg='yellow')}): {click.style(resource_name, fg='cyan')} "
-                    f"{resource_details}"
-                )
-                resources_unchanged += 1
-            case Status.UPDATED:
-                console.info(
-                    f"Resource reference already exists ({click.style('updated', fg='blue')}): {click.style(resource_name, fg='cyan')} "
-                    f"{resource_details}"
-                )
-                resource_updated += 1
-
-    total_resources = (
-        resources_created + resources_unchanged + resources_not_found + resource_updated
-    )
-    console.info(
-        f"\n \U0001f535 Resource import summary: {total_resources} total resources - "
-        f"{click.style(str(resources_created), fg='green')} created, "
-        f"{click.style(str(resource_updated), fg='blue')} updated, "
-        f"{click.style(str(resources_unchanged), fg='yellow')} unchanged, "
-        f"{click.style(str(resources_not_found), fg='red')} not found"
-    )
+def _format_virtual_label(request: VirtualResourceRequest) -> str:
+    parts = [
+        f"Resource {click.style(request.name, fg='cyan')}",
+        f" (kind: {click.style(request.kind, fg='yellow')}",
+    ]
+    if request.type:
+        parts.append(f", type: {click.style(request.type, fg='yellow')}")
+    if request.activity_name:
+        parts.append(f", activity: {click.style(request.activity_name, fg='yellow')}")
+    parts.append(")")
+    return "".join(parts)
 
 
 async def upload_source_files_to_project(
@@ -262,7 +240,6 @@ def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> No
     project_id = UiPathConfig.project_id
     if not project_id:
         console.error("UIPATH_PROJECT_ID environment variable not found.")
-        return
 
     studio_client = StudioClient(project_id=project_id)
 

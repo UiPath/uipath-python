@@ -6,7 +6,6 @@ from functools import wraps
 from pathlib import PurePath
 from typing import Any, Callable, List, Optional, Union
 
-import click
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from uipath._utils.constants import (
@@ -152,12 +151,20 @@ class LockInfo(BaseModel):
     solution_lock_key: Optional[str] = Field(alias="solutionLockKey")
 
 
-class Severity(str, Enum):
-    """Severity level for virtual resource operation results."""
+class ResourceBuilderMetadataVersion(BaseModel):
+    model_config = ConfigDict(extra="allow")
 
-    SUCCESS = "success"
-    ATTENTION = "attention"
-    WARN = "warn"
+    supports_in_line_creation: bool = Field(
+        default=False, alias="supportsInLineCreation"
+    )
+
+
+class ResourceBuilderMetadataEntry(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    kind: str
+    type: str | None = None
+    versions: list[ResourceBuilderMetadataVersion] = Field(default_factory=list)
 
 
 class VirtualResourceRequest(BaseModel):
@@ -173,16 +180,20 @@ class VirtualResourceRequest(BaseModel):
     api_version: Optional[str] = Field(default=None, alias="apiVersion")
 
 
-class VirtualResourceResult(BaseModel):
-    """Result of a virtual resource creation operation.
+class Status(str, Enum):
+    ADDED = "ADDED"
+    UNCHANGED = "UNCHANGED"
+    UPDATED = "UPDATED"
 
-    Attributes:
-        severity: The severity level (log, warn or attention)
-        message: The result message with styling
+
+class VirtualResourceResult(BaseModel):
+    """Structured outcome of a virtual resource creation attempt.
+
+    Only `ADDED` and `UNCHANGED` are possible — virtual resources are never
+    updated in place.
     """
 
-    severity: Severity
-    message: str
+    status: Status
 
 
 class ReferencedResourceFolder(BaseModel):
@@ -362,12 +373,6 @@ class ProjectLockUnavailableError(RuntimeError):
     pass
 
 
-class Status(str, Enum):
-    ADDED = "ADDED"
-    UNCHANGED = "UNCHANGED"
-    UPDATED = "UPDATED"
-
-
 class ReferencedResourceResponse(BaseModel):
     """Response from creating a referenced resource.
 
@@ -528,6 +533,19 @@ class StudioClient:
             response.read().decode("utf-8")
         )
 
+    async def get_resource_builder_metadata(
+        self,
+    ) -> list[ResourceBuilderMetadataEntry]:
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url="/studio_/backend/api/resourcebuilder/metadata",
+            scoped="org",
+        )
+        return [
+            ResourceBuilderMetadataEntry.model_validate(entry)
+            for entry in response.json()
+        ]
+
     async def _get_existing_resources(self) -> List[dict[str, Any]]:
         if self._resources_cache is not None:
             return self._resources_cache
@@ -599,68 +617,19 @@ class StudioClient:
     async def create_virtual_resource(
         self, virtual_resource_request: VirtualResourceRequest
     ) -> VirtualResourceResult:
-        """Create a virtual resource or return appropriate status if it already exists.
+        """Create a virtual resource, or report UNCHANGED if already present.
 
-        Args:
-            virtual_resource_request: The virtual resource request details
-
-        Returns:
-            VirtualResourceResult: Result indicating the operation status and a formatted message
+        Returns UNCHANGED when the same name+kind already exists in the
+        solution. Name collisions with a different kind are not checked
+        client-side — they surface as a server error via EnrichedException.
         """
-        # Build base message with resource details
-        base_message_parts = [
-            f"Resource {click.style(virtual_resource_request.name, fg='cyan')}",
-            f" (kind: {click.style(virtual_resource_request.kind, fg='yellow')}",
-        ]
-
-        if virtual_resource_request.type:
-            base_message_parts.append(
-                f", type: {click.style(virtual_resource_request.type, fg='yellow')}"
-            )
-
-        if virtual_resource_request.activity_name:
-            base_message_parts.append(
-                f", activity: {click.style(virtual_resource_request.activity_name, fg='yellow')}"
-            )
-
-        base_message_parts.append(")")
-        base_message = "".join(base_message_parts)
-
+        name = virtual_resource_request.name
+        kind = virtual_resource_request.kind
         existing_resources = await self._get_existing_resources()
 
-        # Check if resource with same kind and name exists
-        existing_same_kind = next(
-            (
-                r
-                for r in existing_resources
-                if r["name"] == virtual_resource_request.name
-                and r["kind"] == virtual_resource_request.kind
-            ),
-            None,
-        )
-        if existing_same_kind:
-            message = f"{base_message} already exists. Skipping..."
-            return VirtualResourceResult(severity=Severity.ATTENTION, message=message)
+        if any(r["name"] == name and r["kind"] == kind for r in existing_resources):
+            return VirtualResourceResult(status=Status.UNCHANGED)
 
-        # Check if resource with same name but different kind exists
-        existing_diff_kind = next(
-            (
-                r
-                for r in existing_resources
-                if r["name"] == virtual_resource_request.name
-                and r["kind"] != virtual_resource_request.kind
-            ),
-            None,
-        )
-        if existing_diff_kind:
-            message = (
-                f"Cannot create {base_message}. "
-                f"A resource with this name already exists with kind {click.style(existing_diff_kind['kind'], fg='yellow')}. "
-                f"Consider renaming the resource in code."
-            )
-            return VirtualResourceResult(severity=Severity.WARN, message=message)
-
-        # Create the virtual resource
         solution_id = await self._get_solution_id()
         response = await self.uipath.api_client.request_async(
             "POST",
@@ -669,21 +638,12 @@ class StudioClient:
             json=virtual_resource_request.model_dump(exclude_none=True),
         )
         resource_key = response.json()["key"]
-        await self._update_resource_specs(
-            resource_key, new_specs={"name": virtual_resource_request.name}
-        )
+        await self._update_resource_specs(resource_key, new_specs={"name": name})
 
-        # Update cache with newly created resource
         if self._resources_cache is not None:
-            self._resources_cache.append(
-                {
-                    "name": virtual_resource_request.name,
-                    "kind": virtual_resource_request.kind,
-                }
-            )
+            self._resources_cache.append({"name": name, "kind": kind})
 
-        message = f"{base_message} created successfully."
-        return VirtualResourceResult(severity=Severity.SUCCESS, message=message)
+        return VirtualResourceResult(status=Status.ADDED)
 
     async def create_referenced_resource(
         self, referenced_resource_request: ReferencedResourceRequest

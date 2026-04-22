@@ -1928,6 +1928,14 @@ class TestResourceCreation:
             json=mock_structure,
         )
 
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/metadata",
+            json=[
+                {"kind": "asset", "versions": [{"supportsInLineCreation": True}]},
+            ],
+        )
+
         # Mock getting the solution ID
         httpx_mock.add_response(
             method="GET",
@@ -2171,7 +2179,7 @@ class TestResourceCreation:
             assert "Created reference for resource" not in result.output
             assert "Resource import summary" not in result.output
 
-    def test_push_with_resource_not_found_shows_warning(
+    def test_push_with_resource_not_found_creates_virtual(
         self,
         runner: CliRunner,
         temp_dir: str,
@@ -2179,9 +2187,11 @@ class TestResourceCreation:
         mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
-        """Test that push shows warning when referenced resource is not found in catalog."""
+        """When catalog lookup misses, push creates a virtual resource placeholder."""
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
+        solution_id = "test-solution-id"
+        tenant_id = "test-tenant-id"
 
         mock_structure = {
             "id": "root",
@@ -2226,6 +2236,43 @@ class TestResourceCreation:
             json=mock_structure,
         )
 
+        # Resource Builder metadata — declares which kinds support inline creation.
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/metadata",
+            json=[
+                {"kind": "asset", "versions": [{"supportsInLineCreation": True}]},
+            ],
+        )
+
+        # Solution ID lookup for the virtual-resource fallback
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"solutionId": solution_id},
+        )
+
+        # Existing resources in the solution (empty → no conflict with our new virtual)
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/solutions/{solution_id}/entities",
+            json={"resources": []},
+        )
+
+        # Virtual resource POST
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/virtual",
+            json={"key": "virtual-resource-key-123"},
+        )
+
+        # Configuration PATCH after virtual creation
+        httpx_mock.add_response(
+            method="PATCH",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/solutions/{solution_id}/resources/virtual-resource-key-123/configuration",
+            json={},
+        )
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             # Create required files
             with open("uipath.json", "w") as f:
@@ -2255,6 +2302,7 @@ class TestResourceCreation:
                                     "ActivityName": "retrieve_async",
                                     "BindingsVersion": "2.2",
                                     "DisplayLabel": "FullName",
+                                    "SubType": "stringAsset",
                                 },
                             }
                         ],
@@ -2273,6 +2321,7 @@ class TestResourceCreation:
 
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
+            os.environ["UIPATH_TENANT_ID"] = tenant_id
 
             # Mock resource catalog list_by_type_async to return no resources
             async def mock_list_by_type_async_empty(*args, **kwargs):
@@ -2291,16 +2340,14 @@ class TestResourceCreation:
                 result = runner.invoke(cli, ["push", "./"])
                 assert result.exit_code == 0
 
-            # Check that warning was shown for missing resource
+            # Check that the virtual-resource fallback ran and succeeded
             assert (
                 "Importing referenced resources to Studio Web project" in result.output
             )
-            assert (
-                "Resource 'missing.asset' of type 'asset' at folder path 'Default' was not found"
-                in result.output
-            )
+            assert "missing.asset" in result.output
+            assert "created successfully" in result.output
             assert "Resource import summary:" in result.output
-            assert "1 not found" in result.output
+            assert "1 virtual-created" in result.output
 
     def test_push_with_resource_already_exists_shows_unchanged(
         self,
@@ -2357,6 +2404,14 @@ class TestResourceCreation:
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
             json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{base_url}/studio_/backend/api/resourcebuilder/metadata",
+            json=[
+                {"kind": "asset", "versions": [{"supportsInLineCreation": True}]},
+            ],
         )
 
         # Mock getting the solution ID

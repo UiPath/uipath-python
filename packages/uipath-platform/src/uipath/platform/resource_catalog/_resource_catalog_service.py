@@ -1,4 +1,4 @@
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
+from typing import Any, AsyncGenerator, Dict, Iterator, List, Optional
 
 from uipath.core.tracing import traced
 
@@ -110,7 +110,7 @@ class ResourceCatalogService(FolderContext, BaseService):
         resource_types: Optional[List[ResourceType]] = None,
         resource_sub_types: Optional[List[str]] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> AsyncIterator[Resource]:
+    ) -> AsyncGenerator[Resource, None]:
         """Asynchronously search for tenant scoped resources and folder scoped resources (accessible to the user).
 
         This method automatically handles pagination and yields resources one by one.
@@ -258,7 +258,7 @@ class ResourceCatalogService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> AsyncIterator[Resource]:
+    ) -> AsyncGenerator[Resource, None]:
         """Asynchronously get tenant scoped resources and folder scoped resources (accessible to the user).
 
         If no folder identifier is provided (path or key) only tenant resources will be retrieved.
@@ -428,7 +428,7 @@ class ResourceCatalogService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
         page_size: int = _DEFAULT_PAGE_SIZE,
-    ) -> AsyncIterator[Resource]:
+    ) -> AsyncGenerator[Resource, None]:
         """Asynchronously get resources of a specific type (tenant scoped or folder scoped).
 
         If no folder identifier is provided (path or key) only tenant resources will be retrieved.
