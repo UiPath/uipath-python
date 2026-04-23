@@ -5,7 +5,7 @@ description = "UiPath evaluator logic as a standalone package — for use in pyt
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
-  "uipath-core>=0.5.2, <0.6.0",
+  "uipath-core>=0.5.8, <0.6.0",
   "opentelemetry-sdk>=1.39.0, <2.0.0",
   "httpx>=0.28.1",
   "pydantic>=2.12.5, <3.0.0",
@@ -86,7 +86,6 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = [
   "tests.*",
-  "uipath_eval.evaluators.legacy_evaluator_utils",
 ]
 ignore_errors = true
 

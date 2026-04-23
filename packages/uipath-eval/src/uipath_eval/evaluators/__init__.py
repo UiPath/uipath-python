@@ -12,6 +12,7 @@ from .base_evaluator import (
     BaseEvaluator,
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
+    GenericBaseEvaluator,
 )
 from .base_legacy_evaluator import BaseLegacyEvaluator
 from .binary_classification_evaluator import BinaryClassificationEvaluator
@@ -44,6 +45,7 @@ __all__ = [
     "BaseEvaluator",
     "BaseEvaluatorConfig",
     "BaseEvaluatorJustification",
+    "GenericBaseEvaluator",
     "BaseLegacyEvaluator",
     "BinaryClassificationEvaluator",
     "ContainsEvaluator",

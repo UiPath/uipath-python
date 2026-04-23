@@ -30,6 +30,10 @@ jobs:
         working-directory: packages/uipath-platform
         run: uv build
 
+      - name: Build uipath-eval package
+        working-directory: packages/uipath-eval
+        run: uv build
+
       - name: Build uipath package
         working-directory: packages/uipath
         run: uv build
@@ -78,6 +82,7 @@ jobs:
         run: |
           uv add ../wheels/uipath-core/dist/*.whl --dev
           uv add ../wheels/uipath-platform/dist/*.whl --dev
+          uv add ../wheels/uipath-eval/dist/*.whl --dev
           uv add ../wheels/uipath/dist/*.whl --dev
 
       - name: Run uipath-langchain tests
@@ -152,6 +157,7 @@ jobs:
         run: |
           uv add ../wheels/uipath-core/dist/*.whl
           uv add ../wheels/uipath-platform/dist/*.whl
+          uv add ../wheels/uipath-eval/dist/*.whl
           uv add ../wheels/uipath/dist/*.whl
 
       - name: Install dependencies
