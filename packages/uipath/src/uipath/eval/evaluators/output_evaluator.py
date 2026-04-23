@@ -5,6 +5,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeVar, Union
 
 from pydantic import BaseModel, Field
+from uipath_eval.evaluators.output_evaluator import (
+    OutputEvaluationCriteria as OutputEvaluationCriteria,
+)
 
 from .._helpers.output_path import resolve_output_path
 from ..models import AgentExecution
@@ -14,10 +17,6 @@ from .attachment_utils import (
     extract_attachment_id,
     is_job_attachment_uri,
 )
-from uipath_eval.evaluators.output_evaluator import (
-    OutputEvaluationCriteria as OutputEvaluationCriteria,
-)
-
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
