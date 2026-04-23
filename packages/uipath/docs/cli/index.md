@@ -308,3 +308,92 @@ Processing: uipath.json
 File 'uipath.json' is up to date
 ✓  Project pulled successfully
 ```
+---
+
+::: mkdocs-click
+    :module: uipath._cli
+    :command: debug
+    :depth: 1
+    :style: table
+
+Runs your agent under the debug runtime, with a debug bridge attached. Locally, the bridge is the interactive **console** (read commands from stdin, stop at breakpoints). In the cloud, the bridge is **SignalR** (driven by Studio Web / Orchestrator). The `--attach` flag lets you override that default, including `none` for executors that need the debug command's surrounding behavior (bindings fetch, state streaming) but cannot speak the interactive debug protocol.
+
+### Attach modes
+
+| Mode | When to use |
+|------|-------------|
+| `signalr` | Remote runs driven by Studio Web / Orchestrator. Default when `job_id` is set. |
+| `console` | Local interactive debugging from the terminal. Default when no `job_id`. |
+| `none` | Run under the debug command without attaching a debugger. No wait-for-start gate, no breakpoints, no step mode. |
+
+/// info
+`--attach` selects the **debug bridge**. It's unrelated to `--debug`, which starts a `debugpy` server for Python-level breakpoints in your IDE. The two can be combined.
+///
+
+<!-- termynal -->
+
+```shell
+> uipath debug main '{"message": "test"}'
+Debug Mode Commands
+  c, continue     Continue until next breakpoint
+  s, step         Step to next node
+  b <node>        Set breakpoint at <node>
+  l, list         List all breakpoints
+  r <node>        Remove breakpoint at <node>
+  h, help         Show help
+  q, quit         Exit debugger
+▶ START
+> b analyze_sentiment
+✓ Breakpoint set at: analyze_sentiment
+> c
+────────────────────────────────────────
+■ BREAKPOINT analyze_sentiment (before)
+Next: analyze_sentiment
+────────────────────────────────────────
+> s
+● analyze_sentiment
+> c
+✓ Execution completed
+```
+---
+
+::: mkdocs-click
+    :module: uipath._cli
+    :command: eval
+    :depth: 1
+    :style: table
+
+Runs an evaluation set against your agent. Entry point and eval set are auto-discovered from the project if not passed explicitly. Evaluations run in parallel (see `--workers`) and, unless `--no-report` is passed, results are reported back to Studio Web when `UIPATH_PROJECT_ID` is set.
+
+### Common flags
+
+| Flag | Purpose |
+|------|---------|
+| `--eval-ids` | Run only a subset of evaluations by id. |
+| `--workers` | Parallel workers for running evaluations (default 1). |
+| `--no-report` | Skip reporting results back to UiPath. |
+| `--enable-mocker-cache` | Cache LLM mocker responses across runs. |
+| `--input-overrides` | Per-eval input overrides, merged into the eval's input. |
+| `--trace-file` | Write OpenTelemetry traces to a JSONL file for offline inspection. |
+| `--resume` | Resume evaluation from a previous suspended state. |
+
+<!-- termynal -->
+
+```shell
+> uipath eval
+⠋ Running evaluations ...
+  Weather in Paris
+  LLM Judge Output       0.7
+  Tool Call Arguments    1.0
+  Tool Call Count        1.0
+  Tool Call Order        1.0
+
+Evaluation Results
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃  Evaluation        ┃  LLM Judge Output  ┃  Tool Call Args    ┃  Tool Call Count   ┃  Tool Call Order   ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│  Weather in Paris  │               0.7  │               1.0  │               1.0  │               1.0  │
+├────────────────────┼────────────────────┼────────────────────┼────────────────────┼────────────────────┤
+│  Average           │               0.7  │               1.0  │               1.0  │               1.0  │
+└────────────────────┴────────────────────┴────────────────────┴────────────────────┴────────────────────┘
+```
