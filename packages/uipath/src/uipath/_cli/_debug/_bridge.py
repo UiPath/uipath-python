@@ -19,8 +19,14 @@ from uipath.runtime import (
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
 )
-from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugQuitError
+from uipath.runtime.debug import (
+    DetachedDebugBridge,
+    UiPathDebugProtocol,
+    UiPathDebugQuitError,
+)
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
+
+DebugAttachMode = Literal["signalr", "console", "none"]
 
 logger = logging.getLogger(__name__)
 
@@ -871,18 +877,27 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugProtoco
 
 
 def get_debug_bridge(
-    context: UiPathRuntimeContext, verbose: bool = True
+    context: UiPathRuntimeContext,
+    verbose: bool = True,
+    attach: DebugAttachMode | None = None,
 ) -> UiPathDebugProtocol:
     """Factory to get appropriate debug bridge based on context.
 
     Args:
         context: The runtime context containing debug configuration.
         verbose: If True, console bridge shows all state updates. If False, only breakpoints.
+        attach: Explicit attach mode. When None, falls back to
+            ``context.job_id``-based selection.
 
     Returns:
         An instance of UiPathDebugBridge suitable for the context.
     """
+    if attach == "none":
+        return DetachedDebugBridge()
+    if attach == "signalr":
+        return get_remote_debug_bridge(context)
+    if attach == "console":
+        return ConsoleDebugBridge(verbose=verbose)
     if context.job_id:
         return get_remote_debug_bridge(context)
-    else:
-        return ConsoleDebugBridge(verbose=verbose)
+    return ConsoleDebugBridge(verbose=verbose)
