@@ -57,7 +57,9 @@ class LegacyExactMatchEvaluator(
             EvaluationResult: Boolean (plain match) or NumericEvaluationResult (line-by-line)
         """
         if self.line_by_line_evaluation:
-            return await self._evaluate_line_by_line(agent_execution, evaluation_criteria)
+            return await self._evaluate_line_by_line(
+                agent_execution, evaluation_criteria
+            )
         return await self._evaluate_exact(agent_execution, evaluation_criteria)
 
     async def _evaluate_exact(

@@ -48,7 +48,11 @@ from .output_evaluator import AggregationMethod
 
 EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
     # Replace uipath_eval.ExactMatchEvaluator with local version (has attachment support)
-    *(e for e in _EVAL_EVALUATORS if e.get_evaluator_id() != ExactMatchEvaluator.get_evaluator_id()),
+    *(
+        e
+        for e in _EVAL_EVALUATORS
+        if e.get_evaluator_id() != ExactMatchEvaluator.get_evaluator_id()
+    ),
     ExactMatchEvaluator,
     LLMJudgeOutputEvaluator,
     LLMJudgeStrictJSONSimilarityOutputEvaluator,

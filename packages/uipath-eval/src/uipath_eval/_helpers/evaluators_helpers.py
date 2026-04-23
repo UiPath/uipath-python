@@ -21,6 +21,7 @@ COMPARATOR_MAPPINGS = {
     "!=": "ne",
 }
 
+
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     """Extract the tool call names from execution spans IN ORDER.
 

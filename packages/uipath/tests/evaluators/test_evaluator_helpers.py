@@ -10,6 +10,7 @@ These tests ensure consistent behavior and proper justification structures for e
 from typing import Any
 
 import pytest
+from uipath_eval.models.models import ToolCall, ToolOutput
 
 from uipath.eval._helpers.evaluators_helpers import (
     extract_tool_calls,
@@ -20,7 +21,6 @@ from uipath.eval._helpers.evaluators_helpers import (
     tool_calls_order_score,
     tool_calls_output_score,
 )
-from uipath_eval.models.models import ToolCall, ToolOutput
 
 
 class TestToolCallsOrderScore:

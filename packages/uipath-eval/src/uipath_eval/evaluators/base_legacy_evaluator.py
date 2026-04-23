@@ -20,6 +20,7 @@ from .base_evaluator import (
 
 __all__ = ["track_evaluation_metrics"]
 
+
 # Legacy evaluator config (non-generic version for simplicity)
 class LegacyEvaluatorConfig(BaseEvaluatorConfig[BaseEvaluationCriteria]):
     """Configuration for legacy evaluators."""
