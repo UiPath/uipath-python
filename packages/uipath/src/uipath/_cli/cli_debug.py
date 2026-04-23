@@ -1,10 +1,11 @@
 import asyncio
 import logging
+from typing import cast, get_args
 
 import click
 
 from uipath._cli._chat._bridge import get_chat_bridge
-from uipath._cli._debug._bridge import get_debug_bridge
+from uipath._cli._debug._bridge import DebugAttachMode, get_debug_bridge
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath.core.tracing import UiPathTraceManager
@@ -64,6 +65,15 @@ logger = logging.getLogger(__name__)
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@click.option(
+    "--attach",
+    type=click.Choice(list(get_args(DebugAttachMode)), case_sensitive=False),
+    default=None,
+    help=(
+        "Debugger attach mode. Defaults to 'signalr' for cloud runs, "
+        "'console' for local runs."
+    ),
+)
 @track_command("debug")
 def debug(
     entrypoint: str | None,
@@ -74,12 +84,17 @@ def debug(
     output_file: str | None,
     debug: bool,
     debug_port: int,
+    attach: str | None,
 ) -> None:
     """Debug the project."""
     input_file = file or input_file
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
+
+    attach_mode: DebugAttachMode | None = (
+        cast(DebugAttachMode, attach.lower()) if attach else None
+    )
 
     result = Middlewares.next(
         "debug",
@@ -90,6 +105,7 @@ def debug(
         output_file=output_file,
         debug=debug,
         debug_port=debug_port,
+        attach=attach_mode,
     )
 
     if result.error_message:
@@ -141,7 +157,9 @@ def debug(
 
                         async def execute_debug_runtime():
                             chat_runtime: UiPathRuntimeProtocol | None = None
-                            debug_bridge: UiPathDebugProtocol = get_debug_bridge(ctx)
+                            debug_bridge: UiPathDebugProtocol = get_debug_bridge(
+                                ctx, attach=attach_mode
+                            )
 
                             runtime = await factory.new_runtime(
                                 entrypoint,
