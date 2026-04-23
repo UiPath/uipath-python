@@ -2579,9 +2579,7 @@ class TestMayOverrideFilesForPush:
                 tmp_path / ".uipath" / "metadata.json"
             )
 
-            with patch(
-                "uipath._cli._utils._common.ConsoleLogger"
-            ) as mock_console_class:
+            with patch("uipath._cli._utils._common.ConsoleLogger") as mock_console_class:
                 mock_console = mock_console_class.return_value
                 mock_console.confirm.return_value = True
 
@@ -2611,9 +2609,7 @@ class TestMayOverrideFilesForPush:
                 tmp_path / ".uipath" / "metadata.json"
             )
 
-            with patch(
-                "uipath._cli._utils._common.ConsoleLogger"
-            ) as mock_console_class:
+            with patch("uipath._cli._utils._common.ConsoleLogger") as mock_console_class:
                 mock_console = mock_console_class.return_value
                 mock_console.confirm.return_value = False
 
@@ -2679,9 +2675,7 @@ class TestMayOverrideFilesForPush:
         with patch("uipath._cli._utils._common.UiPathConfig") as mock_config:
             mock_config.studio_metadata_file_path = metadata_file
 
-            with patch(
-                "uipath._cli._utils._common.ConsoleLogger"
-            ) as mock_console_class:
+            with patch("uipath._cli._utils._common.ConsoleLogger") as mock_console_class:
                 mock_console = mock_console_class.return_value
                 mock_console.confirm.return_value = True
 
@@ -2739,9 +2733,7 @@ class TestMayOverrideFilesForPush:
                 tmp_path / ".uipath" / "metadata.json"
             )
 
-            with patch(
-                "uipath._cli._utils._common.ConsoleLogger"
-            ) as mock_console_class:
+            with patch("uipath._cli._utils._common.ConsoleLogger") as mock_console_class:
                 mock_console = mock_console_class.return_value
                 mock_console.confirm.return_value = True
 

@@ -104,17 +104,25 @@ def service_command(f: Callable[..., Any]) -> Callable[..., Any]:
 
             # Format and output result
             if result is not None:
-                from ._formatters import format_output
+                from ._console import ConsoleLogger, OutputMode
 
-                fmt = kwargs.get("format") or cli_ctx.output_format
-                output = kwargs.get("output")
+                logger = ConsoleLogger()
+                if logger.output_mode is not OutputMode.TEXT:
+                    from ._formatters import _normalize_data
 
-                format_output(
-                    result,
-                    fmt=fmt,
-                    output=output,
-                    no_color=False,  # Auto-detected for file output
-                )
+                    logger.set_result(_normalize_data(result))
+                else:
+                    from ._formatters import format_output
+
+                    fmt = kwargs.get("format") or cli_ctx.output_mode.value
+                    output = kwargs.get("output")
+
+                    format_output(
+                        result,
+                        fmt=fmt,
+                        output=output,
+                        no_color=False,
+                    )
 
             return result
 
@@ -244,7 +252,7 @@ def common_service_options(f: Callable[..., Any]) -> Callable[..., Any]:
         click.option("--folder-key", callback=validate_uuid, help="Folder key (UUID)"),
         click.option(
             "--format",
-            type=click.Choice(["json", "table", "csv"]),
+            type=click.Choice(["json", "text", "csv"]),
             help="Output format (overrides global)",
         ),
         click.option(
