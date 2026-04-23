@@ -11,7 +11,6 @@ from uipath_eval.evaluators import (
     BaseEvaluatorJustification,
     BinaryClassificationEvaluator,
     ContainsEvaluator,
-    ExactMatchEvaluator,
     JsonSimilarityEvaluator,
     LegacyJsonSimilarityEvaluator,
     MulticlassClassificationEvaluator,
@@ -23,6 +22,9 @@ from uipath_eval.evaluators import (
 
 # Platform-extended BaseLegacyEvaluator — extends uipath_eval's with line-by-line + attachments
 from .base_legacy_evaluator import BaseLegacyEvaluator
+
+# Platform-extended ExactMatchEvaluator — uses local OutputEvaluator with attachment support
+from .exact_match_evaluator import ExactMatchEvaluator
 
 # Platform-dependent evaluators (LLM, langchain, uipath-platform) — stay in uipath
 from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
@@ -45,7 +47,9 @@ from .llm_judge_trajectory_evaluator import (
 from .output_evaluator import AggregationMethod
 
 EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
-    *_EVAL_EVALUATORS,
+    # Replace uipath_eval.ExactMatchEvaluator with local version (has attachment support)
+    *(e for e in _EVAL_EVALUATORS if e.get_evaluator_id() != ExactMatchEvaluator.get_evaluator_id()),
+    ExactMatchEvaluator,
     LLMJudgeOutputEvaluator,
     LLMJudgeStrictJSONSimilarityOutputEvaluator,
     LLMJudgeTrajectoryEvaluator,

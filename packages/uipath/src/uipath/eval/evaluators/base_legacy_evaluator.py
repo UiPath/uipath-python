@@ -47,7 +47,7 @@ class BaseLegacyEvaluator(_BaseLegacyEvaluator[T], Generic[T]):
     line_by_line_evaluation: bool = Field(default=False, alias="lineByLineEvaluation")
     line_delimiter: str = Field(default="\n", alias="lineDelimiter")
 
-    async def validate_and_evaluate_criteria(  # type: ignore[override]
+    async def validate_and_evaluate_criteria(
         self,
         agent_execution: AgentExecution,
         evaluation_criteria: LegacyEvaluationCriteria,

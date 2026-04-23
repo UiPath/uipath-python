@@ -125,10 +125,10 @@ class LegacyExactMatchEvaluator(
             agent_execution=agent_execution,
             evaluate_fn=self._evaluate_exact,
             create_line_criteria_fn=lambda expected_line: LegacyEvaluationCriteria(
-                expectedOutput=wrap_line_in_structure(
+                expected_output=wrap_line_in_structure(
                     expected_line, self.target_output_key
                 ),
-                expectedAgentBehavior="",
+                expected_agent_behavior="",
             ),
         )
 
