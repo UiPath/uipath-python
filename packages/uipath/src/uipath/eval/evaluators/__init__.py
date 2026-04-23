@@ -9,7 +9,6 @@ from uipath_eval.evaluators import (
     BaseEvaluator,
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
-    BaseLegacyEvaluator,
     BinaryClassificationEvaluator,
     ContainsEvaluator,
     ExactMatchEvaluator,
@@ -21,6 +20,9 @@ from uipath_eval.evaluators import (
     ToolCallOrderEvaluator,
     ToolCallOutputEvaluator,
 )
+
+# Platform-extended BaseLegacyEvaluator — extends uipath_eval's with line-by-line + attachments
+from .base_legacy_evaluator import BaseLegacyEvaluator
 
 # Platform-dependent evaluators (LLM, langchain, uipath-platform) — stay in uipath
 from .legacy_context_precision_evaluator import LegacyContextPrecisionEvaluator
