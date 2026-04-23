@@ -8,6 +8,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import ConfigDict, Field
 
+from .._helpers.output_path import resolve_output_path
 from ..models import EvaluationResult
 from ..models.models import (
     AgentExecution,
@@ -94,6 +95,19 @@ class BaseLegacyEvaluator(
     line_delimiter: str = Field(default="\n", alias="lineDelimiter")
 
     # Note: __init_subclass__ is inherited from BaseEvaluator and handles metrics tracking
+
+    def get_targeted_field(self, obj: Any) -> Any:
+        """Resolve the target output key path from the given object.
+
+        If target_output_key is set and not "*", resolves the dot-notation path.
+        Returns the original object if resolution fails or no key is configured.
+        """
+        if self.target_output_key and self.target_output_key != "*":
+            try:
+                return resolve_output_path(obj, self.target_output_key)
+            except (KeyError, IndexError, TypeError):
+                return obj
+        return obj
 
     def model_post_init(self, __context: Any):
         """Post-initialization hook for Pydantic models."""
