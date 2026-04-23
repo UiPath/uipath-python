@@ -14,6 +14,10 @@ from .attachment_utils import (
     extract_attachment_id,
     is_job_attachment_uri,
 )
+from uipath_eval.evaluators.output_evaluator import (
+    OutputEvaluationCriteria as OutputEvaluationCriteria,
+)
+
 from .base_evaluator import (
     BaseEvaluationCriteria,
     BaseEvaluator,
@@ -67,12 +71,6 @@ class LineByLineEvaluationResult(BaseModel):
 
     line_results: list[tuple[int, Any]]  # (line_number, result)
     aggregation_method: AggregationMethod = AggregationMethod.AVERAGE
-
-
-class OutputEvaluationCriteria(BaseEvaluationCriteria):
-    """Base class for all output evaluation criteria."""
-
-    expected_output: dict[str, Any] | str = Field(..., alias="expectedOutput")
 
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
