@@ -60,6 +60,7 @@ class GenericResourceOverwrite(ResourceOverwrite):
         "mcpServer",
         "queue",
         "remoteA2aAgent",
+        "memorySpace",
     ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
