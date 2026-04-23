@@ -20,8 +20,6 @@ from uipath_eval import (
     JsonSimilarityEvaluator,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
-    LegacyExactMatchEvaluator,
-    LegacyJsonSimilarityEvaluator,
     LLMResponse,
     MulticlassClassificationEvaluator,
     NumericEvaluationResult,
@@ -32,6 +30,13 @@ from uipath_eval import (
     ToolCallOrderEvaluator,
     ToolCallOutputEvaluator,
     ToolOutput,
+)
+
+from uipath.eval.evaluators.legacy_exact_match_evaluator import (
+    LegacyExactMatchEvaluator,
+)
+from uipath.eval.evaluators.legacy_json_similarity_evaluator import (
+    LegacyJsonSimilarityEvaluator,
 )
 
 __all__ = [
