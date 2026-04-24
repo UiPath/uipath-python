@@ -17,6 +17,7 @@ from ..common.constants import (
     ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
 )
 from ..errors import (
+    BatchTransformFailedException,
     BatchTransformNotCompleteException,
     IngestionInProgressException,
     UnsupportedDataSourceException,
@@ -1050,6 +1051,10 @@ class ContextGroundingService(FolderContext, BaseService):
             batch_transform = self.retrieve_batch_transform(
                 id=id, index_name=index_name
             )
+            if batch_transform.last_batch_rag_status == BatchTransformStatus.FAILED:
+                raise BatchTransformFailedException(
+                    batch_transform_id=id,
+                )
             if batch_transform.last_batch_rag_status != BatchTransformStatus.SUCCESSFUL:
                 raise BatchTransformNotCompleteException(
                     batch_transform_id=id,
@@ -1109,6 +1114,10 @@ class ContextGroundingService(FolderContext, BaseService):
             batch_transform = await self.retrieve_batch_transform_async(
                 id=id, index_name=index_name
             )
+            if batch_transform.last_batch_rag_status == BatchTransformStatus.FAILED:
+                raise BatchTransformFailedException(
+                    batch_transform_id=id,
+                )
             if batch_transform.last_batch_rag_status != BatchTransformStatus.SUCCESSFUL:
                 raise BatchTransformNotCompleteException(
                     batch_transform_id=id,

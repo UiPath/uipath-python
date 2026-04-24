@@ -810,6 +810,41 @@ class TestHitlReader:
                 await reader.read_trigger(resume_trigger)
 
     @pytest.mark.anyio
+    async def test_read_batch_rag_trigger_failed(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test reading a failed batch rag trigger raises faulted error."""
+        from uipath.core.errors import UiPathFaultedTriggerError
+
+        from uipath.platform.errors import BatchTransformFailedException
+
+        task_id = "test-batch-rag-id"
+        destination_path = "test/output.xlsx"
+        mock_download_async = AsyncMock(
+            side_effect=BatchTransformFailedException(task_id)
+        )
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.download_batch_transform_result_async",
+            new=mock_download_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.BATCH_RAG,
+                item_key=task_id,
+                folder_key="test-folder",
+                folder_path="test-path",
+                payload={
+                    "index_name": "test-index",
+                    "destination_path": destination_path,
+                },
+            )
+
+            with pytest.raises(UiPathFaultedTriggerError):
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+
+    @pytest.mark.anyio
     async def test_read_ephemeral_index_trigger_successful(
         self,
         setup_test_env: None,
