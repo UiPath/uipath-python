@@ -73,7 +73,9 @@ class MemoryService(FolderContext, BaseService):
         Returns:
             MemorySpace: The created memory space.
         """
-        spec = self._create_spec(name, description, is_encrypted, folder_key, folder_path)
+        spec = self._create_spec(
+            name, description, is_encrypted, folder_key, folder_path
+        )
         response = self.request(
             spec.method,
             spec.endpoint,
@@ -104,7 +106,9 @@ class MemoryService(FolderContext, BaseService):
         Returns:
             MemorySpace: The created memory space.
         """
-        spec = self._create_spec(name, description, is_encrypted, folder_key, folder_path)
+        spec = self._create_spec(
+            name, description, is_encrypted, folder_key, folder_path
+        )
         response = (
             await self.request_async(
                 spec.method,
