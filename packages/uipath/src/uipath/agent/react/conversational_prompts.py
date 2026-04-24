@@ -155,9 +155,7 @@ def get_chat_system_prompt(
     Args:
         agent_definition: Conversational agent definition
         user_settings: Optional user data that is injected into the system prompt.
-        conversation_id: Optional conversation identifier. When provided, the
-            prompt informs the model of the current conversation ID so it can
-            use it as a tool-call argument without surfacing it to the user.
+        conversation_id: Optional conversation identifier that is injected into the system prompt.
 
     Returns:
         The complete system prompt string
