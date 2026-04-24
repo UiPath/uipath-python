@@ -747,6 +747,9 @@ class SignalRDebugBridge:
             f"Debug started: breakpoints={self.state.breakpoints}, step_mode={step_mode}"
         )
 
+        # handle race conditions, runtime connected to debug bridge before the receiver
+        await self.emit_execution_started()
+
     async def _handle_resume(self, args: list[Any]) -> None:
         """Handle Resume command from SignalR server.
 
