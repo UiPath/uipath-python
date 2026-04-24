@@ -24,6 +24,7 @@ class PromptUserSettings(BaseModel):
 _AGENT_SYSTEM_PROMPT_PREFIX_TEMPLATE = """You are {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_agentName}}.
 The current date is: {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_currentDate}}.
 Understand user goals through conversation and use appropriate tools to fulfill requests.
+{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}
 
 =====================================================================
 PRECEDENCE HIERARCHY
@@ -136,18 +137,27 @@ You have the following information about the user:
 {user_settings_json}
 ```"""
 
+_CONVERSATION_ID_TEMPLATE = """
+The current conversation ID is {conversation_id}.
+You should generally not discuss this conversation ID with the user, but it may be useful to include as a tool-call argument when relevant."
+"""
+
 
 def get_chat_system_prompt(
     model: str,
     system_message: str,
     agent_name: str | None,
     user_settings: PromptUserSettings | None = None,
+    conversation_id: str | None = None,
 ) -> str:
     """Generate a system prompt for a conversational agent.
 
     Args:
         agent_definition: Conversational agent definition
         user_settings: Optional user data that is injected into the system prompt.
+        conversation_id: Optional conversation identifier. When provided, the
+            prompt informs the model of the current conversation ID so it can
+            use it as a tool-call argument without surfacing it to the user.
 
     Returns:
         The complete system prompt string
@@ -177,6 +187,10 @@ def get_chat_system_prompt(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_userSettingsPrompt}}",
         get_user_settings_template(user_settings),
     )
+    prompt = prompt.replace(
+        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}",
+        get_conversation_id_template(conversation_id),
+    )
 
     return prompt
 
@@ -190,7 +204,7 @@ def get_user_settings_template(
         user_settings: User profile information
 
     Returns:
-        The user context template with JSON or empty string
+        The filled-in user settings template if user_settings is provided, otherwise an empty string
     """
     if user_settings is None:
         return ""
@@ -205,3 +219,17 @@ def get_user_settings_template(
 
     user_settings_json = json.dumps(settings_dict, ensure_ascii=False)
     return _USER_CONTEXT_TEMPLATE.format(user_settings_json=user_settings_json)
+
+
+def get_conversation_id_template(conversation_id: str | None) -> str:
+    """Get the conversation-ID prompt section.
+
+    Args:
+        conversation_id: The ID of the current conversation, if any
+
+    Returns:
+        The filled-in conversation ID template if conversation_id is provided, otherwise an empty string
+    """
+    if not conversation_id:
+        return ""
+    return _CONVERSATION_ID_TEMPLATE.format(conversation_id=conversation_id)
