@@ -822,7 +822,7 @@ class TestHitlReader:
         task_id = "test-batch-rag-id"
         destination_path = "test/output.xlsx"
         mock_download_async = AsyncMock(
-            side_effect=BatchTransformFailedException(task_id, "Failed")
+            side_effect=BatchTransformFailedException(task_id)
         )
 
         with patch(

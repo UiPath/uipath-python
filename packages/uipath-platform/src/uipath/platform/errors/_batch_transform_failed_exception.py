@@ -5,8 +5,6 @@ class BatchTransformFailedException(Exception):
     with a failed status, as opposed to still being in progress.
     """
 
-    def __init__(self, batch_transform_id: str, status: str):
-        self.message = (
-            f"Batch transform '{batch_transform_id}' failed. Status: {status}"
-        )
+    def __init__(self, batch_transform_id: str):
+        self.message = f"Batch transform '{batch_transform_id}' failed."
         super().__init__(self.message)

@@ -1054,7 +1054,6 @@ class ContextGroundingService(FolderContext, BaseService):
             if batch_transform.last_batch_rag_status == BatchTransformStatus.FAILED:
                 raise BatchTransformFailedException(
                     batch_transform_id=id,
-                    status=batch_transform.last_batch_rag_status,
                 )
             if batch_transform.last_batch_rag_status != BatchTransformStatus.SUCCESSFUL:
                 raise BatchTransformNotCompleteException(
@@ -1118,7 +1117,6 @@ class ContextGroundingService(FolderContext, BaseService):
             if batch_transform.last_batch_rag_status == BatchTransformStatus.FAILED:
                 raise BatchTransformFailedException(
                     batch_transform_id=id,
-                    status=batch_transform.last_batch_rag_status,
                 )
             if batch_transform.last_batch_rag_status != BatchTransformStatus.SUCCESSFUL:
                 raise BatchTransformNotCompleteException(

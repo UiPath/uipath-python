@@ -326,7 +326,7 @@ class UiPathResumeTriggerReader:
                         )
                     except BatchTransformFailedException as e:
                         raise UiPathFaultedTriggerError(
-                            ErrorCategory.USER,
+                            ErrorCategory.SYSTEM,
                             f"{e.message}",
                         ) from e
                     except BatchTransformNotCompleteException as e:
