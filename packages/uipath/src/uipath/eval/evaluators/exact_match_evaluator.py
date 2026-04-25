@@ -1,12 +1,9 @@
 """Exact match evaluator for agent outputs."""
 
-from ..models import (
-    AgentExecution,
-    EvaluationResult,
-    EvaluatorType,
-    NumericEvaluationResult,
-)
-from .base_evaluator import BaseEvaluatorJustification
+from uipath_eval.evaluators.base_evaluator import BaseEvaluatorJustification
+from uipath_eval.models import EvaluatorType
+
+from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from .output_evaluator import (
     OutputEvaluationCriteria,
     OutputEvaluator,
@@ -24,15 +21,12 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
 
 class ExactMatchEvaluator(
     OutputEvaluator[
-        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, BaseEvaluatorJustification
+        OutputEvaluationCriteria,
+        ExactMatchEvaluatorConfig,
+        BaseEvaluatorJustification,
     ]
 ):
-    """Evaluator that performs exact structural matching between expected and actual outputs.
-
-    This evaluator returns True if the actual output exactly matches the expected output
-    after canonical JSON normalization, and False otherwise. Numbers are normalized
-    to floats for consistent comparison.
-    """
+    """Evaluator that performs exact structural matching between expected and actual outputs."""
 
     @classmethod
     def get_evaluator_id(cls) -> str:
@@ -44,18 +38,7 @@ class ExactMatchEvaluator(
         agent_execution: AgentExecution,
         evaluation_criteria: OutputEvaluationCriteria,
     ) -> EvaluationResult:
-        """Evaluate whether actual output exactly matches expected output.
-
-        Args:
-            agent_execution: The execution details containing:
-                - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
-            evaluation_criteria: The criteria to evaluate
-
-        Returns:
-            EvaluationResult: Boolean result indicating exact match (True/False)
-        """
+        """Evaluate whether actual output exactly matches expected output."""
         actual_output = self._get_actual_output(agent_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
 
@@ -82,3 +65,9 @@ class ExactMatchEvaluator(
             score=float(is_exact_match),
             details=validated_justification,
         )
+
+
+__all__ = [
+    "ExactMatchEvaluator",
+    "ExactMatchEvaluatorConfig",
+]

@@ -1,0 +1,114 @@
+{
+  "evaluatorTypeId": "uipath-llm-judge-output-strict-json-similarity",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "OutputEvaluationCriteria": {
+        "description": "Base class for all output evaluation criteria.",
+        "properties": {
+          "expected_output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Expected Output"
+          }
+        },
+        "required": [
+          "expected_output"
+        ],
+        "title": "OutputEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the LLM judge strict JSON similarity output evaluator.",
+    "properties": {
+      "name": {
+        "default": "LLMJudgeStrictJSONSimilarityOutputEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/OutputEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "prompt": {
+        "default": "ExpectedOutput (ground truth):\n{{ExpectedOutput}}\n\nActualOutput (model answer):\n{{ActualOutput}}",
+        "title": "Prompt",
+        "type": "string"
+      },
+      "model": {
+        "default": "",
+        "title": "Model",
+        "type": "string"
+      },
+      "temperature": {
+        "default": 0.0,
+        "title": "Temperature",
+        "type": "number"
+      },
+      "max_tokens": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Tokens"
+      },
+      "target_output_key": {
+        "default": "*",
+        "description": "Key to extract output from agent execution",
+        "title": "Target Output Key",
+        "type": "string"
+      }
+    },
+    "title": "LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Base class for all output evaluation criteria.",
+    "properties": {
+      "expected_output": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "title": "Expected Output"
+      }
+    },
+    "required": [
+      "expected_output"
+    ],
+    "title": "OutputEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "type": "string"
+  }
+}

@@ -11,7 +11,6 @@ from pydantic import TypeAdapter
 from ..constants import CUSTOM_EVALUATOR_PREFIX, EVALS_FOLDER
 from . import (
     BaseEvaluator,
-    BaseLegacyEvaluator,
     LegacyContextPrecisionEvaluator,
     LegacyFaithfulnessEvaluator,
     LegacyLlmAsAJudgeEvaluator,
@@ -185,7 +184,7 @@ class EvaluatorFactory:
     def _create_legacy_evaluator_internal(
         data: dict[str, Any],
         agent_model: str | None = None,
-    ) -> BaseLegacyEvaluator[Any]:
+    ) -> LegacyEvaluator:
         """Create an evaluator instance from configuration data.
 
         Args:

@@ -198,9 +198,63 @@ jobs:
         working-directory: packages/uipath
         run: uv run python scripts/lint_httpx_client.py
 
+  lint-uipath-eval:
+    name: Lint uipath-eval
+    needs: detect-changed-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if package changed
+        id: check
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-eval")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        run: echo "Skipping - no changes to uipath-eval"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "packages/uipath-eval/.python-version"
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv sync --locked --no-sources --all-extras
+
+      - name: Check static types
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv run mypy --config-file pyproject.toml .
+
+      - name: Check linting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv run ruff check .
+
+      - name: Check formatting
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv run ruff format --check .
+
   lint-gate:
     name: Lint
-    needs: [lint-uipath-core, lint-uipath-platform, lint-uipath]
+    needs: [lint-uipath-core, lint-uipath-platform, lint-uipath, lint-uipath-eval]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -208,7 +262,8 @@ jobs:
         run: |
           if [[ "${{ needs.lint-uipath-core.result }}" == "failure" || \
                 "${{ needs.lint-uipath-platform.result }}" == "failure" || \
-                "${{ needs.lint-uipath.result }}" == "failure" ]]; then
+                "${{ needs.lint-uipath.result }}" == "failure" || \
+                "${{ needs.lint-uipath-eval.result }}" == "failure" ]]; then
             echo "Lint failed"
             exit 1
           fi

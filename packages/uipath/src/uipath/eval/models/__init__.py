@@ -1,6 +1,6 @@
 """UiPath evaluation module for agent performance assessment."""
 
-from uipath.eval.models.models import (
+from uipath_eval.models import (
     AgentExecution,
     BooleanEvaluationResult,
     ErrorEvaluationResult,

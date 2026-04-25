@@ -1,0 +1,110 @@
+{
+  "evaluatorTypeId": "uipath-tool-call-count",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "ToolCallCountEvaluationCriteria": {
+        "description": "Evaluation criteria for the tool call count evaluator.",
+        "properties": {
+          "tool_calls_count": {
+            "additionalProperties": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Tool Calls Count",
+            "type": "object"
+          }
+        },
+        "required": [
+          "tool_calls_count"
+        ],
+        "title": "ToolCallCountEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the tool call count evaluator.",
+    "properties": {
+      "name": {
+        "default": "ToolCallCountEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ToolCallCountEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "strict": {
+        "default": false,
+        "title": "Strict",
+        "type": "boolean"
+      }
+    },
+    "title": "ToolCallCountEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Evaluation criteria for the tool call count evaluator.",
+    "properties": {
+      "tool_calls_count": {
+        "additionalProperties": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "title": "Tool Calls Count",
+        "type": "object"
+      }
+    },
+    "required": [
+      "tool_calls_count"
+    ],
+    "title": "ToolCallCountEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "description": "Justification for the tool call count evaluator.",
+    "properties": {
+      "explained_tool_calls_count": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Explained Tool Calls Count",
+        "type": "object"
+      }
+    },
+    "required": [
+      "explained_tool_calls_count"
+    ],
+    "title": "ToolCallCountEvaluatorJustification",
+    "type": "object"
+  }
+}

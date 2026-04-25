@@ -16,6 +16,12 @@ from typing import Any
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from pytest_mock.plugin import MockerFixture
+from uipath_eval.models.models import (
+    AgentExecution,
+    ToolCall,
+    ToolOutput,
+    UiPathEvaluationError,
+)
 
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.contains_evaluator import (
@@ -57,12 +63,6 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
     ToolCallOutputEvaluatorJustification,
 )
 from uipath.eval.models import NumericEvaluationResult
-from uipath.eval.models.models import (
-    AgentExecution,
-    ToolCall,
-    ToolOutput,
-    UiPathEvaluationError,
-)
 
 
 @pytest.fixture

@@ -1,0 +1,79 @@
+"""UiPath eval module — platform-independent evaluators via uipath-eval, runtime integration in uipath."""
+
+from uipath_eval import (
+    EVALUATORS,
+    AgentExecution,
+    BaseEvaluationCriteria,
+    BaseEvaluator,
+    BaseEvaluatorConfig,
+    BaseEvaluatorJustification,
+    BaseLegacyEvaluator,
+    BinaryClassificationEvaluator,
+    BooleanEvaluationResult,
+    ContainsEvaluator,
+    ErrorEvaluationResult,
+    EvalItemResult,
+    EvaluationResult,
+    EvaluationResultDto,
+    EvaluatorType,
+    ExactMatchEvaluator,
+    JsonSimilarityEvaluator,
+    LegacyEvaluatorCategory,
+    LegacyEvaluatorType,
+    LLMResponse,
+    MulticlassClassificationEvaluator,
+    NumericEvaluationResult,
+    ScoreType,
+    ToolCall,
+    ToolCallArgsEvaluator,
+    ToolCallCountEvaluator,
+    ToolCallOrderEvaluator,
+    ToolCallOutputEvaluator,
+    ToolOutput,
+)
+
+from uipath.eval.evaluators.legacy_exact_match_evaluator import (
+    LegacyExactMatchEvaluator,
+)
+from uipath.eval.evaluators.legacy_json_similarity_evaluator import (
+    LegacyJsonSimilarityEvaluator,
+)
+
+__all__ = [
+    "EVALUATORS",
+    # Base classes
+    "BaseEvaluator",
+    "BaseEvaluationCriteria",
+    "BaseEvaluatorConfig",
+    "BaseEvaluatorJustification",
+    "BaseLegacyEvaluator",
+    # Coded evaluators
+    "BinaryClassificationEvaluator",
+    "ContainsEvaluator",
+    "ExactMatchEvaluator",
+    "JsonSimilarityEvaluator",
+    "MulticlassClassificationEvaluator",
+    # Tool call evaluators
+    "ToolCallArgsEvaluator",
+    "ToolCallCountEvaluator",
+    "ToolCallOrderEvaluator",
+    "ToolCallOutputEvaluator",
+    # Legacy deterministic evaluators
+    "LegacyExactMatchEvaluator",
+    "LegacyJsonSimilarityEvaluator",
+    # Models
+    "AgentExecution",
+    "BooleanEvaluationResult",
+    "ErrorEvaluationResult",
+    "EvalItemResult",
+    "EvaluationResult",
+    "EvaluationResultDto",
+    "EvaluatorType",
+    "LegacyEvaluatorCategory",
+    "LegacyEvaluatorType",
+    "LLMResponse",
+    "NumericEvaluationResult",
+    "ScoreType",
+    "ToolCall",
+    "ToolOutput",
+]

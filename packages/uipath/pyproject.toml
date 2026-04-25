@@ -6,6 +6,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
   "uipath-core>=0.5.8, <0.6.0",
+  "uipath-eval>=0.1.0, <0.2.0",
   "uipath-runtime>=0.10.1, <0.11.0",
   "uipath-platform>=0.1.13, <0.2.0",
   "click>=8.3.1",
@@ -149,6 +150,7 @@ source = ["src"]
 
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }
+uipath-eval = { path = "../uipath-eval", editable = true }
 uipath-platform = { path = "../uipath-platform", editable = true }
 
 [[tool.uv.index]]

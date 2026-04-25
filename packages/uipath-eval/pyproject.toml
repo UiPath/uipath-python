@@ -1,0 +1,99 @@
+[project]
+name = "uipath-eval"
+version = "0.1.0"
+description = "UiPath evaluator logic as a standalone package — for use in python-eval-workers without the full UiPath SDK."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.11"
+dependencies = [
+  "uipath-core>=0.5.8, <0.6.0",
+  "opentelemetry-sdk>=1.39.0, <2.0.0",
+  "httpx>=0.28.1",
+  "pydantic>=2.12.5, <3.0.0",
+]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+maintainers = [
+  { name = "Marius Cosareanu", email = "marius.cosareanu@uipath.com" },
+  { name = "Cristian Pufu", email = "cristian.pufu@uipath.com" },
+]
+
+[project.optional-dependencies]
+llm = [
+  "langchain-core>=0.3",
+  "openai>=1.0",
+]
+
+[project.urls]
+Homepage = "https://uipath.com"
+Repository = "https://github.com/UiPath/uipath-python"
+Documentation = "https://uipath.github.io/uipath-python/"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uipath_eval"]
+
+[dependency-groups]
+dev = [
+  "bandit>=1.8.2",
+  "mypy>=1.14.1",
+  "ruff>=0.9.4",
+  "rust-just>=1.39.0",
+  "pytest>=7.4.0",
+  "pytest-asyncio>=1.0.0",
+  "pytest-httpx>=0.35.0",
+  "pytest-cov>=4.1.0",
+  "pytest-mock>=3.11.1",
+  "pre-commit>=4.5.1",
+]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I", "D"]
+ignore = ["D417", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"*" = ["E501"]
+"tests/**" = ["D"]
+"*_test.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+explicit_package_bases = true
+namespace_packages = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+  "tests.*",
+]
+ignore_errors = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

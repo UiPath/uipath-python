@@ -1,0 +1,137 @@
+{
+  "evaluatorTypeId": "uipath-tool-call-args",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "ToolCall": {
+        "description": "Represents a tool call with its arguments.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "args"
+        ],
+        "title": "ToolCall",
+        "type": "object"
+      },
+      "ToolCallArgsEvaluationCriteria": {
+        "description": "Evaluation criteria for the tool call order evaluator.",
+        "properties": {
+          "tool_calls": {
+            "items": {
+              "$ref": "#/$defs/ToolCall"
+            },
+            "title": "Tool Calls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tool_calls"
+        ],
+        "title": "ToolCallArgsEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the tool call count evaluator.",
+    "properties": {
+      "name": {
+        "default": "ToolCallArgsEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ToolCallArgsEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "strict": {
+        "default": false,
+        "title": "Strict",
+        "type": "boolean"
+      },
+      "subset": {
+        "default": false,
+        "title": "Subset",
+        "type": "boolean"
+      }
+    },
+    "title": "ToolCallArgsEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "$defs": {
+      "ToolCall": {
+        "description": "Represents a tool call with its arguments.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "args"
+        ],
+        "title": "ToolCall",
+        "type": "object"
+      }
+    },
+    "description": "Evaluation criteria for the tool call order evaluator.",
+    "properties": {
+      "tool_calls": {
+        "items": {
+          "$ref": "#/$defs/ToolCall"
+        },
+        "title": "Tool Calls",
+        "type": "array"
+      }
+    },
+    "required": [
+      "tool_calls"
+    ],
+    "title": "ToolCallArgsEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "description": "Justification for the tool call args evaluator.",
+    "properties": {
+      "explained_tool_calls_args": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Explained Tool Calls Args",
+        "type": "object"
+      }
+    },
+    "required": [
+      "explained_tool_calls_args"
+    ],
+    "title": "ToolCallArgsEvaluatorJustification",
+    "type": "object"
+  }
+}

@@ -5,6 +5,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeVar, Union
 
 from pydantic import BaseModel, Field
+from uipath_eval.evaluators.output_evaluator import (
+    OutputEvaluationCriteria as OutputEvaluationCriteria,
+)
 
 from .._helpers.output_path import resolve_output_path
 from ..models import AgentExecution
@@ -67,12 +70,6 @@ class LineByLineEvaluationResult(BaseModel):
 
     line_results: list[tuple[int, Any]]  # (line_number, result)
     aggregation_method: AggregationMethod = AggregationMethod.AVERAGE
-
-
-class OutputEvaluationCriteria(BaseEvaluationCriteria):
-    """Base class for all output evaluation criteria."""
-
-    expected_output: dict[str, Any] | str = Field(..., alias="expectedOutput")
 
 
 T = TypeVar("T", bound=BaseEvaluationCriteria)
