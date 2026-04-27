@@ -25,6 +25,8 @@ class UiPathConversationToolCallStartEvent(BaseModel):
     timestamp: str | None = None
     input: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
+    require_confirmation: bool | None = Field(None, alias="requireConfirmation")
+    input_schema: Any | None = Field(None, alias="inputSchema")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -41,6 +43,34 @@ class UiPathConversationToolCallEndEvent(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
 
+class UiPathConversationToolCallConfirmationEvent(BaseModel):
+    """Signals a tool call confirmation (approve/reject) from the client."""
+
+    approved: bool
+    input: Any | None = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationToolCallConfirmationData(BaseModel):
+    """Represents the core data of a tool call confirmation."""
+
+    approved: bool
+    input: Any | None = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationToolCallConfirmation(
+    UiPathConversationToolCallConfirmationData
+):
+    """Represents the stored confirmation state on a tool call."""
+
+    confirmed_at: str | None = Field(None, alias="confirmedAt")
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
 class UiPathConversationToolCallEvent(BaseModel):
     """Encapsulates the data related to a tool call event."""
 
@@ -49,6 +79,9 @@ class UiPathConversationToolCallEvent(BaseModel):
         None, alias="startToolCall"
     )
     end: UiPathConversationToolCallEndEvent | None = Field(None, alias="endToolCall")
+    confirm: UiPathConversationToolCallConfirmationEvent | None = Field(
+        None, alias="confirmToolCall"
+    )
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
     error: UiPathConversationErrorEvent | None = Field(None, alias="toolCallError")
 
@@ -61,6 +94,9 @@ class UiPathConversationToolCallData(BaseModel):
     name: str
     input: dict[str, Any] | None = None
     result: UiPathConversationToolCallResult | None = None
+    require_confirmation: bool | None = Field(None, alias="requireConfirmation")
+    input_schema: Any | None = Field(None, alias="inputSchema")
+    confirmation: UiPathConversationToolCallConfirmationData | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -72,5 +108,6 @@ class UiPathConversationToolCall(UiPathConversationToolCallData):
     timestamp: str | None = None
     created_at: str = Field(..., alias="createdAt")
     updated_at: str = Field(..., alias="updatedAt")
+    confirmation: UiPathConversationToolCallConfirmation | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

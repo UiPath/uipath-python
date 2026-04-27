@@ -10,11 +10,6 @@ from .content import (
     UiPathConversationContentPartEvent,
 )
 from .error import UiPathConversationErrorEvent
-from .interrupt import (
-    UiPathConversationInterrupt,
-    UiPathConversationInterruptData,
-    UiPathConversationInterruptEvent,
-)
 from .tool import (
     UiPathConversationToolCall,
     UiPathConversationToolCallData,
@@ -53,7 +48,6 @@ class UiPathConversationMessageEvent(BaseModel):
         None, alias="contentPart"
     )
     tool_call: UiPathConversationToolCallEvent | None = Field(None, alias="toolCall")
-    interrupt: UiPathConversationInterruptEvent | None = None
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
     error: UiPathConversationErrorEvent | None = Field(None, alias="messageError")
 
@@ -68,7 +62,6 @@ class UiPathConversationMessageData(BaseModel):
         ..., alias="contentParts"
     )
     tool_calls: Sequence[UiPathConversationToolCallData] = Field(..., alias="toolCalls")
-    interrupts: Sequence[UiPathConversationInterruptData]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -86,6 +79,5 @@ class UiPathConversationMessage(UiPathConversationMessageData):
         ..., alias="contentParts"
     )
     tool_calls: Sequence[UiPathConversationToolCall] = Field(..., alias="toolCalls")
-    interrupts: Sequence[UiPathConversationInterrupt]
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

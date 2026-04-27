@@ -38,7 +38,6 @@ class TestConversationsService:
                     "role": "assistant",
                     "contentParts": [],
                     "toolCalls": [],
-                    "interrupts": [],
                     "createdAt": "2024-01-01T00:00:00Z",
                     "updatedAt": "2024-01-01T00:00:00Z",
                 },
@@ -95,7 +94,6 @@ class TestConversationsService:
                         }
                     ],
                     "toolCalls": [],
-                    "interrupts": [],
                     "createdAt": "2024-01-01T00:00:00Z",
                     "updatedAt": "2024-01-01T00:00:00Z",
                 },
@@ -145,7 +143,6 @@ class TestConversationsService:
                             "updatedAt": "2024-01-01T00:00:00Z",
                         }
                     ],
-                    "interrupts": [],
                     "createdAt": "2024-01-01T00:00:00Z",
                     "updatedAt": "2024-01-01T00:00:00Z",
                 },
