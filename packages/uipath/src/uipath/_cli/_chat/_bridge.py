@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import os
-import uuid
 from typing import Any
 from urllib.parse import urlparse
 
@@ -14,11 +13,8 @@ from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
-    UiPathConversationInterruptEndEvent,
-    UiPathConversationInterruptEvent,
     UiPathConversationMessageEvent,
-    UiPathConversationToolCallConfirmationInterruptStartEvent,
-    UiPathConversationToolCallConfirmationValue,
+    UiPathConversationToolCallConfirmationEvent,
 )
 from uipath.core.triggers import UiPathResumeTrigger
 from uipath.runtime.chat import UiPathChatProtocol
@@ -126,9 +122,10 @@ class SocketIOChatBridge:
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
-        # Interrupt state for HITL round-trip
-        self._interrupt_end_event = asyncio.Event()
-        self._interrupt_end_value: UiPathConversationInterruptEndEvent | None = None
+        self._tool_confirmation_event = asyncio.Event()
+        self._tool_confirmation_value: (
+            UiPathConversationToolCallConfirmationEvent | None
+        ) = None
         self._current_message_id: str | None = None
 
         # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
@@ -363,67 +360,35 @@ class SocketIOChatBridge:
             raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
-        if self._client and self._connected_event.is_set():
-            try:
-                # Clear previous interrupt state and generate new interrupt_id
-                self._interrupt_id = str(uuid.uuid4())
+        """No-op.
 
-                # Ensure we have a valid message_id
-                if self._current_message_id is None:
-                    raise RuntimeError(
-                        "Cannot emit interrupt event: no current message_id set"
-                    )
+        Tool confirmation — the only interrupt pattern CAS uses today — is
+        handled end-to-end via ``startToolCall`` with ``requireConfirmation:
+        true`` paired with ``wait_for_resume()``. This is deliberately
+        simpler than the old interrupt-based flow: CAS needs
+        ``requireConfirmation`` on the tool call event itself to render the
+        confirmation UI, so a parallel ``startInterrupt`` event would be
+        redundant.
 
-                # Ensure api_resume is not None
-                if resume_trigger.api_resume is None:
-                    raise RuntimeError(
-                        "Cannot emit interrupt event: api_resume is None"
-                    )
-
-                interrupt_event = UiPathConversationEvent(
-                    conversation_id=self.conversation_id,
-                    exchange=UiPathConversationExchangeEvent(
-                        exchange_id=self.exchange_id,
-                        message=UiPathConversationMessageEvent(
-                            message_id=self._current_message_id,
-                            interrupt=UiPathConversationInterruptEvent(
-                                interrupt_id=self._interrupt_id,
-                                start=UiPathConversationToolCallConfirmationInterruptStartEvent(
-                                    type="uipath_cas_tool_call_confirmation",
-                                    value=UiPathConversationToolCallConfirmationValue(
-                                        **resume_trigger.api_resume.request
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                )
-
-                event_data = interrupt_event.model_dump(
-                    mode="json", exclude_none=True, by_alias=True
-                )
-                if self._websocket_disabled:
-                    logger.info(
-                        f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
-                    )
-                else:
-                    await self._client.emit("ConversationEvent", event_data)
-            except Exception as e:
-                logger.warning(f"Error sending interrupt event: {e}")
+        The only hypothetical reason to put work here is a generic,
+        non-tool-call agent interrupt (e.g. a coded agent calling
+        ``interrupt("do you want to continue?")``). Nothing uses that today
+        and it's not a near-term requirement — the method is kept for
+        generic flexibility.
+        """
+        return None
 
     async def wait_for_resume(self) -> dict[str, Any]:
-        """Wait for the interrupt_end event to be received.
+        """Wait for a confirmToolCall event to be received."""
+        self._tool_confirmation_event.clear()
+        self._tool_confirmation_value = None
 
-        Returns:
-            Resume data from the interrupt end event
-        """
-        self._interrupt_end_event.clear()
-        self._interrupt_end_value = None
+        await self._tool_confirmation_event.wait()
 
-        await self._interrupt_end_event.wait()
-
-        if self._interrupt_end_value:
-            return self._interrupt_end_value.model_dump(mode="python", by_alias=False)
+        if self._tool_confirmation_value:
+            return self._tool_confirmation_value.model_dump(
+                mode="python", by_alias=False
+            )
         return {}
 
     @property
@@ -458,17 +423,14 @@ class SocketIOChatBridge:
             if (
                 parsed_event.exchange
                 and parsed_event.exchange.message
-                and parsed_event.exchange.message.interrupt
-                and parsed_event.exchange.message.interrupt.end
+                and (tool_call := parsed_event.exchange.message.tool_call)
+                and (confirm := tool_call.confirm)
             ):
-                interrupt = parsed_event.exchange.message.interrupt
-
-                if interrupt.interrupt_id == self._interrupt_id:
-                    logger.info(
-                        f"Received endInterrupt for interrupt_id: {self._interrupt_id}"
-                    )
-                    self._interrupt_end_value = interrupt.end
-                    self._interrupt_end_event.set()
+                logger.info(
+                    f"Received confirmToolCall for tool_call_id: {tool_call.tool_call_id}, approved: {confirm.approved}"
+                )
+                self._tool_confirmation_value = confirm
+                self._tool_confirmation_event.set()
         except Exception as e:
             logger.warning(f"Error parsing conversation event: {e}")
 

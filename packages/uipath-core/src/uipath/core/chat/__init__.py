@@ -77,20 +77,6 @@ from .exchange import (
     UiPathConversationExchangeEvent,
     UiPathConversationExchangeStartEvent,
 )
-from .interrupt import (
-    InterruptTypeEnum,
-    UiPathConversationGenericInterruptEndEvent,
-    UiPathConversationGenericInterruptStartEvent,
-    UiPathConversationInterrupt,
-    UiPathConversationInterruptData,
-    UiPathConversationInterruptEndEvent,
-    UiPathConversationInterruptEvent,
-    UiPathConversationInterruptStartEvent,
-    UiPathConversationToolCallConfirmationEndValue,
-    UiPathConversationToolCallConfirmationInterruptEndEvent,
-    UiPathConversationToolCallConfirmationInterruptStartEvent,
-    UiPathConversationToolCallConfirmationValue,
-)
 from .message import (
     UiPathConversationMessage,
     UiPathConversationMessageData,
@@ -108,6 +94,9 @@ from .session import (
 )
 from .tool import (
     UiPathConversationToolCall,
+    UiPathConversationToolCallConfirmation,
+    UiPathConversationToolCallConfirmationData,
+    UiPathConversationToolCallConfirmationEvent,
     UiPathConversationToolCallData,
     UiPathConversationToolCallEndEvent,
     UiPathConversationToolCallEvent,
@@ -146,19 +135,6 @@ __all__ = [
     "UiPathConversationMessageEvent",
     "UiPathConversationMessageData",
     "UiPathConversationMessage",
-    # Interrupt
-    "InterruptTypeEnum",
-    "UiPathConversationInterruptStartEvent",
-    "UiPathConversationInterruptEndEvent",
-    "UiPathConversationInterruptEvent",
-    "UiPathConversationToolCallConfirmationValue",
-    "UiPathConversationToolCallConfirmationEndValue",
-    "UiPathConversationToolCallConfirmationInterruptStartEvent",
-    "UiPathConversationToolCallConfirmationInterruptEndEvent",
-    "UiPathConversationGenericInterruptStartEvent",
-    "UiPathConversationGenericInterruptEndEvent",
-    "UiPathConversationInterruptData",
-    "UiPathConversationInterrupt",
     # Content
     "UiPathConversationContentPartChunkEvent",
     "UiPathConversationContentPartStartEvent",
@@ -183,6 +159,9 @@ __all__ = [
     # Tool
     "UiPathConversationToolCallStartEvent",
     "UiPathConversationToolCallEndEvent",
+    "UiPathConversationToolCallConfirmation",
+    "UiPathConversationToolCallConfirmationData",
+    "UiPathConversationToolCallConfirmationEvent",
     "UiPathConversationToolCallEvent",
     "UiPathConversationToolCallResult",
     "UiPathConversationToolCallData",

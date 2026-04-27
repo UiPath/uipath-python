@@ -168,7 +168,6 @@ class UiPathLegacyEvalChatMessagesMapper:
                             role="user",
                             content_parts=content_parts,
                             tool_calls=[],
-                            interrupts=[],
                             created_at=timestamp,
                             updated_at=timestamp,
                         )
@@ -215,7 +214,6 @@ class UiPathLegacyEvalChatMessagesMapper:
                             role="assistant",
                             content_parts=content_parts,
                             tool_calls=tool_calls,
-                            interrupts=[],
                             created_at=timestamp,
                             updated_at=timestamp,
                         )
@@ -259,7 +257,6 @@ class UiPathLegacyEvalChatMessagesMapper:
                 role="user",
                 content_parts=content_parts,
                 tool_calls=[],
-                interrupts=[],
                 created_at=timestamp,
                 updated_at=timestamp,
             )
@@ -301,7 +298,6 @@ class UiPathLegacyEvalChatMessagesMapper:
                     role="assistant",
                     content_parts=content_parts,
                     tool_calls=tool_calls,
-                    interrupts=[],
                 )
             )
 
