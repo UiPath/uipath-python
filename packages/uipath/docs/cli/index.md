@@ -32,6 +32,35 @@ Select tenant number: 0
 Selected tenant: Tenant1
 ✓  Authentication successful.
 ```
+
+/// info | Unattended Authentication (Client Credentials)
+
+For CI/CD pipelines and other non-interactive contexts, authenticate with the OAuth client credentials flow by passing all three of `--client-id`, `--client-secret`, and `--base-url`. The CLI exchanges them for an access token and writes it to the same on-disk session used by interactive logins, so subsequent commands like `uipath publish` and `uipath invoke` work without further setup.
+
+The `--base-url` must point at the tenant scope (`https://<host>/<organization>/<tenant>`). The optional `--scope` flag controls the OAuth scopes requested — defaults to `OR.Execution`, which is what `uipath publish` needs. Pass a space-separated list (for example `"OR.Execution OR.Queues"`) when you need additional scopes.
+
+**Setup:**
+
+1. In Orchestrator, create an **External Application** of type *Confidential* and grant it the Orchestrator scopes you need (for example `OR.Execution`).
+2. Copy the generated **App ID** and **App Secret** — these become `--client-id` and `--client-secret`.
+
+**Example:**
+
+<!-- termynal -->
+```shell
+> uipath auth --client-id 12345678-c4c5-4f1f-93ff-4f5ab47d57ea \
+              --client-secret 'your-secret' \
+              --base-url https://cloud.uipath.com/your-org/your-tenant
+✓  Authentication successful.
+> uipath publish --tenant
+```
+
+/// warning
+Treat `--client-secret` as a credential. In CI, prefer reading it from a secret store and passing it on the command line, rather than committing it to source control or leaving it in shell history.
+///
+
+///
+
 ---
 
 ::: mkdocs-click
