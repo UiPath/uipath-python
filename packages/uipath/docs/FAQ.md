@@ -332,6 +332,33 @@ dependencies = [
 ]
 ```
 
+### Q: How do I get a more detailed error message when something fails on UiPath Cloud Platform?
+
+#### Description
+
+When an agent fails on cloud serverless execution, the default log output may not contain enough detail to identify the root cause. You can opt into a more verbose log level to surface the underlying exception, stack trace, and HTTP-call details.
+
+#### Solution
+
+Set the `LOG_LEVEL` environment variable to `TRACE` for the affected entry point. Once set, the next run emits trace-level log records to the **Logs** panel of the job in Orchestrator.
+
+You can configure the variable in any of these places:
+
+- The `.env` file packed with your project
+- The entry point's environment configuration in Orchestrator
+- A process-level environment variable on the runner
+
+**.env example:**
+```dotenv
+LOG_LEVEL=TRACE
+```
+
+After re-running the failing job, open the **Logs** panel — the additional records typically point at the exact request, payload, or exception that caused the failure.
+
+/// info
+`TRACE` is intentionally noisy. Switch the variable back to `INFO` (or remove it) once you've captured what you need — leaving it on adds cost and clutter to long-running jobs.
+///
+
 ---
 
 *Note: This FAQ will be updated as new information becomes available. If you continue experiencing issues after following these solutions, please contact UiPath support.*
