@@ -79,6 +79,7 @@ class TestProcessesService:
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": json.dumps(input_arguments),
+                    "Source": "AgentService",
                 }
             },
             separators=(",", ":"),
@@ -139,6 +140,7 @@ class TestProcessesService:
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": "{}",
+                    "Source": "AgentService",
                 }
             },
             separators=(",", ":"),
@@ -300,6 +302,7 @@ class TestProcessesService:
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": json.dumps(input_arguments),
+                    "Source": "AgentService",
                 }
             },
             separators=(",", ":"),
@@ -361,6 +364,7 @@ class TestProcessesService:
                 "startInfo": {
                     "ReleaseName": process_name,
                     "InputArguments": "{}",
+                    "Source": "AgentService",
                 }
             },
             separators=(",", ":"),

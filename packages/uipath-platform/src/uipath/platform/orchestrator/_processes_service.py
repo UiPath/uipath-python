@@ -321,7 +321,11 @@ class ProcessesService(FolderContext, BaseService):
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
     ) -> RequestSpec:
-        payload: Dict[str, Any] = {"ReleaseName": name, **(input_data or {})}
+        payload: Dict[str, Any] = {
+            "ReleaseName": name,
+            **(input_data or {}),
+            "Source": "AgentService",
+        }
         self._add_tracing(payload, UiPathConfig.trace_id, parent_span_id)
 
         if parent_operation_id:
