@@ -4,6 +4,7 @@ import importlib.resources
 import json
 import logging
 import os
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -313,6 +314,19 @@ def write_mermaid_files(entry_points: list[UiPathRuntimeSchema]) -> list[Path]:
     return mermaid_paths
 
 
+_MERMAID_ID_INVALID_CHARS = re.compile(r"[^a-zA-Z0-9_]+")
+
+
+def _sanitize_mermaid_id(node_id: str) -> str:
+    """Replace characters invalid in Mermaid node IDs with underscores.
+
+    `UiPathRuntimeNode.id` uses `file.py:line` so the value can double as a
+    breakpoint location. Mermaid treats `.` and `:` as syntax, so the raw ID
+    breaks the flowchart parser — sanitize before emitting.
+    """
+    return _MERMAID_ID_INVALID_CHARS.sub("_", node_id)
+
+
 def _add_graph_to_chart(chart: Chart | Subgraph, graph: UiPathRuntimeGraph) -> None:
     """Recursively add nodes and edges from UiPathRuntimeGraph to mermaid chart.
 
@@ -328,13 +342,16 @@ def _add_graph_to_chart(chart: Chart | Subgraph, graph: UiPathRuntimeGraph) -> N
             _add_graph_to_chart(subgraph, node.subgraph)
             chart.add_subgraph(subgraph)
         else:
-            mermaid_node = Node(title=node.name, id=node.id)
+            mermaid_id = _sanitize_mermaid_id(node.id)
+            mermaid_node = Node(title=node.name, id=mermaid_id)
             chart.add_node(mermaid_node)
             node_objects[node.id] = mermaid_node
 
     for edge in graph.edges:
         link = Link(
-            src=edge.source, dest=edge.target, text=edge.label if edge.label else None
+            src=_sanitize_mermaid_id(edge.source),
+            dest=_sanitize_mermaid_id(edge.target),
+            text=edge.label if edge.label else None,
         )
         chart.add_link(link)
 
