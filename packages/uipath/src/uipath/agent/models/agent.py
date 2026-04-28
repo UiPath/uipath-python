@@ -1156,6 +1156,7 @@ class AgentMetadata(BaseCfg):
     """Agent metadata model."""
 
     is_conversational: bool = Field(alias="isConversational")
+    is_case_manager: bool = Field(default=False, alias="isCaseManager")
     storage_version: str = Field(alias="storageVersion")
 
 
@@ -1214,6 +1215,15 @@ class AgentDefinition(BaseModel):
             metadata = self.metadata
             if hasattr(metadata, "is_conversational"):
                 return metadata.is_conversational
+        return False
+
+    @property
+    def is_case_manager(self) -> bool:
+        """Checks if the agent is a case manager agent."""
+        if hasattr(self, "metadata") and self.metadata:
+            metadata = self.metadata
+            if hasattr(metadata, "is_case_manager"):
+                return metadata.is_case_manager
         return False
 
     @staticmethod
