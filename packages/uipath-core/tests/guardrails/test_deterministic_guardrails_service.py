@@ -1674,3 +1674,180 @@ class TestWrappedArrayOutputEvaluation:
             guardrail=guardrail,
         )
         assert result.result == GuardrailValidationResultType.PASSED
+
+
+class TestAgentInputFieldSource:
+    """AGENT_INPUT field source: rules can reference the agent's validated
+    input parameters during pre-execution evaluation."""
+
+    @staticmethod
+    def _user_identity_guardrail() -> DeterministicGuardrail:
+        return DeterministicGuardrail(
+            id="block-non-admin-callers",
+            name="Block non-admin callers",
+            description="Caller-context RBAC: only 'admin' role may proceed",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(
+                scopes=[GuardrailScope.TOOL], match_names=["any_tool"]
+            ),
+            rules=[
+                WordRule(
+                    rule_type="word",
+                    field_selector=SpecificFieldsSelector(
+                        selector_type="specific",
+                        fields=[
+                            FieldReference(path="role", source=FieldSource.AGENT_INPUT)
+                        ],
+                    ),
+                    detects_violation=lambda s: s != "admin",
+                    rule_description="role must equal 'admin'",
+                ),
+            ],
+        )
+
+    def test_pre_evaluation_passes_when_agent_input_matches(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        result = service.evaluate_pre_deterministic_guardrail(
+            input_data={"target": "anything"},
+            guardrail=self._user_identity_guardrail(),
+            agent_input={"role": "admin"},
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
+
+    def test_pre_evaluation_fails_when_agent_input_violates(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        result = service.evaluate_pre_deterministic_guardrail(
+            input_data={"target": "anything"},
+            guardrail=self._user_identity_guardrail(),
+            agent_input={"role": "viewer"},
+        )
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+
+    def test_pre_evaluation_silent_pass_when_agent_input_omitted(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        # No agent_input passed → field selector resolves to no values → rule
+        # passes with "No fields to validate". This matches existing behavior
+        # for missing INPUT fields and avoids breaking older callers that don't
+        # yet pass agent_input.
+        result = service.evaluate_pre_deterministic_guardrail(
+            input_data={"target": "anything"},
+            guardrail=self._user_identity_guardrail(),
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
+
+    def test_pre_evaluation_with_all_fields_selector(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        guardrail = DeterministicGuardrail(
+            id="dry-run-mode",
+            name="Block writes in dry-run mode",
+            enabled_for_evals=True,
+            guardrail_type="custom",
+            selector=GuardrailSelector(scopes=[GuardrailScope.TOOL]),
+            rules=[
+                BooleanRule(
+                    rule_type="boolean",
+                    field_selector=AllFieldsSelector(
+                        selector_type="all",
+                        sources=[FieldSource.AGENT_INPUT],
+                    ),
+                    detects_violation=lambda b: b is True,
+                    rule_description="dry_run must not be true",
+                ),
+            ],
+        )
+        result_blocked = service.evaluate_pre_deterministic_guardrail(
+            input_data={},
+            guardrail=guardrail,
+            agent_input={"dry_run": True},
+        )
+        assert result_blocked.result == GuardrailValidationResultType.VALIDATION_FAILED
+
+        result_allowed = service.evaluate_pre_deterministic_guardrail(
+            input_data={},
+            guardrail=guardrail,
+            agent_input={"dry_run": False},
+        )
+        assert result_allowed.result == GuardrailValidationResultType.PASSED
+
+    def test_validator_rejects_agent_input_with_output_in_same_rule(
+        self,
+    ) -> None:
+        with pytest.raises(ValueError, match="agent_input is available only in pre"):
+            DeterministicGuardrail(
+                id="bad",
+                name="bad",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                rules=[
+                    WordRule(
+                        rule_type="word",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(
+                                    path="role", source=FieldSource.AGENT_INPUT
+                                ),
+                                FieldReference(
+                                    path="result", source=FieldSource.OUTPUT
+                                ),
+                            ],
+                        ),
+                        detects_violation=lambda s: False,
+                    ),
+                ],
+            )
+
+    def test_validator_rejects_agent_input_paired_with_output_universal_rule(
+        self,
+    ) -> None:
+        with pytest.raises(ValueError, match="agent_input is available only in pre"):
+            DeterministicGuardrail(
+                id="bad",
+                name="bad",
+                enabled_for_evals=True,
+                guardrail_type="custom",
+                rules=[
+                    WordRule(
+                        rule_type="word",
+                        field_selector=SpecificFieldsSelector(
+                            selector_type="specific",
+                            fields=[
+                                FieldReference(
+                                    path="role", source=FieldSource.AGENT_INPUT
+                                )
+                            ],
+                        ),
+                        detects_violation=lambda s: False,
+                    ),
+                    UniversalRule(
+                        rule_type="always",
+                        apply_to=ApplyTo.OUTPUT,
+                    ),
+                ],
+            )
+
+    def test_post_evaluation_does_not_receive_agent_input(
+        self, service: DeterministicGuardrailsService
+    ) -> None:
+        # A guardrail whose only rule references AGENT_INPUT has no
+        # output-dependent rule, so post-evaluation short-circuits to PASSED
+        # without consulting agent_input. This documents that agent_input is
+        # not threaded into post by design.
+        result = service.evaluate_post_deterministic_guardrail(
+            input_data={"target": "anything"},
+            output_data={"some": "output"},
+            guardrail=self._user_identity_guardrail(),
+        )
+        assert result.result == GuardrailValidationResultType.PASSED
+        assert result.reason == "No rules to apply for output data."
+
+    def test_field_reference_normalizes_pascalcase_agent_input(self) -> None:
+        # JSON config commonly uses PascalCase ("AgentInput"); the source
+        # field validator decapitalizes to the camelCase enum value.
+        ref = FieldReference(path="role", source="AgentInput")  # type: ignore[arg-type]
+        assert ref.source == FieldSource.AGENT_INPUT

@@ -47,6 +47,7 @@ class FieldSource(str, Enum):
 
     INPUT = "input"
     OUTPUT = "output"
+    AGENT_INPUT = "agentInput"
 
 
 class ApplyTo(str, Enum):
@@ -239,3 +240,33 @@ class DeterministicGuardrail(BaseGuardrail):
     rules: list[Rule]
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @field_validator("rules")
+    @classmethod
+    def _agent_input_is_pre_execution_only(cls, rules: list[Rule]) -> list[Rule]:
+        # Guardrails are dispatched pre or post based on whether ANY rule has an
+        # OUTPUT-dependent reference; agent_input is not threaded into post, so a
+        # guardrail mixing agent_input with output sources would silently no-op
+        # the agent_input rules in post. Reject at config load.
+        sources: set[FieldSource] = set()
+        has_output_universal = False
+        for rule in rules:
+            if isinstance(rule, (WordRule, NumberRule, BooleanRule)):
+                selector = rule.field_selector
+                if isinstance(selector, SpecificFieldsSelector):
+                    sources.update(f.source for f in selector.fields)
+                elif isinstance(selector, AllFieldsSelector):
+                    sources.update(selector.sources)
+            elif isinstance(rule, UniversalRule):
+                if rule.apply_to in (ApplyTo.OUTPUT, ApplyTo.INPUT_AND_OUTPUT):
+                    has_output_universal = True
+
+        if FieldSource.AGENT_INPUT in sources and (
+            FieldSource.OUTPUT in sources or has_output_universal
+        ):
+            raise ValueError(
+                "A guardrail referencing the 'agentInput' field source cannot "
+                "also have output-dependent rules. agent_input is available "
+                "only in pre-execution."
+            )
+        return rules
