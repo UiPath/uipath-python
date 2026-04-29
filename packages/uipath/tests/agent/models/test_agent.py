@@ -3283,6 +3283,119 @@ class TestAgentDefinitionIsConversational:
         assert config.is_conversational is False
 
 
+class TestAgentDefinitionIsCaseManager:
+    """Tests for AgentDefinition.is_case_manager property."""
+
+    def test_is_case_manager_true_when_metadata_set(self):
+        """Returns True when metadata.is_case_manager is True."""
+        json_data = {
+            "id": "test-case-manager",
+            "name": "Case Manager Agent",
+            "version": "1.0.0",
+            "metadata": {
+                "isConversational": False,
+                "isCaseManager": True,
+                "storageVersion": "1.0.0",
+            },
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [
+                {"role": "system", "content": "You are a case manager agent."}
+            ],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_case_manager is True
+
+    def test_is_case_manager_false_when_metadata_set_false(self):
+        """Returns False when metadata.is_case_manager is False."""
+        json_data = {
+            "id": "test-non-case-manager",
+            "name": "Regular Agent",
+            "version": "1.0.0",
+            "metadata": {
+                "isConversational": False,
+                "isCaseManager": False,
+                "storageVersion": "1.0.0",
+            },
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [{"role": "system", "content": "You are an agent."}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_case_manager is False
+
+    def test_is_case_manager_false_when_not_in_metadata(self):
+        """Returns False when isCaseManager is not present in metadata."""
+        json_data = {
+            "id": "test-no-case-manager-field",
+            "name": "Agent Without CM Field",
+            "version": "1.0.0",
+            "metadata": {"isConversational": False, "storageVersion": "1.0.0"},
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [{"role": "system", "content": "You are an agent."}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_case_manager is False
+
+    def test_is_case_manager_false_when_no_metadata(self):
+        """Returns False when agent has no metadata."""
+        json_data = {
+            "id": "test-no-metadata",
+            "name": "Agent Without Metadata",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [{"role": "system", "content": "You are an agent."}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.is_case_manager is False
+
+
 class TestAgentBuilderConfigResources:
     """Tests for AgentDefinition resource configuration parsing."""
 

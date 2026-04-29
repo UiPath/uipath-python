@@ -1156,6 +1156,7 @@ class AgentMetadata(BaseCfg):
     """Agent metadata model."""
 
     is_conversational: bool = Field(alias="isConversational")
+    is_case_manager: bool = Field(default=False, alias="isCaseManager")
     storage_version: str = Field(alias="storageVersion")
 
 
@@ -1215,6 +1216,11 @@ class AgentDefinition(BaseModel):
             if hasattr(metadata, "is_conversational"):
                 return metadata.is_conversational
         return False
+
+    @property
+    def is_case_manager(self) -> bool:
+        """Checks if the agent is a case manager agent."""
+        return self.metadata.is_case_manager if self.metadata else False
 
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
