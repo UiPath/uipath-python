@@ -149,6 +149,68 @@ class TestGenerateConversationalAgentSystemPrompt:
         assert "You are Unnamed Agent." in prompt
 
 
+class TestConversationIdInPrompt:
+    """Tests for conversation_id in generated prompts."""
+
+    def test_prompt_includes_conversation_id_when_provided(self):
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+            conversation_id="conv-abc-123",
+        )
+
+        assert "The current conversation ID is conv-abc-123" in prompt
+        assert (
+            "You should generally not discuss this conversation ID with the user, but it may be useful to include as a tool-call argument when relevant."
+            in prompt
+        )
+        assert (
+            "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}" not in prompt
+        )
+
+    def test_prompt_omits_conversation_id_section_when_none(self):
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+            conversation_id=None,
+        )
+
+        assert "conversation ID" not in prompt
+        assert (
+            "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}" not in prompt
+        )
+
+    def test_prompt_omits_conversation_id_section_when_empty_string(self):
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+            conversation_id="",
+        )
+
+        assert "conversation ID" not in prompt
+
+    def test_prompt_defaults_to_no_conversation_id(self):
+        """conversation_id parameter defaults to None — call sites that don't
+        pass it must not get a dangling placeholder."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+        )
+
+        assert (
+            "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}" not in prompt
+        )
+        assert "conversation ID" not in prompt
+
+
 class TestCitationFormat:
     """Tests for citation format in generated prompts."""
 
