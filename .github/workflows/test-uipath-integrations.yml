@@ -1,0 +1,284 @@
+name: uipath - Test Integrations
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened, labeled ]
+
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: contains(github.event.pull_request.labels.*.name, 'test:uipath-integrations')
+    steps:
+      - name: Checkout uipath-python
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build uipath-core package
+        working-directory: packages/uipath-core
+        run: uv build
+
+      - name: Build uipath-platform package
+        working-directory: packages/uipath-platform
+        run: uv build
+
+      - name: Build uipath package
+        working-directory: packages/uipath
+        run: uv build
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: uipath-wheels
+          path: packages/*/dist/*.whl
+
+  discover-packages:
+    needs: [build-wheels]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      packages: ${{ steps.discover.outputs.packages }}
+    steps:
+      - name: Checkout uipath-integrations-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-integrations-python'
+          path: 'uipath-integrations-python'
+
+      - name: Discover packages
+        id: discover
+        working-directory: uipath-integrations-python
+        run: |
+          # Find every package directory under packages/ that has a pyproject.toml
+          package_dirs=$(find packages -maxdepth 2 -name pyproject.toml -printf '%h\n' | sed 's|^packages/||' | sort)
+
+          echo "Found integration packages:"
+          echo "$package_dirs"
+
+          packages_json=$(echo "$package_dirs" | jq -R -s -c 'split("\n")[:-1]')
+          echo "packages=$packages_json" >> $GITHUB_OUTPUT
+
+  test-package:
+    needs: [build-wheels, discover-packages]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.discover-packages.outputs.packages) }}
+        python-version: [ "3.11", "3.12", "3.13" ]
+        os: [ ubuntu-latest, windows-latest ]
+
+    name: "${{ matrix.package }} / py${{ matrix.python-version }} / ${{ matrix.os }}"
+    permissions:
+      contents: read
+
+    steps:
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: uipath-wheels
+          path: wheels
+
+      - name: Checkout uipath-integrations-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-integrations-python'
+          path: 'uipath-integrations-python'
+
+      - name: Update uipath packages
+        shell: bash
+        working-directory: uipath-integrations-python/packages/${{ matrix.package }}
+        run: |
+          uv add ../../../wheels/uipath-core/dist/*.whl --dev
+          uv add ../../../wheels/uipath-platform/dist/*.whl --dev
+          uv add ../../../wheels/uipath/dist/*.whl --dev
+
+      - name: Install dependencies and run tests
+        shell: bash
+        working-directory: uipath-integrations-python/packages/${{ matrix.package }}
+        run: |
+          uv sync
+          if [ -d tests ]; then
+            uv run pytest
+          else
+            echo "No tests directory found in ${{ matrix.package }}, skipping pytest"
+          fi
+
+  discover-testcases:
+    needs: [test-package, discover-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has_testcases: ${{ steps.discover.outputs.has_testcases }}
+    steps:
+      - name: Checkout uipath-integrations-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-integrations-python'
+          path: 'uipath-integrations-python'
+
+      - name: Discover testcases across packages
+        id: discover
+        working-directory: uipath-integrations-python
+        run: |
+          # For each package with a testcases/ directory, list its testcase folders
+          # and emit one matrix entry per (package, testcase) pair.
+          entries="[]"
+          for pkg_dir in packages/*/; do
+            pkg=$(basename "$pkg_dir")
+            tc_dir="$pkg_dir/testcases"
+            if [ ! -d "$tc_dir" ]; then
+              continue
+            fi
+            testcases=$(find "$tc_dir" -maxdepth 1 -type d -name "*-*" -printf '%f\n' | sort)
+            if [ -z "$testcases" ]; then
+              continue
+            fi
+            for tc in $testcases; do
+              entries=$(echo "$entries" | jq --arg p "$pkg" --arg t "$tc" '. + [{package: $p, testcase: $t}]')
+            done
+          done
+
+          echo "Discovered testcase matrix:"
+          echo "$entries" | jq .
+
+          count=$(echo "$entries" | jq 'length')
+          if [ "$count" -eq 0 ]; then
+            echo "has_testcases=false" >> $GITHUB_OUTPUT
+            echo "matrix=[]" >> $GITHUB_OUTPUT
+          else
+            echo "has_testcases=true" >> $GITHUB_OUTPUT
+            echo "matrix=$(echo "$entries" | jq -c .)" >> $GITHUB_OUTPUT
+          fi
+
+  run-integration-tests:
+    needs: [build-wheels, discover-testcases]
+    if: needs.discover-testcases.outputs.has_testcases == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.12-bookworm
+      env:
+        UIPATH_JOB_KEY: "3a03d5cb-fa21-4021-894d-a8e2eda0afe0"
+        UIPATH_TRACING_ENABLED: false
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover-testcases.outputs.matrix) }}
+        environment: [alpha, staging] # temporary disable [cloud]
+
+    name: "${{ matrix.package }} / ${{ matrix.testcase }} / ${{ matrix.environment }}"
+
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: uipath-wheels
+          path: wheels
+
+      - name: Checkout uipath-integrations-python
+        uses: actions/checkout@v4
+        with:
+          repository: 'UiPath/uipath-integrations-python'
+          path: 'uipath-integrations-python'
+
+      - name: Update uipath packages
+        shell: bash
+        working-directory: uipath-integrations-python/packages/${{ matrix.package }}
+        run: |
+          uv add ../../../wheels/uipath-core/dist/*.whl
+          uv add ../../../wheels/uipath-platform/dist/*.whl
+          uv add ../../../wheels/uipath/dist/*.whl
+
+      - name: Install dependencies
+        working-directory: uipath-integrations-python/packages/${{ matrix.package }}
+        run: uv sync
+
+      - name: Run testcase
+        env:
+          CLIENT_ID:      ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_ID || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_ID || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_ID }}
+          CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_SECRET || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_SECRET }}
+          BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
+          UV_PYTHON: "3.12"
+        working-directory: uipath-integrations-python/packages/${{ matrix.package }}/testcases/${{ matrix.testcase }}
+        run: |
+          echo "Package: ${{ matrix.package }}"
+          echo "Testcase: ${{ matrix.testcase }}"
+          echo "Environment: ${{ matrix.environment }}"
+
+          bash run.sh
+          bash ../common/validate_output.sh
+
+  notify-on-failure:
+    needs: [test-package, run-integration-tests]
+    if: always() && contains(github.event.pull_request.labels.*.name, 'test:uipath-integrations') && (needs.test-package.result == 'failure' || needs.run-integration-tests.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- cross-test-failure:uipath-integrations -->';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              '## :rotating_light: **Heads up: `uipath-integrations` cross-tests are FAILING** :rotating_light:',
+              '',
+              'Your changes may break one or more integrations in **[`uipath-integrations-python`](https://github.com/UiPath/uipath-integrations-python)**:',
+              '',
+              '- `uipath-openai-agents`',
+              '- `uipath-google-adk`',
+              '- `uipath-agent-framework`',
+              '- `uipath-llamaindex`',
+              '- `uipath-pydantic-ai`',
+              '',
+              '> :warning: **These checks are NOT enforced by branch protection rules.** Please review the failures before merging.',
+              '',
+              `**:mag: [Inspect the failed run →](${runUrl})**`,
+            ].join('\n');
+
+            // Delete any prior failure comments for this workflow so the new
+            // one always lands at the bottom of the PR conversation.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments) {
+              if (c.body && c.body.includes(marker)) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
