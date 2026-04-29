@@ -31,6 +31,7 @@ from uipath.platform.context_grounding import (
 from uipath.platform.context_grounding._context_grounding_service import (
     ContextGroundingService,
 )
+from uipath.platform.errors import ContextGroundingIndexNotFoundError
 from uipath.platform.orchestrator._buckets_service import BucketsService
 from uipath.platform.orchestrator._folder_service import FolderService
 
@@ -760,6 +761,529 @@ class TestContextGroundingService:
         sent_requests = httpx_mock.get_requests()
         assert len(sent_requests) == 1
         assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+
+    def test_retrieve_system_indexes(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-index-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    },
+                    {
+                        "id": "sys-index-2",
+                        "name": "system-other-index",
+                        "lastIngestionStatus": "Completed",
+                    },
+                ]
+            },
+        )
+
+        indexes = service.retrieve_system_indexes()
+
+        assert isinstance(indexes, list)
+        assert len(indexes) == 2
+        assert isinstance(indexes[0], ContextGroundingIndex)
+        assert indexes[0].id == "sys-index-1"
+        assert indexes[0].name == "system-template-index"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[0].method == "GET"
+        assert "/ecs_/v2/indexes/allsystemindexes" in str(sent_requests[0].url)
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_system_indexes/{version}"
+        )
+
+    def test_retrieve_system_indexes_with_name_filter(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-index-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    },
+                ]
+            },
+        )
+
+        indexes = service.retrieve_system_indexes(name="system-template-index")
+
+        assert len(indexes) == 1
+        assert indexes[0].name == "system-template-index"
+
+        sent_requests = httpx_mock.get_requests()
+        assert "allsystemindexes" in str(sent_requests[0].url)
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+    @pytest.mark.anyio
+    async def test_retrieve_system_indexes_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-index-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        indexes = await service.retrieve_system_indexes_async()
+
+        assert len(indexes) == 1
+        assert indexes[0].id == "sys-index-1"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[0].method == "GET"
+        assert "/ecs_/v2/indexes/allsystemindexes" in str(sent_requests[0].url)
+        assert "x-uipath-folderkey" not in sent_requests[0].headers
+
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_system_indexes_async/{version}"
+        )
+
+    def test_retrieve_system_indexes_escapes_single_quote_in_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'O''Brien'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-1",
+                        "name": "O'Brien",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        indexes = service.retrieve_system_indexes(name="O'Brien")
+
+        assert len(indexes) == 1
+        assert indexes[0].name == "O'Brien"
+
+    def test_retrieve_across_folders_escapes_single_quote_in_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'O''Brien'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "idx-1",
+                        "name": "O'Brien",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        indexes = service.retrieve_across_folders(name="O'Brien")
+
+        assert len(indexes) == 1
+        assert indexes[0].name == "O'Brien"
+
+    def test_retrieve_system_indexes_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource",
+            status_code=200,
+            json={"value": []},
+        )
+
+        indexes = service.retrieve_system_indexes()
+
+        assert indexes == []
+
+    def test_retrieve_raises_typed_not_found_when_across_folders_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'missing-index'",
+            status_code=200,
+            json={"value": []},
+        )
+
+        with pytest.raises(ContextGroundingIndexNotFoundError) as exc_info:
+            service_no_folder.retrieve(name="missing-index")
+
+        assert exc_info.value.index_name == "missing-index"
+
+    @pytest.mark.anyio
+    async def test_retrieve_async_raises_typed_not_found_when_across_folders_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'missing-index'",
+            status_code=200,
+            json={"value": []},
+        )
+
+        with pytest.raises(ContextGroundingIndexNotFoundError):
+            await service_no_folder.retrieve_async(name="missing-index")
+
+    def test_retrieve_falls_back_to_system_indexes_when_flag_true(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={"value": []},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        index = service_no_folder.retrieve(
+            name="system-template-index", include_system_indexes=True
+        )
+
+        assert index.id == "sys-1"
+        assert index.name == "system-template-index"
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 2
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+        assert "/ecs_/v2/indexes/allsystemindexes" in str(sent_requests[1].url)
+
+    def test_retrieve_does_not_fall_back_to_system_indexes_when_flag_false(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'missing-index'",
+            status_code=200,
+            json={"value": []},
+        )
+
+        with pytest.raises(ContextGroundingIndexNotFoundError):
+            service_no_folder.retrieve(name="missing-index")
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 1
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+
+    def test_retrieve_skips_system_indexes_when_across_folders_resolves(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'tenant-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "tenant-1",
+                        "name": "tenant-index",
+                        "lastIngestionStatus": "Completed",
+                        "folderKey": "folder-x",
+                    }
+                ]
+            },
+        )
+
+        index = service_no_folder.retrieve(
+            name="tenant-index", include_system_indexes=True
+        )
+
+        assert index.id == "tenant-1"
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 1
+        assert "/ecs_/v2/indexes/allacrossfolders" in str(sent_requests[0].url)
+
+    def test_retrieve_falls_back_to_system_indexes_after_folder_lookup_misses(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'system-template-index'&$expand=dataSource",
+            status_code=200,
+            json={"value": []},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        index = service.retrieve(
+            name="system-template-index",
+            folder_path="test-folder-path",
+            include_system_indexes=True,
+        )
+
+        assert index.id == "sys-1"
+
+    @pytest.mark.anyio
+    async def test_retrieve_async_falls_back_to_system_indexes_when_flag_true(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={"value": []},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+        index = await service_no_folder.retrieve_async(
+            name="system-template-index", include_system_indexes=True
+        )
+
+        assert index.id == "sys-1"
+
+    def test_retrieve_with_flag_raises_when_system_indexes_also_empty(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'missing-index'",
+            status_code=200,
+            json={"value": []},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'missing-index'",
+            status_code=200,
+            json={"value": []},
+        )
+
+        with pytest.raises(ContextGroundingIndexNotFoundError):
+            service_no_folder.retrieve(
+                name="missing-index", include_system_indexes=True
+            )
+
+    def test_unified_search_forwards_include_system_indexes(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={"value": []},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/sys-1",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "values": [],
+                    "metadata": {"operation_id": "op-1", "strategy": "semantic"},
+                }
+            },
+        )
+
+        result = service_no_folder.unified_search(
+            name="system-template-index",
+            query="hello",
+            include_system_indexes=True,
+        )
+
+        assert isinstance(result, UnifiedQueryResult)
+
+        sent_requests = httpx_mock.get_requests()
+        assert any("allsystemindexes" in str(r.url) for r in sent_requests)
+        assert any("search/sys-1" in str(r.url) for r in sent_requests)
+
+    @pytest.mark.anyio
+    async def test_unified_search_async_forwards_include_system_indexes(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allacrossfolders?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={"value": []},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/allsystemindexes?$expand=dataSource&$filter=Name eq 'system-template-index'",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "sys-1",
+                        "name": "system-template-index",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/sys-1",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "values": [],
+                    "metadata": {"operation_id": "op-1", "strategy": "semantic"},
+                }
+            },
+        )
+
+        result = await service_no_folder.unified_search_async(
+            name="system-template-index",
+            query="hello",
+            include_system_indexes=True,
+        )
+
+        assert isinstance(result, UnifiedQueryResult)
+
+        sent_requests = httpx_mock.get_requests()
+        assert any("allsystemindexes" in str(r.url) for r in sent_requests)
+        assert any("search/sys-1" in str(r.url) for r in sent_requests)
 
     def test_search_uses_index_folder_key_when_no_folder_context(
         self,

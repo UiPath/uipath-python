@@ -192,9 +192,13 @@ PARAM_MAPPINGS = {
 # Used when SDK has optional params that CLI doesn't expose
 SDK_EXCLUSIONS = {
     "context-grounding_list": set(),
-    "context-grounding_retrieve": set(),
+    "context-grounding_retrieve": {"include_system_indexes"},
     "context-grounding_create": {"source", "embeddings_enabled", "is_encrypted"},
-    "context-grounding_search": {"scope", "number_of_results"},
+    "context-grounding_search": {
+        "scope",
+        "number_of_results",
+        "include_system_indexes",
+    },
     "context-grounding_ingest": set(),
     "context-grounding_delete": set(),
     "context-grounding_deep-rag_start": set(),
