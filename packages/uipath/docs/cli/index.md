@@ -203,6 +203,23 @@ authors = [{name = "Your Name", email = "your.email@example.com"}]
 ```
 ///
 
+/// info
+### Dependency Locking
+
+By default, `uipath pack` runs `uv lock` against your `pyproject.toml` and includes the resulting `uv.lock` in the `.nupkg`. The serverless runtime uses the lock file to skip dependency resolution and install pinned versions directly with `uv sync --locked`, which significantly reduces cold-start time and produces deterministic environments across runs.
+
+Use `--nolock` to opt out — pass it when you do not want the CLI to touch `uv.lock`, or when your project does not use uv:
+
+<!-- termynal -->
+```shell
+> uipath pack --nolock
+⠋ Packaging project ...
+✓  Project successfully packaged.
+```
+
+With `--nolock`, no lock step runs and `uv.lock` is not added to the package.
+///
+
 <!-- termynal -->
 ```shell
 > uipath pack
