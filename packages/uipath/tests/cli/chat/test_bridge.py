@@ -165,6 +165,23 @@ class TestGetChatBridgeCustomHost:
 
         assert "conversationId=my-conversation-id" in bridge.websocket_url
 
+    def test_get_chat_bridge_includes_folder_key_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """folderKey is included in URL when env var is set (CAS RunAsMe=false folder-scoped validation)."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-guid-456")
+        monkeypatch.delenv("CAS_WEBSOCKET_HOST", raising=False)
+
+        context = MockRuntimeContext(conversation_id="conv-id")
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert "conversationId=conv-id" in bridge.websocket_url
+        assert "folderKey=folder-guid-456" in bridge.websocket_url
+        assert "syntheticUserId" not in bridge.websocket_url
+
 
 class TestGetChatBridge:
     """Tests for get_chat_bridge factory function."""
