@@ -1220,11 +1220,7 @@ class AgentDefinition(BaseModel):
     @property
     def is_case_manager(self) -> bool:
         """Checks if the agent is a case manager agent."""
-        if hasattr(self, "metadata") and self.metadata:
-            metadata = self.metadata
-            if hasattr(metadata, "is_case_manager"):
-                return metadata.is_case_manager
-        return False
+        return self.metadata.is_case_manager if self.metadata else False
 
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:
