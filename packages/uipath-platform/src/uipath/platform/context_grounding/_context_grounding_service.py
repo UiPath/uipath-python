@@ -19,6 +19,7 @@ from ..common.constants import (
 from ..errors import (
     BatchTransformFailedException,
     BatchTransformNotCompleteException,
+    ContextGroundingIndexNotFoundError,
     IngestionInProgressException,
     UnsupportedDataSourceException,
 )
@@ -256,6 +257,68 @@ class ContextGroundingService(FolderContext, BaseService):
             ContextGroundingIndex.model_validate(item) for item in response["value"]
         ]
 
+    @traced(name="contextgrounding_retrieve_system_indexes", run_type="uipath")
+    def retrieve_system_indexes(
+        self,
+        name: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Retrieve tenant-wide system context grounding indexes.
+
+        System indexes are shared across all folders and tenants and do not
+        require a folder key. They are typically used by bundled StudioWeb
+        templates that reference shared indexes.
+
+        Args:
+            name (Optional[str]): Optional name filter. If provided, only indexes
+                matching this name will be returned.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of system indexes.
+        """
+        spec = self._retrieve_system_indexes_spec(name=name)
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
+    @traced(name="contextgrounding_retrieve_system_indexes", run_type="uipath")
+    async def retrieve_system_indexes_async(
+        self,
+        name: Optional[str] = None,
+    ) -> List[ContextGroundingIndex]:
+        """Asynchronously retrieve tenant-wide system context grounding indexes.
+
+        System indexes are shared across all folders and tenants and do not
+        require a folder key. They are typically used by bundled StudioWeb
+        templates that reference shared indexes.
+
+        Args:
+            name (Optional[str]): Optional name filter. If provided, only indexes
+                matching this name will be returned.
+
+        Returns:
+            List[ContextGroundingIndex]: A list of system indexes.
+        """
+        spec = self._retrieve_system_indexes_spec(name=name)
+
+        response = (
+            await self.request_async(
+                spec.method,
+                spec.endpoint,
+                params=spec.params,
+            )
+        ).json()
+
+        return [
+            ContextGroundingIndex.model_validate(item) for item in response["value"]
+        ]
+
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_retrieve", run_type="uipath")
     def retrieve(
@@ -263,30 +326,38 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        include_system_indexes: bool = False,
     ) -> ContextGroundingIndex:
         """Retrieve context grounding index information by its name.
 
         If no folder_key or folder_path is provided and no folder context is
-        configured, falls back to searching across all folders.
+        configured, falls back to searching across all folders. When
+        ``include_system_indexes`` is True, an additional fallback against
+        system indexes is attempted before raising not-found.
 
         Args:
             name (str): The name of the context index to retrieve.
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
+            include_system_indexes (bool): If True, fall back to system indexes
+                when the index is not found in the per-folder or across-folders listings.
+                Defaults to False.
 
         Returns:
             ContextGroundingIndex: The index information, including its configuration and metadata if found.
 
         Raises:
-            Exception: If no index with the given name is found.
+            ContextGroundingIndexNotFoundError: If no index with the given name is found.
         """
         resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
         if not resolved_folder_key:
             indexes = self.retrieve_across_folders(name=name)
             try:
                 return next(index for index in indexes if index.name == name)
-            except StopIteration as e:
-                raise Exception("ContextGroundingIndex not found") from e
+            except StopIteration:
+                if include_system_indexes:
+                    return self._retrieve_from_system_indexes(name)
+                raise ContextGroundingIndexNotFoundError(name) from None
 
         spec = self._retrieve_spec(
             name,
@@ -305,8 +376,10 @@ class ContextGroundingService(FolderContext, BaseService):
                 for item in response["value"]
                 if item["name"] == name
             )
-        except StopIteration as e:
-            raise Exception("ContextGroundingIndex not found") from e
+        except StopIteration:
+            if include_system_indexes:
+                return self._retrieve_from_system_indexes(name)
+            raise ContextGroundingIndexNotFoundError(name) from None
 
     @resource_override(resource_type="index")
     @traced(name="contextgrounding_retrieve", run_type="uipath")
@@ -315,30 +388,38 @@ class ContextGroundingService(FolderContext, BaseService):
         name: str,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        include_system_indexes: bool = False,
     ) -> ContextGroundingIndex:
         """Asynchronously retrieve context grounding index information by its name.
 
         If no folder_key or folder_path is provided and no folder context is
-        configured, falls back to searching across all folders.
+        configured, falls back to searching across all folders. When
+        ``include_system_indexes`` is True, an additional fallback against
+        system indexes is attempted before raising not-found.
 
         Args:
             name (str): The name of the context index to retrieve.
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
+            include_system_indexes (bool): If True, fall back to system indexes when
+                the index is not found in the per-folder or across-folders listings.
+                Defaults to False.
 
         Returns:
             ContextGroundingIndex: The index information, including its configuration and metadata if found.
 
         Raises:
-            Exception: If no index with the given name is found.
+            ContextGroundingIndexNotFoundError: If no index with the given name is found.
         """
         resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
         if not resolved_folder_key:
             indexes = await self.retrieve_across_folders_async(name=name)
             try:
                 return next(index for index in indexes if index.name == name)
-            except StopIteration as e:
-                raise Exception("ContextGroundingIndex not found") from e
+            except StopIteration:
+                if include_system_indexes:
+                    return await self._retrieve_from_system_indexes_async(name)
+                raise ContextGroundingIndexNotFoundError(name) from None
 
         spec = self._retrieve_spec(
             name,
@@ -359,8 +440,26 @@ class ContextGroundingService(FolderContext, BaseService):
                 for item in response["value"]
                 if item["name"] == name
             )
-        except StopIteration as e:
-            raise Exception("ContextGroundingIndex not found") from e
+        except StopIteration:
+            if include_system_indexes:
+                return await self._retrieve_from_system_indexes_async(name)
+            raise ContextGroundingIndexNotFoundError(name) from None
+
+    def _retrieve_from_system_indexes(self, name: str) -> ContextGroundingIndex:
+        indexes = self.retrieve_system_indexes(name=name)
+        try:
+            return next(index for index in indexes if index.name == name)
+        except StopIteration:
+            raise ContextGroundingIndexNotFoundError(name) from None
+
+    async def _retrieve_from_system_indexes_async(
+        self, name: str
+    ) -> ContextGroundingIndex:
+        indexes = await self.retrieve_system_indexes_async(name=name)
+        try:
+            return next(index for index in indexes if index.name == name)
+        except StopIteration:
+            raise ContextGroundingIndexNotFoundError(name) from None
 
     @traced(name="contextgrounding_list", run_type="uipath")
     def list(
@@ -1489,6 +1588,7 @@ class ContextGroundingService(FolderContext, BaseService):
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        include_system_indexes: bool = False,
     ) -> UnifiedQueryResult:
         """Perform a unified search on a context grounding index.
 
@@ -1504,11 +1604,19 @@ class ContextGroundingService(FolderContext, BaseService):
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
+            include_system_indexes (bool): If True, fall back to tenant-wide
+                system indexes when the index is not found in folder or
+                across-folders listings. Defaults to False.
 
         Returns:
             UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
         """
-        index = self.retrieve(name, folder_key=folder_key, folder_path=folder_path)
+        index = self.retrieve(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            include_system_indexes=include_system_indexes,
+        )
 
         folder_key = folder_key or index.folder_key
 
@@ -1544,6 +1652,7 @@ class ContextGroundingService(FolderContext, BaseService):
         scope: Optional[UnifiedSearchScope] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        include_system_indexes: bool = False,
     ) -> UnifiedQueryResult:
         """Asynchronously perform a unified search on a context grounding index.
 
@@ -1559,12 +1668,18 @@ class ContextGroundingService(FolderContext, BaseService):
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
             folder_key (Optional[str]): The key of the folder where the index resides.
             folder_path (Optional[str]): The path of the folder where the index resides.
+            include_system_indexes (bool): If True, fall back to tenant-wide
+                system indexes when the index is not found in folder or
+                across-folders listings. Defaults to False.
 
         Returns:
             UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
         """
         index = await self.retrieve_async(
-            name, folder_key=folder_key, folder_path=folder_path
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            include_system_indexes=include_system_indexes,
         )
         if index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
@@ -1911,6 +2026,16 @@ class ContextGroundingService(FolderContext, BaseService):
             },
         )
 
+    @staticmethod
+    def _odata_name_filter(name: str) -> str:
+        """Build an OData ``Name eq '<name>'`` filter with single quotes escaped.
+
+        OData string literals escape ``'`` by doubling it. URL encoding of the
+        resulting filter is handled by the HTTP client when params are passed
+        as a dict.
+        """
+        return "Name eq '{}'".format(name.replace("'", "''"))
+
     def _retrieve_across_folders_spec(
         self,
         name: Optional[str] = None,
@@ -1919,11 +2044,27 @@ class ContextGroundingService(FolderContext, BaseService):
             "$expand": "dataSource",
         }
         if name:
-            params["$filter"] = f"Name eq '{name}'"
+            params["$filter"] = self._odata_name_filter(name)
 
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes/allacrossfolders"),
+            params=params,
+        )
+
+    def _retrieve_system_indexes_spec(
+        self,
+        name: Optional[str] = None,
+    ) -> RequestSpec:
+        params: Dict[str, str] = {
+            "$expand": "dataSource",
+        }
+        if name:
+            params["$filter"] = self._odata_name_filter(name)
+
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint("/ecs_/v2/indexes/allsystemindexes"),
             params=params,
         )
 
@@ -1954,7 +2095,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes"),
             params={
-                "$filter": f"Name eq '{name}'",
+                "$filter": self._odata_name_filter(name),
                 "$expand": "dataSource",
             },
             headers={
