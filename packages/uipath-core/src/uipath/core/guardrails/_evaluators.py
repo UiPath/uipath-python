@@ -135,6 +135,7 @@ def get_fields_from_selector(
     field_selector: AllFieldsSelector | SpecificFieldsSelector,
     input_data: dict[str, Any],
     output_data: dict[str, Any],
+    agent_input: dict[str, Any] | None = None,
 ) -> list[tuple[Any, FieldReference]]:
     """Get field values and their references based on the field selector."""
     fields: list[tuple[Any, FieldReference]] = []
@@ -159,6 +160,14 @@ def get_fields_from_selector(
                         FieldReference(path=key, source=FieldSource.OUTPUT),
                     )
                 )
+        if FieldSource.AGENT_INPUT in field_selector.sources and agent_input:
+            for key, value in agent_input.items():
+                fields.append(
+                    (
+                        value,
+                        FieldReference(path=key, source=FieldSource.AGENT_INPUT),
+                    )
+                )
     elif isinstance(field_selector, SpecificFieldsSelector):
         # For specific fields, extract values based on field references
         for field_ref in field_selector.fields:
@@ -167,6 +176,10 @@ def get_fields_from_selector(
                 data = input_data
             elif field_ref.source == FieldSource.OUTPUT:
                 data = output_data
+            elif field_ref.source == FieldSource.AGENT_INPUT:
+                if agent_input is None:
+                    continue
+                data = agent_input
             else:
                 # Unknown source, skip this field
                 continue
@@ -185,7 +198,12 @@ def format_guardrail_passed_validation_result_message(
     rule_description: str | None,
 ) -> str:
     """Format a guardrail validation result message following the standard pattern."""
-    source = "Input" if field_ref.source == FieldSource.INPUT else "Output"
+    if field_ref.source == FieldSource.INPUT:
+        source = "Input"
+    elif field_ref.source == FieldSource.AGENT_INPUT:
+        source = "Agent input"
+    else:
+        source = "Output"
 
     if rule_description:
         return (
@@ -211,10 +229,15 @@ def get_validated_conditions_description(
 
 
 def evaluate_word_rule(
-    rule: WordRule, input_data: dict[str, Any], output_data: dict[str, Any]
+    rule: WordRule,
+    input_data: dict[str, Any],
+    output_data: dict[str, Any],
+    agent_input: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     """Evaluate a word rule against input and output data."""
-    fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
+    fields = get_fields_from_selector(
+        rule.field_selector, input_data, output_data, agent_input
+    )
     if not fields:
         return True, "No fields to validate"
 
@@ -256,10 +279,15 @@ def evaluate_word_rule(
 
 
 def evaluate_number_rule(
-    rule: NumberRule, input_data: dict[str, Any], output_data: dict[str, Any]
+    rule: NumberRule,
+    input_data: dict[str, Any],
+    output_data: dict[str, Any],
+    agent_input: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     """Evaluate a number rule against input and output data."""
-    fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
+    fields = get_fields_from_selector(
+        rule.field_selector, input_data, output_data, agent_input
+    )
     if not fields:
         return True, "No fields to validate"
 
@@ -304,9 +332,12 @@ def evaluate_boolean_rule(
     rule: BooleanRule,
     input_data: dict[str, Any],
     output_data: dict[str, Any],
+    agent_input: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     """Evaluate a boolean rule against input and output data."""
-    fields = get_fields_from_selector(rule.field_selector, input_data, output_data)
+    fields = get_fields_from_selector(
+        rule.field_selector, input_data, output_data, agent_input
+    )
     if not fields:
         return True, "No fields to validate"
 

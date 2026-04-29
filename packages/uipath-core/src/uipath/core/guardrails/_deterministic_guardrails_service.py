@@ -30,8 +30,18 @@ class DeterministicGuardrailsService(BaseModel):
         self,
         input_data: dict[str, Any],
         guardrail: DeterministicGuardrail,
+        *,
+        agent_input: dict[str, Any] | None = None,
     ) -> GuardrailValidationResult:
-        """Evaluate deterministic guardrail rules against input data (pre-execution)."""
+        """Evaluate deterministic guardrail rules against input data (pre-execution).
+
+        Args:
+            input_data: Tool input data being validated.
+            guardrail: The deterministic guardrail to evaluate.
+            agent_input: The agent's validated input parameters. Available only
+                in pre-execution; rules with ``FieldSource.AGENT_INPUT`` resolve
+                their values from this dict.
+        """
         # Check if guardrail contains any output-dependent rules
         has_output_rule = self._has_output_dependent_rule(guardrail, [ApplyTo.OUTPUT])
 
@@ -46,6 +56,7 @@ class DeterministicGuardrailsService(BaseModel):
             input_data=input_data,
             output_data={},
             guardrail=guardrail,
+            agent_input=agent_input,
         )
 
     @traced("evaluate_post_deterministic_guardrails", run_type="uipath")
@@ -116,6 +127,7 @@ class DeterministicGuardrailsService(BaseModel):
         input_data: dict[str, Any],
         output_data: dict[str, Any],
         guardrail: DeterministicGuardrail,
+        agent_input: dict[str, Any] | None = None,
     ) -> GuardrailValidationResult:
         """Evaluate deterministic guardrail rules against input and output data.
 
@@ -125,11 +137,17 @@ class DeterministicGuardrailsService(BaseModel):
 
         for rule in guardrail.rules:
             if isinstance(rule, WordRule):
-                passed, reason = evaluate_word_rule(rule, input_data, output_data)
+                passed, reason = evaluate_word_rule(
+                    rule, input_data, output_data, agent_input
+                )
             elif isinstance(rule, NumberRule):
-                passed, reason = evaluate_number_rule(rule, input_data, output_data)
+                passed, reason = evaluate_number_rule(
+                    rule, input_data, output_data, agent_input
+                )
             elif isinstance(rule, BooleanRule):
-                passed, reason = evaluate_boolean_rule(rule, input_data, output_data)
+                passed, reason = evaluate_boolean_rule(
+                    rule, input_data, output_data, agent_input
+                )
             elif isinstance(rule, UniversalRule):
                 passed, reason = evaluate_universal_rule(rule, output_data)
             else:
