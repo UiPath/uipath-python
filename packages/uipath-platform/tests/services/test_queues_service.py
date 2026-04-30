@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -517,6 +518,39 @@ class TestQueuesService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.create_item_async/{version}"
         )
+
+    def test_create_item_with_datetime_fields(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        defer = datetime(2026, 5, 1, 9, 0, 0, tzinfo=timezone.utc)
+        due = datetime(2026, 5, 2, 17, 30, 0, tzinfo=timezone.utc)
+        risk = datetime(2026, 5, 2, 12, 0, 0, tzinfo=timezone.utc)
+        queue_item = QueueItem(
+            priority=QueueItemPriority.NORMAL,
+            specific_content={"key": "value"},
+            defer_date=defer,
+            due_date=due,
+            risk_sla_date=risk,
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.create_item(queue_item, queue_name="test-queue")
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        body = json.loads(sent_request.content.decode())
+        assert body["itemData"]["DeferDate"] == defer.isoformat()
+        assert body["itemData"]["DueDate"] == due.isoformat()
+        assert body["itemData"]["RiskSlaDate"] == risk.isoformat()
 
     def test_create_transaction_item(
         self,
