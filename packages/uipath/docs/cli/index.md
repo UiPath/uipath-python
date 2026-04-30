@@ -32,6 +32,37 @@ Select tenant number: 0
 Selected tenant: Tenant1
 ✓  Authentication successful.
 ```
+
+/// info | Unattended Authentication (Client Credentials)
+
+For CI/CD pipelines and other non-interactive contexts, authenticate with the OAuth client credentials flow by passing all three of `--client-id`, `--client-secret`, and `--base-url`. The CLI exchanges them for an access token and writes it to the same on-disk session used by interactive logins, so subsequent commands like `uipath publish` and `uipath invoke` work without further setup.
+
+The `--base-url` must point at the tenant scope (`https://<host>/<organization>/<tenant>`). The optional `--scope` flag controls the OAuth scopes requested and defaults to `OR.Execution`. Pass a space-separated list (for example `"OR.Execution OR.Queues"`) to request additional scopes — match the scopes you granted to the External Application and the operations you intend to run.
+
+**Setup:**
+
+1. In the Automation Cloud **Admin** page, open **External Applications** and create one of type *Confidential*. Grant it the Orchestrator scopes you need (for example `OR.Execution`). See the [External Applications guide](https://docs.uipath.com/automation-cloud/automation-cloud/latest/admin-guide/managing-external-applications) for details.
+2. Copy the generated **App ID** and **App Secret** — these become `--client-id` and `--client-secret`.
+
+**Example:**
+
+<!-- termynal -->
+```shell
+> uipath auth --client-id 12345678-c4c5-4f1f-93ff-4f5ab47d57ea \
+              --client-secret 'your-secret' \
+              --base-url https://cloud.uipath.com/your-org/your-tenant
+✓  Authentication successful.
+> uipath publish --tenant
+```
+
+/// warning
+Treat `--client-secret` as a credential. In CI, prefer reading it from a secret store and passing it on the command line, rather than committing it to source control or leaving it in shell history.
+///
+
+**Configuring the same flow in code:** if you would rather skip the CLI session and pass credentials directly to the SDK, the [`asset-modifier-agent` sample](https://github.com/UiPath/uipath-python/tree/main/packages/uipath/samples/asset-modifier-agent) shows how to construct a `UiPath` client with `client_id`, `client_secret`, `scope`, and `base_url` from environment variables.
+
+///
+
 ---
 
 ::: mkdocs-click
