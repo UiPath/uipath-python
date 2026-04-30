@@ -685,3 +685,45 @@ class TestWriteMermaidFiles:
             assert contents.startswith(MERMAID_FILE_HEADER)
             assert "AUTO-GENERATED" in contents
             assert "uipath init" in contents
+
+    def test_mermaid_node_ids_are_sanitized(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Node IDs containing `.` or `:` must be sanitized so Mermaid can parse them."""
+        from uipath._cli.cli_init import write_mermaid_files
+        from uipath.runtime.schema import (
+            UiPathRuntimeEdge,
+            UiPathRuntimeGraph,
+            UiPathRuntimeNode,
+            UiPathRuntimeSchema,
+        )
+
+        graph = UiPathRuntimeGraph(
+            nodes=[
+                UiPathRuntimeNode(
+                    id="vendor.py:52", name="check_vendor_risk", type="function"
+                ),
+                UiPathRuntimeNode(
+                    id="vendor.py:110", name="_resolve_instance_url", type="function"
+                ),
+            ],
+            edges=[UiPathRuntimeEdge(source="vendor.py:52", target="vendor.py:110")],
+        )
+        ep = UiPathRuntimeSchema(
+            filePath="main.py",
+            uniqueId="main",
+            type="function",
+            input={},
+            output={},
+            graph=graph,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            paths = write_mermaid_files([ep])
+            contents = paths[0].read_text()
+
+            assert "vendor.py:52" not in contents
+            assert "vendor.py:110" not in contents
+            assert "vendor_py_52" in contents
+            assert "vendor_py_110" in contents
+            assert "vendor_py_52 --> vendor_py_110" in contents
