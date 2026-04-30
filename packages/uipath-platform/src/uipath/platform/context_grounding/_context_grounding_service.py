@@ -258,23 +258,10 @@ class ContextGroundingService(FolderContext, BaseService):
         ]
 
     @traced(name="contextgrounding_retrieve_system_indexes", run_type="uipath")
-    def retrieve_system_indexes(
+    def _retrieve_system_indexes(
         self,
         name: Optional[str] = None,
     ) -> List[ContextGroundingIndex]:
-        """Retrieve tenant-wide system context grounding indexes.
-
-        System indexes are shared across all folders and tenants and do not
-        require a folder key. They are typically used by bundled StudioWeb
-        templates that reference shared indexes.
-
-        Args:
-            name (Optional[str]): Optional name filter. If provided, only indexes
-                matching this name will be returned.
-
-        Returns:
-            List[ContextGroundingIndex]: A list of system indexes.
-        """
         spec = self._retrieve_system_indexes_spec(name=name)
 
         response = self.request(
@@ -288,23 +275,10 @@ class ContextGroundingService(FolderContext, BaseService):
         ]
 
     @traced(name="contextgrounding_retrieve_system_indexes", run_type="uipath")
-    async def retrieve_system_indexes_async(
+    async def _retrieve_system_indexes_async(
         self,
         name: Optional[str] = None,
     ) -> List[ContextGroundingIndex]:
-        """Asynchronously retrieve tenant-wide system context grounding indexes.
-
-        System indexes are shared across all folders and tenants and do not
-        require a folder key. They are typically used by bundled StudioWeb
-        templates that reference shared indexes.
-
-        Args:
-            name (Optional[str]): Optional name filter. If provided, only indexes
-                matching this name will be returned.
-
-        Returns:
-            List[ContextGroundingIndex]: A list of system indexes.
-        """
         spec = self._retrieve_system_indexes_spec(name=name)
 
         response = (
@@ -446,7 +420,7 @@ class ContextGroundingService(FolderContext, BaseService):
             raise ContextGroundingIndexNotFoundError(name) from None
 
     def _retrieve_from_system_indexes(self, name: str) -> ContextGroundingIndex:
-        indexes = self.retrieve_system_indexes(name=name)
+        indexes = self._retrieve_system_indexes(name=name)
         try:
             return next(index for index in indexes if index.name == name)
         except StopIteration:
@@ -455,7 +429,7 @@ class ContextGroundingService(FolderContext, BaseService):
     async def _retrieve_from_system_indexes_async(
         self, name: str
     ) -> ContextGroundingIndex:
-        indexes = await self.retrieve_system_indexes_async(name=name)
+        indexes = await self._retrieve_system_indexes_async(name=name)
         try:
             return next(index for index in indexes if index.name == name)
         except StopIteration:

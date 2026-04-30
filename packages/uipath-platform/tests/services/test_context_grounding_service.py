@@ -790,7 +790,7 @@ class TestContextGroundingService:
             },
         )
 
-        indexes = service.retrieve_system_indexes()
+        indexes = service._retrieve_system_indexes()
 
         assert isinstance(indexes, list)
         assert len(indexes) == 2
@@ -806,7 +806,7 @@ class TestContextGroundingService:
         assert HEADER_USER_AGENT in sent_requests[0].headers
         assert (
             sent_requests[0].headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_system_indexes/{version}"
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService._retrieve_system_indexes/{version}"
         )
 
     def test_retrieve_system_indexes_with_name_filter(
@@ -831,7 +831,7 @@ class TestContextGroundingService:
             },
         )
 
-        indexes = service.retrieve_system_indexes(name="system-template-index")
+        indexes = service._retrieve_system_indexes(name="system-template-index")
 
         assert len(indexes) == 1
         assert indexes[0].name == "system-template-index"
@@ -864,7 +864,7 @@ class TestContextGroundingService:
             },
         )
 
-        indexes = await service.retrieve_system_indexes_async()
+        indexes = await service._retrieve_system_indexes_async()
 
         assert len(indexes) == 1
         assert indexes[0].id == "sys-index-1"
@@ -876,7 +876,7 @@ class TestContextGroundingService:
 
         assert (
             sent_requests[0].headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.retrieve_system_indexes_async/{version}"
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService._retrieve_system_indexes_async/{version}"
         )
 
     def test_retrieve_system_indexes_escapes_single_quote_in_name(
@@ -901,7 +901,7 @@ class TestContextGroundingService:
             },
         )
 
-        indexes = service.retrieve_system_indexes(name="O'Brien")
+        indexes = service._retrieve_system_indexes(name="O'Brien")
 
         assert len(indexes) == 1
         assert indexes[0].name == "O'Brien"
@@ -947,7 +947,7 @@ class TestContextGroundingService:
             json={"value": []},
         )
 
-        indexes = service.retrieve_system_indexes()
+        indexes = service._retrieve_system_indexes()
 
         assert indexes == []
 
