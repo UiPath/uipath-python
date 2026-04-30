@@ -3286,15 +3286,15 @@ class TestAgentDefinitionIsConversational:
 class TestAgentDefinitionIsCaseManager:
     """Tests for AgentDefinition.is_case_manager property."""
 
-    def test_is_case_manager_true_when_metadata_set(self):
-        """Returns True when metadata.is_case_manager is True."""
+    def test_is_case_manager_true_when_variant_is_case_manager(self):
+        """Returns True when metadata.variant is "caseManager"."""
         json_data = {
             "id": "test-case-manager",
             "name": "Case Manager Agent",
             "version": "1.0.0",
             "metadata": {
                 "isConversational": False,
-                "isCaseManager": True,
+                "variant": "caseManager",
                 "storageVersion": "1.0.0",
             },
             "settings": {
@@ -3317,15 +3317,15 @@ class TestAgentDefinitionIsCaseManager:
 
         assert config.is_case_manager is True
 
-    def test_is_case_manager_false_when_metadata_set_false(self):
-        """Returns False when metadata.is_case_manager is False."""
+    def test_is_case_manager_false_when_variant_is_none(self):
+        """Returns False when metadata.variant is None."""
         json_data = {
             "id": "test-non-case-manager",
             "name": "Regular Agent",
             "version": "1.0.0",
             "metadata": {
                 "isConversational": False,
-                "isCaseManager": False,
+                "variant": None,
                 "storageVersion": "1.0.0",
             },
             "settings": {
@@ -3346,11 +3346,11 @@ class TestAgentDefinitionIsCaseManager:
 
         assert config.is_case_manager is False
 
-    def test_is_case_manager_false_when_not_in_metadata(self):
-        """Returns False when isCaseManager is not present in metadata."""
+    def test_is_case_manager_false_when_variant_not_in_metadata(self):
+        """Returns False when variant is not present in metadata."""
         json_data = {
-            "id": "test-no-case-manager-field",
-            "name": "Agent Without CM Field",
+            "id": "test-no-variant-field",
+            "name": "Agent Without Variant Field",
             "version": "1.0.0",
             "metadata": {"isConversational": False, "storageVersion": "1.0.0"},
             "settings": {
