@@ -32,6 +32,37 @@ Select tenant number: 0
 Selected tenant: Tenant1
 ✓  Authentication successful.
 ```
+
+/// info | Unattended Authentication (Client Credentials)
+
+For CI/CD pipelines and other non-interactive contexts, authenticate with the OAuth client credentials flow by passing all three of `--client-id`, `--client-secret`, and `--base-url`. The CLI exchanges them for an access token and writes it to the same on-disk session used by interactive logins, so subsequent commands like `uipath publish` and `uipath invoke` work without further setup.
+
+The `--base-url` must point at the tenant scope (`https://<host>/<organization>/<tenant>`). The optional `--scope` flag controls the OAuth scopes requested and defaults to `OR.Execution`. Pass a space-separated list (for example `"OR.Execution OR.Queues"`) to request additional scopes — match the scopes you granted to the External Application and the operations you intend to run.
+
+**Setup:**
+
+1. In the Automation Cloud **Admin** page, open **External Applications** and create one of type *Confidential*. Grant it the Orchestrator scopes you need (for example `OR.Execution`). See the [External Applications guide](https://docs.uipath.com/automation-cloud/automation-cloud/latest/admin-guide/managing-external-applications) for details.
+2. Copy the generated **App ID** and **App Secret** — these become `--client-id` and `--client-secret`.
+
+**Example:**
+
+<!-- termynal -->
+```shell
+> uipath auth --client-id 12345678-c4c5-4f1f-93ff-4f5ab47d57ea \
+              --client-secret 'your-secret' \
+              --base-url https://cloud.uipath.com/your-org/your-tenant
+✓  Authentication successful.
+> uipath publish --tenant
+```
+
+/// warning
+Treat `--client-secret` as a credential. In CI, prefer reading it from a secret store and passing it on the command line, rather than committing it to source control or leaving it in shell history.
+///
+
+**Configuring the same flow in code:** if you would rather skip the CLI session and pass credentials directly to the SDK, the [`asset-modifier-agent` sample](https://github.com/UiPath/uipath-python/tree/main/packages/uipath/samples/asset-modifier-agent) shows how to construct a `UiPath` client with `client_id`, `client_secret`, `scope`, and `base_url` from environment variables.
+
+///
+
 ---
 
 ::: mkdocs-click
@@ -203,6 +234,25 @@ authors = [{name = "Your Name", email = "your.email@example.com"}]
 ```
 ///
 
+/// info
+### Dependency Locking
+
+By default, `uipath pack` includes `uv.lock` in the `.nupkg` (creating it if it does not exist). The executor then installs the pinned versions from the lock file, so every run uses the exact same dependency versions.
+
+Use `--nolock` to opt out — `uv.lock` is not added to the package. With no lock file present, the executor resolves dependencies on each run and picks the latest versions compatible with the constraints in your `pyproject.toml`.
+
+<!-- termynal -->
+```shell
+> uipath pack --nolock
+⠋ Packaging project ...
+✓  Project successfully packaged.
+```
+
+**When to lock (default):** you want reproducible runs and protection against breaking changes or malicious upgrades in your dependencies. The versions you tested with are the versions that run.
+
+**When to use `--nolock`:** you want each run to pick up the latest patches automatically within your declared constraints, or your project does not use uv.
+///
+
 <!-- termynal -->
 ```shell
 > uipath pack
@@ -289,6 +339,19 @@ Importing referenced resources to Studio Web project...
 
  🔵 Resource import summary: 0 total resources - 0 created, 0 updated, 0 unchanged, 0 not found
 ```
+
+/// info
+### Dependency Locking
+
+By default, `uipath push` includes `uv.lock` in the upload (creating it if it does not exist). The executor then installs the pinned versions from the lock file, so every run uses the exact same dependency versions.
+
+Use `--nolock` to opt out — `uv.lock` is not uploaded. With no lock file present, the executor resolves dependencies on each run and picks the latest versions compatible with the constraints in your `pyproject.toml`.
+
+**When to lock (default):** you want reproducible runs and protection against breaking changes or malicious upgrades in your dependencies. The versions you tested with are the versions that run.
+
+**When to use `--nolock`:** you want each run to pick up the latest patches automatically within your declared constraints, or your project does not use uv.
+///
+
 ---
 
 ::: mkdocs-click
