@@ -206,9 +206,9 @@ authors = [{name = "Your Name", email = "your.email@example.com"}]
 /// info
 ### Dependency Locking
 
-By default, `uipath pack` runs `uv lock` against your `pyproject.toml` and includes the resulting `uv.lock` in the `.nupkg`. The serverless runtime uses the lock file to skip dependency resolution and install pinned versions directly with `uv sync --locked`, which significantly reduces cold-start time and produces deterministic environments across runs.
+By default, `uipath pack` includes `uv.lock` in the `.nupkg` (creating it if it does not exist). The executor then installs the pinned versions from the lock file, so every run uses the exact same dependency versions.
 
-Use `--nolock` to opt out — pass it when you do not want the CLI to touch `uv.lock`, or when your project does not use uv:
+Use `--nolock` to opt out — `uv.lock` is not added to the package. With no lock file present, the executor resolves dependencies on each run and picks the latest versions compatible with the constraints in your `pyproject.toml`.
 
 <!-- termynal -->
 ```shell
@@ -217,7 +217,9 @@ Use `--nolock` to opt out — pass it when you do not want the CLI to touch `uv.
 ✓  Project successfully packaged.
 ```
 
-With `--nolock`, no lock step runs and `uv.lock` is not added to the package.
+**When to lock (default):** you want reproducible runs and protection against breaking changes or malicious upgrades in your dependencies. The versions you tested with are the versions that run.
+
+**When to use `--nolock`:** you want each run to pick up the latest patches automatically within your declared constraints, or your project does not use uv.
 ///
 
 <!-- termynal -->
@@ -306,6 +308,19 @@ Importing referenced resources to Studio Web project...
 
  🔵 Resource import summary: 0 total resources - 0 created, 0 updated, 0 unchanged, 0 not found
 ```
+
+/// info
+### Dependency Locking
+
+By default, `uipath push` includes `uv.lock` in the upload (creating it if it does not exist). The executor then installs the pinned versions from the lock file, so every run uses the exact same dependency versions.
+
+Use `--nolock` to opt out — `uv.lock` is not uploaded. With no lock file present, the executor resolves dependencies on each run and picks the latest versions compatible with the constraints in your `pyproject.toml`.
+
+**When to lock (default):** you want reproducible runs and protection against breaking changes or malicious upgrades in your dependencies. The versions you tested with are the versions that run.
+
+**When to use `--nolock`:** you want each run to pick up the latest patches automatically within your declared constraints, or your project does not use uv.
+///
+
 ---
 
 ::: mkdocs-click
