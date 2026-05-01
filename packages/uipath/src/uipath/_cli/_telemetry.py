@@ -41,10 +41,14 @@ class CliTelemetryTracker:
         Args:
             properties: The properties dictionary to enrich.
         """
-        # Add UiPath context
-        project_key = _get_project_key()
-        if project_key:
-            properties["AgentId"] = project_key
+        # Add UiPath context. Prefer the explicit UIPATH_AGENT_ID env var (the
+        # logical agent the user authored) over the project_key / file-source
+        # project so telemetry groups runs by agent rather than by per-run
+        # debug project (matters for local-workspace evals where the two
+        # differ).
+        agent_id = UiPathConfig.agent_id or _get_project_key()
+        if agent_id:
+            properties["AgentId"] = agent_id
 
         # Get organization ID
         if UiPathConfig.organization_id:
@@ -54,13 +58,17 @@ class CliTelemetryTracker:
         if UiPathConfig.tenant_id:
             properties["CloudTenantId"] = UiPathConfig.tenant_id
 
-        # Get CloudUserId from JWT token
-        try:
-            cloud_user_id = get_claim_from_token("sub")
-            if cloud_user_id:
-                properties["CloudUserId"] = cloud_user_id
-        except Exception:
-            pass
+        # CloudUserId: prefer the explicit env var the backend sets (carries
+        # the real triggering user even when the worker runs under a service
+        # account). Fall back to the JWT sub claim for older backends/runtimes.
+        cloud_user_id = UiPathConfig.cloud_user_id
+        if not cloud_user_id:
+            try:
+                cloud_user_id = get_claim_from_token("sub")
+            except Exception:
+                cloud_user_id = None
+        if cloud_user_id:
+            properties["CloudUserId"] = cloud_user_id
 
         properties["SessionId"] = "nosession"  # Placeholder for session ID
 
