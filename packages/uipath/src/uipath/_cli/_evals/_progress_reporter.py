@@ -108,6 +108,12 @@ class StudioWebProgressReporter:
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
             )
 
+        # Map UIPATH_PROJECT_FILES_SOURCE (Local/Cloud) to the backend's
+        # ProjectFilesSource enum integer. Without this every row the worker
+        # creates lands as Cloud, and the UI's `?projectFilesSource=1` filter
+        # never matches local-workspace runs.
+        self._project_files_source = self._resolve_project_files_source()
+
         self.eval_set_ids: dict[str, str] = {}  # Track eval_set_id per execution
         self.eval_set_run_ids: dict[str, str] = {}
         self.evaluators: dict[str, Any] = {}
@@ -1090,6 +1096,29 @@ class StudioWebProgressReporter:
             evaluator_runs.append(evaluator_run)
         return evaluator_runs, evaluator_scores_list
 
+    @staticmethod
+    def _resolve_project_files_source() -> int | None:
+        raw = os.getenv("UIPATH_PROJECT_FILES_SOURCE")
+        if not raw:
+            return None
+        normalized = raw.strip().lower()
+        if normalized == "local":
+            return 1
+        if normalized == "cloud":
+            return 0
+        try:
+            return int(normalized)
+        except ValueError:
+            logger.warning(
+                f"Unrecognized UIPATH_PROJECT_FILES_SOURCE value: {raw!r}; ignoring."
+            )
+            return None
+
+    def _project_files_source_field(self) -> dict[str, int]:
+        if self._project_files_source is None:
+            return {}
+        return {"projectFilesSource": self._project_files_source}
+
     def _update_eval_run_spec(
         self,
         assertion_runs: list[dict[str, Any]],
@@ -1116,6 +1145,7 @@ class StudioWebProgressReporter:
             },
             "completionMetrics": {"duration": int(execution_time * 1000)},
             "assertionRuns": assertion_runs,
+            **self._project_files_source_field(),
         }
 
         # Legacy backend expects payload wrapped in "request" field
@@ -1167,6 +1197,7 @@ class StudioWebProgressReporter:
             },
             "completionMetrics": {"duration": int(execution_time * 1000)},
             "evaluatorRuns": evaluator_runs,
+            **self._project_files_source_field(),
         }
 
         # Log the payload for debugging coded eval run updates
@@ -1236,6 +1267,7 @@ class StudioWebProgressReporter:
             "evalSnapshot": eval_snapshot,
             # Backend expects integer status
             "status": EvaluationStatus.IN_PROGRESS.value,
+            **self._project_files_source_field(),
         }
 
         # Legacy backend expects payload wrapped in "request" field
@@ -1292,6 +1324,7 @@ class StudioWebProgressReporter:
             "numberOfEvalsExecuted": no_of_evals,
             # Source is required by the backend (0 = coded SDK)
             "source": 0,
+            **self._project_files_source_field(),
         }
 
         # Both coded and legacy send payload directly at root level
@@ -1354,6 +1387,7 @@ class StudioWebProgressReporter:
             # Backend expects integer status
             "status": status.value,
             "evaluatorScores": evaluator_scores_list,
+            **self._project_files_source_field(),
         }
 
         # Legacy backend expects payload wrapped in "request" field
@@ -1421,10 +1455,14 @@ class StudioWebProgressReporter:
             f"eval_set_run_id={eval_set_run_id}, evaluation_id={evaluation_id}, coded={is_coded}"
         )
 
+        # The backend's listing endpoint filters by projectFilesSource +
+        # cloudUserId so the UI only shows the caller's local rows. Mirror
+        # that here so resume lookups match the row written by the same
+        # worker session.
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(endpoint_path),
-            params={},  # No query params needed - evalSetRunId is in the path
+            params=self._project_files_source_field(),
             headers=self._tenant_header(),
         )
 
