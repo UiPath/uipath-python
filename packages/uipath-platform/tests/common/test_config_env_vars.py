@@ -7,7 +7,6 @@ from uipath.platform.common._config import UiPathConfig
 def _clear_env(monkeypatch):
     for var in (
         "UIPATH_PROJECT_ID",
-        "UIPATH_FILE_SOURCE_PROJECT_ID",
         "UIPATH_AGENT_ID",
         "UIPATH_CLOUD_USER_ID",
         "UIPATH_PROJECT_FILES_SOURCE",
@@ -15,23 +14,18 @@ def _clear_env(monkeypatch):
         monkeypatch.delenv(var, raising=False)
 
 
-class TestProjectIdFallback:
-    def test_returns_file_source_when_set(self, monkeypatch):
-        monkeypatch.setenv("UIPATH_FILE_SOURCE_PROJECT_ID", "file-source-id")
-        monkeypatch.setenv("UIPATH_PROJECT_ID", "legacy-id")
+class TestProjectId:
+    def test_reads_env_var(self, monkeypatch):
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "file-source-id")
         assert UiPathConfig.project_id == "file-source-id"
 
-    def test_falls_back_to_legacy_when_file_source_unset(self, monkeypatch):
-        monkeypatch.setenv("UIPATH_PROJECT_ID", "legacy-id")
-        assert UiPathConfig.project_id == "legacy-id"
-
-    def test_returns_none_when_neither_set(self):
+    def test_returns_none_when_unset(self):
         assert UiPathConfig.project_id is None
 
 
 class TestAgentId:
     def test_returns_explicit_agent_id_when_set(self, monkeypatch):
-        monkeypatch.setenv("UIPATH_FILE_SOURCE_PROJECT_ID", "debug-project-guid")
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "debug-project-guid")
         monkeypatch.setenv("UIPATH_AGENT_ID", "real-agent-id")
         assert UiPathConfig.agent_id == "real-agent-id"
 

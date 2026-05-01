@@ -57,14 +57,9 @@ class ConfigurationManager:
 
     @property
     def project_id(self) -> str | None:
-        from uipath.platform.common.constants import (
-            ENV_UIPATH_FILE_SOURCE_PROJECT_ID,
-            ENV_UIPATH_PROJECT_ID,
-        )
+        from uipath.platform.common.constants import ENV_UIPATH_PROJECT_ID
 
-        return os.getenv(ENV_UIPATH_FILE_SOURCE_PROJECT_ID) or os.getenv(
-            ENV_UIPATH_PROJECT_ID, None
-        )
+        return os.getenv(ENV_UIPATH_PROJECT_ID, None)
 
     @property
     def agent_id(self) -> str | None:
