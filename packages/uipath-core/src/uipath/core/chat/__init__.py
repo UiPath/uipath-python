@@ -93,6 +93,7 @@ from .session import (
     UiPathSessionStartEvent,
 )
 from .tool import (
+    UiPathConversationExecutingToolCallEvent,
     UiPathConversationToolCall,
     UiPathConversationToolCallConfirmation,
     UiPathConversationToolCallConfirmationData,
@@ -157,6 +158,7 @@ __all__ = [
     "UiPathConversationCitationData",
     "UiPathConversationCitation",
     # Tool
+    "UiPathConversationExecutingToolCallEvent",
     "UiPathConversationToolCallStartEvent",
     "UiPathConversationToolCallEndEvent",
     "UiPathConversationToolCallConfirmation",

@@ -13,8 +13,11 @@ from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
+    UiPathConversationExecutingToolCallEvent,
     UiPathConversationMessageEvent,
     UiPathConversationToolCallConfirmationEvent,
+    UiPathConversationToolCallEndEvent,
+    UiPathConversationToolCallEvent,
 )
 from uipath.core.triggers import UiPathResumeTrigger
 from uipath.runtime.chat import UiPathChatProtocol
@@ -124,7 +127,9 @@ class SocketIOChatBridge:
 
         self._tool_confirmation_event = asyncio.Event()
         self._tool_confirmation_value: (
-            UiPathConversationToolCallConfirmationEvent | None
+            UiPathConversationToolCallConfirmationEvent
+            | UiPathConversationToolCallEndEvent
+            | None
         ) = None
         self._current_message_id: str | None = None
 
@@ -378,6 +383,48 @@ class SocketIOChatBridge:
         """
         return None
 
+    async def emit_executing_tool_call_event(
+        self, resume_trigger: UiPathResumeTrigger
+    ) -> None:
+        """Emit an executingToolCall event for client-side tool execution.
+
+        Only emits for triggers marked with is_execution_phase=True.
+        This fires exactly once per client-side tool call — for Path 3 (no confirm)
+        and for Path 4 (after confirmation, on the execution interrupt).
+        Confirmation-only interrupts (Paths 2/4 first interrupt) are skipped.
+        """
+
+        request = (
+            resume_trigger.api_resume.request if resume_trigger.api_resume else None
+        )
+        if not request or not isinstance(request, dict):
+            return
+
+        if not request.get("is_execution_phase"):
+            return
+
+        tool_call_id = request.get("tool_call_id")
+        tool_name = request.get("tool_name")
+        tool_input = request.get("input")
+
+        if not tool_call_id or not tool_name:
+            logger.info(
+                f"emit_executing_tool_call_event: missing tool_call_id or tool_name, skipping. tool_call_id={tool_call_id}, tool_name={tool_name}"
+            )
+            return
+
+        executing_event = UiPathConversationMessageEvent(
+            message_id=self._current_message_id,
+            tool_call=UiPathConversationToolCallEvent(
+                tool_call_id=tool_call_id,
+                executing=UiPathConversationExecutingToolCallEvent(
+                    tool_name=tool_name,
+                    input=tool_input,
+                ),
+            ),
+        )
+        await self.emit_message_event(executing_event)
+
     async def wait_for_resume(self) -> dict[str, Any]:
         """Wait for a confirmToolCall event to be received."""
         self._tool_confirmation_event.clear()
@@ -424,13 +471,13 @@ class SocketIOChatBridge:
                 parsed_event.exchange
                 and parsed_event.exchange.message
                 and (tool_call := parsed_event.exchange.message.tool_call)
-                and (confirm := tool_call.confirm)
             ):
-                logger.info(
-                    f"Received confirmToolCall for tool_call_id: {tool_call.tool_call_id}, approved: {confirm.approved}"
-                )
-                self._tool_confirmation_value = confirm
-                self._tool_confirmation_event.set()
+                if confirm := tool_call.confirm:
+                    self._tool_confirmation_value = confirm
+                    self._tool_confirmation_event.set()
+                elif end := tool_call.end:
+                    self._tool_confirmation_value = end
+                    self._tool_confirmation_event.set()
         except Exception as e:
             logger.warning(f"Error parsing conversation event: {e}")
 
