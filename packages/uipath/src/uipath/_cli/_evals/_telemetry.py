@@ -325,11 +325,9 @@ class EvalTelemetrySubscriber:
         if cloud_user_id:
             properties["CloudUserId"] = cloud_user_id
 
-        # Get tenant ID from environment
         tenant_id = os.getenv("UIPATH_TENANT_ID")
         if tenant_id:
             properties["TenantId"] = tenant_id
 
-        # Add source identifier
         properties["Source"] = "uipath-python-cli"
         properties["ApplicationName"] = "UiPath.Eval"

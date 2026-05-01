@@ -60,7 +60,7 @@ class CliTelemetryTracker:
         if cloud_user_id:
             properties["CloudUserId"] = cloud_user_id
 
-        properties["SessionId"] = "nosession"  # Placeholder for session ID
+        properties["SessionId"] = "nosession"
 
         try:
             properties["SDKVersion"] = version("uipath")
@@ -69,7 +69,6 @@ class CliTelemetryTracker:
 
         properties["IsGithubCI"] = bool(os.getenv("GITHUB_ACTIONS"))
 
-        # Add source identifier
         properties["Source"] = "uipath-python-cli"
         properties["ApplicationName"] = "UiPath.AgentCli"
 
