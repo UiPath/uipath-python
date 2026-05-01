@@ -57,8 +57,6 @@ class ConfigurationManager:
 
     @property
     def project_id(self) -> str | None:
-        # Prefer the explicit file-source name; fall back to the legacy alias so
-        # cloud projects and older runtimes continue to work unchanged.
         from uipath.platform.common.constants import (
             ENV_UIPATH_FILE_SOURCE_PROJECT_ID,
             ENV_UIPATH_PROJECT_ID,
@@ -70,38 +68,18 @@ class ConfigurationManager:
 
     @property
     def agent_id(self) -> str | None:
-        """The logical agent the user authored.
-
-        For cloud projects this equals project_id. For local-workspace runs it
-        differs: project_id is the cloud debug project's GUID (file source),
-        while agent_id is the local agent UUID. Telemetry should prefer this
-        when tagging AgentId so dashboards group by the real agent rather than
-        the per-run debug project.
-
-        Falls back to project_id when not explicitly set, so existing cloud
-        callers see no change.
-        """
         from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
 
         return os.getenv(ENV_UIPATH_AGENT_ID) or self.project_id
 
     @property
     def cloud_user_id(self) -> str | None:
-        """The user who triggered the run.
-
-        When the backend dispatches a worker under a service-account context,
-        the JWT in-flight has the service account's sub claim, not the real
-        user. The backend sets UIPATH_CLOUD_USER_ID so the SDK can tag traces
-        and telemetry with the right user. Returns None when unset (callers
-        should fall back to JWT claim extraction).
-        """
         from uipath.platform.common.constants import ENV_UIPATH_CLOUD_USER_ID
 
         return os.getenv(ENV_UIPATH_CLOUD_USER_ID, None)
 
     @property
     def project_files_source(self) -> str | None:
-        """'Local' or 'Cloud' — where the worker's project files came from."""
         from uipath.platform.common.constants import ENV_UIPATH_PROJECT_FILES_SOURCE
 
         return os.getenv(ENV_UIPATH_PROJECT_FILES_SOURCE, None)

@@ -308,22 +308,14 @@ class EvalTelemetrySubscriber:
         Args:
             properties: The properties dictionary to enrich.
         """
-        # Add UiPath context. ProjectId is the file-source project (cloud project
-        # the worker fetched files from). AgentId is the logical agent the user
-        # authored — equal to ProjectId for cloud runs, distinct for local-workspace
-        # runs where the file source is the per-run debug project's GUID.
         if UiPathConfig.project_id:
             properties["ProjectId"] = UiPathConfig.project_id
         if UiPathConfig.agent_id:
             properties["AgentId"] = UiPathConfig.agent_id
 
-        # Get organization ID from UiPathConfig
         if UiPathConfig.organization_id:
             properties["CloudOrganizationId"] = UiPathConfig.organization_id
 
-        # CloudUserId: prefer the explicit env var the backend sets (it carries
-        # the real triggering user even when the worker runs under a service
-        # account). Fall back to the JWT sub claim for older backends/runtimes.
         cloud_user_id = UiPathConfig.cloud_user_id
         if not cloud_user_id:
             try:

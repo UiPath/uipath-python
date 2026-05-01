@@ -17,21 +17,9 @@ ENV_ORGANIZATION_ID = "UIPATH_ORGANIZATION_ID"
 ENV_TELEMETRY_ENABLED = "UIPATH_TELEMETRY_ENABLED"
 ENV_TRACING_ENABLED = "UIPATH_TRACING_ENABLED"
 ENV_UIPATH_PROJECT_ID = "UIPATH_PROJECT_ID"
-# The cloud project the worker fetches package files from. For cloud projects this
-# equals the agent ID; for local-workspace runs it is the debug project ID returned
-# by prepareForCustomDebug. Falls back to UIPATH_PROJECT_ID for backwards compat.
 ENV_UIPATH_FILE_SOURCE_PROJECT_ID = "UIPATH_FILE_SOURCE_PROJECT_ID"
-# The logical agent the user authored. For local-workspace runs this differs from
-# UIPATH_FILE_SOURCE_PROJECT_ID (which is the cloud debug project's GUID). When
-# present, eval-side telemetry tags AgentId with this value instead of the file
-# source. Routing of API callbacks (eval-run create) still uses the file source
-# project so the URL points at a project the backend can resolve.
 ENV_UIPATH_AGENT_ID = "UIPATH_AGENT_ID"
-# The user who triggered the job. Set by the backend when it dispatches a worker
-# under a service-account context, so the SDK can tag telemetry with the real user
-# rather than the service account from the JWT.
 ENV_UIPATH_CLOUD_USER_ID = "UIPATH_CLOUD_USER_ID"
-# "Local" or "Cloud" — the source of the project files the worker is using.
 ENV_UIPATH_PROJECT_FILES_SOURCE = "UIPATH_PROJECT_FILES_SOURCE"
 ENV_PROJECT_KEY = "PROJECT_KEY"
 ENV_PROCESS_KEY = "UIPATH_PROCESS_KEY"
