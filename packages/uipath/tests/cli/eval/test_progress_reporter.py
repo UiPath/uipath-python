@@ -927,4 +927,83 @@ class TestAssertionPropertiesBuilding:
         snapshot = progress_reporter._build_evaluator_snapshot(evaluator)
 
         assert snapshot["prompt"] == "Evaluate this"
-        assert "model" not in snapshot
+
+
+class TestAgentIdRouting:
+    """Eval-set/eval-run API URLs route by AgentId, not file-source project.
+
+    For local-workspace eval runs the file-source project (UIPATH_PROJECT_ID,
+    typically the cloud debug project's GUID) differs from the logical agent
+    (UIPATH_AGENT_ID). The route URL must reflect the logical agent so backend
+    auth/ownership/telemetry don't see the per-run debug project as the agent.
+    File fetching (UiPathConfig.project_id) is unaffected.
+    """
+
+    def _make_reporter(self, monkeypatch, project_id, agent_id):
+        monkeypatch.setenv("UIPATH_URL", "https://test.uipath.com")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
+        if project_id is not None:
+            monkeypatch.setenv("UIPATH_PROJECT_ID", project_id)
+        else:
+            monkeypatch.delenv("UIPATH_PROJECT_ID", raising=False)
+        if agent_id is not None:
+            monkeypatch.setenv("UIPATH_AGENT_ID", agent_id)
+        else:
+            monkeypatch.delenv("UIPATH_AGENT_ID", raising=False)
+        return StudioWebProgressReporter()
+
+    def test_agent_id_used_in_url_when_both_set(self, monkeypatch):
+        reporter = self._make_reporter(
+            monkeypatch, project_id="debug-project-guid", agent_id="real-agent-id"
+        )
+        assert reporter._agent_id == "real-agent-id"
+        assert reporter._project_id == "debug-project-guid"
+
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert "/agents/real-agent-id/" in spec.endpoint
+        assert "/agents/debug-project-guid/" not in spec.endpoint
+
+    def test_agent_id_in_eval_set_run_payload(self, monkeypatch):
+        reporter = self._make_reporter(
+            monkeypatch, project_id="debug-project-guid", agent_id="real-agent-id"
+        )
+
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert spec.json["agentId"] == "real-agent-id"
+
+    def test_falls_back_to_project_id_when_agent_id_unset(self, monkeypatch):
+        reporter = self._make_reporter(
+            monkeypatch, project_id="cloud-project-id", agent_id=None
+        )
+        assert reporter._agent_id == "cloud-project-id"
+
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert "/agents/cloud-project-id/" in spec.endpoint

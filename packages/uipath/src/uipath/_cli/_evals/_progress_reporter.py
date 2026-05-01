@@ -102,7 +102,8 @@ class StudioWebProgressReporter:
         self._console = console_logger
         self._rich_console = Console()
         self._project_id = os.getenv("UIPATH_PROJECT_ID", None)
-        if not self._project_id:
+        self._agent_id = os.getenv("UIPATH_AGENT_ID") or self._project_id
+        if not self._agent_id:
             logger.warning(
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
             )
@@ -1133,7 +1134,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalRun"
             ),
             json=payload,
             headers=self._tenant_header(),
@@ -1181,7 +1182,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalRun"
             ),
             json=payload,
             headers=self._tenant_header(),
@@ -1253,7 +1254,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalRun"
             ),
             json=payload,
             headers=self._tenant_header(),
@@ -1283,7 +1284,7 @@ class StudioWebProgressReporter:
                 eval_set_id_value = str(uuid.uuid5(uuid.NAMESPACE_DNS, eval_set_id))
 
         inner_payload: dict[str, Any] = {
-            "agentId": self._project_id,
+            "agentId": self._agent_id,
             "evalSetId": eval_set_id_value,
             "agentSnapshot": agent_snapshot.model_dump(by_alias=True),
             # Backend expects integer status
@@ -1309,7 +1310,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalSetRun"
             ),
             json=payload,
             headers=self._tenant_header(),
@@ -1374,7 +1375,7 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._project_id}/{endpoint_suffix}evalSetRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalSetRun"
             ),
             json=payload,
             headers=self._tenant_header(),
@@ -1406,12 +1407,12 @@ class StudioWebProgressReporter:
 
         if is_coded:
             endpoint_path = (
-                f"{prefix}execution/agents/{self._project_id}/coded/"
+                f"{prefix}execution/agents/{self._agent_id}/coded/"
                 f"evalSets/{eval_set_id}/evalSetRuns/{eval_set_run_id}/evalRuns"
             )
         else:
             endpoint_path = (
-                f"{prefix}execution/agents/{self._project_id}/"
+                f"{prefix}execution/agents/{self._agent_id}/"
                 f"evalSets/{eval_set_id}/evalSetRuns/{eval_set_run_id}/evalRuns"
             )
 
