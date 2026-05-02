@@ -62,6 +62,24 @@ class ConfigurationManager:
         return os.getenv(ENV_UIPATH_PROJECT_ID, None)
 
     @property
+    def agent_id(self) -> str | None:
+        from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
+
+        return os.getenv(ENV_UIPATH_AGENT_ID) or self.project_id
+
+    @property
+    def cloud_user_id(self) -> str | None:
+        from uipath.platform.common.constants import ENV_UIPATH_CLOUD_USER_ID
+
+        return os.getenv(ENV_UIPATH_CLOUD_USER_ID, None)
+
+    @property
+    def project_files_source(self) -> str | None:
+        from uipath.platform.common.constants import ENV_UIPATH_PROJECT_FILES_SOURCE
+
+        return os.getenv(ENV_UIPATH_PROJECT_FILES_SOURCE, None)
+
+    @property
     def project_key(self) -> str | None:
         from uipath.platform.common.constants import ENV_PROJECT_KEY
 

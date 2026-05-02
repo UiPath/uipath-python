@@ -41,28 +41,26 @@ class CliTelemetryTracker:
         Args:
             properties: The properties dictionary to enrich.
         """
-        # Add UiPath context
-        project_key = _get_project_key()
-        if project_key:
-            properties["AgentId"] = project_key
+        agent_id = os.getenv("UIPATH_AGENT_ID") or _get_project_key()
+        if agent_id:
+            properties["AgentId"] = agent_id
 
-        # Get organization ID
         if UiPathConfig.organization_id:
             properties["CloudOrganizationId"] = UiPathConfig.organization_id
 
-        # Get tenant ID
         if UiPathConfig.tenant_id:
             properties["CloudTenantId"] = UiPathConfig.tenant_id
 
-        # Get CloudUserId from JWT token
-        try:
-            cloud_user_id = get_claim_from_token("sub")
-            if cloud_user_id:
-                properties["CloudUserId"] = cloud_user_id
-        except Exception:
-            pass
+        cloud_user_id = UiPathConfig.cloud_user_id
+        if not cloud_user_id:
+            try:
+                cloud_user_id = get_claim_from_token("sub")
+            except Exception:
+                cloud_user_id = None
+        if cloud_user_id:
+            properties["CloudUserId"] = cloud_user_id
 
-        properties["SessionId"] = "nosession"  # Placeholder for session ID
+        properties["SessionId"] = "nosession"
 
         try:
             properties["SDKVersion"] = version("uipath")
@@ -71,7 +69,6 @@ class CliTelemetryTracker:
 
         properties["IsGithubCI"] = bool(os.getenv("GITHUB_ACTIONS"))
 
-        # Add source identifier
         properties["Source"] = "uipath-python-cli"
         properties["ApplicationName"] = "UiPath.AgentCli"
 
