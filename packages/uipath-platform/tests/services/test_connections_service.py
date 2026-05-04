@@ -2173,3 +2173,173 @@ class TestConnectorActivityInvocation:
         assert f"/element/instances/{original_connection_id}/" not in str(
             activity_request.url
         )
+
+
+def _multipart_part(body: bytes, boundary: str, name: str) -> str:
+    """Return the raw text of the multipart part with the given form-field name."""
+    text = body.decode("utf-8", errors="replace")
+    for part in text.split(f"--{boundary}"):
+        if f'name="{name}"' in part:
+            return part
+    raise AssertionError(f"part {name!r} not found in multipart body")
+
+
+class TestMultipartFileUpload:
+    """Regression tests for the multipart serializer that handles file uploads.
+
+    Before this fix, ``_build_activity_request_spec`` always built
+    ``files[key] = (key, val, None)``, using the form-field name as the
+    multipart filename and dropping the content type. Downstream services
+    (e.g. Coupa's ``add_attachment`` endpoint) ended up storing every
+    attachment with the literal name ``attachment[file]`` and no extension.
+
+    The serializer now branches on the value type:
+
+    * tuple  → passed through (caller controls filename + content type)
+    * bytes  → legacy fallback, key as filename, octet-stream content type
+    * scalar → plain multipart form field (no filename in Content-Disposition)
+    """
+
+    def test_invoke_activity_multipart_tuple_3_preserves_filename(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        multipart_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """3-tuple input is forwarded verbatim, so the real filename + content type land on the wire."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": ("invoice.pdf", b"%PDF-1.4 fake", "application/pdf"),
+            "description": "Test file upload",
+        }
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        _ = service.invoke_activity(
+            activity_metadata=multipart_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        boundary = sent_request.headers["content-type"].split("boundary=")[1]
+        part = _multipart_part(sent_request.content, boundary, "file_param")
+
+        assert 'filename="invoice.pdf"' in part
+        assert "Content-Type: application/pdf" in part
+        assert b"%PDF-1.4 fake" in sent_request.content
+
+    def test_invoke_activity_multipart_tuple_2_preserves_filename(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        multipart_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """2-tuple (filename, content) shorthand: filename preserved, httpx infers the content type."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": ("invoice.pdf", b"%PDF-1.4 fake"),
+            "description": "Test file upload",
+        }
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        _ = service.invoke_activity(
+            activity_metadata=multipart_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        boundary = sent_request.headers["content-type"].split("boundary=")[1]
+        part = _multipart_part(sent_request.content, boundary, "file_param")
+
+        assert 'filename="invoice.pdf"' in part
+        assert b"%PDF-1.4 fake" in sent_request.content
+
+    def test_invoke_activity_multipart_bytes_backwards_compatible(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        multipart_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Existing callers passing raw bytes keep working — filename = form-field name (legacy)."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": b"raw bytes",
+            "description": "Test",
+        }
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        _ = service.invoke_activity(
+            activity_metadata=multipart_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        boundary = sent_request.headers["content-type"].split("boundary=")[1]
+        part = _multipart_part(sent_request.content, boundary, "file_param")
+
+        # Legacy fallback: form-field name used as filename, octet-stream content type.
+        assert 'filename="file_param"' in part
+        assert "Content-Type: application/octet-stream" in part
+        assert b"raw bytes" in sent_request.content
+
+    def test_invoke_activity_multipart_scalar_is_plain_form_field(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+    ) -> None:
+        """Scalar multipart_params get sent as plain form fields (no bogus filename)."""
+        metadata = ActivityMetadata(
+            object_path="/elements/test-connector/upload",
+            method_name="POST",
+            content_type="multipart/form-data",
+            parameter_location_info=ActivityParameterLocationInfo(
+                multipart_params=["file_param", "payload"],
+                body_fields=[],
+            ),
+        )
+        connection_id = "test-connection-123"
+        activity_input = {
+            "file_param": ("doc.pdf", b"data", "application/pdf"),
+            "payload": "{}",
+        }
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        _ = service.invoke_activity(
+            activity_metadata=metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        boundary = sent_request.headers["content-type"].split("boundary=")[1]
+        payload_part = _multipart_part(sent_request.content, boundary, "payload")
+
+        # Scalar payload must NOT carry a filename in Content-Disposition.
+        assert "filename=" not in payload_part
+        assert "{}" in payload_part

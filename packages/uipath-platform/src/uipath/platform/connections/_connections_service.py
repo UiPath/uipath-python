@@ -797,12 +797,22 @@ class ConnectionsService(BaseService):
                 # instead of making assumptions on whether or not it's present, we'll handle it defensively
                 if key == json_section:
                     continue
-                # files not supported yet supported so this will likely not work
-                files[key] = (
-                    key,
-                    val,
-                    None,
-                )  # probably needs to extract content type from val since IS metadata doesn't provide it
+                if isinstance(val, tuple):
+                    # Caller supplied httpx's (filename, content[, content_type])
+                    # shape — pass through verbatim. This is the recommended path
+                    # for file uploads so the multipart Content-Disposition gets
+                    # the real filename instead of the form-field name.
+                    files[key] = val
+                elif isinstance(val, (bytes, bytearray)) or hasattr(val, "read"):
+                    # Raw file content with no filename — fall back to the
+                    # form-field name (legacy behaviour). Backwards compatible
+                    # with callers that still pass bytes directly.
+                    files[key] = (key, val, "application/octet-stream")
+                else:
+                    # Scalar (string/number/etc.) — send as a plain multipart
+                    # form field, not a file part. The (None, value) shape tells
+                    # httpx to omit `filename=...` from the Content-Disposition.
+                    files[key] = (None, str(val))
 
             files[json_section] = (
                 "",
