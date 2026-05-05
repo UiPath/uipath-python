@@ -35,6 +35,7 @@ from .llm_gateway import (
     ToolDefinition,
 )
 from .llm_throttle import get_llm_semaphore
+from .llm_trace_context import build_trace_context_headers
 
 # Common constants
 API_VERSION = "2024-10-21"  # Standard API version for OpenAI-compatible endpoints
@@ -224,7 +225,7 @@ class UiPathOpenAIService(BaseService):
                 endpoint,
                 json={"input": input},
                 params={"api-version": API_VERSION},
-                headers=self._llm_headers,
+                headers={**self._llm_headers, **build_trace_context_headers()},
             )
 
         return TextEmbedding.model_validate(response.json())
@@ -355,7 +356,7 @@ class UiPathOpenAIService(BaseService):
                 endpoint,
                 json=request_body,
                 params={"api-version": API_VERSION},
-                headers=self._llm_headers,
+                headers={**self._llm_headers, **build_trace_context_headers()},
             )
 
         return ChatCompletion.model_validate(response.json())
@@ -599,6 +600,7 @@ class UiPathLlmChatService(BaseService):
 
         headers = {
             **self._llm_headers,
+            **build_trace_context_headers(),
             "X-UiPath-LlmGateway-NormalizedApi-ModelName": model,
             "X-UiPath-LLMGateway-AllowFull4xxResponse": "true",
         }
