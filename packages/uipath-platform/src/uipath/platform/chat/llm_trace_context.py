@@ -1,19 +1,19 @@
 """W3C-style trace context headers for LLM Gateway requests."""
 
-import os
-
 from opentelemetry import trace
 from uipath.core.feature_flags import FeatureFlags
 
-from ..common.constants import (
-    ENV_FOLDER_KEY,
-    ENV_PROCESS_KEY,
-    ENV_UIPATH_PROCESS_UUID,
-)
+from ..common._config import UiPathConfig
 
 
-def build_trace_context_headers() -> dict[str, str]:
+def build_trace_context_headers(
+    extra_baggage: list[str] | None = None,
+) -> dict[str, str]:
     """Build W3C-style trace context headers from the current OpenTelemetry span.
+
+    Args:
+        extra_baggage: Additional baggage entries (e.g. ``["source=agents"]``)
+            that callers can inject alongside the platform-level entries.
 
     Returns an empty dict when the ``EnableTraceContextHeaders`` feature flag
     is not enabled, or when no active span is present.
@@ -29,13 +29,14 @@ def build_trace_context_headers() -> dict[str, str]:
         span_id = format(ctx.span_id, "016x")
         headers["x-uipath-traceparent-id"] = f"00-{trace_id}-{span_id}"
 
-    baggage_parts: list[str] = ["source=agents"]
-    if folder_key := os.getenv(ENV_FOLDER_KEY):
+    baggage_parts: list[str] = list(extra_baggage) if extra_baggage else []
+    if folder_key := UiPathConfig.folder_key:
         baggage_parts.append(f"folderKey={folder_key}")
-    if agent_id := os.getenv(ENV_UIPATH_PROCESS_UUID):
+    if agent_id := UiPathConfig.process_uuid:
         baggage_parts.append(f"agentId={agent_id}")
-    if process_key := os.getenv(ENV_PROCESS_KEY):
+    if process_key := UiPathConfig.process_key:
         baggage_parts.append(f"processKey={process_key}")
-    headers["x-uipath-tracebaggage"] = ",".join(baggage_parts)
+    if baggage_parts:
+        headers["x-uipath-tracebaggage"] = ",".join(baggage_parts)
 
     return headers

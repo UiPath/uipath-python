@@ -122,6 +122,12 @@ class ConfigurationManager:
         return os.getenv(ENV_FOLDER_PATH, None)
 
     @property
+    def process_key(self) -> str | None:
+        from uipath.platform.common.constants import ENV_PROCESS_KEY
+
+        return os.getenv(ENV_PROCESS_KEY, None)
+
+    @property
     def process_uuid(self) -> str | None:
         from uipath.platform.common.constants import ENV_UIPATH_PROCESS_UUID
 

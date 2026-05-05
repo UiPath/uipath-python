@@ -75,7 +75,7 @@ class TestTraceparentHeader:
 
 
 class TestBaggageHeader:
-    """When enabled, x-uipath-tracebaggage is populated from env vars."""
+    """When enabled, x-uipath-tracebaggage is populated from UiPathConfig."""
 
     def setup_method(self) -> None:
         FeatureFlags.reset_flags()
@@ -91,7 +91,6 @@ class TestBaggageHeader:
             headers = build_trace_context_headers()
 
         baggage = headers["x-uipath-tracebaggage"]
-        assert "source=agents" in baggage
         assert "folderKey=folder-abc" in baggage
         assert "agentId=agent-123" in baggage
         assert "processKey=process-789" in baggage
@@ -102,14 +101,13 @@ class TestBaggageHeader:
             headers = build_trace_context_headers()
 
         baggage = headers["x-uipath-tracebaggage"]
-        assert "source=agents" in baggage
         assert "folderKey=folder-only" in baggage
 
-    def test_always_includes_source(self) -> None:
+    def test_no_baggage_without_env_vars(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             headers = build_trace_context_headers()
 
-        assert headers["x-uipath-tracebaggage"] == "source=agents"
+        assert "x-uipath-tracebaggage" not in headers
 
     def test_baggage_comma_separated(self) -> None:
         env = {
@@ -121,7 +119,25 @@ class TestBaggageHeader:
 
         baggage = headers["x-uipath-tracebaggage"]
         parts = baggage.split(",")
-        assert len(parts) == 3  # source + folderKey + agentId
+        assert len(parts) == 2  # folderKey + agentId
+
+    def test_extra_baggage_included(self) -> None:
+        env = {"UIPATH_FOLDER_KEY": "f1"}
+        with patch.dict(os.environ, env, clear=True):
+            headers = build_trace_context_headers(extra_baggage=["source=agents"])
+
+        baggage = headers["x-uipath-tracebaggage"]
+        assert "source=agents" in baggage
+        assert "folderKey=f1" in baggage
+
+    def test_extra_baggage_only(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            headers = build_trace_context_headers(
+                extra_baggage=["source=agents", "custom=value"]
+            )
+
+        baggage = headers["x-uipath-tracebaggage"]
+        assert baggage == "source=agents,custom=value"
 
 
 class TestBothHeaders:
