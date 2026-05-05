@@ -17,7 +17,10 @@ from uipath.platform.connections import (
     ConnectionToken,
     EventArguments,
 )
-from uipath.platform.connections._connections_service import ConnectionsService
+from uipath.platform.connections._connections_service import (
+    HEADER_ACTIVITY_JOB_ID,
+    ConnectionsService,
+)
 from uipath.platform.orchestrator._folder_service import FolderService
 
 
@@ -1420,6 +1423,60 @@ class TestConnectorActivityInvocation:
         # Check standard headers
         assert sent_request.headers["x-uipath-originator"] == "uipath-python"
         assert sent_request.headers["x-uipath-source"] == "uipath-python"
+
+    def test_invoke_activity_propagates_job_id_header(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Activity invocations carry x-uipath-job-id so GenAI calls can be stitched for licensing."""
+        monkeypatch.setenv("UIPATH_JOB_KEY", "job-key-abc")
+        connection_id = "test-connection-123"
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={})
+
+        service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input={"body_field1": "x"},
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        assert sent_request.headers[HEADER_ACTIVITY_JOB_ID] == "job-key-abc"
+
+    def test_invoke_activity_omits_job_id_header_when_unset(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """No job-id header is sent when UIPATH_JOB_KEY is not set."""
+        monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
+        connection_id = "test-connection-123"
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={})
+
+        service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input={"body_field1": "x"},
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        assert HEADER_ACTIVITY_JOB_ID not in sent_request.headers
 
     def test_invoke_activity_with_body_fields(
         self,
