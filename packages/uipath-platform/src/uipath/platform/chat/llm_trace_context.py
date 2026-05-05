@@ -2,6 +2,7 @@
 
 from opentelemetry import trace
 from uipath.core.feature_flags import FeatureFlags
+from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from ..common._config import UiPathConfig
 
@@ -22,7 +23,8 @@ def build_trace_context_headers(
         return {}
 
     headers: dict[str, str] = {}
-    span = trace.get_current_span()
+    llmops_span = UiPathSpanUtils.get_external_current_span()
+    span = llmops_span or trace.get_current_span()
     ctx = span.get_span_context()
     if ctx and ctx.trace_id and ctx.span_id:
         trace_id = format(ctx.trace_id, "032x")
