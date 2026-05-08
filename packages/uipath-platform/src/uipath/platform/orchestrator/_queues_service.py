@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from httpx import Response
@@ -12,6 +13,7 @@ from ..common._models import Endpoint, RequestSpec
 from .queues import (
     CommitType,
     QueueItem,
+    Strategy,
     TransactionItem,
     TransactionItemResult,
 )
@@ -287,6 +289,115 @@ class QueuesService(FolderContext, BaseService):
         return response.json()
 
     @resource_override(resource_type="queue", resource_identifier="queue_name")
+    @traced(name="queues_start_transaction_item", run_type="uipath")
+    def start_transaction_item(
+        self,
+        queue_name: str,
+        *,
+        reference: str | None = None,
+        reference_filter_option: Strategy | None = None,
+        defer_date: datetime | None = None,
+        due_date: datetime | None = None,
+        parent_operation_id: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> Response:
+        """Picks up the next available item from a queue and transitions it to ``In Progress``.
+
+        Use this when you want to process an item that already exists in the queue (e.g. one
+        added previously via `create_item`). Orchestrator returns the item now in
+        ``In Progress`` status, whose ``Key`` can then be passed to
+        `update_progress_of_transaction_item` and `complete_transaction_item`.
+
+        The robot identifier is taken from the execution context when running inside an
+        Orchestrator job; outside that context the field is omitted automatically.
+
+        Args:
+            queue_name: Name of the queue to pick the next item from.
+            reference (str | None): If provided, restricts the pickup to items whose
+                ``Reference`` matches this value (filter strategy controlled by
+                ``reference_filter_option``).
+            reference_filter_option (Strategy | None): Strategy used to match
+                ``reference``. Defaults to ``Strategy.EQUALS`` semantics on the server when
+                ``reference`` is set.
+            defer_date (datetime | None): Earliest date/time at which the item is
+                available for processing.
+            due_date (datetime | None): Latest date/time by which the item should be
+                processed.
+            parent_operation_id (str | None): Operation id of the caller, propagated to
+                the picked-up item.
+            folder_key (str | None): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Overrides the default one set in the SDK config.
+
+        Returns:
+            Response: HTTP response containing the queue item now in ``In Progress`` state.
+        """
+        spec = self._start_transaction_item_spec(
+            queue_name=queue_name,
+            reference=reference,
+            reference_filter_option=reference_filter_option,
+            defer_date=defer_date,
+            due_date=due_date,
+            parent_operation_id=parent_operation_id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
+        return response.json()
+
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
+    @traced(name="queues_start_transaction_item", run_type="uipath")
+    async def start_transaction_item_async(
+        self,
+        queue_name: str,
+        *,
+        reference: str | None = None,
+        reference_filter_option: Strategy | None = None,
+        defer_date: datetime | None = None,
+        due_date: datetime | None = None,
+        parent_operation_id: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> Response:
+        """Asynchronously picks up the next available item from a queue and transitions it to ``In Progress``.
+
+        See `start_transaction_item` for behavior details.
+
+        Args:
+            queue_name: Name of the queue to pick the next item from.
+            reference (str | None): If provided, restricts the pickup to items whose
+                ``Reference`` matches this value.
+            reference_filter_option (Strategy | None): Strategy used to match ``reference``.
+            defer_date (datetime | None): Earliest date/time at which the item is
+                available for processing.
+            due_date (datetime | None): Latest date/time by which the item should be
+                processed.
+            parent_operation_id (str | None): Operation id of the caller, propagated to
+                the picked-up item.
+            folder_key (str | None): The key of the folder. Overrides the default one set in the SDK config.
+            folder_path (str | None): The path of the folder. Overrides the default one set in the SDK config.
+
+        Returns:
+            Response: HTTP response containing the queue item now in ``In Progress`` state.
+        """
+        spec = self._start_transaction_item_spec(
+            queue_name=queue_name,
+            reference=reference,
+            reference_filter_option=reference_filter_option,
+            defer_date=defer_date,
+            due_date=due_date,
+            parent_operation_id=parent_operation_id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = await self.request_async(
+            spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
+        )
+        return response.json()
+
+    @resource_override(resource_type="queue", resource_identifier="queue_name")
     @traced(name="queues_update_progress_of_transaction_item", run_type="uipath")
     def update_progress_of_transaction_item(
         self,
@@ -298,6 +409,10 @@ class QueuesService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
     ) -> Response:
         """Updates the progress of a transaction item.
+
+        The item must already be in ``In Progress`` state. Use `create_transaction_item`
+        to create-and-start a new item, or `start_transaction_item` to pick up an
+        existing one.
 
         Args:
             transaction_key: Unique identifier of the transaction.
@@ -332,6 +447,10 @@ class QueuesService(FolderContext, BaseService):
     ) -> Response:
         """Asynchronously updates the progress of a transaction item.
 
+        The item must already be in ``In Progress`` state. Use `create_transaction_item`
+        to create-and-start a new item, or `start_transaction_item` to pick up an
+        existing one.
+
         Args:
             transaction_key: Unique identifier of the transaction.
             progress: Progress message to set.
@@ -365,6 +484,9 @@ class QueuesService(FolderContext, BaseService):
     ) -> Response:
         """Completes a transaction item with the specified result.
 
+        The item must already be in ``In Progress`` state, having been created via
+        `create_transaction_item` or picked up via `start_transaction_item`.
+
         Args:
             transaction_key: Unique identifier of the transaction to complete.
             result: Result data for the transaction, either as a dictionary or TransactionItemResult instance.
@@ -397,6 +519,9 @@ class QueuesService(FolderContext, BaseService):
         folder_path: Optional[str] = None,
     ) -> Response:
         """Asynchronously completes a transaction item with the specified result.
+
+        The item must already be in ``In Progress`` state, having been created via
+        `create_transaction_item` or picked up via `start_transaction_item`.
 
         Args:
             transaction_key: Unique identifier of the transaction to complete.
@@ -533,6 +658,45 @@ class QueuesService(FolderContext, BaseService):
         transaction_data["Name"] = resolved_name
         if not no_robot:
             transaction_data["RobotIdentifier"] = self._execution_context.robot_key
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction"
+            ),
+            json={"transactionData": transaction_data},
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _start_transaction_item_spec(
+        self,
+        *,
+        queue_name: str,
+        reference: str | None = None,
+        reference_filter_option: Strategy | None = None,
+        defer_date: datetime | None = None,
+        due_date: datetime | None = None,
+        parent_operation_id: str | None = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> RequestSpec:
+        transaction_data: Dict[str, Any] = {"Name": queue_name}
+        try:
+            transaction_data["RobotIdentifier"] = self._execution_context.robot_key
+        except ValueError:
+            pass
+        if reference is not None:
+            transaction_data["Reference"] = reference
+        if reference_filter_option is not None:
+            transaction_data["ReferenceFilterOption"] = reference_filter_option.value
+        if defer_date is not None:
+            transaction_data["DeferDate"] = defer_date.isoformat()
+        if due_date is not None:
+            transaction_data["DueDate"] = due_date.isoformat()
+        if parent_operation_id is not None:
+            transaction_data["ParentOperationId"] = parent_operation_id
 
         return RequestSpec(
             method="POST",

@@ -25,6 +25,13 @@ class CommitType(Enum):
     PROCESS_ALL_INDEPENDENTLY = "ProcessAllIndependently"
 
 
+class Strategy(Enum):
+    """Strategy used to filter the Reference value on StartTransaction."""
+
+    EQUALS = "Equals"
+    STARTS_WITH = "StartsWith"
+
+
 class QueueItem(BaseModel):
     """Model representing an item in an Orchestrator queue."""
 
@@ -172,6 +179,18 @@ class TransactionItem(BaseModel):
         default=None,
         description="Operation id which created the queue item.",
         alias="ParentOperationId",
+    )
+    reference: (
+        Annotated[str, Field(min_length=0, strict=True, max_length=128)] | None
+    ) = Field(
+        default=None,
+        description="An optional, user-specified value for queue item identification.",
+        alias="Reference",
+    )
+    reference_filter_option: Strategy | None = Field(
+        default=None,
+        description="Declares the strategy used to filter the Reference value.",
+        alias="ReferenceFilterOption",
     )
 
 

@@ -14,6 +14,7 @@ from uipath.platform.orchestrator import (
     CommitType,
     QueueItem,
     QueueItemPriority,
+    Strategy,
     TransactionItem,
     TransactionItemResult,
 )
@@ -1203,4 +1204,234 @@ class TestQueuesService:
         sent_request = httpx_mock.get_request()
         assert sent_request is not None
         assert HEADER_FOLDER_PATH in sent_request.headers
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
+
+    def test_start_transaction_item_picks_next_available(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 42, "Key": "abc-123", "Status": "InProgress"},
+        )
+
+        response = service.start_transaction_item(queue_name="test-queue")
+
+        assert response["Id"] == 42
+        assert response["Status"] == "InProgress"
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.method == "POST"
+        body = json.loads(sent_request.content.decode())
+        assert body == {
+            "transactionData": {
+                "Name": "test-queue",
+                "RobotIdentifier": "test-robot-key",
+            }
+        }
+        assert "SpecificContent" not in body["transactionData"]
+        assert (
+            sent_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.start_transaction_item/{version}"
+        )
+
+    def test_start_transaction_item_with_reference_equals(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.start_transaction_item(
+            queue_name="test-queue",
+            reference="ABC-123",
+            reference_filter_option=Strategy.EQUALS,
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        body = json.loads(sent_request.content.decode())
+        assert body == {
+            "transactionData": {
+                "Name": "test-queue",
+                "RobotIdentifier": "test-robot-key",
+                "Reference": "ABC-123",
+                "ReferenceFilterOption": "Equals",
+            }
+        }
+
+    def test_start_transaction_item_with_reference_starts_with(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.start_transaction_item(
+            queue_name="test-queue",
+            reference="ABC-",
+            reference_filter_option=Strategy.STARTS_WITH,
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        body = json.loads(sent_request.content.decode())
+        assert body["transactionData"]["Reference"] == "ABC-"
+        assert body["transactionData"]["ReferenceFilterOption"] == "StartsWith"
+
+    def test_start_transaction_item_omits_robot_when_env_unset(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        monkeypatch: pytest.MonkeyPatch,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+        monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
+        local_service = QueuesService(
+            config=config, execution_context=UiPathExecutionContext()
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        local_service.start_transaction_item(queue_name="test-queue")
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        body = json.loads(sent_request.content.decode())
+        assert body == {"transactionData": {"Name": "test-queue"}}
+        assert "RobotIdentifier" not in body["transactionData"]
+
+    def test_start_transaction_item_with_dates_and_parent_operation_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        defer = datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc)
+        due = datetime(2026, 5, 2, 12, 0, 0, tzinfo=timezone.utc)
+        service.start_transaction_item(
+            queue_name="test-queue",
+            defer_date=defer,
+            due_date=due,
+            parent_operation_id="op-123",
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        body = json.loads(sent_request.content.decode())
+        assert body["transactionData"]["DeferDate"] == defer.isoformat()
+        assert body["transactionData"]["DueDate"] == due.isoformat()
+        assert body["transactionData"]["ParentOperationId"] == "op-123"
+
+    def test_start_transaction_item_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        service.start_transaction_item(
+            queue_name="test-queue", folder_key="custom-folder-key"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.headers[HEADER_FOLDER_KEY] == "custom-folder-key"
+
+    @pytest.mark.asyncio
+    async def test_start_transaction_item_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 7, "Status": "InProgress"},
+        )
+
+        response = await service.start_transaction_item_async(
+            queue_name="test-queue",
+            reference="REF-1",
+            reference_filter_option=Strategy.EQUALS,
+        )
+
+        assert response["Id"] == 7
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        body = json.loads(sent_request.content.decode())
+        assert body["transactionData"]["Reference"] == "REF-1"
+        assert body["transactionData"]["ReferenceFilterOption"] == "Equals"
+        assert (
+            sent_request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.QueuesService.start_transaction_item_async/{version}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_start_transaction_item_async_with_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: QueuesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Queues/UiPathODataSvc.StartTransaction",
+            status_code=200,
+            json={"Id": 1},
+        )
+
+        await service.start_transaction_item_async(
+            queue_name="test-queue", folder_path="Custom/Folder/Path"
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
         assert sent_request.headers[HEADER_FOLDER_PATH] == "Custom/Folder/Path"
