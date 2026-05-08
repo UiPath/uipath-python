@@ -460,9 +460,9 @@ def ingest_index(
 )
 @click.option(
     "--search-mode",
-    type=click.Choice(["Auto", "Semantic"]),
-    default="Auto",
-    help="Search mode (default: Auto)",
+    type=click.Choice(["Semantic"]),
+    default="Semantic",
+    help="Search mode (default: Semantic)",
 )
 @common_service_options
 @service_command
