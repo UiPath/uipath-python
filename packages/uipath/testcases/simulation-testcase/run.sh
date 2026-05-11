@@ -8,4 +8,4 @@ echo "Authenticating with UiPath..."
 uv run uipath auth --client-id="$CLIENT_ID" --client-secret="$CLIENT_SECRET" --base-url="$BASE_URL"
 
 echo "Running agent with simulation..."
-LOG_LEVEL=DEBUG uv run uipath run main -f input.json --simulation "$(cat simulation.json)" 2>&1 | tee run.log
+uv run uipath --debug run main -f input.json --simulation "$(cat simulation.json)" 2>&1 | tee run.log
