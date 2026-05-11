@@ -125,39 +125,44 @@ def generate_agent_md_file(
     return False
 
 
-def generate_agent_md_files(target_directory: str, no_agents_md_override: bool) -> None:
-    """Generate AGENTS.md related files and Claude Code skills.
+def generate_agent_md_files(
+    target_directory: str,
+    no_agents_md_override: bool,
+    with_offline_docs: bool = False,
+) -> None:
+    """Generate AGENTS.md (plus a CLAUDE.md shim) and optionally bundle the offline reference.
 
     Args:
         target_directory: The directory where the files should be created.
-        no_agents_md_override: Whether to override existing files.
+        no_agents_md_override: When True, do not overwrite existing AGENTS.md/CLAUDE.md.
+        with_offline_docs: When True, copy llms-full.txt to .uipath/ as an offline fallback.
     """
-    agent_dir = os.path.join(target_directory, ".agent")
-    os.makedirs(agent_dir, exist_ok=True)
-    claude_commands_dir = os.path.join(target_directory, ".claude", "commands")
-    os.makedirs(claude_commands_dir, exist_ok=True)
-
-    files_to_create = {
-        target_directory: ["AGENTS.md", "CLAUDE.md"],
-        agent_dir: ["CLI_REFERENCE.md", "REQUIRED_STRUCTURE.md", "SDK_REFERENCE.md"],
-        claude_commands_dir: ["new-agent.md", "eval.md"],
-    }
-
-    any_overridden = False
-    for directory, filenames in files_to_create.items():
-        for filename in filenames:
-            if generate_agent_md_file(directory, filename, no_agents_md_override):
-                any_overridden = True
-
-    if any_overridden:
-        console.success(
-            f"{Action.UPDATED.value} {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
-        )
-        return
-
-    console.success(
-        f"{Action.CREATED.value} {click.style('AGENTS.md', fg='cyan')} files and Claude Code skills."
+    overridden = generate_agent_md_file(
+        target_directory, "AGENTS.md", no_agents_md_override
     )
+    generate_agent_md_file(target_directory, "CLAUDE.md", no_agents_md_override)
+
+    if with_offline_docs:
+        uipath_dir = os.path.join(target_directory, ".uipath")
+        os.makedirs(uipath_dir, exist_ok=True)
+        try:
+            source = importlib.resources.files("uipath._resources").joinpath(
+                "llms-full.txt"
+            )
+            with importlib.resources.as_file(source) as s_path:
+                shutil.copy(s_path, os.path.join(uipath_dir, "llms-full.txt"))
+        except (FileNotFoundError, ModuleNotFoundError):
+            pass
+        else:
+            agents_path = os.path.join(target_directory, "AGENTS.md")
+            with open(agents_path, "a", encoding="utf-8") as f:
+                f.write(
+                    "\n3. If neither of the above is reachable, read "
+                    "`.uipath/llms-full.txt` (offline fallback bundled with this project).\n"
+                )
+
+    action = Action.UPDATED.value if overridden else Action.CREATED.value
+    console.success(f"{action} {click.style('AGENTS.md', fg='cyan')} file.")
 
 
 def write_bindings_file(bindings: Bindings) -> Path:
@@ -413,10 +418,17 @@ def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -
     is_flag=True,
     required=False,
     default=False,
-    help="Won't override existing .agent files and AGENTS.md file.",
+    help="Won't override an existing AGENTS.md file.",
+)
+@click.option(
+    "--with-offline-docs",
+    is_flag=True,
+    required=False,
+    default=False,
+    help="Bundle the offline SDK/CLI reference at .uipath/llms-full.txt for use when neither the UiPath skills nor the live docs URL are reachable.",
 )
 @track_command("initialize")
-def init(no_agents_md_override: bool) -> None:
+def init(no_agents_md_override: bool, with_offline_docs: bool) -> None:
     """Initialize the project."""
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
@@ -519,6 +531,8 @@ def init(no_agents_md_override: bool) -> None:
             _display_entrypoint_graphs(entry_point_schemas)
             return
 
-        generate_agent_md_files(current_directory, no_agents_md_override)
+        generate_agent_md_files(
+            current_directory, no_agents_md_override, with_offline_docs
+        )
 
         _display_entrypoint_graphs(entry_point_schemas)

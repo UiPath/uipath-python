@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -21,9 +18,6 @@ jobs:
 
   test:
     uses: ./.github/workflows/test-packages.yml
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   check-versions:
-    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/check-version-availability.yml

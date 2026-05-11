@@ -28,7 +28,7 @@ cd packages/uipath && uv sync --all-extras
 just lint        # ruff check + custom httpx linter
 just format      # ruff format --check
 just validate    # lint + format
-just build       # validate + update-agents-md + uv build
+just build       # validate + uv build
 just install     # uv sync --all-extras
 ```
 

@@ -166,6 +166,7 @@ jobs:
       needs-relock: true
     secrets:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      REPO_ACCESS: ${{ secrets.REPO_ACCESS }}
 
   publish-uipath:
     name: Publish uipath

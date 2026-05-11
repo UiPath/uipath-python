@@ -2,9 +2,6 @@ name: Test Packages
 
 on:
   workflow_call:
-    secrets:
-      SONAR_TOKEN:
-        required: false
 
 permissions:
   contents: read
@@ -80,30 +77,9 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        if: steps.check.outputs.skip != 'true'
         working-directory: packages/uipath-core
         run: uv run pytest
-
-      - name: Run tests with coverage
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-        working-directory: packages/uipath-core
-        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
-
-      - name: Upload coverage HTML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-html-uipath-core
-          path: packages/uipath-core/htmlcov/
-          retention-days: 30
-
-      - name: Upload coverage XML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-xml-uipath-core
-          path: packages/uipath-core/coverage.xml
-          retention-days: 30
 
   test-uipath-platform:
     name: Test (uipath-platform, ${{ matrix.python-version }}, ${{ matrix.os }})
@@ -150,30 +126,9 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        if: steps.check.outputs.skip != 'true'
         working-directory: packages/uipath-platform
         run: uv run pytest
-
-      - name: Run tests with coverage
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-        working-directory: packages/uipath-platform
-        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
-
-      - name: Upload coverage HTML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-html-uipath-platform
-          path: packages/uipath-platform/htmlcov/
-          retention-days: 30
-
-      - name: Upload coverage XML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-xml-uipath-platform
-          path: packages/uipath-platform/coverage.xml
-          retention-days: 30
 
   e2e-uipath-platform:
     name: E2E (uipath-platform, memory)
@@ -270,75 +225,11 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        if: steps.check.outputs.skip != 'true'
         working-directory: packages/uipath
         run: uv run pytest
 
-      - name: Run tests with coverage
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-        working-directory: packages/uipath
-        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
-
-      - name: Upload coverage HTML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-html-uipath
-          path: packages/uipath/htmlcov/
-          retention-days: 30
-
-      - name: Upload coverage XML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-xml-uipath
-          path: packages/uipath/coverage.xml
-          retention-days: 30
-
     continue-on-error: true
-
-  sonarcloud:
-    name: SonarCloud
-    needs: [test-uipath-core, test-uipath-platform, test-uipath]
-    runs-on: ubuntu-latest
-    if: always() && needs.test-uipath-core.result != 'failure' && needs.test-uipath-platform.result != 'failure' && needs.test-uipath.result != 'failure'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download uipath-core coverage
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: coverage-xml-uipath-core
-          path: packages/uipath-core
-
-      - name: Download uipath-platform coverage
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: coverage-xml-uipath-platform
-          path: packages/uipath-platform
-
-      - name: Download uipath coverage
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: coverage-xml-uipath
-          path: packages/uipath
-
-      - name: Rewrite coverage XML <source> to repo-relative paths
-        run: |
-          sed -i 's|<source>src</source>|<source>packages/uipath-core/src</source>|g' packages/uipath-core/coverage.xml || true
-          sed -i 's|<source>src</source>|<source>packages/uipath-platform/src</source>|g' packages/uipath-platform/coverage.xml || true
-          sed -i 's|<source>src</source>|<source>packages/uipath/src</source>|g' packages/uipath/coverage.xml || true
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703 # v5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   test-gate:
     name: Test
