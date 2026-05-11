@@ -35,6 +35,53 @@ from ._types import (
 logger = logging.getLogger(__name__)
 
 
+def build_mocking_context_from_dict(
+    simulation_data: dict[str, Any], agent_model: str | None = None
+) -> MockingContext | None:
+    """Build a MockingContext from a simulation config dictionary.
+
+    Args:
+        simulation_data: Parsed simulation config (same schema as simulation.json).
+        agent_model: Optional agent model name to use as fallback.
+
+    Returns:
+        MockingContext if valid and enabled, None otherwise.
+    """
+    if not simulation_data.get("enabled", True):
+        return None
+
+    tools_to_simulate = [
+        ToolSimulation(name=tool["name"])
+        for tool in simulation_data.get("toolsToSimulate", [])
+    ]
+
+    if not tools_to_simulate:
+        return None
+
+    simulation_model = simulation_data.get("model")
+    model = (
+        ModelSettings(model=simulation_model)
+        if simulation_model
+        else ModelSettings(model=agent_model)
+        if agent_model
+        else None
+    )
+
+    mocking_strategy = LLMMockingStrategy(
+        type=MockingStrategyType.LLM,
+        prompt=simulation_data.get("instructions", ""),
+        tools_to_simulate=tools_to_simulate,
+        model=model,
+    )
+
+    logger.info(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
+    return MockingContext(
+        strategy=mocking_strategy,
+        name="debug-simulation",
+        inputs={},
+    )
+
+
 def load_simulation_config(agent_model: str | None = None) -> MockingContext | None:
     """Load simulation.json from current directory and convert to MockingContext.
 
@@ -51,45 +98,7 @@ def load_simulation_config(agent_model: str | None = None) -> MockingContext | N
         with open(simulation_path, "r", encoding="utf-8") as f:
             simulation_data = json.load(f)
 
-        # Check if simulation is enabled
-        if not simulation_data.get("enabled", True):
-            return None
-
-        # Extract tools to simulate
-        tools_to_simulate = [
-            ToolSimulation(name=tool["name"])
-            for tool in simulation_data.get("toolsToSimulate", [])
-        ]
-
-        if not tools_to_simulate:
-            return None
-
-        # Honor model from simulation config if specified, otherwise use the agent model
-        simulation_model = simulation_data.get("model")
-        model = (
-            ModelSettings(model=simulation_model)
-            if simulation_model
-            else ModelSettings(model=agent_model)
-            if agent_model
-            else None
-        )
-
-        mocking_strategy = LLMMockingStrategy(
-            type=MockingStrategyType.LLM,
-            prompt=simulation_data.get("instructions", ""),
-            tools_to_simulate=tools_to_simulate,
-            model=model,
-        )
-
-        # Create MockingContext for debugging
-        mocking_context = MockingContext(
-            strategy=mocking_strategy,
-            name="debug-simulation",
-            inputs={},
-        )
-
-        logger.info(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
-        return mocking_context
+        return build_mocking_context_from_dict(simulation_data, agent_model)
 
     except Exception as e:
         logger.warning(f"Failed to load simulation.json: {e}")

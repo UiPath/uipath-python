@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import click
 
@@ -7,6 +8,7 @@ from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath.core.tracing import UiPathTraceManager
+from uipath.eval.mocks import UiPathMockRuntime, build_mocking_context_from_dict
 from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -101,6 +103,12 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     is_flag=True,
     help="Keep the temporary state file even when not resuming and no job id is provided",
 )
+@click.option(
+    "--simulation",
+    required=False,
+    default=None,
+    help="Simulation config as a JSON object (same schema as simulation.json)",
+)
 @track_command("run")
 def run(
     entrypoint: str | None,
@@ -114,6 +122,7 @@ def run(
     debug: bool,
     debug_port: int,
     keep_state_file: bool,
+    simulation: str | None,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -121,6 +130,14 @@ def run(
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
+
+    simulation_data: dict[str, object] | None = None
+    if simulation:
+        try:
+            simulation_data = json.loads(simulation)
+        except json.JSONDecodeError as e:
+            console.error(f"Invalid JSON for --simulation: {e}")
+            return
 
     result = Middlewares.next(
         "run",
@@ -217,6 +234,22 @@ def run(
                                 resolved_entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
+
+                            if simulation_data:
+                                schema = await runtime.get_schema()
+                                agent_model = None
+                                if schema.metadata and "settings" in schema.metadata:
+                                    agent_model = schema.metadata["settings"].get(
+                                        "model"
+                                    )
+                                mocking_context = build_mocking_context_from_dict(
+                                    simulation_data, agent_model
+                                )
+                                if mocking_context:
+                                    runtime = UiPathMockRuntime(
+                                        delegate=runtime,
+                                        mocking_context=mocking_context,
+                                    )
 
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:

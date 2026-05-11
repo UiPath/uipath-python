@@ -1,7 +1,7 @@
 """Mock interface."""
 
 from ._mock_context import is_tool_simulated
-from ._mock_runtime import UiPathMockRuntime
+from ._mock_runtime import UiPathMockRuntime, build_mocking_context_from_dict
 from ._types import ExampleCall, MockingContext
 from .mockable import mockable
 
@@ -11,4 +11,5 @@ __all__ = [
     "MockingContext",
     "mockable",
     "is_tool_simulated",
+    "build_mocking_context_from_dict",
 ]
