@@ -302,6 +302,8 @@ jobs:
     needs: [test-uipath-core, test-uipath-platform, test-uipath]
     runs-on: ubuntu-latest
     if: always() && needs.test-uipath-core.result != 'failure' && needs.test-uipath-platform.result != 'failure' && needs.test-uipath.result != 'failure'
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
