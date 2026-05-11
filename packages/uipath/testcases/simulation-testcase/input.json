@@ -1,4 +1,0 @@
-{
-  "code": "def add(a, b):\n  return a+b\n\ndef divide(a,b):\n  return a/b",
-  "language": "python"
-}

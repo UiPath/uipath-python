@@ -1,9 +1,0 @@
-{
-  "enabled": true,
-  "toolsToSimulate": [
-    { "name": "check_syntax" },
-    { "name": "check_style" },
-    { "name": "suggest_improvements" }
-  ],
-  "instructions": "You are simulating a code review system. Given a tool name and its input arguments, produce a realistic JSON response that matches the tool's output schema.\n\n- check_syntax: return {\"valid\": <bool>, \"errors\": [<string>, ...]}. If the code looks syntactically correct return valid=true and an empty errors list.\n- check_style: return {\"score\": <0-100>, \"violations\": [<string>, ...]}. Evaluate PEP 8 compliance. Deduct points for missing spaces, missing type annotations, etc.\n- suggest_improvements: return {\"suggestions\": [<string>, ...], \"refactored_snippet\": \"<improved code>\"}. Suggest concrete improvements such as adding type hints, docstrings, or handling edge cases."
-}

@@ -129,6 +129,21 @@ class MockingContext(BaseModel):
     name: str = Field(default="debug")
 
 
+class SimulationConfig(BaseModel):
+    """Top-level schema for simulation.json / --simulation flag."""
+
+    enabled: bool = True
+    tools_to_simulate: list[ToolSimulation] = Field(
+        default_factory=list, alias="toolsToSimulate"
+    )
+    instructions: str = ""
+    model: str | None = None
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class ExampleCall(BaseModel):
     """Example call for a resource containing resource I/O."""
 
