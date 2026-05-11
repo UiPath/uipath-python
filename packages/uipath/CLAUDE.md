@@ -15,7 +15,7 @@ uv sync --all-extras          # Install dependencies
 just lint                     # ruff check + custom httpx linter
 just format                   # ruff format --check
 just validate                 # lint + format
-just build                    # validate + update-agents-md + uv build
+just build                    # validate + uv build
 just install                  # uv sync --all-extras
 just test-lint-httpx          # Test the custom httpx linter
 
@@ -31,9 +31,9 @@ mypy src tests                # Type check
 
 `scripts/lint_httpx_client.py` enforces httpx client usage patterns. Run with `just lint` or `python scripts/lint_httpx_client.py`.
 
-### AGENTS.md Generation
+### Bundled `llms-full.txt`
 
-`scripts/update_agents_md.py` auto-generates `src/uipath/_resources/AGENTS.md` from agent definitions. Run via `just build` or `just update-agents-md`.
+`src/uipath/_resources/llms-full.txt` is committed to the repo and ships in the wheel. The `.github/workflows/refresh-llms-full.yml` workflow runs daily, calls `.github/scripts/fetch_llms_full.py`, and opens a PR if the file changed. To refresh manually from the repo root, run `python .github/scripts/fetch_llms_full.py`.
 
 ## CLI Architecture (`src/uipath/_cli/`)
 
@@ -95,7 +95,7 @@ Application Insights tracking: `track()`, `track_event()`, `is_telemetry_enabled
 
 ## Bundled Resources (`src/uipath/_resources/`)
 
-Documentation files bundled with the package: `AGENTS.md` (auto-generated), `CLAUDE.md`, `CLI_REFERENCE.md`, `SDK_REFERENCE.md`, `REQUIRED_STRUCTURE.md`, `eval.md`, `new-agent.md`.
+`AGENTS.md` (template emitted by `uipath init`) and `llms-full.txt` (offline SDK/CLI reference fetched at build time, copied into `.uipath/llms-full.txt` by `init`).
 
 ## Test Structure
 

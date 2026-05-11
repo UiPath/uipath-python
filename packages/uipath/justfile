@@ -11,10 +11,7 @@ format:
 
 validate: lint format
 
-update-agents-md: validate
-    python scripts/update_agents_md.py
-
-build: update-agents-md
+build: validate
     uv build
 
 install:

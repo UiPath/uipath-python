@@ -1,0 +1,37 @@
+name: Refresh llms-full.txt
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish Docs"]
+    types: [completed]
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    if: >
+      github.repository == 'UiPath/uipath-python' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch latest llms-full.txt
+        run: python .github/scripts/fetch_llms_full.py
+
+      - name: Open PR if changed
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "chore: refresh bundled llms-full.txt"
+          title: "chore: refresh bundled llms-full.txt"
+          body: |
+            automated refresh of the offline `llms-full.txt` bundled into the `uipath` wheel.
+
+            shipped to user projects at `.uipath/llms-full.txt` by `uipath init` as the offline fallback documented in `AGENTS.md`.
+          branch: chore/refresh-llms-full
+          delete-branch: true
+          add-paths: packages/uipath/src/uipath/_resources/llms-full.txt
