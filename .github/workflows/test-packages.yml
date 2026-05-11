@@ -301,7 +301,7 @@ jobs:
     name: SonarCloud
     needs: [test-uipath-core, test-uipath-platform, test-uipath]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && always() && needs.test-uipath-core.result != 'failure' && needs.test-uipath-platform.result != 'failure' && needs.test-uipath.result != 'failure'
+    if: always() && needs.test-uipath-core.result != 'failure' && needs.test-uipath-platform.result != 'failure' && needs.test-uipath.result != 'failure'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
