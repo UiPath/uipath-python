@@ -74,7 +74,7 @@ def build_mocking_context_from_dict(
         model=model,
     )
 
-    logger.info(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
+    logger.debug(f"Loaded simulation config for {len(tools_to_simulate)} tool(s)")
     return MockingContext(
         strategy=mocking_strategy,
         name="debug-simulation",
