@@ -1,12 +1,14 @@
 import asyncio
 
 import click
+from pydantic import ValidationError
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath.core.tracing import UiPathTraceManager
+from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -101,6 +103,12 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     is_flag=True,
     help="Keep the temporary state file even when not resuming and no job id is provided",
 )
+@click.option(
+    "--simulation",
+    required=False,
+    default=None,
+    help="Simulation config as a JSON object (same schema as simulation.json)",
+)
 @track_command("run")
 def run(
     entrypoint: str | None,
@@ -114,6 +122,7 @@ def run(
     debug: bool,
     debug_port: int,
     keep_state_file: bool,
+    simulation: str | None,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -121,6 +130,14 @@ def run(
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
+
+    simulation_config: SimulationConfig | None = None
+    if simulation:
+        try:
+            simulation_config = SimulationConfig.model_validate_json(simulation)
+        except (ValidationError, ValueError) as e:
+            console.error(f"Invalid --simulation config: {e}")
+            return
 
     result = Middlewares.next(
         "run",
@@ -193,6 +210,7 @@ def run(
                     lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                 ):
                     with ctx:
+                        base_runtime: UiPathRuntimeProtocol | None = None
                         runtime: UiPathRuntimeProtocol | None = None
                         chat_runtime: UiPathRuntimeProtocol | None = None
                         factory: UiPathRuntimeFactoryProtocol | None = None
@@ -213,10 +231,27 @@ def run(
                                 if factory_settings
                                 else None
                             )
-                            runtime = await factory.new_runtime(
+                            base_runtime = await factory.new_runtime(
                                 resolved_entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",
                             )
+                            runtime = base_runtime
+
+                            if simulation_config:
+                                schema = await base_runtime.get_schema()
+                                agent_model = None
+                                if schema.metadata and "settings" in schema.metadata:
+                                    agent_model = schema.metadata["settings"].get(
+                                        "model"
+                                    )
+                                mocking_context = build_mocking_context(
+                                    simulation_config, agent_model
+                                )
+                                if mocking_context:
+                                    runtime = UiPathMockRuntime(
+                                        delegate=base_runtime,
+                                        mocking_context=mocking_context,
+                                    )
 
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:
@@ -243,8 +278,10 @@ def run(
                         finally:
                             if chat_runtime:
                                 await chat_runtime.dispose()
-                            if runtime:
+                            if runtime is not None and runtime is not base_runtime:
                                 await runtime.dispose()
+                            if base_runtime is not None:
+                                await base_runtime.dispose()
                             if factory:
                                 await factory.dispose()
 
