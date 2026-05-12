@@ -10,7 +10,7 @@ uv sync --project "$TESTCASE_DIR"
 UIPATH_BIN="$TESTCASE_DIR/.venv/bin/uipath"
 
 # Run auth and agent from the sample dir so credentials are stored and read
-# from the same location. Output and log are written back to the testcase dir.
+# from the same location.
 cd "$SAMPLE_DIR"
 
 echo "Authenticating with UiPath..."
@@ -20,8 +20,10 @@ echo "Authenticating with UiPath..."
     --base-url="$BASE_URL"
 
 echo "Running agent with simulation..."
-mkdir -p "$TESTCASE_DIR/__uipath"
 "$UIPATH_BIN" run main \
     -f input.json \
-    --simulation "$(cat simulation.json)" \
-    --output-file "$TESTCASE_DIR/__uipath/output.json" 2>&1 | tee "$TESTCASE_DIR/run.log"
+    --simulation "$(cat simulation.json)" 2>&1 | tee "$TESTCASE_DIR/run.log"
+
+# Copy the runtime output file back to the testcase dir for assert.py
+mkdir -p "$TESTCASE_DIR/__uipath"
+cp "$SAMPLE_DIR/__uipath/output.json" "$TESTCASE_DIR/__uipath/output.json"
