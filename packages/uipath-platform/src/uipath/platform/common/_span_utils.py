@@ -125,7 +125,7 @@ class UiPathSpan:
                 for att in self.attachments
             ]
 
-        return {
+        result: Dict[str, Any] = {
             "Id": self.id,
             "TraceId": self.trace_id,
             "ParentId": self.parent_id,
@@ -147,9 +147,11 @@ class UiPathSpan:
             "ReferenceId": self.reference_id,
             "ExecutionType": self.execution_type,
             "AgentVersion": self.agent_version,
-            "VerbosityLevel": self.verbosity_level,
             "Attachments": attachments_out,
         }
+        if self.verbosity_level is not None:
+            result["VerbosityLevel"] = self.verbosity_level
+        return result
 
 
 class _SpanUtils:

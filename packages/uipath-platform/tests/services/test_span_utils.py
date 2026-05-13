@@ -57,6 +57,37 @@ class TestOTelToUiPathSpan:
             assert getattr(uipath_span, span_field) == value, span_field
             assert span_dict[top_level_key] == value, top_level_key
 
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_level_omitted_when_unset(self) -> None:
+        """Spans that don't set verbosityLevel must not carry the key on the wire.
+
+        Backwards compat: pre-existing spans never emitted VerbosityLevel; the
+        LLMOps backend applies its own default. Adding `"VerbosityLevel": null`
+        unconditionally would change the wire format for every existing span.
+        """
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "legacy-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {"someOtherAttr": "value"}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        assert uipath_span.verbosity_level is None
+        assert "VerbosityLevel" not in span_dict
+
 
 class TestNormalizeIds:
     """Tests for OTEL ID normalization functions."""
