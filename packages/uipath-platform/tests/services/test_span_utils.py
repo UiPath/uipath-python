@@ -10,8 +10,8 @@ from opentelemetry.trace import SpanContext, StatusCode
 from uipath.platform.common import UiPathSpan, _SpanUtils
 
 
-class TestVerbosityLevel:
-    """Top-level UiPathSpan fields populated by attribute promotion.
+class TestPromotedAttributes:
+    """OTEL attributes promoted to top-level UiPathSpan fields.
 
     `_SpanUtils.otel_span_to_uipath_span` promotes a small set of OTEL
     attributes onto dedicated `UiPathSpan` fields surfaced under
