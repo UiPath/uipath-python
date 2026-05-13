@@ -87,6 +87,7 @@ class UiPathSpan:
     # Top-level fields for internal tracing schema
     execution_type: Optional[int] = None
     agent_version: Optional[str] = None
+    verbosity_level: Optional[int] = None
     attachments: Optional[List[SpanAttachment]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
@@ -136,6 +137,7 @@ class UiPathSpan:
             "ReferenceId": self.reference_id,
             "ExecutionType": self.execution_type,
             "AgentVersion": self.agent_version,
+            "VerbosityLevel": self.verbosity_level,
             "Attachments": attachments_out,
         }
 
@@ -284,6 +286,7 @@ class _SpanUtils:
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
         reference_id = env.get("UIPATH_AGENT_ID") or attributes_dict.get("agentId")
+        verbosity_level = attributes_dict.get("verbosityLevel")
 
         # Source: override via uipath.source attribute, else DEFAULT_SOURCE
         uipath_source = attributes_dict.get("uipath.source")
@@ -334,6 +337,7 @@ class _SpanUtils:
             span_type=span_type,
             execution_type=execution_type,
             agent_version=agent_version,
+            verbosity_level=verbosity_level,
             reference_id=reference_id,
             source=source,
             attachments=attachments,

@@ -2552,7 +2552,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.10.66"
+version = "2.10.63"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.52"
+version = "0.1.49"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },
