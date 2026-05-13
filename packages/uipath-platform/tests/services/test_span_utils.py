@@ -10,17 +10,17 @@ from opentelemetry.trace import SpanContext, StatusCode
 from uipath.platform.common import UiPathSpan, _SpanUtils
 
 
-class TestPromotedAttributes:
-    """OTEL attributes promoted to top-level UiPathSpan fields.
+class TestOTelToUiPathSpan:
+    """OTEL attribute -> top-level UiPathSpan field mapping.
 
-    `_SpanUtils.otel_span_to_uipath_span` promotes a small set of OTEL
-    attributes onto dedicated `UiPathSpan` fields surfaced under
-    `to_dict()`. This test documents that contract — adding a new row
-    means the attribute is newly promoted, removing one breaks
+    `_SpanUtils.otel_span_to_uipath_span` lifts a small set of OTEL
+    span attributes onto dedicated `UiPathSpan` fields surfaced under
+    `to_dict()`. This test documents that mapping — adding a new row
+    means the attribute is newly mapped, removing one breaks
     downstream consumers.
     """
 
-    PROMOTIONS = [
+    ATTRIBUTE_FIELD_MAP = [
         ("executionType", "execution_type", "ExecutionType", 1),
         ("agentVersion", "agent_version", "AgentVersion", "1.2.3"),
         ("agentId", "reference_id", "ReferenceId", "ref-abc"),
@@ -28,8 +28,10 @@ class TestPromotedAttributes:
     ]
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
-    def test_attributes_are_promoted_to_top_level_fields(self) -> None:
-        attrs = {otel_attr: value for otel_attr, _, _, value in self.PROMOTIONS}
+    def test_attributes_map_to_top_level_fields(self) -> None:
+        attrs = {
+            otel_attr: value for otel_attr, _, _, value in self.ATTRIBUTE_FIELD_MAP
+        }
 
         mock_span = Mock(spec=OTelSpan)
         mock_context = SpanContext(
@@ -51,7 +53,7 @@ class TestPromotedAttributes:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        for _, span_field, top_level_key, value in self.PROMOTIONS:
+        for _, span_field, top_level_key, value in self.ATTRIBUTE_FIELD_MAP:
             assert getattr(uipath_span, span_field) == value, span_field
             assert span_dict[top_level_key] == value, top_level_key
 
