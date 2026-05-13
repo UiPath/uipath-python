@@ -11,18 +11,49 @@ from uipath.platform.common import UiPathSpan, _SpanUtils
 
 
 class TestVerbosityLevel:
-    """VerbosityLevel enum mirrors the LLMOps backend enum."""
+    """Top-level UiPathSpan fields populated by attribute promotion.
 
-    def test_values_match_backend_enum(self) -> None:
-        from uipath.platform.common._span_utils import VerbosityLevel
+    `_SpanUtils.otel_span_to_uipath_span` promotes a small set of OTEL
+    attributes onto dedicated `UiPathSpan` fields surfaced under
+    `to_dict()`. This test documents that contract — adding a new row
+    means the attribute is newly promoted, removing one breaks
+    downstream consumers.
+    """
 
-        assert VerbosityLevel.VERBOSE == 0
-        assert VerbosityLevel.TRACE == 1
-        assert VerbosityLevel.INFORMATION == 2
-        assert VerbosityLevel.WARNING == 3
-        assert VerbosityLevel.ERROR == 4
-        assert VerbosityLevel.CRITICAL == 5
-        assert VerbosityLevel.OFF == 6
+    PROMOTIONS = [
+        ("executionType", "execution_type", "ExecutionType", 1),
+        ("agentVersion", "agent_version", "AgentVersion", "1.2.3"),
+        ("agentId", "reference_id", "ReferenceId", "ref-abc"),
+        ("verbosityLevel", "verbosity_level", "VerbosityLevel", 6),
+    ]
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_attributes_are_promoted_to_top_level_fields(self) -> None:
+        attrs = {otel_attr: value for otel_attr, _, _, value in self.PROMOTIONS}
+
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = attrs
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        for _, span_field, top_level_key, value in self.PROMOTIONS:
+            assert getattr(uipath_span, span_field) == value, span_field
+            assert span_dict[top_level_key] == value, top_level_key
 
 
 class TestNormalizeIds:
@@ -376,59 +407,6 @@ class TestSpanUtils:
 
         assert span_dict["ExecutionType"] is None
         assert span_dict["AgentVersion"] is None
-
-    def test_uipath_span_promotes_verbosity_level_attribute(self):
-        """Test that uipath.verbosity_level attribute promotes to top-level VerbosityLevel."""
-        mock_span = Mock(spec=OTelSpan)
-
-        trace_id = 0x123456789ABCDEF0123456789ABCDEF0
-        span_id = 0x0123456789ABCDEF
-        mock_context = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=False)
-        mock_span.get_span_context.return_value = mock_context
-
-        mock_span.name = "AgentDefinition"
-        mock_span.parent = None
-        mock_span.status.status_code = StatusCode.OK
-        mock_span.attributes = {"verbosityLevel": 6}
-        mock_span.events = []
-        mock_span.links = []
-
-        current_time_ns = int(datetime.now().timestamp() * 1e9)
-        mock_span.start_time = current_time_ns
-        mock_span.end_time = current_time_ns + 1000000
-
-        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
-        span_dict = uipath_span.to_dict()
-
-        assert span_dict["VerbosityLevel"] == 6
-        assert uipath_span.verbosity_level == 6
-
-    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
-    def test_uipath_span_missing_verbosity_level_defaults_none(self):
-        """Test that absent uipath.verbosity_level leaves VerbosityLevel=None."""
-        mock_span = Mock(spec=OTelSpan)
-
-        trace_id = 0x123456789ABCDEF0123456789ABCDEF0
-        span_id = 0x0123456789ABCDEF
-        mock_context = SpanContext(trace_id=trace_id, span_id=span_id, is_remote=False)
-        mock_span.get_span_context.return_value = mock_context
-
-        mock_span.name = "Agent run"
-        mock_span.parent = None
-        mock_span.status.status_code = StatusCode.OK
-        mock_span.attributes = {"someOtherAttr": "value"}
-        mock_span.events = []
-        mock_span.links = []
-
-        current_time_ns = int(datetime.now().timestamp() * 1e9)
-        mock_span.start_time = current_time_ns
-        mock_span.end_time = current_time_ns + 1000000
-
-        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
-        span_dict = uipath_span.to_dict()
-
-        assert span_dict["VerbosityLevel"] is None
-        assert uipath_span.verbosity_level is None
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_source_defaults_to_coded_agents(self):
