@@ -810,5 +810,18 @@ class TestNilUuidProcessKey:
         assert payload["ProcessKey"] is None
 
 
+class TestVerbosityLevelReexport:
+    """VerbosityLevel from uipath-platform is re-exported via uipath.tracing."""
+
+    def test_uipath_tracing_reexports_verbosity_level(self) -> None:
+        from uipath.platform.common._span_utils import (
+            VerbosityLevel as _CommonVerbosity,
+        )
+        from uipath.tracing import VerbosityLevel as _TracingVerbosity
+
+        assert _TracingVerbosity is _CommonVerbosity
+        assert _TracingVerbosity.OFF == 6
+
+
 if __name__ == "__main__":
     unittest.main()

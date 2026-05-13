@@ -10,6 +10,21 @@ from opentelemetry.trace import SpanContext, StatusCode
 from uipath.platform.common import UiPathSpan, _SpanUtils
 
 
+class TestVerbosityLevel:
+    """VerbosityLevel enum mirrors the LLMOps backend enum."""
+
+    def test_values_match_backend_enum(self) -> None:
+        from uipath.platform.common._span_utils import VerbosityLevel
+
+        assert VerbosityLevel.VERBOSE == 0
+        assert VerbosityLevel.TRACE == 1
+        assert VerbosityLevel.INFORMATION == 2
+        assert VerbosityLevel.WARNING == 3
+        assert VerbosityLevel.ERROR == 4
+        assert VerbosityLevel.CRITICAL == 5
+        assert VerbosityLevel.OFF == 6
+
+
 class TestNormalizeIds:
     """Tests for OTEL ID normalization functions."""
 

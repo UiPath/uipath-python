@@ -29,6 +29,16 @@ class AttachmentDirection(IntEnum):
     OUT = 2
 
 
+class VerbosityLevel(IntEnum):
+    VERBOSE = 0
+    TRACE = 1
+    INFORMATION = 2
+    WARNING = 3
+    ERROR = 4
+    CRITICAL = 5
+    OFF = 6
+
+
 class SpanAttachment(BaseModel):
     """Represents an attachment in the UiPath tracing system."""
 
