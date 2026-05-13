@@ -3,6 +3,14 @@ name: uipath - Integration Tests
 on:
   pull_request:
     branches: [ main ]
+  # pull_request_target runs in the base-branch context and exposes secrets,
+  # which is required for Dependabot PRs (regular pull_request events do not
+  # receive repository secrets when triggered by Dependabot). The actor gate
+  # below restricts this trigger to Dependabot to avoid handing secrets to
+  # arbitrary fork PRs.
+  pull_request_target:
+    branches: [ main ]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -11,6 +19,9 @@ permissions:
 
 jobs:
   detect-changed-packages:
+    if: |
+      (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]') ||
+      (github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]')
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
@@ -19,6 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Setup Python
@@ -44,6 +56,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Discover testcases
       id: discover
@@ -85,17 +99,37 @@ jobs:
       fail-fast: false
       matrix:
         testcase: ${{ fromJson(needs.discover-testcases.outputs.testcases) }}
-        environment: [alpha, cloud, staging]
+        # Dependabot runs are restricted to alpha to minimize blast radius of
+        # exposing credentials to dependency-bump PRs.
+        environment: ${{ github.event_name == 'pull_request_target' && fromJson('["alpha"]') || fromJson('["alpha", "cloud", "staging"]') }}
 
     name: "${{ matrix.testcase.testcase }} / ${{ matrix.environment }}"
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Install dependencies
       working-directory: packages/${{ matrix.testcase.package }}
       run: uv sync
+
+    - name: Check secrets availability
+      env:
+        CLIENT_ID:      ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_ID || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_ID || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_ID }}
+        CLIENT_SECRET:  ${{ matrix.environment == 'alpha' && secrets.ALPHA_TEST_CLIENT_SECRET || matrix.environment == 'staging' && secrets.STAGING_TEST_CLIENT_SECRET || matrix.environment == 'cloud' && secrets.CLOUD_TEST_CLIENT_SECRET }}
+        BASE_URL:       ${{ matrix.environment == 'alpha' && secrets.ALPHA_BASE_URL || matrix.environment == 'staging' && secrets.STAGING_BASE_URL || matrix.environment == 'cloud' && secrets.CLOUD_BASE_URL }}
+        PR_ACTOR: ${{ github.event.pull_request.user.login }}
+      run: |
+        missing=()
+        [ -z "$CLIENT_ID" ] && missing+=("CLIENT_ID")
+        [ -z "$CLIENT_SECRET" ] && missing+=("CLIENT_SECRET")
+        [ -z "$BASE_URL" ] && missing+=("BASE_URL")
+
+        if [ ${#missing[@]} -gt 0 ]; then
+          echo "::warning::Missing or empty secrets for ${{ matrix.environment }}: ${missing[*]}. PRs from forks or Dependabot do not receive repository secrets — workflows triggered by '$PR_ACTOR' must have the corresponding values configured in Settings → Secrets and variables → Dependabot (or be re-run by a maintainer from a branch in this repo). The testcase will fail with a misleading auth error downstream."
+        fi
 
     - name: Run testcase
       env:
@@ -105,10 +139,10 @@ jobs:
 
         USE_AZURE_CHAT: ${{ matrix.use_azure_chat }}
 
-        # App Insights for telemetry testing
-        TELEMETRY_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
-        APP_INSIGHTS_APP_ID: ${{ secrets.APP_INSIGHTS_APP_ID }}
-        APP_INSIGHTS_API_KEY: ${{ secrets.APP_INSIGHTS_API_KEY }}
+        # App Insights for telemetry testing — omitted for Dependabot runs.
+        TELEMETRY_CONNECTION_STRING: ${{ github.event_name == 'pull_request_target' && '' || secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        APP_INSIGHTS_APP_ID:         ${{ github.event_name == 'pull_request_target' && '' || secrets.APP_INSIGHTS_APP_ID }}
+        APP_INSIGHTS_API_KEY:        ${{ github.event_name == 'pull_request_target' && '' || secrets.APP_INSIGHTS_API_KEY }}
       working-directory: packages/${{ matrix.testcase.package }}/testcases/${{ matrix.testcase.testcase }}
       run: |
         # If any errors occur execution will stop with exit code
@@ -126,7 +160,11 @@ jobs:
   summarize-results:
     needs: [detect-changed-packages, discover-testcases, integration-tests]
     runs-on: ubuntu-latest
-    if: always()
+    if: |
+      always() && (
+        (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]') ||
+        (github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]')
+      )
     steps:
       - name: Check integration tests status
         run: |
