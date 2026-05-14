@@ -15,7 +15,7 @@ resolution.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type
 
 from httpx import Response
 from uipath.core.tracing import traced
@@ -451,13 +451,13 @@ class EntitiesService(BaseService):
     def update_entity_metadata(
         self,
         entity_id: str,
-        metadata: Union[EntityMetadataUpdateOptions, Dict[str, Any]],
+        metadata: EntityMetadataUpdateOptions | Dict[str, Any],
     ) -> None:
         """Update an entity's display name, description, and/or RBAC flag.
 
         Args:
             entity_id (str): The unique identifier of the entity.
-            metadata (Union[EntityMetadataUpdateOptions, Dict[str, Any]]):
+            metadata (EntityMetadataUpdateOptions | Dict[str, Any]):
                 An :class:`EntityMetadataUpdateOptions` instance or a dict
                 with any of ``display_name``, ``description``,
                 ``is_rbac_enabled``. Dict keys may be snake_case
@@ -490,13 +490,13 @@ class EntitiesService(BaseService):
     async def update_entity_metadata_async(
         self,
         entity_id: str,
-        metadata: Union[EntityMetadataUpdateOptions, Dict[str, Any]],
+        metadata: EntityMetadataUpdateOptions | Dict[str, Any],
     ) -> None:
         """Asynchronously update an entity's display name, description, and/or RBAC flag.
 
         Args:
             entity_id (str): The unique identifier of the entity.
-            metadata (Union[EntityMetadataUpdateOptions, Dict[str, Any]]):
+            metadata (EntityMetadataUpdateOptions | Dict[str, Any]):
                 An :class:`EntityMetadataUpdateOptions` instance or a dict
                 with any of ``display_name``, ``description``,
                 ``is_rbac_enabled``.

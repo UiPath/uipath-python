@@ -10,7 +10,7 @@ import json as json_module
 import logging
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type
 
 import sqlparse
 from httpx import HTTPStatusError, Response
@@ -42,7 +42,7 @@ from .entities import (
 
 logger = logging.getLogger(__name__)
 
-FileContent = Union[bytes, bytearray, memoryview]
+FileContent = bytes | bytearray | memoryview
 """Acceptable raw bytes types for attachment and CSV uploads."""
 
 _FORBIDDEN_DML = {"INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE"}
@@ -1147,7 +1147,7 @@ class EntityDataService(BaseService):
     def _request_or_extract_batch(
         self,
         sync_call: Any,
-    ) -> Union[Response, EntityRecordsBatchResponse]:
+    ) -> Response | EntityRecordsBatchResponse:
         """Run a batch request and recover per-record failures from a 400 body.
 
         On HTTP 400 with a body that lists both ``successRecords`` and
@@ -1165,7 +1165,7 @@ class EntityDataService(BaseService):
     async def _request_or_extract_batch_async(
         self,
         async_call: Any,
-    ) -> Union[Response, EntityRecordsBatchResponse]:
+    ) -> Response | EntityRecordsBatchResponse:
         """Async variant of :meth:`_request_or_extract_batch`."""
         try:
             return await async_call()

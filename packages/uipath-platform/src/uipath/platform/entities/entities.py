@@ -550,9 +550,7 @@ class EntityQueryRecordsResponse(BaseModel):
     @overload
     def __getitem__(self, index: slice) -> List[EntityRecord]: ...
 
-    def __getitem__(
-        self, index: Union[int, slice]
-    ) -> Union[EntityRecord, List[EntityRecord]]:
+    def __getitem__(self, index: int | slice) -> EntityRecord | List[EntityRecord]:
         """Index or slice records (delegates to ``self.items``)."""
         return self.items[index]
 

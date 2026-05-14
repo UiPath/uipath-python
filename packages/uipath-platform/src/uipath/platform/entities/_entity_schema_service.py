@@ -7,7 +7,7 @@ Record CRUD, queries, attachments, and bulk import live on
 """
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from httpx import Response
 
@@ -159,7 +159,7 @@ class EntitySchemaService(BaseService):
     def update_entity_metadata(
         self,
         entity_id: str,
-        metadata: Union[EntityMetadataUpdateOptions, Dict[str, Any]],
+        metadata: EntityMetadataUpdateOptions | Dict[str, Any],
     ) -> None:
         """Internal implementation; see :meth:`EntitiesService.update_entity_metadata`."""
         spec = self._update_entity_metadata_spec(entity_id, metadata)
@@ -168,7 +168,7 @@ class EntitySchemaService(BaseService):
     async def update_entity_metadata_async(
         self,
         entity_id: str,
-        metadata: Union[EntityMetadataUpdateOptions, Dict[str, Any]],
+        metadata: EntityMetadataUpdateOptions | Dict[str, Any],
     ) -> None:
         """Async variant of :meth:`update_entity_metadata`."""
         spec = self._update_entity_metadata_spec(entity_id, metadata)
@@ -262,7 +262,7 @@ class EntitySchemaService(BaseService):
     @staticmethod
     def _update_entity_metadata_spec(
         entity_id: str,
-        metadata: Union[EntityMetadataUpdateOptions, Dict[str, Any]],
+        metadata: EntityMetadataUpdateOptions | Dict[str, Any],
     ) -> RequestSpec:
         """Build the PATCH spec for updating entity metadata.
 
