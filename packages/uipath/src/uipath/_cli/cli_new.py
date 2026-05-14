@@ -49,7 +49,7 @@ def generate_uipath_json(target_directory):
 @click.argument("name", type=str, default="")
 @track_command("new")
 def new(name: str):
-    """Generate a quick-start project."""
+    """Generate a quick-start project scaffold in the current directory."""
     directory = os.getcwd()
 
     if not name:
