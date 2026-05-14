@@ -15,8 +15,8 @@ from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
-# SourceEnum.Robots = 4 (default for Python SDK / coded agents)
-DEFAULT_SOURCE = 4
+# SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
+DEFAULT_SOURCE = 10
 
 
 class AttachmentProvider(IntEnum):
