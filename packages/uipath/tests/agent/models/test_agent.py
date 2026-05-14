@@ -3837,3 +3837,208 @@ class TestArgumentRecipientDeserialization:
         payload = {"type": 8}
         with pytest.raises(ValidationError):
             TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_agent_with_client_side_tool(self):
+        """Test agent with ClientSide tool resource."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000010",
+            "name": "Agent with ClientSide Tool",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "cst-0001-0000-0000-000000000001",
+                    "name": "browser_navigate",
+                    "description": "Navigate to a URL in the browser",
+                    "location": "external",
+                    "type": "ClientSide",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "The URL to navigate to",
+                            }
+                        },
+                        "required": ["url"],
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "content": {"type": "string"},
+                        },
+                    },
+                    "arguments": {"timeout": 30},
+                    "properties": {},
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.name == "Agent with ClientSide Tool"
+        assert len(config.resources) == 1
+
+        tool = config.resources[0]
+        assert isinstance(tool, AgentClientSideToolResourceConfig)
+        assert tool.resource_type == AgentResourceType.TOOL
+        assert tool.type == AgentToolType.CLIENT_SIDE
+        assert tool.name == "browser_navigate"
+        assert tool.description == "Navigate to a URL in the browser"
+
+        # Validate input schema
+        assert tool.input_schema["type"] == "object"
+        assert "url" in tool.input_schema["properties"]
+        assert tool.input_schema["required"] == ["url"]
+
+        # Validate outputSchema alias deserializes to output_schema
+        assert tool.output_schema is not None
+        assert tool.output_schema["type"] == "object"
+        assert "title" in tool.output_schema["properties"]
+        assert "content" in tool.output_schema["properties"]
+
+        # Validate arguments
+        assert tool.arguments == {"timeout": 30}
+
+    def test_agent_with_client_side_tool_lowercase_type(self):
+        """Test that _normalize_resources handles lowercase 'clientside' type."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000011",
+            "name": "Agent with clientside Tool",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "cst-0002-0000-0000-000000000001",
+                    "name": "clipboard_copy",
+                    "description": "Copy text to clipboard",
+                    "location": "external",
+                    "type": "clientside",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                        },
+                    },
+                    "properties": {},
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool = config.resources[0]
+        assert isinstance(tool, AgentClientSideToolResourceConfig)
+        assert tool.type == AgentToolType.CLIENT_SIDE
+        assert tool.name == "clipboard_copy"
+
+        # output_schema and arguments should default
+        assert tool.output_schema is None
+        assert tool.arguments == {}
+
+    def test_agent_with_client_side_tool_output_schema_alias(self):
+        """Test that the outputSchema alias correctly maps to output_schema."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000012",
+            "name": "Agent with ClientSide outputSchema alias",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "cst-0003-0000-0000-000000000001",
+                    "name": "screen_capture",
+                    "description": "Capture a screenshot",
+                    "location": "external",
+                    "type": "ClientSide",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "region": {"type": "string"},
+                        },
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "imageBase64": {
+                                "type": "string",
+                                "description": "Base64-encoded image",
+                            }
+                        },
+                        "required": ["imageBase64"],
+                    },
+                    "properties": {},
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool = config.resources[0]
+        assert isinstance(tool, AgentClientSideToolResourceConfig)
+
+        # Access via Python attribute name (snake_case)
+        assert tool.output_schema is not None
+        assert tool.output_schema["type"] == "object"
+        assert "imageBase64" in tool.output_schema["properties"]
+        assert tool.output_schema["required"] == ["imageBase64"]

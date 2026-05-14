@@ -365,35 +365,12 @@ class SocketIOChatBridge:
             raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
-        """No-op.
+        """Emit an executingToolCall event if the trigger is marked with is_execution_phase.
 
-        Tool confirmation — the only interrupt pattern CAS uses today — is
-        handled end-to-end via ``startToolCall`` with ``requireConfirmation:
-        true`` paired with ``wait_for_resume()``. This is deliberately
-        simpler than the old interrupt-based flow: CAS needs
-        ``requireConfirmation`` on the tool call event itself to render the
-        confirmation UI, so a parallel ``startInterrupt`` event would be
-        redundant.
-
-        The only hypothetical reason to put work here is a generic,
-        non-tool-call agent interrupt (e.g. a coded agent calling
-        ``interrupt("do you want to continue?")``). Nothing uses that today
-        and it's not a near-term requirement — the method is kept for
-        generic flexibility.
+        Called by the runtime loop for every durable interrupt. Emits executingToolCall
+        for triggers that signal execution is about to begin, The
+        is_execution_phase marker ensures it fires exactly once per tool call.
         """
-        return None
-
-    async def emit_executing_tool_call_event(
-        self, resume_trigger: UiPathResumeTrigger
-    ) -> None:
-        """Emit an executingToolCall event for client-side tool execution.
-
-        Only emits for triggers marked with is_execution_phase=True.
-        This fires exactly once per client-side tool call — for Path 3 (no confirm)
-        and for Path 4 (after confirmation, on the execution interrupt).
-        Confirmation-only interrupts (Paths 2/4 first interrupt) are skipped.
-        """
-
         request = (
             resume_trigger.api_resume.request if resume_trigger.api_resume else None
         )
@@ -408,9 +385,6 @@ class SocketIOChatBridge:
         tool_input = request.get("input")
 
         if not tool_call_id or not tool_name:
-            logger.info(
-                f"emit_executing_tool_call_event: missing tool_call_id or tool_name, skipping. tool_call_id={tool_call_id}, tool_name={tool_name}"
-            )
             return
 
         executing_event = UiPathConversationMessageEvent(
