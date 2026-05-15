@@ -363,8 +363,8 @@ class TestSpanUtils:
         assert span_dict["AgentVersion"] is None
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
-    def test_uipath_span_source_defaults_to_robots(self):
-        """Test that Source defaults to 4 (Robots) and ignores attributes.source."""
+    def test_uipath_span_source_defaults_to_coded_agents(self):
+        """Test that Source defaults to 10 (CodedAgents) and ignores attributes.source."""
         mock_span = Mock(spec=OTelSpan)
 
         trace_id = 0x123456789ABCDEF0123456789ABCDEF0
@@ -387,9 +387,9 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        # Top-level Source should be 4 (Robots), string "runtime" is ignored
-        assert uipath_span.source == 4
-        assert span_dict["Source"] == 4
+        # Top-level Source should be 10 (CodedAgents), string "runtime" is ignored
+        assert uipath_span.source == 10
+        assert span_dict["Source"] == 10
 
         # attributes.source string should still be in Attributes JSON
         attrs = json.loads(span_dict["Attributes"])
@@ -408,7 +408,7 @@ class TestSpanUtils:
         mock_span.name = "test-span"
         mock_span.parent = None
         mock_span.status.status_code = StatusCode.OK
-        # uipath.source=1 (Agents) overrides default of 4 (Robots)
+        # uipath.source=1 (Agents) overrides default of 10 (CodedAgents)
         mock_span.attributes = {"uipath.source": 1, "source": "runtime"}
         mock_span.events = []
         mock_span.links = []
