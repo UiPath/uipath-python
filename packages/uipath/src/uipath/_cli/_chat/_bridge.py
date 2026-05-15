@@ -387,6 +387,9 @@ class SocketIOChatBridge:
         if not tool_call_id or not tool_name:
             return
 
+        if not self._current_message_id:
+            return
+
         executing_event = UiPathConversationMessageEvent(
             message_id=self._current_message_id,
             tool_call=UiPathConversationToolCallEvent(

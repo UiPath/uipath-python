@@ -8,6 +8,7 @@ from uipath.agent.models.agent import (
     AgentBooleanOperator,
     AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
+    AgentClientSideToolResourceConfig,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
     AgentContextType,

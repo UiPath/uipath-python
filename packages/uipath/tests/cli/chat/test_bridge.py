@@ -10,6 +10,7 @@ import pytest
 
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
 from uipath._cli._debug._bridge import SignalRDebugBridge
+from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
 
 
 class MockRuntimeContext:
@@ -369,7 +370,6 @@ class TestEmitInterruptEvent:
         return bridge
 
     def _make_trigger(self, request: dict[str, Any] | None) -> "UiPathResumeTrigger":
-        from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
 
         api_resume = UiPathApiTrigger(request=request) if request is not None else None
         return UiPathResumeTrigger(api_resume=api_resume)
