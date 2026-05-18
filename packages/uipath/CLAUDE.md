@@ -2,6 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with the main `uipath` package.
 
+
 ## Package Purpose
 
 The top-level SDK package that users `uv pip install`. Contains the CLI (`uipath` command), agent framework, evaluation framework, tracing, telemetry, and function utilities. Depends on `uipath-platform` and `uipath-core`.
@@ -43,24 +44,24 @@ Uses **click** framework. Commands are organized as `cli_<command>.py` files.
 
 ### Commands
 
-| File | Command | Purpose |
-|------|---------|---------|
-| `cli_new.py` | `new` | Create new project |
-| `cli_init.py` | `init` | Initialize project (generates entry-points.json) |
-| `cli_pack.py` | `pack` | Package into .nupkg |
-| `cli_publish.py` | `publish` | Publish to Orchestrator feed |
-| `cli_deploy.py` | `deploy` | Pack + publish in one step |
-| `cli_run.py` | `run` | Execute a project locally |
-| `cli_auth.py` | `auth` | Browser-based authentication |
-| `cli_invoke.py` | `invoke` | Invoke a specific entrypoint |
-| `cli_eval.py` | `eval` | Run evaluations |
-| `cli_push.py` | `push` | Push to remote storage |
-| `cli_pull.py` | `pull` | Pull from remote storage |
-| `cli_dev.py` | `dev` | Development server mode |
-| `cli_add.py` | `add` | Add resource/dependency |
-| `cli_server.py` | `server` | Run as server |
-| `cli_register.py` | `register` | Register resource |
-| `cli_debug.py` | `debug` | Debug execution |
+| File              | Command    | Purpose                                          |
+| ----------------- | ---------- | ------------------------------------------------ |
+| `cli_new.py`      | `new`      | Create new project                               |
+| `cli_init.py`     | `init`     | Initialize project (generates entry-points.json) |
+| `cli_pack.py`     | `pack`     | Package into .nupkg                              |
+| `cli_publish.py`  | `publish`  | Publish to Orchestrator feed                     |
+| `cli_deploy.py`   | `deploy`   | Pack + publish in one step                       |
+| `cli_run.py`      | `run`      | Execute a project locally                        |
+| `cli_auth.py`     | `auth`     | Browser-based authentication                     |
+| `cli_invoke.py`   | `invoke`   | Invoke a specific entrypoint                     |
+| `cli_eval.py`     | `eval`     | Run evaluations                                  |
+| `cli_push.py`     | `push`     | Push to remote storage                           |
+| `cli_pull.py`     | `pull`     | Pull from remote storage                         |
+| `cli_dev.py`      | `dev`      | Development server mode                          |
+| `cli_add.py`      | `add`      | Add resource/dependency                          |
+| `cli_server.py`   | `server`   | Run as server                                    |
+| `cli_register.py` | `register` | Register resource                                |
+| `cli_debug.py`    | `debug`    | Debug execution                                  |
 
 Sub-commands: `services/cli_assets.py` (asset management), `services/cli_buckets.py` (bucket management).
 
