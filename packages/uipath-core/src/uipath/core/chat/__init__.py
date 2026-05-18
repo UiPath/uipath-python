@@ -71,6 +71,7 @@ from .error import (
 )
 from .event import UiPathConversationEvent, UiPathConversationLabelUpdatedEvent
 from .exchange import (
+    UiPathClientSideToolDeclaration,
     UiPathConversationExchange,
     UiPathConversationExchangeData,
     UiPathConversationExchangeEndEvent,
@@ -139,6 +140,7 @@ __all__ = [
     "UiPathSessionEndingEvent",
     "UiPathSessionEndEvent",
     # Exchange
+    "UiPathClientSideToolDeclaration",
     "UiPathConversationExchangeStartEvent",
     "UiPathConversationExchangeEndEvent",
     "UiPathConversationExchangeEvent",

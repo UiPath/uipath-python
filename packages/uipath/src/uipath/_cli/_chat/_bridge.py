@@ -125,8 +125,8 @@ class SocketIOChatBridge:
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
-        self._tool_confirmation_event = asyncio.Event()
-        self._tool_confirmation_value: (
+        self._tool_resume_event = asyncio.Event()
+        self._tool_resume_value: (
             UiPathConversationToolCallConfirmationEvent
             | UiPathConversationToolCallEndEvent
             | None
@@ -368,7 +368,7 @@ class SocketIOChatBridge:
         """Emit an executingToolCall event if the trigger is marked with is_execution_phase.
 
         Called by the runtime loop for every durable interrupt. Emits executingToolCall
-        for triggers that signal execution is about to begin, The
+        for triggers that signal execution is about to begin. The
         is_execution_phase marker ensures it fires exactly once per tool call.
         """
         request = (
@@ -403,16 +403,17 @@ class SocketIOChatBridge:
         await self.emit_message_event(executing_event)
 
     async def wait_for_resume(self) -> dict[str, Any]:
-        """Wait for a confirmToolCall event to be received."""
-        self._tool_confirmation_event.clear()
-        self._tool_confirmation_value = None
+        """Wait for a tool resume event (confirmToolCall or endToolCall) to be received."""
+        if self._tool_resume_value is None:
+            self._tool_resume_event.clear()
+            await self._tool_resume_event.wait()
 
-        await self._tool_confirmation_event.wait()
+        value = self._tool_resume_value
+        self._tool_resume_value = None
+        self._tool_resume_event.clear()
 
-        if self._tool_confirmation_value:
-            return self._tool_confirmation_value.model_dump(
-                mode="python", by_alias=False
-            )
+        if value:
+            return value.model_dump(mode="python", by_alias=False)
         return {}
 
     @property
@@ -450,11 +451,11 @@ class SocketIOChatBridge:
                 and (tool_call := parsed_event.exchange.message.tool_call)
             ):
                 if confirm := tool_call.confirm:
-                    self._tool_confirmation_value = confirm
-                    self._tool_confirmation_event.set()
+                    self._tool_resume_value = confirm
+                    self._tool_resume_event.set()
                 elif end := tool_call.end:
-                    self._tool_confirmation_value = end
-                    self._tool_confirmation_event.set()
+                    self._tool_resume_value = end
+                    self._tool_resume_event.set()
         except Exception as e:
             logger.warning(f"Error parsing conversation event: {e}")
 

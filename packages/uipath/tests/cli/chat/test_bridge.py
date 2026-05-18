@@ -570,3 +570,39 @@ class TestWaitForResumeEndToolCall:
 
         assert result["approved"] is True
         assert result["input"] == {"edited": "data"}
+
+    @pytest.mark.anyio
+    async def test_early_end_tool_call_is_not_lost(self) -> None:
+        """An endToolCall that arrives before wait_for_resume is called must not be lost."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+
+        end_event = {
+            "conversationId": "conv-123",
+            "exchange": {
+                "exchangeId": "exch-456",
+                "message": {
+                    "messageId": "msg-300",
+                    "toolCall": {
+                        "toolCallId": "tc-100",
+                        "endToolCall": {
+                            "output": {"early": True},
+                            "isError": False,
+                        },
+                    },
+                },
+            },
+        }
+
+        # Simulate the event arriving BEFORE wait_for_resume is called
+        await bridge._handle_conversation_event(end_event, "sid-1")
+
+        result = await bridge.wait_for_resume()
+
+        assert result["output"] == {"early": True}
+        assert result["is_error"] is False
