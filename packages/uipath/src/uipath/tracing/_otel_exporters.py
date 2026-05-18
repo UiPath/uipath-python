@@ -389,7 +389,7 @@ class LlmOpsHttpExporter(SpanExporter):
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
         trace_id = str(span_list[0]["TraceId"])
-        return f"{self.base_url}/api/Traces/spans?traceId={trace_id}&source=Robots"
+        return f"{self.base_url}/api/Traces/spans?traceId={trace_id}&source=CodedAgents"
 
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4

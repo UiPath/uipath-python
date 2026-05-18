@@ -166,6 +166,12 @@ class AgentMessageRole(str, CaseInsensitiveEnum):
     USER = "user"
 
 
+class AgentVariant(str, CaseInsensitiveEnum):
+    """Agent variant enumeration."""
+
+    CASE_MANAGER = "caseManager"
+
+
 class AgentGuardrailActionType(str, CaseInsensitiveEnum):
     """Agent guardrail action type enumeration."""
 
@@ -1167,6 +1173,7 @@ class AgentMetadata(BaseCfg):
     """Agent metadata model."""
 
     is_conversational: bool = Field(alias="isConversational")
+    variant: Optional[AgentVariant] = Field(default=None, alias="variant")
     storage_version: str = Field(alias="storageVersion")
 
 
@@ -1226,6 +1233,13 @@ class AgentDefinition(BaseModel):
             if hasattr(metadata, "is_conversational"):
                 return metadata.is_conversational
         return False
+
+    @property
+    def is_case_manager(self) -> bool:
+        """Checks if the agent is a case manager agent."""
+        if not self.metadata:
+            return False
+        return self.metadata.variant == AgentVariant.CASE_MANAGER
 
     @staticmethod
     def _normalize_guardrails(v: Dict[str, Any]) -> None:

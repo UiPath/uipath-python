@@ -454,7 +454,9 @@ class QueuesService(FolderContext, BaseService):
         elif isinstance(item, QueueItem):
             queue_item = item
 
-        item_data = queue_item.model_dump(exclude_unset=True, by_alias=True)
+        item_data = queue_item.model_dump(
+            mode="json", exclude_unset=True, by_alias=True
+        )
         resolved_name = queue_name or item_data.get("Name")
         if resolved_name is None:
             raise ValueError(
@@ -493,9 +495,11 @@ class QueuesService(FolderContext, BaseService):
                 "queueName": queue_name,
                 "commitType": commit_type.value,
                 "queueItems": [
-                    item.model_dump(exclude_unset=True, by_alias=True)
+                    item.model_dump(mode="json", exclude_unset=True, by_alias=True)
                     if isinstance(item, QueueItem)
-                    else QueueItem(**item).model_dump(exclude_unset=True, by_alias=True)
+                    else QueueItem(**item).model_dump(
+                        mode="json", exclude_unset=True, by_alias=True
+                    )
                     for item in items
                 ],
             },
@@ -519,7 +523,7 @@ class QueuesService(FolderContext, BaseService):
             transaction_item = item
 
         transaction_data = transaction_item.model_dump(
-            exclude_unset=True, by_alias=True
+            mode="json", exclude_unset=True, by_alias=True
         )
         resolved_name = queue_name or transaction_data.get("Name")
         if resolved_name is None:
@@ -580,7 +584,7 @@ class QueuesService(FolderContext, BaseService):
             ),
             json={
                 "transactionResult": transaction_result.model_dump(
-                    exclude_unset=True, by_alias=True
+                    mode="json", exclude_unset=True, by_alias=True
                 )
             },
             headers={

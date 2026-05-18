@@ -308,28 +308,26 @@ class EvalTelemetrySubscriber:
         Args:
             properties: The properties dictionary to enrich.
         """
-        # Add UiPath context
         if UiPathConfig.project_id:
             properties["ProjectId"] = UiPathConfig.project_id
-            properties["AgentId"] = UiPathConfig.project_id
+        if UiPathConfig.agent_id:
+            properties["AgentId"] = UiPathConfig.agent_id
 
-        # Get organization ID from UiPathConfig
         if UiPathConfig.organization_id:
             properties["CloudOrganizationId"] = UiPathConfig.organization_id
 
-        # Get CloudUserId from JWT token
-        try:
-            cloud_user_id = get_claim_from_token("sub")
-            if cloud_user_id:
-                properties["CloudUserId"] = cloud_user_id
-        except Exception:
-            pass  # CloudUserId is optional
+        cloud_user_id = UiPathConfig.cloud_user_id
+        if not cloud_user_id:
+            try:
+                cloud_user_id = get_claim_from_token("sub")
+            except Exception:
+                cloud_user_id = None
+        if cloud_user_id:
+            properties["CloudUserId"] = cloud_user_id
 
-        # Get tenant ID from environment
         tenant_id = os.getenv("UIPATH_TENANT_ID")
         if tenant_id:
             properties["TenantId"] = tenant_id
 
-        # Add source identifier
         properties["Source"] = "uipath-python-cli"
         properties["ApplicationName"] = "UiPath.Eval"

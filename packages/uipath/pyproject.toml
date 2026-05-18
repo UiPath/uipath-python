@@ -1,13 +1,13 @@
 [project]
 name = "uipath"
-version = "2.10.58"
+version = "2.10.64"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
   "uipath-core>=0.5.8, <0.6.0",
   "uipath-runtime>=0.10.1, <0.11.0",
-  "uipath-platform>=0.1.39, <0.2.0",
+  "uipath-platform>=0.1.47, <0.2.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -137,15 +137,30 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q --cov"
+addopts = "-ra -q --cov=src --cov-report=term-missing"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
 
-[tool.coverage.report]
-show_missing = true
-
 [tool.coverage.run]
 source = ["src"]
+relative_files = true
+omit = [
+  "*/tests/*",
+  "*/__pycache__/*",
+  "*/site-packages/*",
+  "*/conftest.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@(abc\\.)?abstractmethod",
+]
 
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }

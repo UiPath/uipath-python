@@ -929,3 +929,130 @@ async def test_llm_mockable_with_output_schema_async(
             },
         },
     }
+
+
+class TestUiPathMockRuntime:
+    """Tests for UiPathMockRuntime execute/stream/get_schema paths."""
+
+    def _make_context(self) -> MockingContext:
+        return MockingContext(
+            strategy=LLMMockingStrategy(
+                prompt="test",
+                tools_to_simulate=[ToolSimulation(name="my_tool")],
+            ),
+            name="test",
+            inputs={},
+        )
+
+    async def test_execute_with_mocking_context_sets_and_clears(self):
+        from unittest.mock import AsyncMock, patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        delegate = MagicMock()
+        mock_result = MagicMock()
+        delegate.execute = AsyncMock(return_value=mock_result)
+
+        runtime = UiPathMockRuntime(
+            delegate=delegate,
+            mocking_context=self._make_context(),
+        )
+
+        with (
+            patch("uipath.eval.mocks._mock_runtime.set_execution_context") as mock_set,
+            patch(
+                "uipath.eval.mocks._mock_runtime.clear_execution_context"
+            ) as mock_clear,
+        ):
+            result = await runtime.execute({"key": "value"})
+
+        assert result is mock_result
+        mock_set.assert_called_once()
+        mock_clear.assert_called_once()
+
+    async def test_stream_with_mocking_context_sets_and_clears(self):
+        from unittest.mock import patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        sentinel = object()
+
+        async def _gen(*args, **kwargs):
+            yield sentinel
+
+        delegate = MagicMock()
+        delegate.stream = _gen
+
+        runtime = UiPathMockRuntime(
+            delegate=delegate,
+            mocking_context=self._make_context(),
+        )
+
+        with (
+            patch("uipath.eval.mocks._mock_runtime.set_execution_context") as mock_set,
+            patch(
+                "uipath.eval.mocks._mock_runtime.clear_execution_context"
+            ) as mock_clear,
+        ):
+            events = [e async for e in runtime.stream({})]
+
+        assert events == [sentinel]
+        mock_set.assert_called_once()
+        mock_clear.assert_called_once()
+
+    async def test_stream_without_mocking_context_passes_through(self):
+        from unittest.mock import patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        sentinel = object()
+
+        async def _gen(*args, **kwargs):
+            yield sentinel
+
+        delegate = MagicMock()
+        delegate.stream = _gen
+
+        runtime = UiPathMockRuntime(delegate=delegate, mocking_context=None)
+        with patch(
+            "uipath.eval.mocks._mock_runtime.load_simulation_config", return_value=None
+        ):
+            runtime._mocking_context = None
+            events = [e async for e in runtime.stream({})]
+
+        assert events == [sentinel]
+
+    async def test_get_schema_delegates(self):
+        from unittest.mock import AsyncMock, patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        schema = MagicMock()
+        delegate = MagicMock()
+        delegate.get_schema = AsyncMock(return_value=schema)
+
+        runtime = UiPathMockRuntime(delegate=delegate, mocking_context=None)
+        with patch(
+            "uipath.eval.mocks._mock_runtime.load_simulation_config", return_value=None
+        ):
+            result = await runtime.get_schema()
+
+        assert result is schema
+
+    def test_set_execution_context_handles_mocker_creation_failure(self):
+        from unittest.mock import patch
+
+        from uipath.eval._execution_context import ExecutionSpanCollector
+        from uipath.eval.mocks._mock_context import mocker_context
+        from uipath.eval.mocks._mock_runtime import set_execution_context
+
+        context = self._make_context()
+        with patch(
+            "uipath.eval.mocks._mock_runtime.MockerFactory.create",
+            side_effect=RuntimeError("boom"),
+        ):
+            set_execution_context(context, ExecutionSpanCollector(), "test-id")
+
+        # mocking_context is set, but mocker_context must be None on failure
+        assert mocker_context.get() is None
+        clear_execution_context()

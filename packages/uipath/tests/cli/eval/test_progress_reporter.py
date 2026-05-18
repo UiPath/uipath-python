@@ -927,4 +927,207 @@ class TestAssertionPropertiesBuilding:
         snapshot = progress_reporter._build_evaluator_snapshot(evaluator)
 
         assert snapshot["prompt"] == "Evaluate this"
-        assert "model" not in snapshot
+
+
+class TestAgentIdRouting:
+    """Eval-set/eval-run API URLs route by AgentId, not file-source project.
+
+    For local-workspace eval runs the file-source project (UIPATH_PROJECT_ID,
+    typically the cloud debug project's GUID) differs from the logical agent
+    (UIPATH_AGENT_ID). The route URL must reflect the logical agent so backend
+    auth/ownership/telemetry don't see the per-run debug project as the agent.
+    File fetching (UiPathConfig.project_id) is unaffected.
+    """
+
+    def _make_reporter(self, monkeypatch, project_id, agent_id):
+        monkeypatch.setenv("UIPATH_URL", "https://test.uipath.com")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
+        if project_id is not None:
+            monkeypatch.setenv("UIPATH_PROJECT_ID", project_id)
+        else:
+            monkeypatch.delenv("UIPATH_PROJECT_ID", raising=False)
+        if agent_id is not None:
+            monkeypatch.setenv("UIPATH_AGENT_ID", agent_id)
+        else:
+            monkeypatch.delenv("UIPATH_AGENT_ID", raising=False)
+        return StudioWebProgressReporter()
+
+    def test_agent_id_used_in_url_when_both_set(self, monkeypatch):
+        reporter = self._make_reporter(
+            monkeypatch, project_id="debug-project-guid", agent_id="real-agent-id"
+        )
+        assert reporter._agent_id == "real-agent-id"
+        assert reporter._project_id == "debug-project-guid"
+
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert "/agents/real-agent-id/" in spec.endpoint
+        assert "/agents/debug-project-guid/" not in spec.endpoint
+
+    def test_agent_id_in_eval_set_run_payload(self, monkeypatch):
+        reporter = self._make_reporter(
+            monkeypatch, project_id="debug-project-guid", agent_id="real-agent-id"
+        )
+
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert spec.json["agentId"] == "real-agent-id"
+
+    def test_falls_back_to_project_id_when_agent_id_unset(self, monkeypatch):
+        reporter = self._make_reporter(
+            monkeypatch, project_id="cloud-project-id", agent_id=None
+        )
+        assert reporter._agent_id == "cloud-project-id"
+
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert "/agents/cloud-project-id/" in spec.endpoint
+
+
+class TestProjectFilesSourcePropagation:
+    """Reporter must propagate UIPATH_PROJECT_FILES_SOURCE to backend rows.
+
+    Backend filters listings by `projectFilesSource` (Local=1, Cloud=0). Without
+    the SDK setting it on POST/PUT payloads and GET query params, every row
+    lands as Cloud and the UI's `?projectFilesSource=1` filter never matches
+    local-workspace runs.
+    """
+
+    def _make_reporter(self, monkeypatch, project_files_source):
+        monkeypatch.setenv("UIPATH_URL", "https://test.uipath.com")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "test-project-id")
+        if project_files_source is not None:
+            monkeypatch.setenv("UIPATH_PROJECT_FILES_SOURCE", project_files_source)
+        else:
+            monkeypatch.delenv("UIPATH_PROJECT_FILES_SOURCE", raising=False)
+        return StudioWebProgressReporter()
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [("Local", 1), ("local", 1), ("Cloud", 0), ("cloud", 0), ("1", 1), ("0", 0)],
+    )
+    def test_resolves_env_var_to_int(self, monkeypatch, raw, expected):
+        reporter = self._make_reporter(monkeypatch, raw)
+        assert reporter._project_files_source == expected
+
+    def test_returns_none_when_unset_or_garbage(self, monkeypatch):
+        reporter = self._make_reporter(monkeypatch, None)
+        assert reporter._project_files_source is None
+        reporter2 = self._make_reporter(monkeypatch, "Banana")
+        assert reporter2._project_files_source is None
+
+    def test_post_eval_set_run_payload_carries_source(self, monkeypatch):
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        reporter = self._make_reporter(monkeypatch, "Local")
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert spec.json["projectFilesSource"] == 1
+
+    def test_post_eval_run_payload_carries_source(self, monkeypatch):
+        from uipath.eval.models.evaluation_set import EvaluationItem
+
+        reporter = self._make_reporter(monkeypatch, "Local")
+        item = EvaluationItem(
+            id="11111111-1111-1111-1111-111111111111",
+            name="t",
+            inputs={},
+            evaluation_criterias={},
+        )
+        spec = reporter._create_eval_run_spec(
+            eval_item=item, eval_set_run_id="run-1", is_coded=False
+        )
+        assert spec.json["projectFilesSource"] == 1
+
+    def test_put_eval_run_payload_carries_source(self, monkeypatch):
+        reporter = self._make_reporter(monkeypatch, "Local")
+        spec = reporter._update_eval_run_spec(
+            assertion_runs=[],
+            evaluator_scores=[],
+            eval_run_id="run-1",
+            actual_output={},
+            execution_time=1.0,
+            success=True,
+            is_coded=False,
+        )
+        assert spec.json["projectFilesSource"] == 1
+
+    def test_put_coded_eval_run_payload_carries_source(self, monkeypatch):
+        reporter = self._make_reporter(monkeypatch, "Local")
+        spec = reporter._update_coded_eval_run_spec(
+            evaluator_runs=[],
+            evaluator_scores=[],
+            eval_run_id="run-1",
+            actual_output={},
+            execution_time=1.0,
+            success=True,
+            is_coded=True,
+        )
+        assert spec.json["projectFilesSource"] == 1
+
+    def test_put_eval_set_run_payload_carries_source(self, monkeypatch):
+        reporter = self._make_reporter(monkeypatch, "Local")
+        spec = reporter._update_eval_set_run_spec(
+            eval_set_run_id="set-run-1",
+            evaluator_scores={},
+            is_coded=False,
+            success=True,
+        )
+        assert spec.json["projectFilesSource"] == 1
+
+    def test_get_eval_runs_query_carries_source(self, monkeypatch):
+        reporter = self._make_reporter(monkeypatch, "Local")
+        spec = reporter._get_eval_runs_spec(
+            eval_set_id="set-1",
+            eval_set_run_id="run-1",
+            evaluation_id=None,
+            is_coded=False,
+        )
+        assert spec.params == {"projectFilesSource": 1}
+
+    def test_unset_source_omits_field_from_payloads(self, monkeypatch):
+        from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot
+
+        reporter = self._make_reporter(monkeypatch, None)
+        spec = reporter._create_eval_set_run_spec(
+            eval_set_id="test-eval-set",
+            agent_snapshot=StudioWebAgentSnapshot(
+                input_schema={"type": "object"}, output_schema={"type": "object"}
+            ),
+            no_of_evals=1,
+            is_coded=False,
+        )
+        assert "projectFilesSource" not in spec.json

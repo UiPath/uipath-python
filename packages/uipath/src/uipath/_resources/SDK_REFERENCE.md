@@ -386,10 +386,10 @@ sdk.context_grounding.start_deep_rag_ephemeral(name: str, prompt: Annotated[str,
 sdk.context_grounding.start_deep_rag_ephemeral_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
 
 # Perform a unified search on a context grounding index.
-sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.AUTO", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 # Asynchronously perform a unified search on a context grounding index.
-sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.AUTO", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 ```
 

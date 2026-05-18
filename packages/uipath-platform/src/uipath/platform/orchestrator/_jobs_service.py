@@ -674,6 +674,52 @@ class JobsService(FolderContext, BaseService):
             },
         )
 
+    def retrieve_inbox_payload(self, inbox_id: str) -> Any:
+        """Fetch payload data for Integration Services (Inbox) triggers.
+
+        Unlike `retrieve_api_payload`, this returns the response body as-is.
+        Orchestrator's `GET /JobTriggers/GetPayload/{inboxId}` returns the
+        stored payload directly without an envelope.
+
+        Args:
+            inbox_id: The Id of the inbox to fetch the payload for.
+
+        Returns:
+            The stored payload.
+        """
+        spec = self._retrieve_api_payload_spec(inbox_id=inbox_id)
+
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+        )
+
+        return response.json()
+
+    async def retrieve_inbox_payload_async(self, inbox_id: str) -> Any:
+        """Asynchronously fetch payload data for Integration Services (Inbox) triggers.
+
+        Unlike `retrieve_api_payload_async`, this returns the response body
+        as-is. Orchestrator's `GET /JobTriggers/GetPayload/{inboxId}` returns
+        the stored payload directly without an envelope.
+
+        Args:
+            inbox_id: The Id of the inbox to fetch the payload for.
+
+        Returns:
+            The stored payload.
+        """
+        spec = self._retrieve_api_payload_spec(inbox_id=inbox_id)
+
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+        )
+
+        return response.json()
+
     def _extract_first_inbox_id(self, response: Any) -> str:
         if len(response["value"]) > 0:
             return response["value"][0]["ItemKey"]

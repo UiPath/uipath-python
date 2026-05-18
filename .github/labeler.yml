@@ -6,9 +6,13 @@ test:uipath-langchain:
   - changed-files:
     - any-glob-to-any-file: ['packages/uipath-core/src/**/*.py']
 
-test:uipath-llamaindex:
+test:uipath-integrations:
   - changed-files:
     - any-glob-to-any-file: ['packages/uipath/src/**/*.py']
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath-platform/src/**/*.py']
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath-core/src/**/*.py']
 
 test:uipath-runtime:
   - changed-files:

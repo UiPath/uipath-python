@@ -15,8 +15,8 @@ from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
-# SourceEnum.Robots = 4 (default for Python SDK / coded agents)
-DEFAULT_SOURCE = 4
+# SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
+DEFAULT_SOURCE = 10
 
 
 class AttachmentProvider(IntEnum):
@@ -283,7 +283,7 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = attributes_dict.get("referenceId")
+        reference_id = attributes_dict.get("agentId")
 
         # Source: override via uipath.source attribute, else DEFAULT_SOURCE
         uipath_source = attributes_dict.get("uipath.source")

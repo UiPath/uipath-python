@@ -77,6 +77,20 @@ from .exchange import (
     UiPathConversationExchangeEvent,
     UiPathConversationExchangeStartEvent,
 )
+from .interrupt import (
+    InterruptTypeEnum,
+    UiPathConversationGenericInterruptEndEvent,
+    UiPathConversationGenericInterruptStartEvent,
+    UiPathConversationInterrupt,
+    UiPathConversationInterruptData,
+    UiPathConversationInterruptEndEvent,
+    UiPathConversationInterruptEvent,
+    UiPathConversationInterruptStartEvent,
+    UiPathConversationToolCallConfirmationEndValue,
+    UiPathConversationToolCallConfirmationInterruptEndEvent,
+    UiPathConversationToolCallConfirmationInterruptStartEvent,
+    UiPathConversationToolCallConfirmationValue,
+)
 from .message import (
     UiPathConversationMessage,
     UiPathConversationMessageData,
@@ -179,4 +193,17 @@ __all__ = [
     "UiPathVoiceToolCallRequest",
     "UiPathVoiceToolCallMessage",
     "UiPathVoiceToolCallResult",
+    # Interrupt (compat shims — deprecated, see interrupt.py)
+    "InterruptTypeEnum",
+    "UiPathConversationInterruptStartEvent",
+    "UiPathConversationInterruptEndEvent",
+    "UiPathConversationInterruptEvent",
+    "UiPathConversationInterruptData",
+    "UiPathConversationInterrupt",
+    "UiPathConversationGenericInterruptStartEvent",
+    "UiPathConversationGenericInterruptEndEvent",
+    "UiPathConversationToolCallConfirmationValue",
+    "UiPathConversationToolCallConfirmationEndValue",
+    "UiPathConversationToolCallConfirmationInterruptStartEvent",
+    "UiPathConversationToolCallConfirmationInterruptEndEvent",
 ]

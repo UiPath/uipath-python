@@ -1,6 +1,6 @@
 [project]
 name = "uipath-core"
-version = "0.5.13"
+version = "0.5.15"
 description = "UiPath Core abstractions"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -95,15 +95,30 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q --cov=src/uipath --cov-report=term-missing"
+addopts = "-ra -q --cov=src --cov-report=term-missing"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
 
-[tool.coverage.report]
-show_missing = true
-
 [tool.coverage.run]
 source = ["src"]
+relative_files = true
+omit = [
+  "*/tests/*",
+  "*/__pycache__/*",
+  "*/site-packages/*",
+  "*/conftest.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@(abc\\.)?abstractmethod",
+]
 
 [[tool.uv.index]]
 name = "testpypi"
