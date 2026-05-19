@@ -162,6 +162,14 @@ exclude_lines = [
   "@(abc\\.)?abstractmethod",
 ]
 
+[tool.uv]
+exclude-newer = "2 days"
+
+[tool.uv.exclude-newer-package]
+uipath-core = false
+uipath-runtime = false
+uipath-platform = false
+
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }
 uipath-platform = { path = "../uipath-platform", editable = true }
