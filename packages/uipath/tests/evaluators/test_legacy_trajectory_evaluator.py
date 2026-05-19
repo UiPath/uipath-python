@@ -3,6 +3,10 @@ import uuid
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath.eval.evaluators import LegacyTrajectoryEvaluator
+from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.legacy_trajectory_evaluator import (
+    LegacyTrajectoryEvaluatorConfig,
+)
 from uipath.eval.models.models import LegacyEvaluatorCategory, LegacyEvaluatorType
 
 
@@ -10,6 +14,9 @@ def _legacy_trajectory_evaluator() -> LegacyTrajectoryEvaluator:
     return LegacyTrajectoryEvaluator(
         id=str(uuid.uuid4()),
         name="Legacy trajectory",
+        config_type=LegacyTrajectoryEvaluatorConfig,
+        evaluation_criteria_type=LegacyEvaluationCriteria,
+        justification_type=str,
         category=LegacyEvaluatorCategory.Trajectory,
         type=LegacyEvaluatorType.Trajectory,
         prompt="History:\n{{AgentRunHistory}}\nExpected:\n{{ExpectedAgentBehavior}}",
