@@ -453,3 +453,169 @@ class TestSimulationConfigFields:
             assert is_tool_simulated("Web Search") is True
 
             clear_execution_context()
+
+
+class TestDebugSimulationFlag:
+    """Tests for the --simulation flag on the debug command.
+
+    Mirrors TestRunSimulation from test_run.py for the parallel `uipath run`
+    flag added in PR #1624.
+    """
+
+    _SIMULATION_JSON = {
+        "enabled": True,
+        "toolsToSimulate": [{"name": "check_syntax"}, {"name": "check_style"}],
+        "instructions": "Simulate.",
+    }
+
+    def _patch_runtime_stack(self):
+        """Build the patch context shared across debug-flag tests.
+
+        Returns a tuple of (patches, mock_classes) where patches is a list of
+        contextmanagers to enter and mock_classes is a dict exposing the
+        instantiation mocks the test wants to assert against.
+        """
+        factory = Mock()
+        inner_runtime = Mock()
+        inner_runtime.dispose = AsyncMock()
+        inner_runtime.get_schema = AsyncMock(return_value=Mock(metadata=None))
+        factory.new_runtime = AsyncMock(return_value=inner_runtime)
+        factory.get_settings = AsyncMock(return_value=Mock(trace_settings=None))
+        factory.dispose = AsyncMock()
+
+        return factory, inner_runtime
+
+    def test_invalid_simulation_json_surfaces_error(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        """Malformed --simulation JSON is rejected before any runtime starts."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with patch(
+                "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get"
+            ) as factory_get:
+                result = runner.invoke(
+                    cli,
+                    ["debug", "main", "--simulation", "{ not valid json }"],
+                )
+
+            assert "Invalid --simulation config" in result.output
+            # We bailed before constructing any runtime.
+            assert not factory_get.called
+
+    def test_simulation_flag_builds_mocking_context_from_config(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        """--simulation triggers build_mocking_context; the file loader is bypassed."""
+        factory, _ = self._patch_runtime_stack()
+        sentinel_context = Mock(spec=MockingContext)
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch("uipath._cli.cli_debug.UiPathDebugRuntime") as debug_cls,
+                patch(
+                    "uipath._cli.cli_debug.build_mocking_context",
+                    return_value=sentinel_context,
+                ) as build_ctx,
+                patch("uipath._cli.cli_debug.load_simulation_config") as load_cfg,
+                patch("uipath._cli.cli_debug.UiPathMockRuntime") as mock_cls,
+            ):
+                debug_cls.return_value = Mock(
+                    execute=AsyncMock(return_value=Mock()),
+                    dispose=AsyncMock(),
+                )
+                mock_cls.return_value = Mock(
+                    execute=AsyncMock(return_value=Mock()),
+                    dispose=AsyncMock(),
+                )
+
+                runner.invoke(
+                    cli,
+                    [
+                        "debug",
+                        "main",
+                        "--simulation",
+                        json.dumps(self._SIMULATION_JSON),
+                    ],
+                )
+
+        assert build_ctx.called
+        # SimulationConfig should be the first positional arg.
+        passed_config = build_ctx.call_args.args[0]
+        assert passed_config.enabled is True
+        assert [t.name for t in passed_config.tools_to_simulate] == [
+            "check_syntax",
+            "check_style",
+        ]
+        assert not load_cfg.called
+        assert mock_cls.call_args.kwargs["mocking_context"] is sentinel_context
+
+    def test_no_simulation_flag_falls_back_to_disk_loader(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        """Without --simulation, cli_debug delegates to load_simulation_config."""
+        factory, _ = self._patch_runtime_stack()
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch("uipath._cli.cli_debug.UiPathDebugRuntime") as debug_cls,
+                patch("uipath._cli.cli_debug.build_mocking_context") as build_ctx,
+                patch(
+                    "uipath._cli.cli_debug.load_simulation_config",
+                    return_value=None,
+                ) as load_cfg,
+                patch("uipath._cli.cli_debug.UiPathMockRuntime") as mock_cls,
+            ):
+                debug_cls.return_value = Mock(
+                    execute=AsyncMock(return_value=Mock()),
+                    dispose=AsyncMock(),
+                )
+                mock_cls.return_value = Mock(
+                    execute=AsyncMock(return_value=Mock()),
+                    dispose=AsyncMock(),
+                )
+
+                runner.invoke(cli, ["debug", "main"])
+
+        assert load_cfg.called
+        assert not build_ctx.called
