@@ -120,6 +120,9 @@ exclude_lines = [
   "@(abc\\.)?abstractmethod",
 ]
 
+[tool.uv]
+exclude-newer = "2 days"
+
 [[tool.uv.index]]
 name = "testpypi"
 url = "https://test.pypi.org/simple/"
