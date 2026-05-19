@@ -773,7 +773,7 @@ class ConnectionsService(BaseService):
         for key, value in path_params.items():
             url = url.replace(f"{{{key}}}", value)
 
-        # header parameter handling
+        # header parameter handling test
         headers = {
             HEADER_ORIGINATOR: _ORIGINATOR_VALUE,
             HEADER_SOURCE: _ORIGINATOR_VALUE,
