@@ -283,7 +283,7 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = attributes_dict.get("agentId") or env.get("TRACE_REFERENCE_ID")
+        reference_id = env.get("UIPATH_AGENT_ID") or attributes_dict.get("agentId")
 
         # Source: override via uipath.source attribute, else DEFAULT_SOURCE
         uipath_source = attributes_dict.get("uipath.source")
