@@ -112,7 +112,7 @@ def debug(
     if simulation:
         try:
             simulation_config = SimulationConfig.model_validate_json(simulation)
-        except (ValidationError, ValueError) as e:
+        except ValidationError as e:
             console.error(f"Invalid --simulation config: {e}")
             return
 
