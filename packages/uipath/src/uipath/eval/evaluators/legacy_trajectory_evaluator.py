@@ -12,13 +12,13 @@ from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from .._execution_context import eval_set_run_id_context
+from .._helpers.evaluators_helpers import trace_to_str
 from .._helpers.helpers import is_empty_value
 from ..models import EvaluationResult
 from ..models.models import (
     AgentExecution,
     LLMResponse,
     NumericEvaluationResult,
-    TrajectoryEvaluationTrace,
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
 )
@@ -140,10 +140,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
             and agent_run_history
             and isinstance(agent_run_history[0], ReadableSpan)
         ):
-            trajectory_trace = TrajectoryEvaluationTrace.from_readable_spans(
-                agent_run_history
-            )
-            agent_run_history = str(trajectory_trace.spans)
+            agent_run_history = trace_to_str(agent_run_history)
         else:
             agent_run_history = str(agent_run_history)
 
