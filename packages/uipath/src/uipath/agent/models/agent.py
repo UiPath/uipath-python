@@ -446,11 +446,46 @@ class AgentMcpTool(BaseCfg):
 
 
 class DynamicToolsMode(str, CaseInsensitiveEnum):
-    """Dynamic tools mode enumeration."""
+    """Dynamic tools mode enumeration.
+
+    Deprecated: kept for backwards compatibility with older ``agent.json`` files
+    that still serialize the ``dynamicTools`` field. New code should use
+    :class:`ToolsConfiguration` (see ``AgentMcpResourceConfig.tools_configuration``).
+    """
 
     NONE = "none"
     SCHEMA = "schema"
     ALL = "all"
+
+
+class CachedToolsConfig(BaseCfg):
+    """Cached tools configuration: use the tools saved in the agent definition snapshot."""
+
+    type: Literal["cached"] = Field(default="cached", frozen=True)
+
+
+class DynamicToolsConfig(BaseCfg):
+    """Dynamic tools configuration: fetch the tool list from the MCP server at runtime.
+
+    When ``allow_all`` is true, every tool the server exposes is forwarded
+    to the agent. When false, the live list is filtered by the snapshot's
+    ``available_tools`` allowlist (live schemas, curated tool set).
+    """
+
+    type: Literal["dynamic"] = Field(default="dynamic", frozen=True)
+    allow_all: bool = Field(alias="allowAll")
+
+
+DiscoveryMode = Annotated[
+    Union[CachedToolsConfig, DynamicToolsConfig],
+    Field(discriminator="type"),
+]
+
+
+class ToolsConfiguration(BaseCfg):
+    """Configuration describing how tools are sourced for an MCP resource."""
+
+    discovery_mode: DiscoveryMode = Field(alias="discoveryMode")
 
 
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
@@ -462,8 +497,8 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     slug: str = Field(..., alias="slug")
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
-    dynamic_tools: DynamicToolsMode = Field(
-        default=DynamicToolsMode.NONE, alias="dynamicTools"
+    tools_configuration: Optional[ToolsConfiguration] = Field(
+        default=None, alias="toolsConfiguration"
     )
 
 
