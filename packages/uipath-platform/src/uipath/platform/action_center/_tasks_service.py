@@ -305,6 +305,28 @@ async def _assign_task_spec(
                     }
                 ]
             }
+        elif task_recipient.type == TaskRecipientType.WORKLOAD:
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "Workload",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
+                    }
+                ]
+            }
+        elif task_recipient.type == TaskRecipientType.ROUND_ROBIN:
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "RoundRobin",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
+                    }
+                ]
+            }
         else:
             request_spec.json = {
                 "taskAssignments": [
