@@ -1,0 +1,133 @@
+{
+  "evaluatorTypeId": "uipath-multiclass-classification",
+  "evaluatorConfigSchema": {
+    "$defs": {
+      "MulticlassClassificationEvaluationCriteria": {
+        "description": "Per-datapoint criteria: which class this sample should belong to.",
+        "properties": {
+          "expected_class": {
+            "title": "Expected Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_class"
+        ],
+        "title": "MulticlassClassificationEvaluationCriteria",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for the multiclass classification evaluator.",
+    "properties": {
+      "name": {
+        "default": "MulticlassClassificationEvaluator",
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "default": "",
+        "description": "The description of the evaluator",
+        "title": "Description",
+        "type": "string"
+      },
+      "default_evaluation_criteria": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/MulticlassClassificationEvaluationCriteria"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "target_output_key": {
+        "default": "*",
+        "description": "Key to extract output from agent execution",
+        "title": "Target Output Key",
+        "type": "string"
+      },
+      "line_by_line_evaluator": {
+        "default": false,
+        "description": "If True, split output by delimiter and evaluate each line separately",
+        "title": "Line By Line Evaluator",
+        "type": "boolean"
+      },
+      "line_delimiter": {
+        "default": "\n",
+        "description": "Delimiter to split output when line_by_line_evaluator is True",
+        "title": "Line Delimiter",
+        "type": "string"
+      },
+      "classes": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Classes",
+        "type": "array"
+      },
+      "metric_type": {
+        "default": "f-score",
+        "enum": [
+          "precision",
+          "recall",
+          "f-score"
+        ],
+        "title": "Metric Type",
+        "type": "string"
+      },
+      "averaging": {
+        "default": "macro",
+        "enum": [
+          "micro",
+          "macro"
+        ],
+        "title": "Averaging",
+        "type": "string"
+      },
+      "f_value": {
+        "default": 1.0,
+        "title": "F Value",
+        "type": "number"
+      }
+    },
+    "required": [
+      "classes"
+    ],
+    "title": "MulticlassClassificationEvaluatorConfig",
+    "type": "object"
+  },
+  "evaluationCriteriaSchema": {
+    "description": "Per-datapoint criteria: which class this sample should belong to.",
+    "properties": {
+      "expected_class": {
+        "title": "Expected Class",
+        "type": "string"
+      }
+    },
+    "required": [
+      "expected_class"
+    ],
+    "title": "MulticlassClassificationEvaluationCriteria",
+    "type": "object"
+  },
+  "justificationSchema": {
+    "description": "Base class for all evaluator justifications.",
+    "properties": {
+      "expected": {
+        "title": "Expected",
+        "type": "string"
+      },
+      "actual": {
+        "title": "Actual",
+        "type": "string"
+      }
+    },
+    "required": [
+      "expected",
+      "actual"
+    ],
+    "title": "BaseEvaluatorJustification",
+    "type": "object"
+  }
+}
