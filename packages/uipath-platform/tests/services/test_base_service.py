@@ -1,5 +1,8 @@
 import pytest
+from opentelemetry import trace as otel_trace
+from opentelemetry.sdk.trace import TracerProvider
 from pytest_httpx import HTTPXMock
+from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common._base_service import BaseService
@@ -350,6 +353,94 @@ class TestServiceUrlOverride:
             == f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets"
         )
         assert response.status_code == 200
+
+
+_TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
+
+
+class TestTraceContextHeader:
+    """`x-uipath-traceparent-id` must stay off the wire unless explicitly opted in.
+
+    When the header is present, downstream services (LLM Gateway,
+    /agentsruntime_/guardrails/validate, etc.) emit child spans tied to the
+    propagated parent. That backend behavior pre-existed but only became
+    user-visible once this header started shipping on every BaseService call —
+    see AL-441, where helix-v2 emits permission-restricted child spans under
+    LLMOps guardrail-evaluation parents.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _tracer_provider(self) -> None:
+        # Default OTel ProxyTracer hands back NonRecording spans, which makes
+        # the trace context inert. Install a real SDK provider so any span we
+        # would propagate is observable on the wire.
+        otel_trace.set_tracer_provider(TracerProvider())
+
+    @pytest.fixture(autouse=True)
+    def _reset_flags(self) -> None:
+        FeatureFlags.reset_flags()
+        yield
+        FeatureFlags.reset_flags()
+
+    def test_header_not_sent_when_flag_off(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/endpoint", status_code=200, json={}
+        )
+        tracer = otel_trace.get_tracer(__name__)
+        with tracer.start_as_current_span("client-span"):
+            service.request("GET", "/endpoint")
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert _TRACE_PARENT_HEADER not in sent.headers
+
+    def test_header_sent_when_flag_on(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        FeatureFlags.configure_flags({"EnableTraceContextHeaders": True})
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/endpoint", status_code=200, json={}
+        )
+        tracer = otel_trace.get_tracer(__name__)
+        with tracer.start_as_current_span("client-span"):
+            service.request("GET", "/endpoint")
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert _TRACE_PARENT_HEADER in sent.headers
+        assert sent.headers[_TRACE_PARENT_HEADER].startswith("00-")
+
+    @pytest.mark.anyio
+    async def test_header_not_sent_when_flag_off_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/endpoint", status_code=200, json={}
+        )
+        tracer = otel_trace.get_tracer(__name__)
+        with tracer.start_as_current_span("client-span"):
+            await service.request_async("GET", "/endpoint")
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert _TRACE_PARENT_HEADER not in sent.headers
 
 
 class TestServiceUrlOverrideAsync:

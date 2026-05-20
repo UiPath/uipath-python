@@ -69,15 +69,26 @@ _TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
 def _inject_trace_context(headers: dict[str, str]) -> None:
     """Inject UiPath trace context header.
 
+    Gated by the ``EnableTraceContextHeaders`` feature flag: callers opt in
+    once they want server-side spans (e.g. LLM Gateway, agentsruntime) to be
+    parented under the current LLMOps span. Sending the header unconditionally
+    causes backends that emit traces from it (helix-v2 / agentsruntime
+    guardrails validate, etc.) to attach restricted spans to internal LLMOps
+    parents the viewer isn't authorized to read — see AL-441.
+
     Trace ID: uses the agent trace ID from UIPATH_TRACE_ID env var (same
     remapping the LLMOps exporter applies), falling back to the OTEL trace ID.
     Span ID: uses the LLMOps tool span (via external span provider) so the
     span ID matches what's visible in the LLMOps trace UI.
     """
+    from uipath.core.feature_flags import FeatureFlags
     from uipath.core.tracing.span_utils import UiPathSpanUtils
 
     from ._config import UiPathConfig
     from ._span_utils import _SpanUtils
+
+    if not FeatureFlags.is_flag_enabled("EnableTraceContextHeaders"):
+        return
 
     llmops_span = UiPathSpanUtils.get_external_current_span()
     span = llmops_span or trace.get_current_span()
