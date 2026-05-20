@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "id": "EmailMulticlassFScore",
+  "description": "Macro-averaged F1 across payments / support / spam",
+  "evaluatorTypeId": "uipath-multiclass-classification",
+  "evaluatorConfig": {
+    "name": "EmailMulticlassFScore",
+    "targetOutputKey": "category",
+    "classes": ["payments", "support", "spam"],
+    "metricType": "f-score",
+    "averaging": "macro",
+    "fValue": 1.0,
+    "defaultEvaluationCriteria": {
+      "expectedClass": "support"
+    }
+  }
+}

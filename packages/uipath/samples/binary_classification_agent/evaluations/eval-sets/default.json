@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "id": "SpamBinaryEval",
+  "name": "Binary spam classifier — precision",
+  "evaluatorRefs": ["BinarySpamPrecision"],
+  "evaluations": [
+    {
+      "id": "spam-prize",
+      "name": "Spam: prize giveaway",
+      "inputs": {
+        "email_subject": "You won a FREE iPhone!!!",
+        "email_body": "Congratulations! Click here to claim your prize now."
+      },
+      "evaluationCriterias": {
+        "BinarySpamPrecision": { "expectedClass": "spam" }
+      }
+    },
+    {
+      "id": "spam-promo",
+      "name": "Spam: unsolicited promo",
+      "inputs": {
+        "email_subject": "Winner of the monthly drawing",
+        "email_body": "You've been selected. Click here to redeem."
+      },
+      "evaluationCriterias": {
+        "BinarySpamPrecision": { "expectedClass": "spam" }
+      }
+    },
+    {
+      "id": "ham-invoice",
+      "name": "Ham: legitimate invoice",
+      "inputs": {
+        "email_subject": "Your March invoice is ready",
+        "email_body": "Your monthly invoice of $45.99 is attached. Payment is due March 15."
+      },
+      "evaluationCriterias": {
+        "BinarySpamPrecision": { "expectedClass": "ham" }
+      }
+    },
+    {
+      "id": "ham-meeting",
+      "name": "Ham: meeting request",
+      "inputs": {
+        "email_subject": "Sync on Q2 planning",
+        "email_body": "Can we meet Wednesday at 2pm to align on next quarter's roadmap?"
+      },
+      "evaluationCriterias": {
+        "BinarySpamPrecision": { "expectedClass": "ham" }
+      }
+    },
+    {
+      "id": "ham-mislabeled",
+      "name": "Ham mislabeled as spam (forces a false positive)",
+      "inputs": {
+        "email_subject": "Free coffee in the break room!!!",
+        "email_body": "Just a heads up — the new espresso machine is set up."
+      },
+      "evaluationCriterias": {
+        "BinarySpamPrecision": { "expectedClass": "ham" }
+      }
+    }
+  ]
+}
