@@ -140,6 +140,9 @@ class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     ASSET_GROUP_NAME = "AssetGroupName"
     ARGUMENT_EMAIL = "ArgumentEmail"
     ARGUMENT_GROUP_NAME = "ArgumentGroupName"
+    WORKLOAD = "Workload"
+    ROUND_ROBIN = "RoundRobin"
+    CUSTOM_ASSIGNEES = "CustomAssignees"
 
 
 class AgentEscalationChannelType(str, CaseInsensitiveEnum):
@@ -547,6 +550,9 @@ _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType]
     6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
     7: AgentEscalationRecipientType.ARGUMENT_EMAIL,
     8: AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,
+    9: AgentEscalationRecipientType.WORKLOAD,
+    10: AgentEscalationRecipientType.ROUND_ROBIN,
+    11: AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
 }
 
 
@@ -626,14 +632,105 @@ class ArgumentGroupNameRecipient(BaseEscalationRecipient):
     argument_path: str = Field(..., alias="argumentName")
 
 
+class WorkloadRecipient(BaseEscalationRecipient):
+    """Workload-based group assignment.
+
+    The Action Center distributes tasks to the group member with the lightest workload.
+    """
+
+    type: Literal[AgentEscalationRecipientType.WORKLOAD,] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: str = Field(..., alias="displayName")
+
+
+class RoundRobinRecipient(BaseEscalationRecipient):
+    """Round-robin group assignment.
+
+    The Action Center cycles through group members in order on each new task.
+    """
+
+    type: Literal[AgentEscalationRecipientType.ROUND_ROBIN,] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: str = Field(..., alias="displayName")
+
+
+class CustomAssigneesRecipient(BaseEscalationRecipient):
+    """Custom multi-user assignment.
+
+    A channel can carry multiple instances, one per assignee email. All are passed
+    to Action Center together using a Workload assignment criteria.
+    """
+
+    type: Literal[AgentEscalationRecipientType.CUSTOM_ASSIGNEES,] = Field(
+        ..., alias="type"
+    )
+    value: str = Field(..., alias="value")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+
+
+class ToolOutputRecipient(BaseEscalationRecipient):
+    """Recipient whose value is resolved at runtime from a named tool's output.
+
+    Instead of a literal value entered at design time, this binding points at a
+    field within a named tool's output. The runtime walks the agent's message
+    history, finds the most recent ToolMessage matching `tool_name`, parses its
+    content as JSON, and extracts `output_path` (a top-level field for v1).
+
+    Only the assignment-criteria recipient types that accept a runtime-computed
+    value are supported: USER_ID, GROUP_ID, WORKLOAD, ROUND_ROBIN,
+    CUSTOM_ASSIGNEES. The asset/static/argument types do not participate in
+    tool-output binding (they have their own design-time resolution rules).
+    """
+
+    type: Literal[
+        AgentEscalationRecipientType.USER_ID,
+        AgentEscalationRecipientType.GROUP_ID,
+        AgentEscalationRecipientType.WORKLOAD,
+        AgentEscalationRecipientType.ROUND_ROBIN,
+        AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
+    ] = Field(..., alias="type")
+    source: Literal["toolOutput"] = Field(..., alias="source")
+    tool_name: str = Field(..., alias="toolName")
+    output_path: str = Field(..., alias="outputPath")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# AgentEscalationRecipient — Union ordering & invariants
+# ──────────────────────────────────────────────────────────────────────────────
+# Pydantic evaluates Union members left-to-right and stops at the first
+# successful match, so member order determines which class a payload resolves
+# to when multiple members share the same `type` value (e.g. WORKLOAD is valid
+# on both WorkloadRecipient and ToolOutputRecipient).
+#
+# How dispatching works:
+#   - Payload with `source: "toolOutput"` → matches ToolOutputRecipient
+#     (it is the only class declaring `source` as a required Literal field).
+#   - Payload without `source` → ToolOutputRecipient validation fails
+#     (`source` missing), so it falls through to the literal class below
+#     that owns its `type`.
+#
+# Why we don't use `Field(discriminator="type")`:
+#   The `type` values are NOT unique across the Union — both WorkloadRecipient
+#   and ToolOutputRecipient declare `type=WORKLOAD`, same for the other
+#   tool-output-capable criteria. A typed discriminator requires unique
+#   discriminator values across members, which this union violates by design.
+#
+# Critical invariants (any of these breaking causes silent mis-typing):
+#   1. ToolOutputRecipient remains the FIRST member of the Union.
+#   2. ToolOutputRecipient.source remains a required `Literal["toolOutput"]`
+#      (NOT `Optional`, NOT a default value).
+#   3. No literal class below it gains an optional `source` field.
 AgentEscalationRecipient = Annotated[
     Union[
+        ToolOutputRecipient,
         StandardRecipient,
         AssetRecipient,
         ArgumentEmailRecipient,
         ArgumentGroupNameRecipient,
+        WorkloadRecipient,
+        RoundRobinRecipient,
+        CustomAssigneesRecipient,
     ],
-    Field(discriminator="type"),
     BeforeValidator(_normalize_recipient_type),
 ]
 

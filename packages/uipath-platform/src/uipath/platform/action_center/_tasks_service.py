@@ -305,6 +305,34 @@ async def _assign_task_spec(
                     }
                 ]
             }
+        elif task_recipient.type == TaskRecipientType.WORKLOAD:
+            # This branch covers BOTH agent-side Workload criteria (single
+            # group, distributed by workload) AND agent-side CustomAssignees
+            # criteria (explicit email list — already resolved into
+            # `task_recipient.values` upstream). Both submit to the Action
+            # Center API as a "Workload" assignment; the difference is whether
+            # `values` carries one group or N emails.
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "Workload",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
+                    }
+                ]
+            }
+        elif task_recipient.type == TaskRecipientType.ROUND_ROBIN:
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "RoundRobin",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
+                    }
+                ]
+            }
         else:
             request_spec.json = {
                 "taskAssignments": [
