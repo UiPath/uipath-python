@@ -5,6 +5,9 @@ Search and escalation memory operations go through LLMOps, which
 enriches traces/feedback before forwarding to ECS.
 """
 
+import hashlib
+import json
+import logging
 from typing import Any, Optional
 
 from uipath.core.tracing import traced
@@ -28,6 +31,8 @@ from .memory import (
 
 _MEMORY_SPACES_BASE = "/ecs_/v2/episodicmemories"
 _LLMOPS_AGENT_BASE = "/llmopstenant_/api/Agent/memory"
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryService(FolderContext, BaseService):
@@ -276,10 +281,18 @@ class MemoryService(FolderContext, BaseService):
             EscalationMemorySearchResponse: Matched escalation outcomes.
         """
         spec = self._escalation_search_spec(memory_space_id, folder_key, folder_path)
+        request_body = request.model_dump(by_alias=True, exclude_none=True)
+        _log_escalation_search_request(
+            memory_space_id=memory_space_id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            headers=spec.headers,
+            request_body=request_body,
+        )
         response = self.request(
             spec.method,
             spec.endpoint,
-            json=request.model_dump(by_alias=True, exclude_none=True),
+            json=request_body,
             headers=spec.headers,
         ).json()
         return EscalationMemorySearchResponse.model_validate(response)
@@ -307,11 +320,19 @@ class MemoryService(FolderContext, BaseService):
             EscalationMemorySearchResponse: Matched escalation outcomes.
         """
         spec = self._escalation_search_spec(memory_space_id, folder_key, folder_path)
+        request_body = request.model_dump(by_alias=True, exclude_none=True)
+        _log_escalation_search_request(
+            memory_space_id=memory_space_id,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            headers=spec.headers,
+            request_body=request_body,
+        )
         response = (
             await self.request_async(
                 spec.method,
                 spec.endpoint,
-                json=request.model_dump(by_alias=True, exclude_none=True),
+                json=request_body,
                 headers=spec.headers,
             )
         ).json()
@@ -491,3 +512,72 @@ class MemoryService(FolderContext, BaseService):
             ),
             headers={**header_folder(folder_key, None)},
         )
+
+
+def _log_escalation_search_request(
+    *,
+    memory_space_id: str,
+    folder_key: Optional[str],
+    folder_path: Optional[str],
+    headers: dict[str, str],
+    request_body: dict[str, Any],
+) -> None:
+    logger.info(
+        "Escalation memory search request parameters: %s",
+        json.dumps(
+            _build_escalation_search_log_payload(
+                memory_space_id=memory_space_id,
+                folder_key=folder_key,
+                folder_path=folder_path,
+                headers=headers,
+                request_body=request_body,
+            ),
+            default=str,
+            sort_keys=True,
+        ),
+    )
+
+
+def _build_escalation_search_log_payload(
+    *,
+    memory_space_id: str,
+    folder_key: Optional[str],
+    folder_path: Optional[str],
+    headers: dict[str, str],
+    request_body: dict[str, Any],
+) -> dict[str, Any]:
+    fields = request_body.get("fields") or []
+    definition_system_prompt = request_body.get("definitionSystemPrompt")
+
+    return {
+        "memorySpaceId": memory_space_id,
+        "folderKey": folder_key,
+        "folderPath": folder_path,
+        "resolvedHeaders": headers,
+        "request": {
+            "definitionSystemPrompt": _safe_value_summary(definition_system_prompt),
+            "fieldCount": len(fields),
+            "fields": [_safe_search_field(field) for field in fields],
+            "settings": request_body.get("settings"),
+        },
+    }
+
+
+def _safe_search_field(field: Any) -> dict[str, Any]:
+    if not isinstance(field, dict):
+        return {"field": str(type(field)), "value": _safe_value_summary(field)}
+
+    safe_field = {key: value for key, value in field.items() if key != "value"}
+    safe_field["value"] = _safe_value_summary(field.get("value"))
+    return safe_field
+
+
+def _safe_value_summary(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+
+    string_value = str(value)
+    return {
+        "length": len(string_value),
+        "sha256": hashlib.sha256(string_value.encode("utf-8")).hexdigest(),
+    }

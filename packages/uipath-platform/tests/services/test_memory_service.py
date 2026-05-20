@@ -1,6 +1,8 @@
 """Unit tests for MemoryService with HTTP mocking."""
 
+import hashlib
 import json
+import logging
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -330,6 +332,129 @@ class TestMemoryService:
             assert sent.headers.get("x-uipath-folderkey") == "custom-folder"
 
     class TestEscalationSearch:
+        def test_escalation_search_logs_request_parameters(
+            self,
+            httpx_mock: HTTPXMock,
+            service: MemoryService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            caplog,
+        ) -> None:
+            memory_space_id = "aaaa-bbbb-cccc-dddd"
+            field_value = "approval request with customer details"
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/llmopstenant_/api/Agent/memory/{memory_space_id}/escalation/search",
+                status_code=200,
+                json=SAMPLE_ESCALATION_SEARCH_RESPONSE,
+            )
+
+            request = MemorySearchRequest(
+                fields=[
+                    SearchField(
+                        key_path=["escalation-input", "request_details"],
+                        value=field_value,
+                    )
+                ],
+                settings=SearchSettings(
+                    threshold=0.25,
+                    result_count=1,
+                    search_mode=SearchMode.Semantic,
+                ),
+            )
+
+            with caplog.at_level(
+                logging.INFO,
+                logger="uipath.platform.memory._memory_service",
+            ):
+                service.escalation_search(
+                    memory_space_id=memory_space_id,
+                    request=request,
+                    folder_key="custom-folder",
+                )
+
+            log_record = next(
+                record
+                for record in caplog.records
+                if record.message.startswith(
+                    "Escalation memory search request parameters: "
+                )
+            )
+            payload = json.loads(log_record.message.split(": ", 1)[1])
+
+            assert payload["memorySpaceId"] == memory_space_id
+            assert payload["folderKey"] == "custom-folder"
+            assert payload["resolvedHeaders"] == {"x-uipath-folderkey": "custom-folder"}
+            assert payload["request"]["settings"] == {
+                "threshold": 0.25,
+                "resultCount": 1,
+                "searchMode": "Semantic",
+            }
+            assert payload["request"]["fieldCount"] == 1
+            assert payload["request"]["fields"][0]["keyPath"] == [
+                "escalation-input",
+                "request_details",
+            ]
+            assert payload["request"]["fields"][0]["value"] == {
+                "length": len(field_value),
+                "sha256": hashlib.sha256(field_value.encode("utf-8")).hexdigest(),
+            }
+            assert field_value not in log_record.message
+
+        async def test_escalation_search_async_logs_request_parameters(
+            self,
+            httpx_mock: HTTPXMock,
+            service: MemoryService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            caplog,
+        ) -> None:
+            memory_space_id = "aaaa-bbbb-cccc-dddd"
+            field_value = "async approval request"
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/llmopstenant_/api/Agent/memory/{memory_space_id}/escalation/search",
+                status_code=200,
+                json=SAMPLE_ESCALATION_SEARCH_RESPONSE,
+            )
+
+            request = MemorySearchRequest(
+                fields=[SearchField(key_path=["escalation-input"], value=field_value)],
+                settings=SearchSettings(
+                    threshold=0.0,
+                    result_count=1,
+                    search_mode=SearchMode.Hybrid,
+                ),
+            )
+
+            with caplog.at_level(
+                logging.INFO,
+                logger="uipath.platform.memory._memory_service",
+            ):
+                await service.escalation_search_async(
+                    memory_space_id=memory_space_id,
+                    request=request,
+                )
+
+            log_record = next(
+                record
+                for record in caplog.records
+                if record.message.startswith(
+                    "Escalation memory search request parameters: "
+                )
+            )
+            payload = json.loads(log_record.message.split(": ", 1)[1])
+
+            assert payload["memorySpaceId"] == memory_space_id
+            assert payload["resolvedHeaders"] == {
+                "x-uipath-folderkey": "test-folder-key"
+            }
+            assert payload["request"]["fields"][0]["value"] == {
+                "length": len(field_value),
+                "sha256": hashlib.sha256(field_value.encode("utf-8")).hexdigest(),
+            }
+            assert field_value not in log_record.message
+
         def test_escalation_search(
             self,
             httpx_mock: HTTPXMock,
