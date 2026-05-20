@@ -9,7 +9,9 @@ from pydantic import ValidationError
 
 from uipath.runtime.schema import UiPathRuntimeSchema
 
+from .evaluators.base_dataset_evaluator import BaseDatasetEvaluator
 from .evaluators.base_evaluator import GenericBaseEvaluator
+from .evaluators.dataset_evaluator_factory import build_dataset_evaluator
 from .evaluators.evaluator_factory import EvaluatorFactory
 from .mocks._types import InputMockingStrategy, LLMMockingStrategy
 from .models._conversational_utils import UiPathLegacyEvalChatMessagesMapper
@@ -279,6 +281,92 @@ class EvalHelpers:
             )
 
         return evaluators
+
+    @staticmethod
+    async def load_dataset_evaluators(
+        eval_set_path: str,
+        evaluation_set: EvaluationSet,
+    ) -> list[BaseDatasetEvaluator[Any]]:
+        """Load dataset-level evaluators referenced by the evaluation set.
+
+        Dataset evaluator config JSON files are expected to live under
+        ``<eval_set_dir>/../dataset_evaluators/``, mirroring the evaluators
+        layout. Each config is matched to a reference by its top-level ``id``.
+
+        Validates that every dataset evaluator's ``source_evaluator`` is one of
+        the per-datapoint evaluators declared on the eval set; raises if not.
+        """
+        if evaluation_set is None:
+            raise ValueError("eval_set cannot be None")
+
+        dataset_ref_ids = {
+            ref.ref for ref in evaluation_set.dataset_evaluator_refs
+        }
+        if not dataset_ref_ids:
+            return []
+
+        dataset_dir = Path(eval_set_path).parent.parent / "dataset_evaluators"
+        if not dataset_dir.exists():
+            raise ValueError(
+                f"Dataset evaluators directory not found at '{dataset_dir}', "
+                f"but evaluation set references dataset evaluators: "
+                f"{sorted(dataset_ref_ids)}"
+            )
+
+        # Build the set of per-datapoint evaluator names so we can validate
+        # source_evaluator references up front.
+        if evaluation_set.evaluator_configs:
+            known_evaluator_names = {
+                ref.ref for ref in evaluation_set.evaluator_configs
+            }
+        else:
+            known_evaluator_names = set(evaluation_set.evaluator_refs)
+
+        dataset_evaluators: list[BaseDatasetEvaluator[Any]] = []
+        found_ids: set[str] = set()
+
+        for file in dataset_dir.glob("*.json"):
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Invalid JSON in dataset evaluator file '{file}': {str(e)}."
+                ) from e
+
+            evaluator_id = data.get("id")
+            if evaluator_id not in dataset_ref_ids:
+                continue
+
+            try:
+                evaluator = build_dataset_evaluator(data)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to create dataset evaluator from file '{file}': "
+                    f"{str(e)}."
+                ) from e
+
+            if (
+                known_evaluator_names
+                and evaluator.source_evaluator not in known_evaluator_names
+            ):
+                raise ValueError(
+                    f"Dataset evaluator '{evaluator.name}' references "
+                    f"source_evaluator='{evaluator.source_evaluator}' which is "
+                    f"not declared in this evaluation set. Known evaluators: "
+                    f"{sorted(known_evaluator_names)}"
+                )
+
+            dataset_evaluators.append(evaluator)
+            found_ids.add(evaluator_id)
+
+        missing = dataset_ref_ids - found_ids
+        if missing:
+            raise ValueError(
+                f"Could not find the following dataset evaluators: {missing}"
+            )
+
+        return dataset_evaluators
 
 
 def get_agent_model(schema: UiPathRuntimeSchema) -> str | None:

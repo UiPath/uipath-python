@@ -145,6 +145,9 @@ class EvaluationSet(BaseModel):
     evaluator_configs: list[EvaluatorReference] = Field(
         default_factory=list, alias="evaluatorConfigs"
     )
+    dataset_evaluator_refs: list[EvaluatorReference] = Field(
+        default_factory=list, alias="datasetEvaluatorRefs"
+    )
     evaluations: list[EvaluationItem] = Field(default_factory=list)
     model_settings: list[EvaluationSetModelSettings] = Field(
         default_factory=list, alias="modelSettings"

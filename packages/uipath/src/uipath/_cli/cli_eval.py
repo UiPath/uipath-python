@@ -412,6 +412,13 @@ def eval(
                             get_agent_model(eval_context.runtime_schema),
                         )
 
+                        eval_context.dataset_evaluators = (
+                            await EvalHelpers.load_dataset_evaluators(
+                                resolved_eval_set_path,
+                                eval_context.evaluation_set,
+                            )
+                        )
+
                         # Runtime is not required anymore.
                         await runtime.dispose()
 

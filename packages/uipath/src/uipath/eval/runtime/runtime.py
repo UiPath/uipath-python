@@ -45,6 +45,7 @@ from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
+from ..evaluators.base_dataset_evaluator import BaseDatasetEvaluator
 from ..evaluators.base_evaluator import GenericBaseEvaluator
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
@@ -200,6 +201,43 @@ def compute_evaluator_scores(
     final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
 
     return final_score, agg_metrics_per_evaluator
+
+
+def compute_dataset_evaluator_results(
+    evaluation_set_results: list[UiPathEvalRunResult],
+    dataset_evaluators: Iterable[BaseDatasetEvaluator[Any]],
+) -> dict[str, EvaluationResultDto]:
+    """Run each dataset evaluator over its source evaluator's per-datapoint results.
+
+    Args:
+        evaluation_set_results: Per-datapoint results from the run.
+        dataset_evaluators: Dataset-level evaluator instances. Each is routed to
+            the per-datapoint results from ``evaluator.source_evaluator``.
+
+    Returns:
+        Dict mapping dataset evaluator name to its serialized EvaluationResultDto.
+        Dataset evaluators whose source produced no results are still invoked
+        with an empty list so they can emit a zeroed result.
+    """
+    results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for eval_run_result in evaluation_set_results:
+        for eval_run_result_dto in eval_run_result.evaluation_run_results:
+            if eval_run_result_dto.is_line_result:
+                continue
+            results_by_evaluator[eval_run_result_dto.evaluator_name].append(
+                eval_run_result_dto.result
+            )
+
+    dataset_results: dict[str, EvaluationResultDto] = {}
+    for evaluator in dataset_evaluators:
+        source = evaluator.source_evaluator
+        evaluation_result = evaluator.evaluate(results_by_evaluator.get(source, []))
+        dataset_results[evaluator.name] = EvaluationResultDto.from_evaluation_result(
+            evaluation_result
+        )
+    return dataset_results
 
 
 class UiPathEvalRuntime:
@@ -380,6 +418,18 @@ class UiPathEvalRuntime:
                         results.evaluation_set_results,
                         evaluators,
                     )
+
+                    # Run any dataset-level evaluators configured on the eval
+                    # set. Each consumes the per-datapoint results from one
+                    # named source evaluator and emits a single run-level
+                    # EvaluationResultDto stored on UiPathEvalOutput.
+                    if self.context.dataset_evaluators:
+                        results.dataset_evaluator_results = (
+                            compute_dataset_evaluator_results(
+                                results.evaluation_set_results,
+                                self.context.dataset_evaluators,
+                            )
+                        )
 
                     # Configure span with output and metadata
                     await configure_eval_set_run_span(
