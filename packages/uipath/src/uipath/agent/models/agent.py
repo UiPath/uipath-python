@@ -112,6 +112,7 @@ class AgentToolType(str, CaseInsensitiveEnum):
     PROCESS = "Process"
     API = "Api"
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    FLOW = "Flow"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
     IXP = "Ixp"
@@ -779,6 +780,7 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
         AgentToolType.PROCESS,
         AgentToolType.API,
         AgentToolType.PROCESS_ORCHESTRATION,
+        AgentToolType.FLOW,
     ]
     output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     properties: AgentProcessToolProperties
@@ -1322,6 +1324,7 @@ class AgentDefinition(BaseModel):
             "process": "Process",
             "api": "Api",
             "processorchestration": "ProcessOrchestration",
+            "flow": "Flow",
             "integration": "Integration",
             "internal": "Internal",
             "ixp": "Ixp",
