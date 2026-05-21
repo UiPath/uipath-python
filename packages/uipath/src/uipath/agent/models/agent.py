@@ -189,6 +189,7 @@ class AgentToolArgumentPropertiesVariant(str, CaseInsensitiveEnum):
     ARGUMENT = "argument"
     STATIC = "static"
     TEXT_BUILDER = "textBuilder"
+    ARRAY_BUILDER = "arrayBuilder"
 
 
 class TextTokenType(str, CaseInsensitiveEnum):
@@ -277,11 +278,21 @@ class AgentToolTextBuilderArgumentProperties(BaseAgentToolArgumentProperties):
     tokens: List[TextToken]
 
 
+class AgentToolArrayBuilderArgumentProperties(BaseCfg):
+    """Agent array builder argument properties model."""
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.ARRAY_BUILDER] = Field(
+        default=AgentToolArgumentPropertiesVariant.ARRAY_BUILDER,
+        frozen=True,
+    )
+
+
 AgentToolArgumentProperties = Annotated[
     Union[
         AgentToolStaticArgumentProperties,
         AgentToolArgumentArgumentProperties,
         AgentToolTextBuilderArgumentProperties,
+        AgentToolArrayBuilderArgumentProperties,
     ],
     Field(discriminator="variant"),
     _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
