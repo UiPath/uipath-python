@@ -6,9 +6,6 @@ repo_url: https://github.com/UiPath/uipath-python
 
 copyright: Copyright &copy; 2025 UiPath
 
-hooks:
-  - docs/langchain/hooks/enum_lists.py
-
 extra_css:
   - stylesheets/extra.css
 
