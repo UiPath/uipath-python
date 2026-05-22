@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are safeguards applied before and/or after execution to inspect inputs and outputs for policy violations — PII, harmful content, intellectual property, and custom rules — and respond by logging, blocking, or modifying the data.
+Guardrails are safeguards applied before and/or after execution to inspect inputs and outputs for policy violations — PII, harmful content, prompt attacks, intellectual property, and custom rules — and respond by logging, blocking, or modifying the data.
 
 They can be applied at three scopes:
 
