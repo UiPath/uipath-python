@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -95,7 +96,7 @@ class UiPathConversationContentPartData(BaseModel):
 
     mime_type: str = Field(..., alias="mimeType")
     data: InlineOrExternal
-    citations: Sequence[UiPathConversationCitationData]
+    citations: Sequence[UiPathConversationCitationData] = Field(default_factory=list)
     is_transcript: bool | None = Field(None, alias="isTranscript")
     is_incomplete: bool | None = Field(None, alias="isIncomplete")
     name: str | None = None
@@ -106,11 +107,13 @@ class UiPathConversationContentPartData(BaseModel):
 class UiPathConversationContentPart(UiPathConversationContentPartData):
     """Represents a single part of message content."""
 
-    content_part_id: str = Field(..., alias="contentPartId")
-    created_at: str = Field(..., alias="createdAt")
-    updated_at: str = Field(..., alias="updatedAt")
+    content_part_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), alias="contentPartId"
+    )
+    created_at: str | None = Field(None, alias="createdAt")
+    updated_at: str | None = Field(None, alias="updatedAt")
 
     # Override to use full type
-    citations: Sequence[UiPathConversationCitation]
+    citations: Sequence[UiPathConversationCitation] = Field(default_factory=list)
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
