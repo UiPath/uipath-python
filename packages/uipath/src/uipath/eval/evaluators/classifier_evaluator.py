@@ -28,6 +28,17 @@ from .base_evaluator import (
 )
 
 
+class ClassifierEvaluationCriteria(BaseEvaluationCriteria):
+    """Empty per-datapoint criteria for the classifier aggregator.
+
+    The classifier has no per-datapoint config; this concrete subclass exists
+    only because Pydantic's generic resolution requires a concrete (non-bound)
+    type — using `BaseEvaluationCriteria` directly leaves T as `Any`.
+    """
+
+    pass
+
+
 class ClassifierJustification(BaseEvaluatorJustification):
     """Metadata payload shipped per datapoint so the backend can read the classes list.
 
@@ -42,22 +53,22 @@ class ClassifierJustification(BaseEvaluatorJustification):
     source_evaluator: str
 
 
-class ClassifierEvaluatorConfig(BaseEvaluatorConfig[BaseEvaluationCriteria]):
+class ClassifierEvaluatorConfig(BaseEvaluatorConfig[ClassifierEvaluationCriteria]):
     """Configuration for the classification aggregator evaluator."""
 
     name: str = "ClassifierEvaluator"
     classes: list[str]
     source_evaluator: str
-    # Default criteria is an empty BaseEvaluationCriteria so the runtime's
-    # validate_and_evaluate_criteria fallback doesn't trip when an eval item
-    # has no per-datapoint criteria for this evaluator (the common case —
-    # the classifier doesn't need per-datapoint config).
-    default_evaluation_criteria: BaseEvaluationCriteria = BaseEvaluationCriteria()
+    default_evaluation_criteria: ClassifierEvaluationCriteria = (
+        ClassifierEvaluationCriteria()
+    )
 
 
 class ClassifierEvaluator(
     BaseEvaluator[
-        BaseEvaluationCriteria, ClassifierEvaluatorConfig, ClassifierJustification
+        ClassifierEvaluationCriteria,
+        ClassifierEvaluatorConfig,
+        ClassifierJustification,
     ]
 ):
     """Carries the classes list to the backend; does no per-datapoint scoring.
@@ -77,7 +88,7 @@ class ClassifierEvaluator(
     async def evaluate(
         self,
         agent_execution: AgentExecution,
-        evaluation_criteria: BaseEvaluationCriteria,
+        evaluation_criteria: ClassifierEvaluationCriteria,
     ) -> EvaluationResult:
         """Return a sentinel per-datapoint result carrying the classes metadata.
 
