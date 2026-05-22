@@ -6,6 +6,9 @@ repo_url: https://github.com/UiPath/uipath-python
 
 copyright: Copyright &copy; 2025 UiPath
 
+hooks:
+  - docs/langchain/hooks/enum_lists.py
+
 extra_css:
   - stylesheets/extra.css
 
@@ -101,6 +104,7 @@ nav:
       - Getting Started: langchain/quick_start.md
       - Chat Models: langchain/chat_models.md
       - Context Grounding: langchain/context_grounding.md
+      - Guardrails: langchain/guardrails.md
       - Human In The Loop: langchain/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
   - UiPath LlamaIndex SDK:
