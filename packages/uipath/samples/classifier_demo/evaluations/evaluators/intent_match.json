@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "id": "intent_match",
+  "description": "Per-datapoint ExactMatch on the agent's `intent` output. Produces expected/actual justification that the ClassifierEvaluator pipeline reads.",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "intent_match",
+    "targetOutputKey": "intent",
+    "caseSensitive": false,
+    "negated": false,
+    "defaultEvaluationCriteria": {
+      "expectedOutput": "book"
+    }
+  }
+}

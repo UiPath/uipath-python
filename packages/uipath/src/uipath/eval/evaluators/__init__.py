@@ -9,6 +9,7 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
+from ._aggregators import AggregatorSpec, ClassificationAggregatorSpec
 from .base_legacy_evaluator import BaseLegacyEvaluator
 from .binary_classification_evaluator import BinaryClassificationEvaluator
 
@@ -71,6 +72,9 @@ __all__ = [
     "BinaryClassificationEvaluator",
     "MulticlassClassificationEvaluator",
     "ContainsEvaluator",
+    # Aggregator specs (config metadata attached to per-datapoint evaluators)
+    "AggregatorSpec",
+    "ClassificationAggregatorSpec",
     "ExactMatchEvaluator",
     "JsonSimilarityEvaluator",
     "BaseLLMOutputEvaluator",

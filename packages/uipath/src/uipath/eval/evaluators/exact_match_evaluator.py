@@ -6,6 +6,7 @@ from ..models import (
     EvaluatorType,
     NumericEvaluationResult,
 )
+from ._aggregators import AggregatorSpec
 from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
     OutputEvaluationCriteria,
@@ -15,11 +16,18 @@ from .output_evaluator import (
 
 
 class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
-    """Configuration for the exact match evaluator."""
+    """Configuration for the exact match evaluator.
+
+    The optional `aggregators` field attaches run-level aggregators (e.g. a
+    classification aggregator with a fixed class set) that the downstream
+    backend will compute after the eval set finishes. The Python runtime
+    itself ignores `aggregators` — it's pure metadata for the C# consumer.
+    """
 
     name: str = "ExactMatchEvaluator"
     case_sensitive: bool = False
     negated: bool = False
+    aggregators: list[AggregatorSpec] | None = None
 
 
 class ExactMatchEvaluator(
