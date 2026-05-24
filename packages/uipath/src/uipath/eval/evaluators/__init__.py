@@ -9,13 +9,9 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
+from ._aggregators import AggregatorSpec, ClassificationAggregatorSpec
 from .base_legacy_evaluator import BaseLegacyEvaluator
 from .binary_classification_evaluator import BinaryClassificationEvaluator
-from .classifier_evaluator import (
-    ClassifierEvaluator,
-    ClassifierEvaluatorConfig,
-    ClassifierJustification,
-)
 
 # Legacy evaluators
 from .contains_evaluator import ContainsEvaluator
@@ -51,7 +47,6 @@ EVALUATORS: list[type[BaseEvaluator[Any, Any, Any]]] = [
     ContainsEvaluator,
     BinaryClassificationEvaluator,
     MulticlassClassificationEvaluator,
-    ClassifierEvaluator,
     JsonSimilarityEvaluator,
     LLMJudgeOutputEvaluator,
     LLMJudgeStrictJSONSimilarityOutputEvaluator,
@@ -76,10 +71,10 @@ __all__ = [
     "BaseEvaluator",
     "BinaryClassificationEvaluator",
     "MulticlassClassificationEvaluator",
-    "ClassifierEvaluator",
-    "ClassifierEvaluatorConfig",
-    "ClassifierJustification",
     "ContainsEvaluator",
+    # Aggregator specs (config metadata attached to per-datapoint evaluators)
+    "AggregatorSpec",
+    "ClassificationAggregatorSpec",
     "ExactMatchEvaluator",
     "JsonSimilarityEvaluator",
     "BaseLLMOutputEvaluator",

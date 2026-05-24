@@ -31,7 +31,6 @@ from . import (
     ToolCallOutputEvaluator,
 )
 from .base_evaluator import BaseEvaluator, BaseEvaluatorConfig
-from .classifier_evaluator import ClassifierEvaluator
 
 
 class UnknownLegacyEvaluator(BaseLegacyEvaluator[Any]):
@@ -142,8 +141,6 @@ def coded_evaluator_discriminator(data: Any) -> str:
                 return "BinaryClassificationEvaluator"
             case EvaluatorType.MULTICLASS_CLASSIFICATION:
                 return "MulticlassClassificationEvaluator"
-            case EvaluatorType.CLASSIFIER:
-                return "ClassifierEvaluator"
             case _:
                 return "UnknownEvaluator"
     else:
@@ -203,10 +200,6 @@ CodedEvaluator = Annotated[
         Annotated[
             MulticlassClassificationEvaluator,
             Tag("MulticlassClassificationEvaluator"),
-        ],
-        Annotated[
-            ClassifierEvaluator,
-            Tag("ClassifierEvaluator"),
         ],
         Annotated[
             UnknownCodedEvaluator,
