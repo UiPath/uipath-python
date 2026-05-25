@@ -5,6 +5,7 @@ This module contains models related to UiPath Entities service.
 
 from ._entities_service import EntitiesService
 from .entities import (
+    AggregateRow,
     ChoiceSetValue,
     DataFabricEntityItem,
     Entity,
@@ -21,7 +22,6 @@ from .entities import (
     EntityMetadataUpdateOptions,
     EntityQueryFilter,
     EntityQueryFilterGroup,
-    EntityQueryRecordsResponse,
     EntityQuerySortOption,
     EntityRecord,
     EntityRecordsBatchResponse,
@@ -38,10 +38,12 @@ from .entities import (
     QueryFilterOperator,
     QueryRoutingOverrideContext,
     ReferenceType,
+    RetrieveEntityRecordsResponse,
     SourceJoinCriteria,
 )
 
 __all__ = [
+    "AggregateRow",
     "ChoiceSetValue",
     "DataFabricEntityItem",
     "EntitiesService",
@@ -59,7 +61,6 @@ __all__ = [
     "EntityMetadataUpdateOptions",
     "EntityQueryFilter",
     "EntityQueryFilterGroup",
-    "EntityQueryRecordsResponse",
     "EntityQuerySortOption",
     "EntityRecord",
     "EntityRecordsBatchResponse",
@@ -76,5 +77,6 @@ __all__ = [
     "QueryFilterOperator",
     "QueryRoutingOverrideContext",
     "ReferenceType",
+    "RetrieveEntityRecordsResponse",
     "SourceJoinCriteria",
 ]

@@ -443,8 +443,31 @@ class EntitySchemaService(BaseService):
         ``decimal_precision`` on ``STRING``), values outside the inclusive
         range declared in :data:`ENTITY_FIELD_CONSTRAINT_SPEC`, and
         ``min_value`` greater than or equal to ``max_value`` when both are
-        supplied.
+        supplied. Also enforces type-dependent required references:
+        ``CHOICE_SET_SINGLE`` and ``CHOICE_SET_MULTIPLE`` need
+        ``choice_set_id``; ``RELATIONSHIP`` needs ``reference_entity_name``.
         """
+        if (
+            ftype
+            in (
+                EntityFieldDataType.CHOICE_SET_SINGLE,
+                EntityFieldDataType.CHOICE_SET_MULTIPLE,
+            )
+            and not field.choice_set_id
+        ):
+            raise ValueError(
+                f"Field {field.field_name!r} of type {ftype.value} requires "
+                "choice_set_id."
+            )
+        if (
+            ftype is EntityFieldDataType.RELATIONSHIP
+            and not field.reference_entity_name
+        ):
+            raise ValueError(
+                f"Field {field.field_name!r} of type {ftype.value} requires "
+                "reference_entity_name."
+            )
+
         spec = ENTITY_FIELD_CONSTRAINT_SPEC.get(ftype, {})
         provided: Dict[str, Any] = {}
         for attr in ("length_limit", "max_value", "min_value", "decimal_precision"):

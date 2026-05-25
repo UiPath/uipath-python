@@ -1,9 +1,9 @@
 """Data-side operations for the Data Fabric entities surface.
 
 Handles record CRUD (single and batch), structured queries, attachments,
-choice-set value lookup, bulk import, and the legacy federated SQL query
-escape hatch. Schema definitions are managed by :class:`EntitySchemaService`
-and exposed alongside data operations through :class:`EntitiesService`.
+choice-set value lookup, bulk import, and federated SQL queries. Schema
+definitions are managed by :class:`EntitySchemaService` and exposed alongside
+data operations through :class:`EntitiesService`.
 """
 
 import json as json_module
@@ -26,18 +26,19 @@ from ..errors._enriched_exception import EnrichedException
 from ..orchestrator._folder_service import FolderService
 from ._entity_resolution import RoutingStrategy, create_routing_strategy
 from .entities import (
+    AggregateRow,
     ChoiceSetValue,
     EntityAggregate,
     EntityBinning,
     EntityImportRecordsResponse,
     EntityJoin,
     EntityQueryFilterGroup,
-    EntityQueryRecordsResponse,
     EntityQuerySortOption,
     EntityRecord,
     EntityRecordsBatchResponse,
     EntityRecordsListResponse,
     QueryRoutingOverrideContext,
+    RetrieveEntityRecordsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class EntityDataService(BaseService):
 
     Backend target: ``datafabric_/api/EntityService/...`` plus
     ``datafabric_/api/Attachment/...`` for file attachments, and
-    ``datafabric_/api/v1/query/execute`` for legacy SQL queries.
+    ``datafabric_/api/v1/query/execute`` for federated SQL queries.
 
     !!! warning "Preview Feature"
         This service is currently experimental. Behavior and parameters are
@@ -440,7 +441,7 @@ class EntityDataService(BaseService):
     # Structured query (POST /entity/{id}/query)
     # ------------------------------------------------------------------
 
-    def query(
+    def retrieve_records(
         self,
         entity_key: str,
         filter_group: Optional[EntityQueryFilterGroup] = None,
@@ -454,9 +455,9 @@ class EntityDataService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> EntityQueryRecordsResponse:
-        """Internal implementation; see :meth:`EntitiesService.query`."""
-        spec = self._query_spec(
+    ) -> RetrieveEntityRecordsResponse:
+        """Internal implementation; see :meth:`EntitiesService.retrieve_records`."""
+        spec = self._retrieve_records_spec(
             entity_key,
             filter_group=filter_group,
             sort_options=sort_options,
@@ -475,7 +476,7 @@ class EntityDataService(BaseService):
         )
         return self._parse_query_response(response, start=start, limit=limit)
 
-    async def query_async(
+    async def retrieve_records_async(
         self,
         entity_key: str,
         filter_group: Optional[EntityQueryFilterGroup] = None,
@@ -489,9 +490,9 @@ class EntityDataService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> EntityQueryRecordsResponse:
-        """Async variant of :meth:`query`."""
-        spec = self._query_spec(
+    ) -> RetrieveEntityRecordsResponse:
+        """Async variant of :meth:`retrieve_records`."""
+        spec = self._retrieve_records_spec(
             entity_key,
             filter_group=filter_group,
             sort_options=sort_options,
@@ -511,7 +512,7 @@ class EntityDataService(BaseService):
         return self._parse_query_response(response, start=start, limit=limit)
 
     # ------------------------------------------------------------------
-    # Federated SQL query (legacy escape hatch)
+    # Federated SQL query
     # ------------------------------------------------------------------
 
     def query_entity_records(
@@ -631,14 +632,9 @@ class EntityDataService(BaseService):
         file_path: Optional[str] = None,
     ) -> EntityImportRecordsResponse:
         """Internal implementation; see :meth:`EntitiesService.import_records`."""
+        spec = self._import_records_spec(entity_id)
         with self._open_file(file, file_path) as handle:
-            response = self.request(
-                "POST",
-                Endpoint(
-                    f"datafabric_/api/EntityService/entity/{entity_id}/bulk-upload"
-                ),
-                files={"file": handle},
-            )
+            response = self.request(spec.method, spec.endpoint, files={"file": handle})
         return EntityImportRecordsResponse.model_validate(response.json() or {})
 
     async def import_records_async(
@@ -648,13 +644,10 @@ class EntityDataService(BaseService):
         file_path: Optional[str] = None,
     ) -> EntityImportRecordsResponse:
         """Async variant of :meth:`import_records`."""
+        spec = self._import_records_spec(entity_id)
         with self._open_file(file, file_path) as handle:
             response = await self.request_async(
-                "POST",
-                Endpoint(
-                    f"datafabric_/api/EntityService/entity/{entity_id}/bulk-upload"
-                ),
-                files={"file": handle},
+                spec.method, spec.endpoint, files={"file": handle}
             )
         return EntityImportRecordsResponse.model_validate(response.json() or {})
 
@@ -878,7 +871,7 @@ class EntityDataService(BaseService):
         return params
 
     @staticmethod
-    def _query_spec(
+    def _retrieve_records_spec(
         entity_key: str,
         filter_group: Optional[EntityQueryFilterGroup] = None,
         sort_options: Optional[List[EntityQuerySortOption]] = None,
@@ -1021,6 +1014,16 @@ class EntityDataService(BaseService):
         )
 
     @staticmethod
+    def _import_records_spec(entity_id: str) -> RequestSpec:
+        """Build the POST spec for the bulk-upload (CSV import) endpoint."""
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                f"datafabric_/api/EntityService/entity/{entity_id}/bulk-upload"
+            ),
+        )
+
+    @staticmethod
     def _open_file(file: Optional[FileContent], file_path: Optional[str]) -> Any:
         """Yield a file-like object from raw bytes or a path on disk.
 
@@ -1095,25 +1098,24 @@ class EntityDataService(BaseService):
         response: Response,
         start: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> EntityQueryRecordsResponse:
-        """Parse a query response into :class:`EntityQueryRecordsResponse`.
+    ) -> RetrieveEntityRecordsResponse:
+        """Parse a query response into :class:`RetrieveEntityRecordsResponse`.
 
-        ``has_next_page`` is derived from ``start + len(items) < total_count``
-        whenever ``limit`` is supplied; ``next_cursor`` is populated only when
-        the backend returns one, otherwise the caller paginates by passing the
-        next ``start``.
+        Rows that include an ``Id`` field are parsed as :class:`EntityRecord`;
+        rows that don't (aggregate / group-by / binning results) are parsed as
+        :class:`AggregateRow`. ``has_next_page`` is derived from
+        ``start + len(items) < total_count`` whenever ``limit`` is supplied;
+        ``next_cursor`` is populated only when the backend returns one,
+        otherwise the caller paginates by passing the next ``start``.
         """
         body = response.json() or {}
-        # Aggregate / binning rows do not carry an ``Id`` field, so fall back
-        # to constructing the record without strict validation when the row
-        # cannot be parsed as a regular entity record.
         items_raw = body.get("value", []) or []
-        items: List[EntityRecord] = []
+        items: List[EntityRecord | AggregateRow] = []
         for raw in items_raw:
-            try:
+            if isinstance(raw, dict) and isinstance(raw.get("Id"), str):
                 items.append(EntityRecord.from_data(data=raw))
-            except ValueError:
-                items.append(EntityRecord.model_construct(_fields_set=set(raw), **raw))
+            else:
+                items.append(AggregateRow.model_validate(raw))
 
         total_count = int(body.get("totalRecordCount", body.get("totalCount", 0)) or 0)
 
@@ -1123,7 +1125,7 @@ class EntityDataService(BaseService):
             consumed = (start or 0) + len(items)
             has_next_page = consumed < total_count
 
-        return EntityQueryRecordsResponse(
+        return RetrieveEntityRecordsResponse(
             items=items,
             total_count=total_count,
             has_next_page=has_next_page,

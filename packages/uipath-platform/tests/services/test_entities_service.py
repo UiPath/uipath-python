@@ -1258,7 +1258,7 @@ class TestEntitiesServiceNewMethods:
             },
         )
 
-        result = service.query(
+        result = service.retrieve_records(
             entity_key=str(entity_key),
             filter_group=EntityQueryFilterGroup(
                 logical_operator=LogicalOperator.And,
@@ -1307,8 +1307,9 @@ class TestEntitiesServiceNewMethods:
         tenant: str,
         version: str,
     ) -> None:
-        """Aggregate / GROUP BY rows lack ``Id`` — must not raise."""
+        """Aggregate / GROUP BY rows lack ``Id`` — parsed as :class:`AggregateRow`."""
         from uipath.platform.entities import (
+            AggregateRow,
             EntityAggregate,
             EntityAggregateFunction,
         )
@@ -1328,7 +1329,7 @@ class TestEntitiesServiceNewMethods:
             },
         )
 
-        result = service.query(
+        result = service.retrieve_records(
             entity_key=str(entity_key),
             selected_fields=["status"],
             group_by=["status"],
@@ -1343,7 +1344,11 @@ class TestEntitiesServiceNewMethods:
 
         assert result.total_count == 2
         assert len(result.items) == 2
-        # Aggregate rows are exposed as EntityRecord with extra fields, no Id.
+        # Aggregate rows lack ``Id`` and are exposed as :class:`AggregateRow`.
+        for row in result.items:
+            assert isinstance(row, AggregateRow)
+        assert result.items[0].status == "active"
+        assert result.items[0].total == 12
         sent = httpx_mock.get_request()
         assert sent is not None
         body = json.loads(sent.content)
@@ -1371,7 +1376,7 @@ class TestEntitiesServiceNewMethods:
             json={"value": [], "totalCount": 0},
         )
 
-        service.query(
+        service.retrieve_records(
             entity_key=str(entity_key),
             binnings=[
                 EntityBinning(
@@ -1966,6 +1971,121 @@ class TestEntitiesServiceValidation:
                 ],
             )
 
+    def test_create_entity_rejects_choiceset_without_choice_set_id(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="choice_set_id"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.CHOICE_SET_SINGLE,
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_choice_set_multiple_without_choice_set_id(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="choice_set_id"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.CHOICE_SET_MULTIPLE,
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_relationship_without_reference_entity(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="reference_entity_name"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.RELATIONSHIP,
+                    )
+                ],
+            )
+
+    def test_entity_query_filter_rejects_in_without_value_list(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="non-empty value_list"):
+            EntityQueryFilter(
+                field_name="status",
+                operator=QueryFilterOperator.In,
+            )
+
+    def test_entity_query_filter_rejects_in_with_scalar_value(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="value must be omitted"):
+            EntityQueryFilter(
+                field_name="status",
+                operator=QueryFilterOperator.In,
+                value="active",
+                value_list=["active", "pending"],
+            )
+
+    def test_entity_query_filter_rejects_scalar_op_with_value_list(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="value_list must be omitted"):
+            EntityQueryFilter(
+                field_name="amount",
+                operator=QueryFilterOperator.GreaterThan,
+                value_list=["10"],
+            )
+
+    def test_entity_query_filter_rejects_strict_op_with_null_value(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="non-null value"):
+            EntityQueryFilter(
+                field_name="amount",
+                operator=QueryFilterOperator.GreaterThan,
+            )
+
+    def test_entity_query_filter_allows_equals_with_null_value(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        f = EntityQueryFilter(
+            field_name="middle_name",
+            operator=QueryFilterOperator.Equals,
+        )
+        assert f.value is None and f.value_list is None
+
+    def test_entity_query_filter_allows_in_with_value_list(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        f = EntityQueryFilter(
+            field_name="status",
+            operator=QueryFilterOperator.In,
+            value_list=["a", "b"],
+        )
+        assert f.value_list == ["a", "b"]
+
 
 class TestEntitiesServiceAsyncAndEdgeCases:
     async def test_get_record_async(
@@ -1994,7 +2114,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
             status_code=200,
             json={"value": [{"Id": "1"}], "totalRecordCount": 1},
         )
-        result = await service.query_async(entity_key=str(entity_key))
+        result = await service.retrieve_records_async(entity_key=str(entity_key))
         assert result.total_count == 1
 
     async def test_delete_record_async(

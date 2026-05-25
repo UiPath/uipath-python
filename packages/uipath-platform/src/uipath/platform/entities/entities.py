@@ -18,7 +18,14 @@ from typing import (
     overload,
 )
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, create_model
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    create_model,
+    model_validator,
+)
 
 if TYPE_CHECKING:
     from ._entities_service import EntitiesService
@@ -440,7 +447,18 @@ class QueryFilterOperator(str, Enum):
 
 
 class EntityQueryFilter(BaseModel):
-    """A single filter condition for querying entity records."""
+    """A single filter condition for querying entity records.
+
+    Backend operator/operand rules:
+
+    * ``in`` / ``not in`` — require a non-empty ``value_list`` and reject
+      ``value``.
+    * ``=`` / ``!=`` — allow a null ``value`` (becomes ``IS NULL`` / ``IS
+      NOT NULL``) and reject ``value_list``.
+    * All other operators (``>``, ``<``, ``>=``, ``<=``, ``contains``,
+      ``not contains``, ``startswith``, ``endswith``) — require a non-null
+      ``value`` and reject ``value_list``.
+    """
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -448,6 +466,37 @@ class EntityQueryFilter(BaseModel):
     operator: QueryFilterOperator
     value: Optional[str] = None
     value_list: Optional[List[str]] = Field(default=None, alias="valueList")
+
+    @model_validator(mode="after")
+    def _check_operator_operands(self) -> "EntityQueryFilter":
+        """Reject operator/operand combinations the backend rejects.
+
+        Implements the same rules the Data Service ``SelectQueryBuilder``
+        enforces server-side, so callers see a clear local error instead of
+        an opaque HTTP 400.
+        """
+        op = self.operator
+        if op in (QueryFilterOperator.In, QueryFilterOperator.NotIn):
+            if not self.value_list:
+                raise ValueError(
+                    f"Operator {op.value!r} requires a non-empty value_list."
+                )
+            if self.value is not None:
+                raise ValueError(
+                    f"Operator {op.value!r} uses value_list; value must be omitted."
+                )
+            return self
+
+        if self.value_list is not None:
+            raise ValueError(
+                f"Operator {op.value!r} uses value; value_list must be omitted."
+            )
+        if (
+            op not in (QueryFilterOperator.Equals, QueryFilterOperator.NotEquals)
+            and self.value is None
+        ):
+            raise ValueError(f"Operator {op.value!r} requires a non-null value.")
+        return self
 
 
 class EntityQueryFilterGroup(BaseModel):
@@ -526,17 +575,36 @@ class EntityBinning(BaseModel):
     alias: Optional[str] = None
 
 
-class EntityQueryRecordsResponse(BaseModel):
-    """Response from querying entity records."""
+class AggregateRow(BaseModel):
+    """A row returned by aggregate / group-by / binning queries.
+
+    Aggregate rows do not have an ``Id`` field; columns vary by query
+    (``selected_fields``, ``aggregates`` aliases, binning aliases) and are
+    accessible as attributes via ``extra="allow"``.
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
+class RetrieveEntityRecordsResponse(BaseModel):
+    """Response from :meth:`EntitiesService.retrieve_records`.
+
+    For plain queries, ``items`` is a list of :class:`EntityRecord`. When the
+    query uses ``aggregates``, ``group_by``, or ``binnings``, the backend
+    returns rows without an ``Id`` field; those rows are parsed as
+    :class:`AggregateRow` instances.
+    """
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
-    items: List[EntityRecord] = Field(default_factory=list)
+    items: List[EntityRecord | AggregateRow] = Field(default_factory=list)
     total_count: int = Field(default=0, alias="totalCount")
     has_next_page: bool = Field(default=False, alias="hasNextPage")
     next_cursor: Optional[str] = Field(default=None, alias="nextCursor")
 
-    def __iter__(self) -> Iterator[EntityRecord]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[EntityRecord | AggregateRow]:  # type: ignore[override]
         """Iterate over records (delegates to ``self.items``)."""
         return iter(self.items)
 
@@ -545,12 +613,14 @@ class EntityQueryRecordsResponse(BaseModel):
         return len(self.items)
 
     @overload
-    def __getitem__(self, index: int) -> EntityRecord: ...
+    def __getitem__(self, index: int) -> EntityRecord | AggregateRow: ...
 
     @overload
-    def __getitem__(self, index: slice) -> List[EntityRecord]: ...
+    def __getitem__(self, index: slice) -> List[EntityRecord | AggregateRow]: ...
 
-    def __getitem__(self, index: int | slice) -> EntityRecord | List[EntityRecord]:
+    def __getitem__(
+        self, index: int | slice
+    ) -> EntityRecord | AggregateRow | List[EntityRecord | AggregateRow]:
         """Index or slice records (delegates to ``self.items``)."""
         return self.items[index]
 
@@ -626,7 +696,7 @@ ENTITY_FIELD_CONSTRAINT_DEFAULTS: Dict[str, int] = {
 _MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 ENTITY_FIELD_CONSTRAINT_SPEC: Dict[
-    EntityFieldDataType, Dict[str, "tuple[float, float]"]
+    EntityFieldDataType, Dict[str, "tuple[int, int]"]
 ] = {
     EntityFieldDataType.STRING: {
         "length_limit": (1, 4000),
@@ -684,8 +754,8 @@ class EntityCreateFieldOptions(BaseModel):
     is_encrypted: Optional[bool] = Field(default=None, alias="isEncrypted")
     default_value: Optional[str] = Field(default=None, alias="defaultValue")
     length_limit: Optional[int] = Field(default=None, alias="lengthLimit")
-    max_value: Optional[float] = Field(default=None, alias="maxValue")
-    min_value: Optional[float] = Field(default=None, alias="minValue")
+    max_value: Optional[int] = Field(default=None, alias="maxValue")
+    min_value: Optional[int] = Field(default=None, alias="minValue")
     decimal_precision: Optional[int] = Field(default=None, alias="decimalPrecision")
     choice_set_id: Optional[str] = Field(default=None, alias="choiceSetId")
     reference_entity_name: Optional[str] = Field(

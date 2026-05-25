@@ -7,8 +7,8 @@ appropriate underlying service:
 * :class:`EntitySchemaService` — entity definitions, choice set listings,
   create / delete / update-metadata lifecycle.
 * :class:`EntityDataService` — record CRUD (single and batch), structured
-  queries, attachments, choice-set values, bulk import, and the legacy
-  federated SQL query.
+  queries, attachments, choice-set values, bulk import, and federated SQL
+  queries.
 
 The facade additionally owns cross-cutting concerns such as agent entity-set
 resolution.
@@ -47,13 +47,13 @@ from .entities import (
     EntityJoin,
     EntityMetadataUpdateOptions,
     EntityQueryFilterGroup,
-    EntityQueryRecordsResponse,
     EntityQuerySortOption,
     EntityRecord,
     EntityRecordsBatchResponse,
     EntityRecordsListResponse,
     EntitySetResolution,
     QueryRoutingOverrideContext,
+    RetrieveEntityRecordsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -1573,8 +1573,8 @@ class EntitiesService(BaseService):
             entity_key, record_ids, fail_on_first=fail_on_first
         )
 
-    @traced(name="entity_query", run_type="uipath")
-    def query(
+    @traced(name="entity_retrieve_records", run_type="uipath")
+    def retrieve_records(
         self,
         entity_key: str,
         filter_group: Optional[EntityQueryFilterGroup] = None,
@@ -1588,8 +1588,8 @@ class EntitiesService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> EntityQueryRecordsResponse:
-        """Query records with structured filters, sorting, expansion, joins, and aggregates.
+    ) -> RetrieveEntityRecordsResponse:
+        """Retrieve records with structured filters, sorting, expansion, joins, and aggregates.
 
         Routes to the V2 endpoint when ``binnings`` is provided (numeric/date
         binning is gated by the ``enable-binning-on-query`` feature flag on
@@ -1622,10 +1622,13 @@ class EntitiesService(BaseService):
             limit (Optional[int]): Maximum number of records to return.
 
         Returns:
-            EntityQueryRecordsResponse: A response with ``items``,
+            RetrieveEntityRecordsResponse: A response with ``items``,
                 ``total_count``, ``has_next_page``, and ``next_cursor``.
-                ``next_cursor`` is populated only when the backend returns
-                one; otherwise paginate by passing the next ``start``.
+                ``items`` is a list of :class:`EntityRecord` for plain
+                queries, or :class:`AggregateRow` when ``aggregates``,
+                ``group_by``, or ``binnings`` are used. ``next_cursor`` is
+                populated only when the backend returns one; otherwise
+                paginate by passing the next ``start``.
 
         Examples:
             Filter + sort + projection::
@@ -1638,7 +1641,7 @@ class EntitiesService(BaseService):
                     QueryFilterOperator,
                 )
 
-                result = entities_service.query(
+                result = entities_service.retrieve_records(
                     "Customers",
                     filter_group=EntityQueryFilterGroup(
                         logical_operator=LogicalOperator.And,
@@ -1666,7 +1669,7 @@ class EntitiesService(BaseService):
                     EntityAggregateFunction,
                 )
 
-                result = entities_service.query(
+                result = entities_service.retrieve_records(
                     "Customers",
                     selected_fields=["status"],
                     group_by=["status"],
@@ -1681,7 +1684,7 @@ class EntitiesService(BaseService):
                 for row in result.items:
                     print(row.status, row.total)
         """
-        return self._data.query(
+        return self._data.retrieve_records(
             entity_key,
             filter_group=filter_group,
             sort_options=sort_options,
@@ -1696,8 +1699,8 @@ class EntitiesService(BaseService):
             limit=limit,
         )
 
-    @traced(name="entity_query", run_type="uipath")
-    async def query_async(
+    @traced(name="entity_retrieve_records", run_type="uipath")
+    async def retrieve_records_async(
         self,
         entity_key: str,
         filter_group: Optional[EntityQueryFilterGroup] = None,
@@ -1711,8 +1714,8 @@ class EntitiesService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
-    ) -> EntityQueryRecordsResponse:
-        """Asynchronously query records with structured filters, sorting, expansion, joins, and aggregates.
+    ) -> RetrieveEntityRecordsResponse:
+        """Asynchronously retrieve records with structured filters, sorting, expansion, joins, and aggregates.
 
         Routes to the V2 endpoint when ``binnings`` is provided (numeric/date
         binning is gated by the ``enable-binning-on-query`` feature flag on
@@ -1742,7 +1745,7 @@ class EntitiesService(BaseService):
             limit (Optional[int]): Maximum number of records to return.
 
         Returns:
-            EntityQueryRecordsResponse: A response with ``items``,
+            RetrieveEntityRecordsResponse: A response with ``items``,
                 ``total_count``, ``has_next_page``, and ``next_cursor``.
 
         Examples:
@@ -1754,7 +1757,7 @@ class EntitiesService(BaseService):
                     QueryFilterOperator,
                 )
 
-                result = await entities_service.query_async(
+                result = await entities_service.retrieve_records_async(
                     "Customers",
                     filter_group=EntityQueryFilterGroup(
                         query_filters=[
@@ -1770,7 +1773,7 @@ class EntitiesService(BaseService):
                 )
                 print(f"{len(result.items)} of {result.total_count} customers")
         """
-        return await self._data.query_async(
+        return await self._data.retrieve_records_async(
             entity_key,
             filter_group=filter_group,
             sort_options=sort_options,
