@@ -15,6 +15,7 @@ from uipath.platform.common._bindings import (
 )
 from uipath.platform.entities import ChoiceSetValue, DataFabricEntityItem, Entity
 from uipath.platform.entities._entities_service import EntitiesService
+from uipath.platform.entities._entity_data_service import EntityDataService
 
 
 @pytest.fixture
@@ -325,7 +326,7 @@ class TestEntitiesService:
     def test_validate_sql_query_allows_supported_select_queries(
         self, sql_query: str, service: EntitiesService
     ) -> None:
-        service._validate_sql_query(sql_query)
+        service._data._validate_sql_query(sql_query)
 
     @pytest.mark.parametrize(
         "sql_query,error_message",
@@ -415,20 +416,20 @@ class TestEntitiesService:
         self, sql_query: str, error_message: str, service: EntitiesService
     ) -> None:
         with pytest.raises(ValueError, match=re.escape(error_message)):
-            service._validate_sql_query(sql_query)
+            service._data._validate_sql_query(sql_query)
 
     def test_query_entity_records_rejects_invalid_sql_before_network_call(
         self,
         service: EntitiesService,
     ) -> None:
-        service.request = MagicMock()  # type: ignore[method-assign]
+        service._data.request = MagicMock()  # type: ignore[method-assign]
 
         with pytest.raises(
             ValueError, match=re.escape("Only SELECT statements are allowed.")
         ):
             service.query_entity_records("UPDATE Customers SET name = 'X'")
 
-        service.request.assert_not_called()
+        service._data.request.assert_not_called()
 
     def test_query_entity_records_calls_request_for_valid_sql(
         self,
@@ -437,26 +438,26 @@ class TestEntitiesService:
         response = MagicMock()
         response.json.return_value = {"results": [{"id": 1}, {"id": 2}]}
 
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         result = service.query_entity_records("SELECT id FROM Customers WHERE id > 0")
 
         assert result == [{"id": 1}, {"id": 2}]
-        service.request.assert_called_once()
+        service._data.request.assert_called_once()
 
     @pytest.mark.anyio
     async def test_query_entity_records_async_rejects_invalid_sql_before_network_call(
         self,
         service: EntitiesService,
     ) -> None:
-        service.request_async = AsyncMock()  # type: ignore[method-assign]
+        service._data.request_async = AsyncMock()  # type: ignore[method-assign]
 
         with pytest.raises(ValueError, match=re.escape("Subqueries are not allowed.")):
             await service.query_entity_records_async(
                 "SELECT id FROM Customers WHERE id IN (SELECT id FROM Orders)"
             )
 
-        service.request_async.assert_not_called()
+        service._data.request_async.assert_not_called()
 
     @pytest.mark.anyio
     async def test_query_entity_records_async_calls_request_for_valid_sql(
@@ -466,14 +467,14 @@ class TestEntitiesService:
         response = MagicMock()
         response.json.return_value = {"results": [{"id": "c1"}]}
 
-        service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
         result = await service.query_entity_records_async(
             "SELECT id FROM Customers WHERE id = 'c1'"
         )
 
         assert result == [{"id": "c1"}]
-        service.request_async.assert_called_once()
+        service._data.request_async.assert_called_once()
 
     def test_query_entity_records_builds_routing_context_from_folders_map(
         self,
@@ -487,12 +488,12 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": [{"id": 1}]}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         result = service.query_entity_records("SELECT id FROM Customers LIMIT 10")
 
         assert result == [{"id": 1}]
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["query"] == "SELECT id FROM Customers LIMIT 10"
         assert body["routingContext"] == {
@@ -515,14 +516,14 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": [{"id": "c1"}]}
-        service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
         result = await service.query_entity_records_async(
             "SELECT id FROM Customers WHERE id = 'c1'"
         )
 
         assert result == [{"id": "c1"}]
-        call_kwargs = service.request_async.call_args
+        call_kwargs = service._data.request_async.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["routingContext"] == {
             "entityRoutings": [
@@ -536,11 +537,11 @@ class TestEntitiesService:
     ) -> None:
         response = MagicMock()
         response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         service.query_entity_records("SELECT id FROM Customers WHERE id > 0")
 
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert "routingContext" not in body
 
@@ -560,7 +561,7 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": [{"id": 1}]}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         overwrite = EntityResourceOverwrite(
             resource_type="entity",
@@ -573,7 +574,7 @@ class TestEntitiesService:
         finally:
             _resource_overwrites.reset(token)
 
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["routingContext"] == {
             "entityRoutings": [
@@ -601,11 +602,11 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         service.query_entity_records("SELECT id FROM Customers LIMIT 10")
 
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         routings = body["routingContext"]["entityRoutings"]
         assert {
@@ -740,7 +741,7 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         overwrite = EntityResourceOverwrite(
             resource_type="entity",
@@ -753,7 +754,7 @@ class TestEntitiesService:
         finally:
             _resource_overwrites.reset(token)
 
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["routingContext"] == {
             "entityRoutings": [
@@ -784,7 +785,7 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         overwrite = EntityResourceOverwrite(
             resource_type="entity",
@@ -797,7 +798,7 @@ class TestEntitiesService:
         finally:
             _resource_overwrites.reset(token)
 
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["routingContext"] == {
             "entityRoutings": [
@@ -829,7 +830,7 @@ class TestEntitiesService:
         )
         response = MagicMock()
         response.json.return_value = {"results": []}
-        service.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         overwrite = EntityResourceOverwrite(
             resource_type="entity",
@@ -845,7 +846,7 @@ class TestEntitiesService:
         # folder_id is a key — should NOT be sent through FolderService
         folders_service.retrieve_key.assert_not_called()
 
-        call_kwargs = service.request.call_args
+        call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["routingContext"] == {
             "entityRoutings": [
@@ -1096,3 +1097,1553 @@ class TestEntitiesService:
         values = service.get_choiceset_values(choiceset_id)
 
         assert values == []
+
+
+class TestEntitiesServiceNewMethods:
+    """Single-record, structured-query, attachment, schema and bulk-import tests."""
+
+    def test_insert_record_fires_post_with_expansion_level(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        from uipath.platform.entities import EntityRecord
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert?expansionLevel=2",
+            status_code=200,
+            json={"Id": "rec-1", "name": "alice"},
+        )
+
+        record = service.insert_record(
+            entity_key=str(entity_key),
+            data={"name": "alice"},
+            expansion_level=2,
+        )
+
+        assert isinstance(record, EntityRecord)
+        assert record.id == "rec-1"
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert sent.method == "POST"
+        assert json.loads(sent.content) == {"name": "alice"}
+
+    async def test_insert_record_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert",
+            status_code=200,
+            json={"Id": "rec-1"},
+        )
+
+        record = await service.insert_record_async(
+            entity_key=str(entity_key), data={"name": "bob"}
+        )
+        assert record.id == "rec-1"
+
+    def test_get_record(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        record_id = "12345"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read/{record_id}?expansionLevel=1",
+            status_code=200,
+            json={"Id": record_id, "name": "found"},
+        )
+
+        record = service.get_record(
+            entity_key=str(entity_key), record_id=record_id, expansion_level=1
+        )
+
+        assert record.id == record_id
+
+    def test_update_record_accepts_dict(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        record_id = "rec-9"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update/{record_id}",
+            status_code=200,
+            json={"Id": record_id, "name": "updated"},
+        )
+
+        record = service.update_record(
+            entity_key=str(entity_key),
+            record_id=record_id,
+            data={"name": "updated"},
+        )
+
+        assert record.id == record_id
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert json.loads(sent.content) == {"name": "updated"}
+
+    def test_delete_record_uses_http_delete(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        record_id = "rec-9"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete/{record_id}",
+            method="DELETE",
+            status_code=200,
+        )
+
+        service.delete_record(entity_key=str(entity_key), record_id=record_id)
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert sent.method == "DELETE"
+
+    def test_query_v1_with_filter_and_pagination(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityQueryFilter,
+            EntityQueryFilterGroup,
+            EntityQuerySortOption,
+            LogicalOperator,
+            QueryFilterOperator,
+        )
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query.*"
+            ),
+            status_code=200,
+            json={
+                "value": [{"Id": "1", "name": "alice"}, {"Id": "2", "name": "bob"}],
+                "totalRecordCount": 5,
+            },
+        )
+
+        result = service.retrieve_records(
+            entity_key=str(entity_key),
+            filter_group=EntityQueryFilterGroup(
+                logical_operator=LogicalOperator.And,
+                query_filters=[
+                    EntityQueryFilter(
+                        field_name="status",
+                        operator=QueryFilterOperator.Equals,
+                        value="active",
+                    )
+                ],
+            ),
+            sort_options=[EntityQuerySortOption(field_name="name", is_descending=True)],
+            selected_fields=["Id", "name"],
+            start=0,
+            limit=2,
+            expansion_level=1,
+        )
+
+        assert result.total_count == 5
+        assert len(result.items) == 2
+        assert result.has_next_page is True
+        # Backend doesn't return next_cursor on this endpoint — caller paginates
+        # by passing the next ``start`` themselves.
+        assert result.next_cursor is None
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert "/query" in str(sent.url) and "/v2/" not in str(sent.url)
+        # expansionLevel is a URL query param, not body
+        assert sent.url.params.get("expansionLevel") == "1"
+        body = json.loads(sent.content)
+        assert body["filterGroup"]["logicalOperator"] == 0  # And
+        assert body["filterGroup"]["queryFilters"][0]["fieldName"] == "status"
+        assert body["sortOptions"][0]["fieldName"] == "name"
+        assert body["selectedFields"] == ["Id", "name"]
+        # start/limit go in BODY, not as $top/$skip query params
+        assert body["start"] == 0
+        assert body["limit"] == 2
+
+    def test_query_aggregate_response_handles_id_less_rows(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """Aggregate / GROUP BY rows lack ``Id`` — parsed as :class:`AggregateRow`."""
+        from uipath.platform.entities import (
+            AggregateRow,
+            EntityAggregate,
+            EntityAggregateFunction,
+        )
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query.*"
+            ),
+            status_code=200,
+            json={
+                "value": [
+                    {"status": "active", "total": 12},
+                    {"status": "inactive", "total": 7},
+                ],
+                "totalRecordCount": 2,
+            },
+        )
+
+        result = service.retrieve_records(
+            entity_key=str(entity_key),
+            selected_fields=["status"],
+            group_by=["status"],
+            aggregates=[
+                EntityAggregate(
+                    function=EntityAggregateFunction.Count,
+                    field="Id",
+                    alias="total",
+                )
+            ],
+        )
+
+        assert result.total_count == 2
+        assert len(result.items) == 2
+        # Aggregate rows lack ``Id`` and are exposed as :class:`AggregateRow`.
+        for row in result.items:
+            assert isinstance(row, AggregateRow)
+        assert result.items[0].status == "active"
+        assert result.items[0].total == 12
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        body = json.loads(sent.content)
+        assert body["aggregates"][0]["function"] == "COUNT"
+        assert body["aggregates"][0]["alias"] == "total"
+        assert body["groupBy"] == ["status"]
+
+    def test_query_v2_when_binnings_provided(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        from uipath.platform.entities import EntityAggregateFunction, EntityBinning
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/v2/EntityService/entity/{entity_key}/query.*"
+            ),
+            status_code=200,
+            json={"value": [], "totalCount": 0},
+        )
+
+        service.retrieve_records(
+            entity_key=str(entity_key),
+            binnings=[
+                EntityBinning(
+                    field_name="status",
+                    aggregate_function=EntityAggregateFunction.Count,
+                    alias="total",
+                )
+            ],
+        )
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert "/v2/EntityService/" in str(sent.url)
+
+    def test_upload_attachment_sends_multipart(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_id = "ent-1"
+        record_id = "rec-1"
+        field_name = "doc"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Attachment/entity/{entity_id}/{record_id}/{field_name}?expansionLevel=1",
+            method="POST",
+            status_code=200,
+            json={"Id": record_id, "doc": "uploaded"},
+        )
+
+        result = service.upload_attachment(
+            entity_id=entity_id,
+            record_id=record_id,
+            field_name=field_name,
+            file=b"hello world",
+            expansion_level=1,
+        )
+
+        assert result.get("doc") == "uploaded"
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert b"hello world" in sent.content
+
+    def test_download_attachment_returns_bytes(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_id = "ent-1"
+        record_id = "rec-1"
+        field_name = "doc"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Attachment/entity/{entity_id}/{record_id}/{field_name}",
+            method="GET",
+            status_code=200,
+            content=b"file-content",
+        )
+
+        content = service.download_attachment(
+            entity_id=entity_id, record_id=record_id, field_name=field_name
+        )
+        assert content == b"file-content"
+
+    def test_delete_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_id = "ent-1"
+        record_id = "rec-1"
+        field_name = "doc"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Attachment/entity/{entity_id}/{record_id}/{field_name}",
+            method="DELETE",
+            status_code=200,
+            json={},
+        )
+
+        result = service.delete_attachment(
+            entity_id=entity_id, record_id=record_id, field_name=field_name
+        )
+        assert result == {}
+
+    def test_create_entity_returns_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityCreateOptions,
+            EntityFieldDataType,
+        )
+
+        new_entity_id = str(uuid.uuid4())
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            method="POST",
+            status_code=200,
+            json=new_entity_id,
+        )
+
+        created_id = service.create_entity(
+            name="productCatalog",
+            fields=[
+                EntityCreateFieldOptions(
+                    field_name="productName",
+                    type=EntityFieldDataType.STRING,
+                    is_required=True,
+                    length_limit=200,
+                ),
+            ],
+            options=EntityCreateOptions(
+                display_name="Product Catalog",
+                description="Catalog of products",
+                is_rbac_enabled=True,
+            ),
+        )
+
+        assert created_id == new_entity_id
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        body = json.loads(sent.content)
+        assert body["displayName"] == "Product Catalog"
+        assert body["entityDefinition"]["name"] == "productCatalog"
+        assert body["entityDefinition"]["fields"][0]["name"] == "productName"
+        assert body["entityDefinition"]["isRbacEnabled"] is True
+
+    def test_delete_entity(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_id = "ent-doomed"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_id}",
+            method="DELETE",
+            status_code=200,
+        )
+
+        service.delete_entity(entity_id=entity_id)
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert sent.method == "DELETE"
+
+    def test_update_entity_metadata(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        from uipath.platform.entities import EntityMetadataUpdateOptions
+
+        entity_id = "ent-meta"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_id}/metadata",
+            method="PATCH",
+            status_code=200,
+            json={},
+        )
+
+        service.update_entity_metadata(
+            entity_id=entity_id,
+            metadata=EntityMetadataUpdateOptions(
+                display_name="New Name", is_rbac_enabled=False
+            ),
+        )
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        body = json.loads(sent.content)
+        assert body == {"displayName": "New Name", "isRbacEnabled": False}
+
+    def test_import_records(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_id = "ent-imp"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_id}/bulk-upload",
+            method="POST",
+            status_code=200,
+            json={
+                "totalRecords": 10,
+                "insertedRecords": 9,
+                "errorFileLink": "https://example.com/errors.csv",
+            },
+        )
+
+        result = service.import_records(entity_id=entity_id, file=b"a,b,c\n1,2,3\n")
+        assert result.total_records == 10
+        assert result.inserted_records == 9
+        assert result.error_file_link == "https://example.com/errors.csv"
+
+    def test_list_records_returns_paginated_metadata(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read.*"
+            ),
+            status_code=200,
+            json={
+                "totalCount": 7,
+                "value": [{"Id": "1"}, {"Id": "2"}, {"Id": "3"}],
+            },
+        )
+
+        records = service.list_records(
+            entity_key=str(entity_key),
+            start=0,
+            limit=3,
+            expansion_level=2,
+            filter="status eq 'active'",
+            orderby="name asc",
+            select=["Id", "name"],
+            expand=["Company"],
+        )
+
+        # New pagination metadata: backend totalCount surfaced verbatim.
+        assert records.total_count == 7
+        assert records.has_next_page is True
+        # Backend does not currently emit next_cursor; caller paginates with start.
+        assert records.next_cursor is None
+
+        # Backward-compat: behaves as a list.
+        assert isinstance(records, list)
+        assert len(records) == 3
+        assert records[0].id == "1"
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        params = sent.url.params
+        assert params.get("expansionLevel") == "2"
+        assert params.get("$filter") == "status eq 'active'"
+        assert params.get("$orderby") == "name asc"
+        assert params.get("$select") == "Id,name"
+        assert params.get("$expand") == "Company"
+
+    def test_insert_records_passes_expansion_level_and_fail_on_first(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert-batch.*"
+            ),
+            status_code=200,
+            json={"successRecords": [{"Id": "1"}], "failureRecords": []},
+        )
+
+        service.insert_records(
+            entity_key=str(entity_key),
+            records=[{"name": "alice"}],
+            expansion_level=1,
+            fail_on_first=True,
+        )
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        params = sent.url.params
+        assert params.get("expansionLevel") == "1"
+        assert params.get("failOnFirst") == "true"
+        # Records are normalized to dicts before being sent.
+        assert json.loads(sent.content) == [{"name": "alice"}]
+
+    def test_update_records_recovers_failure_records_from_4xx(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """A 400 response that lists per-record failures should parse into the response.
+
+        The caller receives an ``EntityRecordsBatchResponse`` with the failed
+        records populated rather than an exception, so unknown record ids on
+        update can be handled the same way as any other batch failure.
+        """
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            method="POST",
+            status_code=400,
+            json={
+                "successRecords": [],
+                "failureRecords": [
+                    {"error": "Record not found", "record": {"Id": "missing"}}
+                ],
+            },
+        )
+
+        result = service.update_records(
+            entity_key=str(entity_key),
+            records=[{"Id": "missing", "name": "x"}],
+        )
+
+        assert len(result.failure_records) == 1
+        assert result.failure_records[0].error == "Record not found"
+
+    def test_delete_records_recovers_failure_records_from_4xx(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete-batch",
+            method="POST",
+            status_code=400,
+            json={
+                "successRecords": [],
+                "failureRecords": [{"error": "not found"}],
+            },
+        )
+
+        result = service.delete_records(
+            entity_key=str(entity_key), record_ids=["missing"]
+        )
+
+        assert result.failure_records[0].error == "not found"
+
+    def test_record_to_dict_accepts_dict_pydantic_and_object(self) -> None:
+        from uipath.platform.entities import EntityCreateFieldOptions
+
+        # dict
+        assert EntityDataService._record_to_dict({"a": 1}) == {"a": 1}
+        # Pydantic model — uses model_dump
+        result = EntityDataService._record_to_dict(
+            EntityCreateFieldOptions(field_name="x")
+        )
+        assert result["fieldName"] == "x"
+        # Object with __dict__
+        from dataclasses import dataclass
+
+        @dataclass
+        class Rec:
+            name: str
+
+        assert EntityDataService._record_to_dict(Rec(name="bob")) == {"name": "bob"}
+
+
+class TestEntitiesServiceCreateEntitySqlTypeMapping:
+    """Verify ``create_entity`` produces the SQL types and constraint defaults the backend expects."""
+
+    def _captured_field(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        field_options,
+    ):
+        from uipath.platform.entities import EntityCreateOptions
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            method="POST",
+            status_code=200,
+            json="00000000-0000-0000-0000-000000000001",
+        )
+        service.create_entity(
+            name="myEntity",
+            fields=[field_options],
+            options=EntityCreateOptions(display_name="My Entity"),
+        )
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        body = json.loads(sent.content)
+        return body["entityDefinition"]["fields"][0]
+
+    def test_string_field_maps_to_nvarchar_with_default_length(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        f = self._captured_field(
+            httpx_mock,
+            service,
+            base_url,
+            org,
+            tenant,
+            EntityCreateFieldOptions(
+                field_name="productName", type=EntityFieldDataType.STRING
+            ),
+        )
+        assert f["sqlType"]["name"] == "NVARCHAR"
+        assert f["sqlType"]["lengthLimit"] == 200  # default
+        assert f["fieldDisplayType"] == "Basic"
+
+    def test_decimal_field_includes_precision_and_value_bounds(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        f = self._captured_field(
+            httpx_mock,
+            service,
+            base_url,
+            org,
+            tenant,
+            EntityCreateFieldOptions(
+                field_name="price",
+                type=EntityFieldDataType.DECIMAL,
+                decimal_precision=4,
+            ),
+        )
+        assert f["sqlType"]["name"] == "DECIMAL"
+        assert f["sqlType"]["decimalPrecision"] == 4
+        assert f["sqlType"]["lengthLimit"] == 1000
+        assert f["sqlType"]["maxValue"] == 1_000_000_000_000
+        assert f["sqlType"]["minValue"] == -1_000_000_000_000
+
+    def test_boolean_field_maps_to_bit(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        f = self._captured_field(
+            httpx_mock,
+            service,
+            base_url,
+            org,
+            tenant,
+            EntityCreateFieldOptions(
+                field_name="isActive", type=EntityFieldDataType.BOOLEAN
+            ),
+        )
+        assert f["sqlType"]["name"] == "BIT"
+        assert f["sqlType"]["lengthLimit"] == 100
+
+    def test_file_field_maps_to_uniqueidentifier_with_file_display_type(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        f = self._captured_field(
+            httpx_mock,
+            service,
+            base_url,
+            org,
+            tenant,
+            EntityCreateFieldOptions(
+                field_name="document", type=EntityFieldDataType.FILE
+            ),
+        )
+        assert f["sqlType"]["name"] == "UNIQUEIDENTIFIER"
+        assert f["fieldDisplayType"] == "File"
+        assert f["sqlType"]["lengthLimit"] == 300
+
+
+class TestEntitiesServiceValidation:
+    """Client-side validation rejects bad entity / field definitions before any HTTP call."""
+
+    def test_create_entity_rejects_invalid_entity_name(self, service) -> None:
+
+        with pytest.raises(ValueError, match="Invalid entity name"):
+            service.create_entity(name="1bad", fields=[])
+
+    def test_create_entity_rejects_invalid_field_name(self, service) -> None:
+        from uipath.platform.entities import EntityCreateFieldOptions
+
+        with pytest.raises(ValueError, match="Invalid field name"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[EntityCreateFieldOptions(field_name="9bad")],
+            )
+
+    def test_create_entity_rejects_reserved_field_name(self, service) -> None:
+        from uipath.platform.entities import EntityCreateFieldOptions
+
+        with pytest.raises(ValueError, match="reserved"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[EntityCreateFieldOptions(field_name="Id")],
+            )
+
+    def test_create_entity_rejects_unsupported_constraint_for_type(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="does not accept"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.STRING,
+                        decimal_precision=2,  # not allowed on STRING
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_out_of_range_constraint(self, service) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="out of range"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.STRING,
+                        length_limit=99999,  # > 4000
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_min_ge_max(self, service) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="strictly less than"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.INTEGER,
+                        min_value=100,
+                        max_value=10,
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_choiceset_without_choice_set_id(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="choice_set_id"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.CHOICE_SET_SINGLE,
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_choice_set_multiple_without_choice_set_id(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="choice_set_id"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.CHOICE_SET_MULTIPLE,
+                    )
+                ],
+            )
+
+    def test_create_entity_rejects_relationship_without_reference_entity(
+        self, service
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        with pytest.raises(ValueError, match="reference_entity_name"):
+            service.create_entity(
+                name="goodEntity",
+                fields=[
+                    EntityCreateFieldOptions(
+                        field_name="myField",
+                        type=EntityFieldDataType.RELATIONSHIP,
+                    )
+                ],
+            )
+
+    def test_entity_query_filter_rejects_in_without_value_list(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="non-empty value_list"):
+            EntityQueryFilter(
+                field_name="status",
+                operator=QueryFilterOperator.In,
+            )
+
+    def test_entity_query_filter_rejects_in_with_scalar_value(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="value must be omitted"):
+            EntityQueryFilter(
+                field_name="status",
+                operator=QueryFilterOperator.In,
+                value="active",
+                value_list=["active", "pending"],
+            )
+
+    def test_entity_query_filter_rejects_scalar_op_with_value_list(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="value_list must be omitted"):
+            EntityQueryFilter(
+                field_name="amount",
+                operator=QueryFilterOperator.GreaterThan,
+                value_list=["10"],
+            )
+
+    def test_entity_query_filter_rejects_strict_op_with_null_value(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        with pytest.raises(ValueError, match="non-null value"):
+            EntityQueryFilter(
+                field_name="amount",
+                operator=QueryFilterOperator.GreaterThan,
+            )
+
+    def test_entity_query_filter_allows_equals_with_null_value(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        f = EntityQueryFilter(
+            field_name="middle_name",
+            operator=QueryFilterOperator.Equals,
+        )
+        assert f.value is None and f.value_list is None
+
+    def test_entity_query_filter_allows_in_with_value_list(self) -> None:
+        from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
+
+        f = EntityQueryFilter(
+            field_name="status",
+            operator=QueryFilterOperator.In,
+            value_list=["a", "b"],
+        )
+        assert f.value_list == ["a", "b"]
+
+
+class TestEntitiesServiceAsyncAndEdgeCases:
+    async def test_get_record_async(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        entity_key = uuid.uuid4()
+        record_id = "rec-1"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read/{record_id}",
+            status_code=200,
+            json={"Id": record_id, "name": "found"},
+        )
+        record = await service.get_record_async(
+            entity_key=str(entity_key), record_id=record_id
+        )
+        assert record.id == record_id
+
+    async def test_query_async_v1(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query"
+            ),
+            status_code=200,
+            json={"value": [{"Id": "1"}], "totalRecordCount": 1},
+        )
+        result = await service.retrieve_records_async(entity_key=str(entity_key))
+        assert result.total_count == 1
+
+    async def test_delete_record_async(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        entity_key = uuid.uuid4()
+        record_id = "rec-1"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete/{record_id}",
+            method="DELETE",
+            status_code=200,
+        )
+        await service.delete_record_async(
+            entity_key=str(entity_key), record_id=record_id
+        )
+
+    async def test_create_entity_async(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityCreateFieldOptions,
+            EntityFieldDataType,
+        )
+
+        new_id = "00000000-0000-0000-0000-000000000123"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            method="POST",
+            status_code=200,
+            json=new_id,
+        )
+        result = await service.create_entity_async(
+            name="goodEntity",
+            fields=[
+                EntityCreateFieldOptions(
+                    field_name="myField", type=EntityFieldDataType.STRING
+                )
+            ],
+        )
+        assert result == new_id
+
+    async def test_delete_entity_async(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/ent-1",
+            method="DELETE",
+            status_code=200,
+        )
+        await service.delete_entity_async(entity_id="ent-1")
+
+    async def test_update_entity_metadata_async_with_dict(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/ent-1/metadata",
+            method="PATCH",
+            status_code=200,
+            json={},
+        )
+        # Accepts a plain dict too
+        await service.update_entity_metadata_async(
+            entity_id="ent-1", metadata={"displayName": "X", "description": "Y"}
+        )
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert json.loads(sent.content) == {"displayName": "X", "description": "Y"}
+
+    def test_update_entity_metadata_normalizes_snake_case_dict_keys(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        """Snake_case dict keys must be sent to the backend as camelCase."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/ent-1/metadata",
+            method="PATCH",
+            status_code=200,
+            json={},
+        )
+        service.update_entity_metadata(
+            entity_id="ent-1",
+            metadata={
+                "display_name": "New Name",
+                "description": "Updated",
+                "is_rbac_enabled": True,
+            },
+        )
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert json.loads(sent.content) == {
+            "displayName": "New Name",
+            "description": "Updated",
+            "isRbacEnabled": True,
+        }
+
+    async def test_upload_attachment_async_via_file_path(
+        self, httpx_mock, service, base_url, org, tenant, version, tmp_path
+    ) -> None:
+        path = tmp_path / "data.bin"
+        path.write_bytes(b"file-on-disk")
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Attachment/entity/ent/rec/doc",
+            method="POST",
+            status_code=200,
+            json={"Id": "rec", "doc": "ok"},
+        )
+        result = await service.upload_attachment_async(
+            entity_id="ent",
+            record_id="rec",
+            field_name="doc",
+            file_path=str(path),
+        )
+        assert result["doc"] == "ok"
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert b"file-on-disk" in sent.content
+
+    async def test_download_and_delete_attachment_async(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        url = f"{base_url}{org}{tenant}/datafabric_/api/Attachment/entity/e/r/f"
+        httpx_mock.add_response(
+            url=url, method="GET", status_code=200, content=b"bytes"
+        )
+        httpx_mock.add_response(url=url, method="DELETE", status_code=200, json={})
+
+        content = await service.download_attachment_async(
+            entity_id="e", record_id="r", field_name="f"
+        )
+        assert content == b"bytes"
+        assert (
+            await service.delete_attachment_async(
+                entity_id="e", record_id="r", field_name="f"
+            )
+            == {}
+        )
+
+    def test_open_file_rejects_both_file_and_path(self) -> None:
+        with pytest.raises(ValueError, match="exactly one of"):
+            EntityDataService._open_file(file=b"x", file_path="some/path")
+
+    def test_open_file_rejects_neither_file_nor_path(self) -> None:
+        with pytest.raises(ValueError, match="exactly one of"):
+            EntityDataService._open_file(file=None, file_path=None)
+
+    def test_4xx_recovery_only_400_with_strict_shape(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        """5xx and 4xx other than 400 must propagate; 400 with valid shape recovers."""
+        entity_key = uuid.uuid4()
+        # 500 with the shape — must propagate, not be silently treated as success.
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            method="POST",
+            status_code=500,
+            json={"successRecords": [], "failureRecords": []},
+        )
+        from uipath.platform.errors._enriched_exception import EnrichedException
+
+        with pytest.raises(EnrichedException):
+            service.update_records(
+                entity_key=str(entity_key), records=[{"Id": "x", "name": "y"}]
+            )
+
+    def test_4xx_recovery_404_propagates(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        entity_key = uuid.uuid4()
+        # 404 with valid shape — still propagates because not a 400.
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            method="POST",
+            status_code=404,
+            json={"successRecords": [], "failureRecords": []},
+        )
+        from uipath.platform.errors._enriched_exception import EnrichedException
+
+        with pytest.raises(EnrichedException):
+            service.update_records(
+                entity_key=str(entity_key), records=[{"Id": "x", "name": "y"}]
+            )
+
+    def test_4xx_recovery_400_unrelated_body_propagates(
+        self, httpx_mock, service, base_url, org, tenant, version
+    ) -> None:
+        """A 400 with an error body that lacks ``successRecords``/``failureRecords``
+        must surface as an exception (so generic validation errors aren't masked)."""
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            method="POST",
+            status_code=400,
+            json={"error": "Validation failed", "code": "InvalidArg"},
+        )
+        from uipath.platform.errors._enriched_exception import EnrichedException
+
+        with pytest.raises(EnrichedException):
+            service.update_records(
+                entity_key=str(entity_key), records=[{"Id": "x", "name": "y"}]
+            )
+
+
+class TestEntitiesServiceAsyncCoverage:
+    """Async-variant tests for previously uncovered paths on schema / data services."""
+
+    async def test_retrieve_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_key}",
+            status_code=200,
+            json={
+                "name": "Customers",
+                "displayName": "Customers",
+                "entityType": "Entity",
+                "fields": [],
+                "isRbacEnabled": False,
+                "id": str(entity_key),
+            },
+        )
+        entity = await service.retrieve_async(entity_key=str(entity_key))
+        assert entity.id == str(entity_key)
+
+    def test_retrieve_by_name(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/Customers/metadata",
+            status_code=200,
+            json={
+                "name": "Customers",
+                "displayName": "Customers",
+                "entityType": "Entity",
+                "fields": [],
+                "isRbacEnabled": False,
+                "id": "ent-1",
+            },
+        )
+        entity = service.retrieve_by_name("Customers", folder_key="folder-1")
+        assert entity.name == "Customers"
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert sent.headers.get("X-UIPATH-FolderKey") == "folder-1"
+
+    async def test_retrieve_by_name_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/Orders/metadata",
+            status_code=200,
+            json={
+                "name": "Orders",
+                "displayName": "Orders",
+                "entityType": "Entity",
+                "fields": [],
+                "isRbacEnabled": False,
+                "id": "ent-2",
+            },
+        )
+        entity = await service.retrieve_by_name_async("Orders")
+        assert entity.name == "Orders"
+
+    def test_list_entities_basic(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            status_code=200,
+            json=[
+                {
+                    "name": "Customers",
+                    "displayName": "Customers",
+                    "entityType": "Entity",
+                    "fields": [],
+                    "isRbacEnabled": False,
+                    "id": "ent-1",
+                },
+                {
+                    "name": "Orders",
+                    "displayName": "Orders",
+                    "entityType": "Entity",
+                    "fields": [],
+                    "isRbacEnabled": False,
+                    "id": "ent-2",
+                },
+            ],
+        )
+        entities = service.list_entities()
+        assert len(entities) == 2
+
+    async def test_list_entities_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            status_code=200,
+            json=[
+                {
+                    "name": "Customers",
+                    "displayName": "Customers",
+                    "entityType": "Entity",
+                    "fields": [],
+                    "isRbacEnabled": False,
+                    "id": "ent-1",
+                }
+            ],
+        )
+        entities = await service.list_entities_async()
+        assert len(entities) == 1
+
+    async def test_list_records_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read.*"
+            ),
+            status_code=200,
+            json={
+                "totalRecordCount": 2,
+                "value": [{"Id": "1"}, {"Id": "2"}],
+            },
+        )
+        records = await service.list_records_async(
+            entity_key=str(entity_key), start=0, limit=10
+        )
+        assert records.total_count == 2
+
+    async def test_update_record_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update/rec-1",
+            method="POST",
+            status_code=200,
+            json={"Id": "rec-1", "name": "renamed"},
+        )
+        rec = await service.update_record_async(
+            entity_key=str(entity_key),
+            record_id="rec-1",
+            data={"name": "renamed"},
+        )
+        assert rec.id == "rec-1"
+
+    async def test_insert_records_async_batch(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert-batch.*"
+            ),
+            status_code=200,
+            json={
+                "successRecords": [{"Id": "1", "name": "a"}],
+                "failureRecords": [],
+            },
+        )
+        result = await service.insert_records_async(
+            entity_key=str(entity_key),
+            records=[{"name": "a"}],
+            expansion_level=1,
+            fail_on_first=True,
+        )
+        assert len(result.success_records) == 1
+
+    async def test_update_records_async_recovers_400_failures(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            method="POST",
+            status_code=400,
+            json={
+                "successRecords": [],
+                "failureRecords": [{"error": "not found"}],
+            },
+        )
+        result = await service.update_records_async(
+            entity_key=str(entity_key),
+            records=[{"Id": "missing", "name": "x"}],
+        )
+        assert result.failure_records[0].error == "not found"
+
+    async def test_delete_records_async_batch(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete-batch.*"
+            ),
+            status_code=200,
+            json={
+                "successRecords": [{"Id": "rec-1"}],
+                "failureRecords": [],
+            },
+        )
+        result = await service.delete_records_async(
+            entity_key=str(entity_key),
+            record_ids=["rec-1"],
+            fail_on_first=False,
+        )
+        assert len(result.success_records) == 1
+
+    async def test_import_records_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/ent-1/bulk-upload",
+            method="POST",
+            status_code=200,
+            json={
+                "totalRecords": 3,
+                "insertedRecords": 3,
+                "errorFileLink": None,
+            },
+        )
+        result = await service.import_records_async(
+            entity_id="ent-1", file=b"a,b\n1,2\n"
+        )
+        assert result.inserted_records == 3
+
+    def test_validate_entity_batch_handles_success_and_failure_records(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {
+            "successRecords": [{"Id": "ok-1", "name": "first"}],
+            "failureRecords": [{"error": "duplicate", "record": {"name": "dup"}}],
+        }
+        result = service.validate_entity_batch(response)
+        assert len(result.success_records) == 1
+        assert result.success_records[0].id == "ok-1"
+        assert result.failure_records[0].error == "duplicate"
+
+    def test_5xx_with_batch_shape_still_propagates(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """500 with successRecords/failureRecords shape must NOT be recovered."""
+        from uipath.platform.errors._enriched_exception import EnrichedException
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert-batch",
+            method="POST",
+            status_code=500,
+            json={"successRecords": [], "failureRecords": []},
+        )
+        with pytest.raises(EnrichedException):
+            service.insert_records(
+                entity_key=str(entity_key),
+                records=[{"name": "x"}],
+            )
