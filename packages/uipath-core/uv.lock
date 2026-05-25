@@ -2,6 +2,10 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 
+[options]
+exclude-newer = "2026-05-20T15:11:06.1716446Z"
+exclude-newer-span = "P2D"
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -1007,7 +1011,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.15"
+version = "0.5.16"
 source = { editable = "." }
 dependencies = [
     { name = "opentelemetry-instrumentation" },

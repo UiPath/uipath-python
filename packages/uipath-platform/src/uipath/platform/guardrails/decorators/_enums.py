@@ -19,8 +19,27 @@ class GuardrailExecutionStage(str, Enum):
 class PIIDetectionEntityType(str, Enum):
     """PII detection entity types supported by UiPath guardrails.
 
-    These entities match the available options from the UiPath guardrails service
-    backend. The enum values correspond to the exact strings expected by the API.
+    | Value |
+    |---|
+    | `PERSON` |
+    | `ADDRESS` |
+    | `DATE` |
+    | `PHONE_NUMBER` |
+    | `EUGPS_COORDINATES` |
+    | `EMAIL` |
+    | `CREDIT_CARD_NUMBER` |
+    | `INTERNATIONAL_BANKING_ACCOUNT_NUMBER` |
+    | `SWIFT_CODE` |
+    | `ABA_ROUTING_NUMBER` |
+    | `US_DRIVERS_LICENSE_NUMBER` |
+    | `UK_DRIVERS_LICENSE_NUMBER` |
+    | `US_INDIVIDUAL_TAXPAYER_IDENTIFICATION` |
+    | `UK_UNIQUE_TAXPAYER_NUMBER` |
+    | `US_BANK_ACCOUNT_NUMBER` |
+    | `US_SOCIAL_SECURITY_NUMBER` |
+    | `USUK_PASSPORT_NUMBER` |
+    | `URL` |
+    | `IP_ADDRESS` |
     """
 
     PERSON = "Person"
@@ -47,7 +66,12 @@ class PIIDetectionEntityType(str, Enum):
 class HarmfulContentEntityType(str, Enum):
     """Harmful content entity types supported by UiPath guardrails.
 
-    These entities correspond to the Azure Content Safety categories.
+    | Value |
+    |---|
+    | `HATE` |
+    | `SELF_HARM` |
+    | `SEXUAL` |
+    | `VIOLENCE` |
     """
 
     HATE = "Hate"
@@ -57,7 +81,13 @@ class HarmfulContentEntityType(str, Enum):
 
 
 class IntellectualPropertyEntityType(str, Enum):
-    """Intellectual property entity types supported by UiPath guardrails."""
+    """Intellectual property entity types supported by UiPath guardrails.
+
+    | Value |
+    |---|
+    | `TEXT` |
+    | `CODE` |
+    """
 
     TEXT = "Text"
     CODE = "Code"

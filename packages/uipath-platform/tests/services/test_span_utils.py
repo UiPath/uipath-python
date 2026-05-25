@@ -10,6 +10,162 @@ from opentelemetry.trace import SpanContext, StatusCode
 from uipath.platform.common import UiPathSpan, _SpanUtils
 
 
+class TestOTelToUiPathSpan:
+    """OTEL attribute -> top-level UiPathSpan field mapping.
+
+    `_SpanUtils.otel_span_to_uipath_span` lifts a small set of OTEL
+    span attributes onto dedicated `UiPathSpan` fields surfaced under
+    `to_dict()`. This test documents that mapping — adding a new row
+    means the attribute is newly mapped, removing one breaks
+    downstream consumers.
+    """
+
+    ATTRIBUTE_FIELD_MAP = [
+        ("executionType", "execution_type", "ExecutionType", 1),
+        ("agentVersion", "agent_version", "AgentVersion", "1.2.3"),
+        ("agentId", "reference_id", "ReferenceId", "ref-abc"),
+        ("verbosityLevel", "verbosity_level", "VerbosityLevel", 6),
+    ]
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_attributes_map_to_top_level_fields(self) -> None:
+        attrs = {
+            otel_attr: value for otel_attr, _, _, value in self.ATTRIBUTE_FIELD_MAP
+        }
+
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = attrs
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        for _, span_field, top_level_key, value in self.ATTRIBUTE_FIELD_MAP:
+            assert getattr(uipath_span, span_field) == value, span_field
+            assert span_dict[top_level_key] == value, top_level_key
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_level_omitted_when_unset(self) -> None:
+        """Spans that don't set verbosityLevel must not carry the key on the wire.
+
+        Backwards compat: pre-existing spans never emitted VerbosityLevel; the
+        LLMOps backend applies its own default. Adding `"VerbosityLevel": null`
+        unconditionally would change the wire format for every existing span.
+        """
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "legacy-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {"someOtherAttr": "value"}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        assert uipath_span.verbosity_level is None
+        assert "VerbosityLevel" not in span_dict
+
+
+class TestReferenceIdResolution:
+    """`reference_id` resolution chain.
+
+    Priority: `UIPATH_AGENT_ID` env var > `agentId` attribute > `referenceId`
+    attribute. Falsy values (missing / empty string) at each step fall through
+    to the next source. The `referenceId` fallback exists for backwards
+    compatibility with older producers that only emit that attribute.
+    """
+
+    @pytest.mark.parametrize(
+        ("env_value", "attributes", "expected"),
+        [
+            pytest.param(
+                "env-agent",
+                {"agentId": "attr-agent", "referenceId": "attr-ref"},
+                "env-agent",
+                id="env-var-wins",
+            ),
+            pytest.param(
+                None,
+                {"agentId": "attr-agent", "referenceId": "attr-ref"},
+                "attr-agent",
+                id="agent-id-attr-when-env-unset",
+            ),
+            pytest.param(
+                None,
+                {"referenceId": "attr-ref"},
+                "attr-ref",
+                id="reference-id-fallback-when-agent-id-missing",
+            ),
+            pytest.param(
+                None,
+                {"agentId": "", "referenceId": "attr-ref"},
+                "attr-ref",
+                id="reference-id-fallback-when-agent-id-empty",
+            ),
+            pytest.param(
+                None,
+                {},
+                None,
+                id="none-when-all-sources-missing",
+            ),
+        ],
+    )
+    def test_reference_id_chain(
+        self,
+        env_value: str | None,
+        attributes: dict[str, object],
+        expected: str | None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        if env_value is None:
+            monkeypatch.delenv("UIPATH_AGENT_ID", raising=False)
+        else:
+            monkeypatch.setenv("UIPATH_AGENT_ID", env_value)
+
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = attributes
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        assert uipath_span.reference_id == expected
+
+
 class TestNormalizeIds:
     """Tests for OTEL ID normalization functions."""
 
@@ -363,8 +519,8 @@ class TestSpanUtils:
         assert span_dict["AgentVersion"] is None
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
-    def test_uipath_span_source_defaults_to_robots(self):
-        """Test that Source defaults to 4 (Robots) and ignores attributes.source."""
+    def test_uipath_span_source_defaults_to_coded_agents(self):
+        """Test that Source defaults to 10 (CodedAgents) and ignores attributes.source."""
         mock_span = Mock(spec=OTelSpan)
 
         trace_id = 0x123456789ABCDEF0123456789ABCDEF0
@@ -387,9 +543,9 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        # Top-level Source should be 4 (Robots), string "runtime" is ignored
-        assert uipath_span.source == 4
-        assert span_dict["Source"] == 4
+        # Top-level Source should be 10 (CodedAgents), string "runtime" is ignored
+        assert uipath_span.source == 10
+        assert span_dict["Source"] == 10
 
         # attributes.source string should still be in Attributes JSON
         attrs = json.loads(span_dict["Attributes"])
@@ -408,7 +564,7 @@ class TestSpanUtils:
         mock_span.name = "test-span"
         mock_span.parent = None
         mock_span.status.status_code = StatusCode.OK
-        # uipath.source=1 (Agents) overrides default of 4 (Robots)
+        # uipath.source=1 (Agents) overrides default of 10 (CodedAgents)
         mock_span.attributes = {"uipath.source": 1, "source": "runtime"}
         mock_span.events = []
         mock_span.links = []

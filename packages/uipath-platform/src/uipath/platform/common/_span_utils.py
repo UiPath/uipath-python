@@ -15,8 +15,8 @@ from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
-# SourceEnum.Robots = 4 (default for Python SDK / coded agents)
-DEFAULT_SOURCE = 4
+# SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
+DEFAULT_SOURCE = 10
 
 
 class AttachmentProvider(IntEnum):
@@ -27,6 +27,16 @@ class AttachmentDirection(IntEnum):
     NONE = 0
     IN = 1
     OUT = 2
+
+
+class VerbosityLevel(IntEnum):
+    VERBOSE = 0
+    TRACE = 1
+    INFORMATION = 2
+    WARNING = 3
+    ERROR = 4
+    CRITICAL = 5
+    OFF = 6
 
 
 class SpanAttachment(BaseModel):
@@ -87,6 +97,7 @@ class UiPathSpan:
     # Top-level fields for internal tracing schema
     execution_type: Optional[int] = None
     agent_version: Optional[str] = None
+    verbosity_level: Optional[int] = None
     attachments: Optional[List[SpanAttachment]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
@@ -114,7 +125,7 @@ class UiPathSpan:
                 for att in self.attachments
             ]
 
-        return {
+        result: Dict[str, Any] = {
             "Id": self.id,
             "TraceId": self.trace_id,
             "ParentId": self.parent_id,
@@ -138,6 +149,9 @@ class UiPathSpan:
             "AgentVersion": self.agent_version,
             "Attachments": attachments_out,
         }
+        if self.verbosity_level is not None:
+            result["VerbosityLevel"] = self.verbosity_level
+        return result
 
 
 class _SpanUtils:
@@ -283,7 +297,12 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = attributes_dict.get("referenceId")
+        reference_id = (
+            env.get("UIPATH_AGENT_ID")
+            or attributes_dict.get("agentId")
+            or attributes_dict.get("referenceId")
+        )
+        verbosity_level = attributes_dict.get("verbosityLevel")
 
         # Source: override via uipath.source attribute, else DEFAULT_SOURCE
         uipath_source = attributes_dict.get("uipath.source")
@@ -334,6 +353,7 @@ class _SpanUtils:
             span_type=span_type,
             execution_type=execution_type,
             agent_version=agent_version,
+            verbosity_level=verbosity_level,
             reference_id=reference_id,
             source=source,
             attachments=attachments,

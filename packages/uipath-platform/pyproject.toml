@@ -1,6 +1,6 @@
 [project]
 name = "uipath-platform"
-version = "0.1.49"
+version = "0.1.57"
 description = "HTTP client library for programmatic access to UiPath Platform"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -125,6 +125,12 @@ exclude_lines = [
   "if TYPE_CHECKING:",
   "@(abc\\.)?abstractmethod",
 ]
+
+[tool.uv]
+exclude-newer = "2 days"
+
+[tool.uv.exclude-newer-package]
+uipath-core = false
 
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }

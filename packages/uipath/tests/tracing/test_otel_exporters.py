@@ -54,7 +54,7 @@ def exporter(mock_env_vars):
         exporter = LlmOpsHttpExporter()
         # Mock _build_url to include query parameters as in the actual implementation
         exporter._build_url = MagicMock(  # type: ignore
-            return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=Robots"
+            return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=CodedAgents"
         )
         yield exporter
 
@@ -107,7 +107,7 @@ def test_export_success(exporter, mock_span):
             [{"span": "data", "TraceId": "test-trace-id"}]
         )
         exporter.http_client.post.assert_called_once_with(
-            "https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=Robots",
+            "https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=CodedAgents",
             json=[{"span": "data", "TraceId": "test-trace-id"}],
         )
 
@@ -685,7 +685,7 @@ class TestUpsertSpan:
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
             exporter._build_url = MagicMock(  # type: ignore
-                return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=Robots"
+                return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=CodedAgents"
             )
             yield exporter
 
@@ -808,6 +808,19 @@ class TestNilUuidProcessKey:
     def test_none_stays_none(self, mock_env_vars, mock_span):
         payload = self._export_with_process_key(mock_env_vars, mock_span, None)
         assert payload["ProcessKey"] is None
+
+
+class TestVerbosityLevelReexport:
+    """VerbosityLevel from uipath-platform is re-exported via uipath.tracing."""
+
+    def test_uipath_tracing_reexports_verbosity_level(self) -> None:
+        from uipath.platform.common._span_utils import (
+            VerbosityLevel as _CommonVerbosity,
+        )
+        from uipath.tracing import VerbosityLevel as _TracingVerbosity
+
+        assert _TracingVerbosity is _CommonVerbosity
+        assert _TracingVerbosity.OFF == 6
 
 
 if __name__ == "__main__":

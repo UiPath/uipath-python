@@ -2,6 +2,15 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 
+[options]
+exclude-newer = "2026-05-20T15:14:33.9075119Z"
+exclude-newer-span = "P2D"
+
+[options.exclude-newer-package]
+uipath-runtime = false
+uipath-platform = false
+uipath-core = false
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -2543,7 +2552,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.10.63"
+version = "2.10.70"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2650,7 +2659,7 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.15"
+version = "0.5.16"
 source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -2682,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.49"
+version = "0.1.57"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },

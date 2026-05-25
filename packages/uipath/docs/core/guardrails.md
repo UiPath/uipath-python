@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are safeguards applied before and/or after execution to inspect inputs and outputs for policy violations — PII, harmful content, prompt injection, intellectual property, and custom rules — and respond by logging, blocking, or modifying the data.
+Guardrails are safeguards applied before and/or after execution to inspect inputs and outputs for policy violations — PII, harmful content, prompt attacks, intellectual property, and custom rules — and respond by logging, blocking, or modifying the data.
 
 They can be applied at three scopes:
 
@@ -44,9 +44,11 @@ When using LangChain's `@tool`, `@guardrail` must be placed **above** `@tool`:
 from langchain_core.tools import tool
 
 @guardrail(
-    validator=PromptInjectionValidator(threshold=0.5),
+    validator=PIIValidator(
+        entities=[PIIDetectionEntity(PIIDetectionEntityType.EMAIL, threshold=0.5)]
+    ),
     action=BlockAction(),
-    name="No prompt injection",
+    name="No PII in tool input",
     stage=GuardrailExecutionStage.PRE,
 )
 @tool  # @guardrail wraps the already-decorated tool object
@@ -58,9 +60,9 @@ def analyze_joke(joke: str) -> str:
 
 ```python
 @guardrail(
-    validator=PromptInjectionValidator(threshold=0.5),
+    validator=UserPromptAttacksValidator(),
     action=BlockAction(),
-    name="LLM Prompt Injection Detection",
+    name="LLM User Prompt Attacks Detection",
     stage=GuardrailExecutionStage.PRE,
 )
 def create_llm():
@@ -92,7 +94,7 @@ The `stage` parameter controls when the guardrail evaluates. Not all validators 
 | Stage | When evaluated | Supported by |
 |-------|---------------|--------------|
 | `PRE` | Before the function runs | All validators |
-| `POST` | After the function runs | All except `PromptInjectionValidator`, `UserPromptAttacksValidator` |
+| `POST` | After the function runs | All except `UserPromptAttacksValidator` |
 | `PRE_AND_POST` | Both before and after | `PIIValidator`, `HarmfulContentValidator`, `CustomValidator` |
 
 ## Built-in Validators
@@ -153,28 +155,6 @@ from uipath.platform.guardrails import (
     name="Safe content only",
 )
 def generate_response(prompt: str) -> str:
-    ...
-```
-
-### Prompt Injection
-
-Detects prompt injection attacks in user input. Restricted to `PRE` stage only — this is an input concern.
-
-```python
-from uipath.platform.guardrails import (
-    BlockAction,
-    GuardrailExecutionStage,
-    PromptInjectionValidator,
-    guardrail,
-)
-
-@guardrail(
-    validator=PromptInjectionValidator(threshold=0.5),
-    action=BlockAction(),
-    name="No prompt injection",
-    stage=GuardrailExecutionStage.PRE,
-)
-def run_agent_step(user_input: str) -> str:
     ...
 ```
 
@@ -337,9 +317,9 @@ Multiple `@guardrail` decorators can be stacked on the same function. Each is ev
 
 ```python
 @guardrail(
-    validator=PromptInjectionValidator(),
+    validator=UserPromptAttacksValidator(),
     action=BlockAction(),
-    name="No injection",
+    name="No prompt attacks",
     stage=GuardrailExecutionStage.PRE,
 )
 @guardrail(
@@ -447,11 +427,6 @@ print(result.result, result.reason)
     options:
       members:
         - HarmfulContentValidator
-
-::: uipath.platform.guardrails.decorators.validators.prompt_injection
-    options:
-      members:
-        - PromptInjectionValidator
 
 ::: uipath.platform.guardrails.decorators.validators.intellectual_property
     options:

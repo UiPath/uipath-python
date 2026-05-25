@@ -3558,6 +3558,75 @@ class TestAgentBuilderConfigResources:
         assert isinstance(tool_resource, AgentProcessToolResourceConfig)
         assert tool_resource.output_schema == {"type": "object", "properties": {}}
 
+    def test_flow_tool_type_enum_value(self):
+        """AgentToolType.FLOW exists with the wire value 'Flow' and is case-insensitive."""
+        assert AgentToolType.FLOW.value == "Flow"
+        assert AgentToolType("flow") is AgentToolType.FLOW
+        assert AgentToolType("FLOW") is AgentToolType.FLOW
+
+    def test_flow_tool_resource_deserialization(self):
+        """A resource with type='Flow' is parsed as AgentProcessToolResourceConfig."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "Flow",
+                "id": "flow-tool-1",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                },
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFlow",
+                    "folderPath": "/Shared/Flows",
+                },
+                "name": "Flow Tool",
+                "description": "Test Flow tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FLOW
+        assert tool_resource.properties.process_name == "MyFlow"
+        assert tool_resource.properties.folder_path == "/Shared/Flows"
+
+    def test_flow_tool_resource_case_insensitive(self):
+        """A resource with lowercase type='flow' also deserializes via CaseInsensitiveEnum."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "flow",
+                "id": "flow-tool-2",
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFlow",
+                    "folderPath": "/Shared/Flows",
+                },
+                "name": "Flow Tool",
+                "description": "Test Flow tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FLOW
+
     def test_escalation_missing_escalation_type_defaults_to_zero(self):
         """Test that missing escalationType defaults to 0."""
         resources = [
