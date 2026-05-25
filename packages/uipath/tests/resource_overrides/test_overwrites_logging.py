@@ -29,6 +29,43 @@ _VALID_OVERWRITES = {
 }
 
 
+_TARGET_LOGGERS = (
+    "uipath._cli._utils._common",
+    "uipath._cli._utils._studio_project",
+)
+
+
+@pytest.fixture(autouse=True)
+def _capture_uipath_loggers(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Attach caplog's handler directly to the target module loggers.
+
+    Earlier tests in the suite — chiefly anything that invokes the Click CLI
+    — call ``setup_logging`` and leave the ``uipath`` logger with
+    ``propagate = False``. That breaks the usual caplog flow (handler on
+    root, records reach it via propagation). Some intermediate loggers can
+    also end up with ``propagate = False`` from other test setups. Attaching
+    the handler directly to each module logger we assert against, and
+    forcing the level to DEBUG for the duration of the test, side-steps the
+    propagation question entirely.
+    """
+    snapshots: list[tuple[logging.Logger, int, bool]] = []
+    for name in _TARGET_LOGGERS:
+        logger = logging.getLogger(name)
+        snapshots.append((logger, logger.level, logger.propagate))
+        logger.setLevel(logging.DEBUG)
+        logger.propagate = True
+        logger.addHandler(caplog.handler)
+    try:
+        yield
+    finally:
+        for logger, level, propagate in snapshots:
+            logger.removeHandler(caplog.handler)
+            logger.setLevel(level)
+            logger.propagate = propagate
+
+
 def _write_uipath_json(directory: Path, overwrites: dict) -> Path:
     config_path = directory / "uipath.json"
     config_path.write_text(
