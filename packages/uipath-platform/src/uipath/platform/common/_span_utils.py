@@ -4,8 +4,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import IntEnum
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from os import environ as env
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
+
 
 class SpanStatus(StrEnum):
     UNSET = "Unset"
@@ -339,14 +339,14 @@ class _SpanUtils:
         span_type = str(span_type_value)
 
         # Top-level fields for internal tracing schema
-        execution_type = attributes_dict.get("executionType")
+        execution_type = attributes_dict.get("executionType")  # Task 2: use _EXECUTION_TYPE_BY_INT
         agent_version = attributes_dict.get("agentVersion")
         reference_id = (
             env.get("UIPATH_AGENT_ID")
             or attributes_dict.get("agentId")
             or attributes_dict.get("referenceId")
         )
-        verbosity_level = attributes_dict.get("verbosityLevel")
+        verbosity_level = attributes_dict.get("verbosityLevel")  # Task 2: use _VERBOSITY_LEVEL_BY_INT
 
         # Source: override via uipath.source attribute, else 10 (CodedAgents)
         uipath_source = attributes_dict.get("uipath.source")
