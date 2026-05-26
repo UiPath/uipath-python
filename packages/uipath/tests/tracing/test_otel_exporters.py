@@ -7,10 +7,8 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
-from uipath.tracing._otel_exporters import (
-    LlmOpsHttpExporter,
-    SpanStatus,
-)
+from uipath.platform.common._span_utils import SpanStatus
+from uipath.tracing._otel_exporters import LlmOpsHttpExporter
 
 
 @pytest.fixture
@@ -54,7 +52,7 @@ def exporter(mock_env_vars):
         exporter = LlmOpsHttpExporter()
         # Mock _build_url to include query parameters as in the actual implementation
         exporter._build_url = MagicMock(  # type: ignore
-            return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=CodedAgents"
+            return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/v3/spans?traceId=test-trace-id&source=CodedAgents"
         )
         yield exporter
 
@@ -107,7 +105,7 @@ def test_export_success(exporter, mock_span):
             [{"span": "data", "TraceId": "test-trace-id"}]
         )
         exporter.http_client.post.assert_called_once_with(
-            "https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=CodedAgents",
+            "https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/v3/spans?traceId=test-trace-id&source=CodedAgents",
             json=[{"span": "data", "TraceId": "test-trace-id"}],
         )
 
@@ -275,6 +273,38 @@ def test_send_with_retries_success():
         exporter.http_client.post.assert_called_once_with(  # type: ignore
             "http://example.com", json=[{"span": "data"}]
         )
+
+
+def test_build_url_uses_v3_endpoint(mock_env_vars):
+    """_build_url must point to /api/Traces/v3/spans, not /api/Traces/spans."""
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    span_list = [{"TraceId": "ab" * 16}]
+    url = exporter._build_url(span_list)
+    assert "/api/Traces/v3/spans" in url
+    # Ensure the v2 path (without /v3/) is not present
+    assert "/api/Traces/spans" not in url.replace("/api/Traces/v3/spans", "")
+
+
+def test_determine_status_ok_returns_string(mock_env_vars):
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    assert exporter._determine_status(None) == "Ok"
+    assert exporter._determine_status(None) == SpanStatus.OK
+
+
+def test_determine_status_error_returns_string(mock_env_vars):
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    assert exporter._determine_status("some error") == "Error"
+    assert exporter._determine_status("some error") == SpanStatus.ERROR
+
+
+def test_determine_status_graph_interrupt_returns_cancelled(mock_env_vars):
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    assert exporter._determine_status("GraphInterrupt()") == "Cancelled"
+    assert exporter._determine_status("GraphInterrupt()") == SpanStatus.CANCELLED
 
 
 class TestLangchainExporter(unittest.TestCase):
@@ -820,7 +850,7 @@ class TestVerbosityLevelReexport:
         from uipath.tracing import VerbosityLevel as _TracingVerbosity
 
         assert _TracingVerbosity is _CommonVerbosity
-        assert _TracingVerbosity.OFF == 6
+        assert _TracingVerbosity.OFF == "Off"
 
 
 if __name__ == "__main__":

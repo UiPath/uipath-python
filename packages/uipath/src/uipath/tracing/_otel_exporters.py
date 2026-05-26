@@ -13,6 +13,7 @@ from opentelemetry.sdk.trace.export import (
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
+from uipath.platform.common._span_utils import SpanStatus
 from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
 
 logger = logging.getLogger(__name__)
@@ -22,17 +23,6 @@ _NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
 def _normalize_process_key(value: Optional[str]) -> Optional[str]:
     return None if not value or value == _NIL_UUID else value
-
-
-class SpanStatus:
-    """Span status values matching LLMOps StatusEnum."""
-
-    UNSET = 0
-    OK = 1
-    ERROR = 2
-    RUNNING = 3
-    RESTRICTED = 4
-    CANCELLED = 5
 
 
 def _safe_parse_json(s: Any) -> Any:
@@ -106,11 +96,6 @@ class LlmOpsHttpExporter(SpanExporter):
         # Add more mappings as needed
     }
 
-    class Status:
-        SUCCESS = 1
-        ERROR = 2
-        INTERRUPTED = 3
-
     def __init__(
         self,
         trace_id: Optional[str] = None,
@@ -148,7 +133,7 @@ class LlmOpsHttpExporter(SpanExporter):
             return SpanExportResult.SUCCESS
 
         logger.debug(
-            f"Exporting {len(spans)} spans to {self.base_url}/api/Traces/spans"
+            f"Exporting {len(spans)} spans to {self.base_url}/api/Traces/v3/spans"
         )
 
         # Use optimized path: keep attributes as dict for processing
@@ -188,7 +173,7 @@ class LlmOpsHttpExporter(SpanExporter):
     def upsert_span(
         self,
         span: ReadableSpan,
-        status_override: Optional[int] = None,
+        status_override: Optional[SpanStatus] = None,
     ) -> SpanExportResult:
         """Upsert a single span to LLMOps for real-time state updates.
 
@@ -312,12 +297,12 @@ class LlmOpsHttpExporter(SpanExporter):
 
         return result
 
-    def _determine_status(self, error: Optional[Any]) -> int:
+    def _determine_status(self, error: Optional[Any]) -> SpanStatus:
         if error:
             if isinstance(error, str) and error.startswith("GraphInterrupt("):
-                return self.Status.INTERRUPTED
-            return self.Status.ERROR
-        return self.Status.SUCCESS
+                return SpanStatus.CANCELLED
+            return SpanStatus.ERROR
+        return SpanStatus.OK
 
     def _process_span_attributes(self, span_data: Dict[str, Any]) -> None:
         """Extracts, transforms, and maps attributes for a span in-place.
@@ -389,7 +374,7 @@ class LlmOpsHttpExporter(SpanExporter):
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
         """Construct the URL for the API request."""
         trace_id = str(span_list[0]["TraceId"])
-        return f"{self.base_url}/api/Traces/spans?traceId={trace_id}&source=CodedAgents"
+        return f"{self.base_url}/api/Traces/v3/spans?traceId={trace_id}&source=CodedAgents"
 
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
