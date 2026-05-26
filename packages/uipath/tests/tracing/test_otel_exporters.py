@@ -715,7 +715,7 @@ class TestUpsertSpan:
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
             exporter._build_url = MagicMock(  # type: ignore
-                return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/spans?traceId=test-trace-id&source=CodedAgents"
+                return_value="https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/v3/spans?traceId=test-trace-id&source=CodedAgents"
             )
             yield exporter
 
