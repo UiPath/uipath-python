@@ -1,0 +1,11 @@
+{
+  "question": "What is the standard refund handling policy for premium customers?",
+  "memory_space_id": null,
+  "memory_space_name": "support-agent-memory",
+  "folder_path": "Shared",
+  "result_count": 3,
+  "threshold": 0,
+  "search_mode": "Hybrid",
+  "create_if_missing": false,
+  "generate_answer": true
+}
