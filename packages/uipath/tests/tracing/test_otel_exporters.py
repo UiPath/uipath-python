@@ -853,5 +853,84 @@ class TestVerbosityLevelReexport:
         assert _TracingVerbosity.OFF == "Off"
 
 
+class TestV3EndToEnd:
+    """Integration-style tests verifying string enum values reach the v3 URL end-to-end."""
+
+    def _make_real_otel_span(self, status_code=None):
+        """Build a minimal mock OTel ReadableSpan with a real SpanContext."""
+        from datetime import datetime
+        from unittest.mock import Mock
+
+        from opentelemetry.trace import SpanContext, StatusCode
+
+        if status_code is None:
+            status_code = StatusCode.OK
+
+        mock_span = Mock(spec=ReadableSpan)
+        mock_context = SpanContext(
+            trace_id=0xABCDEF1234567890ABCDEF1234567890,
+            span_id=0x1234567890ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-v3-span"
+        mock_span.parent = None
+        mock_span.status.status_code = status_code
+        mock_span.status.description = None
+        mock_span.attributes = {"uipath.custom_instrumentation": True}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+        return mock_span
+
+    def test_export_posts_to_v3_url_with_string_enums(self, mock_env_vars):
+        """Exporting a span must POST to /api/Traces/v3/spans with string Status and Source."""
+        from opentelemetry.trace import StatusCode
+
+        otel_span = self._make_real_otel_span(status_code=StatusCode.OK)
+
+        with patch("uipath.tracing._otel_exporters.httpx.Client") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client_cls.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_client.post.return_value = mock_response
+
+            exporter = LlmOpsHttpExporter()
+            result = exporter.export([otel_span])
+
+        assert result == SpanExportResult.SUCCESS
+
+        # Verify the POST was made
+        mock_client.post.assert_called_once()
+        call_args = mock_client.post.call_args
+
+        # URL must contain v3/spans
+        posted_url = (
+            call_args.args[0] if call_args.args else call_args.kwargs.get("url", "")
+        )
+        assert "v3/spans" in posted_url, f"Expected v3/spans in URL, got: {posted_url}"
+
+        # Body must contain string enum values, not integers
+        payload: list = call_args.kwargs.get("json") or call_args.args[1]
+        assert len(payload) == 1
+        span_payload = payload[0]
+
+        # Status should be the string "Ok", not integer 1
+        assert span_payload["Status"] == "Ok", (
+            f"Expected Status='Ok' (string), got {span_payload['Status']!r}"
+        )
+        assert span_payload["Status"] != 1, "Status must not be integer 1 (v2 format)"
+
+        # Source should be the string "CodedAgents", not integer 10
+        assert span_payload["Source"] == "CodedAgents", (
+            f"Expected Source='CodedAgents' (string), got {span_payload['Source']!r}"
+        )
+        assert span_payload["Source"] != 10, "Source must not be integer 10 (v2 format)"
+
+
 if __name__ == "__main__":
     unittest.main()

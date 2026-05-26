@@ -73,7 +73,8 @@ class TestOTelToUiPathSpan:
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_attributes_map_to_top_level_fields(self) -> None:
         attrs = {
-            otel_attr: otel_input for otel_attr, _, _, otel_input, _ in self.ATTRIBUTE_FIELD_MAP
+            otel_attr: otel_input
+            for otel_attr, _, _, otel_input, _ in self.ATTRIBUTE_FIELD_MAP
         }
 
         mock_span = Mock(spec=OTelSpan)
@@ -96,7 +97,13 @@ class TestOTelToUiPathSpan:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        for _, span_field, top_level_key, _, expected_output in self.ATTRIBUTE_FIELD_MAP:
+        for (
+            _,
+            span_field,
+            top_level_key,
+            _,
+            expected_output,
+        ) in self.ATTRIBUTE_FIELD_MAP:
             assert getattr(uipath_span, span_field) == expected_output, span_field
             assert span_dict[top_level_key] == expected_output, top_level_key
 
@@ -676,6 +683,7 @@ class TestOtelSpanConversionUsesStrEnums:
     def _make_mock_span(self, status_code=StatusCode.OK, attributes=None):
         from datetime import datetime
         from unittest.mock import Mock
+
         from opentelemetry.trace import SpanContext
 
         mock_span = Mock()
