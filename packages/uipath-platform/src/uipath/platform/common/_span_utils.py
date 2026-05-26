@@ -114,7 +114,7 @@ class UiPathSpan:
     parent_id: Optional[str] = None  # 16-char hex (OTEL span ID format)
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
     end_time: str = field(default_factory=lambda: datetime.now().isoformat())
-    status: int = 1
+    status: SpanStatus = SpanStatus.OK
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     organization_id: Optional[str] = field(
@@ -127,7 +127,7 @@ class UiPathSpan:
     folder_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
-    source: int = 10  # 10 = CodedAgents; Task 2 will change this to SpanSource.CODED_AGENTS
+    source: SpanSource = SpanSource.CODED_AGENTS
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
@@ -139,9 +139,9 @@ class UiPathSpan:
     job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
 
     # Top-level fields for internal tracing schema
-    execution_type: Optional[int] = None
+    execution_type: Optional[ExecutionType] = None
     agent_version: Optional[str] = None
-    verbosity_level: Optional[int] = None
+    verbosity_level: Optional[VerbosityLevel] = None
     attachments: Optional[List[SpanAttachment]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
@@ -272,9 +272,9 @@ class _SpanUtils:
         attributes_dict: dict[str, Any] = dict(otel_attrs) if otel_attrs else {}
 
         # Map status
-        status = 1  # Default to OK
+        status = SpanStatus.OK
         if otel_span.status.status_code == StatusCode.ERROR:
-            status = 2  # Error
+            status = SpanStatus.ERROR
             attributes_dict["error"] = otel_span.status.description
 
         # Process inputs - avoid redundant parsing if already parsed
@@ -339,18 +339,32 @@ class _SpanUtils:
         span_type = str(span_type_value)
 
         # Top-level fields for internal tracing schema
-        execution_type = attributes_dict.get("executionType")  # Task 2: use _EXECUTION_TYPE_BY_INT
+        execution_type_raw = attributes_dict.get("executionType")
+        execution_type: Optional[ExecutionType] = (
+            _EXECUTION_TYPE_BY_INT.get(execution_type_raw)
+            if isinstance(execution_type_raw, int)
+            else None
+        )
         agent_version = attributes_dict.get("agentVersion")
         reference_id = (
             env.get("UIPATH_AGENT_ID")
             or attributes_dict.get("agentId")
             or attributes_dict.get("referenceId")
         )
-        verbosity_level = attributes_dict.get("verbosityLevel")  # Task 2: use _VERBOSITY_LEVEL_BY_INT
+        verbosity_level_raw = attributes_dict.get("verbosityLevel")
+        verbosity_level: Optional[VerbosityLevel] = (
+            _VERBOSITY_LEVEL_BY_INT.get(verbosity_level_raw)
+            if isinstance(verbosity_level_raw, int)
+            else None
+        )
 
-        # Source: override via uipath.source attribute, else 10 (CodedAgents)
-        uipath_source = attributes_dict.get("uipath.source")
-        source = uipath_source if isinstance(uipath_source, int) else 10
+        # Source: override via uipath.source attribute, else CodedAgents
+        uipath_source_raw = attributes_dict.get("uipath.source")
+        source: SpanSource = (
+            _SOURCE_BY_INT.get(uipath_source_raw, SpanSource.CODED_AGENTS)
+            if isinstance(uipath_source_raw, int)
+            else SpanSource.CODED_AGENTS
+        )
 
         attachments = None
         attachments_data = attributes_dict.get("attachments")
