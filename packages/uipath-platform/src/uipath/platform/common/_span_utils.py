@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
+from enum import StrEnum
 from os import environ as env
 from typing import Any, Dict, List, Optional
 
@@ -15,8 +16,61 @@ from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
-# SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
-DEFAULT_SOURCE = 10
+class SpanStatus(StrEnum):
+    UNSET = "Unset"
+    OK = "Ok"
+    ERROR = "Error"
+    RUNNING = "Running"
+    RESTRICTED = "Restricted"
+    CANCELLED = "Cancelled"
+
+
+class SpanSource(StrEnum):
+    AGENTS = "Agents"
+    PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    API_WORKFLOWS = "ApiWorkflows"
+    ROBOTS = "Robots"
+    CODED_AGENTS = "CodedAgents"
+
+
+class VerbosityLevel(StrEnum):
+    VERBOSE = "Verbose"
+    TRACE = "Trace"
+    INFORMATION = "Information"
+    WARNING = "Warning"
+    ERROR = "Error"
+    CRITICAL = "Critical"
+    OFF = "Off"
+
+
+class ExecutionType(StrEnum):
+    DEBUG = "Debug"
+    RUNTIME = "Runtime"
+
+
+# Int→StrEnum lookup tables for converting raw OTEL attribute integers
+_EXECUTION_TYPE_BY_INT: dict[int, ExecutionType] = {
+    0: ExecutionType.DEBUG,
+    1: ExecutionType.RUNTIME,
+}
+
+_VERBOSITY_LEVEL_BY_INT: dict[int, VerbosityLevel] = {
+    0: VerbosityLevel.VERBOSE,
+    1: VerbosityLevel.TRACE,
+    2: VerbosityLevel.INFORMATION,
+    3: VerbosityLevel.WARNING,
+    4: VerbosityLevel.ERROR,
+    5: VerbosityLevel.CRITICAL,
+    6: VerbosityLevel.OFF,
+}
+
+_SOURCE_BY_INT: dict[int, SpanSource] = {
+    1: SpanSource.AGENTS,
+    2: SpanSource.PROCESS_ORCHESTRATION,
+    3: SpanSource.API_WORKFLOWS,
+    4: SpanSource.ROBOTS,
+    10: SpanSource.CODED_AGENTS,
+}
 
 
 class AttachmentProvider(IntEnum):
@@ -27,16 +81,6 @@ class AttachmentDirection(IntEnum):
     NONE = 0
     IN = 1
     OUT = 2
-
-
-class VerbosityLevel(IntEnum):
-    VERBOSE = 0
-    TRACE = 1
-    INFORMATION = 2
-    WARNING = 3
-    ERROR = 4
-    CRITICAL = 5
-    OFF = 6
 
 
 class SpanAttachment(BaseModel):
@@ -83,7 +127,7 @@ class UiPathSpan:
     folder_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
     )
-    source: int = DEFAULT_SOURCE
+    source: int = 10  # 10 = CodedAgents; Task 2 will change this to SpanSource.CODED_AGENTS
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
@@ -304,9 +348,9 @@ class _SpanUtils:
         )
         verbosity_level = attributes_dict.get("verbosityLevel")
 
-        # Source: override via uipath.source attribute, else DEFAULT_SOURCE
+        # Source: override via uipath.source attribute, else 10 (CodedAgents)
         uipath_source = attributes_dict.get("uipath.source")
-        source = uipath_source if isinstance(uipath_source, int) else DEFAULT_SOURCE
+        source = uipath_source if isinstance(uipath_source, int) else 10
 
         attachments = None
         attachments_data = attributes_dict.get("attachments")

@@ -8,6 +8,48 @@ from opentelemetry.sdk.trace import Span as OTelSpan
 from opentelemetry.trace import SpanContext, StatusCode
 
 from uipath.platform.common import UiPathSpan, _SpanUtils
+from uipath.platform.common._span_utils import (
+    ExecutionType,
+    SpanSource,
+    SpanStatus,
+    VerbosityLevel,
+)
+
+
+class TestStrEnums:
+    def test_span_status_string_values(self):
+        assert SpanStatus.UNSET == "Unset"
+        assert SpanStatus.OK == "Ok"
+        assert SpanStatus.ERROR == "Error"
+        assert SpanStatus.RUNNING == "Running"
+        assert SpanStatus.RESTRICTED == "Restricted"
+        assert SpanStatus.CANCELLED == "Cancelled"
+
+    def test_span_source_string_values(self):
+        assert SpanSource.CODED_AGENTS == "CodedAgents"
+        assert SpanSource.AGENTS == "Agents"
+        assert SpanSource.PROCESS_ORCHESTRATION == "ProcessOrchestration"
+        assert SpanSource.API_WORKFLOWS == "ApiWorkflows"
+        assert SpanSource.ROBOTS == "Robots"
+
+    def test_verbosity_level_string_values(self):
+        assert VerbosityLevel.VERBOSE == "Verbose"
+        assert VerbosityLevel.TRACE == "Trace"
+        assert VerbosityLevel.INFORMATION == "Information"
+        assert VerbosityLevel.WARNING == "Warning"
+        assert VerbosityLevel.ERROR == "Error"
+        assert VerbosityLevel.CRITICAL == "Critical"
+        assert VerbosityLevel.OFF == "Off"
+
+    def test_execution_type_string_values(self):
+        assert ExecutionType.DEBUG == "Debug"
+        assert ExecutionType.RUNTIME == "Runtime"
+
+    def test_enums_are_strings(self):
+        assert isinstance(SpanStatus.OK, str)
+        assert isinstance(SpanSource.CODED_AGENTS, str)
+        assert isinstance(VerbosityLevel.INFORMATION, str)
+        assert isinstance(ExecutionType.RUNTIME, str)
 
 
 class TestOTelToUiPathSpan:
