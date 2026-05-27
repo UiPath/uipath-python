@@ -1,9 +1,15 @@
 """Exact match evaluator for binary pass/fail evaluation of agent outputs."""
 
+import json
+from typing import Optional
+
+from pydantic import Field
+
 from uipath.eval.models import BooleanEvaluationResult, EvaluationResult
 
 from .._helpers.output_path import resolve_output_path
 from ..models.models import AgentExecution
+from ._aggregators import AggregatorSpec
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
 
@@ -24,6 +30,13 @@ class LegacyExactMatchEvaluator(
     to floats for consistent comparison.
     """
 
+    # Optional run-level aggregator config (e.g. a classification aggregator with a
+    # fixed class set). The evaluator does no per-datapoint aggregation; it only
+    # forwards this config into the per-datapoint justification so the downstream
+    # C# post-pass can build a confusion matrix + P/R/F1 across the dataset.
+    # Deserialized from the legacy evaluator JSON's top-level `aggregators` key.
+    aggregators: Optional[list[AggregatorSpec]] = Field(default=None, alias="aggregators")
+
     async def evaluate(
         self,
         agent_execution: AgentExecution,
@@ -39,7 +52,10 @@ class LegacyExactMatchEvaluator(
             evaluation_criteria: The criteria to evaluate
 
         Returns:
-            EvaluationResult: Boolean result indicating exact match (True/False)
+            EvaluationResult: Boolean result. When `aggregators` is configured, the
+            result's `details` carries a JSON string of {expected, actual, aggregators}
+            so the C# post-pass can discover aggregator config and the expected label
+            per datapoint.
         """
         actual_output = agent_execution.agent_output
         expected_output = evaluation_criteria.expected_output
@@ -66,7 +82,23 @@ class LegacyExactMatchEvaluator(
                 if not actual_resolved or not expected_resolved:
                     actual_output = expected_output = {}
 
-        return BooleanEvaluationResult(
-            score=self._canonical_json(actual_output)
-            == self._canonical_json(expected_output)
+        is_match = self._canonical_json(actual_output) == self._canonical_json(
+            expected_output
         )
+
+        # Legacy evaluators use a `str` justification (generic J = str). Emit a JSON
+        # string directly — _serialize_justification passes strings through unchanged,
+        # so this lands verbatim in EvalScore.Justification on the C# side.
+        details: Optional[str] = None
+        if self.aggregators:
+            details = json.dumps(
+                {
+                    "expected": str(expected_output),
+                    "actual": str(actual_output),
+                    "aggregators": [
+                        spec.model_dump(by_alias=True) for spec in self.aggregators
+                    ],
+                }
+            )
+
+        return BooleanEvaluationResult(score=is_match, details=details)
