@@ -30,7 +30,8 @@ class AutomationOpsService(BaseService):
         """Retrieve the deployed policy.
 
         Returns:
-            The deployed policy response as a dictionary.
+            The deployed policy response as a dictionary. Returns an empty
+            dict when no policy is deployed (empty 200 response body).
         """
         spec = self._deployed_policy_spec()
         response = self.request(
@@ -39,6 +40,8 @@ class AutomationOpsService(BaseService):
             headers=spec.headers,
             scoped="tenant",
         )
+        if not response.content:
+            return {}
         return response.json()
 
     @traced(name="automation_ops_get_deployed_policy", run_type="uipath")
@@ -46,7 +49,8 @@ class AutomationOpsService(BaseService):
         """Retrieve the deployed policy (async).
 
         Returns:
-            The deployed policy response as a dictionary.
+            The deployed policy response as a dictionary. Returns an empty
+            dict when no policy is deployed (empty 200 response body).
         """
         spec = self._deployed_policy_spec()
         response = await self.request_async(
@@ -55,6 +59,8 @@ class AutomationOpsService(BaseService):
             headers=spec.headers,
             scoped="tenant",
         )
+        if not response.content:
+            return {}
         return response.json()
 
     def _deployed_policy_spec(self) -> RequestSpec:

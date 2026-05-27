@@ -5,6 +5,7 @@ from uipath.platform.common._span_utils import (
     AttachmentDirection,
     AttachmentProvider,
     SpanAttachment,
+    VerbosityLevel,
 )
 
 from ._live_tracking_processor import LiveTrackingSpanProcessor
@@ -23,4 +24,5 @@ __all__ = [
     "AttachmentDirection",
     "AttachmentProvider",
     "SpanAttachment",
+    "VerbosityLevel",
 ]

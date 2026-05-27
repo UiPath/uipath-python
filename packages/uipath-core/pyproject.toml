@@ -1,6 +1,6 @@
 [project]
 name = "uipath-core"
-version = "0.5.15"
+version = "0.5.16"
 description = "UiPath Core abstractions"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -119,6 +119,9 @@ exclude_lines = [
   "if TYPE_CHECKING:",
   "@(abc\\.)?abstractmethod",
 ]
+
+[tool.uv]
+exclude-newer = "2 days"
 
 [[tool.uv.index]]
 name = "testpypi"
