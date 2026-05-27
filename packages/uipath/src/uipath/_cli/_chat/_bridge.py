@@ -381,10 +381,9 @@ class SocketIOChatBridge:
             return
 
         tool_call_id = request.get("tool_call_id")
-        tool_name = request.get("tool_name")
         tool_input = request.get("input")
 
-        if not tool_call_id or not tool_name:
+        if not tool_call_id:
             return
 
         if not self._current_message_id:
@@ -395,7 +394,6 @@ class SocketIOChatBridge:
             tool_call=UiPathConversationToolCallEvent(
                 tool_call_id=tool_call_id,
                 executing=UiPathConversationExecutingToolCallEvent(
-                    tool_name=tool_name,
                     input=tool_input,
                 ),
             ),

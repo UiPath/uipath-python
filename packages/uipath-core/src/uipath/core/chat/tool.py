@@ -52,7 +52,6 @@ class UiPathConversationExecutingToolCallEvent(BaseModel):
     executing its handler upon receiving this event.
     """
 
-    tool_name: str = Field(..., alias="toolName")
     timestamp: str | None = None
     input: dict[str, Any] | None = None
 

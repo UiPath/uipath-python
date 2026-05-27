@@ -409,7 +409,6 @@ class TestEmitInterruptEvent:
         assert event.tool_call is not None
         assert event.tool_call.tool_call_id == "tc-42"
         assert event.tool_call.executing is not None
-        assert event.tool_call.executing.tool_name == "my_tool"
         assert event.tool_call.executing.input == {"key": "value"}
 
     @pytest.mark.anyio
