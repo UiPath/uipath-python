@@ -960,14 +960,7 @@ class StudioWebProgressReporter:
     def _build_evaluator_snapshot(
         evaluator: BaseEvaluator[Any, Any, Any],
     ) -> dict[str, Any]:
-        """Build evaluatorSnapshot dict with prompt, model, and aggregators if available.
-
-        `aggregators` is a list of run-level aggregator specs attached to the
-        evaluator's config (e.g. an ExactMatch with `aggregators=[{name:
-        "classification", classes: [...]}]`). It's emitted here so the C#
-        post-pass can read aggregator configs without consulting the original
-        evaluator definition file.
-        """
+        """Build evaluatorSnapshot dict with prompt and model if available."""
         snapshot: dict[str, Any] = {}
         config = getattr(evaluator, "evaluator_config", None)
         if config is not None:
@@ -975,14 +968,6 @@ class StudioWebProgressReporter:
                 snapshot["prompt"] = config.prompt
             if hasattr(config, "model") and isinstance(config.model, str):
                 snapshot["model"] = config.model
-            aggregators = getattr(config, "aggregators", None)
-            if aggregators:
-                # Serialize Pydantic models to plain dicts so the wire shape is
-                # readable from C# without referencing our Python types.
-                snapshot["aggregators"] = [
-                    spec.model_dump(by_alias=True) if hasattr(spec, "model_dump") else spec
-                    for spec in aggregators
-                ]
         return snapshot
 
     def _collect_results(

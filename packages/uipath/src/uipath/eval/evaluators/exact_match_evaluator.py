@@ -1,5 +1,7 @@
 """Exact match evaluator for agent outputs."""
 
+from typing import Optional
+
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -21,18 +23,33 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
     The optional `aggregators` field attaches run-level aggregators (e.g. a
     classification aggregator with a fixed class set) that the downstream
     backend will compute after the eval set finishes. The Python runtime
-    itself ignores `aggregators` — it's pure metadata for the C# consumer.
+    itself only forwards `aggregators` into the per-datapoint justification
+    so the C# layer can pick it up; no per-datapoint math happens here.
     """
 
     name: str = "ExactMatchEvaluator"
     case_sensitive: bool = False
     negated: bool = False
-    aggregators: list[AggregatorSpec] | None = None
+    aggregators: Optional[list[AggregatorSpec]] = None
+
+
+class ExactMatchJustification(BaseEvaluatorJustification):
+    """ExactMatch's per-datapoint justification.
+
+    Carries the standard `expected` / `actual` plus the run-level
+    `aggregators` config inlined per datapoint. The aggregators value is
+    identical across datapoints — it's repeated only so the downstream
+    consumer (the C# post-pass) can discover aggregator configuration from
+    per-datapoint records without needing access to evaluator snapshots.
+    Omitted entirely when no aggregators are configured.
+    """
+
+    aggregators: Optional[list[AggregatorSpec]] = None
 
 
 class ExactMatchEvaluator(
     OutputEvaluator[
-        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, BaseEvaluatorJustification
+        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, ExactMatchJustification
     ]
 ):
     """Evaluator that performs exact structural matching between expected and actual outputs.
@@ -54,15 +71,11 @@ class ExactMatchEvaluator(
     ) -> EvaluationResult:
         """Evaluate whether actual output exactly matches expected output.
 
-        Args:
-            agent_execution: The execution details containing:
-                - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
-            evaluation_criteria: The criteria to evaluate
-
         Returns:
-            EvaluationResult: Boolean result indicating exact match (True/False)
+            EvaluationResult: Boolean result indicating exact match (True/False).
+            The justification embeds the configured `aggregators` list so the
+            downstream C# post-pass can discover aggregator configuration
+            per datapoint.
         """
         actual_output = self._get_actual_output(agent_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
@@ -80,12 +93,19 @@ class ExactMatchEvaluator(
         if self.evaluator_config.negated:
             is_exact_match = not is_exact_match
 
-        validated_justification = self.validate_justification(
-            {
-                "expected": str(expected_output),
-                "actual": str(actual_output),
-            }
-        )
+        justification_payload: dict[str, object] = {
+            "expected": str(expected_output),
+            "actual": str(actual_output),
+        }
+        if self.evaluator_config.aggregators:
+            # Pydantic models serialize via their parent BaseModel; embed as dicts
+            # so the wire shape is JSON-friendly and readable from C#.
+            justification_payload["aggregators"] = [
+                spec.model_dump(by_alias=True) if hasattr(spec, "model_dump") else spec
+                for spec in self.evaluator_config.aggregators
+            ]
+
+        validated_justification = self.validate_justification(justification_payload)
         return NumericEvaluationResult(
             score=float(is_exact_match),
             details=validated_justification,
