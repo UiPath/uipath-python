@@ -48,7 +48,7 @@ class UiPathConversationToolCallEndEvent(BaseModel):
 class UiPathConversationExecutingToolCallEvent(BaseModel):
     """Signals the client that the tool is about to be executed.
 
-    Emitted in all paths. For client-side tools, the client should begin
+    Emitted in all scenarios. For client-side tools, the client should begin
     executing its handler upon receiving this event.
     """
 
