@@ -365,27 +365,25 @@ class SocketIOChatBridge:
             raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
-        """Emit an executingToolCall event if the trigger is marked with is_execution_phase.
+        """No-op.
 
-        Called by the runtime loop for every durable interrupt. Emits executingToolCall
-        for triggers that signal execution is about to begin. The
-        is_execution_phase marker ensures it fires exactly once per tool call.
+        Tool confirmation is handled end-to-end via ``startToolCall`` with
+        ``requireConfirmation: true`` paired with ``wait_for_resume()``.
+        executingToolCall is emitted by the MessageMapper (non-confirmed
+        tools) and the runtime loop post-confirmation (confirmed tools).
         """
-        request = (
-            resume_trigger.api_resume.request if resume_trigger.api_resume else None
-        )
-        if not request or not isinstance(request, dict):
-            return
+        return None
 
-        if not request.get("is_execution_phase"):
-            return
+    async def emit_executing_tool_call(
+        self,
+        tool_call_id: str,
+        tool_input: dict[str, Any] | None = None,
+    ) -> None:
+        """Emit an executingToolCall event.
 
-        tool_call_id = request.get("tool_call_id")
-        tool_input = request.get("input")
-
-        if not tool_call_id:
-            return
-
+        Called by the runtime loop after a tool-call confirmation resumes
+        to signal that the tool is about to execute with the final input.
+        """
         if not self._current_message_id:
             return
 

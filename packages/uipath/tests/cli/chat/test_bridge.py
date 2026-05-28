@@ -356,7 +356,7 @@ class TestSignalRDebugBridgeSendMethod:
 
 
 class TestEmitInterruptEvent:
-    """Tests for emit_interrupt_event (executingToolCall emission)."""
+    """Tests for emit_interrupt_event (now a no-op for executingToolCall)."""
 
     def _make_bridge(self) -> SocketIOChatBridge:
         bridge = SocketIOChatBridge(
@@ -369,16 +369,52 @@ class TestEmitInterruptEvent:
         bridge._current_message_id = "msg-100"
         return bridge
 
-    def _make_trigger(self, request: dict[str, Any] | None) -> "UiPathResumeTrigger":
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_is_noop(self) -> None:
+        """emit_interrupt_event no longer emits executingToolCall."""
+        bridge = self._make_bridge()
 
-        api_resume = UiPathApiTrigger(request=request) if request is not None else None
-        return UiPathResumeTrigger(api_resume=api_resume)
+        emitted_events: list[Any] = []
+
+        async def capture_emit(event: Any) -> None:
+            emitted_events.append(event)
+
+        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
+
+        trigger = UiPathResumeTrigger(
+            api_resume=UiPathApiTrigger(
+                request={
+                    "tool_call_id": "tc-42",
+                    "tool_name": "my_tool",
+                    "input": {"key": "value"},
+                }
+            )
+        )
+
+        await bridge.emit_interrupt_event(trigger)
+
+        assert len(emitted_events) == 0
+
+
+class TestEmitExecutingToolCall:
+    """Tests for emit_executing_tool_call (post-confirmation executingToolCall emission)."""
+
+    def _make_bridge(self) -> SocketIOChatBridge:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._current_message_id = "msg-100"
+        return bridge
 
     @pytest.mark.anyio
-    async def test_execution_phase_emits_executing_tool_call(
+    async def test_emits_executing_tool_call_event(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """An execution-phase trigger emits an executingToolCall event with correct payload."""
+        """Should emit executingToolCall with tool_call_id and input."""
         monkeypatch.setenv("CAS_WEBSOCKET_DISABLED", "true")
         bridge = self._make_bridge()
         await bridge.connect()
@@ -392,16 +428,10 @@ class TestEmitInterruptEvent:
 
         bridge.emit_message_event = capture_emit  # type: ignore[assignment]
 
-        trigger = self._make_trigger(
-            {
-                "is_execution_phase": True,
-                "tool_call_id": "tc-42",
-                "tool_name": "my_tool",
-                "input": {"key": "value"},
-            }
+        await bridge.emit_executing_tool_call(
+            tool_call_id="tc-42",
+            tool_input={"key": "value"},
         )
-
-        await bridge.emit_interrupt_event(trigger)
 
         assert len(emitted_events) == 1
         event = emitted_events[0]
@@ -412,10 +442,33 @@ class TestEmitInterruptEvent:
         assert event.tool_call.executing.input == {"key": "value"}
 
     @pytest.mark.anyio
-    async def test_non_execution_phase_does_not_emit(
+    async def test_no_message_id_does_not_emit(self) -> None:
+        """Should not emit if no current message ID is set."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        # _current_message_id is not set
+
+        emitted_events: list[Any] = []
+
+        async def capture_emit(event: Any) -> None:
+            emitted_events.append(event)
+
+        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
+
+        await bridge.emit_executing_tool_call(tool_call_id="tc-42")
+
+        assert len(emitted_events) == 0
+
+    @pytest.mark.anyio
+    async def test_none_input_emits_with_none(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A trigger without is_execution_phase does not emit any event."""
+        """Should emit with None input when no input provided."""
         monkeypatch.setenv("CAS_WEBSOCKET_DISABLED", "true")
         bridge = self._make_bridge()
         await bridge.connect()
@@ -429,64 +482,10 @@ class TestEmitInterruptEvent:
 
         bridge.emit_message_event = capture_emit  # type: ignore[assignment]
 
-        trigger = self._make_trigger(
-            {
-                "is_execution_phase": False,
-                "tool_call_id": "tc-42",
-                "tool_name": "my_tool",
-            }
-        )
+        await bridge.emit_executing_tool_call(tool_call_id="tc-42")
 
-        await bridge.emit_interrupt_event(trigger)
-
-        assert len(emitted_events) == 0
-
-    @pytest.mark.anyio
-    async def test_missing_tool_call_id_does_not_emit(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A trigger missing tool_call_id does not emit."""
-        monkeypatch.setenv("CAS_WEBSOCKET_DISABLED", "true")
-        bridge = self._make_bridge()
-        await bridge.connect()
-
-        emitted_events: list[Any] = []
-        original_emit = bridge.emit_message_event
-
-        async def capture_emit(event: Any) -> None:
-            emitted_events.append(event)
-            await original_emit(event)
-
-        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
-
-        trigger = self._make_trigger(
-            {
-                "is_execution_phase": True,
-                "tool_name": "my_tool",
-            }
-        )
-
-        await bridge.emit_interrupt_event(trigger)
-
-        assert len(emitted_events) == 0
-
-    @pytest.mark.anyio
-    async def test_no_api_resume_does_not_emit(self) -> None:
-        """A trigger with no api_resume does not emit."""
-        bridge = self._make_bridge()
-
-        emitted_events: list[Any] = []
-
-        async def capture_emit(event: Any) -> None:
-            emitted_events.append(event)
-
-        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
-
-        trigger = self._make_trigger(None)
-
-        await bridge.emit_interrupt_event(trigger)
-
-        assert len(emitted_events) == 0
+        assert len(emitted_events) == 1
+        assert emitted_events[0].tool_call.executing.input is None
 
 
 class TestWaitForResumeEndToolCall:
