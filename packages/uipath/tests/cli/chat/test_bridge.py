@@ -397,7 +397,7 @@ class TestEmitInterruptEvent:
 
 
 class TestEmitExecutingToolCall:
-    """Tests for emit_executing_tool_call (post-confirmation executingToolCall emission)."""
+    """Tests for emit_executing_tool_call_event (post-confirmation executingToolCall emission)."""
 
     def _make_bridge(self) -> SocketIOChatBridge:
         bridge = SocketIOChatBridge(
@@ -428,7 +428,7 @@ class TestEmitExecutingToolCall:
 
         bridge.emit_message_event = capture_emit  # type: ignore[assignment]
 
-        await bridge.emit_executing_tool_call(
+        await bridge.emit_executing_tool_call_event(
             tool_call_id="tc-42",
             tool_input={"key": "value"},
         )
@@ -460,7 +460,7 @@ class TestEmitExecutingToolCall:
 
         bridge.emit_message_event = capture_emit  # type: ignore[assignment]
 
-        await bridge.emit_executing_tool_call(tool_call_id="tc-42")
+        await bridge.emit_executing_tool_call_event(tool_call_id="tc-42")
 
         assert len(emitted_events) == 0
 
@@ -482,7 +482,7 @@ class TestEmitExecutingToolCall:
 
         bridge.emit_message_event = capture_emit  # type: ignore[assignment]
 
-        await bridge.emit_executing_tool_call(tool_call_id="tc-42")
+        await bridge.emit_executing_tool_call_event(tool_call_id="tc-42")
 
         assert len(emitted_events) == 1
         assert emitted_events[0].tool_call.executing.input is None
