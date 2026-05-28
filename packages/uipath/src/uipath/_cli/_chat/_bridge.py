@@ -408,6 +408,9 @@ class SocketIOChatBridge:
         self._tool_resume_value = None
         self._tool_resume_event.clear()
 
+        """For the case where there's no tool confirmation and the client side tool sends endToolCall back before wait_for_resume is called.
+        Unlikely in practice, but possible in theory, since executingToolCall is emitted during the streaming.
+        """
         if value:
             return value.model_dump(mode="python", by_alias=False)
         return {}
