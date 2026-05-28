@@ -3628,6 +3628,75 @@ class TestAgentBuilderConfigResources:
         assert isinstance(tool_resource, AgentProcessToolResourceConfig)
         assert tool_resource.type == AgentToolType.FLOW
 
+    def test_function_tool_type_enum_value(self):
+        """AgentToolType.FUNCTION exists with the wire value 'Function' and is case-insensitive."""
+        assert AgentToolType.FUNCTION.value == "Function"
+        assert AgentToolType("function") is AgentToolType.FUNCTION
+        assert AgentToolType("FUNCTION") is AgentToolType.FUNCTION
+
+    def test_function_tool_resource_deserialization(self):
+        """A resource with type='Function' is parsed as AgentProcessToolResourceConfig."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "Function",
+                "id": "function-tool-1",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                },
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFunction",
+                    "folderPath": "/Shared/Functions",
+                },
+                "name": "Function Tool",
+                "description": "Test Function tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FUNCTION
+        assert tool_resource.properties.process_name == "MyFunction"
+        assert tool_resource.properties.folder_path == "/Shared/Functions"
+
+    def test_function_tool_resource_case_insensitive(self):
+        """A resource with lowercase type='function' also deserializes via CaseInsensitiveEnum."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "function",
+                "id": "function-tool-2",
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFunction",
+                    "folderPath": "/Shared/Functions",
+                },
+                "name": "Function Tool",
+                "description": "Test Function tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FUNCTION
+
     def test_escalation_missing_escalation_type_defaults_to_zero(self):
         """Test that missing escalationType defaults to 0."""
         resources = [
