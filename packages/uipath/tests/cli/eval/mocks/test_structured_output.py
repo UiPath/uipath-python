@@ -2,6 +2,7 @@
 
 import json
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -22,11 +23,11 @@ def _response(message: SimpleNamespace | None) -> SimpleNamespace:
 class _FakeLLM:
     """Records chat_completions calls and replays queued responses in order."""
 
-    def __init__(self, responses):
+    def __init__(self, responses: list[Any]):
         self._responses = list(responses)
-        self.calls: list[dict] = []
+        self.calls: list[dict[str, Any]] = []
 
-    async def chat_completions(self, messages, **kwargs):
+    async def chat_completions(self, messages: Any, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
         nxt = self._responses.pop(0)
         if isinstance(nxt, Exception):
