@@ -3,12 +3,13 @@ import json
 import os
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import aiohttp
 import pytest
 
-from uipath._cli.cli_server import start_tcp_server
+from uipath._cli.cli_server import parse_args, start_tcp_server
 
 
 def create_uipath_json(script_path: str, entrypoint_name: str = "main"):
@@ -369,3 +370,122 @@ class TestServerEnvIsolation:
         assert "SHOULD_NOT_PERSIST" not in os.environ
         for key in baseline:
             assert os.environ.get(key) == baseline[key]
+
+
+class TestParseArgs:
+    def test_none_returns_empty_list(self):
+        assert parse_args(None) == []
+
+    def test_empty_string_returns_empty_list(self):
+        assert parse_args("") == []
+        assert parse_args("   ") == []
+
+    def test_list_of_strings_passthrough(self):
+        assert parse_args(["a", "b"]) == ["a", "b"]
+        assert parse_args([]) == []
+
+    def test_quoted_pair_string(self):
+        assert parse_args("'agent.json' '{}'") == ["agent.json", "{}"]
+
+    def test_quoted_pair_with_json_payload(self):
+        payload = '{"message":"Hello","repeat":3}'
+        result = parse_args(f"'agent.json' '{payload}'")
+        assert result == ["agent.json", payload]
+
+    def test_invalid_inputs_return_none(self):
+        assert parse_args(["a", 1]) is None
+        assert parse_args({"x": 1}) is None
+        assert parse_args(123) is None
+        # unquoted entrypoint not supported
+        assert parse_args("agent.json '{}'") is None
+        # missing boundary quote-space-quote
+        assert parse_args("'agent.json'") is None
+        # unterminated trailing quote
+        assert parse_args("'agent.json' '{}") is None
+
+
+class TestArgsValidationIntegration:
+    @pytest.fixture
+    def server_port(self):
+        import socket
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
+    @pytest.fixture
+    def server(self, server_port):
+        def run_server():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(start_tcp_server("127.0.0.1", server_port))
+            except asyncio.CancelledError:
+                pass
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_server, daemon=True)
+        thread.start()
+        time.sleep(0.5)
+        yield server_port
+
+    def test_malformed_string_args_rejected_with_400(self, server):
+        """Args that doesn't match `'entrypoint' 'json'` should 400."""
+        port = server
+
+        async def send():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://127.0.0.1:{port}/jobs/job-1/start",
+                    # entrypoint not single-quoted — invalid
+                    json={"command": "run", "args": "agent.json '{}'"},
+                ) as response:
+                    return response.status, await response.json()
+
+        status, body = asyncio.run(send())
+        assert status == 400
+        assert body["success"] is False
+        assert "args" in body["error"]
+
+    def test_sample_payload_runs_with_string_args(self, server, temp_dir):
+        """POST `args` as a single `'entrypoint' '<json>'` string — the real
+        client wire shape that used to go through shlex.split and now goes
+        through parse_args."""
+        port = server
+
+        entrypoint = "agent.json"
+        args_string = '\'agent.json\' \'{"message":"Hello","repeat":3}\''
+
+        script = """
+from dataclasses import dataclass
+
+@dataclass
+class Input:
+    message: str
+    repeat: int = 1
+
+def main(input: Input) -> str:
+    return (input.message + " ") * input.repeat
+"""
+        with pytest.MonkeyPatch().context() as mp:
+            mp.chdir(temp_dir)
+
+            script_file = "entrypoint.py"
+            (Path(temp_dir) / script_file).write_text(script)
+            (Path(temp_dir) / "uipath.json").write_text(
+                json.dumps({"functions": {entrypoint: f"{script_file}:main"}})
+            )
+
+            async def send():
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"http://127.0.0.1:{port}/jobs/job-sample/start",
+                        json={"command": "run", "args": args_string},
+                    ) as response:
+                        return await response.json()
+
+            response = asyncio.run(send())
+
+            assert response["success"] is True, response
+            assert response["job_key"] == "job-sample"

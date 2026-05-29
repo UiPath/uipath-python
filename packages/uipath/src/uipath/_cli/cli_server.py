@@ -2,7 +2,6 @@ import asyncio
 import importlib
 import json
 import os
-import shlex
 import sys
 import tempfile
 import time
@@ -108,15 +107,34 @@ def get_field(message: dict[str, Any], *keys: str) -> Any:
     return None
 
 
-def parse_args(args: str | list[str] | None) -> list[str]:
-    """Parse args into a list of strings."""
+def parse_args(args: Any) -> list[str] | None:
+    """Parse the request `args` field.
+
+    Accepts:
+      - None or [] → []
+      - list[str] → returned as-is
+      - str in the form `'<entrypoint>' '<json>'` → split into two tokens
+
+    Returns None for anything that does not match.
+    """
     if args is None:
         return []
-    if isinstance(args, list):
+    if isinstance(args, list) and all(isinstance(arg, str) for arg in args):
         return args
-    if isinstance(args, str):
-        return shlex.split(args)
-    return []
+    if not isinstance(args, str):
+        return None
+    stripped_args = args.strip()
+    if not stripped_args:
+        return []
+    # Expected shape: 'entrypoint' 'json-payload'
+    if not stripped_args.startswith("'") or not stripped_args.endswith("'"):
+        return None
+    boundary = stripped_args.find("' '", 1)
+    if boundary == -1:
+        return None
+    entrypoint = stripped_args[1:boundary]
+    payload = stripped_args[boundary + 3 : -1]
+    return [entrypoint, payload]
 
 
 async def send_ack(ack_socket_path: str, server_socket_path: str) -> None:
@@ -174,6 +192,17 @@ async def handle_start(request: web.Request) -> web.Response:
 
     args_raw = get_field(message, "args", "Args")
     args = parse_args(args_raw)
+    if args is None:
+        return web.json_response(
+            {
+                "success": False,
+                "error": (
+                    "Invalid field: 'args' must be a list of strings or a "
+                    "string of the form \"'<entrypoint>' '<json>'\""
+                ),
+            },
+            status=400,
+        )
 
     env_vars = get_field(message, "environmentVariables", "EnvironmentVariables") or {}
     working_dir = get_field(message, "workingDirectory", "WorkingDirectory")
@@ -386,7 +415,7 @@ def server(
     {"status": "ready", "socket": "/path/to/server.sock"}
 
     Endpoint: POST /jobs/{job_key}/start
-    Body: {"command": "run", "args": "agent.json '{}'", "environmentVariables": {}, "workingDirectory": "/path"}
+    Body: {"command": "run", "args": "'agent.json' '{}'", "environmentVariables": {}, "workingDirectory": "/path"}
 
     Endpoint: GET /health
     """
