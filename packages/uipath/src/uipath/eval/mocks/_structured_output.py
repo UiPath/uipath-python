@@ -12,6 +12,50 @@ from typing import Any
 
 RESPONSE_TOOL_NAME = "submit_tool_response"
 RESPONSE_KEY = "response"
+_DEFS_PREFIX = "#/$defs/"
+
+
+def _inline_defs(
+    schema: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Inline ``$defs``/``$ref`` into a self-contained schema.
+
+    Nested Pydantic models and enums emit root ``$defs`` referenced by ``$ref``.
+    The normalized gateway accepts those in ``response_format`` but not inside a
+    tool's ``parameters``, so they are inlined here. Self-referential definitions
+    cannot be inlined without looping; any ``$ref`` reached while its target is
+    already on the current resolution path is left untouched and its definitions
+    are returned so the caller can keep them reachable.
+
+    Returns:
+        A tuple of (inlined schema, leftover ``$defs`` needed for cyclic refs).
+    """
+    defs = schema.get("$defs", {})
+    leftover: dict[str, Any] = {}
+
+    def resolve(node: Any, active: frozenset[str]) -> Any:
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith(_DEFS_PREFIX):
+                name = ref[len(_DEFS_PREFIX) :]
+                if name in defs and name not in active:
+                    return resolve(defs[name], active | {name})
+                # Cyclic or unknown ref: keep it and preserve its definition.
+                if name in defs:
+                    leftover[name] = defs[name]
+                return dict(node)
+            return {
+                key: resolve(value, active)
+                for key, value in node.items()
+                if key != "$defs"
+            }
+        if isinstance(node, list):
+            return [resolve(item, active) for item in node]
+        return node
+
+    root = {key: value for key, value in schema.items() if key != "$defs"}
+    inlined = resolve(root, frozenset())
+    return inlined, leftover
 
 
 def build_response_tool(schema: dict[str, Any], description: str) -> dict[str, Any]:
@@ -19,22 +63,18 @@ def build_response_tool(schema: dict[str, Any], description: str) -> dict[str, A
 
     Tool-call arguments are always a JSON object, so an arbitrary output schema
     (which may be a scalar, array, or object) is nested under a single
-    ``response`` property and unwrapped after the call.
-
-    Schemas from nested Pydantic models carry root ``$defs`` referenced by
-    ``$ref`` values like ``#/$defs/Item``. Those ``$ref`` paths resolve from the
-    parameters root, so ``$defs`` is hoisted there instead of being buried under
-    ``response`` (which would leave the references dangling).
+    ``response`` property and unwrapped after the call. ``$defs``/``$ref`` are
+    inlined so the tool parameters are self-contained, which the gateway requires
+    for tool schemas (unlike ``response_format``).
     """
-    response_schema = dict(schema)
+    response_schema, leftover_defs = _inline_defs(schema)
     parameters: dict[str, Any] = {
         "type": "object",
         "properties": {RESPONSE_KEY: response_schema},
         "required": [RESPONSE_KEY],
     }
-    defs = response_schema.pop("$defs", None)
-    if defs is not None:
-        parameters["$defs"] = defs
+    if leftover_defs:
+        parameters["$defs"] = leftover_defs
 
     return {
         "name": RESPONSE_TOOL_NAME,
