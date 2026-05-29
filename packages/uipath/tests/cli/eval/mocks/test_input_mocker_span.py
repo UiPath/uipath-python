@@ -57,10 +57,21 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": '{"name": "Alice", "greeting_style": "formal"}',
-                            "tool_calls": None,
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "name": "submit_tool_response",
+                                    "arguments": {
+                                        "response": {
+                                            "name": "Alice",
+                                            "greeting_style": "formal",
+                                        }
+                                    },
+                                }
+                            ],
                         },
-                        "finish_reason": "stop",
+                        "finish_reason": "tool_calls",
                     }
                 ],
                 "usage": {
@@ -199,10 +210,17 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": "invalid json{{{",  # Invalid JSON
-                            "tool_calls": None,
+                            # Malformed: tool call is missing the wrapped "response" key
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "name": "submit_tool_response",
+                                    "arguments": {},
+                                }
+                            ],
                         },
-                        "finish_reason": "stop",
+                        "finish_reason": "tool_calls",
                     }
                 ],
                 "usage": {

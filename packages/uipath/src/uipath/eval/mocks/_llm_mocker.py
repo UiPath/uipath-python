@@ -11,6 +11,7 @@ from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat._llm_gateway_service import ChatModels, _cleanup_schema
+from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 from .._execution_context import (
     eval_set_run_id_context,
@@ -28,6 +29,7 @@ from ._mocker import (
     UiPathMockResponseGenerationError,
     UiPathNoMockFoundError,
 )
+from ._structured_output import build_response_tool, extract_response
 from ._types import (
     ExampleCall,
     LLMMockingStrategy,
@@ -125,14 +127,16 @@ class LLMMocker(Mocker):
                 "output_schema", TypeAdapter(return_type).json_schema()
             )
 
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "OutputSchema",
-                    "strict": False,
-                    "schema": _cleanup_schema(output_schema),
-                },
-            }
+            # Request structured output via function calling so it works across
+            # all model providers (OpenAI, Claude/Bedrock, Gemini); response_format
+            # is only honored for OpenAI models on the normalized gateway.
+            response_tool = build_response_tool(
+                _cleanup_schema(output_schema),
+                description=(
+                    "Return the simulated response for tool "
+                    f"'{function_name}' matching the required schema."
+                ),
+            )
             try:
                 # Safely pull examples from params.
                 example_calls = params.get("example_calls", [])
@@ -197,7 +201,7 @@ class LLMMocker(Mocker):
                 formatted_prompt = PROMPT.format(**prompt_generation_args)
 
                 cache_key_data = {
-                    "response_format": response_format,
+                    "response_tool": response_tool,
                     "completion_kwargs": completion_kwargs,
                     "prompt_generation_args": prompt_generation_args,
                 }
@@ -220,10 +224,11 @@ class LLMMocker(Mocker):
                             "content": formatted_prompt,
                         },
                     ],
-                    response_format=response_format,
+                    tools=[response_tool],
+                    tool_choice=RequiredToolChoice(),
                     **completion_kwargs,
                 )
-                result = json.loads(response.choices[0].message.content)
+                result = extract_response(response)
 
                 if cache_manager is not None:
                     cache_manager.set(
@@ -235,7 +240,7 @@ class LLMMocker(Mocker):
 
                 return result
             except Exception as e:
-                raise UiPathMockResponseGenerationError() from e
+                raise UiPathMockResponseGenerationError(str(e)) from e
         else:
             raise UiPathNoMockFoundError(f"Method '{function_name}' is not simulated.")
 
