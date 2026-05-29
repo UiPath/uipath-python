@@ -11,7 +11,6 @@ from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat._llm_gateway_service import ChatModels, _cleanup_schema
-from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 from .._execution_context import (
     eval_set_run_id_context,
@@ -29,7 +28,7 @@ from ._mocker import (
     UiPathMockResponseGenerationError,
     UiPathNoMockFoundError,
 )
-from ._structured_output import build_response_tool, extract_response
+from ._structured_output import generate_structured_output
 from ._types import (
     ExampleCall,
     LLMMockingStrategy,
@@ -127,16 +126,7 @@ class LLMMocker(Mocker):
                 "output_schema", TypeAdapter(return_type).json_schema()
             )
 
-            # Request structured output via function calling so it works across
-            # all model providers (OpenAI, Claude/Bedrock, Gemini); response_format
-            # is only honored for OpenAI models on the normalized gateway.
-            response_tool = build_response_tool(
-                _cleanup_schema(output_schema),
-                description=(
-                    "Return the simulated response for tool "
-                    f"'{function_name}' matching the required schema."
-                ),
-            )
+            cleaned_schema = _cleanup_schema(output_schema)
             try:
                 # Safely pull examples from params.
                 example_calls = params.get("example_calls", [])
@@ -201,7 +191,7 @@ class LLMMocker(Mocker):
                 formatted_prompt = PROMPT.format(**prompt_generation_args)
 
                 cache_key_data = {
-                    "response_tool": response_tool,
+                    "output_schema": cleaned_schema,
                     "completion_kwargs": completion_kwargs,
                     "prompt_generation_args": prompt_generation_args,
                 }
@@ -217,18 +207,17 @@ class LLMMocker(Mocker):
                     if cached_response is not None:
                         return cached_response
 
-                response = await llm.chat_completions(
-                    [
-                        {
-                            "role": "user",
-                            "content": formatted_prompt,
-                        },
-                    ],
-                    tools=[response_tool],
-                    tool_choice=RequiredToolChoice(),
-                    **completion_kwargs,
+                result = await generate_structured_output(
+                    llm,
+                    [{"role": "user", "content": formatted_prompt}],
+                    schema=cleaned_schema,
+                    response_format_name="OutputSchema",
+                    description=(
+                        "Return the simulated response for tool "
+                        f"'{function_name}' matching the required schema."
+                    ),
+                    completion_kwargs=completion_kwargs,
                 )
-                result = extract_response(response)
 
                 if cache_manager is not None:
                     cache_manager.set(

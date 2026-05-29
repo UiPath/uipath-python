@@ -10,12 +10,28 @@ from uipath.eval.mocks._structured_output import (
     RESPONSE_TOOL_NAME,
     build_response_tool,
     extract_response,
+    generate_structured_output,
 )
 
 
 def _response(message: SimpleNamespace | None) -> SimpleNamespace:
     choices = [] if message is None else [SimpleNamespace(message=message)]
     return SimpleNamespace(choices=choices)
+
+
+class _FakeLLM:
+    """Records chat_completions calls and replays queued responses in order."""
+
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls: list[dict] = []
+
+    async def chat_completions(self, messages, **kwargs):
+        self.calls.append(kwargs)
+        nxt = self._responses.pop(0)
+        if isinstance(nxt, Exception):
+            raise nxt
+        return nxt
 
 
 def test_build_response_tool_wraps_schema_under_response():
@@ -104,3 +120,75 @@ def test_extract_response_raises_when_response_key_missing():
     )
     with pytest.raises(ValueError, match=RESPONSE_KEY):
         extract_response(_response(message))
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_output_prefers_response_format_content():
+    # OpenAI returns content via response_format; no fallback call is made.
+    llm = _FakeLLM([_response(SimpleNamespace(content='{"a": 1}', tool_calls=None))])
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={},
+    )
+    assert result == {"a": 1}
+    assert len(llm.calls) == 1
+    assert "response_format" in llm.calls[0]
+    assert "tools" not in llm.calls[0]
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_output_falls_back_on_empty_content():
+    # Non-OpenAI: response_format yields empty content -> fall back to tool call.
+    llm = _FakeLLM(
+        [
+            _response(SimpleNamespace(content=None, tool_calls=None)),
+            _response(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[SimpleNamespace(arguments={RESPONSE_KEY: {"a": 1}})],
+                )
+            ),
+        ]
+    )
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={},
+    )
+    assert result == {"a": 1}
+    assert len(llm.calls) == 2
+    assert "response_format" in llm.calls[0]
+    assert "tools" in llm.calls[1] and "tool_choice" in llm.calls[1]
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_output_falls_back_when_response_format_raises():
+    # A provider that rejects response_format outright still gets a tool fallback.
+    llm = _FakeLLM(
+        [
+            RuntimeError("response_format unsupported"),
+            _response(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[SimpleNamespace(arguments={RESPONSE_KEY: "ok"})],
+                )
+            ),
+        ]
+    )
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "string"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={},
+    )
+    assert result == "ok"
+    assert len(llm.calls) == 2

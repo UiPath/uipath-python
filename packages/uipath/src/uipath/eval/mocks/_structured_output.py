@@ -1,18 +1,26 @@
-"""Provider-agnostic structured output via LLM function calling.
+"""Provider-agnostic structured output for the eval mockers.
 
 The normalized LLM Gateway honors OpenAI-style ``response_format`` (json_schema)
-only for OpenAI models. Non-OpenAI providers (Anthropic/Claude via Bedrock,
-Gemini) return such requests with ``choices[0].message.content`` empty/None,
-which breaks JSON parsing. Function calling is honored across all providers, so
-the mockers request structured output as a forced tool call and read the result
-from the tool call's parsed arguments.
+only for OpenAI models — and does so reliably, including native ``$defs``
+support. Non-OpenAI providers (Anthropic/Claude via Bedrock, Gemini) return such
+requests with ``choices[0].message.content`` empty/None, which breaks JSON
+parsing. Function calling is honored across providers but is less reliable for
+OpenAI on some schemas, so it is used only as a fallback: prefer
+``response_format`` and fall back to a forced tool call when the content comes
+back empty.
 """
 
+import json
+import logging
 from typing import Any
+
+from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 RESPONSE_TOOL_NAME = "submit_tool_response"
 RESPONSE_KEY = "response"
 _DEFS_PREFIX = "#/$defs/"
+
+logger = logging.getLogger(__name__)
 
 
 def _inline_defs(
@@ -108,3 +116,53 @@ def extract_response(response: Any) -> Any:
         )
 
     return arguments[RESPONSE_KEY]
+
+
+async def generate_structured_output(
+    llm: Any,
+    messages: list[dict[str, str]],
+    *,
+    schema: dict[str, Any],
+    response_format_name: str,
+    description: str,
+    completion_kwargs: dict[str, Any],
+) -> Any:
+    """Generate structured output that works across all model providers.
+
+    Prefers ``response_format`` (json_schema) — honored reliably by OpenAI with
+    native ``$defs`` support. When the provider returns empty content (the
+    non-OpenAI failure mode, e.g. Claude/Bedrock), falls back to a forced tool
+    call, which is honored across providers.
+    """
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": response_format_name,
+            "strict": False,
+            "schema": schema,
+        },
+    }
+
+    content: str | None = None
+    try:
+        rf_response = await llm.chat_completions(
+            messages, response_format=response_format, **completion_kwargs
+        )
+        choices = getattr(rf_response, "choices", None)
+        if choices:
+            content = choices[0].message.content
+    except Exception as e:
+        # Some providers reject response_format outright; fall back to tools.
+        logger.info("response_format path failed, falling back to tools: %s", e)
+
+    if content:
+        return json.loads(content)
+
+    tool = build_response_tool(schema, description)
+    tc_response = await llm.chat_completions(
+        messages,
+        tools=[tool],
+        tool_choice=RequiredToolChoice(),
+        **completion_kwargs,
+    )
+    return extract_response(tc_response)

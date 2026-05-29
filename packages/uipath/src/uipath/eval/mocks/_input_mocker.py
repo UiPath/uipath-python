@@ -11,12 +11,11 @@ from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat._llm_gateway_service import ChatModels
-from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
 from ._mocker import UiPathInputMockingError
-from ._structured_output import build_response_tool, extract_response
+from ._structured_output import generate_structured_output
 from ._types import (
     InputMockingStrategy,
 )
@@ -107,14 +106,6 @@ async def generate_llm_input(
 
         prompt = get_input_mocking_prompt(**prompt_generation_args)
 
-        # Request structured output via function calling so it works across all
-        # model providers (OpenAI, Claude/Bedrock, Gemini); response_format is only
-        # honored for OpenAI models on the normalized gateway.
-        response_tool = build_response_tool(
-            input_schema,
-            description="Return the simulated agent input matching the required schema.",
-        )
-
         model_parameters = mocking_strategy.model if mocking_strategy else None
         completion_kwargs = (
             model_parameters.model_dump(by_alias=False, exclude_none=True)
@@ -129,7 +120,7 @@ async def generate_llm_input(
 
         if cache_manager is not None:
             cache_key_data = {
-                "response_tool": response_tool,
+                "input_schema": input_schema,
                 "completion_kwargs": completion_kwargs,
                 "prompt_generation_args": prompt_generation_args,
             }
@@ -143,14 +134,14 @@ async def generate_llm_input(
             if cached_response is not None:
                 return cached_response
 
-        response = await llm.chat_completions(
+        result = await generate_structured_output(
+            llm,
             [{"role": "user", "content": prompt}],
-            tools=[response_tool],
-            tool_choice=RequiredToolChoice(),
-            **completion_kwargs,
+            schema=input_schema,
+            response_format_name="agent_input",
+            description="Return the simulated agent input matching the required schema.",
+            completion_kwargs=completion_kwargs,
         )
-
-        result = extract_response(response)
 
         if cache_manager is not None:
             cache_manager.set(

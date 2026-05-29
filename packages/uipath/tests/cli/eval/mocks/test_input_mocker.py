@@ -83,18 +83,10 @@ async def test_generate_llm_input_with_model_settings(
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "name": "submit_tool_response",
-                                "arguments": {
-                                    "response": {"query": "Calculate 5 times 7"}
-                                },
-                            }
-                        ],
+                        "content": '{"query": "Calculate 5 times 7"}',
+                        "tool_calls": None,
                     },
-                    "finish_reason": "tool_calls",
+                    "finish_reason": "stop",
                 }
             ],
             "usage": {
@@ -121,14 +113,9 @@ async def test_generate_llm_input_with_model_settings(
         "Expected exactly one chat completion request"
     )
 
-    # Structured output is requested via function calling (provider-agnostic),
-    # not via response_format which the gateway only honors for OpenAI models.
+    # OpenAI returns content via response_format; no tool-call fallback needed.
     import json
 
     body = json.loads(chat_completion_requests[0].content.decode("utf-8"))
-    assert "response_format" not in body
-    assert body["tool_choice"] == {"type": "required"}
-    tools = body["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "submit_tool_response"
-    assert tools[0]["parameters"]["properties"]["response"] == input_schema
+    assert "response_format" in body
+    assert "tools" not in body

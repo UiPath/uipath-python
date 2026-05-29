@@ -569,17 +569,11 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
                 {
                     "index": 0,
                     "message": {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "name": "submit_tool_response",
-                                "arguments": {"response": "bar1"},
-                            }
-                        ],
+                        "role": "ai",
+                        "content": '"bar1"',
+                        "tool_calls": None,
                     },
-                    "finish_reason": "tool_calls",
+                    "finish_reason": "EOS",
                 }
             ],
             "usage": {
@@ -605,22 +599,25 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     mock_request = httpx_mock.get_request(method="POST")
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert "response_format" not in request
-    assert request["tool_choice"] == {"type": "required"}
-    tools = request["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "submit_tool_response"
-    assert tools[0]["parameters"]["properties"]["response"] == {"type": "string"}
-    assert tools[0]["parameters"]["required"] == ["response"]
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": False,
+            "schema": {"type": "string"},
+        },
+    }
 
     with pytest.raises(NotImplementedError):
         assert foofoo()
-    httpx_mock.add_response(
-        url="https://example.com/llm/api/chat/completions"
-        "?api-version=2024-08-01-preview",
-        status_code=200,
-        json={},
-    )
+    # Two empty responses: the response_format attempt and the tool-call fallback.
+    for _ in range(2):
+        httpx_mock.add_response(
+            url="https://example.com/llm/api/chat/completions"
+            "?api-version=2024-08-01-preview",
+            status_code=200,
+            json={},
+        )
     with pytest.raises(UiPathMockResponseGenerationError):
         assert foo()
 
@@ -683,17 +680,11 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
                 {
                     "index": 0,
                     "message": {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "name": "submit_tool_response",
-                                "arguments": {"response": "bar1"},
-                            }
-                        ],
+                        "role": "ai",
+                        "content": '"bar1"',
+                        "tool_calls": None,
                     },
-                    "finish_reason": "tool_calls",
+                    "finish_reason": "EOS",
                 }
             ],
             "usage": {
@@ -719,23 +710,26 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     mock_request = httpx_mock.get_request()
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert "response_format" not in request
-    assert request["tool_choice"] == {"type": "required"}
-    tools = request["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "submit_tool_response"
-    assert tools[0]["parameters"]["properties"]["response"] == {"type": "string"}
-    assert tools[0]["parameters"]["required"] == ["response"]
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": False,
+            "schema": {"type": "string"},
+        },
+    }
 
     with pytest.raises(NotImplementedError):
         assert await foofoo()
 
-    httpx_mock.add_response(
-        url="https://example.com/llm/api/chat/completions"
-        "?api-version=2024-08-01-preview",
-        status_code=200,
-        json={},
-    )
+    # Two empty responses: the response_format attempt and the tool-call fallback.
+    for _ in range(2):
+        httpx_mock.add_response(
+            url="https://example.com/llm/api/chat/completions"
+            "?api-version=2024-08-01-preview",
+            status_code=200,
+            json={},
+        )
     with pytest.raises(UiPathMockResponseGenerationError):
         assert await foo()
 
@@ -796,17 +790,11 @@ def test_llm_mockable_with_output_schema_sync(
                 {
                     "index": 0,
                     "message": {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "name": "submit_tool_response",
-                                "arguments": {"response": {"content": "bar1"}},
-                            }
-                        ],
+                        "role": "ai",
+                        "content": '{"content": "bar1"}',
+                        "tool_calls": None,
                     },
-                    "finish_reason": "tool_calls",
+                    "finish_reason": "EOS",
                 }
             ],
             "usage": {
@@ -831,18 +819,19 @@ def test_llm_mockable_with_output_schema_sync(
     mock_request = httpx_mock.get_request()
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert "response_format" not in request
-    assert request["tool_choice"] == {"type": "required"}
-    tools = request["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "submit_tool_response"
-    assert tools[0]["parameters"]["properties"]["response"] == {
-        "required": ["content"],
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {"content": {"type": "string"}},
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": False,
+            "schema": {
+                "required": ["content"],
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"content": {"type": "string"}},
+            },
+        },
     }
-    assert tools[0]["parameters"]["required"] == ["response"]
 
 
 @pytest.mark.asyncio
@@ -902,17 +891,11 @@ async def test_llm_mockable_with_output_schema_async(
                 {
                     "index": 0,
                     "message": {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "name": "submit_tool_response",
-                                "arguments": {"response": {"content": "bar1"}},
-                            }
-                        ],
+                        "role": "ai",
+                        "content": '{"content": "bar1"}',
+                        "tool_calls": None,
                     },
-                    "finish_reason": "tool_calls",
+                    "finish_reason": "EOS",
                 }
             ],
             "usage": {
@@ -937,40 +920,31 @@ async def test_llm_mockable_with_output_schema_async(
     mock_request = httpx_mock.get_request()
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert "response_format" not in request
-    assert request["tool_choice"] == {"type": "required"}
-    tools = request["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "submit_tool_response"
-    assert tools[0]["parameters"]["properties"]["response"] == {
-        "required": ["content"],
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {"content": {"type": "string"}},
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "OutputSchema",
+            "strict": False,
+            "schema": {
+                "required": ["content"],
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"content": {"type": "string"}},
+            },
+        },
     }
-    assert tools[0]["parameters"]["required"] == ["response"]
 
 
-@pytest.mark.parametrize(
-    "model",
-    [
-        "gpt-4.1-mini-2025-04-14",
-        "anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "gemini-2.5-pro",
-    ],
-)
 @pytest.mark.asyncio
 @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
-async def test_llm_mockable_structured_output_via_tool_call(
-    model: str, httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
+async def test_llm_mockable_falls_back_to_tool_call_for_non_openai(
+    httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
 ):
-    """Tool simulation must work for all model providers (AE-1646).
+    """Tool simulation works for non-OpenAI providers (AE-1646).
 
-    The mocker requests structured output via function calling and reads the
-    result from the forced tool call's arguments, so it does not depend on the
-    OpenAI-only ``choices[0].message.content`` shape. Non-OpenAI providers
-    (Claude/Bedrock, Gemini) return structured output through ``tool_calls`` with
-    ``content`` set to ``None``; that must not raise.
+    Non-OpenAI providers (Claude/Bedrock, Gemini) return ``response_format``
+    requests with empty ``content``. The mocker must then fall back to function
+    calling and read the result from the forced tool call's arguments.
     """
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
@@ -992,7 +966,7 @@ async def test_llm_mockable_structured_output_via_tool_call(
             "type": "llm",
             "prompt": "response is 'bar1'",
             "toolsToSimulate": [{"name": "foo"}],
-            "model": {"model": model},
+            "model": {"model": "anthropic.claude-sonnet-4-5-20250929-v1:0"},
         },
     }
     evaluation = EvaluationItem(**evaluation_item)
@@ -1008,38 +982,41 @@ async def test_llm_mockable_structured_output_via_tool_call(
         json={},
     )
 
+    def _completion(message: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": "response-id",
+            "object": "",
+            "created": 0,
+            "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    # First call (response_format) returns empty content — the non-OpenAI failure.
     httpx_mock.add_response(
         url="https://example.com/llm/api/chat/completions"
         "?api-version=2024-08-01-preview",
         status_code=200,
-        json={
-            "id": "response-id",
-            "object": "",
-            "created": 0,
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": "call_1",
-                                "name": "submit_tool_response",
-                                "arguments": {"response": "bar1"},
-                            }
-                        ],
-                    },
-                    "finish_reason": "tool_calls",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": 1,
-                "completion_tokens": 1,
-                "total_tokens": 2,
-            },
-        },
+        json=_completion({"role": "assistant", "content": None, "tool_calls": None}),
+    )
+    # Fallback call (function calling) returns the structured result.
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
+        status_code=200,
+        json=_completion(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "name": "submit_tool_response",
+                        "arguments": {"response": "bar1"},
+                    }
+                ],
+            }
+        ),
     )
 
     set_execution_context(
@@ -1054,19 +1031,18 @@ async def test_llm_mockable_structured_output_via_tool_call(
 
     assert await foo() == "bar1"
 
-    mock_request = httpx_mock.get_request(method="POST")
-    assert mock_request
-    request = json.loads(mock_request.content.decode("utf-8"))
-    # Structured output is requested via function calling, not response_format,
-    # so it works across all providers.
-    assert "response_format" not in request
-    assert request["tool_choice"] == {"type": "required"}
-    assert mock_request.headers["X-UiPath-LlmGateway-NormalizedApi-ModelName"] == model
-    tools = request["tools"]
-    assert len(tools) == 1
-    assert tools[0]["name"] == "submit_tool_response"
-    assert tools[0]["parameters"]["properties"]["response"] == {"type": "string"}
-    assert tools[0]["parameters"]["required"] == ["response"]
+    requests = [
+        r for r in httpx_mock.get_requests() if "chat/completions" in str(r.url)
+    ]
+    assert len(requests) == 2
+    first = json.loads(requests[0].content.decode("utf-8"))
+    second = json.loads(requests[1].content.decode("utf-8"))
+    # First attempt uses response_format; fallback uses a forced tool call.
+    assert "response_format" in first
+    assert "tools" not in first
+    assert second["tool_choice"] == {"type": "required"}
+    assert second["tools"][0]["name"] == "submit_tool_response"
+    assert "response_format" not in second
 
 
 class TestUiPathMockRuntime:
