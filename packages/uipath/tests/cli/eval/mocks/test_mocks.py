@@ -569,11 +569,17 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
                 {
                     "index": 0,
                     "message": {
-                        "role": "ai",
-                        "content": '"bar1"',
-                        "tool_calls": None,
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "name": "submit_tool_response",
+                                "arguments": {"response": "bar1"},
+                            }
+                        ],
                     },
-                    "finish_reason": "EOS",
+                    "finish_reason": "tool_calls",
                 }
             ],
             "usage": {
@@ -599,14 +605,13 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
     mock_request = httpx_mock.get_request(method="POST")
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert request["response_format"] == {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "OutputSchema",
-            "strict": False,
-            "schema": {"type": "string"},
-        },
-    }
+    assert "response_format" not in request
+    assert request["tool_choice"] == {"type": "required"}
+    tools = request["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "submit_tool_response"
+    assert tools[0]["parameters"]["properties"]["response"] == {"type": "string"}
+    assert tools[0]["parameters"]["required"] == ["response"]
 
     with pytest.raises(NotImplementedError):
         assert foofoo()
@@ -678,11 +683,17 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
                 {
                     "index": 0,
                     "message": {
-                        "role": "ai",
-                        "content": '"bar1"',
-                        "tool_calls": None,
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "name": "submit_tool_response",
+                                "arguments": {"response": "bar1"},
+                            }
+                        ],
                     },
-                    "finish_reason": "EOS",
+                    "finish_reason": "tool_calls",
                 }
             ],
             "usage": {
@@ -708,14 +719,13 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     mock_request = httpx_mock.get_request()
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert request["response_format"] == {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "OutputSchema",
-            "strict": False,
-            "schema": {"type": "string"},
-        },
-    }
+    assert "response_format" not in request
+    assert request["tool_choice"] == {"type": "required"}
+    tools = request["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "submit_tool_response"
+    assert tools[0]["parameters"]["properties"]["response"] == {"type": "string"}
+    assert tools[0]["parameters"]["required"] == ["response"]
 
     with pytest.raises(NotImplementedError):
         assert await foofoo()
@@ -786,11 +796,17 @@ def test_llm_mockable_with_output_schema_sync(
                 {
                     "index": 0,
                     "message": {
-                        "role": "ai",
-                        "content": '{"content": "bar1"}',
-                        "tool_calls": None,
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "name": "submit_tool_response",
+                                "arguments": {"response": {"content": "bar1"}},
+                            }
+                        ],
                     },
-                    "finish_reason": "EOS",
+                    "finish_reason": "tool_calls",
                 }
             ],
             "usage": {
@@ -815,19 +831,18 @@ def test_llm_mockable_with_output_schema_sync(
     mock_request = httpx_mock.get_request()
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert request["response_format"] == {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "OutputSchema",
-            "strict": False,
-            "schema": {
-                "required": ["content"],
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {"content": {"type": "string"}},
-            },
-        },
+    assert "response_format" not in request
+    assert request["tool_choice"] == {"type": "required"}
+    tools = request["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "submit_tool_response"
+    assert tools[0]["parameters"]["properties"]["response"] == {
+        "required": ["content"],
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"content": {"type": "string"}},
     }
+    assert tools[0]["parameters"]["required"] == ["response"]
 
 
 @pytest.mark.asyncio
@@ -887,11 +902,17 @@ async def test_llm_mockable_with_output_schema_async(
                 {
                     "index": 0,
                     "message": {
-                        "role": "ai",
-                        "content": '{"content": "bar1"}',
-                        "tool_calls": None,
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "name": "submit_tool_response",
+                                "arguments": {"response": {"content": "bar1"}},
+                            }
+                        ],
                     },
-                    "finish_reason": "EOS",
+                    "finish_reason": "tool_calls",
                 }
             ],
             "usage": {
@@ -916,19 +937,136 @@ async def test_llm_mockable_with_output_schema_async(
     mock_request = httpx_mock.get_request()
     assert mock_request
     request = json.loads(mock_request.content.decode("utf-8"))
-    assert request["response_format"] == {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "OutputSchema",
-            "strict": False,
-            "schema": {
-                "required": ["content"],
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {"content": {"type": "string"}},
-            },
+    assert "response_format" not in request
+    assert request["tool_choice"] == {"type": "required"}
+    tools = request["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "submit_tool_response"
+    assert tools[0]["parameters"]["properties"]["response"] == {
+        "required": ["content"],
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"content": {"type": "string"}},
+    }
+    assert tools[0]["parameters"]["required"] == ["response"]
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "gpt-4.1-mini-2025-04-14",
+        "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "gemini-2.5-pro",
+    ],
+)
+@pytest.mark.asyncio
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+async def test_llm_mockable_structured_output_via_tool_call(
+    model: str, httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
+):
+    """Tool simulation must work for all model providers (AE-1646).
+
+    The mocker requests structured output via function calling and reads the
+    result from the forced tool call's arguments, so it does not depend on the
+    OpenAI-only ``choices[0].message.content`` shape. Non-OpenAI providers
+    (Claude/Bedrock, Gemini) return structured output through ``tool_calls`` with
+    ``content`` set to ``None``; that must not raise.
+    """
+    monkeypatch.setenv("UIPATH_URL", "https://example.com")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
+
+    @mockable()
+    async def foo(*args, **kwargs) -> str:
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock foo",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "llm",
+            "prompt": "response is 'bar1'",
+            "toolsToSimulate": [{"name": "foo"}],
+            "model": {"model": model},
         },
     }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
+    httpx_mock.add_response(
+        url="https://example.com/agenthub_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/orchestrator_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
+        status_code=200,
+        json={
+            "id": "response-id",
+            "object": "",
+            "created": 0,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "name": "submit_tool_response",
+                                "arguments": {"response": "bar1"},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": 2,
+            },
+        },
+    )
+
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
+
+    assert await foo() == "bar1"
+
+    mock_request = httpx_mock.get_request(method="POST")
+    assert mock_request
+    request = json.loads(mock_request.content.decode("utf-8"))
+    # Structured output is requested via function calling, not response_format,
+    # so it works across all providers.
+    assert "response_format" not in request
+    assert request["tool_choice"] == {"type": "required"}
+    assert mock_request.headers["X-UiPath-LlmGateway-NormalizedApi-ModelName"] == model
+    tools = request["tools"]
+    assert len(tools) == 1
+    assert tools[0]["name"] == "submit_tool_response"
+    assert tools[0]["parameters"]["properties"]["response"] == {"type": "string"}
+    assert tools[0]["parameters"]["required"] == ["response"]
 
 
 class TestUiPathMockRuntime:

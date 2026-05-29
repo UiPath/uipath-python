@@ -11,10 +11,12 @@ from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat._llm_gateway_service import ChatModels
+from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
 from ._mocker import UiPathInputMockingError
+from ._structured_output import build_response_tool, extract_response
 from ._types import (
     InputMockingStrategy,
 )
@@ -105,14 +107,13 @@ async def generate_llm_input(
 
         prompt = get_input_mocking_prompt(**prompt_generation_args)
 
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "agent_input",
-                "strict": False,
-                "schema": input_schema,
-            },
-        }
+        # Request structured output via function calling so it works across all
+        # model providers (OpenAI, Claude/Bedrock, Gemini); response_format is only
+        # honored for OpenAI models on the normalized gateway.
+        response_tool = build_response_tool(
+            input_schema,
+            description="Return the simulated agent input matching the required schema.",
+        )
 
         model_parameters = mocking_strategy.model if mocking_strategy else None
         completion_kwargs = (
@@ -128,7 +129,7 @@ async def generate_llm_input(
 
         if cache_manager is not None:
             cache_key_data = {
-                "response_format": response_format,
+                "response_tool": response_tool,
                 "completion_kwargs": completion_kwargs,
                 "prompt_generation_args": prompt_generation_args,
             }
@@ -144,12 +145,12 @@ async def generate_llm_input(
 
         response = await llm.chat_completions(
             [{"role": "user", "content": prompt}],
-            response_format=response_format,
+            tools=[response_tool],
+            tool_choice=RequiredToolChoice(),
             **completion_kwargs,
         )
 
-        generated_input_str = response.choices[0].message.content
-        result = json.loads(generated_input_str)
+        result = extract_response(response)
 
         if cache_manager is not None:
             cache_manager.set(
@@ -160,10 +161,6 @@ async def generate_llm_input(
             )
 
         return result
-    except json.JSONDecodeError as e:
-        raise UiPathInputMockingError(
-            f"Failed to parse LLM response as JSON: {str(e)}"
-        ) from e
     except UiPathInputMockingError:
         raise
     except Exception as e:
