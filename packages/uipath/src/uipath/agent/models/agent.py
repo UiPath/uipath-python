@@ -115,6 +115,7 @@ class AgentToolType(str, CaseInsensitiveEnum):
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
     IXP = "Ixp"
+    SKILL = "Skill"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -789,6 +790,37 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentSkillToolProperties(BaseResourceProperties):
+    """Agent skill tool properties model.
+
+    Binds a Skill resource (vdbs `/ecs_/v2/Skills`) to an agent as a callable
+    tool. The skill's published Content is fetched at tool-creation time and
+    used as the system prompt for a sub-LLM call when the agent invokes the
+    tool. The input/output schema and argument properties live on the
+    enclosing :class:`AgentSkillToolResourceConfig`, not on the skill itself.
+    """
+
+    skill_id: str = Field(..., alias="skillId")
+    # Optional pin to a specific version. When None, the skill's current
+    # published version is resolved at tool-creation time.
+    version_id: Optional[str] = Field(default=None, alias="versionId")
+    folder_path: Optional[str] = Field(default=None, alias="folderPath")
+    folder_key: Optional[str] = Field(default=None, alias="folderKey")
+
+
+class AgentSkillToolResourceConfig(BaseAgentToolResourceConfig):
+    """Agent skill tool resource configuration model."""
+
+    type: Literal[AgentToolType.SKILL] = AgentToolType.SKILL
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
+    properties: AgentSkillToolProperties
+    settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
+
+
 class AgentIxpExtractionToolProperties(BaseResourceProperties):
     """Agent process tool properties model."""
 
@@ -943,6 +975,7 @@ ToolResourceConfig = Annotated[
         AgentIntegrationToolResourceConfig,
         AgentInternalToolResourceConfig,
         AgentIxpExtractionResourceConfig,
+        AgentSkillToolResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
@@ -1325,6 +1358,7 @@ class AgentDefinition(BaseModel):
             "integration": "Integration",
             "internal": "Internal",
             "ixp": "Ixp",
+            "skill": "Skill",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {

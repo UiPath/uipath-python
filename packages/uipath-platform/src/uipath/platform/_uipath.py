@@ -37,6 +37,7 @@ from .orchestrator import (
 )
 from .resource_catalog import ResourceCatalogService
 from .semantic_proxy import SemanticProxyService
+from .skills import SkillsService
 
 
 def _has_valid_client_credentials(
@@ -102,6 +103,10 @@ class UiPath:
     @cached_property
     def buckets(self) -> BucketsService:
         return BucketsService(self._config, self._execution_context)
+
+    @cached_property
+    def skills(self) -> SkillsService:
+        return SkillsService(self._config, self._execution_context)
 
     @cached_property
     def connections(self) -> ConnectionsService:
