@@ -696,11 +696,6 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             ContextGroundingIndex: The created index information.
         """
-        # Resolve the folder key the same way retrieve_by_id does (falling back
-        # to the ambient folder context) so the index is created in the same
-        # folder scope it will later be retrieved from. Otherwise the index is
-        # created tenant-scoped but the GET sends x-uipath-folderkey, scoping the
-        # lookup to a folder the index doesn't live in -> 404 "Schema not found".
         folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
@@ -737,11 +732,6 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             ContextGroundingIndex: The created index information.
         """
-        # Resolve the folder key the same way retrieve_by_id does (falling back
-        # to the ambient folder context) so the index is created in the same
-        # folder scope it will later be retrieved from. Otherwise the index is
-        # created tenant-scoped but the GET sends x-uipath-folderkey, scoping the
-        # lookup to a folder the index doesn't live in -> 404 "Schema not found".
         folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
