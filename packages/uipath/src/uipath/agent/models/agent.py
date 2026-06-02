@@ -125,6 +125,10 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     ANALYZE_FILES = "analyze-attachments"
     DEEP_RAG = "deep-rag"
     BATCH_TRANSFORM = "batch-transform"
+    GET_CASE_STATE = "get-case-state"
+    GET_CASE_PLAN = "get-case-plan"
+    GET_CASE_ENTITY = "get-case-entity"
+    GET_EXECUTION_TRACE = "get-execution-trace"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -879,11 +883,49 @@ class AgentInternalBatchTransformToolProperties(BaseResourceProperties):
     settings: AgentInternalBatchTransformSettings = Field(..., alias="settings")
 
 
+class AgentInternalGetCaseStateToolProperties(BaseResourceProperties):
+    """Agent internal Get Case State tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.GET_CASE_STATE] = Field(
+        alias="toolType", default=AgentInternalToolType.GET_CASE_STATE, frozen=True
+    )
+
+
+class AgentInternalGetCasePlanToolProperties(BaseResourceProperties):
+    """Agent internal Get Case Plan tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.GET_CASE_PLAN] = Field(
+        alias="toolType", default=AgentInternalToolType.GET_CASE_PLAN, frozen=True
+    )
+
+
+class AgentInternalGetCaseEntityToolProperties(BaseResourceProperties):
+    """Agent internal Get Case Entity tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.GET_CASE_ENTITY] = Field(
+        alias="toolType", default=AgentInternalToolType.GET_CASE_ENTITY, frozen=True
+    )
+
+
+class AgentInternalGetExecutionTraceToolProperties(BaseResourceProperties):
+    """Agent internal Get Execution Trace tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.GET_EXECUTION_TRACE] = Field(
+        alias="toolType",
+        default=AgentInternalToolType.GET_EXECUTION_TRACE,
+        frozen=True,
+    )
+
+
 AgentInternalToolProperties = Annotated[
     Union[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
+        AgentInternalGetCaseStateToolProperties,
+        AgentInternalGetCasePlanToolProperties,
+        AgentInternalGetCaseEntityToolProperties,
+        AgentInternalGetExecutionTraceToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
