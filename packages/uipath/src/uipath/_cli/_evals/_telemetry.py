@@ -329,5 +329,15 @@ class EvalTelemetrySubscriber:
         if tenant_id:
             properties["TenantId"] = tenant_id
 
+        # Origin of the eval-set run as classified by the caller (e.g. Manual,
+        # Protegi, FirstSuccessfulRun). The Agents backend forwards the value
+        # via UIPATH_EVAL_RUN_SOURCE so adoption dashboards can exclude
+        # auto-triggered runs (e.g. first-successful-run) from user-driven counts.
+        # Distinct from the `Source` dimension below, which categorises the SDK
+        # emitter ("uipath-python-cli"), not the run origin.
+        run_source = os.getenv("UIPATH_EVAL_RUN_SOURCE")
+        if run_source:
+            properties["RunSource"] = run_source
+
         properties["Source"] = "uipath-python-cli"
         properties["ApplicationName"] = "UiPath.Eval"
