@@ -2262,13 +2262,11 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
-
+        # Folder key not needed by retrieve by id. Adding it breaks ephemeral indexes
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
             headers={
-                **header_folder(folder_key, None),
                 **header_job_key(),
             },
         )

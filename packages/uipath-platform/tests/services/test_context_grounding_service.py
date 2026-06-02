@@ -8,6 +8,7 @@ from pytest_httpx import HTTPXMock
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common.constants import (
     ENV_JOB_KEY,
+    HEADER_FOLDER_KEY,
     HEADER_JOB_KEY,
     HEADER_USER_AGENT,
 )
@@ -3918,3 +3919,61 @@ class TestJobKeyHeader:
 
         headers = mock_request.call_args[1]["headers"]
         assert HEADER_JOB_KEY not in headers
+
+
+class TestRetrieveByIdFolderScoping:
+    """retrieve_by_id must not send a folder header.
+
+    Indexes are looked up by id tenant-wide. Ephemeral indexes are created
+    tenant-scoped, so sending x-uipath-folderkey on the GET scopes the lookup to
+    a folder the index does not live in, producing a 404 "Schema not found".
+    Regression: ECS-1819.
+    """
+
+    def test_omits_folder_header_even_with_ambient_folder(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv(ENV_JOB_KEY, raising=False)
+        # Simulate running inside a folder context (e.g. UIPATH_FOLDER_KEY set).
+        service._folder_key = "ambient-folder-key"
+
+        with patch.object(service, "request") as mock_request:
+            mock_request.return_value = MagicMock()
+            service.retrieve_by_id("ephemeral-index-id")
+
+        headers = mock_request.call_args[1]["headers"]
+        assert HEADER_FOLDER_KEY not in headers
+
+    @pytest.mark.anyio
+    async def test_async_omits_folder_header_even_with_ambient_folder(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv(ENV_JOB_KEY, raising=False)
+        service._folder_key = "ambient-folder-key"
+
+        with patch.object(service, "request_async") as mock_request:
+            mock_request.return_value = MagicMock()
+            await service.retrieve_by_id_async("ephemeral-index-id")
+
+        headers = mock_request.call_args[1]["headers"]
+        assert HEADER_FOLDER_KEY not in headers
+
+    def test_still_carries_job_key(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-retrieve")
+        service._folder_key = "ambient-folder-key"
+
+        with patch.object(service, "request") as mock_request:
+            mock_request.return_value = MagicMock()
+            service.retrieve_by_id("ephemeral-index-id")
+
+        headers = mock_request.call_args[1]["headers"]
+        assert headers[HEADER_JOB_KEY] == "job-key-retrieve"
+        assert HEADER_FOLDER_KEY not in headers
