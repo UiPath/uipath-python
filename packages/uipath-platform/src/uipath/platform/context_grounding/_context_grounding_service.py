@@ -696,8 +696,12 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             ContextGroundingIndex: The created index information.
         """
-        if folder_key is not None or folder_path is not None:
-            folder_key = self._resolve_folder_key(folder_key, folder_path)
+        # Resolve the folder key the same way retrieve_by_id does (falling back
+        # to the ambient folder context) so the index is created in the same
+        # folder scope it will later be retrieved from. Otherwise the index is
+        # created tenant-scoped but the GET sends x-uipath-folderkey, scoping the
+        # lookup to a folder the index doesn't live in -> 404 "Schema not found".
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
@@ -733,8 +737,12 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             ContextGroundingIndex: The created index information.
         """
-        if folder_key is not None or folder_path is not None:
-            folder_key = self._resolve_folder_key(folder_key, folder_path)
+        # Resolve the folder key the same way retrieve_by_id does (falling back
+        # to the ambient folder context) so the index is created in the same
+        # folder scope it will later be retrieved from. Otherwise the index is
+        # created tenant-scoped but the GET sends x-uipath-folderkey, scoping the
+        # lookup to a folder the index doesn't live in -> 404 "Schema not found".
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
@@ -2262,11 +2270,13 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> RequestSpec:
-        # Folder key not needed by retrieve by id. Adding it breaks ephemeral indexes
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
             headers={
+                **header_folder(folder_key, None),
                 **header_job_key(),
             },
         )
