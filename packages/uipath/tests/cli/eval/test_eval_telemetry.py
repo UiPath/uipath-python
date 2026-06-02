@@ -431,6 +431,7 @@ class TestEnrichProperties:
                 "UIPATH_PROJECT_ID": "project-123",
                 "UIPATH_ORGANIZATION_ID": "org-456",
                 "UIPATH_TENANT_ID": "tenant-abc",
+                "UIPATH_EVAL_RUN_SOURCE": "FirstSuccessfulRun",
             },
         ):
             subscriber._enrich_properties(properties)
@@ -440,6 +441,7 @@ class TestEnrichProperties:
         assert properties["CloudOrganizationId"] == "org-456"
         assert properties["CloudUserId"] == "user-789"
         assert properties["TenantId"] == "tenant-abc"
+        assert properties["RunSource"] == "FirstSuccessfulRun"
 
     @patch("uipath._cli._evals._telemetry.get_claim_from_token")
     def test_enrich_properties_skips_missing_env_vars(self, mock_get_claim):
@@ -455,6 +457,7 @@ class TestEnrichProperties:
                 "UIPATH_PROJECT_ID",
                 "UIPATH_ORGANIZATION_ID",
                 "UIPATH_TENANT_ID",
+                "UIPATH_EVAL_RUN_SOURCE",
             ]:
                 os.environ.pop(key, None)
 
@@ -465,6 +468,7 @@ class TestEnrichProperties:
         assert "CloudOrganizationId" not in properties
         assert "CloudUserId" not in properties
         assert "TenantId" not in properties
+        assert "RunSource" not in properties
 
 
 class TestExceptionHandling:
