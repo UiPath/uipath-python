@@ -1,11 +1,14 @@
 # Studio Web Integration
 
-[Studio Web](https://docs.uipath.com/studio-web/automation-cloud/latest/user-guide/overview) is a cloud IDE for building projects such as RPAs, low code agents, and API workflows. It also supports importing coded agents built locally. Bringing your coded agent into Studio Web gives you:
+[Studio Web](https://docs.uipath.com/studio-web/automation-cloud/latest/user-guide/overview) is a cloud IDE for building projects such as RPAs, low code agents, and API workflows. It also supports importing coded agents and coded functions built locally. Bringing your project into Studio Web gives you:
 
 - Cloud debugging with dynamic breakpoints
-- Running and defining evaluations directly in the cloud
+- Running and defining evaluations directly in the cloud (coded agents only)
 - A unified build experience alongside multiple project types
 - Self contained solution deployment units
+
+!!! warning "Preview Feature"
+    Coded function support is in preview and is subject to changes.
 
 <picture data-light="../assets/studio_web_diagram_light.png" data-dark="../assets/studio_web_diagram_dark.png">
   <source
@@ -16,11 +19,11 @@
   />
   <img
     src="../assets/studio_web_diagram_light.png"
-    alt="Coded agent in Studio Web"
+    alt="Coded agent or coded function in Studio Web"
   />
 </picture>
 
-There are two ways to connect a coded agent to Studio Web: using a [Cloud Workspace](#cloud-workspace) or a [Local Workspace](#local-workspace).
+There are two ways to connect your project to Studio Web: using a [Cloud Workspace](#cloud-workspace) or a [Local Workspace](#local-workspace).
 
 ---
 
@@ -28,10 +31,14 @@ There are two ways to connect a coded agent to Studio Web: using a [Cloud Worksp
 
 In a Cloud Workspace, your project lives in Studio Web and you sync code between your local IDE and the cloud.
 
-### Importing a Coded Agent
+### Importing a Coded Agent or Coded Function
 
 1. Open your solution in Studio Web
-2. Create a new Agent and select **Coded**
+2. Create the project:
+
+    //// tab | Agent
+
+    Create a new Agent and select **Coded**:
 
     <picture data-light="../assets/studio_web_select_coded_light.png" data-dark="../assets/studio_web_select_coded_dark.png">
       <source
@@ -45,29 +52,50 @@ In a Cloud Workspace, your project lives in Studio Web and you sync code between
       />
     </picture>
 
-3. Choose a sample project to start from, or push an existing local agent
+    ////
 
-### Pushing an Existing Agent
+    //// tab | Function
 
-If you already have a coded agent locally, you can sync it to Studio Web:
+    Use the **Initial setup screen** to get started:
 
-1. Copy the `UIPATH_PROJECT_ID` from Studio Web into your `.env` file
-
-    <picture data-light="../assets/studio_web_sync_from_ide_light.png" data-dark="../assets/studio_web_sync_from_ide_dark.png">
+    <picture data-light="../assets/studio_web_select_function_light.png" data-dark="../assets/studio_web_select_function_dark.png">
       <source
         media="(prefers-color-scheme: dark)"
         srcset="
-          ../assets/studio_web_sync_from_ide_dark.png
+          ../assets/studio_web_select_function_dark.png
         "
       />
       <img
-        src="../assets/studio_web_sync_from_ide_light.png"
+        src="../assets/studio_web_select_function_light.png"
       />
     </picture>
+
+    ////
+
+3. Choose a sample project to start from, or push an existing local project
+
+### Pushing an Existing Project
+
+If you already have a project locally, you can sync it to Studio Web:
+
+1. Copy the `UIPATH_PROJECT_ID` from Studio Web into your `.env` file
+
+ <picture data-light="../assets/studio_web_sync_from_ide_light.png" data-dark="../assets/studio_web_sync_from_ide_dark.png">
+   <source
+     media="(prefers-color-scheme: dark)"
+     srcset="
+       ../assets/studio_web_sync_from_ide_dark.png
+     "
+   />
+   <img
+     src="../assets/studio_web_sync_from_ide_light.png"
+   />
+ </picture>
 
 2. Push your project:
 
     <!-- termynal -->
+
     ```shell
     > uipath push
     Pushing UiPath project to Studio Web...
@@ -79,7 +107,7 @@ If you already have a coded agent locally, you can sync it to Studio Web:
      🔵 Resource import summary: 3 total resources - 1 created, 1 updated, 1 unchanged, 0 not found
     ```
 
-    Notice the **Resource import summary** at the end. The push command also imports resources defined in `bindings.json` into the Studio Web solution, just like importing resources for a low code agent. This ensures that all required resources are packaged with the solution, so the coded agent works anywhere the solution is deployed.
+    Notice the **Resource import summary** at the end. The push command also imports resources defined in `bindings.json` into the Studio Web solution, just like importing resources for a low code agent. This ensures that all required resources are packaged with the solution, so the project works anywhere the solution is deployed.
 
     See [`uipath push`](../cli/index.md) in the CLI Reference.
 
@@ -88,6 +116,7 @@ If you already have a coded agent locally, you can sync it to Studio Web:
 To pull the latest version from Studio Web to your local environment:
 
 <!-- termynal -->
+
 ```shell
 > uipath pull
 Pulling UiPath project from Studio Web...
@@ -116,21 +145,24 @@ See [`uipath pull`](../cli/index.md) in the CLI Reference.
 
 In a Local Workspace, your project lives on your machine and is linked to a Studio Web solution. See the [Local Workspace documentation](https://docs.uipath.com/studio-web/automation-cloud/latest/user-guide/solutions-in-the-local-workspace) for setup details.
 
-You can either start from a predefined template in Studio Web or set up a new agent from scratch.
+You can either start from a predefined template in Studio Web or set up a new project from scratch.
 
 ### Starting from a Template
 
-When creating a new Coded agent in Studio Web with a Local Workspace, you can pick one of the predefined templates. This creates the project files directly on your machine. Templates come with sample code and predefined evaluations you can run immediately.
+When creating a new coded agent or coded function in Studio Web with a Local Workspace, you can pick one of the predefined templates. This creates the project files directly on your machine. Templates come with sample code and predefined evaluations you can run immediately.
 
-### Setting Up a New Agent
+### Setting Up a New Project
 
-You can also create a coded agent from scratch in your local IDE and have it appear in Studio Web.
+You can also create a project from scratch in your local IDE and have it appear in Studio Web.
+
+#### Coded Agent
 
 First, install the SDK package for the framework you want to use:
 
 //// tab | uv
 
 <!-- termynal -->
+
 ```shell
 # Pick the package that matches your framework:
 #   uipath-langchain       - LangChain / LangGraph
@@ -149,6 +181,7 @@ Installed 42 packages in 0.8s
 //// tab | pip
 
 <!-- termynal -->
+
 ```shell
 # Pick the package that matches your framework:
 #   uipath-langchain       - LangChain / LangGraph
@@ -166,6 +199,7 @@ Successfully installed uipath-langchain
 Then authenticate, scaffold the agent, and initialize the project:
 
 <!-- termynal -->
+
 ```shell
 > uipath auth
 ⠋ Authenticating with UiPath ...
@@ -187,24 +221,70 @@ Selected tenant: Tenant1
 
 That's it, your agent should now be visible in Studio Web.
 
+#### Coded Function
+
+A coded function doesn't require an additional framework package. Authenticate, scaffold the project, and initialize it:
+
+<!-- termynal -->
+
+```shell
+> uipath auth
+⠋ Authenticating with UiPath ...
+🔗 If a browser window did not open, please open the following URL in your browser: [LINK]
+👇 Select tenant:
+  0: Tenant1
+  1: Tenant2
+Select tenant number: 0
+Selected tenant: Tenant1
+✓  Authentication successful.
+
+> uipath new my-function
+✓  Created 'main.py' file.
+✓  Created 'pyproject.toml' file.
+✓  Created 'uipath.json' file.
+
+> uipath init
+⠋ Initializing UiPath project ...
+✓  Created 'entry-points.json' file.
+```
+
+That's it, your coded function should now be visible in Studio Web.
+
 ---
 
 ## Publishing
 
-Once your coded agent is in Studio Web, publishing works the same as any other project. Click **Publish** in Studio Web and it will be packaged and deployed through the standard workflow.
+Once your project is in Studio Web, publishing works the same as any other project. Click **Publish** in Studio Web and it will be packaged and deployed through the standard workflow.
 
 ---
 
 ## Running and Debugging
 
-Your agent can be run both in the cloud (via Studio Web) and locally using the CLI.
+Your project can be run both in the cloud (via Studio Web) and locally using the CLI.
+
+The CLI commands below take the entrypoint name as the first argument. For a coded agent, this is the graph name declared in your framework's config (for example, `agent` in `langgraph.json`). For a coded function, this is the key declared in the `functions` map of `uipath.json` (for example, `main`).
 
 ### Running Locally
 
+//// tab | Agent
+
 <!-- termynal -->
+
 ```shell
 > uipath run agent '{"message": "hello"}'
 ```
+
+////
+
+//// tab | Function
+
+<!-- termynal -->
+
+```shell
+> uipath run main '{"message": "hello"}'
+```
+
+////
 
 See [`uipath run`](../cli/index.md) in the CLI Reference.
 
@@ -212,24 +292,54 @@ See [`uipath run`](../cli/index.md) in the CLI Reference.
 
 Use `uipath debug` for an enhanced local debugging experience. Unlike `uipath run`, the debug command:
 
-- Auto polls for trigger responses when the agent suspends (e.g., LangGraph interrupts)
+- Auto polls for trigger responses when the project suspends (e.g., LangGraph interrupts)
 - Fetches binding overwrites from Studio Web (configurable in **Debug > Debug Configuration > Solution resources**)
 
+//// tab | Agent
+
 <!-- termynal -->
+
 ```shell
 > uipath debug agent '{"message": "hello"}'
 ```
+
+////
+
+//// tab | Function
+
+<!-- termynal -->
+
+```shell
+> uipath debug main '{"message": "hello"}'
+```
+
+////
 
 See [`uipath debug`](../cli/index.md) in the CLI Reference.
 
 ### Evaluating Locally
 
-Run evaluations against your agent using the CLI:
+Run evaluations against your project using the CLI:
+
+//// tab | Agent
 
 <!-- termynal -->
+
 ```shell
 > uipath eval agent .\evaluations\eval-sets\faithfulness-multi-model.json
 ```
+
+////
+
+//// tab | Function
+
+<!-- termynal -->
+
+```shell
+> uipath eval main .\evaluations\eval-sets\default.json
+```
+
+////
 
 See [`uipath eval`](../cli/index.md) in the CLI Reference and the [Evaluations documentation](../eval/index.md).
 
@@ -237,7 +347,7 @@ See [`uipath eval`](../cli/index.md) in the CLI Reference and the [Evaluations d
 
 ## Syncing Evaluations
 
-Evaluations can be defined either in Studio Web or locally. They sync automatically when you use `uipath pull` and `uipath push`.
+Evaluations can be defined either in Studio Web or locally, and sync automatically when you use `uipath pull` and `uipath push`. Defining and running evaluations in Studio Web is supported for coded agents only; coded functions can still be evaluated locally with `uipath eval`.
 
 /// note
 Custom evaluators must be created locally. See [Custom Evaluators](../eval/custom_evaluators.md) for details.

@@ -1,5 +1,7 @@
 # CLI Reference
 
+The following commands apply to both **coded functions** and **coded agents**. The entry point name (`main`, `agent`, or any key you define in `uipath.json`) is the first argument to `run`, `debug`, `eval`, and `invoke`.
+
 ::: mkdocs-click
     :module: uipath._cli
     :command: auth
@@ -132,7 +134,7 @@ For step-by-step debugging with breakpoints and variable inspection (supported f
 ```console
 # Install debugpy package
 uv pip install debugpy
-# Run agent with debugging enabled
+# Run with debugging enabled
 uipath run [ENTRYPOINT] [INPUT] --debug
 ```
 For vscode:
@@ -154,19 +156,19 @@ Depending on the shell you are using, it may be necessary to escape the input js
 
 /// tab | Bash/ZSH
 ```console
-uipath run agent '{"topic": "UiPath"}'
+uipath run main '{"message": "hello"}'
 ```
 ///
 
 /// tab | Windows CMD
 ```console
-uipath run agent "{""topic"": ""UiPath""}"
+uipath run main "{""message"": ""hello""}"
 ```
 ///
 
 /// tab | Windows PowerShell
 ```console
-uipath run agent '{\"topic\":\"uipath\"}'
+uipath run main '{\"message\":\"hello\"}'
 ```
 ///
 
@@ -312,7 +314,7 @@ Selected feed: Orchestrator Tenant Processes Feed
 <!-- termynal -->
 
 ```shell
-> uipath invoke agent '{"topic": "UiPath"}'
+> uipath invoke main '{"message": "hello"}'
 ⠴ Loading configuration ...
 ⠴ Starting job ...
 ✨ Job started successfully!
@@ -380,7 +382,7 @@ File 'uipath.json' is up to date
     :depth: 1
     :style: table
 
-Runs your agent under the debug runtime, with a debug bridge attached. Locally, the bridge is the interactive **console** (read commands from stdin, stop at breakpoints). In the cloud, the bridge is **SignalR** (driven by Studio Web / Orchestrator). The `--attach` flag lets you override that default, including `none` for executors that need the debug command's surrounding behavior (bindings fetch, state streaming) but cannot speak the interactive debug protocol.
+Runs your project under the debug runtime, with a debug bridge attached. Locally, the bridge is the interactive **console** (read commands from stdin, stop at breakpoints). In the cloud, the bridge is **SignalR** (driven by Studio Web / Orchestrator). The `--attach` flag lets you override that default, including `none` for executors that need the debug command's surrounding behavior (bindings fetch, state streaming) but cannot speak the interactive debug protocol.
 
 ### Attach modes
 
@@ -427,7 +429,7 @@ Next: analyze_sentiment
     :depth: 1
     :style: table
 
-Runs an evaluation set against your agent. Entry point and eval set are auto-discovered from the project if not passed explicitly. Evaluations run in parallel (see `--workers`) and, unless `--no-report` is passed, results are reported back to Studio Web when `UIPATH_PROJECT_ID` is set.
+Runs an evaluation set against your project. Entry point and eval set are auto-discovered from the project if not passed explicitly. Evaluations run in parallel (see `--workers`) and, unless `--no-report` is passed, results are reported back to Studio Web when `UIPATH_PROJECT_ID` is set.
 
 ### Common flags
 
