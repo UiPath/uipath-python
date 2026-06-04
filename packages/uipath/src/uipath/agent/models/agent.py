@@ -726,12 +726,7 @@ class AgentEscalationChannel(BaseCfg):
     )
     priority: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
-    # QuickForm fields — set only on channels backed by a .hitl.json schema.
-    # schema_id is the UUID key under which the schema is registered in Orchestrator's
-    # TaskSchemas table. schema_body is the inline schema body, sent on every task creation
-    # so Orchestrator can upsert it (the Agents runtime has no separate registration step).
-    # The Python attribute is schema_body (not schema) to avoid shadowing
-    # pydantic.BaseModel.schema(); the JSON alias is "schema" to match the wire format.
+    # schema_body avoids shadowing pydantic.BaseModel.schema(); JSON alias stays "schema".
     schema_id: Optional[str] = Field(None, alias="schemaId")
     schema_body: Optional[Dict[str, Any]] = Field(None, alias="schema")
 

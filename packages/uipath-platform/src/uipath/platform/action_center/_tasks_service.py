@@ -676,25 +676,56 @@ class TasksService(FolderContext, BaseService):
         task_schema_key: str,
         schema: Dict[str, Any],
         data: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        assignee: Optional[str] = None,
+        recipient: Optional[TaskRecipient] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        creator_job_key: Optional[str] = None,
+        source_name: str = "Agent",
     ) -> Task:
         """Create a new QuickForm task synchronously.
 
-        Thin ``asyncio.run`` wrapper over :meth:`create_quickform_async`. All
-        keyword arguments (``folder_path``, ``folder_key``, ``assignee``,
-        ``recipient``, ``priority``, ``labels``, ``is_actionable_message_enabled``,
-        ``actionable_message_metadata``, ``creator_job_key``, ``source_name``)
-        are forwarded as-is. See that method for parameter docs.
+        See :meth:`create_quickform_async` for parameter docs.
         """
-        return asyncio.run(
-            self.create_quickform_async(
-                title=title,
-                task_schema_key=task_schema_key,
-                schema=schema,
-                data=data,
-                **kwargs,
-            )
+        spec = _create_quickform_spec(
+            title=title,
+            data=data,
+            task_schema_key=task_schema_key,
+            schema=schema,
+            creator_job_key=creator_job_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
+            source_name=source_name,
         )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        json_response = response.json()
+        if assignee or recipient:
+            assign_spec = asyncio.run(
+                _assign_task_spec(self, json_response["id"], assignee, recipient)
+            )
+            self.request(
+                assign_spec.method,
+                assign_spec.endpoint,
+                json=assign_spec.json,
+                content=assign_spec.content,
+            )
+        return Task.model_validate(json_response)
 
     @resource_override(
         resource_type="app",

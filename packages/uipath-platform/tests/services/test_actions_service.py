@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import pytest
@@ -593,11 +594,9 @@ def qf_assign_url(base_url: str, org: str, tenant: str) -> str:
 
 
 def _posted_body(httpx_mock: HTTPXMock, url: str) -> dict[str, Any]:
-    import json as _json
-
     for req in httpx_mock.get_requests():
         if str(req.url) == url:
-            return _json.loads(req.content)
+            return json.loads(req.content)
     raise AssertionError(f"no request was POSTed to {url}")
 
 
