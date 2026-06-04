@@ -153,7 +153,9 @@ def get_chat_system_prompt(
     """Generate a system prompt for a conversational agent.
 
     Args:
-        agent_definition: Conversational agent definition
+        model: Model identifier.
+        system_message: The agent system prompt content.
+        agent_name: The agent display name; defaults to "Unnamed Agent" when None.
         user_settings: Optional user data that is injected into the system prompt.
         conversation_id: Optional conversation identifier that is injected into the system prompt.
 
