@@ -212,7 +212,6 @@ def _normalize_priority(priority: str | None) -> str | None:
     return normalized
 
 
-# TaskType.QuickFormTask value, matching the Orchestrator enum (UiPath.Orchestrator.DataContracts.TaskType).
 _TASK_TYPE_QUICKFORM = 6
 
 
