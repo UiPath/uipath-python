@@ -163,14 +163,14 @@ class TestConversationIdInPrompt:
 
         assert "The current conversation ID is conv-abc-123" in prompt
         assert (
-            "You should generally not discuss this conversation ID with the user, but it may be useful to include as a tool-call argument when relevant."
+            "This may be useful to include in tool-calls when tool parameters specify passing in the conversation ID."
             in prompt
         )
         assert (
             "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}" not in prompt
         )
 
-    def test_prompt_omits_conversation_id_section_when_none(self):
+    def test_prompt_omits_section_when_none(self):
         prompt = get_chat_system_prompt(
             model="claude-3-sonnet",
             system_message=SYSTEM_MESSAGE,
@@ -184,7 +184,7 @@ class TestConversationIdInPrompt:
             "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}" not in prompt
         )
 
-    def test_prompt_omits_conversation_id_section_when_empty_string(self):
+    def test_prompt_omits_section_when_empty_string(self):
         prompt = get_chat_system_prompt(
             model="claude-3-sonnet",
             system_message=SYSTEM_MESSAGE,
@@ -196,8 +196,8 @@ class TestConversationIdInPrompt:
         assert "conversation ID" not in prompt
 
     def test_prompt_defaults_to_no_conversation_id(self):
-        """conversation_id parameter defaults to None — call sites that don't
-        pass it must not get a dangling placeholder."""
+        """conversation_id defaults to None — call sites that don't pass it
+        must not get a dangling placeholder."""
         prompt = get_chat_system_prompt(
             model="claude-3-sonnet",
             system_message=SYSTEM_MESSAGE,

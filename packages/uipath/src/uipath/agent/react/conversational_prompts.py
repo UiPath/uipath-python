@@ -24,7 +24,6 @@ class PromptUserSettings(BaseModel):
 _AGENT_SYSTEM_PROMPT_PREFIX_TEMPLATE = """You are {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_agentName}}.
 The current date is: {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_currentDate}}.
 Understand user goals through conversation and use appropriate tools to fulfill requests.
-{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}
 
 =====================================================================
 PRECEDENCE HIERARCHY
@@ -62,6 +61,8 @@ On Missing Data:
 - Ask user for specifics before proceeding
 - Never attempt calls with incomplete data
 - On errors: modify parameters or change approach (never retry identical calls)
+
+{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}
 
 =====================================================================
 TOOL RESULTS
@@ -138,8 +139,7 @@ You have the following information about the user:
 ```"""
 
 _CONVERSATION_ID_TEMPLATE = """
-The current conversation ID is {conversation_id}.
-You should generally not discuss this conversation ID with the user, but it may be useful to include as a tool-call argument when relevant."
+The current conversation ID is {conversation_id}. This may be useful to include in tool-calls when tool parameters specify passing in the conversation ID. Other than tool-call inputs, this ID should not be mentioned to the user.
 """
 
 
@@ -220,7 +220,7 @@ def get_user_settings_template(
 
 
 def get_conversation_id_template(conversation_id: str | None) -> str:
-    """Get the conversation-ID prompt section.
+    """Get the conversation ID prompt section.
 
     Args:
         conversation_id: The ID of the current conversation, if any
