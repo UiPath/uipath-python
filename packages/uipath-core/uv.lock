@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "2026-05-25T19:32:11.835974Z"
+exclude-newer = "2026-06-06T13:38:31.678016Z"
 exclude-newer-span = "P2D"
 
 [[package]]
@@ -1011,7 +1011,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.17"
+version = "0.5.18"
 source = { editable = "." }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
