@@ -9,8 +9,11 @@ on:
       - '.github/scripts/test_detect_publishable_packages.py'
       - '.github/scripts/check_version_uniqueness.py'
       - '.github/scripts/test_check_version_uniqueness.py'
+      - '.github/scripts/check_dependency_version_bumps.py'
+      - '.github/scripts/test_check_dependency_version_bumps.py'
       - '.github/workflows/cd.yml'
       - '.github/workflows/check-version-availability.yml'
+      - '.github/workflows/check-dependency-bumps.yml'
 
 permissions:
   contents: read
@@ -32,4 +35,4 @@ jobs:
 
       - name: Run tests
         working-directory: .github/scripts
-        run: python -m pytest test_detect_publishable_packages.py test_check_version_uniqueness.py -v
+        run: python -m pytest test_detect_publishable_packages.py test_check_version_uniqueness.py test_check_dependency_version_bumps.py -v

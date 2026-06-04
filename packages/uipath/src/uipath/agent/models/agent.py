@@ -112,10 +112,13 @@ class AgentToolType(str, CaseInsensitiveEnum):
     PROCESS = "Process"
     API = "Api"
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    FLOW = "Flow"
+    FUNCTION = "Function"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
     IXP = "Ixp"
     SKILL = "Skill"
+    CLIENT_SIDE = "ClientSide"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -189,6 +192,7 @@ class AgentToolArgumentPropertiesVariant(str, CaseInsensitiveEnum):
     ARGUMENT = "argument"
     STATIC = "static"
     TEXT_BUILDER = "textBuilder"
+    ARRAY_BUILDER = "arrayBuilder"
 
 
 class TextTokenType(str, CaseInsensitiveEnum):
@@ -277,11 +281,21 @@ class AgentToolTextBuilderArgumentProperties(BaseAgentToolArgumentProperties):
     tokens: List[TextToken]
 
 
+class AgentToolArrayBuilderArgumentProperties(BaseCfg):
+    """Agent array builder argument properties model."""
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.ARRAY_BUILDER] = Field(
+        default=AgentToolArgumentPropertiesVariant.ARRAY_BUILDER,
+        frozen=True,
+    )
+
+
 AgentToolArgumentProperties = Annotated[
     Union[
         AgentToolStaticArgumentProperties,
         AgentToolArgumentArgumentProperties,
         AgentToolTextBuilderArgumentProperties,
+        AgentToolArrayBuilderArgumentProperties,
     ],
     Field(discriminator="variant"),
     _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
@@ -780,6 +794,8 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
         AgentToolType.PROCESS,
         AgentToolType.API,
         AgentToolType.PROCESS_ORCHESTRATION,
+        AgentToolType.FLOW,
+        AgentToolType.FUNCTION,
     ]
     output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     properties: AgentProcessToolProperties
@@ -962,6 +978,15 @@ class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentClientSideToolResourceConfig(BaseAgentToolResourceConfig):
+    """Resource config for client-side tools executed by the client SDK."""
+
+    type: Literal[AgentToolType.CLIENT_SIDE] = AgentToolType.CLIENT_SIDE
+    properties: BaseResourceProperties = Field(default_factory=BaseResourceProperties)
+    output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
+    arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
     """Fallback for unknown tool types (parent normalizer sets type='Unknown')."""
 
@@ -976,6 +1001,7 @@ ToolResourceConfig = Annotated[
         AgentInternalToolResourceConfig,
         AgentIxpExtractionResourceConfig,
         AgentSkillToolResourceConfig,
+        AgentClientSideToolResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
@@ -1355,10 +1381,13 @@ class AgentDefinition(BaseModel):
             "process": "Process",
             "api": "Api",
             "processorchestration": "ProcessOrchestration",
+            "flow": "Flow",
+            "function": "Function",
             "integration": "Integration",
             "internal": "Internal",
             "ixp": "Ixp",
             "skill": "Skill",
+            "clientside": "ClientSide",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {

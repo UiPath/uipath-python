@@ -198,6 +198,7 @@ By default, the following file types are included in the `.nupkg` file:
 - `.json`
 - `.yaml`
 - `.yml`
+- `.md`
 
 ---
 
@@ -212,7 +213,7 @@ To include additional files, update the `uipath.json` file by adding a `packOpti
             "<file here>"
         ],
         "fileExtensionsIncluded": [
-            "<new file extension to include (e.g., 'go')>"
+            "<new file extension to include, with leading dot (e.g., '.go')>"
         ]
     }
 }

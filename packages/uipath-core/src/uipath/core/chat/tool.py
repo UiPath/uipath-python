@@ -27,6 +27,8 @@ class UiPathConversationToolCallStartEvent(BaseModel):
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
     require_confirmation: bool | None = Field(None, alias="requireConfirmation")
     input_schema: Any | None = Field(None, alias="inputSchema")
+    is_client_side_tool: bool | None = Field(None, alias="isClientSideTool")
+    output_schema: Any | None = Field(None, alias="outputSchema")
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -39,6 +41,19 @@ class UiPathConversationToolCallEndEvent(BaseModel):
     is_error: bool | None = Field(None, alias="isError")
     cancelled: bool | None = None
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class UiPathConversationExecutingToolCallEvent(BaseModel):
+    """Signals the client that the tool is about to be executed.
+
+    Emitted in all scenarios. For client-side tools, the client should begin
+    executing its handler upon receiving this event.
+    """
+
+    timestamp: str | None = None
+    input: dict[str, Any] | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -81,6 +96,9 @@ class UiPathConversationToolCallEvent(BaseModel):
     end: UiPathConversationToolCallEndEvent | None = Field(None, alias="endToolCall")
     confirm: UiPathConversationToolCallConfirmationEvent | None = Field(
         None, alias="confirmToolCall"
+    )
+    executing: UiPathConversationExecutingToolCallEvent | None = Field(
+        None, alias="executingToolCall"
     )
     meta_event: dict[str, Any] | None = Field(None, alias="metaEvent")
     error: UiPathConversationErrorEvent | None = Field(None, alias="toolCallError")
