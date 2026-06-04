@@ -726,6 +726,9 @@ class AgentEscalationChannel(BaseCfg):
     )
     priority: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
+    # schema_body avoids shadowing pydantic.BaseModel.schema(); JSON alias stays "schema".
+    schema_id: Optional[str] = Field(None, alias="schemaId")
+    schema_body: Optional[Dict[str, Any]] = Field(None, alias="schema")
 
     @model_validator(mode="before")
     @classmethod
@@ -767,6 +770,23 @@ class AgentIxpVsEscalationResourceConfig(BaseAgentResourceConfig):
     vs_escalation_properties: AgentIxpVsEscalationProperties = Field(
         ..., alias="vsEscalationProperties"
     )
+
+
+class AgentQuickFormEscalationResourceConfig(BaseAgentResourceConfig):
+    """Quick Form Agent escalation resource configuration model (escalationType=2).
+
+    Quick Form escalations render a schema-first HITL task in Action Center via FormLib.
+    The schema (and its key) live on the channel (see AgentEscalationChannel.schema_id /
+    schema) and are sent inline to Orchestrator's GenericTasks/CreateTask endpoint.
+    """
+
+    id: Optional[str] = Field(None, alias="id")
+    resource_type: Literal[AgentResourceType.ESCALATION] = Field(
+        alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
+    )
+    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
+    escalation_type: Literal[2] = Field(default=2, alias="escalationType")
 
 
 class BaseAgentToolResourceConfig(BaseAgentResourceConfig):
@@ -978,6 +998,7 @@ EscalationResourceConfig = Annotated[
     Union[
         Annotated[AgentEscalationResourceConfig, Tag(0)],
         Annotated[AgentIxpVsEscalationResourceConfig, Tag(1)],
+        Annotated[AgentQuickFormEscalationResourceConfig, Tag(2)],
     ],
     Discriminator(lambda v: v.get("escalation_type") or v.get("escalationType") or 0),
 ]
