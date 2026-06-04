@@ -1,6 +1,6 @@
 """Tests for PII rehydration utilities."""
 
-from uipath.platform.semantic_proxy import (
+from uipath.platform.pii_detection import (
     PiiDetectionResponse,
     PiiDocumentResult,
     PiiEntity,
