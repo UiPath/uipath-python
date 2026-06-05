@@ -664,6 +664,222 @@ class TestListTargetOutputKey:
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
 
+    @pytest.mark.asyncio
+    async def test_list_keys_non_dict_actual_raises(self) -> None:
+        """Non-dict agent_output with list key returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output="just a string",  # type: ignore[arg-type]
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_non_dict_json_expected_raises(self) -> None:
+        """Valid JSON that parses to a non-dict returns ErrorEvaluationResult."""
+        import json
+
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        # Valid JSON but not an object — triggers the isinstance(expected_output, dict) guard
+        criteria = OutputEvaluationCriteria(
+            expected_output=json.dumps("just a string")  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_attachment_uri_downloaded(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Attachment URIs within list-key actual output values are downloaded."""
+        att_uri = "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000001"
+        mocker.patch(
+            "uipath.eval.evaluators.output_evaluator.download_attachment_as_string",
+            return_value="downloaded_content",
+        )
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"file": att_uri, "status": "ok"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["file", "status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"file": "downloaded_content", "status": "ok"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_attachment_uri_downloaded(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Attachment URI in scalar-key actual output is downloaded."""
+        att_uri = "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000002"
+        mocker.patch(
+            "uipath.eval.evaluators.output_evaluator.download_attachment_as_string",
+            return_value="file_content",
+        )
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"report": att_uri},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchScalarAtt", "target_output_key": "report"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"report": "file_content"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_missing_in_actual_raises(self) -> None:
+        """Missing scalar target_output_key in actual output returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"other": "value"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchMissingActual", "target_output_key": "missing_key"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"missing_key": "val"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_missing_in_expected_raises(self) -> None:
+        """Missing scalar target_output_key in expected output returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchMissingExpected", "target_output_key": "status"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        # expected output dict doesn't contain the target key
+        criteria = OutputEvaluationCriteria(
+            expected_output={"other_key": "ok"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_invalid_json_expected_raises(self) -> None:
+        """Invalid JSON string for expected output with scalar key returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchInvalidJson", "target_output_key": "status"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output="not valid json"  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_validate_and_evaluate_criteria_none_raises(self) -> None:
+        """None criteria with no default configured raises UiPathEvaluationError."""
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchNoCriteria"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        with pytest.raises(UiPathEvaluationError) as exc_info:
+            await evaluator.validate_and_evaluate_criteria(execution, None)
+        assert "MISSING_EVALUATION_CRITERIA" in exc_info.value.error_info.code
+
+    def test_base_output_evaluator_get_full_expected_output_raises(self) -> None:
+        """BaseOutputEvaluator._get_full_expected_output raises NOT_IMPLEMENTED."""
+        from uipath.eval.evaluators.output_evaluator import (
+            BaseOutputEvaluator,
+            OutputEvaluationCriteria,
+            OutputEvaluatorConfig,
+        )
+        from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
+        from uipath.eval.models import EvaluationResult
+
+        class _MinimalEvaluator(
+            BaseOutputEvaluator[
+                OutputEvaluationCriteria,
+                OutputEvaluatorConfig[OutputEvaluationCriteria],
+                BaseEvaluatorJustification,
+            ]
+        ):
+            @classmethod
+            def get_evaluator_id(cls) -> str:
+                return "uipath-minimal-test"
+
+            async def evaluate(self, agent_execution: Any, evaluation_criteria: Any) -> EvaluationResult:  # type: ignore[override]
+                return None  # type: ignore[return-value]
+
+            def validate_evaluation_criteria(self, raw: Any) -> OutputEvaluationCriteria:
+                return OutputEvaluationCriteria.model_validate(raw)
+
+        evaluator = _MinimalEvaluator.model_validate(
+            {
+                "evaluatorConfig": {"name": "minimal"},
+                "id": str(uuid.uuid4()),
+            }
+        )
+        with pytest.raises(UiPathEvaluationError) as exc_info:
+            evaluator._get_full_expected_output(  # type: ignore[arg-type]
+                OutputEvaluationCriteria(expected_output={})  # pyright: ignore[reportCallIssue]
+            )
+        assert "NOT_IMPLEMENTED" in exc_info.value.error_info.code
+
 
 class TestContainsEvaluator:
     """Test ContainsEvaluator.evaluate() method."""

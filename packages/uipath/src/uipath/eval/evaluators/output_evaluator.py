@@ -137,6 +137,13 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         key = self.evaluator_config.target_output_key
 
         if isinstance(key, list):
+            if not isinstance(agent_execution.agent_output, dict):
+                raise UiPathEvaluationError(
+                    code="INVALID_ACTUAL_OUTPUT",
+                    title="When target output keys are specified, actual output must be a dictionary",
+                    detail=f"Got {type(agent_execution.agent_output).__name__}",
+                    category=UiPathEvaluationErrorCategory.USER,
+                )
             try:
                 list_result: dict[str, Any] = {
                     k: resolve_output_path(agent_execution.agent_output, k) for k in key
@@ -181,60 +188,67 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             category=UiPathEvaluationErrorCategory.SYSTEM,
         )
 
+    def _resolve_list_key_expected(
+        self, expected_output: Any, keys: list[str]
+    ) -> dict[str, Any]:
+        """Parse and resolve expected output for a list of keys."""
+        if isinstance(expected_output, str):
+            try:
+                expected_output = json.loads(expected_output)
+            except json.JSONDecodeError as e:
+                raise UiPathEvaluationError(
+                    code="INVALID_EXPECTED_OUTPUT",
+                    title="When target output keys are specified, expected output must be a dictionary or a valid JSON string",
+                    detail=f"Error: {e}",
+                    category=UiPathEvaluationErrorCategory.USER,
+                ) from e
+        if not isinstance(expected_output, dict):
+            raise UiPathEvaluationError(
+                code="INVALID_EXPECTED_OUTPUT",
+                title="When target output keys are specified, expected output must be a dictionary",
+                detail=f"Got {type(expected_output).__name__}",
+                category=UiPathEvaluationErrorCategory.USER,
+            )
+        try:
+            return {k: resolve_output_path(expected_output, k) for k in keys}
+        except (KeyError, IndexError, TypeError) as e:
+            raise UiPathEvaluationError(
+                code="TARGET_OUTPUT_KEY_NOT_FOUND",
+                title="One or more target output keys not found in expected output",
+                detail=f"Error: {e}",
+                category=UiPathEvaluationErrorCategory.USER,
+            ) from e
+
+    def _resolve_scalar_key_expected(self, expected_output: Any, key: str) -> Any:
+        """Parse and resolve expected output for a single key."""
+        if isinstance(expected_output, str):
+            try:
+                expected_output = json.loads(expected_output)
+            except json.JSONDecodeError as e:
+                raise UiPathEvaluationError(
+                    code="INVALID_EXPECTED_OUTPUT",
+                    title="When target output key is not '*', expected output must be a dictionary or a valid JSON string",
+                    detail=f"Error: {e}",
+                    category=UiPathEvaluationErrorCategory.USER,
+                ) from e
+        try:
+            return resolve_output_path(expected_output, key)
+        except (KeyError, IndexError, TypeError) as e:
+            raise UiPathEvaluationError(
+                code="TARGET_OUTPUT_KEY_NOT_FOUND",
+                title="Target output key not found in expected output",
+                detail=f"Error: {e}",
+                category=UiPathEvaluationErrorCategory.USER,
+            ) from e
+
     def _get_expected_output(self, evaluation_criteria: T) -> Any:
         """Load the expected output from the evaluation criteria."""
         expected_output = self._get_full_expected_output(evaluation_criteria)
         key = self.evaluator_config.target_output_key
-
         if isinstance(key, list):
-            if isinstance(expected_output, str):
-                try:
-                    expected_output = json.loads(expected_output)
-                except json.JSONDecodeError as e:
-                    raise UiPathEvaluationError(
-                        code="INVALID_EXPECTED_OUTPUT",
-                        title="When target output keys are specified, expected output must be a dictionary or a valid JSON string",
-                        detail=f"Error: {e}",
-                        category=UiPathEvaluationErrorCategory.USER,
-                    ) from e
-            if not isinstance(expected_output, dict):
-                raise UiPathEvaluationError(
-                    code="INVALID_EXPECTED_OUTPUT",
-                    title="When target output keys are specified, expected output must be a dictionary",
-                    detail=f"Got {type(expected_output).__name__}",
-                    category=UiPathEvaluationErrorCategory.USER,
-                )
-            try:
-                expected_output = {
-                    k: resolve_output_path(expected_output, k) for k in key
-                }
-            except (KeyError, IndexError, TypeError) as e:
-                raise UiPathEvaluationError(
-                    code="TARGET_OUTPUT_KEY_NOT_FOUND",
-                    title="One or more target output keys not found in expected output",
-                    detail=f"Error: {e}",
-                    category=UiPathEvaluationErrorCategory.USER,
-                ) from e
+            expected_output = self._resolve_list_key_expected(expected_output, key)
         elif key != "*":
-            if isinstance(expected_output, str):
-                try:
-                    expected_output = json.loads(expected_output)
-                except json.JSONDecodeError as e:
-                    raise UiPathEvaluationError(
-                        code="INVALID_EXPECTED_OUTPUT",
-                        title="When target output key is not '*', expected output must be a dictionary or a valid JSON string",
-                        detail=f"Error: {e}",
-                        category=UiPathEvaluationErrorCategory.USER,
-                    ) from e
-            try:
-                expected_output = resolve_output_path(expected_output, key)
-            except (KeyError, IndexError, TypeError) as e:
-                raise UiPathEvaluationError(
-                    code="TARGET_OUTPUT_KEY_NOT_FOUND",
-                    title="Target output key not found in expected output",
-                    detail=f"Error: {e}",
-                    category=UiPathEvaluationErrorCategory.USER,
-                ) from e
+            expected_output = self._resolve_scalar_key_expected(expected_output, key)
         return self._normalize_numbers(expected_output)
 
     async def validate_and_evaluate_criteria(
