@@ -671,7 +671,7 @@ class TestListTargetOutputKey:
 
         execution = AgentExecution(
             agent_input={},
-            agent_output="just a string",  # type: ignore[arg-type]
+            agent_output="just a string",  # pyright: ignore[reportArgumentType]
             agent_trace=[],
         )
         config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
@@ -862,8 +862,8 @@ class TestListTargetOutputKey:
             def get_evaluator_id(cls) -> str:
                 return "uipath-minimal-test"
 
-            async def evaluate(self, agent_execution: Any, evaluation_criteria: Any) -> EvaluationResult:  # type: ignore[override]
-                return None  # type: ignore[return-value]
+            async def evaluate(self, agent_execution: Any, evaluation_criteria: Any) -> EvaluationResult:  # pyright: ignore[reportReturnType]
+                return None  # pyright: ignore[reportReturnType]
 
             def validate_evaluation_criteria(self, raw: Any) -> OutputEvaluationCriteria:
                 return OutputEvaluationCriteria.model_validate(raw)
@@ -875,7 +875,7 @@ class TestListTargetOutputKey:
             }
         )
         with pytest.raises(UiPathEvaluationError) as exc_info:
-            evaluator._get_full_expected_output(  # type: ignore[arg-type]
+            evaluator._get_full_expected_output(  # pyright: ignore[reportArgumentType]
                 OutputEvaluationCriteria(expected_output={})  # pyright: ignore[reportCallIssue]
             )
         assert "NOT_IMPLEMENTED" in exc_info.value.error_info.code
