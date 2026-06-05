@@ -116,6 +116,15 @@ class TestRehydrateFromPiiEntities:
         )
         assert result == "Hello Alice"
 
+    def test_pii_text_inserted_verbatim_not_json_escaped(self) -> None:
+        """PII values are plain text: quotes, newlines and backslashes are
+        inserted as-is, never JSON-escaped."""
+        pii = 'Bob "The Boss"\nC:\\Users\\bob'
+        result = rehydrate_from_pii_entities(
+            "Name: [Person-1]", [_entity(pii, "[Person-1]")]
+        )
+        assert result == f"Name: {pii}"
+
 
 class TestRehydrateFromPiiResponse:
     """Test rehydrate_from_pii_response."""

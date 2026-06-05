@@ -3,7 +3,6 @@
 Python port of UiPath.SemanticProxy.Client.PiiUtilities (C#).
 """
 
-import json
 import re
 from typing import Callable, Iterable
 
@@ -42,13 +41,12 @@ def rehydrate_from_pii_entities(
     for entity in entities:
         if not entity.replacement_text or not entity.pii_text:
             continue
-        escaped_pii = _add_escape_characters(entity.pii_text)
         # Replace the full placeholder (with brackets) case-insensitively.
         # ``_literal_replacer`` bypasses regex backreference interpretation in the
         # replacement string.
         rehydrated = re.sub(
             re.escape(entity.replacement_text),
-            _literal_replacer(escaped_pii),
+            _literal_replacer(entity.pii_text),
             rehydrated,
             flags=re.IGNORECASE,
         )
@@ -59,7 +57,7 @@ def rehydrate_from_pii_entities(
             no_brackets = entity.replacement_text[1:-1]
             rehydrated = re.sub(
                 re.escape(no_brackets),
-                _literal_replacer(escaped_pii),
+                _literal_replacer(entity.pii_text),
                 rehydrated,
                 flags=re.IGNORECASE,
             )
@@ -98,18 +96,3 @@ def rehydrate_from_pii_response(
     for file in response.files:
         entities.extend(file.pii_entities)
     return rehydrate_from_pii_entities(masked_text, entities)
-
-
-def _add_escape_characters(text: str) -> str:
-    """Escape special characters in text using JSON serialization.
-
-    Mirrors C# ``AddEscapeCharacters`` — serializes as JSON then strips the
-    surrounding quotes to get the escaped content.
-    """
-    if not text:
-        return ""
-    try:
-        serialized = json.dumps(text, ensure_ascii=False)
-        return serialized[1:-1]
-    except (TypeError, ValueError):
-        return text
