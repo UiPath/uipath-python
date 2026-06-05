@@ -862,8 +862,8 @@ class TestListTargetOutputKey:
             def get_evaluator_id(cls) -> str:
                 return "uipath-minimal-test"
 
-            async def evaluate(self, agent_execution: Any, evaluation_criteria: Any) -> EvaluationResult:  # pyright: ignore[reportReturnType]
-                return None  # pyright: ignore[reportReturnType]
+            async def evaluate(self, agent_execution: Any, evaluation_criteria: Any) -> EvaluationResult:
+                return None  # type: ignore[return-value]
 
             def validate_evaluation_criteria(self, raw: Any) -> OutputEvaluationCriteria:
                 return OutputEvaluationCriteria.model_validate(raw)
