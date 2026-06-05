@@ -87,7 +87,8 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig[T]):
     """
 
     target_output_key: str | list[str] = Field(
-        default="*", description="Key or list of keys to extract output from agent execution"
+        default="*",
+        description="Key or list of keys to extract output from agent execution",
     )
     line_by_line_evaluator: bool = Field(
         default=False,
@@ -137,7 +138,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
         if isinstance(key, list):
             try:
-                result: dict[str, Any] = {
+                list_result: dict[str, Any] = {
                     k: resolve_output_path(agent_execution.agent_output, k) for k in key
                 }
             except (KeyError, IndexError, TypeError) as e:
@@ -147,11 +148,11 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     detail=f"Error: {e}",
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
-            for k, v in result.items():
+            for k, v in list_result.items():
                 if is_job_attachment_uri(v):
                     attachment_id = extract_attachment_id(v)
-                    result[k] = download_attachment_as_string(attachment_id)
-            return self._normalize_numbers(result)
+                    list_result[k] = download_attachment_as_string(attachment_id)
+            return self._normalize_numbers(list_result)
         elif key != "*":
             try:
                 result = resolve_output_path(agent_execution.agent_output, key)
@@ -204,7 +205,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     category=UiPathEvaluationErrorCategory.USER,
                 )
             try:
-                expected_output = {k: resolve_output_path(expected_output, k) for k in key}
+                expected_output = {
+                    k: resolve_output_path(expected_output, k) for k in key
+                }
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
@@ -291,13 +294,21 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         """
         from .line_by_line_utils import build_line_by_line_result, evaluate_lines
 
-        key_str = self.evaluator_config.target_output_key if isinstance(self.evaluator_config.target_output_key, str) else "*"
+        key_str = (
+            self.evaluator_config.target_output_key
+            if isinstance(self.evaluator_config.target_output_key, str)
+            else "*"
+        )
 
         actual_output = self._get_actual_output(agent_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
 
-        actual_lines = split_into_lines(actual_output, self.evaluator_config.line_delimiter, key_str)
-        expected_lines = split_into_lines(expected_output, self.evaluator_config.line_delimiter, key_str)
+        actual_lines = split_into_lines(
+            actual_output, self.evaluator_config.line_delimiter, key_str
+        )
+        expected_lines = split_into_lines(
+            expected_output, self.evaluator_config.line_delimiter, key_str
+        )
 
         original_agent_output = agent_execution.agent_output
 
