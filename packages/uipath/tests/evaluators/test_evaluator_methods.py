@@ -714,7 +714,9 @@ class TestListTargetOutputKey:
         self, mocker: MockerFixture
     ) -> None:
         """Attachment URIs within list-key actual output values are downloaded."""
-        att_uri = "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000001"
+        att_uri = (
+            "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000001"
+        )
         mocker.patch(
             "uipath.eval.evaluators.output_evaluator.download_attachment_as_string",
             return_value="downloaded_content",
@@ -740,7 +742,9 @@ class TestListTargetOutputKey:
         self, mocker: MockerFixture
     ) -> None:
         """Attachment URI in scalar-key actual output is downloaded."""
-        att_uri = "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000002"
+        att_uri = (
+            "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000002"
+        )
         mocker.patch(
             "uipath.eval.evaluators.output_evaluator.download_attachment_as_string",
             return_value="file_content",
@@ -862,10 +866,14 @@ class TestListTargetOutputKey:
             def get_evaluator_id(cls) -> str:
                 return "uipath-minimal-test"
 
-            async def evaluate(self, agent_execution: Any, evaluation_criteria: Any) -> EvaluationResult:
+            async def evaluate(
+                self, agent_execution: Any, evaluation_criteria: Any
+            ) -> EvaluationResult:
                 return None  # type: ignore[return-value]
 
-            def validate_evaluation_criteria(self, raw: Any) -> OutputEvaluationCriteria:
+            def validate_evaluation_criteria(
+                self, raw: Any
+            ) -> OutputEvaluationCriteria:
                 return OutputEvaluationCriteria.model_validate(raw)
 
         evaluator = _MinimalEvaluator.model_validate(
