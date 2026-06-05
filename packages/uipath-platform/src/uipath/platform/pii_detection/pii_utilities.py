@@ -6,7 +6,7 @@ Python port of UiPath.SemanticProxy.Client.PiiUtilities (C#).
 import re
 from typing import Callable, Iterable
 
-from .semantic_proxy import PiiDetectionResponse, PiiEntity
+from .pii_detection import PiiDetectionResponse, PiiEntity
 
 
 def rehydrate_from_pii_entities(

@@ -35,6 +35,7 @@ from .orchestrator import (
     ProcessesService,
     QueuesService,
 )
+from .pii_detection import PiiDetectionService
 from .resource_catalog import ResourceCatalogService
 from .semantic_proxy import SemanticProxyService
 
@@ -183,6 +184,10 @@ class UiPath:
     @property
     def automation_ops(self) -> AutomationOpsService:
         return AutomationOpsService(self._config, self._execution_context)
+
+    @property
+    def pii_detection(self) -> PiiDetectionService:
+        return PiiDetectionService(self._config, self._execution_context)
 
     @property
     def semantic_proxy(self) -> SemanticProxyService:
