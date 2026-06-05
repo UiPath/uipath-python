@@ -3178,6 +3178,19 @@ class TestContextGroundingService:
         import uuid
 
         httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
+
+        httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
             status_code=200,
             json={
@@ -3202,22 +3215,27 @@ class TestContextGroundingService:
         if sent_requests is None:
             raise Exception("No request was sent")
 
-        assert sent_requests[0].method == "POST"
-        assert (
-            sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral"
+        create_request = next(
+            r
+            for r in sent_requests
+            if str(r.url).endswith("/ecs_/v2/indexes/createephemeral")
         )
+        assert create_request.method == "POST"
 
-        request_data = json.loads(sent_requests[0].content)
+        request_data = json.loads(create_request.content)
         assert request_data["usage"] == "DeepRAG"
         assert "dataSource" in request_data
         assert request_data["dataSource"]["attachments"] == [
             str(att) for att in attachment_ids
         ]
 
-        assert HEADER_USER_AGENT in sent_requests[0].headers
+        # Ambient folder context is resolved and scopes the create, matching how
+        # retrieve_by_id resolves the folder for the subsequent GET.
+        assert create_request.headers["x-uipath-folderkey"] == "test-folder-key"
+
+        assert HEADER_USER_AGENT in create_request.headers
         assert (
-            sent_requests[0].headers[HEADER_USER_AGENT]
+            create_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_ephemeral_index/{version}"
         )
 
@@ -3232,6 +3250,19 @@ class TestContextGroundingService:
         version: str,
     ) -> None:
         import uuid
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {
+                        "Key": "test-folder-key",
+                        "FullyQualifiedName": "test-folder-path",
+                    }
+                ]
+            },
+        )
 
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
@@ -3258,22 +3289,27 @@ class TestContextGroundingService:
         if sent_requests is None:
             raise Exception("No request was sent")
 
-        assert sent_requests[0].method == "POST"
-        assert (
-            sent_requests[0].url
-            == f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral"
+        create_request = next(
+            r
+            for r in sent_requests
+            if str(r.url).endswith("/ecs_/v2/indexes/createephemeral")
         )
+        assert create_request.method == "POST"
 
-        request_data = json.loads(sent_requests[0].content)
+        request_data = json.loads(create_request.content)
         assert request_data["usage"] == "DeepRAG"
         assert "dataSource" in request_data
         assert request_data["dataSource"]["attachments"] == [
             str(att) for att in attachment_ids
         ]
 
-        assert HEADER_USER_AGENT in sent_requests[0].headers
+        # Ambient folder context is resolved and scopes the create, matching how
+        # retrieve_by_id resolves the folder for the subsequent GET.
+        assert create_request.headers["x-uipath-folderkey"] == "test-folder-key"
+
+        assert HEADER_USER_AGENT in create_request.headers
         assert (
-            sent_requests[0].headers[HEADER_USER_AGENT]
+            create_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.create_ephemeral_index_async/{version}"
         )
 

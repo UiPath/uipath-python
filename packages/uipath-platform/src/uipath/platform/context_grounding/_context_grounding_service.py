@@ -696,8 +696,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             ContextGroundingIndex: The created index information.
         """
-        if folder_key is not None or folder_path is not None:
-            folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
@@ -733,8 +732,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Returns:
             ContextGroundingIndex: The created index information.
         """
-        if folder_key is not None or folder_path is not None:
-            folder_key = self._resolve_folder_key(folder_key, folder_path)
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
         spec = self._create_ephemeral_spec(
             usage,
             attachments,
