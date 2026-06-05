@@ -137,7 +137,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
         if isinstance(key, list):
             try:
-                result = {k: resolve_output_path(agent_execution.agent_output, k) for k in key}
+                result: dict[str, Any] = {
+                    k: resolve_output_path(agent_execution.agent_output, k) for k in key
+                }
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
@@ -145,6 +147,11 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     detail=f"Error: {e}",
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
+            for k, v in result.items():
+                if is_job_attachment_uri(v):
+                    attachment_id = extract_attachment_id(v)
+                    result[k] = download_attachment_as_string(attachment_id)
+            return self._normalize_numbers(result)
         elif key != "*":
             try:
                 result = resolve_output_path(agent_execution.agent_output, key)
@@ -189,6 +196,13 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                         detail=f"Error: {e}",
                         category=UiPathEvaluationErrorCategory.USER,
                     ) from e
+            if not isinstance(expected_output, dict):
+                raise UiPathEvaluationError(
+                    code="INVALID_EXPECTED_OUTPUT",
+                    title="When target output keys are specified, expected output must be a dictionary",
+                    detail=f"Got {type(expected_output).__name__}",
+                    category=UiPathEvaluationErrorCategory.USER,
+                )
             try:
                 expected_output = {k: resolve_output_path(expected_output, k) for k in key}
             except (KeyError, IndexError, TypeError) as e:

@@ -636,7 +636,7 @@ class TestListTargetOutputKey:
         assert (
             not hasattr(result, "_line_by_line_results")
             or result._line_by_line_results is None
-        )  # type: ignore[attr-defined]
+        )
 
     @pytest.mark.asyncio
     async def test_json_similarity_list_keys_perfect_match(self) -> None:
