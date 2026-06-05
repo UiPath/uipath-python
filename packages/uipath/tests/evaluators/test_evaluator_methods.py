@@ -843,12 +843,12 @@ class TestListTargetOutputKey:
 
     def test_base_output_evaluator_get_full_expected_output_raises(self) -> None:
         """BaseOutputEvaluator._get_full_expected_output raises NOT_IMPLEMENTED."""
+        from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
         from uipath.eval.evaluators.output_evaluator import (
             BaseOutputEvaluator,
             OutputEvaluationCriteria,
             OutputEvaluatorConfig,
         )
-        from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
         from uipath.eval.models import EvaluationResult
 
         class _MinimalEvaluator(
