@@ -447,6 +447,224 @@ class TestExactMatchEvaluator:
         assert line3_result.score == 1.0
 
 
+class TestListTargetOutputKey:
+    """Test target_output_key as a list of keys."""
+
+    @pytest.mark.asyncio
+    async def test_exact_match_list_keys_all_match(self) -> None:
+        """All listed keys match → score 1.0."""
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok", "total": 42, "extra": "ignored"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok", "total": 42}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_exact_match_list_keys_value_mismatch(self) -> None:
+        """One key's value differs → score 0.0."""
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok", "total": 99},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok", "total": 42}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_exact_match_list_keys_dot_notation(self) -> None:
+        """Nested dot-notation paths inside a list of keys."""
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"order": {"status": "shipped"}, "qty": 3},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListDotKeys",
+            "target_output_key": ["order.status", "qty"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"order": {"status": "shipped"}, "qty": 3}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_missing_key_in_actual_raises(self) -> None:
+        """Missing key in actual output returns an ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok"},  # 'total' is missing
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok", "total": 42}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_missing_key_in_expected_raises(self) -> None:
+        """Missing key in expected output returns an ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok", "total": 42},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={
+                "status": "ok"
+            }  # 'total' missing  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_expected_as_json_string(self) -> None:
+        """Expected output as a JSON string is parsed when key is a list."""
+        import json
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok", "total": 5},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output=json.dumps({"status": "ok", "total": 5})  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_invalid_json_string_expected_raises(self) -> None:
+        """Invalid JSON string for expected output returns an ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"status": "ok"},
+            agent_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output="not valid json"  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_disables_line_by_line(self) -> None:
+        """line_by_line_evaluator=True is ignored when target_output_key is a list."""
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"a": "x", "b": "y"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListLbl",
+            "target_output_key": ["a", "b"],
+            "line_by_line_evaluator": True,
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        raw_criteria = {"expected_output": {"a": "x", "b": "y"}}
+        # Should not raise or split into lines; returns a plain NumericEvaluationResult
+        result = await evaluator.validate_and_evaluate_criteria(execution, raw_criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # No line-by-line details attached
+        assert (
+            not hasattr(result, "_line_by_line_results")
+            or result._line_by_line_results is None
+        )  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    async def test_json_similarity_list_keys_perfect_match(self) -> None:
+        """JsonSimilarityEvaluator with list keys scores 1.0 on exact match."""
+        from uipath.eval.evaluators.json_similarity_evaluator import (
+            JsonSimilarityEvaluator,
+        )
+
+        execution = AgentExecution(
+            agent_input={},
+            agent_output={"name": "Alice", "score": 100, "extra": "ignored"},
+            agent_trace=[],
+        )
+        config = {
+            "name": "JsonSimListKeys",
+            "target_output_key": ["name", "score"],
+        }
+        evaluator = JsonSimilarityEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"name": "Alice", "score": 100}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+
 class TestContainsEvaluator:
     """Test ContainsEvaluator.evaluate() method."""
 
