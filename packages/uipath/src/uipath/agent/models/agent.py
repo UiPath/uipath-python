@@ -755,8 +755,8 @@ class BaseAgentEscalationChannel(BaseCfg):
         return _resolve_task_title(v)
 
 
-class AgentActionCenterEscalationChannel(BaseAgentEscalationChannel):
-    """Action Center app-task escalation channel."""
+class AgentEscalationChannel(BaseAgentEscalationChannel):
+    """Action Center app-task escalation channel (channel type ``actionCenter``)."""
 
     type: Literal[AgentEscalationChannelType.ACTION_CENTER] = Field(
         default=AgentEscalationChannelType.ACTION_CENTER, alias="type"
@@ -773,9 +773,9 @@ class AgentQuickFormEscalationChannel(BaseAgentEscalationChannel):
     properties: AgentQuickFormChannelProperties = Field(..., alias="properties")
 
 
-AgentEscalationChannel = Annotated[
+EscalationChannel = Annotated[
     Union[
-        AgentActionCenterEscalationChannel,
+        AgentEscalationChannel,
         AgentQuickFormEscalationChannel,
     ],
     Field(discriminator="type"),
@@ -790,7 +790,7 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(
         alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
     )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    channels: List[EscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: Literal[0] = Field(default=0, alias="escalationType")
 
@@ -810,7 +810,7 @@ class AgentIxpVsEscalationResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(
         alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
     )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    channels: List[EscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: Literal[1] = Field(default=1, alias="escalationType")
     vs_escalation_properties: AgentIxpVsEscalationProperties = Field(

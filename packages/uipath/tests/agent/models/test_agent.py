@@ -5,7 +5,6 @@ from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
     AgentA2aResourceConfig,
-    AgentActionCenterEscalationChannel,
     AgentBooleanOperator,
     AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
@@ -15,6 +14,7 @@ from uipath.agent.models.agent import (
     AgentContextType,
     AgentCustomGuardrail,
     AgentDefinition,
+    AgentEscalationChannel,
     AgentEscalationRecipient,
     AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
@@ -2608,7 +2608,7 @@ class TestAgentBuilderConfig:
         assert len(channel.recipients) == 0
 
         # Validate channel properties
-        assert isinstance(channel, AgentActionCenterEscalationChannel)
+        assert isinstance(channel, AgentEscalationChannel)
         assert channel.properties.app_name is None
         assert channel.properties.app_version == 1
         assert channel.properties.folder_name is None
@@ -2738,7 +2738,7 @@ class TestAgentBuilderConfig:
             },
         }
 
-        channel = AgentActionCenterEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
         assert isinstance(channel.task_title, dict) or hasattr(
             channel.task_title, "tokens"
@@ -2762,7 +2762,7 @@ class TestAgentBuilderConfig:
             "taskTitle": "Legacy Task Title",
         }
 
-        channel = AgentActionCenterEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
         assert channel.task_title == "Legacy Task Title"
 
@@ -2783,7 +2783,7 @@ class TestAgentBuilderConfig:
             "recipients": [],
         }
 
-        channel = AgentActionCenterEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
         assert channel.task_title == "Escalation Task"
 
