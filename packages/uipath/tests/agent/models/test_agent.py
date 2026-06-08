@@ -5,6 +5,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
     AgentA2aResourceConfig,
+    AgentActionCenterEscalationChannel,
     AgentBooleanOperator,
     AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
@@ -14,7 +15,6 @@ from uipath.agent.models.agent import (
     AgentContextType,
     AgentCustomGuardrail,
     AgentDefinition,
-    AgentEscalationChannel,
     AgentEscalationRecipient,
     AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
@@ -36,6 +36,7 @@ from uipath.agent.models.agent import (
     AgentNumberOperator,
     AgentNumberRule,
     AgentProcessToolResourceConfig,
+    AgentQuickFormChannelProperties,
     AgentResourceType,
     AgentToolArgumentPropertiesVariant,
     AgentToolType,
@@ -2607,10 +2608,61 @@ class TestAgentBuilderConfig:
         assert len(channel.recipients) == 0
 
         # Validate channel properties
+        assert isinstance(channel, AgentActionCenterEscalationChannel)
         assert channel.properties.app_name is None
         assert channel.properties.app_version == 1
         assert channel.properties.folder_name is None
         assert channel.properties.resource_key is None
+
+    def test_quick_form_channel_properties_derive_schema_id_from_body(self):
+        """schema_id reads the schemaId nested inside the schema body."""
+
+        props = AgentQuickFormChannelProperties.model_validate(
+            {
+                "schema": {
+                    "schemaId": "e74ebb74-80ba-47b9-a370-532a1ba4c41e",
+                    "fields": [],
+                    "outcomes": [],
+                },
+            }
+        )
+        assert props.schema_id == "e74ebb74-80ba-47b9-a370-532a1ba4c41e"
+
+    def test_quick_form_channel_properties_schema_id_none_when_absent(self):
+        """schema_id is None when the schema body carries no schemaId."""
+
+        props = AgentQuickFormChannelProperties.model_validate(
+            {"schema": {"fields": [], "outcomes": []}}
+        )
+        assert props.schema_id is None
+
+    def test_quick_form_channel_properties_require_schema(self):
+        with pytest.raises(ValidationError):
+            AgentQuickFormChannelProperties.model_validate(
+                {"isActionableMessageEnabled": False}
+            )
+
+    def test_quick_form_channel_requires_schema(self):
+        """A quick-form channel without a schema fails to parse."""
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationResourceConfig).validate_python(
+                {
+                    "$resourceType": "escalation",
+                    "name": "Escalation",
+                    "description": "",
+                    "channels": [
+                        {
+                            "name": "c",
+                            "description": "",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "type": "actionCenterQuickForm",
+                            "recipients": [],
+                            "properties": {"isActionableMessageEnabled": False},
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                }
+            )
 
     def test_task_title_text_builder_type(self):
         """Test TextBuilderTaskTitle with tokens."""
@@ -2664,7 +2716,7 @@ class TestAgentBuilderConfig:
             },
         }
 
-        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        channel = AgentActionCenterEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
         assert isinstance(channel.task_title, dict) or hasattr(
             channel.task_title, "tokens"
@@ -2688,7 +2740,7 @@ class TestAgentBuilderConfig:
             "taskTitle": "Legacy Task Title",
         }
 
-        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        channel = AgentActionCenterEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
         assert channel.task_title == "Legacy Task Title"
 
@@ -2709,7 +2761,7 @@ class TestAgentBuilderConfig:
             "recipients": [],
         }
 
-        channel = AgentEscalationChannel(**channel_data)  # type: ignore[arg-type]
+        channel = AgentActionCenterEscalationChannel(**channel_data)  # type: ignore[arg-type]
 
         assert channel.task_title == "Escalation Task"
 
