@@ -2664,6 +2664,28 @@ class TestAgentBuilderConfig:
                 }
             )
 
+    def test_unknown_escalation_channel_type_is_rejected(self):
+        """An unrecognized channel type fails to parse; the runtime cannot handle it."""
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationResourceConfig).validate_python(
+                {
+                    "$resourceType": "escalation",
+                    "name": "Escalation",
+                    "description": "",
+                    "channels": [
+                        {
+                            "name": "c",
+                            "description": "",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "type": "someFutureChannel",
+                            "recipients": [],
+                            "properties": {},
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                }
+            )
+
     def test_task_title_text_builder_type(self):
         """Test TextBuilderTaskTitle with tokens."""
         from uipath.agent.models.agent import (

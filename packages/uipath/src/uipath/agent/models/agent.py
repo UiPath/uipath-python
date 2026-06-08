@@ -147,7 +147,6 @@ class AgentEscalationChannelType(str, CaseInsensitiveEnum):
 
     ACTION_CENTER = "actionCenter"
     ACTION_CENTER_QUICK_FORM = "actionCenterQuickForm"
-    UNKNOWN = "unknown"  # fallback branch discriminator
 
 
 class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
@@ -722,12 +721,12 @@ class AgentEscalationChannelProperties(BaseEscalationChannelProperties):
 class AgentQuickFormChannelProperties(BaseEscalationChannelProperties):
     """Quick Form channel properties (channel type ``actionCenterQuickForm``)."""
 
-    schema: Dict[str, Any] = Field(...)  # type: ignore[assignment]
+    form_schema: Dict[str, Any] = Field(..., alias="schema")
 
     @property
     def schema_id(self) -> str | None:
-        """Return the schema id nested inside schema."""
-        return self.schema.get("schemaId")
+        """Return the schema id nested inside the form schema body."""
+        return self.form_schema.get("schemaId")
 
 
 class BaseAgentEscalationChannel(BaseCfg):
@@ -766,7 +765,7 @@ class AgentActionCenterEscalationChannel(BaseAgentEscalationChannel):
 
 
 class AgentQuickFormEscalationChannel(BaseAgentEscalationChannel):
-    """Quick Form escalation channel; FormLib schema lives in ``properties.schema``."""
+    """Quick Form escalation channel; FormLib schema lives in ``properties.form_schema``."""
 
     type: Literal[AgentEscalationChannelType.ACTION_CENTER_QUICK_FORM] = Field(
         default=AgentEscalationChannelType.ACTION_CENTER_QUICK_FORM, alias="type"
@@ -774,22 +773,10 @@ class AgentQuickFormEscalationChannel(BaseAgentEscalationChannel):
     properties: AgentQuickFormChannelProperties = Field(..., alias="properties")
 
 
-class AgentUnknownEscalationChannel(BaseAgentEscalationChannel):
-    """Fallback for unknown or future escalation channel types."""
-
-    type: Literal[AgentEscalationChannelType.UNKNOWN] = Field(
-        default=AgentEscalationChannelType.UNKNOWN, alias="type"
-    )
-    properties: BaseEscalationChannelProperties = Field(
-        default_factory=BaseEscalationChannelProperties, alias="properties"
-    )
-
-
 AgentEscalationChannel = Annotated[
     Union[
         AgentActionCenterEscalationChannel,
         AgentQuickFormEscalationChannel,
-        AgentUnknownEscalationChannel,
     ],
     Field(discriminator="type"),
     _case_insensitive_enum_validator("type", AgentEscalationChannelType),
