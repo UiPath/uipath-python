@@ -3,7 +3,6 @@
 import math
 from typing import Any, Tuple, TypeVar
 
-from .._helpers.output_path import resolve_output_path
 from ..models import EvaluationResult, NumericEvaluationResult
 from ..models.models import AgentExecution
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
@@ -47,23 +46,8 @@ class LegacyJsonSimilarityEvaluator(
         Returns:
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
-        actual_output = agent_execution.agent_output
-        expected_output = evaluation_criteria.expected_output
-
-        if self.target_output_key and self.target_output_key != "*":
-            try:
-                actual_output = resolve_output_path(
-                    actual_output, self.target_output_key
-                )
-            except (KeyError, IndexError, TypeError):
-                actual_output = {}
-
-            try:
-                expected_output = resolve_output_path(
-                    expected_output, self.target_output_key
-                )
-            except (KeyError, IndexError, TypeError):
-                expected_output = {}
+        actual_output = self.get_targeted_field(agent_execution.agent_output)
+        expected_output = self.get_targeted_field(evaluation_criteria.expected_output)
 
         return NumericEvaluationResult(
             score=self._compare_json(expected_output, actual_output)
