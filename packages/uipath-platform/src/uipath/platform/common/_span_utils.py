@@ -518,12 +518,14 @@ class _SpanUtils:
             except Exception as e:
                 logger.warning(f"Error processing attachments: {e}")
 
+        # Build Context.referenceHierarchy from the ambient ReferenceContext
+        # (set by the agent runtime at run start via ReferenceContextAccessor).
         context: Optional[Dict[str, Any]] = None
-        if ref_hierarchy_json:
-            try:
-                context = {"referenceHierarchy": json.loads(ref_hierarchy_json)}
-            except (json.JSONDecodeError, TypeError):
-                pass
+        ref_ctx = ReferenceContextAccessor.get()
+        if ref_ctx:
+            wire_list = ref_ctx.to_wire_list()
+            if wire_list:
+                context = {"referenceHierarchy": wire_list}
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
