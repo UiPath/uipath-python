@@ -14,6 +14,7 @@ from uipath._cli._utils._studio_project import (
     VirtualResourceResult,
 )
 from uipath.platform.errors import EnrichedException, FolderNotFoundException
+from uipath.platform.resource_catalog import ResourceType
 
 
 def _enriched_exc(
@@ -330,7 +331,11 @@ async def test_entity_binding_catalog_hit_creates_reference(
 
     await _run_create_resources(studio_client)
 
-    mock_uipath.resource_catalog.list_by_type_async.assert_called_once()
+    mock_uipath.resource_catalog.list_by_type_async.assert_called_once_with(
+        resource_type=ResourceType.ENTITY,
+        name="live.good.entity",
+        folder_path="Shared",
+    )
     studio_client.create_referenced_resource.assert_awaited_once()
     studio_client.create_virtual_resource.assert_not_awaited()
 
