@@ -1,6 +1,11 @@
 """Tracing utilities and OpenTelemetry exporters."""
 
 from uipath.core import traced
+from uipath.platform.common._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+    ReferenceEntry,
+)
 from uipath.platform.common._span_utils import (
     AttachmentDirection,
     AttachmentProvider,
@@ -25,4 +30,7 @@ __all__ = [
     "AttachmentProvider",
     "SpanAttachment",
     "VerbosityLevel",
+    "ReferenceEntry",
+    "ReferenceContext",
+    "ReferenceContextAccessor",
 ]

@@ -13,6 +13,8 @@ from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 
+from ._reference_context import ReferenceContextAccessor
+
 logger = logging.getLogger(__name__)
 
 # SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
@@ -99,6 +101,7 @@ class UiPathSpan:
     agent_version: Optional[str] = None
     verbosity_level: Optional[int] = None
     attachments: Optional[List[SpanAttachment]] = None
+    context: Optional[Dict[str, Any]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
@@ -151,6 +154,8 @@ class UiPathSpan:
         }
         if self.verbosity_level is not None:
             result["VerbosityLevel"] = self.verbosity_level
+        if self.context is not None:
+            result["Context"] = self.context
         return result
 
 
@@ -326,6 +331,15 @@ class _SpanUtils:
             except Exception as e:
                 logger.warning(f"Error processing attachments: {e}")
 
+        # Build Context.referenceHierarchy from the ambient ReferenceContext
+        # (set by the agent runtime at run start via ReferenceContextAccessor).
+        context: Optional[Dict[str, Any]] = None
+        ref_ctx = ReferenceContextAccessor.get()
+        if ref_ctx:
+            wire_list = ref_ctx.to_wire_list()
+            if wire_list:
+                context = {"referenceHierarchy": wire_list}
+
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
             (otel_span.start_time or 0) / 1e9
@@ -357,6 +371,7 @@ class _SpanUtils:
             reference_id=reference_id,
             source=source,
             attachments=attachments,
+            context=context,
         )
 
     @staticmethod

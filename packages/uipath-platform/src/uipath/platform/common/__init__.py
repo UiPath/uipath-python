@@ -22,6 +22,11 @@ from ._folder_context import FolderContext, header_folder
 from ._http_config import get_ca_bundle_path, get_httpx_client_kwargs
 from ._models import Endpoint, RequestSpec
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
+from ._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+    ReferenceEntry,
+)
 from ._span_utils import UiPathSpan, _SpanUtils
 from ._url import UiPathUrl
 from ._user_agent import user_agent_value
@@ -108,6 +113,9 @@ __all__ = [
     "ResourceOverwrite",
     "ResourceOverwriteParser",
     "ResourceOverwritesContext",
+    "ReferenceEntry",
+    "ReferenceContext",
+    "ReferenceContextAccessor",
     "UiPathSpan",
     "_SpanUtils",
     "resolve_service_url",
