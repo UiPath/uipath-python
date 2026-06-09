@@ -1,6 +1,7 @@
 """Tests for ReferenceContext, ReferenceContextAccessor, and span Context wiring."""
 
 import json
+import os
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -247,14 +248,9 @@ class TestContextWiring:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "test-org")
-        # Ensure accessor is clear
-        token = ReferenceContextAccessor.set(None)
-        try:
-            span = _SpanUtils.otel_span_to_uipath_span(_make_mock_span())
-            assert span.context is None
-            assert "Context" not in span.to_dict()
-        finally:
-            ReferenceContextAccessor.reset(token)
+        span = _SpanUtils.otel_span_to_uipath_span(_make_mock_span())
+        assert span.context is None
+        assert "Context" not in span.to_dict()
 
     def test_context_present_when_reference_context_set(
         self, monkeypatch: pytest.MonkeyPatch
@@ -263,23 +259,22 @@ class TestContextWiring:
         ref_ctx = ReferenceContext.Empty.add(
             "agent", "550e8400-e29b-41d4-a716-446655440001", "1.0"
         )
-        token = ReferenceContextAccessor.set(ref_ctx)
-        try:
-            span = _SpanUtils.otel_span_to_uipath_span(_make_mock_span())
-            assert span.context == {
-                "referenceHierarchy": [
-                    {
-                        "serviceType": "agent",
-                        "referenceId": "550e8400-e29b-41d4-a716-446655440001",
-                        "version": "1.0",
-                    }
-                ]
-            }
-            wire = span.to_dict()
-            assert "Context" in wire
-            assert wire["Context"]["referenceHierarchy"][0]["serviceType"] == "agent"
-        finally:
-            ReferenceContextAccessor.reset(token)
+        mock = _make_mock_span(
+            attributes={"uipath.reference_hierarchy": json.dumps(ref_ctx.to_wire_list())}
+        )
+        span = _SpanUtils.otel_span_to_uipath_span(mock)
+        assert span.context == {
+            "referenceHierarchy": [
+                {
+                    "serviceType": "agent",
+                    "referenceId": "550e8400-e29b-41d4-a716-446655440001",
+                    "version": "1.0",
+                }
+            ]
+        }
+        wire = span.to_dict()
+        assert "Context" in wire
+        assert wire["Context"]["referenceHierarchy"][0]["serviceType"] == "agent"
 
     def test_context_carries_full_hierarchy(
         self, monkeypatch: pytest.MonkeyPatch
@@ -290,14 +285,66 @@ class TestContextWiring:
             .add("maestro", "550e8400-e29b-41d4-a716-446655440010", "2.0")
             .add("agent", "550e8400-e29b-41d4-a716-446655440011")
         )
+        mock = _make_mock_span(
+            attributes={"uipath.reference_hierarchy": json.dumps(ref_ctx.to_wire_list())}
+        )
+        wire = _SpanUtils.otel_span_to_uipath_span(mock).to_dict()
+        hierarchy = wire["Context"]["referenceHierarchy"]
+        assert len(hierarchy) == 2
+        assert hierarchy[0]["serviceType"] == "maestro"
+        assert hierarchy[0]["version"] == "2.0"
+        assert hierarchy[1]["serviceType"] == "agent"
+        assert "version" not in hierarchy[1]
+
+    def test_reference_hierarchy_not_in_attributes_field(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "test-org")
+        ref_ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        mock = _make_mock_span(
+            attributes={"uipath.reference_hierarchy": json.dumps(ref_ctx.to_wire_list())}
+        )
+        wire = _SpanUtils.otel_span_to_uipath_span(mock).to_dict()
+        attributes = json.loads(wire["Attributes"])
+        assert "uipath.reference_hierarchy" not in attributes
+
+
+# ---------------------------------------------------------------------------
+# _inject_reference_hierarchy hook
+# ---------------------------------------------------------------------------
+
+class TestReferenceHierarchyHook:
+    def setup_method(self) -> None:
+        token = ReferenceContextAccessor.set(None)
+        ReferenceContextAccessor.reset(token)
+
+    def test_hook_stamps_attribute_when_context_set(self) -> None:
+        from uipath.platform.common._span_utils import _inject_reference_hierarchy
+
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
         token = ReferenceContextAccessor.set(ref_ctx)
         try:
-            wire = _SpanUtils.otel_span_to_uipath_span(_make_mock_span()).to_dict()
-            hierarchy = wire["Context"]["referenceHierarchy"]
-            assert len(hierarchy) == 2
-            assert hierarchy[0]["serviceType"] == "maestro"
-            assert hierarchy[0]["version"] == "2.0"
-            assert hierarchy[1]["serviceType"] == "agent"
-            assert "version" not in hierarchy[1]
+            mock_span = Mock()
+            _inject_reference_hierarchy(mock_span)
+            mock_span.set_attribute.assert_called_once()
+            key, value = mock_span.set_attribute.call_args[0]
+            assert key == "uipath.reference_hierarchy"
+            hierarchy = json.loads(value)
+            assert len(hierarchy) == 1
+            assert hierarchy[0]["serviceType"] == "agent"
+            assert hierarchy[0]["referenceId"] == "550e8400-e29b-41d4-a716-446655440001"
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_hook_noop_when_context_not_set(self) -> None:
+        from uipath.platform.common._span_utils import _inject_reference_hierarchy
+
+        token = ReferenceContextAccessor.set(None)
+        try:
+            mock_span = Mock()
+            _inject_reference_hierarchy(mock_span)
+            mock_span.set_attribute.assert_not_called()
         finally:
             ReferenceContextAccessor.reset(token)

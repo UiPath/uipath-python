@@ -15,7 +15,6 @@ from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 from uipath.core.tracing.processors import register_span_start_hook
-
 from ._reference_context import ReferenceContextAccessor
 
 
@@ -39,6 +38,16 @@ from uipath.platform.constants import (
     ENV_UIPATH_PROCESS_VERSION,
     ENV_UIPATH_TRACE_ID,
 )
+
+def _inject_reference_hierarchy(span: Span) -> None:
+    ref_ctx = ReferenceContextAccessor.get()
+    if ref_ctx:
+        wire = ref_ctx.to_wire_list()
+        if wire:
+            span.set_attribute("uipath.reference_hierarchy", json.dumps(wire))
+
+
+register_span_start_hook(_inject_reference_hierarchy)
 
 logger = logging.getLogger(__name__)
 
@@ -518,14 +527,12 @@ class _SpanUtils:
             except Exception as e:
                 logger.warning(f"Error processing attachments: {e}")
 
-        # Build Context.referenceHierarchy from the ambient ReferenceContext
-        # (set by the agent runtime at run start via ReferenceContextAccessor).
         context: Optional[Dict[str, Any]] = None
-        ref_ctx = ReferenceContextAccessor.get()
-        if ref_ctx:
-            wire_list = ref_ctx.to_wire_list()
-            if wire_list:
-                context = {"referenceHierarchy": wire_list}
+        if ref_hierarchy_json:
+            try:
+                context = {"referenceHierarchy": json.loads(ref_hierarchy_json)}
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
