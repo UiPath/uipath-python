@@ -118,18 +118,15 @@ description = "..."
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.11"
 dependencies = ["uipath>=2.0", "uipath-langchain>=2.0"]
-
-[tool.uipath]
-type = "agent"
 ```
 
-`[tool.uipath] type = "agent"` is required — it identifies the project as an agent to the runtime and packaging tools.
+Standard project metadata and dependencies. The `agents` map in `uipath.json` (above) is what marks the project as a coded agent — `pyproject.toml` needs no UiPath-specific entries.
 
 ---
 
 ## Input & Output
 
-Define `Input` and `Output` as Python dataclasses, the same way as [coded functions](./functions.md#input--output):
+Define `Input` and `Output` the same way as [coded functions](./functions.md#input--output) — a stdlib `@dataclass`, a pydantic `BaseModel`, or `pydantic.dataclasses.dataclass`:
 
 ```python
 from dataclasses import dataclass
