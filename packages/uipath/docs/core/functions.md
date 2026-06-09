@@ -119,14 +119,14 @@ Standard project metadata and dependencies. The `functions` map in `uipath.json`
 | `bindings.json` | Resource binding overrides (assets, connections, buckets) for local development |
 
 /// warning
-`uipath init` executes `main.py` to derive the I/O schema. Re-run it after every change to your `Input` or `Output` models.
+`uipath init` executes your entrypoint Python file(s) (as declared in `uipath.json`, e.g., `main.py`) to derive the I/O schema. Re-run it after every change to your `Input` or `Output` models.
 ///
 
 ---
 
 ## Input & Output
 
-Define `Input` and `Output` as typed Python — a stdlib `@dataclass`, a pydantic `BaseModel`, or `pydantic.dataclasses.dataclass`. The runtime validates against these at invocation time and exports them as JSON Schema for Maestro variable binding. The entry point can be a sync `def` or an `async def` — both are supported.
+Define `Input` and `Output` as typed Python — a stdlib `@dataclass`, a pydantic `BaseModel`, or `pydantic.dataclasses.dataclass`. The runtime uses these type hints to parse the invocation payload and exports them as JSON Schema for Maestro variable binding. The entry point can be a sync `def` or an `async def` — both are supported.
 
 ```python
 from dataclasses import dataclass, field
