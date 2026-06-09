@@ -142,6 +142,13 @@ class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     ARGUMENT_GROUP_NAME = "ArgumentGroupName"
 
 
+class AgentEscalationChannelType(str, CaseInsensitiveEnum):
+    """Agent escalation channel type enumeration."""
+
+    ACTION_CENTER = "actionCenter"
+    ACTION_CENTER_QUICK_FORM = "actionCenterQuickForm"
+
+
 class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
     """Agent context retrieval mode enumeration."""
 
@@ -691,13 +698,9 @@ def _resolve_task_title(v: Any) -> Any:
     return v
 
 
-class AgentEscalationChannelProperties(BaseResourceProperties):
-    """Agent escalation channel properties model."""
+class BaseEscalationChannelProperties(BaseResourceProperties):
+    """Fields shared by every escalation channel's properties."""
 
-    app_name: str | None = Field(default=None, alias="appName")
-    app_version: int = Field(..., alias="appVersion")
-    folder_name: Optional[str] = Field(None, alias="folderName")
-    resource_key: str | None = Field(default=None, alias="resourceKey")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
     )
@@ -706,12 +709,31 @@ class AgentEscalationChannelProperties(BaseResourceProperties):
     )
 
 
-class AgentEscalationChannel(BaseCfg):
-    """Agent escalation channel model."""
+class AgentEscalationChannelProperties(BaseEscalationChannelProperties):
+    """Action Center app-task channel properties (channel type ``actionCenter``)."""
+
+    app_name: str | None = Field(default=None, alias="appName")
+    app_version: int = Field(..., alias="appVersion")
+    folder_name: Optional[str] = Field(None, alias="folderName")
+    resource_key: str | None = Field(default=None, alias="resourceKey")
+
+
+class AgentQuickFormChannelProperties(BaseEscalationChannelProperties):
+    """Quick Form channel properties (channel type ``actionCenterQuickForm``)."""
+
+    form_schema: Dict[str, Any] = Field(..., alias="schema")
+
+    @property
+    def schema_id(self) -> str | None:
+        """Return the schema id nested inside the form schema body."""
+        return self.form_schema.get("schemaId")
+
+
+class BaseAgentEscalationChannel(BaseCfg):
+    """Fields shared by every escalation channel variant."""
 
     id: Optional[str] = Field(None, alias="id")
     name: str = Field(..., alias="name")
-    type: str = Field(alias="type")
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
     output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
@@ -719,22 +741,46 @@ class AgentEscalationChannel(BaseCfg):
         {}, alias="argumentProperties"
     )
     outcome_mapping: Optional[Dict[str, str]] = Field(None, alias="outcomeMapping")
-    properties: AgentEscalationChannelProperties = Field(..., alias="properties")
     recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
     task_title: Optional[Union[str, TaskTitle]] = Field(
         default="Escalation Task", alias="taskTitle"
     )
     priority: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
-    # schema_body avoids shadowing pydantic.BaseModel.schema(); JSON alias stays "schema".
-    schema_id: Optional[str] = Field(None, alias="schemaId")
-    schema_body: Optional[Dict[str, Any]] = Field(None, alias="schema")
 
     @model_validator(mode="before")
     @classmethod
     def _apply_task_title_resolution(cls, v: Any) -> Any:
         """Apply task title resolution."""
         return _resolve_task_title(v)
+
+
+class AgentEscalationChannel(BaseAgentEscalationChannel):
+    """Action Center app-task escalation channel (channel type ``actionCenter``)."""
+
+    type: Literal[AgentEscalationChannelType.ACTION_CENTER] = Field(
+        default=AgentEscalationChannelType.ACTION_CENTER, alias="type"
+    )
+    properties: AgentEscalationChannelProperties = Field(..., alias="properties")
+
+
+class AgentQuickFormEscalationChannel(BaseAgentEscalationChannel):
+    """Quick Form escalation channel; FormLib schema lives in ``properties.form_schema``."""
+
+    type: Literal[AgentEscalationChannelType.ACTION_CENTER_QUICK_FORM] = Field(
+        default=AgentEscalationChannelType.ACTION_CENTER_QUICK_FORM, alias="type"
+    )
+    properties: AgentQuickFormChannelProperties = Field(..., alias="properties")
+
+
+EscalationChannel = Annotated[
+    Union[
+        AgentEscalationChannel,
+        AgentQuickFormEscalationChannel,
+    ],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", AgentEscalationChannelType),
+]
 
 
 class AgentEscalationResourceConfig(BaseAgentResourceConfig):
@@ -744,7 +790,7 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(
         alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
     )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    channels: List[EscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: Literal[0] = Field(default=0, alias="escalationType")
 
@@ -764,29 +810,12 @@ class AgentIxpVsEscalationResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(
         alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
     )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    channels: List[EscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: Literal[1] = Field(default=1, alias="escalationType")
     vs_escalation_properties: AgentIxpVsEscalationProperties = Field(
         ..., alias="vsEscalationProperties"
     )
-
-
-class AgentQuickFormEscalationResourceConfig(BaseAgentResourceConfig):
-    """Quick Form Agent escalation resource configuration model (escalationType=2).
-
-    Quick Form escalations render a schema-first HITL task in Action Center via FormLib.
-    The schema (and its key) live on the channel (see AgentEscalationChannel.schema_id /
-    schema) and are sent inline to Orchestrator's GenericTasks/CreateTask endpoint.
-    """
-
-    id: Optional[str] = Field(None, alias="id")
-    resource_type: Literal[AgentResourceType.ESCALATION] = Field(
-        alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
-    )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
-    is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
-    escalation_type: Literal[2] = Field(default=2, alias="escalationType")
 
 
 class BaseAgentToolResourceConfig(BaseAgentResourceConfig):
@@ -994,11 +1023,11 @@ ToolResourceConfig = Annotated[
     Field(discriminator="type"),
 ]
 
+
 EscalationResourceConfig = Annotated[
     Union[
         Annotated[AgentEscalationResourceConfig, Tag(0)],
         Annotated[AgentIxpVsEscalationResourceConfig, Tag(1)],
-        Annotated[AgentQuickFormEscalationResourceConfig, Tag(2)],
     ],
     Discriminator(lambda v: v.get("escalation_type") or v.get("escalationType") or 0),
 ]
