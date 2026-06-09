@@ -270,8 +270,39 @@ async def test_unsupported_virtual_kind_is_skipped_with_warning(
     bindings_file, mock_uipath, studio_client
 ):
     """Bindings whose kind the virtual endpoint cannot materialize (e.g.
-    'entity', 'choiceSet', 'webhook') should be skipped with a warning and
+    'choiceSet', 'webhook') should be skipped with a warning and
     never reach create_virtual_resource."""
+    choiceset_binding = {
+        "resource": "choiceSet",
+        "key": "live.good.choiceset.Shared",
+        "value": {
+            "name": {
+                "defaultValue": "live.good.choiceset",
+                "isExpression": False,
+                "displayName": "Name",
+            },
+            "folderPath": {
+                "defaultValue": "Shared",
+                "isExpression": False,
+                "displayName": "Folder Path",
+            },
+        },
+        "metadata": None,
+    }
+    bindings_file(_make_bindings([choiceset_binding]))
+
+    await _run_create_resources(studio_client)
+
+    mock_uipath.resource_catalog.list_by_type_async.assert_not_called()
+    studio_client.create_virtual_resource.assert_not_awaited()
+    studio_client.create_referenced_resource.assert_not_awaited()
+
+
+async def test_entity_binding_catalog_hit_creates_reference(
+    bindings_file, mock_uipath, studio_client
+):
+    """Entity bindings should go through the resource catalog lookup.
+    When found, a referenced resource should be created."""
     entity_binding = {
         "resource": "entity",
         "key": "live.good.entity.Shared",
@@ -290,12 +321,18 @@ async def test_unsupported_virtual_kind_is_skipped_with_warning(
         "metadata": None,
     }
     bindings_file(_make_bindings([entity_binding]))
+    mock_uipath.resource_catalog.list_by_type_async.return_value = _AsyncIterator(
+        [_found_resource(resource_type="entity", resource_sub_type="Native")]
+    )
+    studio_client.create_referenced_resource.return_value = SimpleNamespace(
+        status=Status.ADDED
+    )
 
     await _run_create_resources(studio_client)
 
-    mock_uipath.resource_catalog.list_by_type_async.assert_not_called()
+    mock_uipath.resource_catalog.list_by_type_async.assert_called_once()
+    studio_client.create_referenced_resource.assert_awaited_once()
     studio_client.create_virtual_resource.assert_not_awaited()
-    studio_client.create_referenced_resource.assert_not_awaited()
 
 
 async def test_folder_not_found_falls_back_to_virtual(
