@@ -91,22 +91,24 @@ The example below uses LangChain. Swap `uipath-langchain` for the framework of y
 
 ```
 my-agent/
-├── main.py            # agent logic
+├── main.py            # agent graph
+├── langgraph.json     # graph entry points (framework-specific)
 ├── pyproject.toml     # project metadata and dependencies
-├── uipath.json        # entry point declarations
 ├── entry-points.json  # generated — I/O JSON Schema
 └── bindings.json      # generated — resource binding overrides
 ```
 
-### `uipath.json`
+### `langgraph.json`
 
 ```json
 {
-  "agents": {
-    "agent": "main.py:agent"
+  "graphs": {
+    "agent": "./main.py:graph"
   }
 }
 ```
+
+Declares the agent's graph entry points. The filename is framework-specific — `langgraph.json` for LangChain/LangGraph, `llamaindex.json` for LlamaIndex, and so on. Its presence, together with the framework dependency below, is what marks the project as a coded agent.
 
 ### `pyproject.toml`
 
@@ -120,7 +122,7 @@ requires-python = ">=3.11"
 dependencies = ["uipath>=2.0", "uipath-langchain>=2.0"]
 ```
 
-Standard project metadata and dependencies. The `agents` map in `uipath.json` (above) is what marks the project as a coded agent — `pyproject.toml` needs no UiPath-specific entries.
+Standard metadata plus the framework dependency (`uipath-langchain` here). The framework graph file and this dependency identify the project as a coded agent — `pyproject.toml` needs no UiPath-specific entries, and `uipath.json` carries no agent entry.
 
 ---
 
