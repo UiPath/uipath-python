@@ -140,6 +140,9 @@ class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     ASSET_GROUP_NAME = "AssetGroupName"
     ARGUMENT_EMAIL = "ArgumentEmail"
     ARGUMENT_GROUP_NAME = "ArgumentGroupName"
+    WORKLOAD = "Workload"
+    ROUND_ROBIN = "RoundRobin"
+    CUSTOM_ASSIGNEES = "CustomAssignees"
 
 
 class AgentEscalationChannelType(str, CaseInsensitiveEnum):
@@ -547,6 +550,9 @@ _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType]
     6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
     7: AgentEscalationRecipientType.ARGUMENT_EMAIL,
     8: AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,
+    9: AgentEscalationRecipientType.WORKLOAD,
+    10: AgentEscalationRecipientType.ROUND_ROBIN,
+    11: AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
 }
 
 
@@ -626,14 +632,86 @@ class ArgumentGroupNameRecipient(BaseEscalationRecipient):
     argument_path: str = Field(..., alias="argumentName")
 
 
+class WorkloadRecipient(BaseEscalationRecipient):
+    """Workload-based group assignment.
+
+    The Action Center distributes tasks to the group member with the lightest workload.
+    """
+
+    type: Literal[AgentEscalationRecipientType.WORKLOAD,] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: str = Field(..., alias="displayName")
+
+
+class RoundRobinRecipient(BaseEscalationRecipient):
+    """Round-robin group assignment.
+
+    The Action Center cycles through group members in order on each new task.
+    """
+
+    type: Literal[AgentEscalationRecipientType.ROUND_ROBIN,] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: str = Field(..., alias="displayName")
+
+
+class CustomAssigneesRecipient(BaseEscalationRecipient):
+    """Custom multi-user assignment.
+
+    A channel can carry multiple instances, one per assignee email. All are passed
+    to Action Center together using a Workload assignment criteria.
+    """
+
+    type: Literal[AgentEscalationRecipientType.CUSTOM_ASSIGNEES,] = Field(
+        ..., alias="type"
+    )
+    value: str = Field(..., alias="value")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+
+
+class ToolOutputRecipient(BaseEscalationRecipient):
+    """Recipient whose value is resolved at runtime from a named tool's output.
+
+    Instead of a literal value entered at design time, this binding points at a
+    field within a named tool's output. The runtime walks the agent's message
+    history, finds the most recent ToolMessage matching `tool_name`, parses its
+    content as JSON, and extracts `output_path` (a top-level field for v1).
+
+    Only the assignment-criteria recipient types that accept a runtime-computed
+    value are supported: USER_ID, GROUP_ID, WORKLOAD, ROUND_ROBIN,
+    CUSTOM_ASSIGNEES. The asset/static/argument types do not participate in
+    tool-output binding (they have their own design-time resolution rules).
+    """
+
+    type: Literal[
+        AgentEscalationRecipientType.USER_ID,
+        AgentEscalationRecipientType.GROUP_ID,
+        AgentEscalationRecipientType.WORKLOAD,
+        AgentEscalationRecipientType.ROUND_ROBIN,
+        AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
+    ] = Field(..., alias="type")
+    source: Literal["toolOutput"] = Field(..., alias="source")
+    tool_name: str = Field(..., alias="toolName")
+    output_path: str = Field(..., alias="outputPath")
+
+
+# Note: order matters in this union — ToolOutputRecipient is listed first so payloads
+# carrying `source: "toolOutput"` match it before the literal variants get a chance.
+# The literal classes don't define a `source` field, so Pydantic's overlap heuristics
+# pick the right class via the presence of required fields (value/displayName vs
+# source/toolName/outputPath). A `Field(discriminator="type")` cannot be used here
+# because multiple classes share the same `type` literals (literal and tool-output
+# variants of the same criteria).
 AgentEscalationRecipient = Annotated[
     Union[
+        ToolOutputRecipient,
         StandardRecipient,
         AssetRecipient,
         ArgumentEmailRecipient,
         ArgumentGroupNameRecipient,
+        WorkloadRecipient,
+        RoundRobinRecipient,
+        CustomAssigneesRecipient,
     ],
-    Field(discriminator="type"),
     BeforeValidator(_normalize_recipient_type),
 ]
 
