@@ -76,14 +76,14 @@ class UiPathSpan:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     organization_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID", "")
+        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID") or None
     )
     tenant_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_TENANT_ID", "")
+        default_factory=lambda: env.get("UIPATH_TENANT_ID") or None
     )
     expiry_time_utc: Optional[str] = None
     folder_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
+        default_factory=lambda: env.get("UIPATH_FOLDER_KEY") or None
     )
     source: int = DEFAULT_SOURCE
     span_type: str = "Coded Agents"
