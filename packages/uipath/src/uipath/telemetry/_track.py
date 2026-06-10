@@ -15,6 +15,7 @@ from uipath.platform.common.constants import (
     ENV_TELEMETRY_ENABLED,
     ENV_TENANT_ID,
 )
+
 from ._constants import (
     _APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE,
     _APP_NAME,

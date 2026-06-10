@@ -9,8 +9,8 @@ from pydantic import Field, field_validator
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat.llm_gateway import RequiredToolChoice
-
 from uipath.platform.common.constants import COMMUNITY_agents_SUFFIX
+
 from .._execution_context import eval_set_run_id_context
 from .._helpers.evaluators_helpers import trace_to_str
 from .._helpers.helpers import is_empty_value
