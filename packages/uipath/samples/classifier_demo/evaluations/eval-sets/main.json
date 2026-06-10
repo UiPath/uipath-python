@@ -1,0 +1,173 @@
+{
+  "version": "1.0",
+  "id": "classifier-demo-eval-set",
+  "name": "Classifier demo eval set",
+  "evaluatorRefs": [
+    "intent_match",
+    "intent_classifier"
+  ],
+  "evaluations": [
+    {
+      "id": "book-1",
+      "name": "book \u2014 straightforward",
+      "inputs": {
+        "utterance": "I want to book a table for two"
+      },
+      "expectedOutput": {
+        "intent": "book"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "book"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "book-2",
+      "name": "book \u2014 schedule keyword",
+      "inputs": {
+        "utterance": "Please schedule an appointment"
+      },
+      "expectedOutput": {
+        "intent": "book"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "book"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "book-3",
+      "name": "book \u2014 agent misclassifies (utterance triggers cancel keyword)",
+      "inputs": {
+        "utterance": "I had to cancel my last attempt but I want to reserve a slot now"
+      },
+      "expectedOutput": {
+        "intent": "book"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "book"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "cancel-1",
+      "name": "cancel \u2014 straightforward",
+      "inputs": {
+        "utterance": "Please cancel my reservation"
+      },
+      "expectedOutput": {
+        "intent": "cancel"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "cancel"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "cancel-2",
+      "name": "cancel \u2014 void synonym",
+      "inputs": {
+        "utterance": "I want to void the order"
+      },
+      "expectedOutput": {
+        "intent": "cancel"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "cancel"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "cancel-3",
+      "name": "cancel \u2014 agent misclassifies (utterance has 'move' which triggers reschedule)",
+      "inputs": {
+        "utterance": "I need to move past this and cancel everything"
+      },
+      "expectedOutput": {
+        "intent": "cancel"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "cancel"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "reschedule-1",
+      "name": "reschedule \u2014 straightforward",
+      "inputs": {
+        "utterance": "I want to reschedule the meeting"
+      },
+      "expectedOutput": {
+        "intent": "reschedule"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "reschedule"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "reschedule-2",
+      "name": "reschedule \u2014 move synonym",
+      "inputs": {
+        "utterance": "Can we move the slot to tomorrow"
+      },
+      "expectedOutput": {
+        "intent": "reschedule"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "reschedule"
+          }
+        },
+        "intent_classifier": {}
+      }
+    },
+    {
+      "id": "reschedule-3",
+      "name": "reschedule \u2014 agent misclassifies (falls through to default 'book')",
+      "inputs": {
+        "utterance": "Different timing please"
+      },
+      "expectedOutput": {
+        "intent": "reschedule"
+      },
+      "evaluationCriterias": {
+        "intent_match": {
+          "expectedOutput": {
+            "intent": "reschedule"
+          }
+        },
+        "intent_classifier": {}
+      }
+    }
+  ]
+}

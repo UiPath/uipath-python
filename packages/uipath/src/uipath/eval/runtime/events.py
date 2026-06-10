@@ -78,6 +78,10 @@ class EvalSetRunUpdatedEvent(BaseModel):
     execution_id: str
     evaluator_scores: dict[str, float]
     success: bool = True
+    # Run-level aggregations computed in-process when --aggregate-config is set.
+    # Shape: {evaluatorId: {functionKey: value}}. Carried in the event so the
+    # reporter can ship it on its existing UpdateEvalSetRun POST.
+    aggregations: dict[str, dict[str, float]] | None = None
 
 
 ProgressEvent = Union[

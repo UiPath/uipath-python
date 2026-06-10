@@ -390,12 +390,15 @@ class UiPathEvalRuntime:
                         success=not any_failed,
                     )
 
+                    aggregations = self._compute_aggregations_if_configured(results)
+
                     await self.event_bus.publish(
                         EvaluationEvents.UPDATE_EVAL_SET_RUN,
                         EvalSetRunUpdatedEvent(
                             execution_id=self.execution_id,
                             evaluator_scores=evaluator_averages,
                             success=not any_failed,
+                            aggregations=aggregations,
                         ),
                         wait_for_completion=False,
                     )
@@ -855,6 +858,39 @@ class UiPathEvalRuntime:
         self.logs_exporter.clear(execution_id)
 
         return spans, logs
+
+    def _compute_aggregations_if_configured(
+        self, results: Any
+    ) -> dict[str, dict[str, float]] | None:
+        """Run the in-process aggregator post-pass when configured.
+
+        If `aggregate_config_json` is set on the context, run the post-pass
+        over the in-memory per-datapoint results and
+        return the metrics dict for the final EvalSetRunUpdatedEvent payload.
+
+        Returns None when no aggregator config is set OR no ExactMatch-style
+        observations were produced (no-op silent path).
+        """
+        config_json = getattr(self.context, "aggregate_config_json", None)
+        if not config_json:
+            return None
+        try:
+            from ..aggregators import compute_aggregations
+        except ImportError:
+            logger.warning(
+                "aggregate_config_json was set but aggregators package is unavailable."
+            )
+            return None
+        try:
+            # Serialize the in-memory results into the same dict shape used by
+            # --output-file so the post-pass can harvest expected/actual from
+            # each evaluator's `details` field exactly as it does locally.
+            eval_output_dict = results.model_dump(by_alias=True)
+            agg = compute_aggregations(config_json, eval_output_dict)
+            return agg if agg else None
+        except Exception as exc:
+            logger.warning("Aggregation post-pass failed: %s", exc, exc_info=True)
+            return None
 
     async def execute_runtime(
         self,

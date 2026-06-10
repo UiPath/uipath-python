@@ -1,5 +1,9 @@
 """Exact match evaluator for agent outputs."""
 
+from typing import Any
+
+from pydantic import Field
+
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -21,10 +25,29 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
     case_sensitive: bool = False
     negated: bool = False
 
+    # Run-level aggregator policies authored on this evaluator in the UI.
+    # Each entry is an AggregatorConfig-shaped dict (function + optional
+    # classes / average / beta). When empty/absent, no aggregation runs for
+    # this evaluator — the runs-table chip shows the existing pass-rate.
+    aggregators: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ExactMatchJustification(BaseEvaluatorJustification):
+    """ExactMatch's per-datapoint justification.
+
+    Carries the standard `expected` / `actual` plus an `aggregators` field that
+    declares the run-level aggregations this evaluator type produces (precision
+    / recall / F1, macro averaging). The cloud aggregate-only post-pass
+    (`uipath eval --aggregate-only`) harvests both the observations and the
+    per-evaluator aggregator policy from the same data path.
+    """
+
+    aggregators: list[dict[str, Any]] = []
+
 
 class ExactMatchEvaluator(
     OutputEvaluator[
-        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, BaseEvaluatorJustification
+        OutputEvaluationCriteria, ExactMatchEvaluatorConfig, ExactMatchJustification
     ]
 ):
     """Evaluator that performs exact structural matching between expected and actual outputs.
@@ -46,15 +69,10 @@ class ExactMatchEvaluator(
     ) -> EvaluationResult:
         """Evaluate whether actual output exactly matches expected output.
 
-        Args:
-            agent_execution: The execution details containing:
-                - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
-            evaluation_criteria: The criteria to evaluate
-
         Returns:
-            EvaluationResult: Boolean result indicating exact match (True/False)
+            EvaluationResult: Boolean result indicating exact match (True/False).
+            The justification carries `expected` / `actual` so an aggregator
+            post-pass can pick up the observation without re-reading the eval set.
         """
         actual_output = self._get_actual_output(agent_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
@@ -76,6 +94,7 @@ class ExactMatchEvaluator(
             {
                 "expected": str(expected_output),
                 "actual": str(actual_output),
+                "aggregators": self.evaluator_config.aggregators,
             }
         )
         return NumericEvaluationResult(

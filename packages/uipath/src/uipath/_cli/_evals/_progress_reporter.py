@@ -547,10 +547,18 @@ class StudioWebProgressReporter:
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
         success: bool = True,
+        aggregations: dict[str, dict[str, float]] | None = None,
     ):
-        """Update the evaluation set run status to complete."""
+        """Update the evaluation set run status to complete.
+
+        When `aggregations` is provided, it is included in the POST payload
+        under the camelCase `aggregations` key — the C# handler persists it
+        verbatim into EvalSetRun.AggregationResultsJson. The expected shape
+        is `{evaluatorId: {functionKey: value}}` exactly as
+        `compute_aggregations` produces.
+        """
         spec = self._update_eval_set_run_spec(
-            eval_set_run_id, evaluator_scores, is_coded, success
+            eval_set_run_id, evaluator_scores, is_coded, success, aggregations
         )
         await self._client.request_async(
             method=spec.method,
@@ -814,6 +822,7 @@ class StudioWebProgressReporter:
                     payload.evaluator_scores,
                     is_coded=is_coded,
                     success=payload.success,
+                    aggregations=payload.aggregations,
                 )
                 status_str = "completed" if payload.success else "failed"
                 logger.debug(
@@ -1355,6 +1364,7 @@ class StudioWebProgressReporter:
         evaluator_scores: dict[str, float],
         is_coded: bool = False,
         success: bool = True,
+        aggregations: dict[str, dict[str, float]] | None = None,
     ) -> RequestSpec:
         # Legacy API expects evaluatorId as GUID, coded accepts string
         evaluator_scores_list = []
@@ -1389,6 +1399,13 @@ class StudioWebProgressReporter:
             "evaluatorScores": evaluator_scores_list,
             **self._project_files_source_field(),
         }
+
+        # Run-level aggregations (precision / recall / fscore) computed by the
+        # SDK's in-process post-pass when --aggregate-config is set. Shipped on
+        # the existing UpdateEvalSetRun POST so cloud aggregations land in
+        # AggregationResultsJson without a separate endpoint or subprocess hop.
+        if aggregations:
+            inner_payload["aggregations"] = aggregations
 
         # Legacy backend expects payload wrapped in "request" field
         # Coded backend accepts payload directly

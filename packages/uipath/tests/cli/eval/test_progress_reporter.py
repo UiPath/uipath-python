@@ -584,6 +584,7 @@ class TestCustomEvalSetRunId:
                 {"eval-1": 0.9},
                 is_coded=False,
                 success=True,
+                aggregations=None,
             )
 
 

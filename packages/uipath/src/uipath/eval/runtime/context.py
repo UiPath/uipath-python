@@ -27,3 +27,8 @@ class UiPathEvalContext:
     input_overrides: dict[str, Any] | None = None
     resume: bool = False
     job_id: str | None = None
+    # Inline JSON content of an aggregate.json (see uipath.eval.aggregators).
+    # When set, the runtime computes run-level aggregations from in-memory
+    # results just before publishing the final EvalSetRunUpdatedEvent, so the
+    # reporter can ship them on the existing UpdateEvalSetRun POST.
+    aggregate_config_json: str | None = None
