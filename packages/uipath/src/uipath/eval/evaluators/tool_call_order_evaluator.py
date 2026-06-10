@@ -1,5 +1,7 @@
 """Tool call order evaluator for validating correct sequence of tool calls."""
 
+from pydantic import computed_field
+
 from .._helpers.evaluators_helpers import (
     extract_tool_calls_names,
     tool_calls_order_score,
@@ -34,6 +36,19 @@ class ToolCallOrderEvaluatorJustification(BaseEvaluatorJustification):
     """Justification for the tool call order evaluator."""
 
     lcs: list[str]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def justification(self) -> str:
+        """Human-readable justification derived from the matched call order."""
+        if not self.lcs:
+            return (
+                "No common ordered subsequence between expected and actual tool calls."
+            )
+        return (
+            "Longest common ordered subsequence between expected and actual "
+            f"tool calls: {self.lcs}."
+        )
 
 
 class ToolCallOrderEvaluator(
