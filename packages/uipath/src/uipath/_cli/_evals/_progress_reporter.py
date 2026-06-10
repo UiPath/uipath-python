@@ -16,7 +16,7 @@ from rich.console import Console
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils import Endpoint, RequestSpec
-from uipath._utils.constants import (
+from uipath.platform.common.constants import (
     ENV_EVAL_BACKEND_URL,
     ENV_TENANT_ID,
     HEADER_INTERNAL_TENANT_ID,
