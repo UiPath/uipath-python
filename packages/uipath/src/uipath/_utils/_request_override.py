@@ -1,7 +1,11 @@
 from base64 import b64encode
 from typing import Optional
 
-from .constants import HEADER_FOLDER_KEY, HEADER_FOLDER_PATH, HEADER_FOLDER_PATH_ENCODED
+from uipath.platform.common.constants import (
+    HEADER_FOLDER_KEY,
+    HEADER_FOLDER_PATH,
+    HEADER_FOLDER_PATH_ENCODED,
+)
 
 
 def folder_path_header(folder_path: str) -> dict[str, str]:

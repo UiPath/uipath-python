@@ -16,11 +16,6 @@ from rich.console import Console
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils import Endpoint, RequestSpec
-from uipath._utils.constants import (
-    ENV_EVAL_BACKEND_URL,
-    ENV_TENANT_ID,
-    HEADER_INTERNAL_TENANT_ID,
-)
 from uipath.core.events import EventBus
 from uipath.eval.evaluators import (
     BaseEvaluator,
@@ -38,6 +33,11 @@ from uipath.eval.runtime.events import (
 )
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
+from uipath.platform.common.constants import (
+    ENV_EVAL_BACKEND_URL,
+    ENV_TENANT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 logger = logging.getLogger(__name__)
 
