@@ -72,7 +72,7 @@ def test_shim_does_not_leak_warnings_module_via_star_import():
     """The shim binds `warnings` under a private alias to keep it out of
     `from uipath._utils.constants import *`."""
     _reload_shim()
-    ns: dict = {}
+    ns: dict[str, object] = {}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         exec("from uipath._utils.constants import *", ns)
