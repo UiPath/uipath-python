@@ -14,7 +14,7 @@ from uipath.platform.common import (
     UiPathConfig,
 )
 
-from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
+from uipath.platform.common.constants import ENV_UIPATH_ACCESS_TOKEN
 from ..models.runtime_schema import EntryPoint
 from ..spinner import Spinner
 from ._console import ConsoleLogger

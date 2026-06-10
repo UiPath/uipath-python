@@ -1,6 +1,6 @@
 import importlib
 
-from .constants import HEADER_USER_AGENT
+from uipath.platform.common.constants import HEADER_USER_AGENT
 
 
 def user_agent_value(specific_component: str) -> str:

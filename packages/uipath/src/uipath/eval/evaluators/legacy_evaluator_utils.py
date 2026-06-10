@@ -3,7 +3,7 @@
 import json
 from typing import Any, Optional
 
-from ..._utils.constants import COMMUNITY_agents_SUFFIX
+from uipath.platform.common.constants import COMMUNITY_agents_SUFFIX
 
 
 def clean_model_name(model: str) -> str:

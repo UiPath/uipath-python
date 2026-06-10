@@ -4,7 +4,7 @@ from os import environ as env
 from pathlib import Path
 from typing import Optional
 
-from .constants import (
+from uipath.platform.common.constants import (
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,

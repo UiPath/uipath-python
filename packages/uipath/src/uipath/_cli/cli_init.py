@@ -30,7 +30,7 @@ from uipath.runtime import (
 )
 from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 
-from .._utils.constants import ENV_TELEMETRY_ENABLED
+from uipath.platform.common.constants import ENV_TELEMETRY_ENABLED
 from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
