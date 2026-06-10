@@ -68,7 +68,9 @@ CONFLUENCE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.ConfluenceDataSource
 DROPBOX_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.DropboxDataSource"
 GOOGLE_DRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.GoogleDriveDataSource"
 ONEDRIVE_DATA_SOURCE = "#UiPath.Vdbs.Domain.Api.V20Models.OneDriveDataSource"
+LLMV3Mini_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV3MiniPreProcessingRequest"
 LLMV4_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.LLMV4PreProcessingRequest"
+NativeV1_REQUEST = "#UiPath.Vdbs.Domain.Api.V20Models.NativeV1PreProcessingRequest"
 
 
 # Local storage
