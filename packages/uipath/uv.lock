@@ -2552,7 +2552,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.10.79"
+version = "2.10.80"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
