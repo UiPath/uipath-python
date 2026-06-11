@@ -156,7 +156,12 @@ async def generate_structured_output(
         logger.info("response_format path failed, falling back to tools: %s", e)
 
     if content:
-        return json.loads(content)
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # Some providers (e.g. Claude on the normalized gateway) answer
+            # response_format requests with plain prose; fall back to tools.
+            logger.info("response_format content was not JSON, falling back to tools")
 
     tool = build_response_tool(schema, description)
     tc_response = await llm.chat_completions(

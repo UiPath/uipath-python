@@ -142,6 +142,35 @@ async def test_generate_structured_output_prefers_response_format_content():
 
 
 @pytest.mark.asyncio
+async def test_generate_structured_output_falls_back_on_prose_content():
+    # Claude on the normalized gateway answers response_format requests with
+    # plain prose (e.g. "Tokyo") — truthy but not JSON. Must fall back to tools
+    # instead of raising JSONDecodeError (AE-1646).
+    llm = _FakeLLM(
+        [
+            _response(SimpleNamespace(content="Tokyo", tool_calls=None)),
+            _response(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[SimpleNamespace(arguments={RESPONSE_KEY: {"a": 1}})],
+                )
+            ),
+        ]
+    )
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={},
+    )
+    assert result == {"a": 1}
+    assert len(llm.calls) == 2
+    assert "tools" in llm.calls[1]
+
+
+@pytest.mark.asyncio
 async def test_generate_structured_output_falls_back_on_empty_content():
     # Non-OpenAI: response_format yields empty content -> fall back to tool call.
     llm = _FakeLLM(
