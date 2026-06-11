@@ -222,3 +222,74 @@ async def test_generate_structured_output_falls_back_when_response_format_raises
     )
     assert result == "ok"
     assert len(llm.calls) == 2
+
+
+def test_build_response_tool_merges_ref_sibling_keys():
+    # Pydantic can emit sibling keys (e.g. description) next to $ref; they
+    # must survive inlining since they guide the LLM.
+    schema = {
+        "type": "object",
+        "properties": {
+            "op": {"$ref": "#/$defs/Op", "description": "the operator to use"}
+        },
+        "$defs": {"Op": {"type": "string", "enum": ["+", "-"]}},
+    }
+    tool = build_response_tool(schema, description="d")
+    op = tool["parameters"]["properties"][RESPONSE_KEY]["properties"]["op"]
+    assert op == {
+        "type": "string",
+        "enum": ["+", "-"],
+        "description": "the operator to use",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model",
+    [
+        "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "claude-haiku-4-5",
+        "gemini-2.5-pro",
+    ],
+)
+async def test_non_openai_models_use_tool_call_directly(model: str):
+    # Claude/Gemini don't honor response_format on the normalized gateway, so
+    # their strategies skip it entirely: a single forced tool call.
+    llm = _FakeLLM(
+        [
+            _response(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[SimpleNamespace(arguments={RESPONSE_KEY: "ok"})],
+                )
+            )
+        ]
+    )
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "string"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={"model": model},
+    )
+    assert result == "ok"
+    assert len(llm.calls) == 1
+    assert "tools" in llm.calls[0] and "tool_choice" in llm.calls[0]
+    assert "response_format" not in llm.calls[0]
+
+
+@pytest.mark.asyncio
+async def test_openai_models_prefer_response_format():
+    llm = _FakeLLM([_response(SimpleNamespace(content='{"a": 1}', tool_calls=None))])
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={"model": "gpt-4.1-mini-2025-04-14"},
+    )
+    assert result == {"a": 1}
+    assert len(llm.calls) == 1
+    assert "response_format" in llm.calls[0]

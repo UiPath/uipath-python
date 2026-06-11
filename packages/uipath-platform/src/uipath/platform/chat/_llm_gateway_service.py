@@ -436,9 +436,11 @@ class UiPathLlmChatService(BaseService):
                 Controls diversity by considering only the top p probability mass. Defaults to 1.
             top_k (int, optional): Nucleus sampling parameter.
                 Controls diversity by considering only the top k most probable tokens. Defaults to None.
-            tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
-                model can call. Tools enable the model to perform actions or retrieve information
-                beyond text generation. Defaults to None.
+            tools (Optional[List[ToolDefinition | dict]], optional): List of tool definitions
+                that the model can call. Tools enable the model to perform actions or retrieve
+                information beyond text generation. A tool given as a dict must already be in
+                UiPath wire format and is forwarded unchanged, which allows arbitrary nested
+                JSON schemas in its parameters. Defaults to None.
             tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
                 Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
                 Defaults to None.

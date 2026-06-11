@@ -1,13 +1,18 @@
-"""Provider-agnostic structured output for the eval mockers.
+"""Provider-aware structured output for the eval mockers.
 
-The normalized LLM Gateway honors OpenAI-style ``response_format`` (json_schema)
-only for OpenAI models — and does so reliably, including native ``$defs``
-support. Non-OpenAI providers (Anthropic/Claude via Bedrock, Gemini) return such
-requests with ``choices[0].message.content`` empty/None, which breaks JSON
-parsing. Function calling is honored across providers but is less reliable for
-OpenAI on some schemas, so it is used only as a fallback: prefer
-``response_format`` and fall back to a forced tool call when the content comes
-back empty.
+The normalized LLM Gateway handles OpenAI-style ``response_format``
+(json_schema) differently per provider — live-verified against the gateway:
+
+- **OpenAI**: honors ``response_format`` and returns valid JSON content,
+  including native ``$defs`` support.
+- **Anthropic (Claude)**: ignores it and answers with plain prose content.
+- **Gemini**: returns empty content.
+
+Forced function calling works across all three providers, so each provider
+gets a small strategy class: OpenAI prefers ``response_format`` (more reliable
+for it on some schemas) with a tool-call fallback; Claude and Gemini go
+straight to the forced tool call; unknown providers try ``response_format``
+first and fall back.
 """
 
 import json
@@ -30,10 +35,12 @@ def _inline_defs(
 
     Nested Pydantic models and enums emit root ``$defs`` referenced by ``$ref``.
     The normalized gateway accepts those in ``response_format`` but not inside a
-    tool's ``parameters``, so they are inlined here. Self-referential definitions
-    cannot be inlined without looping; any ``$ref`` reached while its target is
-    already on the current resolution path is left untouched and its definitions
-    are returned so the caller can keep them reachable.
+    tool's ``parameters``, so they are inlined here. Sibling keys on a ``$ref``
+    node (e.g. a field ``description``) are merged over the inlined definition.
+    Self-referential definitions cannot be inlined without looping; any ``$ref``
+    reached while its target is already on the current resolution path is left
+    untouched and its definitions are returned so the caller can keep them
+    reachable.
 
     Returns:
         A tuple of (inlined schema, leftover ``$defs`` needed for cyclic refs).
@@ -47,7 +54,15 @@ def _inline_defs(
             if isinstance(ref, str) and ref.startswith(_DEFS_PREFIX):
                 name = ref[len(_DEFS_PREFIX) :]
                 if name in defs and name not in active:
-                    return resolve(defs[name], active | {name})
+                    resolved = resolve(defs[name], active | {name})
+                    siblings = {
+                        key: resolve(value, active)
+                        for key, value in node.items()
+                        if key not in ("$ref", "$defs")
+                    }
+                    if isinstance(resolved, dict):
+                        return {**resolved, **siblings}
+                    return resolved
                 # Cyclic or unknown ref: keep it and preserve its definition.
                 if name in defs:
                     leftover[name] = defs[name]
@@ -118,6 +133,111 @@ def extract_response(response: Any) -> Any:
     return arguments[RESPONSE_KEY]
 
 
+class ToolCallStructuredOutput:
+    """Structured output via a forced tool call — works on every provider."""
+
+    async def generate(
+        self,
+        llm: Any,
+        messages: list[dict[str, str]],
+        *,
+        schema: dict[str, Any],
+        response_format_name: str,
+        description: str,
+        completion_kwargs: dict[str, Any],
+    ) -> Any:
+        """Force a tool call wrapping ``schema`` and unwrap its arguments."""
+        tool = build_response_tool(schema, description)
+        response = await llm.chat_completions(
+            messages,
+            tools=[tool],
+            tool_choice=RequiredToolChoice(),
+            **completion_kwargs,
+        )
+        return extract_response(response)
+
+
+class ResponseFormatStructuredOutput(ToolCallStructuredOutput):
+    """Prefer ``response_format`` (json_schema); fall back to a forced tool call.
+
+    The fallback fires when the provider rejects the request, returns empty
+    content, or returns content that is not valid JSON (Claude's behavior on
+    the normalized gateway is to answer with plain prose).
+    """
+
+    async def generate(
+        self,
+        llm: Any,
+        messages: list[dict[str, str]],
+        *,
+        schema: dict[str, Any],
+        response_format_name: str,
+        description: str,
+        completion_kwargs: dict[str, Any],
+    ) -> Any:
+        """Try ``response_format`` first, falling back to a forced tool call."""
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": response_format_name,
+                "strict": False,
+                "schema": schema,
+            },
+        }
+
+        content: str | None = None
+        try:
+            response = await llm.chat_completions(
+                messages, response_format=response_format, **completion_kwargs
+            )
+            choices = getattr(response, "choices", None)
+            if choices:
+                content = choices[0].message.content
+        except Exception as e:
+            logger.info("response_format path failed, falling back to tools: %s", e)
+
+        if content:
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                logger.info(
+                    "response_format content was not JSON, falling back to tools"
+                )
+
+        return await super().generate(
+            llm,
+            messages,
+            schema=schema,
+            response_format_name=response_format_name,
+            description=description,
+            completion_kwargs=completion_kwargs,
+        )
+
+
+class OpenAIStructuredOutput(ResponseFormatStructuredOutput):
+    """OpenAI honors ``response_format`` natively (including ``$defs``)."""
+
+
+class AnthropicStructuredOutput(ToolCallStructuredOutput):
+    """Claude answers ``response_format`` with prose; go straight to tools."""
+
+
+class GeminiStructuredOutput(ToolCallStructuredOutput):
+    """Gemini returns empty content for ``response_format``; go straight to tools."""
+
+
+def _strategy_for_model(model: str | None) -> ToolCallStructuredOutput:
+    name = (model or "").lower()
+    if "claude" in name or name.startswith("anthropic"):
+        return AnthropicStructuredOutput()
+    if "gemini" in name:
+        return GeminiStructuredOutput()
+    if name.startswith(("gpt", "o1", "o3", "o4")):
+        return OpenAIStructuredOutput()
+    # Unknown providers: try response_format, fall back to tools.
+    return ResponseFormatStructuredOutput()
+
+
 async def generate_structured_output(
     llm: Any,
     messages: list[dict[str, str]],
@@ -127,47 +247,13 @@ async def generate_structured_output(
     description: str,
     completion_kwargs: dict[str, Any],
 ) -> Any:
-    """Generate structured output that works across all model providers.
-
-    Prefers ``response_format`` (json_schema) — honored reliably by OpenAI with
-    native ``$defs`` support. When the provider returns empty content (the
-    non-OpenAI failure mode, e.g. Claude/Bedrock), falls back to a forced tool
-    call, which is honored across providers.
-    """
-    response_format = {
-        "type": "json_schema",
-        "json_schema": {
-            "name": response_format_name,
-            "strict": False,
-            "schema": schema,
-        },
-    }
-
-    content: str | None = None
-    try:
-        rf_response = await llm.chat_completions(
-            messages, response_format=response_format, **completion_kwargs
-        )
-        choices = getattr(rf_response, "choices", None)
-        if choices:
-            content = choices[0].message.content
-    except Exception as e:
-        # Some providers reject response_format outright; fall back to tools.
-        logger.info("response_format path failed, falling back to tools: %s", e)
-
-    if content:
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            # Some providers (e.g. Claude on the normalized gateway) answer
-            # response_format requests with plain prose; fall back to tools.
-            logger.info("response_format content was not JSON, falling back to tools")
-
-    tool = build_response_tool(schema, description)
-    tc_response = await llm.chat_completions(
+    """Generate structured output using the strategy for the requested model."""
+    strategy = _strategy_for_model(completion_kwargs.get("model"))
+    return await strategy.generate(
+        llm,
         messages,
-        tools=[tool],
-        tool_choice=RequiredToolChoice(),
-        **completion_kwargs,
+        schema=schema,
+        response_format_name=response_format_name,
+        description=description,
+        completion_kwargs=completion_kwargs,
     )
-    return extract_response(tc_response)

@@ -937,14 +937,14 @@ async def test_llm_mockable_with_output_schema_async(
 
 @pytest.mark.asyncio
 @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
-async def test_llm_mockable_falls_back_to_tool_call_for_non_openai(
+async def test_llm_mockable_uses_tool_call_directly_for_non_openai(
     httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
 ):
     """Tool simulation works for non-OpenAI providers (AE-1646).
 
-    Non-OpenAI providers (Claude/Bedrock, Gemini) return ``response_format``
-    requests with empty ``content``. The mocker must then fall back to function
-    calling and read the result from the forced tool call's arguments.
+    Non-OpenAI providers don't honor ``response_format`` on the normalized
+    gateway (Claude answers with prose, Gemini with empty content), so their
+    strategies go straight to a forced tool call — a single request.
     """
     monkeypatch.setenv("UIPATH_URL", "https://example.com")
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
@@ -992,14 +992,7 @@ async def test_llm_mockable_falls_back_to_tool_call_for_non_openai(
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
         }
 
-    # First call (response_format) returns empty content — the non-OpenAI failure.
-    httpx_mock.add_response(
-        url="https://example.com/llm/api/chat/completions"
-        "?api-version=2024-08-01-preview",
-        status_code=200,
-        json=_completion({"role": "assistant", "content": None, "tool_calls": None}),
-    )
-    # Fallback call (function calling) returns the structured result.
+    # Claude goes straight to function calling: one request, one response.
     httpx_mock.add_response(
         url="https://example.com/llm/api/chat/completions"
         "?api-version=2024-08-01-preview",
@@ -1034,15 +1027,12 @@ async def test_llm_mockable_falls_back_to_tool_call_for_non_openai(
     requests = [
         r for r in httpx_mock.get_requests() if "chat/completions" in str(r.url)
     ]
-    assert len(requests) == 2
-    first = json.loads(requests[0].content.decode("utf-8"))
-    second = json.loads(requests[1].content.decode("utf-8"))
-    # First attempt uses response_format; fallback uses a forced tool call.
-    assert "response_format" in first
-    assert "tools" not in first
-    assert second["tool_choice"] == {"type": "required"}
-    assert second["tools"][0]["name"] == "submit_tool_response"
-    assert "response_format" not in second
+    assert len(requests) == 1
+    body = json.loads(requests[0].content.decode("utf-8"))
+    # Non-OpenAI providers use a forced tool call directly — no response_format.
+    assert body["tool_choice"] == {"type": "required"}
+    assert body["tools"][0]["name"] == "submit_tool_response"
+    assert "response_format" not in body
 
 
 class TestUiPathMockRuntime:
