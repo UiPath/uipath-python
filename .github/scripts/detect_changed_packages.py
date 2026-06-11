@@ -17,8 +17,9 @@ from pathlib import Path
 # External dependents (uipath-langchain, uipath-runtime, etc.) are
 # handled separately via labeler.yml auto-labels.
 DEPENDENTS: dict[str, list[str]] = {
-    "uipath-core": ["uipath-platform", "uipath"],
-    "uipath-platform": ["uipath"],
+    "uipath-core": ["uipath-platform", "uipath-eval", "uipath"],
+    "uipath-platform": ["uipath-eval", "uipath"],
+    "uipath-eval": ["uipath"],
 }
 
 
@@ -117,7 +118,9 @@ def main():
     if base_sha and head_sha:
         packages = get_changed_packages(base_sha, head_sha)
         event_type = "pull request" if event_name == "pull_request" else "push"
-        print(f"{event_type.capitalize()} - detected {len(packages)} directly changed package(s):")
+        print(
+            f"{event_type.capitalize()} - detected {len(packages)} directly changed package(s):"
+        )
         for pkg in packages:
             print(f"  - {pkg}")
 

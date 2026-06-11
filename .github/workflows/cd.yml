@@ -133,7 +133,8 @@ jobs:
     needs: [detect-publishable-packages, publish-uipath-platform]
     if: |
       always() &&
-      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
+      (contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval') ||
+       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -154,9 +155,70 @@ jobs:
         if: "!contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')"
         run: echo "uipath-platform not being published — skipping wait"
 
-  # --- Tier 2: uipath (depends on core + platform) ---
-  build-uipath:
+  # --- Tier 1.5: uipath-eval (depends on core + platform) ---
+  build-uipath-eval:
     needs: [detect-publishable-packages, wait-for-uipath-platform]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval')
+    uses: ./.github/workflows/build-package.yml
+    with:
+      package: uipath-eval
+      needs-relock: true
+
+  publish-uipath-eval:
+    name: Publish uipath-eval
+    needs: [detect-publishable-packages, build-uipath-eval]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Retrieve release distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dists-uipath-eval
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          skip-existing: true
+
+  wait-for-uipath-eval:
+    name: Wait for uipath-eval on PyPI
+    needs: [detect-publishable-packages, publish-uipath-eval]
+    if: |
+      always() &&
+      contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval')
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval')
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Wait for uipath-eval
+        if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval')
+        run: python .github/scripts/wait_for_pypi.py uipath-eval
+
+      - name: Skip
+        if: "!contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-eval')"
+        run: echo "uipath-eval not being published — skipping wait"
+
+  # --- Tier 2: uipath (depends on core + platform + eval) ---
+  build-uipath:
+    needs: [detect-publishable-packages, wait-for-uipath-eval]
     if: |
       always() &&
       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
