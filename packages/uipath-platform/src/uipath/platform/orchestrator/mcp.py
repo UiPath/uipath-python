@@ -17,6 +17,7 @@ class McpServerType(IntEnum):
     SelfHosted = 3  # tunnel to (externally) self-hosted server
     Remote = 4  # HTTP connection to remote MCP server
     ProcessAssistant = 5  # Dynamic user process assistant
+    Platform = 6  # Platform MCP server (e.g: Orchestrator, TestManager)
 
 
 class McpServerStatus(IntEnum):

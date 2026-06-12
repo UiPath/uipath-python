@@ -1,8 +1,9 @@
 """Evaluation set models."""
 
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from ..mocks._types import (
@@ -14,6 +15,21 @@ from ._conversational_utils import (
     LegacyConversationalEvalInput,
     LegacyConversationalEvalOutput,
 )
+
+_GUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def normalize_eval_id(value: str) -> str:
+    """Canonicalize a GUID id to lowercase; leave non-GUID ids unchanged.
+
+    GUIDs are case-insensitive, but downstream correlation (selection,
+    span/cache keying) compares ids as plain strings, so a mixed-case id
+    must be normalized at ingestion to stay matchable.
+    """
+    return value.lower() if isinstance(value, str) and _GUID_RE.match(value) else value
 
 
 class EvaluatorReference(BaseModel):
@@ -96,6 +112,12 @@ class EvaluationItem(BaseModel):
         alias="inputMockingStrategy",
     )
 
+    @field_validator("id")
+    @classmethod
+    def _normalize_id(cls, value: str) -> str:
+        """Normalize GUID ids to canonical lowercase."""
+        return normalize_eval_id(value)
+
 
 class LegacyEvaluationItem(BaseModel):
     """Individual evaluation item within an evaluation set."""
@@ -130,6 +152,12 @@ class LegacyEvaluationItem(BaseModel):
         default=None, alias="conversationalExpectedOutput"
     )
 
+    @field_validator("id")
+    @classmethod
+    def _normalize_id(cls, value: str) -> str:
+        """Normalize GUID ids to canonical lowercase."""
+        return normalize_eval_id(value)
+
 
 class EvaluationSet(BaseModel):
     """Complete evaluation set model."""
@@ -153,7 +181,7 @@ class EvaluationSet(BaseModel):
     def extract_selected_evals(self, eval_ids) -> None:
         """Filter evaluations to only include those with specified IDs."""
         selected_evals: list[EvaluationItem] = []
-        remaining_ids = set(eval_ids)
+        remaining_ids = {normalize_eval_id(eval_id) for eval_id in eval_ids}
         for evaluation in self.evaluations:
             if evaluation.id in remaining_ids:
                 selected_evals.append(evaluation)
@@ -187,7 +215,7 @@ class LegacyEvaluationSet(BaseModel):
     def extract_selected_evals(self, eval_ids) -> None:
         """Filter evaluations to only include those with specified IDs."""
         selected_evals: list[LegacyEvaluationItem] = []
-        remaining_ids = set(eval_ids)
+        remaining_ids = {normalize_eval_id(eval_id) for eval_id in eval_ids}
         for evaluation in self.evaluations:
             if evaluation.id in remaining_ids:
                 selected_evals.append(evaluation)
