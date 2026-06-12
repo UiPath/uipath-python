@@ -5,7 +5,7 @@ from uipath.core.feature_flags import FeatureFlags
 from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from ..common._config import UiPathConfig
-from ..common._span_utils import _SpanUtils
+from ..common._span_utils import _SpanUtils, resolve_id
 
 
 def build_trace_context_headers(
@@ -40,8 +40,8 @@ def build_trace_context_headers(
     baggage_parts: list[str] = list(extra_baggage) if extra_baggage else []
     if folder_key := UiPathConfig.folder_key:
         baggage_parts.append(f"folderKey={folder_key}")
-    if agent_id := UiPathConfig.agent_id:
-        baggage_parts.append(f"agentId={agent_id}")
+    if id := resolve_id():
+        baggage_parts.append(f"agentId={id}")
     if process_key := UiPathConfig.process_key:
         baggage_parts.append(f"processKey={process_key}")
     if baggage_parts:

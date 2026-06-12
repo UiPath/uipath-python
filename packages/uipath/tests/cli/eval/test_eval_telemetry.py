@@ -422,6 +422,10 @@ class TestEnrichProperties:
         """Test that environment variables are added when present."""
         mock_get_claim.return_value = "user-789"
 
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+
         subscriber = EvalTelemetrySubscriber()
         properties: dict[str, Any] = {}
 
@@ -429,6 +433,7 @@ class TestEnrichProperties:
             os.environ,
             {
                 "UIPATH_PROJECT_ID": "project-123",
+                "UIPATH_PROCESS_UUID": "agent-123",
                 "UIPATH_ORGANIZATION_ID": "org-456",
                 "UIPATH_TENANT_ID": "tenant-abc",
                 "UIPATH_EVAL_RUN_SOURCE": "FirstSuccessfulRun",
@@ -437,7 +442,7 @@ class TestEnrichProperties:
             subscriber._enrich_properties(properties)
 
         assert properties["ProjectId"] == "project-123"
-        assert properties["AgentId"] == "project-123"
+        assert properties["AgentId"] == "agent-123"
         assert properties["CloudOrganizationId"] == "org-456"
         assert properties["CloudUserId"] == "user-789"
         assert properties["TenantId"] == "tenant-abc"
@@ -448,6 +453,10 @@ class TestEnrichProperties:
         """Test that missing environment variables are not added."""
         mock_get_claim.side_effect = Exception("No token")
 
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+
         subscriber = EvalTelemetrySubscriber()
         properties: dict[str, Any] = {}
 
@@ -455,6 +464,7 @@ class TestEnrichProperties:
             # Remove env vars if they exist
             for key in [
                 "UIPATH_PROJECT_ID",
+                "UIPATH_PROCESS_UUID",
                 "UIPATH_ORGANIZATION_ID",
                 "UIPATH_TENANT_ID",
                 "UIPATH_EVAL_RUN_SOURCE",

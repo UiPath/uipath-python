@@ -308,10 +308,12 @@ class EvalTelemetrySubscriber:
         Args:
             properties: The properties dictionary to enrich.
         """
+        from uipath.platform.common._span_utils import resolve_id
+
         if UiPathConfig.project_id:
             properties["ProjectId"] = UiPathConfig.project_id
-        if UiPathConfig.agent_id:
-            properties["AgentId"] = UiPathConfig.agent_id
+        if id := resolve_id():
+            properties["AgentId"] = id
 
         if UiPathConfig.organization_id:
             properties["CloudOrganizationId"] = UiPathConfig.organization_id
