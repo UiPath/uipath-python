@@ -4,17 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is the **UiPath Python SDK** monorepo — a Python SDK and CLI for programmatic interaction with the UiPath Cloud Platform. It publishes three packages to PyPI: `uipath`, `uipath-core`, and `uipath-platform`.
+This is the **UiPath Python SDK** monorepo — a Python SDK and CLI for programmatic interaction with the UiPath Cloud Platform. It publishes four packages to PyPI: `uipath`, `uipath-core`, `uipath-platform`, and `uipath-eval`.
 
 ## Monorepo Structure
 
-The repo contains three packages under `packages/`, each with its own `pyproject.toml`, `src/`, and `tests/`:
+The repo contains four packages under `packages/`, each with its own `pyproject.toml`, `src/`, and `tests/`:
 
-- **`packages/uipath`** — The main SDK package. Contains the CLI (`uipath` command), agent framework, evaluation framework, tracing/telemetry, and function utilities. This is what users `uv pip install uipath`. Entry point: `src/uipath/_cli:cli`.
+- **`packages/uipath`** — The main SDK package. Contains the CLI (`uipath` command), agent framework, tracing/telemetry, and function utilities. This is what users `uv pip install uipath`. Entry point: `src/uipath/_cli:cli`.
 - **`packages/uipath-core`** — Core abstractions shared across packages: tracing, serialization, events, feature flags, error types, chat models, guardrails. Depends on OpenTelemetry and Pydantic.
+- **`packages/uipath-eval`** — The evaluation framework (`uipath.eval` namespace): evaluators (deterministic + LLM-based), the `@mockable` simulation/mocking system, and the eval runtime. Consumable standalone (e.g. by the python eval worker in the agents backend). Depends on `uipath-core`, `uipath-platform`, and `uipath-runtime`.
 - **`packages/uipath-platform`** — HTTP client layer for UiPath Platform APIs. Contains service classes for orchestrator resources (assets, buckets, jobs, processes, queues), action center, context grounding, documents, connections, chat, and guardrails. Depends on `uipath-core`, httpx, and tenacity.
 
-Dependency chain: `uipath` → `uipath-platform` → `uipath-core`. Local editable links are configured via `[tool.uv.sources]`.
+Dependency chain: `uipath` → `uipath-eval` → `uipath-platform` → `uipath-core`. Local editable links are configured via `[tool.uv.sources]`.
 
 ## Build & Development Commands
 
@@ -96,7 +97,7 @@ The CLI uses **click** and is organized as `cli_<command>.py` files in `src/uipa
 
 ### Evaluation Framework
 
-`src/uipath/eval/` provides evaluators (ExactMatch, Contains, JsonSimilarity, LLMJudge, Trajectory, ToolCall, Classification) for testing agent quality.
+`packages/uipath-eval/src/uipath/eval/` provides evaluators (ExactMatch, Contains, JsonSimilarity, LLMJudge, Trajectory, ToolCall, Classification) for testing agent quality.
 
 ## Code Conventions
 

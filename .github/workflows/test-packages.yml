@@ -224,6 +224,76 @@ jobs:
           UIPATH_FOLDER_KEY: ${{ secrets.UIPATH_MEMORY_FOLDER }}
         run: uv run pytest tests/services/test_memory_service_e2e.py -m e2e -v --no-cov
 
+  test-uipath-eval:
+    name: Test (uipath-eval, ${{ matrix.python-version }}, ${{ matrix.os }})
+    needs: detect-changed-packages
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check if package changed
+        id: check
+        shell: bash
+        run: |
+          if echo '${{ needs.detect-changed-packages.outputs.packages }}' | jq -e 'index("uipath-eval")' > /dev/null; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip
+        if: steps.check.outputs.skip == 'true'
+        shell: bash
+        run: echo "Skipping - no changes to uipath-eval"
+
+      - name: Checkout
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        if: steps.check.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@v5
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-eval
+        run: uv sync --all-extras --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        working-directory: packages/uipath-eval
+        run: uv run pytest
+
+      - name: Run tests with coverage
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        working-directory: packages/uipath-eval
+        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
+
+      - name: Upload coverage HTML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-uipath-eval
+          path: packages/uipath-eval/htmlcov/
+          retention-days: 30
+
+      - name: Upload coverage XML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml-uipath-eval
+          path: packages/uipath-eval/coverage.xml
+          retention-days: 30
+
   test-uipath:
     name: Test (uipath, ${{ matrix.python-version }}, ${{ matrix.os }})
     needs: detect-changed-packages
