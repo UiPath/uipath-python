@@ -10,6 +10,16 @@ from opentelemetry.trace import SpanContext, StatusCode
 from uipath.platform.common import UiPathSpan, _SpanUtils
 
 
+@pytest.fixture(autouse=True)
+def _clear_id_cache():
+    """Isolate the process-global id cache between tests."""
+    from uipath.platform.common._span_utils import _read_config_id
+
+    _read_config_id.cache_clear()
+    yield
+    _read_config_id.cache_clear()
+
+
 class TestOTelToUiPathSpan:
     """OTEL attribute -> top-level UiPathSpan field mapping.
 
@@ -92,10 +102,11 @@ class TestOTelToUiPathSpan:
 class TestReferenceIdResolution:
     """`reference_id` resolution chain.
 
-    Priority: `UIPATH_AGENT_ID` env var > `agentId` attribute > `referenceId`
-    attribute. Falsy values (missing / empty string) at each step fall through
-    to the next source. The `referenceId` fallback exists for backwards
-    compatibility with older producers that only emit that attribute.
+    `reference_id` is derived from the span's resolved `agentId` attribute
+    (which itself goes through `resolve_id()`), falling back to the
+    `referenceId` attribute. Falsy values (missing / empty string) at each step
+    fall through to the next source. The `referenceId` fallback exists for
+    backwards compatibility with older producers that only emit that attribute.
     """
 
     @pytest.mark.parametrize(
@@ -105,7 +116,7 @@ class TestReferenceIdResolution:
                 "env-agent",
                 {"agentId": "attr-agent", "referenceId": "attr-ref"},
                 "env-agent",
-                id="env-var-wins",
+                id="env-var-overrides-attr",
             ),
             pytest.param(
                 None,
@@ -140,10 +151,13 @@ class TestReferenceIdResolution:
         expected: str | None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
         if env_value is None:
-            monkeypatch.delenv("UIPATH_AGENT_ID", raising=False)
+            monkeypatch.delenv("UIPATH_PROCESS_UUID", raising=False)
         else:
-            monkeypatch.setenv("UIPATH_AGENT_ID", env_value)
+            monkeypatch.setenv("UIPATH_PROCESS_UUID", env_value)
 
         mock_span = Mock(spec=OTelSpan)
         mock_context = SpanContext(
@@ -164,6 +178,96 @@ class TestReferenceIdResolution:
 
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         assert uipath_span.reference_id == expected
+
+
+class TestAgentIdResolution:
+    """`agentId` span attribute resolution via `resolve_id()`.
+
+    Priority: `uipath.json#id` (cached, read once per process) >
+    `UIPATH_PROCESS_UUID` env var injected by the executor at runtime. When no
+    source is present the `agentId` attribute is omitted entirely.
+    """
+
+    @staticmethod
+    def _make_span() -> Mock:
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+        return mock_span
+
+    @staticmethod
+    def _resolve(monkeypatch: pytest.MonkeyPatch, tmp_path) -> object:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+        monkeypatch.delenv("UIPATH_CONFIG_PATH", raising=False)
+        monkeypatch.chdir(tmp_path)
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            TestAgentIdResolution._make_span(), serialize_attributes=False
+        )
+        attributes = uipath_span.attributes
+        assert isinstance(attributes, dict)
+        return attributes.get("agentId")
+
+    def test_agent_id_from_uipath_json_wins_over_process_uuid(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        (tmp_path / "uipath.json").write_text(json.dumps({"id": "from-config"}))
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "from-env")
+        assert self._resolve(monkeypatch, tmp_path) == "from-config"
+
+    def test_agent_id_falls_back_to_process_uuid(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # No uipath.json on disk.
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "from-env")
+        assert self._resolve(monkeypatch, tmp_path) == "from-env"
+
+    def test_agent_id_falls_back_when_config_has_no_id(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        (tmp_path / "uipath.json").write_text(json.dumps({"functions": {}}))
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "from-env")
+        assert self._resolve(monkeypatch, tmp_path) == "from-env"
+
+    def test_agent_id_absent_when_no_source(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        monkeypatch.delenv("UIPATH_PROCESS_UUID", raising=False)
+        assert self._resolve(monkeypatch, tmp_path) is None
+
+    def test_config_id_is_cached(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+        monkeypatch.delenv("UIPATH_CONFIG_PATH", raising=False)
+        monkeypatch.chdir(tmp_path)
+        config = tmp_path / "uipath.json"
+
+        config.write_text(json.dumps({"id": "first"}))
+        assert _read_config_id() == "first"
+
+        # A later edit is not observed: the value is read once and cached.
+        config.write_text(json.dumps({"id": "second"}))
+        assert _read_config_id() == "first"
+
+        _read_config_id.cache_clear()
+        assert _read_config_id() == "second"
 
 
 class TestNormalizeIds:

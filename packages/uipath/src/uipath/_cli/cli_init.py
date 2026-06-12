@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import anyio
 import click
 from graphtty import RenderOptions, render
 from graphtty.themes import TOKYO_NIGHT
@@ -36,7 +37,7 @@ from ._telemetry import track_command
 from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
 from ._utils._constants import AGENT_INITIAL_CODE_VERSION, SCHEMA_VERSION
-from ._utils._project_files import read_toml_project
+from ._utils._project_files import read_toml_project, resolve_existing_project_id
 from .middlewares import Middlewares
 from .models.runtime_schema import Bindings, EntryPoint
 from .models.uipath_json_schema import UiPathJsonConfig
@@ -429,10 +430,25 @@ def init(no_agents_md_override: bool) -> None:
                 config_path = UiPathConfig.config_file_path
                 if not config_path.exists():
                     config = UiPathJsonConfig.create_default()
+                    config.id = resolve_existing_project_id(current_directory) or str(
+                        uuid.uuid4()
+                    )
                     config.save_to_file(config_path)
                     console.success(f"{Action.CREATED.value} '{config_path}' file.")
                 else:
-                    console.info(f"'{config_path}' already exists, skipping.")
+                    # backfill id if not present
+                    async_config_path = anyio.Path(config_path)
+                    raw_config = json.loads(await async_config_path.read_text())
+                    if not raw_config.get("id"):
+                        raw_config["id"] = resolve_existing_project_id(
+                            current_directory
+                        ) or str(uuid.uuid4())
+                        await async_config_path.write_text(
+                            json.dumps(raw_config, indent=2)
+                        )
+                        console.success(
+                            f"{Action.UPDATED.value} '{config_path}' file with 'id'."
+                        )
 
                 # Create bindings.json if it doesn't exist
                 bindings_path = UiPathConfig.bindings_file_path

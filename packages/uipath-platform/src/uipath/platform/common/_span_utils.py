@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
+from functools import lru_cache
 from os import environ as env
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +18,31 @@ logger = logging.getLogger(__name__)
 
 # SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
 DEFAULT_SOURCE = 10
+
+
+@lru_cache(maxsize=1)
+def _read_config_id() -> Optional[str]:
+    """Return ``id`` from ``uipath.json``, cached for the process lifetime."""
+    from uipath.platform.common._config import UiPathConfig
+
+    try:
+        with open(UiPathConfig.config_file_path, "r") as f:
+            id = json.load(f).get("id")
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    return id if isinstance(id, str) and id else None
+
+
+def resolve_id() -> Optional[str]:
+    """Resolve the id: ``uipath.json#id`` then ``UIPATH_PROCESS_UUID``.
+
+    Single resolver for every consumer (span attribute, trace baggage, eval
+    telemetry) so they cannot diverge.
+    """
+    from uipath.platform.common._config import UiPathConfig
+
+    return _read_config_id() or UiPathConfig.process_uuid
 
 
 class AttachmentProvider(IntEnum):
@@ -281,9 +307,12 @@ class _SpanUtils:
             ]
             attributes_dict["links"] = links_list
 
+        id = resolve_id()
+        if id:
+            attributes_dict["agentId"] = id
+
         # Add process context attributes from environment variables
         for env_key, attr_key in (
-            ("PROJECT_KEY", "agentId"),
             ("UIPATH_PROCESS_KEY", "agentName"),
             ("UIPATH_PROCESS_VERSION", "agentVersion"),
         ):
@@ -297,10 +326,8 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = (
-            env.get("UIPATH_AGENT_ID")
-            or attributes_dict.get("agentId")
-            or attributes_dict.get("referenceId")
+        reference_id = attributes_dict.get("agentId") or attributes_dict.get(
+            "referenceId"
         )
         verbosity_level = attributes_dict.get("verbosityLevel")
 

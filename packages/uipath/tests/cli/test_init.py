@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from unittest.mock import patch
 
 import pytest
@@ -56,6 +57,103 @@ class TestInit:
                 assert "functions" in config
                 assert isinstance(config["functions"], dict)
                 assert len(config["functions"]) == 0
+
+    def test_init_mints_agent_id_in_uipath_json(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """init writes a valid id into a newly created uipath.json."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+            assert "id" in config
+            # Must be a valid UUID-shaped identifier.
+            uuid.UUID(config["id"])
+
+    def test_init_agent_id_matches_telemetry_project_key(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """With telemetry enabled, the minted id reuses the telemetry ProjectKey."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+
+            with open("uipath.json", "r") as f:
+                agent_id = json.load(f)["id"]
+            with open(os.path.join(".uipath", ".telemetry.json"), "r") as f:
+                project_key = json.load(f)["ProjectKey"]
+            assert agent_id == project_key
+
+    def test_init_mints_agent_id_with_telemetry_disabled(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """id is still written when telemetry is opted out."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._generate_pyproject()
+            result = runner.invoke(
+                cli, ["init"], env={"UIPATH_TELEMETRY_ENABLED": "false"}
+            )
+            assert result.exit_code == 0
+
+            assert not os.path.exists(os.path.join(".uipath", ".telemetry.json"))
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+            uuid.UUID(config["id"])
+
+    def test_init_preserves_existing_agent_id(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """init keeps an id already present in uipath.json (first writer wins)."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+            with open("uipath.json", "w") as f:
+                json.dump(
+                    {
+                        "id": "existing-agent-id",
+                        "functions": {"main": "main.py:main"},
+                    },
+                    f,
+                )
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            # Existing id must not be backfilled/overwritten.
+            assert "with 'id'" not in result.output
+
+            with open("uipath.json", "r") as f:
+                assert json.load(f)["id"] == "existing-agent-id"
+
+    def test_init_backfills_agent_id_from_telemetry(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """init backfills id on an existing uipath.json, reusing the telemetry key."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            os.makedirs(".uipath", exist_ok=True)
+            with open(os.path.join(".uipath", ".telemetry.json"), "w") as f:
+                json.dump({"ProjectKey": "legacy-project-key"}, f)
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+            assert "Updated 'uipath.json' file with 'id'" in result.output
+
+            with open("uipath.json", "r") as f:
+                config = json.load(f)
+            assert config["id"] == "legacy-project-key"
+            # Existing fields are preserved.
+            assert config["functions"]["main"] == "main.py:main"
+            # The backfill is targeted: no defaulted fields are materialized.
+            assert set(config.keys()) == {"functions", "id"}
 
     def test_init_with_existing_uipath_json(
         self, runner: CliRunner, temp_dir: str
