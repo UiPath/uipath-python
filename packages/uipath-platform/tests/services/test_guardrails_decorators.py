@@ -26,6 +26,7 @@ from uipath.platform.guardrails.decorators import (
     GuardrailBlockException,
     GuardrailExclude,
     GuardrailExecutionStage,
+    LLMJudgeValidator,
     LogAction,
     LoggingSeverityLevel,
     PIIDetectionEntity,
@@ -307,6 +308,68 @@ class TestPromptInjectionValidator:
     def test_selector_is_none(self):
         v = PromptInjectionValidator()
         g = v.get_built_in_guardrail("PI", None, True)
+        assert g.selector is None
+
+
+# ---------------------------------------------------------------------------
+# 5b. LLMJudgeValidator — criteria/model/threshold validation, all stages
+# ---------------------------------------------------------------------------
+
+
+class TestLLMJudgeValidator:
+    def test_empty_criteria_raises(self):
+        with pytest.raises(ValueError, match="criteria"):
+            LLMJudgeValidator(criteria="")
+
+    def test_whitespace_only_criteria_raises(self):
+        with pytest.raises(ValueError, match="criteria"):
+            LLMJudgeValidator(criteria="   ")
+
+    def test_threshold_below_zero_raises(self):
+        with pytest.raises(ValueError, match="threshold"):
+            LLMJudgeValidator(criteria="be concise", threshold=-0.1)
+
+    def test_threshold_above_one_raises(self):
+        with pytest.raises(ValueError, match="threshold"):
+            LLMJudgeValidator(criteria="be concise", threshold=1.5)
+
+    def test_no_scope_restriction(self):
+        v = LLMJudgeValidator(criteria="be polite")
+        v.validate_stage(GuardrailExecutionStage.PRE)
+        v.validate_stage(GuardrailExecutionStage.POST)
+
+    def test_builds_llm_judge_guardrail_with_parameters(self):
+        v = LLMJudgeValidator(
+            criteria="The output must be a valid JSON object.",
+            model="gpt-4o",
+            threshold=0.8,
+        )
+        g = v.get_built_in_guardrail("Judge", None, True)
+        assert g.validator_type == "llm_judge"
+        param_by_id = {p.id: p for p in g.validator_parameters}
+        assert (
+            param_by_id["criteria"].value == "The output must be a valid JSON object."
+        )
+        assert param_by_id["model"].value == "gpt-4o"
+        assert param_by_id["threshold"].value == 0.8
+
+    def test_default_model_and_threshold(self):
+        v = LLMJudgeValidator(criteria="be polite")
+        g = v.get_built_in_guardrail("Judge", None, True)
+        param_by_id = {p.id: p for p in g.validator_parameters}
+        assert param_by_id["model"].value == "gpt-4o-mini"
+        assert param_by_id["threshold"].value == 0.5
+
+    def test_default_description_includes_model_and_criteria(self):
+        v = LLMJudgeValidator(criteria="be polite", model="gpt-4o")
+        g = v.get_built_in_guardrail("Judge", None, True)
+        assert g.description is not None
+        assert "gpt-4o" in g.description
+        assert "be polite" in g.description
+
+    def test_selector_is_none(self):
+        v = LLMJudgeValidator(criteria="be polite")
+        g = v.get_built_in_guardrail("Judge", None, True)
         assert g.selector is None
 
 

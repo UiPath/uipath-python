@@ -37,8 +37,21 @@ class NumberParameterValue(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
+class StringParameterValue(BaseModel):
+    """String parameter value."""
+
+    parameter_type: Literal["string"] = Field(alias="$parameterType")
+    id: str
+    value: str
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
 ValidatorParameter = Annotated[
-    EnumListParameterValue | MapEnumParameterValue | NumberParameterValue,
+    EnumListParameterValue
+    | MapEnumParameterValue
+    | NumberParameterValue
+    | StringParameterValue,
     Field(discriminator="parameter_type"),
 ]
 
