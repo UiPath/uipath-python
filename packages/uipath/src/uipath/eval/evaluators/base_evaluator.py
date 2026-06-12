@@ -121,6 +121,9 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
             ValueError: If types cannot be determined or are inconsistent
         """
         if isinstance(values, dict):
+            # The C# layer sends evaluatorConfig: null when omitted — treat as {}
+            if values.get("evaluatorConfig", {}) is None:
+                values["evaluatorConfig"] = {}
             if "description" in values and "evaluatorConfig" in values:
                 values["evaluatorConfig"]["description"] = values.pop("description")
             if "name" in values and "evaluatorConfig" in values:

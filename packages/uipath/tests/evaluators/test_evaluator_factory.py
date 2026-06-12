@@ -448,3 +448,44 @@ class TestEvaluatorFactoryPropertyAccess:
 
         assert evaluator.name == "UpdatedName"
         assert evaluator.description == "Updated description"
+
+
+class TestNullToleranceInEvaluatorCreation:
+    """Null evaluatorConfig must not break evaluator creation.
+
+    The C# layer (EvaluatorConfigDto) sends explicit JSON nulls for omitted fields,
+    so a payload like {"name": "x", "evaluatorConfig": null} must behave the same
+    as one with an empty config object.
+    """
+
+    def test_null_evaluator_config_with_top_level_name(self) -> None:
+        """evaluatorConfig: null with a top-level name creates the evaluator."""
+        evaluator = EvaluatorFactory.create_evaluator(
+            {
+                "version": "1.0",
+                "id": "TestExactMatch",
+                "name": "evaluator-exact-match",
+                "evaluatorTypeId": "uipath-exact-match",
+                "evaluatorConfig": None,
+            }
+        )
+
+        assert isinstance(evaluator, ExactMatchEvaluator)
+        assert evaluator.name == "evaluator-exact-match"
+        assert evaluator.evaluator_config.default_evaluation_criteria is None
+
+    def test_null_evaluator_config_with_description(self) -> None:
+        """evaluatorConfig: null alongside a top-level description is tolerated."""
+        evaluator = EvaluatorFactory.create_evaluator(
+            {
+                "version": "1.0",
+                "id": "TestToolCallCount",
+                "name": "evaluator-tool-call-count",
+                "description": "counts tool calls",
+                "evaluatorTypeId": "uipath-tool-call-count",
+                "evaluatorConfig": None,
+            }
+        )
+
+        assert isinstance(evaluator, ToolCallCountEvaluator)
+        assert evaluator.description == "counts tool calls"
