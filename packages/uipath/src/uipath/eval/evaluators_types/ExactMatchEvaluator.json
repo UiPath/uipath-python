@@ -55,6 +55,18 @@
         "title": "Target Output Key",
         "type": "string"
       },
+      "line_by_line_evaluator": {
+        "default": false,
+        "description": "If True, split output by delimiter and evaluate each line separately",
+        "title": "Line By Line Evaluator",
+        "type": "boolean"
+      },
+      "line_delimiter": {
+        "default": "\n",
+        "description": "Delimiter to split output when line_by_line_evaluator is True",
+        "title": "Line Delimiter",
+        "type": "string"
+      },
       "case_sensitive": {
         "default": false,
         "title": "Case Sensitive",
@@ -91,5 +103,23 @@
     "title": "OutputEvaluationCriteria",
     "type": "object"
   },
-  "justificationSchema": {}
+  "justificationSchema": {
+    "description": "Base class for all evaluator justifications.",
+    "properties": {
+      "expected": {
+        "title": "Expected",
+        "type": "string"
+      },
+      "actual": {
+        "title": "Actual",
+        "type": "string"
+      }
+    },
+    "required": [
+      "expected",
+      "actual"
+    ],
+    "title": "BaseEvaluatorJustification",
+    "type": "object"
+  }
 }
