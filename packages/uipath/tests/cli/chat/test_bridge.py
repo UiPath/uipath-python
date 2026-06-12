@@ -206,6 +206,26 @@ class TestGetChatBridge:
         assert "X-UiPath-ConversationId" in bridge.headers
         assert bridge.headers["X-UiPath-ConversationId"] == "conv-789"
 
+    def test_get_chat_bridge_falls_back_to_env_when_tenant_and_org_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Tenant/account headers fall back to env vars when context values are None."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "env-tenant")
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "env-org")
+
+        context = MockRuntimeContext(
+            tenant_id=None,  # type: ignore[arg-type]
+            org_id=None,  # type: ignore[arg-type]
+            conversation_id="conv-789",
+        )
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
+        assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
+
     def test_get_chat_bridge_includes_synthetic_user_id_header_when_set(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
