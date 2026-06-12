@@ -2,8 +2,11 @@
 
 from collections import Counter
 
+from pydantic import computed_field
+
 from .._helpers.evaluators_helpers import (
     extract_tool_calls_names,
+    format_explained_tool_calls,
     tool_calls_count_score,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
@@ -36,6 +39,12 @@ class ToolCallCountEvaluatorJustification(BaseEvaluatorJustification):
     """Justification for the tool call count evaluator."""
 
     explained_tool_calls_count: dict[str, str]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def justification(self) -> str:
+        """Human-readable justification derived from the per-tool counts."""
+        return format_explained_tool_calls(self.explained_tool_calls_count)
 
 
 class ToolCallCountEvaluator(

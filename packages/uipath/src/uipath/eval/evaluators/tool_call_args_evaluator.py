@@ -1,7 +1,10 @@
 """Tool call order evaluator for validating correct sequence of tool calls."""
 
+from pydantic import computed_field
+
 from .._helpers.evaluators_helpers import (
     extract_tool_calls,
+    format_explained_tool_calls,
     tool_calls_args_score,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult, ToolCall
@@ -33,6 +36,12 @@ class ToolCallArgsEvaluatorJustification(BaseEvaluatorJustification):
     """Justification for the tool call args evaluator."""
 
     explained_tool_calls_args: dict[str, str]
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def justification(self) -> str:
+        """Human-readable justification derived from the per-tool arg matches."""
+        return format_explained_tool_calls(self.explained_tool_calls_args)
 
 
 class ToolCallArgsEvaluator(

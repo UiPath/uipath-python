@@ -24,6 +24,28 @@ COMPARATOR_MAPPINGS = {
 COMMUNITY_agents_SUFFIX = "-community-agents"
 
 
+def format_explained_tool_calls(explanations: Mapping[str, str]) -> str:
+    """Render an `explained_tool_calls_*` mapping as a human-readable justification.
+
+    The score helpers produce a mapping keyed by tool name with values like
+    "Actual: X, Expected: Y, Score: Z", or a single `_result` sentinel entry
+    describing an empty/short-circuit case. This collapses either shape into a
+    single string suitable for the `justification` field surfaced to users.
+
+    Args:
+        explanations: Mapping of tool name (or `_result`) to its per-tool explanation.
+
+    Returns:
+        A human-readable justification string (empty if there is nothing to explain).
+    """
+    if not explanations:
+        return ""
+    return "; ".join(
+        value if key == "_result" else f"{key} -> {value}"
+        for key, value in explanations.items()
+    )
+
+
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     """Extract the tool call names from execution spans IN ORDER.
 

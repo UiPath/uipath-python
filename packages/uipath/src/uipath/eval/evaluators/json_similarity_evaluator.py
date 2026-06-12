@@ -3,6 +3,8 @@
 import math
 from typing import Any, Tuple
 
+from pydantic import computed_field
+
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -22,6 +24,12 @@ class JsonSimilarityJustification(BaseEvaluatorJustification):
 
     matched_leaves: float
     total_leaves: float
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def justification(self) -> str:
+        """Human-readable justification derived from the matched JSON leaves."""
+        return f"Matched {self.matched_leaves} of {self.total_leaves} JSON leaf values."
 
 
 class JsonSimilarityEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria]):
