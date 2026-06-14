@@ -454,6 +454,22 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
         return []
 
 
+class McpToolTaskSupport(str, CaseInsensitiveEnum):
+    """Whether an MCP tool may be invoked as a task (MCP 2025-11-25 ``execution.taskSupport``)."""
+
+    FORBIDDEN = "forbidden"
+    OPTIONAL = "optional"
+    REQUIRED = "required"
+
+
+class AgentMcpToolExecution(BaseCfg):
+    """Execution metadata for an MCP tool, mirroring the MCP tool's ``execution`` object."""
+
+    task_support: McpToolTaskSupport = Field(
+        default=McpToolTaskSupport.FORBIDDEN, alias="taskSupport"
+    )
+
+
 class AgentMcpTool(BaseCfg):
     """Agent MCP tool model."""
 
@@ -464,6 +480,9 @@ class AgentMcpTool(BaseCfg):
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
+    # MCP 2025-11-25 task support, when the snapshot/server provides it. Absent for older
+    # snapshots, in which case the tool is treated as not task-augmentable.
+    execution: Optional[AgentMcpToolExecution] = Field(None, alias="execution")
 
 
 class DynamicToolsMode(str, CaseInsensitiveEnum):

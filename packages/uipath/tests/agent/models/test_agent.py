@@ -32,6 +32,7 @@ from uipath.agent.models.agent import (
     AgentIxpExtractionResourceConfig,
     AgentIxpVsEscalationResourceConfig,
     AgentMcpResourceConfig,
+    AgentMcpTool,
     AgentMessageRole,
     AgentNumberOperator,
     AgentNumberRule,
@@ -52,6 +53,7 @@ from uipath.agent.models.agent import (
     BatchTransformWebSearchGrounding,
     CitationMode,
     DeepRagFileExtension,
+    McpToolTaskSupport,
     StandardRecipient,
     TaskTitleType,
     TextBuilderTaskTitle,
@@ -2033,6 +2035,30 @@ class TestAgentBuilderConfig:
         assert tool2.name == "tavily-extract"
         assert tool2.output_schema is not None
         assert "content" in tool2.output_schema["properties"]
+
+    def test_mcp_tool_parses_execution_task_support(self):
+        """AgentMcpTool carries the MCP execution.taskSupport signal when present."""
+        tool = AgentMcpTool.model_validate(
+            {
+                "name": "invoke-process",
+                "description": "Run a long-running process",
+                "inputSchema": {"type": "object", "properties": {}},
+                "execution": {"taskSupport": "optional"},
+            }
+        )
+        assert tool.execution is not None
+        assert tool.execution.task_support == McpToolTaskSupport.OPTIONAL
+
+    def test_mcp_tool_without_execution_defaults_to_none(self):
+        """Older snapshots without execution leave it unset (treated as not task-augmentable)."""
+        tool = AgentMcpTool.model_validate(
+            {
+                "name": "echo",
+                "description": "Echo",
+                "inputSchema": {"type": "object", "properties": {}},
+            }
+        )
+        assert tool.execution is None
 
     @pytest.mark.parametrize(
         "recipient_type_int,value,expected_type",
