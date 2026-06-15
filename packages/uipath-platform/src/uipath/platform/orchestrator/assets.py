@@ -38,6 +38,7 @@ class UserAsset(BaseModel):
     int_value: Optional[int] = Field(default=None, alias="IntValue")
     credential_username: Optional[str] = Field(default=None, alias="CredentialUsername")
     credential_password: Optional[str] = Field(default=None, alias="CredentialPassword")
+    secret_value: Optional[str] = Field(default=None, alias="SecretValue")
     external_name: Optional[str] = Field(default=None, alias="ExternalName")
     credential_store_id: Optional[int] = Field(default=None, alias="CredentialStoreId")
     key_value_list: Optional[List[Dict[str, str]]] = Field(
@@ -69,5 +70,6 @@ class Asset(BaseModel):
     int_value: Optional[int] = Field(default=None, alias="IntValue")
     credential_username: Optional[str] = Field(default=None, alias="CredentialUsername")
     credential_password: Optional[str] = Field(default=None, alias="CredentialPassword")
+    secret_value: Optional[str] = Field(default=None, alias="SecretValue")
     external_name: Optional[str] = Field(default=None, alias="ExternalName")
     credential_store_id: Optional[int] = Field(default=None, alias="CredentialStoreId")

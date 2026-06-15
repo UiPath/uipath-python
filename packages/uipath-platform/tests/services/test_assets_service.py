@@ -417,6 +417,106 @@ class TestAssetsService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve_credential_async/{version}"
         )
 
+    def test_retrieve_secret(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AssetsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """retrieve_secret returns SecretValue for Secret-type assets."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={
+                "Id": 1,
+                "Name": "Test Secret",
+                "ValueType": "Secret",
+                "SecretValue": "super-secret-value",
+            },
+        )
+
+        secret = service.retrieve_secret(name="Test Secret")
+
+        assert secret == "super-secret-value"
+
+    async def test_retrieve_secret_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AssetsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """retrieve_secret_async returns SecretValue for Secret-type assets."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={
+                "Id": 1,
+                "Name": "Test Secret",
+                "ValueType": "Secret",
+                "SecretValue": "super-secret-value",
+            },
+        )
+
+        secret = await service.retrieve_secret_async(name="Test Secret")
+
+        assert secret == "super-secret-value"
+
+    def test_retrieve_robot_asset_exposes_secret_value(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AssetsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """`retrieve` must expose SecretValue on UserAsset for Secret-type assets."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={
+                "Id": 1,
+                "Name": "Test Secret",
+                "ValueType": "Secret",
+                "SecretValue": "super-secret-value",
+            },
+        )
+
+        asset = service.retrieve(name="Test Secret")
+
+        assert isinstance(asset, UserAsset)
+        assert asset.value_type == "Secret"
+        assert asset.secret_value == "super-secret-value"
+
+    async def test_retrieve_async_robot_asset_exposes_secret_value(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AssetsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """`retrieve_async` must expose SecretValue on UserAsset for Secret-type assets."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={
+                "Id": 1,
+                "Name": "Test Secret",
+                "ValueType": "Secret",
+                "SecretValue": "super-secret-value",
+            },
+        )
+
+        asset = await service.retrieve_async(name="Test Secret")
+
+        assert isinstance(asset, UserAsset)
+        assert asset.value_type == "Secret"
+        assert asset.secret_value == "super-secret-value"
+
     def test_update(
         self,
         httpx_mock: HTTPXMock,
