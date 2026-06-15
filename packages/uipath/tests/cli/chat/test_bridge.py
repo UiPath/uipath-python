@@ -226,7 +226,7 @@ class TestGetChatBridge:
         assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
         assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
 
-    def test_get_chat_bridge_includes_synthetic_user_id_header_when_set(
+    def test_get_chat_bridge_includes_conversational_user_id_header_when_set(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Conversation owner id (from FpsProperties) is sent on the handshake for CAS to validate."""
@@ -234,13 +234,13 @@ class TestGetChatBridge:
         monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
 
         context = MockRuntimeContext(conversation_id="conv-789")
-        context.synthetic_user_id = "owner-guid"  # type: ignore[attr-defined]
+        context.conversational_user_id = "owner-guid"  # type: ignore[attr-defined]
 
         bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
 
-        assert bridge.headers["X-UiPath-Internal-SyntheticUserId"] == "owner-guid"
+        assert bridge.headers["X-UiPath-Internal-ConversationalUserId"] == "owner-guid"
 
-    def test_get_chat_bridge_omits_synthetic_user_id_header_when_absent(
+    def test_get_chat_bridge_omits_conversational_user_id_header_when_absent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """No header is sent when the runtime has no owner id (backward compatible)."""
@@ -251,7 +251,7 @@ class TestGetChatBridge:
 
         bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
 
-        assert "X-UiPath-Internal-SyntheticUserId" not in bridge.headers
+        assert "X-UiPath-Internal-ConversationalUserId" not in bridge.headers
 
     def test_get_chat_bridge_raises_without_uipath_url(
         self, monkeypatch: pytest.MonkeyPatch

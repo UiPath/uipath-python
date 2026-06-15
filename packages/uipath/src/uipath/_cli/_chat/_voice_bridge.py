@@ -249,14 +249,14 @@ def get_voice_bridge(
         "X-UiPath-ConversationId": context.conversation_id,
     }
 
-    # Conversation owner id (conversationalService.syntheticUserId) that CAS forwards via FpsProperties;
-    # always sent when present. It's there for RunAsMe=false, where the unattended robot's token
-    # subject is the robot account rather than the conversation owner, so CAS validates this presented
-    # id against conversation.user_id on the handshake instead of the token subject. Sent as a header
-    # (not a query param) to keep it out of access / load-balancer logs.
-    synthetic_user_id = getattr(context, "synthetic_user_id", None)
-    if synthetic_user_id:
-        headers["X-UiPath-Internal-SyntheticUserId"] = synthetic_user_id
+    # Conversation owner id (conversationalService.conversationalUserId) that CAS forwards via
+    # FpsProperties; always sent when present. It's there for RunAsMe=false, where the unattended
+    # robot's token subject is the robot account rather than the conversation owner, so CAS validates
+    # this presented id against conversation.user_id on the handshake instead of the token subject.
+    # Sent as a header (not a query param) to keep it out of access / load-balancer logs.
+    conversational_user_id = getattr(context, "conversational_user_id", None)
+    if conversational_user_id:
+        headers["X-UiPath-Internal-ConversationalUserId"] = conversational_user_id
 
     return VoiceToolCallSession(
         url=url,
