@@ -72,13 +72,27 @@ jobs:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
 
-      - name: Update uipath packages
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-langchain-python
         run: |
-          uv add ../wheels/uipath-core/dist/*.whl --dev
-          uv add ../wheels/uipath-platform/dist/*.whl --dev
-          uv add ../wheels/uipath/dist/*.whl --dev
+          # Force the freshly built local wheels in via uv override-dependencies
+          # so a backward-compatible minor bump in uipath-python does not break
+          # the cross-test purely on the downstream version cap.
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" - <<'PY'
+          import glob, os, pathlib
+          wheels = pathlib.Path("wheels").resolve()
+          lines = []
+          for name in ("uipath", "uipath-core", "uipath-platform"):
+              matches = glob.glob(str(wheels / name / "dist" / "*.whl"))
+              assert matches, f"no wheel found for {name}"
+              lines.append(f"{name} @ {pathlib.Path(matches[0]).as_uri()}")
+          out = wheels / "overrides.txt"
+          out.write_text("\n".join(lines) + "\n")
+          with open(os.environ["GITHUB_ENV"], "a") as fh:
+              fh.write(f"UV_OVERRIDE={out}\n")
+          print("\n".join(lines))
+          PY
 
       - name: Run uipath-langchain tests
         working-directory: uipath-langchain-python
@@ -146,13 +160,27 @@ jobs:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
 
-      - name: Update uipath packages
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-langchain-python
         run: |
-          uv add ../wheels/uipath-core/dist/*.whl
-          uv add ../wheels/uipath-platform/dist/*.whl
-          uv add ../wheels/uipath/dist/*.whl
+          # Force the freshly built local wheels in via uv override-dependencies
+          # so a backward-compatible minor bump in uipath-python does not break
+          # the cross-test purely on the downstream version cap.
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" - <<'PY'
+          import glob, os, pathlib
+          wheels = pathlib.Path("wheels").resolve()
+          lines = []
+          for name in ("uipath", "uipath-core", "uipath-platform"):
+              matches = glob.glob(str(wheels / name / "dist" / "*.whl"))
+              assert matches, f"no wheel found for {name}"
+              lines.append(f"{name} @ {pathlib.Path(matches[0]).as_uri()}")
+          out = wheels / "overrides.txt"
+          out.write_text("\n".join(lines) + "\n")
+          with open(os.environ["GITHUB_ENV"], "a") as fh:
+              fh.write(f"UV_OVERRIDE={out}\n")
+          print("\n".join(lines))
+          PY
 
       - name: Install dependencies
         working-directory: uipath-langchain-python
