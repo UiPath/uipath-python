@@ -102,11 +102,17 @@ jobs:
           repository: 'UiPath/uipath-integrations-python'
           path: 'uipath-integrations-python'
 
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
       - name: Override uipath packages with local wheels
         shell: bash
         run: |
           PYBIN=$(command -v python || command -v python3)
-          "$PYBIN" "$GITHUB_WORKSPACE/.github/scripts/write_uv_overrides.py"
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Install dependencies and run tests
         shell: bash
@@ -200,11 +206,17 @@ jobs:
           repository: 'UiPath/uipath-integrations-python'
           path: 'uipath-integrations-python'
 
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
       - name: Override uipath packages with local wheels
         shell: bash
         run: |
           PYBIN=$(command -v python || command -v python3)
-          "$PYBIN" "$GITHUB_WORKSPACE/.github/scripts/write_uv_overrides.py"
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Install dependencies
         working-directory: uipath-integrations-python/packages/${{ matrix.package }}

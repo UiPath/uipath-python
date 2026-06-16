@@ -1,16 +1,17 @@
 """Write a uv override file forcing the locally built uipath wheels.
 
-Cross-test workflows build uipath-core/uipath-platform/uipath wheels from the PR
-and run them against downstream repos (uipath-langchain-python,
-uipath-integrations-python). Those downstreams cap the uipath version (e.g.
+Cross-test workflows build uipath wheels from the PR and run them against
+downstream repos (uipath-langchain-python, uipath-integrations-python,
+uipath-runtime-python). Those downstreams cap the uipath* version (e.g.
 ``uipath<2.11.0``), so a backward-compatible minor bump would fail resolution
-purely on the cap. uv ``override-dependencies`` bypass the declared version
+purely on the cap. uv ``override-dependencies`` ignore the declared version
 specifier, so pointing them at the local wheels lets the cross-test exercise the
 real new code regardless of the cap.
 
-The wheels are resolved relative to ``GITHUB_WORKSPACE`` (where the
-``download-artifact`` step places them) rather than the current directory, so the
-script is robust to a step- or job-level ``working-directory``.
+The script is layout-agnostic: it overrides whatever ``uipath*`` wheels exist
+under ``$GITHUB_WORKSPACE/wheels`` (recursively), so it works for the
+three-wheel layout (``wheels/<pkg>/dist/*.whl``) and the single-wheel runtime
+layout (``wheels/*.whl``) alike.
 
 The resulting override file path is appended to ``GITHUB_ENV`` as ``UV_OVERRIDE``
 so every subsequent ``uv`` invocation in the job honors it.
@@ -22,15 +23,19 @@ import pathlib
 
 
 def main() -> None:
-    workspace = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")).resolve()
-    wheels = workspace / "wheels"
+    wheels = pathlib.Path(os.environ.get("GITHUB_WORKSPACE", ".")).resolve() / "wheels"
 
     lines = []
-    for name in ("uipath", "uipath-core", "uipath-platform"):
-        matches = glob.glob(str(wheels / name / "dist" / "*.whl"))
-        if not matches:
-            raise SystemExit(f"no wheel found for {name} under {wheels / name / 'dist'}")
-        lines.append(f"{name} @ {pathlib.Path(matches[0]).resolve().as_uri()}")
+    for whl in sorted(glob.glob(str(wheels / "**" / "*.whl"), recursive=True)):
+        # Wheel filename is ``{distribution}-{version}-...whl`` where the
+        # distribution escapes hyphens to underscores (uipath_core -> uipath-core).
+        dist = pathlib.Path(whl).name.split("-", 1)[0].replace("_", "-")
+        if not dist.startswith("uipath"):
+            continue
+        lines.append(f"{dist} @ {pathlib.Path(whl).resolve().as_uri()}")
+
+    if not lines:
+        raise SystemExit(f"no uipath wheels found under {wheels}")
 
     out = wheels / "overrides.txt"
     out.write_text("\n".join(lines) + "\n")
