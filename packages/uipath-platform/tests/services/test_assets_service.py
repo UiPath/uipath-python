@@ -362,19 +362,93 @@ class TestAssetsService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve_credential/{version}"
         )
 
-    def test_retrieve_credential_user_asset(
+    def test_retrieve_credential_no_robot_key_direct_access_disabled(
         self,
-        service: AssetsService,
-        monkeypatch: pytest.MonkeyPatch,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
         config: UiPathApiConfig,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+        service = AssetsService(
+            config=config,
+            execution_context=UiPathExecutionContext(),
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$filter=Name eq 'Test Credential'&$top=1",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "asset-key",
+                        "Name": "Test Credential",
+                        "ValueType": "Credential",
+                        "AllowDirectApiAccess": False,
+                    }
+                ]
+            },
+        )
+
         with pytest.raises(ValueError):
-            monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
-            service = AssetsService(
-                config=config,
-                execution_context=UiPathExecutionContext(),
-            )
             service.retrieve_credential(name="Test Credential")
+
+    def test_retrieve_credential_no_robot_key_direct_access_enabled(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+        config: UiPathApiConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import json
+
+        monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+        service = AssetsService(
+            config=config,
+            execution_context=UiPathExecutionContext(),
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$filter=Name eq 'Test Credential'&$top=1",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "asset-key",
+                        "Name": "Test Credential",
+                        "ValueType": "Credential",
+                        "AllowDirectApiAccess": True,
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={
+                "id": 1,
+                "name": "Test Credential",
+                "credential_username": "test-user",
+                "credential_password": "test-password",
+            },
+        )
+
+        credential = service.retrieve_credential(name="Test Credential")
+
+        assert credential == "test-password"
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 2
+        credential_request = sent_requests[1]
+        assert credential_request.method == "POST"
+        request_body = json.loads(credential_request.content)
+        assert request_body["assetName"] == "Test Credential"
+        assert request_body["supportsCredentialsProxyDisconnected"] is True
+        assert "robotKey" not in request_body
 
     async def test_retrieve_credential_async(
         self,
@@ -416,6 +490,96 @@ class TestAssetsService:
             sent_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.AssetsService.retrieve_credential_async/{version}"
         )
+
+    @pytest.mark.anyio
+    async def test_retrieve_credential_async_no_robot_key_direct_access_disabled(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+        config: UiPathApiConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+        service = AssetsService(
+            config=config,
+            execution_context=UiPathExecutionContext(),
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$filter=Name eq 'Test Credential'&$top=1",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "asset-key",
+                        "Name": "Test Credential",
+                        "ValueType": "Credential",
+                        "AllowDirectApiAccess": False,
+                    }
+                ]
+            },
+        )
+
+        with pytest.raises(ValueError):
+            await service.retrieve_credential_async(name="Test Credential")
+
+    @pytest.mark.anyio
+    async def test_retrieve_credential_async_no_robot_key_direct_access_enabled(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+        config: UiPathApiConfig,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import json
+
+        monkeypatch.delenv("UIPATH_ROBOT_KEY", raising=False)
+        service = AssetsService(
+            config=config,
+            execution_context=UiPathExecutionContext(),
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetFiltered?$filter=Name eq 'Test Credential'&$top=1",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "Key": "asset-key",
+                        "Name": "Test Credential",
+                        "ValueType": "Credential",
+                        "AllowDirectApiAccess": True,
+                    }
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={
+                "id": 1,
+                "name": "Test Credential",
+                "credential_username": "test-user",
+                "credential_password": "test-password",
+            },
+        )
+
+        credential = await service.retrieve_credential_async(name="Test Credential")
+
+        assert credential == "test-password"
+
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 2
+        credential_request = sent_requests[1]
+        assert credential_request.method == "POST"
+        request_body = json.loads(credential_request.content)
+        assert request_body["assetName"] == "Test Credential"
+        assert request_body["supportsCredentialsProxyDisconnected"] is True
+        assert "robotKey" not in request_body
 
     def test_retrieve_secret(
         self,

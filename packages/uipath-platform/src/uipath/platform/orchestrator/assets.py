@@ -47,6 +47,9 @@ class UserAsset(BaseModel):
     connection_data: Optional[CredentialsConnectionData] = Field(
         default=None, alias="ConnectionData"
     )
+    allow_direct_api_access: Optional[bool] = Field(
+        default=None, alias="AllowDirectApiAccess"
+    )
     id: Optional[int] = Field(default=None, alias="Id")
 
 
@@ -73,3 +76,6 @@ class Asset(BaseModel):
     secret_value: Optional[str] = Field(default=None, alias="SecretValue")
     external_name: Optional[str] = Field(default=None, alias="ExternalName")
     credential_store_id: Optional[int] = Field(default=None, alias="CredentialStoreId")
+    allow_direct_api_access: Optional[bool] = Field(
+        default=None, alias="AllowDirectApiAccess"
+    )
