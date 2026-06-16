@@ -121,6 +121,14 @@ Running `uipath init` will process these function definitions and create the cor
 
 `uipath init` generates one `<entrypoint>.mermaid` file per function/agent containing a static call graph, rendered in the UiPath Orchestrator UI. These files are regenerated on every `uipath init`.
 ///
+
+/// warning
+### About the `id` field
+
+The first `uipath init` mints a stable `id` (GUID) into `uipath.json` and preserves it across subsequent runs. It is what identifies your project consistently wherever it is deployed and run.
+
+Do not change or remove it. Changing it makes the project look like a brand-new, unrelated one, so you lose the link to everything previously published and tracked under the old id. `uipath pack` rejects an `id` that is not a valid GUID.
+///
 ---
 
 ::: mkdocs-click
