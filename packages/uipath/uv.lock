@@ -7,6 +7,7 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
+uipath-eval = false
 uipath-runtime = false
 uipath-platform = false
 uipath-core = false
@@ -2557,11 +2558,9 @@ source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
     { name = "click" },
-    { name = "coverage" },
     { name = "graphtty" },
     { name = "httpx" },
     { name = "mermaid-builder" },
-    { name = "mockito" },
     { name = "pathlib" },
     { name = "pydantic-function-models" },
     { name = "pyjwt" },
@@ -2572,6 +2571,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "truststore" },
     { name = "uipath-core" },
+    { name = "uipath-eval" },
     { name = "uipath-platform" },
     { name = "uipath-runtime" },
 ]
@@ -2609,11 +2609,9 @@ dev = [
 requires-dist = [
     { name = "applicationinsights", specifier = ">=0.11.10" },
     { name = "click", specifier = ">=8.3.1" },
-    { name = "coverage", specifier = ">=7.8.2" },
     { name = "graphtty", specifier = "==0.1.8" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mermaid-builder", specifier = "==0.0.3" },
-    { name = "mockito", specifier = ">=1.5.4" },
     { name = "pathlib", specifier = ">=1.0.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "pyjwt", specifier = ">=2.10.1" },
@@ -2624,6 +2622,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
+    { name = "uipath-eval", editable = "../uipath-eval" },
     { name = "uipath-platform", editable = "../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.11.0,<0.12.0" },
 ]
@@ -2678,6 +2677,44 @@ requires-dist = [
 dev = [
     { name = "bandit", specifier = ">=1.8.2" },
     { name = "mypy", specifier = ">=1.14.1" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-httpx", specifier = ">=0.35.0" },
+    { name = "pytest-mock", specifier = ">=3.11.1" },
+    { name = "pytest-trio", specifier = ">=0.8.0" },
+    { name = "ruff", specifier = ">=0.9.4" },
+    { name = "rust-just", specifier = ">=1.39.0" },
+]
+
+[[package]]
+name = "uipath-eval"
+version = "0.1.0"
+source = { editable = "../uipath-eval" }
+dependencies = [
+    { name = "coverage" },
+    { name = "mockito" },
+    { name = "pydantic-function-models" },
+    { name = "uipath-core" },
+    { name = "uipath-platform" },
+    { name = "uipath-runtime" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "coverage", specifier = ">=7.8.2" },
+    { name = "mockito", specifier = ">=1.5.4" },
+    { name = "pydantic-function-models", specifier = ">=0.1.11" },
+    { name = "uipath-core", editable = "../uipath-core" },
+    { name = "uipath-platform", editable = "../uipath-platform" },
+    { name = "uipath-runtime", specifier = ">=0.11.0,<0.12.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.8.2" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
