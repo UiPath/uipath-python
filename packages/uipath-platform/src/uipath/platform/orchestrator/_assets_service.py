@@ -283,6 +283,14 @@ class AssetsService(FolderContext, BaseService):
         else:
             return Asset.model_validate(response.json()["value"][0])
 
+    def _ensure_robot_context(self) -> None:
+        try:
+            is_user = self._execution_context.robot_key is not None
+        except ValueError:
+            is_user = False
+        if not is_user:
+            raise ValueError("This method can only be used for robot assets.")
+
     @resource_override(resource_type="asset")
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
@@ -294,11 +302,9 @@ class AssetsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Optional[str]:
-        """Gets a specified Orchestrator credential.
+        """Get the decrypted password of a Credential asset.
 
-        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable)
-
-        Related Activity: [Get Credential](https://docs.uipath.com/activities/other/latest/workflow/get-robot-credential)
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
 
         Args:
             name (str): The name of the credential asset.
@@ -309,22 +315,10 @@ class AssetsService(FolderContext, BaseService):
             Optional[str]: The decrypted credential password.
 
         Raises:
-            ValueError: If the method is called for a user asset.
+            ValueError: If called outside a robot context (no `UIPATH_ROBOT_KEY`).
         """
-        try:
-            is_user = self._execution_context.robot_key is not None
-        except ValueError:
-            is_user = False
-
-        if not is_user:
-            raise ValueError("This method can only be used for robot assets.")
-
-        spec = self._retrieve_spec(
-            name,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-
+        self._ensure_robot_context()
+        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -333,10 +327,7 @@ class AssetsService(FolderContext, BaseService):
             content=spec.content,
             headers=spec.headers,
         )
-
-        user_asset = UserAsset.model_validate(response.json())
-
-        return user_asset.credential_password
+        return UserAsset.model_validate(response.json()).credential_password
 
     @resource_override(resource_type="asset")
     @traced(
@@ -349,11 +340,9 @@ class AssetsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Optional[str]:
-        """Asynchronously gets a specified Orchestrator credential.
+        """Asynchronously get the decrypted password of a Credential asset.
 
-        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable)
-
-        Related Activity: [Get Credential](https://docs.uipath.com/activities/other/latest/workflow/get-robot-credential)
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
 
         Args:
             name (str): The name of the credential asset.
@@ -364,22 +353,10 @@ class AssetsService(FolderContext, BaseService):
             Optional[str]: The decrypted credential password.
 
         Raises:
-            ValueError: If the method is called for a user asset.
+            ValueError: If called outside a robot context (no `UIPATH_ROBOT_KEY`).
         """
-        try:
-            is_user = self._execution_context.robot_key is not None
-        except ValueError:
-            is_user = False
-
-        if not is_user:
-            raise ValueError("This method can only be used for robot assets.")
-
-        spec = self._retrieve_spec(
-            name,
-            folder_key=folder_key,
-            folder_path=folder_path,
-        )
-
+        self._ensure_robot_context()
+        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -388,10 +365,79 @@ class AssetsService(FolderContext, BaseService):
             content=spec.content,
             headers=spec.headers,
         )
+        return UserAsset.model_validate(response.json()).credential_password
 
-        user_asset = UserAsset.model_validate(response.json())
+    @resource_override(resource_type="asset")
+    @traced(name="assets_secret", run_type="uipath", hide_input=True, hide_output=True)
+    def retrieve_secret(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Get the decrypted value of a Secret asset.
 
-        return user_asset.credential_password
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
+
+        Args:
+            name (str): The name of the secret asset.
+            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+
+        Returns:
+            Optional[str]: The decrypted secret value.
+
+        Raises:
+            ValueError: If called outside a robot context (no `UIPATH_ROBOT_KEY`).
+        """
+        self._ensure_robot_context()
+        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        return UserAsset.model_validate(response.json()).secret_value
+
+    @resource_override(resource_type="asset")
+    @traced(name="assets_secret", run_type="uipath", hide_input=True, hide_output=True)
+    async def retrieve_secret_async(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Asynchronously get the decrypted value of a Secret asset.
+
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
+
+        Args:
+            name (str): The name of the secret asset.
+            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+
+        Returns:
+            Optional[str]: The decrypted secret value.
+
+        Raises:
+            ValueError: If called outside a robot context (no `UIPATH_ROBOT_KEY`).
+        """
+        self._ensure_robot_context()
+        spec = self._retrieve_spec(name, folder_key=folder_key, folder_path=folder_path)
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        return UserAsset.model_validate(response.json()).secret_value
 
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     def update(
