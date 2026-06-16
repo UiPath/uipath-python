@@ -681,6 +681,54 @@ class TestExtractionFunctions:
         assert "non_tool_span" not in output_names
         assert len(result) == 3
 
+    def test_extractors_skip_synthesized_tool_spans(self) -> None:
+        """Spans tagged with tool.synthesized=True (BPMN container spans
+        synthesized for trajectory rendering) must be filtered from all three
+        per-call extractors so they don't pollute tool-call evaluator actuals.
+        """
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        synth_process = ReadableSpan(
+            name="Instance: abc",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "FlowExecution",
+                "tool.synthesized": True,
+                "input.value": '{"instanceId": "abc"}',
+                "output.value": "Status: Completed",
+            },
+        )
+        synth_element = ReadableSpan(
+            name="Autonomous Agent",
+            start_time=2,
+            end_time=3,
+            attributes={
+                "tool.name": "ServiceTask: Autonomous Agent",
+                "tool.synthesized": True,
+                "input.value": "{}",
+                "output.value": "Status: Completed",
+            },
+        )
+        real_tool = ReadableSpan(
+            name="Tool call - web_search",
+            start_time=4,
+            end_time=5,
+            attributes={
+                "tool.name": "web_search",
+                "input.value": '{"query": "x"}',
+                "output.value": '{"content": "ok"}',
+            },
+        )
+
+        spans = [synth_process, synth_element, real_tool]
+
+        assert extract_tool_calls_names(spans) == ["web_search"]
+        calls = extract_tool_calls(spans)
+        assert [c.name for c in calls] == ["web_search"]
+        outputs = extract_tool_calls_outputs(spans)
+        assert [o.name for o in outputs] == ["web_search"]
+
     def test_all_extraction_functions_consistent(self, sample_spans: list[Any]) -> None:
         """Test that all extraction functions return consistent results."""
         names = extract_tool_calls_names(sample_spans)
