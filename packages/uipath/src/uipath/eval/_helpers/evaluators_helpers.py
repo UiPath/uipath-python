@@ -11,6 +11,8 @@ from ..models import (
     ToolOutput,
 )
 
+TOOL_NAME_ATTR = "tool.name"
+
 COMPARATOR_MAPPINGS = {
     ">": "gt",
     "<": "lt",
@@ -22,6 +24,18 @@ COMPARATOR_MAPPINGS = {
 }
 
 COMMUNITY_agents_SUFFIX = "-community-agents"
+
+
+def _unsynthesized_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
+    """Return span.attributes if this is a real tool invocation, else None."""
+    attrs = span.attributes
+    if (
+        not attrs
+        or attrs.get("tool.synthesized", False)
+        or not attrs.get(TOOL_NAME_ATTR)
+    ):
+        return None
+    return attrs
 
 
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
@@ -36,9 +50,8 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     tool_calls_names = []
 
     for span in spans:
-        # Check for tool.name attribute first
-        if span.attributes and (tool_name := span.attributes.get("tool.name")):
-            tool_calls_names.append(str(tool_name))
+        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
+            tool_calls_names.append(str(attrs[TOOL_NAME_ATTR]))
 
     return tool_calls_names
 
@@ -55,20 +68,19 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
     tool_calls = []
 
     for span in spans:
-        if span.attributes and (tool_name := span.attributes.get("tool.name")):
+        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
+            tool_name = str(attrs[TOOL_NAME_ATTR])
             try:
-                input_value: Any = span.attributes.get("input.value", {})
-                # Ensure input_value is a string before parsing
+                input_value: Any = attrs.get("input.value", {})
                 if isinstance(input_value, str):
                     arguments = ast.literal_eval(input_value)
                 elif isinstance(input_value, dict):
                     arguments = input_value
                 else:
                     arguments = {}
-                tool_calls.append(ToolCall(name=str(tool_name), args=arguments))
+                tool_calls.append(ToolCall(name=tool_name, args=arguments))
             except (json.JSONDecodeError, SyntaxError, ValueError):
-                # Handle case where input.value is not valid JSON/Python syntax
-                tool_calls.append(ToolCall(name=str(tool_name), args={}))
+                tool_calls.append(ToolCall(name=tool_name, args={}))
 
     return tool_calls
 
@@ -87,8 +99,9 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     potential_output_keys = ["content"]
     tool_calls_outputs = []
     for span in spans:
-        if span.attributes and (tool_name := span.attributes.get("tool.name")):
-            output = span.attributes.get("output.value", "")
+        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
+            tool_name = str(attrs[TOOL_NAME_ATTR])
+            output = attrs.get("output.value", "")
             final_output = ""
 
             # Handle different output formats
@@ -465,7 +478,7 @@ def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
     seen_tool_calls = set()
 
     for span in agent_trace:
-        if span.attributes and (tool_name := span.attributes.get("tool.name")):
+        if span.attributes and (tool_name := span.attributes.get(TOOL_NAME_ATTR)):
             # Get span timing information
             start_time = span.start_time
             end_time = span.end_time

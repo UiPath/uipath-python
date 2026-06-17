@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+import anyio
 import click
 from graphtty import RenderOptions, render
 from graphtty.themes import TOKYO_NIGHT
@@ -30,13 +31,11 @@ from uipath.runtime import (
 )
 from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 
-from .._utils.constants import ENV_TELEMETRY_ENABLED
-from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
 from ._utils._constants import AGENT_INITIAL_CODE_VERSION, SCHEMA_VERSION
-from ._utils._project_files import read_toml_project
+from ._utils._project_files import read_toml_project, resolve_existing_project_id
 from .middlewares import Middlewares
 from .models.runtime_schema import Bindings, EntryPoint
 from .models.uipath_json_schema import UiPathJsonConfig
@@ -52,30 +51,6 @@ GRAPH_INDENT = "    "
 class Action(str, enum.Enum):
     CREATED = "Created"
     UPDATED = "Updated"
-
-
-def create_telemetry_config_file(target_directory: str) -> None:
-    """Create telemetry file if telemetry is enabled.
-
-    Args:
-        target_directory: The directory where the .uipath folder should be created.
-    """
-    telemetry_enabled = os.getenv(ENV_TELEMETRY_ENABLED, "true").lower() == "true"
-
-    if not telemetry_enabled:
-        return
-
-    uipath_dir = os.path.join(target_directory, ".uipath")
-    telemetry_file = os.path.join(uipath_dir, _TELEMETRY_CONFIG_FILE)
-
-    if os.path.exists(telemetry_file):
-        return
-
-    os.makedirs(uipath_dir, exist_ok=True)
-    telemetry_data = {_PROJECT_KEY: UiPathConfig.project_id or str(uuid.uuid4())}
-
-    with open(telemetry_file, "w") as f:
-        json.dump(telemetry_data, f, indent=4)
 
 
 def generate_env_file(target_directory):
@@ -421,7 +396,6 @@ def init(no_agents_md_override: bool) -> None:
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
         generate_env_file(current_directory)
-        create_telemetry_config_file(current_directory)
 
         async def initialize() -> list[UiPathRuntimeSchema]:
             try:
@@ -429,10 +403,25 @@ def init(no_agents_md_override: bool) -> None:
                 config_path = UiPathConfig.config_file_path
                 if not config_path.exists():
                     config = UiPathJsonConfig.create_default()
+                    config.id = resolve_existing_project_id(current_directory) or str(
+                        uuid.uuid4()
+                    )
                     config.save_to_file(config_path)
                     console.success(f"{Action.CREATED.value} '{config_path}' file.")
                 else:
-                    console.info(f"'{config_path}' already exists, skipping.")
+                    # backfill id if not present
+                    async_config_path = anyio.Path(config_path)
+                    raw_config = json.loads(await async_config_path.read_text())
+                    if not raw_config.get("id"):
+                        raw_config["id"] = resolve_existing_project_id(
+                            current_directory
+                        ) or str(uuid.uuid4())
+                        await async_config_path.write_text(
+                            json.dumps(raw_config, indent=2)
+                        )
+                        console.success(
+                            f"{Action.UPDATED.value} '{config_path}' file with 'id'."
+                        )
 
                 # Create bindings.json if it doesn't exist
                 bindings_path = UiPathConfig.bindings_file_path
