@@ -415,6 +415,21 @@ class AgentContextSettings(BaseCfg):
     )
 
 
+class DataFabricOntologyItem(BaseCfg):
+    """A single ontology attached to a Data Fabric context.
+
+    Mirrors :class:`DataFabricEntityItem`, but a context may attach at most one
+    ontology. Carries its own ``folderId`` so the ontology is resolved from its
+    own folder, independent of the entities (which may span several folders).
+    """
+
+    id: Optional[str] = Field(None, alias="id")
+    reference_key: Optional[str] = Field(None, alias="referenceKey")
+    name: str = Field(..., alias="name")
+    folder_key: Optional[str] = Field(None, alias="folderId")
+    description: Optional[str] = Field(None, alias="description")
+
+
 class AgentContextResourceConfig(BaseAgentResourceConfig):
     """Agent context resource configuration model."""
 
@@ -428,6 +443,11 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
         None, description="Context settings"
     )
     entity_set: Optional[List[DataFabricEntityItem]] = Field(None, alias="entitySet")
+    ontology: Optional[DataFabricOntologyItem] = Field(
+        None,
+        alias="ontology",
+        description="A single ontology attached to this context (at most one).",
+    )
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
