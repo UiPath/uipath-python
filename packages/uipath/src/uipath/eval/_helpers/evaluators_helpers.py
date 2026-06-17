@@ -11,6 +11,8 @@ from ..models import (
     ToolOutput,
 )
 
+TOOL_NAME_ATTR = "tool.name"
+
 COMPARATOR_MAPPINGS = {
     ">": "gt",
     "<": "lt",
@@ -27,7 +29,7 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 def _real_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
     """Return span.attributes if this is a real tool invocation, else None."""
     attrs = span.attributes
-    if not attrs or attrs.get("tool.synthesized", False) or not attrs.get("tool.name"):
+    if not attrs or attrs.get("tool.synthesized", False) or not attrs.get(TOOL_NAME_ATTR):
         return None
     return attrs
 
@@ -45,7 +47,7 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
 
     for span in spans:
         if (attrs := _real_tool_attrs(span)) is not None:
-            tool_calls_names.append(str(attrs["tool.name"]))
+            tool_calls_names.append(str(attrs[TOOL_NAME_ATTR]))
 
     return tool_calls_names
 
@@ -63,7 +65,7 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
 
     for span in spans:
         if (attrs := _real_tool_attrs(span)) is not None:
-            tool_name = str(attrs["tool.name"])
+            tool_name = str(attrs[TOOL_NAME_ATTR])
             try:
                 input_value: Any = attrs.get("input.value", {})
                 if isinstance(input_value, str):
@@ -94,7 +96,7 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     tool_calls_outputs = []
     for span in spans:
         if (attrs := _real_tool_attrs(span)) is not None:
-            tool_name = str(attrs["tool.name"])
+            tool_name = str(attrs[TOOL_NAME_ATTR])
             output = attrs.get("output.value", "")
             final_output = ""
 
@@ -472,7 +474,7 @@ def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
     seen_tool_calls = set()
 
     for span in agent_trace:
-        if span.attributes and (tool_name := span.attributes.get("tool.name")):
+        if span.attributes and (tool_name := span.attributes.get(TOOL_NAME_ATTR)):
             # Get span timing information
             start_time = span.start_time
             end_time = span.end_time
