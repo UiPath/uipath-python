@@ -44,6 +44,8 @@ def build_trace_context_headers(
         baggage_parts.append(f"agentId={agent_id}")
     if process_uuid := UiPathConfig.process_uuid:
         baggage_parts.append(f"processKey={process_uuid}")
+    if job_key := UiPathConfig.job_key:
+        baggage_parts.append(f"jobKey={job_key}")
     if baggage_parts:
         headers["x-uipath-tracebaggage"] = ",".join(baggage_parts)
 
