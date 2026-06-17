@@ -1,10 +1,17 @@
-"""Shared governance output types.
+"""Shared governance contracts.
 
-These dataclasses cross the adapter boundary — every evaluator
-implementation (native, AGT, composite, …) produces them, and every
-adapter consumes them. They are kept free of policy-input concepts
-(``Rule``/``Check``/``Condition``) so the adapter packages don't
-inherit the native policy model.
+Two groups of types live here, both kept free of policy-input concepts
+(``Rule``/``Check``/``Condition``) so adapter packages don't inherit
+the native policy model:
+
+- **Output types** (:class:`Action`, :class:`LifecycleHook`,
+  :class:`RuleEvaluation`, :class:`AuditRecord`) — cross the adapter
+  boundary at evaluation time: every evaluator implementation (native,
+  AGT, composite, …) produces them, and every adapter consumes them.
+- **Configuration value types** (:class:`EnforcementMode`) — describe
+  governance configuration shared by core, runtime, and consumers. The
+  runtime state that selects an enforcement mode lives in
+  ``uipath-runtime``; only the value type lives here.
 """
 
 from __future__ import annotations
@@ -33,6 +40,14 @@ class LifecycleHook(str, Enum):
     AFTER_MODEL = "after_model"
     TOOL_CALL = "tool_call"
     AFTER_TOOL = "after_tool"
+
+
+class EnforcementMode(str, Enum):
+    """Governance enforcement modes."""
+
+    AUDIT = "audit"  # Evaluate and log; never block.
+    ENFORCE = "enforce"  # Block on DENY rules.
+    DISABLED = "disabled"  # Skip evaluation entirely.
 
 
 @dataclass
