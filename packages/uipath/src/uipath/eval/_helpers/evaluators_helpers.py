@@ -26,7 +26,7 @@ COMPARATOR_MAPPINGS = {
 COMMUNITY_agents_SUFFIX = "-community-agents"
 
 
-def _real_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
+def _unsynthesized_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
     """Return span.attributes if this is a real tool invocation, else None."""
     attrs = span.attributes
     if (
@@ -50,7 +50,7 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     tool_calls_names = []
 
     for span in spans:
-        if (attrs := _real_tool_attrs(span)) is not None:
+        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
             tool_calls_names.append(str(attrs[TOOL_NAME_ATTR]))
 
     return tool_calls_names
@@ -68,7 +68,7 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
     tool_calls = []
 
     for span in spans:
-        if (attrs := _real_tool_attrs(span)) is not None:
+        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
             tool_name = str(attrs[TOOL_NAME_ATTR])
             try:
                 input_value: Any = attrs.get("input.value", {})
@@ -99,7 +99,7 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     potential_output_keys = ["content"]
     tool_calls_outputs = []
     for span in spans:
-        if (attrs := _real_tool_attrs(span)) is not None:
+        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
             tool_name = str(attrs[TOOL_NAME_ATTR])
             output = attrs.get("output.value", "")
             final_output = ""
