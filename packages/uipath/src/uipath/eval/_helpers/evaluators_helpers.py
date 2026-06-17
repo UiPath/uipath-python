@@ -24,19 +24,12 @@ COMPARATOR_MAPPINGS = {
 COMMUNITY_agents_SUFFIX = "-community-agents"
 
 
-def _real_tool_name(span: ReadableSpan) -> str | None:
-    """Return the tool name for a real tool-invocation span, else None.
-
-    Spans synthesized for trajectory rendering (e.g. BPMN ProcessRun/ElementRun
-    container spans) carry tool.name but mark themselves with tool.synthesized
-    so the per-call extractors below can skip them.
-    """
-    if not span.attributes:
+def _real_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
+    """Return span.attributes if this is a real tool invocation, else None."""
+    attrs = span.attributes
+    if not attrs or attrs.get("tool.synthesized", False) or not attrs.get("tool.name"):
         return None
-    if span.attributes.get("tool.synthesized", False):
-        return None
-    tool_name = span.attributes.get("tool.name")
-    return str(tool_name) if tool_name else None
+    return attrs
 
 
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
@@ -51,8 +44,8 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     tool_calls_names = []
 
     for span in spans:
-        if tool_name := _real_tool_name(span):
-            tool_calls_names.append(tool_name)
+        if (attrs := _real_tool_attrs(span)) is not None:
+            tool_calls_names.append(str(attrs["tool.name"]))
 
     return tool_calls_names
 
@@ -69,10 +62,10 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
     tool_calls = []
 
     for span in spans:
-        if tool_name := _real_tool_name(span):
+        if (attrs := _real_tool_attrs(span)) is not None:
+            tool_name = str(attrs["tool.name"])
             try:
-                input_value: Any = span.attributes.get("input.value", {})  # type: ignore[union-attr]
-                # Ensure input_value is a string before parsing
+                input_value: Any = attrs.get("input.value", {})
                 if isinstance(input_value, str):
                     arguments = ast.literal_eval(input_value)
                 elif isinstance(input_value, dict):
@@ -81,7 +74,6 @@ def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
                     arguments = {}
                 tool_calls.append(ToolCall(name=tool_name, args=arguments))
             except (json.JSONDecodeError, SyntaxError, ValueError):
-                # Handle case where input.value is not valid JSON/Python syntax
                 tool_calls.append(ToolCall(name=tool_name, args={}))
 
     return tool_calls
@@ -101,8 +93,9 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     potential_output_keys = ["content"]
     tool_calls_outputs = []
     for span in spans:
-        if tool_name := _real_tool_name(span):
-            output = span.attributes.get("output.value", "")  # type: ignore[union-attr]
+        if (attrs := _real_tool_attrs(span)) is not None:
+            tool_name = str(attrs["tool.name"])
+            output = attrs.get("output.value", "")
             final_output = ""
 
             # Handle different output formats
