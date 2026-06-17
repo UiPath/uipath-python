@@ -37,8 +37,43 @@ class NumberParameterValue(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
+class EnumParameterValue(BaseModel):
+    """Single-select enum parameter value."""
+
+    parameter_type: Literal["enum"] = Field(alias="$parameterType")
+    id: str
+    value: str
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class TextParameterValue(BaseModel):
+    """Free-text parameter value."""
+
+    parameter_type: Literal["text"] = Field(alias="$parameterType")
+    id: str
+    value: str
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
+class TextListParameterValue(BaseModel):
+    """List-of-text parameter value."""
+
+    parameter_type: Literal["text-list"] = Field(alias="$parameterType")
+    id: str
+    value: list[str]
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
 ValidatorParameter = Annotated[
-    EnumListParameterValue | MapEnumParameterValue | NumberParameterValue,
+    EnumListParameterValue
+    | MapEnumParameterValue
+    | NumberParameterValue
+    | EnumParameterValue
+    | TextParameterValue
+    | TextListParameterValue,
     Field(discriminator="parameter_type"),
 ]
 
