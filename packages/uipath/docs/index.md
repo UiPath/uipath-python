@@ -2,15 +2,6 @@
 title: Getting Started
 ---
 
-<div class="grid cards" markdown>
--   __🚨 Breaking changes__
-
-    ---
-    
-    UiPath Python SDK v2.2.0+ will introduce **breaking changes** starting **November 26, 2025**  
-    [See Details](./core/release_notes.md)
-</div>
-
 <h2>What do you want to build?</h2>
 
 <div class="grid cards" markdown>
