@@ -173,8 +173,7 @@ def debug(
                                 )
                                 chat_runtime = UiPathChatRuntime(
                                     delegate=delegate,
-                                    chat_bridge=chat_bridge,
-                                    end_exchange=ctx.end_exchange,
+                                    chat_bridge=chat_bridge
                                 )
                                 delegate = chat_runtime
 
