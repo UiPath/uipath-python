@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "2026-05-20T15:43:10.4544027Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
@@ -1063,7 +1063,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.16"
+version = "0.5.19"
 source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -1095,7 +1095,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.56"
+version = "0.1.70"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

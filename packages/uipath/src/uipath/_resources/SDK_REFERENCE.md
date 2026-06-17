@@ -62,11 +62,17 @@ sdk.assets.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Opti
 # Asynchronously retrieve an asset by its name.
 sdk.assets.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.orchestrator.assets.UserAsset | uipath.platform.orchestrator.assets.Asset
 
-# Gets a specified Orchestrator credential.
+# Get the decrypted value of a Secret asset.
 sdk.assets.retrieve_credential(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Optional[str]
 
-# Asynchronously gets a specified Orchestrator credential.
+# Asynchronously get the decrypted value of a Secret asset.
 sdk.assets.retrieve_credential_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Optional[str]
+
+# Get the decrypted value of a Secret asset.
+sdk.assets.retrieve_secret(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Optional[str]
+
+# Asynchronously get the decrypted value of a Secret asset.
+sdk.assets.retrieve_secret_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.Optional[str]
 
 # Update an asset's value.
 sdk.assets.update(robot_asset: uipath.platform.orchestrator.assets.UserAsset, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> httpx.Response
@@ -110,6 +116,19 @@ sdk.attachments.upload(name: str, content: str | bytes | None=None, source_path:
 
 # Upload a file or content to UiPath as an attachment asynchronously.
 sdk.attachments.upload_async(name: str, content: str | bytes | None=None, source_path: str | None=None, folder_key: str | None=None, folder_path: str | None=None) -> uuid.UUID
+
+```
+
+### Automation Ops
+
+Automation Ops service
+
+```python
+# Retrieve the deployed policy.
+sdk.automation_ops.get_deployed_policy() -> dict[str, typing.Any]
+
+# Retrieve the deployed policy (async).
+sdk.automation_ops.get_deployed_policy_async() -> dict[str, typing.Any]
 
 ```
 
@@ -272,10 +291,10 @@ sdk.context_grounding.add_to_index(name: str, blob_file_path: str, content_type:
 sdk.context_grounding.add_to_index_async(name: str, blob_file_path: str, content_type: Optional[str]=None, content: Union[str, bytes, NoneType]=None, source_path: Optional[str]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, ingest_data: bool=True) -> None
 
 # Create a new ephemeral context grounding index.
-sdk.context_grounding.create_ephemeral_index(usage: <enum 'EphemeralIndexUsage, attachments: List[str]) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.create_ephemeral_index(usage: <enum 'EphemeralIndexUsage, attachments: List[str], folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Create a new ephemeral context grounding index.
-sdk.context_grounding.create_ephemeral_index_async(usage: <enum 'EphemeralIndexUsage, attachments: List[str]) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.create_ephemeral_index_async(usage: <enum 'EphemeralIndexUsage, attachments: List[str], folder_key: str | None=None, folder_path: str | None=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Create a new context grounding index.
 sdk.context_grounding.create_index(name: str, source: Union[uipath.platform.context_grounding.context_grounding_payloads.BucketSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.GoogleDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.DropboxSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.OneDriveSourceConfig, uipath.platform.context_grounding.context_grounding_payloads.ConfluenceSourceConfig], description: Optional[str]=None, extraction_strategy: Optional[str]=None, embeddings_enabled: Optional[bool]=None, is_encrypted: Optional[bool]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
@@ -326,7 +345,7 @@ sdk.context_grounding.list_indexes(folder_key: Optional[str]=None, folder_path: 
 sdk.context_grounding.list_indexes_async(folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
 
 # Retrieve context grounding index information by its name.
-sdk.context_grounding.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Retrieve all context grounding indexes across all folders.
 sdk.context_grounding.retrieve_across_folders(name: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
@@ -335,7 +354,7 @@ sdk.context_grounding.retrieve_across_folders(name: Optional[str]=None) -> typin
 sdk.context_grounding.retrieve_across_folders_async(name: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
 
 # Asynchronously retrieve context grounding index information by its name.
-sdk.context_grounding.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
+sdk.context_grounding.retrieve_async(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 
 # Retrieves a Batch Transform task status.
 sdk.context_grounding.retrieve_batch_transform(id: str, index_name: str | None=None) -> uipath.platform.context_grounding.context_grounding.BatchTransformResponse
@@ -386,10 +405,10 @@ sdk.context_grounding.start_deep_rag_ephemeral(name: str, prompt: Annotated[str,
 sdk.context_grounding.start_deep_rag_ephemeral_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
 
 # Perform a unified search on a context grounding index.
-sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 # Asynchronously perform a unified search on a context grounding index.
-sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 ```
 
@@ -475,17 +494,77 @@ sdk.documents.start_ixp_extraction_validation_async(extraction_response: uipath.
 Entities service
 
 ```python
+# Create a new entity with the given schema and return its id.
+sdk.entities.create_entity(name: str, fields: List[uipath.platform.entities.entities.EntityCreateFieldOptions], options: Optional[uipath.platform.entities.entities.EntityCreateOptions]=None) -> str
+
+# Asynchronously create a new entity with the given schema.
+sdk.entities.create_entity_async(name: str, fields: List[uipath.platform.entities.entities.EntityCreateFieldOptions], options: Optional[uipath.platform.entities.entities.EntityCreateOptions]=None) -> str
+
+# Remove the file attached to a File-type field on a record.
+sdk.entities.delete_attachment(entity_id: str, record_id: str, field_name: str, expansion_level: Optional[int]=None) -> typing.Dict[str, typing.Any]
+
+# Asynchronously remove the file attached to a File-type field.
+sdk.entities.delete_attachment_async(entity_id: str, record_id: str, field_name: str, expansion_level: Optional[int]=None) -> typing.Dict[str, typing.Any]
+
+# Delete an entity and all of its records.
+sdk.entities.delete_entity(entity_id: str) -> None
+
+# Asynchronously delete an entity and all of its records.
+sdk.entities.delete_entity_async(entity_id: str) -> None
+
+# Delete a single record by id.
+sdk.entities.delete_record(entity_key: str, record_id: str) -> None
+
+# Asynchronously delete a single record by id.
+sdk.entities.delete_record_async(entity_key: str, record_id: str) -> None
+
 # Delete multiple records from an entity in a single batch operation.
-sdk.entities.delete_records(entity_key: str, record_ids: List[str]) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+sdk.entities.delete_records(entity_key: str, record_ids: List[str], fail_on_first: Optional[bool]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously delete multiple records from an entity in a single batch operation.
-sdk.entities.delete_records_async(entity_key: str, record_ids: List[str]) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+sdk.entities.delete_records_async(entity_key: str, record_ids: List[str], fail_on_first: Optional[bool]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+
+# Download a file attached to a record and return its raw bytes.
+sdk.entities.download_attachment(entity_id: str, record_id: str, field_name: str) -> bytes
+
+# Asynchronously download a file attached to a record.
+sdk.entities.download_attachment_async(entity_id: str, record_id: str, field_name: str) -> bytes
+
+# Get the values of a choice set by its ID.
+sdk.entities.get_choiceset_values(choiceset_id: str, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.ChoiceSetValue]
+
+# Asynchronously get the values of a choice set by its ID.
+sdk.entities.get_choiceset_values_async(choiceset_id: str, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.ChoiceSetValue]
+
+# Fetch a single entity record by its id.
+sdk.entities.get_record(entity_key: str, record_id: str, expansion_level: Optional[int]=None) -> uipath.platform.entities.entities.EntityRecord
+
+# Asynchronously fetch a single entity record by its id.
+sdk.entities.get_record_async(entity_key: str, record_id: str, expansion_level: Optional[int]=None) -> uipath.platform.entities.entities.EntityRecord
+
+# Bulk-import records into an entity from a CSV file.
+sdk.entities.import_records(entity_id: str, file: Union[bytes, bytearray, memoryview, NoneType]=None, file_path: Optional[str]=None) -> uipath.platform.entities.entities.EntityImportRecordsResponse
+
+# Asynchronously bulk-import records into an entity from a CSV file.
+sdk.entities.import_records_async(entity_id: str, file: Union[bytes, bytearray, memoryview, NoneType]=None, file_path: Optional[str]=None) -> uipath.platform.entities.entities.EntityImportRecordsResponse
+
+# Insert a single record into an entity and return the inserted row.
+sdk.entities.insert_record(entity_key: str, data: Any, expansion_level: Optional[int]=None) -> uipath.platform.entities.entities.EntityRecord
+
+# Asynchronously insert a single record into an entity.
+sdk.entities.insert_record_async(entity_key: str, data: Any, expansion_level: Optional[int]=None) -> uipath.platform.entities.entities.EntityRecord
 
 # Insert multiple records into an entity in a single batch operation.
-sdk.entities.insert_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+sdk.entities.insert_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None, expansion_level: Optional[int]=None, fail_on_first: Optional[bool]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously insert multiple records into an entity in a single batch operation.
-sdk.entities.insert_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+sdk.entities.insert_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None, expansion_level: Optional[int]=None, fail_on_first: Optional[bool]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+
+# List all choice sets in Data Service.
+sdk.entities.list_choicesets() -> typing.List[uipath.platform.entities.entities.Entity]
+
+# Asynchronously list all choice sets in Data Service.
+sdk.entities.list_choicesets_async() -> typing.List[uipath.platform.entities.entities.Entity]
 
 # List all entities in Data Service.
 sdk.entities.list_entities() -> typing.List[uipath.platform.entities.entities.Entity]
@@ -494,10 +573,10 @@ sdk.entities.list_entities() -> typing.List[uipath.platform.entities.entities.En
 sdk.entities.list_entities_async() -> typing.List[uipath.platform.entities.entities.Entity]
 
 # List records from an entity with optional pagination and schema validation.
-sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
+sdk.entities.list_records(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None, expansion_level: Optional[int]=None, filter: Optional[str]=None, orderby: Optional[str]=None, select: Optional[List[str]]=None, expand: Optional[List[str]]=None) -> uipath.platform.entities.entities.EntityRecordsListResponse
 
 # Asynchronously list records from an entity with optional pagination and schema validation.
-sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> typing.List[uipath.platform.entities.entities.EntityRecord]
+sdk.entities.list_records_async(entity_key: str, schema: Optional[Type[Any]]=None, start: Optional[int]=None, limit: Optional[int]=None, expansion_level: Optional[int]=None, filter: Optional[str]=None, orderby: Optional[str]=None, select: Optional[List[str]]=None, expand: Optional[List[str]]=None) -> uipath.platform.entities.entities.EntityRecordsListResponse
 
 # Query entity records using a validated SQL query.
 sdk.entities.query_entity_records(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
@@ -506,10 +585,10 @@ sdk.entities.query_entity_records(sql_query: str) -> typing.List[typing.Dict[str
 sdk.entities.query_entity_records_async(sql_query: str) -> typing.List[typing.Dict[str, typing.Any]]
 
 # Resolve an agent entity set, applying resource overwrites.
-sdk.entities.resolve_entity_set(items: list[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
+sdk.entities.resolve_entity_set(items: List[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
 
 # Resolve an agent entity set, applying resource overwrites.
-sdk.entities.resolve_entity_set_async(items: list[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
+sdk.entities.resolve_entity_set_async(items: List[uipath.platform.entities.entities.DataFabricEntityItem]) -> uipath.platform.entities.entities.EntitySetResolution
 
 # Retrieve an entity by its key.
 sdk.entities.retrieve(entity_key: str) -> uipath.platform.entities.entities.Entity
@@ -523,12 +602,38 @@ sdk.entities.retrieve_by_name(entity_name: str, folder_key: Optional[str]=None) 
 # Asynchronously retrieve an entity by its name.
 sdk.entities.retrieve_by_name_async(entity_name: str, folder_key: Optional[str]=None) -> uipath.platform.entities.entities.Entity
 
+# Retrieve records with structured filters, sorting, expansion, joins, and aggregates.
+sdk.entities.retrieve_records(entity_key: str, filter_group: Optional[uipath.platform.entities.entities.EntityQueryFilterGroup]=None, sort_options: Optional[List[uipath.platform.entities.entities.EntityQuerySortOption]]=None, selected_fields: Optional[List[str]]=None, expansions: Optional[List[Any]]=None, expansion_level: Optional[int]=None, aggregates: Optional[List[uipath.platform.entities.entities.EntityAggregate]]=None, group_by: Optional[List[str]]=None, joins: Optional[List[uipath.platform.entities.entities.EntityJoin]]=None, binnings: Optional[List[uipath.platform.entities.entities.EntityBinning]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> uipath.platform.entities.entities.RetrieveEntityRecordsResponse
+
+# Asynchronously retrieve records with structured filters, sorting, expansion, joins, and aggregates.
+sdk.entities.retrieve_records_async(entity_key: str, filter_group: Optional[uipath.platform.entities.entities.EntityQueryFilterGroup]=None, sort_options: Optional[List[uipath.platform.entities.entities.EntityQuerySortOption]]=None, selected_fields: Optional[List[str]]=None, expansions: Optional[List[Any]]=None, expansion_level: Optional[int]=None, aggregates: Optional[List[uipath.platform.entities.entities.EntityAggregate]]=None, group_by: Optional[List[str]]=None, joins: Optional[List[uipath.platform.entities.entities.EntityJoin]]=None, binnings: Optional[List[uipath.platform.entities.entities.EntityBinning]]=None, start: Optional[int]=None, limit: Optional[int]=None) -> uipath.platform.entities.entities.RetrieveEntityRecordsResponse
+
+# Update an entity's display name, description, and/or RBAC flag.
+sdk.entities.update_entity_metadata(entity_id: str, metadata: Union[uipath.platform.entities.entities.EntityMetadataUpdateOptions, Dict[str, Any]]) -> None
+
+# Asynchronously update an entity's display name, description, and/or RBAC flag.
+sdk.entities.update_entity_metadata_async(entity_id: str, metadata: Union[uipath.platform.entities.entities.EntityMetadataUpdateOptions, Dict[str, Any]]) -> None
+
+# Update a single record by id and return the updated row.
+sdk.entities.update_record(entity_key: str, record_id: str, data: Any, expansion_level: Optional[int]=None) -> uipath.platform.entities.entities.EntityRecord
+
+# Asynchronously update a single record by id.
+sdk.entities.update_record_async(entity_key: str, record_id: str, data: Any, expansion_level: Optional[int]=None) -> uipath.platform.entities.entities.EntityRecord
+
 # Update multiple records in an entity in a single batch operation.
-sdk.entities.update_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+sdk.entities.update_records(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None, expansion_level: Optional[int]=None, fail_on_first: Optional[bool]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 # Asynchronously update multiple records in an entity in a single batch operation.
-sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
+sdk.entities.update_records_async(entity_key: str, records: List[Any], schema: Optional[Type[Any]]=None, expansion_level: Optional[int]=None, fail_on_first: Optional[bool]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
+# Upload a file attachment to a File-type field on a record.
+sdk.entities.upload_attachment(entity_id: str, record_id: str, field_name: str, file: Union[bytes, bytearray, memoryview, NoneType]=None, file_path: Optional[str]=None, expansion_level: Optional[int]=None) -> typing.Dict[str, typing.Any]
+
+# Asynchronously upload a file attachment to a File-type field on a record.
+sdk.entities.upload_attachment_async(entity_id: str, record_id: str, field_name: str, file: Union[bytes, bytearray, memoryview, NoneType]=None, file_path: Optional[str]=None, expansion_level: Optional[int]=None) -> typing.Dict[str, typing.Any]
+
+# Parse a batch response, optionally validating success records against ``schema``.
+sdk.entities.validate_entity_batch(batch_response: httpx.Response, schema: Optional[Type[Any]]=None) -> uipath.platform.entities.entities.EntityRecordsBatchResponse
 
 ```
 
@@ -632,6 +737,12 @@ sdk.jobs.retrieve_api_payload_async(inbox_id: str) -> typing.Any
 # Asynchronously retrieve a job identified by its key.
 sdk.jobs.retrieve_async(job_key: str, folder_key: str | None=None, folder_path: str | None=None, process_name: str | None=None) -> uipath.platform.orchestrator.job.Job
 
+# Fetch payload data for Integration Services (Inbox) triggers.
+sdk.jobs.retrieve_inbox_payload(inbox_id: str) -> typing.Any
+
+# Asynchronously fetch payload data for Integration Services (Inbox) triggers.
+sdk.jobs.retrieve_inbox_payload_async(inbox_id: str) -> typing.Any
+
 # Stop one or more jobs with specified strategy.
 sdk.jobs.stop(job_keys: List[str], strategy: str="SoftStop", folder_path: Optional[str]=None, folder_key: Optional[str]=None) -> None
 
@@ -646,7 +757,7 @@ Llm service
 
 ```python
 # Generate chat completions using UiPath's normalized LLM Gateway API.
-sdk.llm.chat_completions(messages: list[dict[str, str]] | list[tuple[str, str]], model: str="gpt-4.1-mini-2025-04-14", max_tokens: int=4096, temperature: float=0, n: int=1, frequency_penalty: float=0, presence_penalty: float=0, top_p: float | None=1, top_k: int | None=None, tools: list[uipath.platform.chat.llm_gateway.ToolDefinition] | None=None, tool_choice: Union[uipath.platform.chat.llm_gateway.AutoToolChoice, uipath.platform.chat.llm_gateway.RequiredToolChoice, uipath.platform.chat.llm_gateway.SpecificToolChoice, Literal['auto', 'none'], NoneType]=None, response_format: dict[str, Any] | type[pydantic.main.BaseModel] | None=None, api_version: str="2024-08-01-preview")
+sdk.llm.chat_completions(messages: list[dict[str, str]] | list[tuple[str, str]], model: str="gpt-4.1-mini-2025-04-14", max_tokens: int=4096, temperature: float=0, n: int=1, frequency_penalty: float=0, presence_penalty: float=0, top_p: float | None=1, top_k: int | None=None, tools: list[uipath.platform.chat.llm_gateway.ToolDefinition | dict[str, Any]] | None=None, tool_choice: Union[uipath.platform.chat.llm_gateway.AutoToolChoice, uipath.platform.chat.llm_gateway.RequiredToolChoice, uipath.platform.chat.llm_gateway.SpecificToolChoice, Literal['auto', 'none'], NoneType]=None, response_format: dict[str, Any] | type[pydantic.main.BaseModel] | None=None, api_version: str="2024-08-01-preview")
 
 ```
 
@@ -682,6 +793,43 @@ sdk.mcp.retrieve_async(slug: str, folder_path: str | None=None) -> uipath.platfo
 
 ```
 
+### Memory
+
+Memory service
+
+```python
+# Create a new memory space.
+sdk.memory.create(name: str, description: Optional[str]=None, is_encrypted: Optional[bool]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.MemorySpace
+
+# Asynchronously create a new memory space.
+sdk.memory.create_async(name: str, description: Optional[str]=None, is_encrypted: Optional[bool]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.MemorySpace
+
+# Ingest a resolved escalation outcome into memory.
+sdk.memory.escalation_ingest(memory_space_id: str, request: uipath.platform.memory.memory.EscalationMemoryIngestRequest, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Asynchronously ingest a resolved escalation outcome into memory.
+sdk.memory.escalation_ingest_async(memory_space_id: str, request: uipath.platform.memory.memory.EscalationMemoryIngestRequest, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> None
+
+# Search escalation memory for previously resolved outcomes.
+sdk.memory.escalation_search(memory_space_id: str, request: uipath.platform.memory.memory.MemorySearchRequest, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.EscalationMemorySearchResponse
+
+# Asynchronously search escalation memory for previously resolved outcomes.
+sdk.memory.escalation_search_async(memory_space_id: str, request: uipath.platform.memory.memory.MemorySearchRequest, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.EscalationMemorySearchResponse
+
+# List memory spaces with optional OData query parameters.
+sdk.memory.list(filter: Optional[str]=None, orderby: Optional[str]=None, top: Optional[int]=None, skip: Optional[int]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.MemorySpaceListResponse
+
+# Asynchronously list memory spaces.
+sdk.memory.list_async(filter: Optional[str]=None, orderby: Optional[str]=None, top: Optional[int]=None, skip: Optional[int]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.MemorySpaceListResponse
+
+# Search a memory space via LLMOps.
+sdk.memory.search(memory_space_id: str, request: uipath.platform.memory.memory.MemorySearchRequest, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.MemorySearchResponse
+
+# Asynchronously search a memory space via LLMOps.
+sdk.memory.search_async(memory_space_id: str, request: uipath.platform.memory.memory.MemorySearchRequest, folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> uipath.platform.memory.memory.MemorySearchResponse
+
+```
+
 ### Orchestrator Setup
 
 Orchestrator Setup service
@@ -695,16 +843,29 @@ sdk.orchestrator_setup.enable_first_run_async() -> None
 
 ```
 
+### Pii Detection
+
+Pii Detection service
+
+```python
+# Detect PII in the provided documents and/or files.
+sdk.pii_detection.detect_pii(request: uipath.platform.pii_detection.pii_detection.PiiDetectionRequest) -> uipath.platform.pii_detection.pii_detection.PiiDetectionResponse
+
+# Detect PII in the provided documents and/or files (async).
+sdk.pii_detection.detect_pii_async(request: uipath.platform.pii_detection.pii_detection.PiiDetectionRequest) -> uipath.platform.pii_detection.pii_detection.PiiDetectionResponse
+
+```
+
 ### Processes
 
 Processes service
 
 ```python
 # Start execution of a process by its name.
-sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, attachments: Optional[list[uipath.platform.attachments.attachments.Attachment]]=None, parent_operation_id: Optional[str]=None, **kwargs) -> uipath.platform.orchestrator.job.Job
+sdk.processes.invoke(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, attachments: Optional[list[uipath.platform.attachments.attachments.Attachment]]=None, parent_operation_id: Optional[str]=None, run_as_me: Optional[bool]=None, **kwargs) -> uipath.platform.orchestrator.job.Job
 
 # Asynchronously start execution of a process by its name.
-sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, attachments: Optional[list[uipath.platform.attachments.attachments.Attachment]]=None, parent_operation_id: Optional[str]=None, **kwargs) -> uipath.platform.orchestrator.job.Job
+sdk.processes.invoke_async(name: str, input_arguments: Optional[Dict[str, Any]]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, attachments: Optional[list[uipath.platform.attachments.attachments.Attachment]]=None, parent_operation_id: Optional[str]=None, run_as_me: Optional[bool]=None, **kwargs) -> uipath.platform.orchestrator.job.Job
 
 ```
 
@@ -779,19 +940,32 @@ Resource Catalog service
 sdk.resource_catalog.list(resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.Iterator[uipath.platform.resource_catalog.resource_catalog.Resource]
 
 # Asynchronously get tenant scoped resources and folder scoped resources (accessible to the user).
-sdk.resource_catalog.list_async(resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.AsyncIterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+sdk.resource_catalog.list_async(resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.AsyncGenerator[uipath.platform.resource_catalog.resource_catalog.Resource, NoneType]
 
 # Get resources of a specific type (tenant scoped or folder scoped).
 sdk.resource_catalog.list_by_type(resource_type: <enum 'ResourceType, name: Optional[str]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.Iterator[uipath.platform.resource_catalog.resource_catalog.Resource]
 
 # Asynchronously get resources of a specific type (tenant scoped or folder scoped).
-sdk.resource_catalog.list_by_type_async(resource_type: <enum 'ResourceType, name: Optional[str]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.AsyncIterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+sdk.resource_catalog.list_by_type_async(resource_type: <enum 'ResourceType, name: Optional[str]=None, resource_sub_types: Optional[List[str]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, page_size: int=20) -> typing.AsyncGenerator[uipath.platform.resource_catalog.resource_catalog.Resource, NoneType]
 
 # Search for tenant scoped resources and folder scoped resources (accessible to the user).
 sdk.resource_catalog.search(name: Optional[str]=None, resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, page_size: int=20) -> typing.Iterator[uipath.platform.resource_catalog.resource_catalog.Resource]
 
 # Asynchronously search for tenant scoped resources and folder scoped resources (accessible to the user).
-sdk.resource_catalog.search_async(name: Optional[str]=None, resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, page_size: int=20) -> typing.AsyncIterator[uipath.platform.resource_catalog.resource_catalog.Resource]
+sdk.resource_catalog.search_async(name: Optional[str]=None, resource_types: Optional[List[uipath.platform.resource_catalog.resource_catalog.ResourceType]]=None, resource_sub_types: Optional[List[str]]=None, page_size: int=20) -> typing.AsyncGenerator[uipath.platform.resource_catalog.resource_catalog.Resource, NoneType]
+
+```
+
+### Semantic Proxy
+
+Semantic Proxy service
+
+```python
+# Detect PII in the provided documents and/or files.
+sdk.semantic_proxy.detect_pii(request: uipath.platform.semantic_proxy.semantic_proxy.PiiDetectionRequest) -> uipath.platform.semantic_proxy.semantic_proxy.PiiDetectionResponse
+
+# Detect PII in the provided documents and/or files (async).
+sdk.semantic_proxy.detect_pii_async(request: uipath.platform.semantic_proxy.semantic_proxy.PiiDetectionRequest) -> uipath.platform.semantic_proxy.semantic_proxy.PiiDetectionResponse
 
 ```
 
@@ -805,6 +979,12 @@ sdk.tasks.create(title: str, data: Optional[Dict[str, Any]]=None, app_name: Opti
 
 # Creates a new action asynchronously.
 sdk.tasks.create_async(title: str, data: Optional[Dict[str, Any]]=None, app_name: Optional[str]=None, app_key: Optional[str]=None, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None, priority: Optional[str]=None, labels: Optional[List[str]]=None, is_actionable_message_enabled: Optional[bool]=None, actionable_message_metadata: Optional[Dict[str, Any]]=None, source_name: str="Agent") -> uipath.platform.action_center.tasks.Task
+
+# Create a new QuickForm task synchronously.
+sdk.tasks.create_quickform(title: str, task_schema_key: str, schema: Dict[str, Any], data: Optional[Dict[str, Any]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None, priority: Optional[str]=None, labels: Optional[List[str]]=None, is_actionable_message_enabled: Optional[bool]=None, actionable_message_metadata: Optional[Dict[str, Any]]=None, creator_job_key: Optional[str]=None, source_name: str="Agent") -> uipath.platform.action_center.tasks.Task
+
+# Creates a new QuickForm task asynchronously.
+sdk.tasks.create_quickform_async(title: str, task_schema_key: str, schema: Dict[str, Any], data: Optional[Dict[str, Any]]=None, folder_path: Optional[str]=None, folder_key: Optional[str]=None, assignee: Optional[str]=None, recipient: Optional[uipath.platform.action_center.tasks.TaskRecipient]=None, priority: Optional[str]=None, labels: Optional[List[str]]=None, is_actionable_message_enabled: Optional[bool]=None, actionable_message_metadata: Optional[Dict[str, Any]]=None, creator_job_key: Optional[str]=None, source_name: str="Agent") -> uipath.platform.action_center.tasks.Task
 
 # Retrieves a task by its key synchronously.
 sdk.tasks.retrieve(action_key: str, app_folder_path: Optional[str]=None, app_folder_key: Optional[str]=None, app_name: str | None=None) -> uipath.platform.action_center.tasks.Task

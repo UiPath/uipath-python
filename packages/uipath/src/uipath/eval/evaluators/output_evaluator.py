@@ -86,8 +86,9 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig[T]):
     specific output evaluation criteria types while maintaining type safety.
     """
 
-    target_output_key: str = Field(
-        default="*", description="Key to extract output from agent execution"
+    target_output_key: str | list[str] = Field(
+        default="*",
+        description="Key or list of keys to extract output from agent execution",
     )
     line_by_line_evaluator: bool = Field(
         default=False,
@@ -133,12 +134,35 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         If the output is a job attachment URI, downloads the attachment
         and returns its content as a string.
         """
-        if self.evaluator_config.target_output_key != "*":
-            try:
-                result = resolve_output_path(
-                    agent_execution.agent_output,
-                    self.evaluator_config.target_output_key,
+        key = self.evaluator_config.target_output_key
+
+        if isinstance(key, list):
+            if not isinstance(agent_execution.agent_output, dict):
+                raise UiPathEvaluationError(
+                    code="INVALID_ACTUAL_OUTPUT",
+                    title="When target output keys are specified, actual output must be a dictionary",
+                    detail=f"Got {type(agent_execution.agent_output).__name__}",
+                    category=UiPathEvaluationErrorCategory.USER,
                 )
+            try:
+                list_result: dict[str, Any] = {
+                    k: resolve_output_path(agent_execution.agent_output, k) for k in key
+                }
+            except (KeyError, IndexError, TypeError) as e:
+                raise UiPathEvaluationError(
+                    code="TARGET_OUTPUT_KEY_NOT_FOUND",
+                    title="One or more target output keys not found in actual output",
+                    detail=f"Error: {e}",
+                    category=UiPathEvaluationErrorCategory.USER,
+                ) from e
+            for k, v in list_result.items():
+                if is_job_attachment_uri(v):
+                    attachment_id = extract_attachment_id(v)
+                    list_result[k] = download_attachment_as_string(attachment_id)
+            return self._normalize_numbers(list_result)
+        elif key != "*":
+            try:
+                result = resolve_output_path(agent_execution.agent_output, key)
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
@@ -149,7 +173,6 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         else:
             result = agent_execution.agent_output
 
-        # Check if result is a job attachment URI and download if so
         if is_job_attachment_uri(result):
             attachment_id = extract_attachment_id(result)
             result = download_attachment_as_string(attachment_id)
@@ -165,32 +188,67 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             category=UiPathEvaluationErrorCategory.SYSTEM,
         )
 
-    def _get_expected_output(self, evaluation_criteria: T) -> Any:
-        """Load the expected output from the evaluation criteria."""
-        expected_output = self._get_full_expected_output(evaluation_criteria)
-        if self.evaluator_config.target_output_key != "*":
-            if isinstance(expected_output, str):
-                try:
-                    expected_output = json.loads(expected_output)
-                except json.JSONDecodeError as e:
-                    raise UiPathEvaluationError(
-                        code="INVALID_EXPECTED_OUTPUT",
-                        title="When target output key is not '*', expected output must be a dictionary or a valid JSON string",
-                        detail=f"Error: {e}",
-                        category=UiPathEvaluationErrorCategory.USER,
-                    ) from e
+    def _resolve_list_key_expected(
+        self, expected_output: Any, keys: list[str]
+    ) -> dict[str, Any]:
+        """Parse and resolve expected output for a list of keys."""
+        if isinstance(expected_output, str):
             try:
-                expected_output = resolve_output_path(
-                    expected_output,
-                    self.evaluator_config.target_output_key,
-                )
-            except (KeyError, IndexError, TypeError) as e:
+                expected_output = json.loads(expected_output)
+            except json.JSONDecodeError as e:
                 raise UiPathEvaluationError(
-                    code="TARGET_OUTPUT_KEY_NOT_FOUND",
-                    title="Target output key not found in expected output",
+                    code="INVALID_EXPECTED_OUTPUT",
+                    title="When target output keys are specified, expected output must be a dictionary or a valid JSON string",
                     detail=f"Error: {e}",
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
+        if not isinstance(expected_output, dict):
+            raise UiPathEvaluationError(
+                code="INVALID_EXPECTED_OUTPUT",
+                title="When target output keys are specified, expected output must be a dictionary",
+                detail=f"Got {type(expected_output).__name__}",
+                category=UiPathEvaluationErrorCategory.USER,
+            )
+        try:
+            return {k: resolve_output_path(expected_output, k) for k in keys}
+        except (KeyError, IndexError, TypeError) as e:
+            raise UiPathEvaluationError(
+                code="TARGET_OUTPUT_KEY_NOT_FOUND",
+                title="One or more target output keys not found in expected output",
+                detail=f"Error: {e}",
+                category=UiPathEvaluationErrorCategory.USER,
+            ) from e
+
+    def _resolve_scalar_key_expected(self, expected_output: Any, key: str) -> Any:
+        """Parse and resolve expected output for a single key."""
+        if isinstance(expected_output, str):
+            try:
+                expected_output = json.loads(expected_output)
+            except json.JSONDecodeError as e:
+                raise UiPathEvaluationError(
+                    code="INVALID_EXPECTED_OUTPUT",
+                    title="When target output key is not '*', expected output must be a dictionary or a valid JSON string",
+                    detail=f"Error: {e}",
+                    category=UiPathEvaluationErrorCategory.USER,
+                ) from e
+        try:
+            return resolve_output_path(expected_output, key)
+        except (KeyError, IndexError, TypeError) as e:
+            raise UiPathEvaluationError(
+                code="TARGET_OUTPUT_KEY_NOT_FOUND",
+                title="Target output key not found in expected output",
+                detail=f"Error: {e}",
+                category=UiPathEvaluationErrorCategory.USER,
+            ) from e
+
+    def _get_expected_output(self, evaluation_criteria: T) -> Any:
+        """Load the expected output from the evaluation criteria."""
+        expected_output = self._get_full_expected_output(evaluation_criteria)
+        key = self.evaluator_config.target_output_key
+        if isinstance(key, list):
+            expected_output = self._resolve_list_key_expected(expected_output, key)
+        elif key != "*":
+            expected_output = self._resolve_scalar_key_expected(expected_output, key)
         return self._normalize_numbers(expected_output)
 
     async def validate_and_evaluate_criteria(
@@ -225,7 +283,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         validated_criteria = self.validate_evaluation_criteria(evaluation_criteria)
 
         # Check if line-by-line evaluation is enabled
-        if not self.evaluator_config.line_by_line_evaluator:
+        if not self.evaluator_config.line_by_line_evaluator or isinstance(
+            self.evaluator_config.target_output_key, list
+        ):
             # Standard evaluation
             return await self.evaluate(agent_execution, validated_criteria)
 
@@ -248,51 +308,44 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         """
         from .line_by_line_utils import build_line_by_line_result, evaluate_lines
 
-        # Get the full actual and expected outputs before splitting
+        key_str = (
+            self.evaluator_config.target_output_key
+            if isinstance(self.evaluator_config.target_output_key, str)
+            else "*"
+        )
+
         actual_output = self._get_actual_output(agent_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
 
-        # Split into lines using utility function
         actual_lines = split_into_lines(
-            actual_output,
-            self.evaluator_config.line_delimiter,
-            self.evaluator_config.target_output_key,
+            actual_output, self.evaluator_config.line_delimiter, key_str
         )
         expected_lines = split_into_lines(
-            expected_output,
-            self.evaluator_config.line_delimiter,
-            self.evaluator_config.target_output_key,
+            expected_output, self.evaluator_config.line_delimiter, key_str
         )
 
-        # Store original agent execution data
         original_agent_output = agent_execution.agent_output
 
-        # Create function to build line criteria
         def create_line_criteria(expected_line: str) -> Any:
             from .line_by_line_utils import wrap_line_in_structure
 
-            line_expected_output = wrap_line_in_structure(
-                expected_line, self.evaluator_config.target_output_key
-            )
+            line_expected_output = wrap_line_in_structure(expected_line, key_str)
             line_criteria_dict = evaluation_criteria.model_dump()
             if "expected_output" in line_criteria_dict:
                 line_criteria_dict["expected_output"] = line_expected_output
             return type(evaluation_criteria).model_validate(line_criteria_dict)
 
-        # Evaluate all lines using utility function
         line_details, line_results = await evaluate_lines(
             actual_lines=actual_lines,
             expected_lines=expected_lines,
-            target_output_key=self.evaluator_config.target_output_key,
+            target_output_key=key_str,
             agent_execution=agent_execution,
             evaluate_fn=self.evaluate,
             create_line_criteria_fn=create_line_criteria,
         )
 
-        # Restore original agent output
         agent_execution.agent_output = original_agent_output
 
-        # Build and return the aggregated result using utility function
         return build_line_by_line_result(
             line_details=line_details,
             line_results=line_results,

@@ -2,9 +2,11 @@ import inspect
 import json
 import logging
 import os
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
+from functools import lru_cache
 from os import environ as env
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +19,40 @@ logger = logging.getLogger(__name__)
 
 # SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
 DEFAULT_SOURCE = 10
+
+
+@lru_cache(maxsize=1)
+def _read_config_id() -> str | None:
+    """Return a valid GUID ``id`` from ``uipath.json``, cached for the process lifetime."""
+    from uipath.platform.common._config import UiPathConfig
+
+    try:
+        config_file = json.loads(UiPathConfig.config_file_path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+    project_id = config_file.get("id")
+    if not isinstance(project_id, str):
+        logger.warning("'id' field not present in uipath.json")
+        return None
+
+    try:
+        uuid.UUID(project_id)
+    except ValueError:
+        logger.warning("Ignoring uipath.json 'id' %r: not a valid GUID.", project_id)
+        return None
+
+    return project_id
+
+
+def resolve_project_id() -> str | None:
+    """Resolve the project id.
+
+    Prefers ``uipath.json#id``, falls back to env vars.
+    """
+    from uipath.platform.common._config import UiPathConfig
+
+    return _read_config_id() or UiPathConfig.agent_id or UiPathConfig.project_key
 
 
 class AttachmentProvider(IntEnum):
@@ -281,9 +317,11 @@ class _SpanUtils:
             ]
             attributes_dict["links"] = links_list
 
+        if agent_id := resolve_project_id():
+            attributes_dict["agentId"] = agent_id
+
         # Add process context attributes from environment variables
         for env_key, attr_key in (
-            ("PROJECT_KEY", "agentId"),
             ("UIPATH_PROCESS_KEY", "agentName"),
             ("UIPATH_PROCESS_VERSION", "agentVersion"),
         ):
@@ -297,10 +335,8 @@ class _SpanUtils:
         # Top-level fields for internal tracing schema
         execution_type = attributes_dict.get("executionType")
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = (
-            env.get("UIPATH_AGENT_ID")
-            or attributes_dict.get("agentId")
-            or attributes_dict.get("referenceId")
+        reference_id = attributes_dict.get("agentId") or attributes_dict.get(
+            "referenceId"
         )
         verbosity_level = attributes_dict.get("verbosityLevel")
 

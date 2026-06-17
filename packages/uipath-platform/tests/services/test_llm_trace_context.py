@@ -3,14 +3,21 @@
 import os
 from unittest.mock import patch
 
-from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform.chat.llm_trace_context import build_trace_context_headers
+from uipath.platform.common.constants import ENV_PROJECT_KEY
 
 FEATURE_FLAG = "EnableTraceContextHeaders"
+
+
+def _make_span():
+    """Create a real OTEL span for testing."""
+    provider = TracerProvider()
+    tracer = provider.get_tracer("test")
+    return tracer.start_span("test-span")
 
 
 class TestFeatureFlagDisabled:
@@ -28,48 +35,74 @@ class TestFeatureFlagDisabled:
 
 
 class TestTraceparentHeader:
-    """When enabled, x-uipath-traceparent-id is populated from the active span."""
+    """When enabled, x-uipath-traceparent-id is populated from config + span."""
 
     def setup_method(self) -> None:
         FeatureFlags.reset_flags()
         FeatureFlags.configure_flags({FEATURE_FLAG: True})
 
-    def test_traceparent_from_active_span(self) -> None:
-        provider = TracerProvider()
-        tracer = provider.get_tracer("test")
-        with tracer.start_as_current_span("test-span") as span:
-            ctx = span.get_span_context()
-            expected_trace_id = format(ctx.trace_id, "032x")
-            expected_span_id = format(ctx.span_id, "016x")
-
+    def test_traceparent_from_config_and_span(self) -> None:
+        span = _make_span()
+        ctx = span.get_span_context()
+        expected_span_id = format(ctx.span_id, "032x")
+        config_trace = "abcdef1234567890abcdef1234567890"
+        env = {"UIPATH_TRACE_ID": config_trace}
+        with (
+            patch.dict(os.environ, env),
+            patch(
+                "uipath.platform.chat.llm_trace_context.trace.get_current_span",
+                return_value=span,
+            ),
+        ):
             headers = build_trace_context_headers()
 
         assert "x-uipath-traceparent-id" in headers
         value = headers["x-uipath-traceparent-id"]
-        assert value == f"00-{expected_trace_id}-{expected_span_id}"
-        # Verify format: version (2) + dash + trace_id (32) + dash + span_id (16)
+        assert value == f"00-{config_trace}-{expected_span_id}"
         parts = value.split("-")
         assert len(parts) == 3
         assert parts[0] == "00"
         assert len(parts[1]) == 32
-        assert len(parts[2]) == 16
+        assert len(parts[2]) == 32
 
-    def test_no_traceparent_without_active_span(self) -> None:
-        # INVALID_SPAN has trace_id=0 and span_id=0
-        from opentelemetry.context import attach, detach
+    def test_no_traceparent_without_config_trace_id(self) -> None:
+        headers = build_trace_context_headers()
+        assert "x-uipath-traceparent-id" not in headers
 
+    def test_traceparent_strips_dashes_from_config_trace_id(self) -> None:
+        span = _make_span()
+        uuid_trace = "abcdef12-3456-7890-abcd-ef1234567890"
+        env = {"UIPATH_TRACE_ID": uuid_trace}
+        with (
+            patch.dict(os.environ, env),
+            patch(
+                "uipath.platform.chat.llm_trace_context.trace.get_current_span",
+                return_value=span,
+            ),
+        ):
+            headers = build_trace_context_headers()
+
+        value = headers["x-uipath-traceparent-id"]
+        parts = value.split("-")
+        assert parts[1] == "abcdef1234567890abcdef1234567890"
+
+    def test_no_traceparent_with_invalid_span(self) -> None:
         ctx = SpanContext(
             trace_id=0,
             span_id=0,
             is_remote=False,
             trace_flags=TraceFlags(0),
         )
-        non_recording = NonRecordingSpan(ctx)
-        token = attach(trace.set_span_in_context(non_recording))
-        try:
+        span = NonRecordingSpan(ctx)
+        env = {"UIPATH_TRACE_ID": "abcdef1234567890abcdef1234567890"}
+        with (
+            patch.dict(os.environ, env),
+            patch(
+                "uipath.platform.chat.llm_trace_context.trace.get_current_span",
+                return_value=span,
+            ),
+        ):
             headers = build_trace_context_headers()
-        finally:
-            detach(token)
 
         assert "x-uipath-traceparent-id" not in headers
 
@@ -78,13 +111,16 @@ class TestBaggageHeader:
     """When enabled, x-uipath-tracebaggage is populated from UiPathConfig."""
 
     def setup_method(self) -> None:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
         FeatureFlags.reset_flags()
         FeatureFlags.configure_flags({FEATURE_FLAG: True})
 
     def test_all_env_vars_present(self) -> None:
         env = {
             "UIPATH_FOLDER_KEY": "folder-abc",
-            "UIPATH_PROCESS_UUID": "agent-123",
+            ENV_PROJECT_KEY: "agent-123",
             "UIPATH_PROCESS_KEY": "process-789",
         }
         with patch.dict(os.environ, env, clear=True):
@@ -103,6 +139,23 @@ class TestBaggageHeader:
         baggage = headers["x-uipath-tracebaggage"]
         assert "folderKey=folder-only" in baggage
 
+    def test_agent_id_from_project_key_env(self) -> None:
+        env = {ENV_PROJECT_KEY: "real-agent-id"}
+        with patch.dict(os.environ, env, clear=True):
+            headers = build_trace_context_headers()
+
+        baggage = headers["x-uipath-tracebaggage"]
+        assert "agentId=real-agent-id" in baggage
+
+    def test_no_agent_id_without_env_vars(self) -> None:
+        env = {"UIPATH_FOLDER_KEY": "f1"}
+        with patch.dict(os.environ, env, clear=True):
+            headers = build_trace_context_headers()
+
+        baggage = headers["x-uipath-tracebaggage"]
+        assert "agentId" not in baggage
+        assert "folderKey=f1" in baggage
+
     def test_no_baggage_without_env_vars(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             headers = build_trace_context_headers()
@@ -112,7 +165,7 @@ class TestBaggageHeader:
     def test_baggage_comma_separated(self) -> None:
         env = {
             "UIPATH_FOLDER_KEY": "f1",
-            "UIPATH_PROCESS_UUID": "a1",
+            ENV_PROJECT_KEY: "a1",
         }
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()
@@ -148,14 +201,22 @@ class TestBothHeaders:
         FeatureFlags.configure_flags({FEATURE_FLAG: True})
 
     def test_both_headers_present(self) -> None:
-        provider = TracerProvider()
-        tracer = provider.get_tracer("test")
-        env = {"UIPATH_FOLDER_KEY": "folder-abc"}
+        span = _make_span()
+        env = {
+            "UIPATH_FOLDER_KEY": "folder-abc",
+            "UIPATH_TRACE_ID": "abcdef1234567890abcdef1234567890",
+        }
         with (
-            tracer.start_as_current_span("test-span"),
             patch.dict(os.environ, env, clear=True),
+            patch(
+                "uipath.platform.chat.llm_trace_context.trace.get_current_span",
+                return_value=span,
+            ),
         ):
             headers = build_trace_context_headers()
 
         assert "x-uipath-traceparent-id" in headers
+        assert headers["x-uipath-traceparent-id"].startswith(
+            "00-abcdef1234567890abcdef1234567890-"
+        )
         assert "x-uipath-tracebaggage" in headers

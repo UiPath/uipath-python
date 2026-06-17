@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import pytest
@@ -6,6 +7,7 @@ from pytest_httpx import HTTPXMock
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
 from uipath.platform.action_center._tasks_service import TasksService
+from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
 from uipath.platform.common.constants import HEADER_USER_AGENT
 
 
@@ -183,6 +185,167 @@ class TestTasksService:
         assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"
+
+
+def _mock_app_lookup_and_create(
+    httpx_mock: HTTPXMock,
+    base_url: str,
+    org: str,
+    tenant: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Common httpx mock setup for app lookup + task creation + assign."""
+    monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
+    httpx_mock.add_response(
+        url=f"{base_url}{org}/apps_/default/api/v1/default/deployed-action-apps-schemas?search=test-app&filterByDeploymentTitle=true",
+        status_code=200,
+        json={
+            "deployed": [
+                {
+                    "systemName": "test-app",
+                    "deploymentTitle": "test-app",
+                    "actionSchema": {
+                        "key": "test-key",
+                        "inputs": [],
+                        "outputs": [],
+                        "inOuts": [],
+                        "outcomes": [],
+                    },
+                    "deploymentFolder": {
+                        "fullyQualifiedName": "test-folder-path",
+                        "key": "test-folder-key",
+                    },
+                }
+            ]
+        },
+    )
+    httpx_mock.add_response(
+        url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+        status_code=200,
+        json={"id": 1, "title": "Test Action"},
+    )
+    httpx_mock.add_response(
+        url=f"{base_url}{org}{tenant}/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks",
+        status_code=200,
+        json={},
+    )
+
+
+def _assign_request_payload(httpx_mock: HTTPXMock) -> dict[str, Any]:
+    """Return the parsed JSON body of the last AssignTasks request captured by the mock."""
+    assign_request = next(
+        req
+        for req in reversed(httpx_mock.get_requests())
+        if "AssignTasks" in str(req.url)
+    )
+    return json.loads(assign_request.content)
+
+
+class TestAssignTaskSpec:
+    """Tests for the task-assignment payload built by `_assign_task_spec`."""
+
+    def test_assign_workload_recipient_uses_workload_criteria_with_group(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _mock_app_lookup_and_create(httpx_mock, base_url, org, tenant, monkeypatch)
+
+        service.create(
+            title="Test Action",
+            app_name="test-app",
+            data={"x": 1},
+            recipient=TaskRecipient(
+                type=TaskRecipientType.WORKLOAD,
+                value="Support Team",
+                displayName="Support Team",
+            ),
+        )
+
+        payload = _assign_request_payload(httpx_mock)
+        assert payload == {
+            "taskAssignments": [
+                {
+                    "taskId": 1,
+                    "assignmentCriteria": "Workload",
+                    "assigneeNamesOrEmails": ["Support Team"],
+                }
+            ]
+        }
+
+    def test_assign_round_robin_recipient_uses_round_robin_criteria(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _mock_app_lookup_and_create(httpx_mock, base_url, org, tenant, monkeypatch)
+
+        service.create(
+            title="Test Action",
+            app_name="test-app",
+            data={"x": 1},
+            recipient=TaskRecipient(
+                type=TaskRecipientType.ROUND_ROBIN,
+                value="Support Team",
+                displayName="Support Team",
+            ),
+        )
+
+        payload = _assign_request_payload(httpx_mock)
+        assert payload == {
+            "taskAssignments": [
+                {
+                    "taskId": 1,
+                    "assignmentCriteria": "RoundRobin",
+                    "assigneeNamesOrEmails": ["Support Team"],
+                }
+            ]
+        }
+
+    def test_assign_workload_with_multiple_emails_uses_values_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Custom-assignees path: Workload criteria with a list of emails."""
+        _mock_app_lookup_and_create(httpx_mock, base_url, org, tenant, monkeypatch)
+
+        service.create(
+            title="Test Action",
+            app_name="test-app",
+            data={"x": 1},
+            recipient=TaskRecipient(
+                type=TaskRecipientType.WORKLOAD,
+                value="alice@example.com",
+                values=["alice@example.com", "bob@example.com"],
+            ),
+        )
+
+        payload = _assign_request_payload(httpx_mock)
+        assert payload == {
+            "taskAssignments": [
+                {
+                    "taskId": 1,
+                    "assignmentCriteria": "Workload",
+                    "assigneeNamesOrEmails": [
+                        "alice@example.com",
+                        "bob@example.com",
+                    ],
+                }
+            ]
+        }
 
 
 def _make_deployed_app(
@@ -555,3 +718,147 @@ class TestCreateFiltersByFolder:
                 app_name="my-app",
                 app_folder_path=None,
             )
+
+
+# ---------------------------------------------------------------------------
+# QuickForm task tests
+# ---------------------------------------------------------------------------
+
+_QF_SCHEMA: dict[str, Any] = {
+    "id": "7ebef452-fee9-45df-8fc2-01f1d0248540",
+    "fields": [
+        {"id": "f1", "type": "text", "label": "F1", "direction": "input"},
+        {"id": "f2", "type": "text", "label": "F2", "direction": "output"},
+    ],
+    "outcomes": [
+        {"id": "approve", "name": "Approve", "type": "string", "isPrimary": True},
+    ],
+}
+_QF_DEFAULTS = {
+    "title": "QF task",
+    "task_schema_key": _QF_SCHEMA["id"],
+    "schema": _QF_SCHEMA,
+}
+_QF_CREATE_RESPONSE = {"id": 42, "title": _QF_DEFAULTS["title"]}
+
+
+@pytest.fixture
+def qf_create_url(base_url: str, org: str, tenant: str) -> str:
+    return f"{base_url}{org}{tenant}/orchestrator_/tasks/GenericTasks/CreateTask"
+
+
+@pytest.fixture
+def qf_assign_url(base_url: str, org: str, tenant: str) -> str:
+    return (
+        f"{base_url}{org}{tenant}"
+        "/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks"
+    )
+
+
+def _posted_body(httpx_mock: HTTPXMock, url: str) -> dict[str, Any]:
+    for req in httpx_mock.get_requests():
+        if str(req.url) == url:
+            return json.loads(req.content)
+    raise AssertionError(f"no request was POSTed to {url}")
+
+
+@pytest.fixture
+def qf_runner(httpx_mock: HTTPXMock, service: TasksService, qf_create_url: str) -> Any:
+    """Factory: stub the QF endpoint, call create_quickform with overrides,
+    return (task, posted_body). One call per test eliminates setup duplication.
+    """
+    httpx_mock.add_response(
+        url=qf_create_url, status_code=200, json=_QF_CREATE_RESPONSE
+    )
+
+    def _run(**overrides: Any) -> tuple[Task, dict[str, Any]]:
+        task = service.create_quickform(**{**_QF_DEFAULTS, **overrides})
+        return task, _posted_body(httpx_mock, qf_create_url)
+
+    return _run
+
+
+@pytest.fixture
+def qf_runner_async(
+    httpx_mock: HTTPXMock, service: TasksService, qf_create_url: str
+) -> Any:
+    """Async variant of qf_runner."""
+    httpx_mock.add_response(
+        url=qf_create_url, status_code=200, json=_QF_CREATE_RESPONSE
+    )
+
+    async def _run(**overrides: Any) -> tuple[Task, dict[str, Any]]:
+        task = await service.create_quickform_async(**{**_QF_DEFAULTS, **overrides})
+        return task, _posted_body(httpx_mock, qf_create_url)
+
+    return _run
+
+
+def test_create_quickform_baseline_payload(qf_runner: Any) -> None:
+    task, body = qf_runner()
+    assert body == {
+        "type": 6,
+        "taskSchemaKey": _QF_DEFAULTS["task_schema_key"],
+        "schema": _QF_SCHEMA,
+        "title": _QF_DEFAULTS["title"],
+        "data": {},
+    }
+    assert isinstance(task, Task)
+    assert task.id == 42
+
+
+def test_create_quickform_data_passthrough(qf_runner: Any) -> None:
+    _, body = qf_runner(data={"x": 1})
+    assert body["data"] == {"x": 1}
+
+
+def test_create_quickform_includes_optional_fields_when_set(qf_runner: Any) -> None:
+    _, body = qf_runner(
+        priority="High",
+        labels=["a", "b"],
+        is_actionable_message_enabled=True,
+        actionable_message_metadata={"fieldSet": {}, "actionSet": {}},
+        creator_job_key="3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    )
+    assert body["priority"] == "High"
+    assert {tag["name"] for tag in body["tags"]} == {"a", "b"}
+    assert body["isActionableMessageEnabled"] is True
+    assert body["actionableMessageMetaData"] == {"fieldSet": {}, "actionSet": {}}
+    assert body["creatorJobKey"] == "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+
+def test_create_quickform_omits_optional_fields_when_unset(qf_runner: Any) -> None:
+    _, body = qf_runner()
+    for omitted in (
+        "creatorJobKey",
+        "priority",
+        "tags",
+        "isActionableMessageEnabled",
+        "actionableMessageMetaData",
+    ):
+        assert omitted not in body
+
+
+async def test_create_quickform_async_baseline_payload(qf_runner_async: Any) -> None:
+    task, body = await qf_runner_async()
+    assert body["type"] == 6
+    assert body["taskSchemaKey"] == _QF_DEFAULTS["task_schema_key"]
+    assert task.id == 42
+
+
+def test_create_quickform_with_assignee_triggers_assign_call(
+    httpx_mock: HTTPXMock, qf_runner: Any, qf_assign_url: str
+) -> None:
+    httpx_mock.add_response(url=qf_assign_url, status_code=200, json={})
+    qf_runner(assignee="user@example.com")
+    body = _posted_body(httpx_mock, qf_assign_url)
+    assert body["taskAssignments"][0]["UserNameOrEmail"] == "user@example.com"
+
+
+async def test_create_quickform_async_with_assignee_triggers_assign_call(
+    httpx_mock: HTTPXMock, qf_runner_async: Any, qf_assign_url: str
+) -> None:
+    httpx_mock.add_response(url=qf_assign_url, status_code=200, json={})
+    await qf_runner_async(assignee="user@example.com")
+    body = _posted_body(httpx_mock, qf_assign_url)
+    assert body["taskAssignments"][0]["UserNameOrEmail"] == "user@example.com"

@@ -1,8 +1,8 @@
 """Tool call order evaluator for validating correct sequence of tool calls."""
 
 from .._helpers.evaluators_helpers import (
-    extract_tool_calls_names,
-    tool_calls_order_score,
+    extract_tool_calls,
+    tool_calls_order_score_with_ids,
 )
 from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
 from ..models.models import EvaluatorType
@@ -69,9 +69,11 @@ class ToolCallOrderEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating correct tool call order (True/False)
         """
-        tool_calls_order = extract_tool_calls_names(agent_execution.agent_trace)
-        score, justification = tool_calls_order_score(
-            tool_calls_order,
+        actual_calls = extract_tool_calls(
+            agent_execution.agent_trace, include_args=False
+        )
+        score, justification = tool_calls_order_score_with_ids(
+            actual_calls,
             evaluation_criteria.tool_calls_order,
             self.evaluator_config.strict,
         )

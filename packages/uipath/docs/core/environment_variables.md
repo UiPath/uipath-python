@@ -17,12 +17,12 @@ UIPATH_FOLDER_PATH=/default/path
 export UIPATH_FOLDER_PATH=/system/path
 ```
 /// warning
-When deploying your agent to production, ensure that all required environment variables (such as API keys and custom configurations) are properly configured in your process settings. This step is crucial for the successful operation of your published package.
+When deploying your project to production, ensure that all required environment variables (such as API keys and custom configurations) are properly configured in your process settings. This step is crucial for the successful operation of your published package.
 ///
 
 ## Design
 
-Create a `.env` file in your project's root directory to manage environment variables locally. When using the `uipath auth` or `uipath new my-agent` commands, this file is automatically created.
+Create a `.env` file in your project's root directory to manage environment variables locally. When using the `uipath auth` or `uipath new` commands, this file is automatically created.
 
 The `uipath auth` command automatically populates this file with essential variables:
 
