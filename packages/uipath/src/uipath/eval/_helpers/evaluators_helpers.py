@@ -29,7 +29,11 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 def _real_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
     """Return span.attributes if this is a real tool invocation, else None."""
     attrs = span.attributes
-    if not attrs or attrs.get("tool.synthesized", False) or not attrs.get(TOOL_NAME_ATTR):
+    if (
+        not attrs
+        or attrs.get("tool.synthesized", False)
+        or not attrs.get(TOOL_NAME_ATTR)
+    ):
         return None
     return attrs
 
