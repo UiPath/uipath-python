@@ -7,6 +7,7 @@ from pytest_httpx import HTTPXMock
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
 from uipath.platform.action_center._tasks_service import TasksService
+from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
 from uipath.platform.common.constants import HEADER_USER_AGENT
 
 
@@ -184,6 +185,167 @@ class TestTasksService:
         assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"
+
+
+def _mock_app_lookup_and_create(
+    httpx_mock: HTTPXMock,
+    base_url: str,
+    org: str,
+    tenant: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Common httpx mock setup for app lookup + task creation + assign."""
+    monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
+    httpx_mock.add_response(
+        url=f"{base_url}{org}/apps_/default/api/v1/default/deployed-action-apps-schemas?search=test-app&filterByDeploymentTitle=true",
+        status_code=200,
+        json={
+            "deployed": [
+                {
+                    "systemName": "test-app",
+                    "deploymentTitle": "test-app",
+                    "actionSchema": {
+                        "key": "test-key",
+                        "inputs": [],
+                        "outputs": [],
+                        "inOuts": [],
+                        "outcomes": [],
+                    },
+                    "deploymentFolder": {
+                        "fullyQualifiedName": "test-folder-path",
+                        "key": "test-folder-key",
+                    },
+                }
+            ]
+        },
+    )
+    httpx_mock.add_response(
+        url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+        status_code=200,
+        json={"id": 1, "title": "Test Action"},
+    )
+    httpx_mock.add_response(
+        url=f"{base_url}{org}{tenant}/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks",
+        status_code=200,
+        json={},
+    )
+
+
+def _assign_request_payload(httpx_mock: HTTPXMock) -> dict[str, Any]:
+    """Return the parsed JSON body of the last AssignTasks request captured by the mock."""
+    assign_request = next(
+        req
+        for req in reversed(httpx_mock.get_requests())
+        if "AssignTasks" in str(req.url)
+    )
+    return json.loads(assign_request.content)
+
+
+class TestAssignTaskSpec:
+    """Tests for the task-assignment payload built by `_assign_task_spec`."""
+
+    def test_assign_workload_recipient_uses_workload_criteria_with_group(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _mock_app_lookup_and_create(httpx_mock, base_url, org, tenant, monkeypatch)
+
+        service.create(
+            title="Test Action",
+            app_name="test-app",
+            data={"x": 1},
+            recipient=TaskRecipient(
+                type=TaskRecipientType.WORKLOAD,
+                value="Support Team",
+                displayName="Support Team",
+            ),
+        )
+
+        payload = _assign_request_payload(httpx_mock)
+        assert payload == {
+            "taskAssignments": [
+                {
+                    "taskId": 1,
+                    "assignmentCriteria": "Workload",
+                    "assigneeNamesOrEmails": ["Support Team"],
+                }
+            ]
+        }
+
+    def test_assign_round_robin_recipient_uses_round_robin_criteria(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _mock_app_lookup_and_create(httpx_mock, base_url, org, tenant, monkeypatch)
+
+        service.create(
+            title="Test Action",
+            app_name="test-app",
+            data={"x": 1},
+            recipient=TaskRecipient(
+                type=TaskRecipientType.ROUND_ROBIN,
+                value="Support Team",
+                displayName="Support Team",
+            ),
+        )
+
+        payload = _assign_request_payload(httpx_mock)
+        assert payload == {
+            "taskAssignments": [
+                {
+                    "taskId": 1,
+                    "assignmentCriteria": "RoundRobin",
+                    "assigneeNamesOrEmails": ["Support Team"],
+                }
+            ]
+        }
+
+    def test_assign_workload_with_multiple_emails_uses_values_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Custom-assignees path: Workload criteria with a list of emails."""
+        _mock_app_lookup_and_create(httpx_mock, base_url, org, tenant, monkeypatch)
+
+        service.create(
+            title="Test Action",
+            app_name="test-app",
+            data={"x": 1},
+            recipient=TaskRecipient(
+                type=TaskRecipientType.WORKLOAD,
+                value="alice@example.com",
+                values=["alice@example.com", "bob@example.com"],
+            ),
+        )
+
+        payload = _assign_request_payload(httpx_mock)
+        assert payload == {
+            "taskAssignments": [
+                {
+                    "taskId": 1,
+                    "assignmentCriteria": "Workload",
+                    "assigneeNamesOrEmails": [
+                        "alice@example.com",
+                        "bob@example.com",
+                    ],
+                }
+            ]
+        }
 
 
 def _make_deployed_app(
