@@ -1,5 +1,6 @@
 import json as json_module
 import logging
+import re
 from typing import Any, Dict, List, Optional, Type
 
 import sqlparse
@@ -50,6 +51,10 @@ _DISALLOWED_KEYWORDS = [
     "PARTITION",
 ]
 _AGGREGATE_FUNCTIONS = ("COUNT", "SUM", "AVG", "MIN", "MAX")
+
+# Ontology name contract (QueryEngine OntologyController): lowercase, starts
+# with a letter, max 64 chars. The name becomes a URL path segment.
+_ONTOLOGY_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 
 class EntitiesService(BaseService):
@@ -722,6 +727,56 @@ class EntitiesService(BaseService):
         spec = self._query_entity_records_spec(sql_query, routing_context)
         response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
+
+    async def get_ontology_file_async(
+        self,
+        ontology_name: str,
+        file_type: str = "owl",
+        folder_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fetch one file of an ontology from Data Fabric.
+
+        PREVIEW: This method is in preview and may change in future releases.
+
+        Ontologies are served by the same QueryEngine service as entity SQL
+        queries, under ``datafabric_/api/ontologies``. The JSON wrapper is
+        requested so the result is notation-agnostic — the ``owl`` file content
+        may be Turtle or OWL Functional Notation.
+
+        Args:
+            ontology_name: Ontology name. Validated against the QE name contract.
+            file_type: One of owl, r2rml, shacl, summary, context.
+            folder_key: Folder the ontology lives in.
+
+        Returns:
+            Dict[str, Any]: The file record (e.g. ``content``, ``mediaType``).
+
+        Raises:
+            ValueError: If the ontology name is invalid.
+        """
+        self._validate_ontology_name(ontology_name)
+        spec = self._ontology_file_spec(ontology_name, file_type)
+        headers = {"Accept": "application/json", **self._folder_key_headers(folder_key)}
+        response = await self.request_async(spec.method, spec.endpoint, headers=headers)
+        return response.json()
+
+    @staticmethod
+    def _validate_ontology_name(ontology_name: str) -> None:
+        """Validate the ontology name before it becomes a URL path segment."""
+        if not _ONTOLOGY_NAME_RE.match(ontology_name or ""):
+            raise ValueError(
+                f"Invalid ontology name {ontology_name!r}. "
+                "Must match ^[a-z][a-z0-9-]{0,63}$."
+            )
+
+    @staticmethod
+    def _ontology_file_spec(ontology_name: str, file_type: str) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"datafabric_/api/ontologies/{ontology_name}/files/{file_type}"
+            ),
+        )
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
