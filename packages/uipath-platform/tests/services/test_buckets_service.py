@@ -646,6 +646,90 @@ class TestCreate:
         assert bucket.id == 1
 
 
+class TestDelete:
+    """Tests for delete() / delete_async().
+
+    Regression coverage for UV-14977: delete() must build the folder header
+    from the folder_path/folder_key arguments (via header_folder), not solely
+    from the UIPATH_FOLDER_PATH / UIPATH_FOLDER_KEY env vars.
+    """
+
+    def test_delete_by_name_uses_folder_path_arg(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """delete(name=..., folder_path=...) sends the arg folder header on DELETE."""
+        # retrieve() locates the bucket in the target folder
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'old-storage'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 203380, "Name": "old-storage", "Identifier": "id"}]},
+            match_headers={"x-uipath-folderpath": "Playground"},
+        )
+        # the DELETE must carry the arg folder header (not the env-var fallback)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(203380)",
+            method="DELETE",
+            status_code=204,
+            match_headers={"x-uipath-folderpath": "Playground"},
+        )
+
+        service.delete(name="old-storage", folder_path="Playground")
+
+    def test_delete_by_key_uses_folder_key_arg(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """delete(key=..., folder_key=...) sends the arg folder-key header on DELETE."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets/UiPath.Server.Configuration.OData.GetByKey(identifier='bucket-key')",
+            status_code=200,
+            json={"value": [{"Id": 55, "Name": "kbucket", "Identifier": "bucket-key"}]},
+            match_headers={"x-uipath-folderkey": "folder-123"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(55)",
+            method="DELETE",
+            status_code=204,
+            match_headers={"x-uipath-folderkey": "folder-123"},
+        )
+
+        service.delete(key="bucket-key", folder_key="folder-123")
+
+    @pytest.mark.asyncio
+    async def test_delete_async_uses_folder_path_arg(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BucketsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        """Async version honors the folder_path argument on DELETE."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'old-storage'&$top=1",
+            status_code=200,
+            json={"value": [{"Id": 99, "Name": "old-storage", "Identifier": "id"}]},
+            match_headers={"x-uipath-folderpath": "Playground"},
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets(99)",
+            method="DELETE",
+            status_code=204,
+            match_headers={"x-uipath-folderpath": "Playground"},
+        )
+
+        await service.delete_async(name="old-storage", folder_path="Playground")
+
+
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 

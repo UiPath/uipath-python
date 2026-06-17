@@ -365,7 +365,7 @@ class BucketsService(FolderContext, BaseService):
         self.request(
             "DELETE",
             url=f"/orchestrator_/odata/Buckets({bucket.id})",
-            headers={**self.folder_headers},
+            headers={**header_folder(folder_key, folder_path)},
         )
 
     @resource_override(resource_type="bucket")
@@ -386,7 +386,7 @@ class BucketsService(FolderContext, BaseService):
         await self.request_async(
             "DELETE",
             url=f"/orchestrator_/odata/Buckets({bucket.id})",
-            headers={**self.folder_headers},
+            headers={**header_folder(folder_key, folder_path)},
         )
 
     @resource_override(resource_type="bucket")
