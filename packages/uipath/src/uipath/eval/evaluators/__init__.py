@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from ._aggregators import AggregatorSpec, ClassificationAggregatorSpec
+
 # Current coded evaluators
 from .base_evaluator import (
     BaseEvaluationCriteria,
@@ -9,7 +11,6 @@ from .base_evaluator import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
-from ._aggregators import AggregatorSpec, ClassificationAggregatorSpec
 from .base_legacy_evaluator import BaseLegacyEvaluator
 from .binary_classification_evaluator import BinaryClassificationEvaluator
 

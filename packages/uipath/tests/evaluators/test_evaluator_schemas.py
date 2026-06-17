@@ -17,6 +17,7 @@ from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.exact_match_evaluator import (
     ExactMatchEvaluator,
     ExactMatchEvaluatorConfig,
+    ExactMatchJustification,
 )
 from uipath.eval.evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
@@ -234,7 +235,7 @@ class TestJustificationSchemas:
 
         # Test justification type extraction
         justification_type = ExactMatchEvaluator._extract_justification_type()
-        assert justification_type is BaseEvaluatorJustification
+        assert justification_type is ExactMatchJustification
 
     def test_json_similarity_evaluator_justification_schema(self) -> None:
         """Test JsonSimilarityEvaluator justification schema generation."""
@@ -529,7 +530,7 @@ class TestBaseEvaluatorFunctionality:
         exact_match_evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": config_dict, "id": str(uuid.uuid4())}
         )
-        assert exact_match_evaluator.justification_type is BaseEvaluatorJustification
+        assert exact_match_evaluator.justification_type is ExactMatchJustification
 
         # Test LLMJudgeJustification type evaluators
         llm_config_dict = {

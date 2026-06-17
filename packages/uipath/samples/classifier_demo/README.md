@@ -1,8 +1,8 @@
-# Classifier evaluator end-to-end demo
+# Classifier aggregator end-to-end demo
 
 A minimal intent-classification agent that exercises the new
-`ClassifierEvaluator` end-to-end. Use this as the test fixture for both
-SDK-only validation (Path A below) and Studio Web full-stack validation
+classification **aggregator** end-to-end. Use this as the test fixture for
+both SDK-only validation (Path A below) and Studio Web full-stack validation
 (Path B).
 
 ## What's here
@@ -17,21 +17,15 @@ classifier_demo/
     ├── eval-sets/
     │   └── main.json             # 9 datapoints, 3 per class, some intentionally wrong
     └── evaluators/
-        ├── intent_match.json     # per-datapoint ExactMatch on agent_output.intent
-        └── intent_classifier.json # the new uipath-classifier (pure metadata)
+        └── intent_match.json     # ExactMatch on agent_output.intent + classification aggregator
 ```
 
-The eval set is wired so that for every datapoint both evaluators run:
-- `intent_match` produces a 1.0/0.0 score with `{"expected": "...", "actual": "..."}` justification.
-- `intent_classifier` produces a sentinel 0.0 score with `{"classes": [...], "source_evaluator": "intent_match"}` justification.
-
-Downstream (the C# layer in Studio Web) reads both to compute precision /
-recall / F-score across the dataset.
-
-> Heads-up — every datapoint must have an entry for the classifier in
-> `evaluationCriterias` (even an empty `{}`). The runtime currently skips
-> evaluators that aren't keyed in `evaluationCriterias` for a datapoint, so
-> omitting them silently drops the classifier results.
+There is **one** evaluator. `intent_match` is an `ExactMatchEvaluator` whose
+`evaluatorConfig` carries an `aggregators: [{ name: "classification", classes: [...] }]`
+entry. Per datapoint, the evaluator emits a 1.0/0.0 score and an
+`ExactMatchJustification` whose `aggregators` field round-trips the config
+through to the downstream consumer (the C# layer in Studio Web), which builds
+a confusion matrix and precision / recall / F-score across the dataset.
 
 ## Path A — SDK only (real run, ~30 seconds)
 
@@ -43,9 +37,8 @@ cd samples/classifier_demo
 uv run --project ../.. uipath eval main main.json --no-report --output-file /tmp/out.json
 ```
 
-Expected: a results table with two columns (`intent_classifier`, `intent_match`).
-`intent_match` averages to 0.7 (6/9 correct). `intent_classifier` shows 0.0 per
-row by design — its real work is to ship the classes list to the backend.
+Expected: a results table with a single `intent_match` column averaging 0.667
+(6/9 correct).
 
 To see the metadata payload that lands in the backend's
 `CodedEvaluatorScore.Justification`:
@@ -59,19 +52,22 @@ for r in d['evaluationSetResults'][0]['evaluationRunResults']:
 "
 ```
 
-You should see something like:
+You should see entries like:
 
 ```
-intent_classifier  {'expected': '', 'actual': '', 'classes': ['book', 'cancel', 'reschedule'], 'source_evaluator': 'intent_match'}
-intent_match       {'expected': 'book', 'actual': 'book'}
+intent_match  {'expected': 'book', 'actual': 'book', 'aggregators': [{'name': 'classification', 'classes': ['book', 'cancel', 'reschedule']}]}
 ```
+
+The `aggregators` list is identical on every datapoint by design — it's the
+mechanism by which the per-datapoint records carry the class set to the C#
+post-pass without requiring a separate evaluator-snapshot lookup.
 
 ## Path B — Full Studio Web stack (real UI, click Run, see panel)
 
-Currently blocked on environment that I (the assistant who built this) didn't
-have available locally. The pieces:
+The pieces below assume you have a local KinD cluster running per
+`Agents/LOCAL_DEVELOPMENT.md`.
 
-### Prereqs (per `Agents/LOCAL_DEVELOPMENT.md`)
+### Prereqs
 - Docker installed and running
 - `make` available
 - Azure CLI authenticated session (`az login`)
@@ -83,8 +79,8 @@ have available locally. The pieces:
 ### Steps
 
 1. **Point python-eval-worker at the local SDK branch.** The published
-   `uipath` package on PyPI doesn't yet have `ClassifierEvaluator`. Edit
-   `Agents/python-eval-worker/pyproject.toml`:
+   `uipath` package on PyPI doesn't yet have the classification aggregator.
+   Edit `Agents/python-eval-worker/pyproject.toml`:
 
    ```toml
    [tool.uv.sources]
@@ -117,12 +113,13 @@ have available locally. The pieces:
 
 5. **Open Studio Web** (URL surfaced by the deploy output), create an agent
    project, upload the eval-set + evaluator JSONs from this directory (or
-   author them in the UI — the picker now shows a "Classifier" entry under
-   the AGGREGATION section), and click Run.
+   author them in the UI — the evaluator picker exposes an
+   "Aggregators" section on ExactMatch where the classification aggregator
+   can be attached with its class list), and click Run.
 
 6. **Verify** the Aggregations panel renders between the run header and the
    datapoint table, with the confusion matrix matching what Path A's Python
-   shim computes (macro F1 ≈ 0.667 on this fixture).
+   payload encodes (macro F1 ≈ 0.667 on this fixture).
 
 ### Open questions for the team owning local dev
 
@@ -134,6 +131,6 @@ have available locally. The pieces:
 
 | Repo | Branch | PR | What |
 |---|---|---|---|
-| uipath-python | `feat/eval-classifier-evaluator` | [#1674](https://github.com/UiPath/uipath-python/pull/1674) | SDK `ClassifierEvaluator` |
+| uipath-python | `feat/eval-classifier-evaluator` | [#1674](https://github.com/UiPath/uipath-python/pull/1674) | SDK `ExactMatch.aggregators` + `LegacyExactMatch.aggregators` |
 | Agents | `feat/eval-classifier-backend` | [#5313](https://github.com/UiPath/Agents/pull/5313) | C# math + activity + envelope storage |
 | Agents | `feat/eval-dataset-evaluators-ui` | [#5306](https://github.com/UiPath/Agents/pull/5306) | Frontend picker + Aggregations panel |

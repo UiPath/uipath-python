@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "id": "intent_match",
-  "description": "Per-datapoint ExactMatch on the agent's `intent` output. Produces expected/actual justification that the ClassifierEvaluator pipeline reads.",
+  "description": "Per-datapoint ExactMatch on the agent's `intent` output. The attached classification aggregator carries the class list to the downstream backend, which builds a confusion matrix and precision/recall/F-score across the dataset.",
   "evaluatorTypeId": "uipath-exact-match",
   "evaluatorConfig": {
     "name": "intent_match",
@@ -10,6 +10,12 @@
     "negated": false,
     "defaultEvaluationCriteria": {
       "expectedOutput": "book"
-    }
+    },
+    "aggregators": [
+      {
+        "name": "classification",
+        "classes": ["book", "cancel", "reschedule"]
+      }
+    ]
   }
 }

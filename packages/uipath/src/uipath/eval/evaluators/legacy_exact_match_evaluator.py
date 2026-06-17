@@ -1,7 +1,6 @@
 """Exact match evaluator for binary pass/fail evaluation of agent outputs."""
 
 import json
-from typing import Optional
 
 from pydantic import Field
 
@@ -35,7 +34,7 @@ class LegacyExactMatchEvaluator(
     # forwards this config into the per-datapoint justification so the downstream
     # C# post-pass can build a confusion matrix + P/R/F1 across the dataset.
     # Deserialized from the legacy evaluator JSON's top-level `aggregators` key.
-    aggregators: Optional[list[AggregatorSpec]] = Field(default=None, alias="aggregators")
+    aggregators: list[AggregatorSpec] | None = Field(default=None, alias="aggregators")
 
     async def evaluate(
         self,
@@ -89,7 +88,7 @@ class LegacyExactMatchEvaluator(
         # Legacy evaluators use a `str` justification (generic J = str). Emit a JSON
         # string directly — _serialize_justification passes strings through unchanged,
         # so this lands verbatim in EvalScore.Justification on the C# side.
-        details: Optional[str] = None
+        details: str | None = None
         if self.aggregators:
             details = json.dumps(
                 {

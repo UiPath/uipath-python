@@ -3,13 +3,12 @@
   "id": "classifier-demo-eval-set",
   "name": "Classifier demo eval set",
   "evaluatorRefs": [
-    "intent_match",
-    "intent_classifier"
+    "intent_match"
   ],
   "evaluations": [
     {
       "id": "book-1",
-      "name": "book \u2014 straightforward",
+      "name": "book — straightforward",
       "inputs": {
         "utterance": "I want to book a table for two"
       },
@@ -21,13 +20,12 @@
           "expectedOutput": {
             "intent": "book"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "book-2",
-      "name": "book \u2014 schedule keyword",
+      "name": "book — schedule keyword",
       "inputs": {
         "utterance": "Please schedule an appointment"
       },
@@ -39,13 +37,12 @@
           "expectedOutput": {
             "intent": "book"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "book-3",
-      "name": "book \u2014 agent misclassifies (utterance triggers cancel keyword)",
+      "name": "book — agent misclassifies (utterance triggers cancel keyword)",
       "inputs": {
         "utterance": "I had to cancel my last attempt but I want to reserve a slot now"
       },
@@ -57,13 +54,12 @@
           "expectedOutput": {
             "intent": "book"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "cancel-1",
-      "name": "cancel \u2014 straightforward",
+      "name": "cancel — straightforward",
       "inputs": {
         "utterance": "Please cancel my reservation"
       },
@@ -75,13 +71,12 @@
           "expectedOutput": {
             "intent": "cancel"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "cancel-2",
-      "name": "cancel \u2014 void synonym",
+      "name": "cancel — void synonym",
       "inputs": {
         "utterance": "I want to void the order"
       },
@@ -93,13 +88,12 @@
           "expectedOutput": {
             "intent": "cancel"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "cancel-3",
-      "name": "cancel \u2014 agent misclassifies (utterance has 'move' which triggers reschedule)",
+      "name": "cancel — agent misclassifies (utterance has 'move' which triggers reschedule)",
       "inputs": {
         "utterance": "I need to move past this and cancel everything"
       },
@@ -111,13 +105,12 @@
           "expectedOutput": {
             "intent": "cancel"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "reschedule-1",
-      "name": "reschedule \u2014 straightforward",
+      "name": "reschedule — straightforward",
       "inputs": {
         "utterance": "I want to reschedule the meeting"
       },
@@ -129,13 +122,12 @@
           "expectedOutput": {
             "intent": "reschedule"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "reschedule-2",
-      "name": "reschedule \u2014 move synonym",
+      "name": "reschedule — move synonym",
       "inputs": {
         "utterance": "Can we move the slot to tomorrow"
       },
@@ -147,13 +139,12 @@
           "expectedOutput": {
             "intent": "reschedule"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     },
     {
       "id": "reschedule-3",
-      "name": "reschedule \u2014 agent misclassifies (falls through to default 'book')",
+      "name": "reschedule — agent misclassifies (falls through to default 'book')",
       "inputs": {
         "utterance": "Different timing please"
       },
@@ -165,8 +156,7 @@
           "expectedOutput": {
             "intent": "reschedule"
           }
-        },
-        "intent_classifier": {}
+        }
       }
     }
   ]

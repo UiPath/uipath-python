@@ -1,7 +1,5 @@
 """Exact match evaluator for agent outputs."""
 
-from typing import Optional
-
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -30,7 +28,7 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
     name: str = "ExactMatchEvaluator"
     case_sensitive: bool = False
     negated: bool = False
-    aggregators: Optional[list[AggregatorSpec]] = None
+    aggregators: list[AggregatorSpec] | None = None
 
 
 class ExactMatchJustification(BaseEvaluatorJustification):
@@ -44,7 +42,7 @@ class ExactMatchJustification(BaseEvaluatorJustification):
     Omitted entirely when no aggregators are configured.
     """
 
-    aggregators: Optional[list[AggregatorSpec]] = None
+    aggregators: list[AggregatorSpec] | None = None
 
 
 class ExactMatchEvaluator(

@@ -22,7 +22,10 @@ from uipath.eval.evaluators.contains_evaluator import (
     ContainsEvaluationCriteria,
     ContainsEvaluator,
 )
-from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
+from uipath.eval.evaluators.exact_match_evaluator import (
+    ExactMatchEvaluator,
+    ExactMatchJustification,
+)
 from uipath.eval.evaluators.json_similarity_evaluator import (
     JsonSimilarityEvaluator,
     JsonSimilarityJustification,
@@ -1407,7 +1410,7 @@ class TestJustificationHandling:
     async def test_exact_match_evaluator_justification(
         self, sample_agent_execution: AgentExecution
     ) -> None:
-        """Test that ExactMatchEvaluator provides BaseEvaluatorJustification."""
+        """Test that ExactMatchEvaluator provides ExactMatchJustification."""
 
         config = {
             "name": "ExactMatchTest",
@@ -1422,7 +1425,7 @@ class TestJustificationHandling:
 
         assert isinstance(result, NumericEvaluationResult)
         assert result.score == 1.0
-        assert isinstance(result.details, BaseEvaluatorJustification)
+        assert isinstance(result.details, ExactMatchJustification)
         assert result.details.expected is not None
         assert result.details.actual is not None
 
@@ -1725,8 +1728,7 @@ class TestJustificationHandling:
 
         # Different evaluators have different justification types
         assert (
-            ExactMatchEvaluator._extract_justification_type()
-            is BaseEvaluatorJustification
+            ExactMatchEvaluator._extract_justification_type() is ExactMatchJustification
         )
         assert (
             JsonSimilarityEvaluator._extract_justification_type()
