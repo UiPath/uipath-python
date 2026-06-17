@@ -38,6 +38,86 @@ def _unsynthesized_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
     return attrs
 
 
+def _match_key(actual_name: str, actual_id: str | None, expected_key: str) -> bool:
+    """True when `expected_key` matches either the actual call's `id` or `name`.
+
+    Eval-set criteria can be authored against either the tool's stable id or
+    its display name; the scorers accept whichever the author used.
+    """
+    if actual_id is not None and expected_key == actual_id:
+        return True
+    return expected_key == actual_name
+
+
+def _calls_match(actual, expected) -> bool:
+    """True when an actual ToolCall/ToolOutput matches an expected one.
+
+    Prefers id-equality when both sides carry an id; otherwise falls back to
+    name-equality. This keeps the legacy name-keyed behavior intact while
+    making id-keyed eval-sets rename-safe.
+    """
+    if actual.id is not None and expected.id is not None:
+        return actual.id == expected.id
+    return actual.name == expected.name
+
+
+def _parse_tool_args(input_value: Any) -> dict[str, Any]:
+    """Coerce a span's `input.value` into a dict of tool args.
+
+    Tries JSON first (handles `true`/`false`/`null` and double-quoted keys),
+    falls back to `ast.literal_eval` for Python literal syntax (single-quoted
+    dict repr). Returns `{}` for non-dict parsed values or any parse failure.
+    """
+    if isinstance(input_value, dict):
+        return input_value
+    if not isinstance(input_value, str):
+        return {}
+    try:
+        try:
+            parsed = json.loads(input_value)
+        except ValueError:  # JSONDecodeError is a ValueError
+            parsed = ast.literal_eval(input_value)
+    except (SyntaxError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _tool_id_from(attrs: Mapping[str, Any]) -> str | None:
+    """Return the span's `tool.id` as a string when present, else None.
+
+    Uses `is not None` (not truthiness) so an id of 0 or '' isn't dropped.
+    """
+    tool_id = attrs.get("tool.id")
+    return str(tool_id) if tool_id is not None else None
+
+
+def _build_tool_call(span: ReadableSpan, include_args: bool) -> ToolCall | None:
+    """Build a ToolCall from a span, or None for synthesized / non-tool spans."""
+    attrs = _unsynthesized_tool_attrs(span)
+    if attrs is None:
+        return None
+    tool_name = str(attrs[TOOL_NAME_ATTR])
+    tool_id = _tool_id_from(attrs)
+    args = _parse_tool_args(attrs.get("input.value", {})) if include_args else {}
+    return ToolCall(name=tool_name, args=args, id=tool_id)
+
+
+def count_tool_calls_by_name_and_id(tool_calls: Sequence[ToolCall]) -> dict[str, int]:
+    """Count tool calls under BOTH their name and id keys.
+
+    Each call contributes one unit to its name bucket and (when present and
+    different) one unit to its id bucket. Lookups by either return the same
+    count for that tool. This lets `tool_calls_count_score` honour eval-set
+    criteria keyed by id with no signature change to the score function.
+    """
+    counts: dict[str, int] = {}
+    for c in tool_calls:
+        counts[c.name] = counts.get(c.name, 0) + 1
+        if c.id is not None and c.id != c.name:
+            counts[c.id] = counts.get(c.id, 0) + 1
+    return counts
+
+
 def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     """Extract the tool call names from execution spans IN ORDER.
 
@@ -56,33 +136,23 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     return tool_calls_names
 
 
-def extract_tool_calls(spans: Sequence[ReadableSpan]) -> list[ToolCall]:
-    """Extract the tool calls from execution spans with their arguments.
+def extract_tool_calls(
+    spans: Sequence[ReadableSpan],
+    include_args: bool = True,
+) -> list[ToolCall]:
+    """Extract the tool calls from execution spans.
 
     Args:
         spans: List of ReadableSpan objects from agent execution.
+        include_args: When False, skip parsing `input.value` and return
+            ToolCall objects with `args={}`. Use for evaluators that only
+            need name/id (count, order) — avoids a parse per span on large
+            traces.
 
     Returns:
-        Dict of tool calls with their arguments.
+        List of tool calls with their arguments.
     """
-    tool_calls = []
-
-    for span in spans:
-        if (attrs := _unsynthesized_tool_attrs(span)) is not None:
-            tool_name = str(attrs[TOOL_NAME_ATTR])
-            try:
-                input_value: Any = attrs.get("input.value", {})
-                if isinstance(input_value, str):
-                    arguments = ast.literal_eval(input_value)
-                elif isinstance(input_value, dict):
-                    arguments = input_value
-                else:
-                    arguments = {}
-                tool_calls.append(ToolCall(name=tool_name, args=arguments))
-            except (json.JSONDecodeError, SyntaxError, ValueError):
-                tool_calls.append(ToolCall(name=tool_name, args={}))
-
-    return tool_calls
+    return [c for s in spans if (c := _build_tool_call(s, include_args)) is not None]
 
 
 def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput]:
@@ -101,6 +171,7 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     for span in spans:
         if (attrs := _unsynthesized_tool_attrs(span)) is not None:
             tool_name = str(attrs[TOOL_NAME_ATTR])
+            tool_id = _tool_id_from(attrs)
             output = attrs.get("output.value", "")
             final_output = ""
 
@@ -131,8 +202,9 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
 
             tool_calls_outputs.append(
                 ToolOutput(
-                    name=str(tool_name),
+                    name=tool_name,
                     output=str(final_output) if final_output else "",
+                    id=tool_id,
                 )
             )
     return tool_calls_outputs
@@ -207,6 +279,105 @@ def tool_calls_order_score(
     lcs_length = len(lcs)
     justification["lcs"] = lcs
     return lcs_length / n, justification
+
+
+def _strict_order_score(
+    actual: Sequence[ToolCall],
+    expected: Sequence[str],
+    justification: dict[str, Any],
+) -> tuple[float, dict[str, Any]]:
+    """Strict-mode evaluation — only an exact positional match scores 1.0."""
+    if len(actual) != len(expected):
+        return 0.0, justification
+    for i, key in enumerate(expected):
+        if not _match_key(actual[i].name, actual[i].id, key):
+            return 0.0, justification
+    justification["lcs"] = list(expected)
+    return 1.0, justification
+
+
+def _build_lcs_dp(
+    actual: Sequence[ToolCall], expected: Sequence[str]
+) -> list[list[int]]:
+    """Fill the LCS dynamic-programming table for id-aware matching."""
+    m, n = len(actual), len(expected)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if _match_key(actual[i - 1].name, actual[i - 1].id, expected[j - 1]):
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    return dp
+
+
+def _reconstruct_lcs(
+    actual: Sequence[ToolCall],
+    expected: Sequence[str],
+    dp: list[list[int]],
+) -> list[str]:
+    """Walk the DP table backwards to recover the LCS as a list of expected keys."""
+    lcs: list[str] = []
+    i, j = len(actual), len(expected)
+    while i > 0 and j > 0:
+        if _match_key(actual[i - 1].name, actual[i - 1].id, expected[j - 1]):
+            lcs.append(expected[j - 1])
+            i -= 1
+            j -= 1
+        elif dp[i - 1][j] > dp[i][j - 1]:
+            i -= 1
+        else:
+            j -= 1
+    lcs.reverse()
+    return lcs
+
+
+def tool_calls_order_score_with_ids(
+    actual_tool_calls: Sequence[ToolCall],
+    expected_tool_calls_keys: Sequence[str],
+    strict: bool = False,
+) -> tuple[float, dict[str, Any]]:
+    """LCS-based ordering score with id-aware matching.
+
+    Identical scoring algorithm to `tool_calls_order_score`, but each expected
+    key string is allowed to match either the actual call's `id` or its
+    `name`. Use this when eval-set criteria may be authored against the
+    stable tool id so renames of `name` don't silently break ordering checks.
+
+    Args:
+        actual_tool_calls: ToolCall objects in the actual order. Each may carry
+            an `id` from the runtime's `tool.id` span attribute.
+        expected_tool_calls_keys: List of names OR ids in the expected order.
+        strict: When True, only perfect matches score above 0.
+
+    Returns:
+        Same shape as `tool_calls_order_score`. The "actual" justification
+        renders the resolved match-key sequence (id when available, else name)
+        so the LCS reconstruction reads clearly.
+    """
+    actual_keys: list[str] = [
+        (c.id if c.id is not None else c.name) for c in actual_tool_calls
+    ]
+    justification: dict[str, Any] = {
+        "actual": str(list(actual_keys)),
+        "expected": str(list(expected_tool_calls_keys)),
+        "lcs": [],
+    }
+
+    if not expected_tool_calls_keys and not actual_tool_calls:
+        return 1.0, justification
+    if not expected_tool_calls_keys or not actual_tool_calls:
+        return 0.0, justification
+
+    if strict:
+        return _strict_order_score(
+            actual_tool_calls, expected_tool_calls_keys, justification
+        )
+
+    dp = _build_lcs_dp(actual_tool_calls, expected_tool_calls_keys)
+    lcs = _reconstruct_lcs(actual_tool_calls, expected_tool_calls_keys, dp)
+    justification["lcs"] = lcs
+    return len(lcs) / len(expected_tool_calls_keys), justification
 
 
 def tool_calls_count_score(
@@ -323,7 +494,7 @@ def tool_calls_args_score(
 
     for expected_tool_call in expected_tool_calls:
         for idx, call in enumerate(actual_tool_calls):
-            if call.name == expected_tool_call.name and idx not in visited:
+            if _calls_match(call, expected_tool_call) and idx not in visited:
                 # Get or initialize counter for this tool name
                 tool_counters[call.name] = tool_counters.get(call.name, 0)
                 tool_key = f"{call.name}_{tool_counters[call.name]}"
@@ -415,7 +586,7 @@ def tool_calls_output_score(
         for idx, actual_tool_call_output in enumerate(actual_tool_calls_outputs):
             if idx in visited:
                 continue
-            if actual_tool_call_output.name == expected_tool_call_output.name:
+            if _calls_match(actual_tool_call_output, expected_tool_call_output):
                 # Get or initialize counter for this tool name
                 tool_counters[actual_tool_call_output.name] = tool_counters.get(
                     actual_tool_call_output.name, 0
