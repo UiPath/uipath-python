@@ -51,12 +51,16 @@ from uipath.agent.models.agent import (
     BatchTransformFileExtension,
     BatchTransformWebSearchGrounding,
     CitationMode,
+    CustomAssigneesRecipient,
     DeepRagFileExtension,
+    RoundRobinRecipient,
     StandardRecipient,
     TaskTitleType,
     TextBuilderTaskTitle,
     TextToken,
     TextTokenType,
+    ToolOutputRecipient,
+    WorkloadRecipient,
 )
 from uipath.platform.guardrails import (
     EnumListParameterValue,
@@ -4368,3 +4372,184 @@ class TestArgumentRecipientDeserialization:
         assert tool.output_schema["type"] == "object"
         assert "imageBase64" in tool.output_schema["properties"]
         assert tool.output_schema["required"] == ["imageBase64"]
+
+
+class TestCustomAssignmentRecipientDeserialization:
+    def test_workload_recipient_by_type_int(self):
+        payload = {"type": 9, "value": "group-1", "displayName": "Support Team"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, WorkloadRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+        assert recipient.type == AgentEscalationRecipientType.WORKLOAD
+
+    def test_workload_recipient_by_type_string(self):
+        payload = {
+            "type": "Workload",
+            "value": "group-1",
+            "displayName": "Support Team",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, WorkloadRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+
+    def test_round_robin_recipient_by_type_int(self):
+        payload = {"type": 10, "value": "group-1", "displayName": "Support Team"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, RoundRobinRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+        assert recipient.type == AgentEscalationRecipientType.ROUND_ROBIN
+
+    def test_round_robin_recipient_by_type_string(self):
+        payload = {
+            "type": "RoundRobin",
+            "value": "group-1",
+            "displayName": "Support Team",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, RoundRobinRecipient)
+
+    def test_custom_assignees_recipient_by_type_int(self):
+        payload = {
+            "type": 11,
+            "value": "alice@example.com",
+            "displayName": "Alice",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == "alice@example.com"
+        assert recipient.display_name == "Alice"
+        assert recipient.type == AgentEscalationRecipientType.CUSTOM_ASSIGNEES
+
+    def test_custom_assignees_recipient_by_type_string(self):
+        payload = {"type": "CustomAssignees", "value": "alice@example.com"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == "alice@example.com"
+        assert recipient.display_name is None
+
+    def test_custom_assignees_recipient_accepts_empty_value_sentinel(self):
+        payload = {"type": 11, "value": ""}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == ""
+
+    def test_workload_recipient_missing_value_raises(self):
+        payload = {"type": 9, "displayName": "Support Team"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_workload_recipient_missing_display_name_raises(self):
+        payload = {"type": 9, "value": "group-1"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_round_robin_recipient_missing_value_raises(self):
+        payload = {"type": 10, "displayName": "Support Team"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_custom_assignees_recipient_missing_value_raises(self):
+        payload = {"type": 11}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+
+class TestToolOutputRecipientDeserialization:
+    @pytest.mark.parametrize(
+        "recipient_type",
+        [1, 2, 9, 10, 11],
+    )
+    def test_tool_output_recipient_by_type_int_for_supported_types(
+        self, recipient_type
+    ):
+        payload = {
+            "type": recipient_type,
+            "source": "toolOutput",
+            "toolName": "API workflow A",
+            "outputPath": "includeEmails",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ToolOutputRecipient)
+        assert recipient.tool_name == "API workflow A"
+        assert recipient.output_path == "includeEmails"
+        assert recipient.source == "toolOutput"
+
+    def test_tool_output_recipient_for_custom_assignees_by_type_string(self):
+        payload = {
+            "type": "CustomAssignees",
+            "source": "toolOutput",
+            "toolName": "API workflow A",
+            "outputPath": "includeEmails",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ToolOutputRecipient)
+        assert recipient.type == AgentEscalationRecipientType.CUSTOM_ASSIGNEES
+
+    def test_tool_output_recipient_missing_tool_name_raises(self):
+        payload = {"type": 11, "source": "toolOutput", "outputPath": "emails"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_tool_output_recipient_missing_output_path_raises(self):
+        payload = {"type": 11, "source": "toolOutput", "toolName": "A"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_tool_output_recipient_unknown_source_raises(self):
+        payload = {
+            "type": 11,
+            "source": "magicBox",
+            "toolName": "A",
+            "outputPath": "emails",
+        }
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    @pytest.mark.parametrize(
+        "recipient_type",
+        [3, 4, 5, 6, 7, 8],
+    )
+    def test_tool_output_recipient_not_allowed_for_static_asset_argument_types(
+        self, recipient_type
+    ):
+        # Static/asset/argument types (3, 4, 5, 6, 7, 8) are not supported
+        # for tool-output binding because they have their own design-time
+        # resolution rules.
+        payload = {
+            "type": recipient_type,
+            "source": "toolOutput",
+            "toolName": "A",
+            "outputPath": "emails",
+        }
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_literal_recipient_without_source_still_parses_to_literal_class(self):
+        # Backward compat: a payload without `source` still matches the literal class.
+        payload = {"type": 11, "value": "alice@example.com", "displayName": "Alice"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert not isinstance(recipient, ToolOutputRecipient)

@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import http.server
 import json
 import os
@@ -8,15 +9,6 @@ import time
 
 # Server port
 PORT = 6234
-
-
-# Custom exception for token received
-class TokenReceivedSignal(Exception):
-    """Exception raised when a token is successfully received."""
-
-    def __init__(self, token_data):
-        self.token_data = token_data
-        super().__init__("Token received successfully")
 
 
 def make_request_handler_class(
@@ -29,12 +21,60 @@ def make_request_handler_class(
             # do nothing
             pass
 
-        def do_POST(self):
-            """Handle POST requests to /set_token."""
-            if self.path == "/set_token":
+        def _is_host_allowed(self) -> bool:
+            """Reject requests whose Host header is not loopback.
+
+            Defends against DNS rebinding since the legitimate flow
+            always lands on localhost.
+            """
+            host = self.headers.get("Host", "")
+            hostname = host.rsplit(":", 1)[0]
+            return hostname in ("localhost", "127.0.0.1")
+
+        def _handle_host_error(self) -> bool:
+            """Return True if a host error was identified and handled (403)."""
+            if not self._is_host_allowed():
+                self.send_error(403, "Invalid host")
+                return True
+            return False
+
+        def _state_is_valid(self) -> bool:
+            """Validate the OAuth state supplied."""
+            received = self.headers.get("X-Auth-State", "")
+            return hmac.compare_digest(received, state)
+
+        def _handle_state_error(self) -> bool:
+            """Return True if a state error was identified and handled (403)."""
+            if not self._state_is_valid():
+                self.send_error(403, "Invalid or missing state")
+                return True
+            return False
+
+        def _read_json_body(self):
+            """Read and parse the JSON request body.
+
+            Returns the decoded object, or None if the
+            expected headers are missing or body is malformed.
+            """
+            try:
                 content_length = int(self.headers["Content-Length"])
                 post_data = self.rfile.read(content_length)
-                token_data = json.loads(post_data.decode("utf-8"))
+                return json.loads(post_data.decode("utf-8"))
+            except (KeyError, TypeError, ValueError):
+                self.send_error(400, "Invalid request")
+                return None
+
+        def do_POST(self):
+            """Handle POST requests to /set_token."""
+            if self._handle_host_error():
+                return
+            if self.path == "/set_token":
+                if self._handle_state_error():
+                    return
+
+                token_data = self._read_json_body()
+                if token_data is None:
+                    return
 
                 self.send_response(200)
                 self.end_headers()
@@ -44,9 +84,13 @@ def make_request_handler_class(
 
                 token_callback(token_data)
             elif self.path == "/log":
-                content_length = int(self.headers["Content-Length"])
-                post_data = self.rfile.read(content_length)
-                logs = json.loads(post_data.decode("utf-8"))
+                if self._handle_state_error():
+                    return
+
+                logs = self._read_json_body()
+                if logs is None:
+                    return
+
                 # Write logs to .uipath/.error_log file
                 uipath_dir = os.path.join(os.getcwd(), ".uipath")
                 os.makedirs(uipath_dir, exist_ok=True)
@@ -66,6 +110,8 @@ def make_request_handler_class(
 
         def do_GET(self):
             """Handle GET requests by serving index.html."""
+            if self._handle_host_error():
+                return
             # Always serve index.html regardless of the path
             try:
                 index_path = os.path.join(os.path.dirname(__file__), "index.html")
@@ -85,16 +131,6 @@ def make_request_handler_class(
                 self.wfile.write(content.encode("utf-8"))
             except FileNotFoundError:
                 self.send_error(404, "File not found")
-
-        def end_headers(self):
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
-            super().end_headers()
-
-        def do_OPTIONS(self):
-            self.send_response(200)
-            self.end_headers()
 
     return SimpleHTTPSRequestHandler
 
@@ -149,7 +185,7 @@ class HTTPServer:
             self.redirect_uri,
             self.client_id,
         )
-        self.httpd = socketserver.TCPServer(("", self.port), handler)
+        self.httpd = socketserver.TCPServer(("127.0.0.1", self.port), handler)
         return self.httpd
 
     def _run_server(self):

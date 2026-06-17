@@ -64,10 +64,17 @@ jobs:
           repository: 'UiPath/uipath-runtime-python'
           path: 'uipath-runtime-python'
 
-      - name: Update uipath-core version
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-runtime-python
-        run: uv add ../wheels/*.whl --dev
+        run: |
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Run uipath-runtime tests
         working-directory: uipath-runtime-python

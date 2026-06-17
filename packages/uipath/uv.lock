@@ -2552,7 +2552,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.10.82"
+version = "2.11.5"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2659,7 +2659,7 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.18"
+version = "0.5.19"
 source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.64"
+version = "0.1.70"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },

@@ -18,12 +18,13 @@ from .exceptions import (
     GovernanceViolation,
     Severity,
 )
-from .models import Action, AuditRecord, LifecycleHook, RuleEvaluation
+from .models import Action, AuditRecord, EnforcementMode, LifecycleHook, RuleEvaluation
 
 __all__ = [
     # Output models (cross adapter boundary)
     "Action",
     "AuditRecord",
+    "EnforcementMode",
     "LifecycleHook",
     "RuleEvaluation",
     # Config
