@@ -122,6 +122,7 @@ class TestBaggageHeader:
             "UIPATH_FOLDER_KEY": "folder-abc",
             ENV_PROJECT_KEY: "agent-123",
             "UIPATH_PROCESS_UUID": "process-789",
+            "UIPATH_JOB_KEY": "job-456",
         }
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()
@@ -130,6 +131,7 @@ class TestBaggageHeader:
         assert "folderKey=folder-abc" in baggage
         assert "agentId=agent-123" in baggage
         assert "processKey=process-789" in baggage
+        assert "jobKey=job-456" in baggage
 
     def test_partial_env_vars(self) -> None:
         env = {"UIPATH_FOLDER_KEY": "folder-only"}
