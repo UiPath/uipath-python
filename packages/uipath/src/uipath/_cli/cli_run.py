@@ -267,8 +267,7 @@ def run(
                                         context=ctx
                                     )
                                     chat_runtime = UiPathChatRuntime(
-                                        delegate=runtime,
-                                        chat_bridge=chat_bridge
+                                        delegate=runtime, chat_bridge=chat_bridge
                                     )
 
                                 ctx.result = await execute_runtime(
