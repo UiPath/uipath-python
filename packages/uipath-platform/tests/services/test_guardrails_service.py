@@ -395,8 +395,28 @@ class TestGuardrailsService:
         def test_empty_string(self) -> None:
             assert GuardrailsService._extract_span_id_from_traceparent("") is None
 
+        def test_valid_traceparent_4_part_with_trace_flags(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_uppercase_hex_normalized_to_lowercase(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-ABCDEF1234567890ABCDEF1234567890-1234567890ABCDEF"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_invalid_span_id_length_rejected(self) -> None:
+            """Span IDs that are neither 16 nor 32 hex chars are rejected."""
+            assert (
+                GuardrailsService._extract_span_id_from_traceparent(
+                    "00-abcdef1234567890abcdef1234567890-1234abcd"
+                )
+                is None
+            )
+
         def test_invalid_format(self) -> None:
             assert (
-                GuardrailsService._extract_span_id_from_traceparent("not-valid")
-                is None
+                GuardrailsService._extract_span_id_from_traceparent("not-valid") is None
             )
