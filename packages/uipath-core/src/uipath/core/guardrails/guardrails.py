@@ -1,7 +1,7 @@
 """Guardrails models for UiPath Platform."""
 
 from enum import Enum
-from typing import Annotated, Any, Callable, Literal
+from typing import Annotated, Any, Callable, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -39,6 +39,11 @@ class GuardrailValidationResult(BaseModel):
     )
     reason: str = Field(
         alias="reason", description="Explanation for the validation result."
+    )
+    span_id: Optional[str] = Field(
+        default=None,
+        alias="spanId",
+        description="Span ID returned by the guardrail service for trace correlation.",
     )
 
 
