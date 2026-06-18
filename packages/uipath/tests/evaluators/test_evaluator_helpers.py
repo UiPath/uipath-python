@@ -1114,3 +1114,89 @@ class TestIdAwareMatching:
         ]
         score, _ = tool_calls_order_score_with_ids(actual, ["get_temp", "get_humidity"])
         assert score == 1.0
+
+
+class TestSanitizedNameMatch:
+    """Sanitised-name fallback in ``_match_key`` and ``_calls_match``.
+
+    The display name the editor persists (``"Web Search"``) must match the
+    sanitised name the LangChain runtime emits as ``tool.name``
+    (``"Web_Search"``). Both sides are normalised through the same regex.
+    """
+
+    def _reference_sanitize(self, name: str) -> str:
+        """Pinned copy of ``uipath_langchain.agent.tools.utils.sanitize_tool_name``.
+
+        Kept here intentionally rather than imported live — ``uipath_langchain``
+        is not a dep of ``uipath`` (wrong direction). If the LangChain
+        sanitiser changes upstream, this copy must be updated together with
+        ``_normalize_tool_name`` in ``evaluators_helpers``.
+        """
+        import re
+
+        trim_whitespaces = "_".join(name.split())
+        sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", trim_whitespaces)
+        return sanitized[:64]
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "Web Search",
+            "Google Sheets / Read",
+            "Add Numbers",
+            "tool with spaces and (parens)",
+            "snake_case_tool",
+            "kebab-case-tool",
+            "alreadySanitised",
+            "  multiple   whitespace  ",
+            "very-long-name-" + "x" * 100,
+            "",
+        ],
+    )
+    def test_normalize_matches_langchain_reference(self, raw: str) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _normalize_tool_name
+
+        assert _normalize_tool_name(raw) == self._reference_sanitize(raw)
+
+    def test_normalize_handles_none(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _normalize_tool_name
+
+        assert _normalize_tool_name(None) == ""
+
+    def test_match_key_display_name_vs_sanitised_actual(self) -> None:
+        """Editor saved ``"Web Search"``; runtime emitted ``"Web_Search"``."""
+        from uipath.eval._helpers.evaluators_helpers import _match_key
+
+        assert _match_key("Web_Search", None, "Web Search") is True
+
+    def test_match_key_id_still_wins_when_present(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _match_key
+
+        assert _match_key("Web_Search", "uuid-1", "uuid-1") is True
+        assert _match_key("Web_Search", "uuid-1", "Web Search") is True
+
+    def test_match_key_mismatch_after_sanitising(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _match_key
+
+        assert _match_key("Web_Search", None, "Image_Search") is False
+
+    def test_calls_match_display_vs_sanitised(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _calls_match
+
+        actual = ToolCall(name="Web_Search", args={})
+        expected = ToolCall(name="Web Search", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_id_equality_unchanged(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _calls_match
+
+        actual = ToolCall(name="Web_Search", id="uuid-1", args={})
+        expected = ToolCall(name="totally different", id="uuid-1", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_output_display_vs_sanitised(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _calls_match
+
+        actual = ToolOutput(name="Web_Search", output="x")
+        expected = ToolOutput(name="Web Search", output="x")
+        assert _calls_match(actual, expected) is True

@@ -1,5 +1,6 @@
 import ast
 import json
+import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
@@ -12,6 +13,18 @@ from ..models import (
 )
 
 TOOL_NAME_ATTR = "tool.name"
+
+# Mirrors uipath_langchain.agent.tools.utils.sanitize_tool_name. Kept in sync
+# by TestSanitizedNameMatch in tests/evaluators/test_evaluator_helpers.py.
+_TOOL_NAME_DISALLOWED = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+def _normalize_tool_name(name: str | None) -> str:
+    """Sanitise a tool name the same way the LangChain runtime does."""
+    if not name:
+        return ""
+    return _TOOL_NAME_DISALLOWED.sub("", "_".join(name.split()))[:64]
+
 
 COMPARATOR_MAPPINGS = {
     ">": "gt",
@@ -42,23 +55,27 @@ def _match_key(actual_name: str, actual_id: str | None, expected_key: str) -> bo
     """True when `expected_key` matches either the actual call's `id` or `name`.
 
     Eval-set criteria can be authored against either the tool's stable id or
-    its display name; the scorers accept whichever the author used.
+    its display name; the scorers accept whichever the author used. Name
+    comparison normalises both sides through the LangChain sanitiser so the
+    display name persisted by the editor (``"Web Search"``) matches the
+    sanitised name emitted by the runtime (``"Web_Search"``).
     """
     if actual_id is not None and expected_key == actual_id:
         return True
-    return expected_key == actual_name
+    return _normalize_tool_name(expected_key) == _normalize_tool_name(actual_name)
 
 
 def _calls_match(actual, expected) -> bool:
     """True when an actual ToolCall/ToolOutput matches an expected one.
 
     Prefers id-equality when both sides carry an id; otherwise falls back to
-    name-equality. This keeps the legacy name-keyed behavior intact while
-    making id-keyed eval-sets rename-safe.
+    sanitised-name equality. This keeps the legacy name-keyed behavior intact
+    while closing the display-vs-sanitised mismatch, and makes id-keyed
+    eval-sets rename-safe.
     """
     if actual.id is not None and expected.id is not None:
         return actual.id == expected.id
-    return actual.name == expected.name
+    return _normalize_tool_name(actual.name) == _normalize_tool_name(expected.name)
 
 
 def _parse_tool_args(input_value: Any) -> dict[str, Any]:
