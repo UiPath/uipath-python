@@ -1200,3 +1200,36 @@ class TestSanitizedNameMatch:
         actual = ToolOutput(name="Web_Search", output="x")
         expected = ToolOutput(name="Web Search", output="x")
         assert _calls_match(actual, expected) is True
+
+    def test_count_score_display_name_matches_sanitised_actual(self) -> None:
+        """Count scorer must close the same display-vs-sanitised gap.
+
+        ``tool_calls_count_score`` does raw dict lookup, not ``_match_key``,
+        so it needs its own sanitisation fallback. Without it, an editor
+        criterion keyed by ``"Web Search"`` misses the actual counts keyed by
+        ``"Web_Search"`` and scores 0.
+        """
+        actual = {"Web_Search": 2}
+        expected = {"Web Search": ("==", 2)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0
+
+    def test_count_score_id_keyed_expected_still_wins(self) -> None:
+        """When the editor saves an id-keyed criterion, raw lookup hits first."""
+        actual = {"Web_Search": 1, "uuid-web-1": 1}
+        expected = {"uuid-web-1": (">=", 1)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0
+
+    def test_count_score_strict_mode_passes_on_display_name(self) -> None:
+        actual = {"Web_Search": 1}
+        expected = {"Web Search": ("==", 1)}
+        score, _ = tool_calls_count_score(actual, expected, strict=True)
+        assert score == 1.0
+
+    def test_count_score_strict_mode_fails_on_count_mismatch(self) -> None:
+        """Sanitisation closes name gap but a wrong count still fails strict."""
+        actual = {"Web_Search": 1}
+        expected = {"Web Search": ("==", 3)}
+        score, _ = tool_calls_count_score(actual, expected, strict=True)
+        assert score == 0.0

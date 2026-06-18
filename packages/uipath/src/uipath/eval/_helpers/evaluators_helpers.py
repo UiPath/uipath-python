@@ -441,7 +441,14 @@ def tool_calls_count_score(
         expected_comparator,
         expected_count,
     ) in expected_tool_calls_count.items():
-        actual_count = actual_tool_calls_count.get(tool_name, 0.0)
+        # Expected dict keys come from the editor (display name like "Web Search");
+        # actual dict keys come from the runtime span (sanitised "Web_Search").
+        # Try the raw key first (covers id-keyed and already-sanitised criteria),
+        # fall back to the sanitised form so display names still match.
+        actual_count = actual_tool_calls_count.get(
+            tool_name,
+            actual_tool_calls_count.get(_normalize_tool_name(tool_name), 0.0),
+        )
         comparator = f"__{COMPARATOR_MAPPINGS[expected_comparator]}__"
         to_add = float(getattr(actual_count, comparator)(expected_count))
 
