@@ -282,6 +282,45 @@ class TestToolCallsArgsScore:
         # In strict mode, partial match should still score proportionally unless all match
         assert score == 0.0  # strict mode requires all to match
 
+    def test_empty_expected_args_against_non_empty_actual_fails(self) -> None:
+        """Empty expected.args with non-empty actual.args must score 0, not vacuously pass.
+
+        Regression for the ``all([]) is True`` trap: the per-key generator
+        iterates zero times when expected.args is empty, so without an
+        explicit guard the result vacuously matches any actual call.
+        """
+        actual = [
+            ToolCall(name="tool1", args={"provider": "GCS", "query": "Q"}),
+        ]
+        expected = [ToolCall(name="tool1", args={})]
+        score, justification = tool_calls_args_score(
+            actual, expected, strict=False, subset=False
+        )
+
+        assert score == 0.0
+        assert "Score: 0.0" in justification["explained_tool_calls_args"]["tool1_0"]
+
+    def test_empty_expected_args_against_non_empty_actual_fails_subset_mode(
+        self,
+    ) -> None:
+        """Same guard applies in subset mode — empty expected ≠ ``anything goes``."""
+        actual = [ToolCall(name="tool1", args={"a": 1, "b": 2})]
+        expected = [ToolCall(name="tool1", args={})]
+        score, _ = tool_calls_args_score(actual, expected, strict=False, subset=True)
+
+        assert score == 0.0
+
+    def test_empty_expected_args_against_empty_actual_passes(self) -> None:
+        """Both args empty is a legitimate match — confirms the new guard is targeted."""
+        actual = [ToolCall(name="tool1", args={})]
+        expected = [ToolCall(name="tool1", args={})]
+        score, justification = tool_calls_args_score(
+            actual, expected, strict=False, subset=False
+        )
+
+        assert score == 1.0
+        assert "Score: 1.0" in justification["explained_tool_calls_args"]["tool1_0"]
+
 
 class TestToolCallsOutputScore:
     """Test tool_calls_output_score helper function."""

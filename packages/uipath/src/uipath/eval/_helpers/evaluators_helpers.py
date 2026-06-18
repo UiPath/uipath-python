@@ -500,25 +500,33 @@ def tool_calls_args_score(
                 tool_key = f"{call.name}_{tool_counters[call.name]}"
                 tool_counters[call.name] += 1
 
-                # Check arguments based on mode
-                if subset:
-                    # Subset mode: safely check if all expected args exist and match
-                    # Capture 'call' as a default argument to bind the loop variable
-                    args_check = (  # noqa: E731
-                        lambda k, v, call=call: k in call.args and call.args[k] == v
-                    )
-                else:
-                    # Exact mode: direct access (may raise KeyError)
-                    # Capture 'call' as a default argument to bind the loop variable
-                    args_check = lambda k, v, call=call: call.args[k] == v  # noqa: E731
-
-                try:
-                    args_match = all(
-                        args_check(k, v) for k, v in expected_tool_call.args.items()
-                    )
-                except KeyError:
-                    # Only possible in exact mode when key is missing
+                # Empty expected.args with non-empty actual.args is a mismatch.
+                # Without this guard the generator below iterates zero times
+                # and `all([])` returns True, vacuously passing any actual
+                # call — masking the common authoring case of an evaluator
+                # whose expected.args was never filled in.
+                if not expected_tool_call.args and call.args:
                     args_match = False
+                else:
+                    # Check arguments based on mode
+                    if subset:
+                        # Subset mode: safely check if all expected args exist and match
+                        # Capture 'call' as a default argument to bind the loop variable
+                        args_check = (  # noqa: E731
+                            lambda k, v, call=call: k in call.args and call.args[k] == v
+                        )
+                    else:
+                        # Exact mode: direct access (may raise KeyError)
+                        # Capture 'call' as a default argument to bind the loop variable
+                        args_check = lambda k, v, call=call: call.args[k] == v  # noqa: E731
+
+                    try:
+                        args_match = all(
+                            args_check(k, v) for k, v in expected_tool_call.args.items()
+                        )
+                    except KeyError:
+                        # Only possible in exact mode when key is missing
+                        args_match = False
 
                 justifications[justification_key][tool_key] = (
                     f"Actual: {call.args}, Expected: {expected_tool_call.args}, Score: {float(args_match)}"
