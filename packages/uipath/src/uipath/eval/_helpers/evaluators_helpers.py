@@ -19,7 +19,7 @@ TOOL_NAME_ATTR = "tool.name"
 _TOOL_NAME_DISALLOWED = re.compile(r"[^a-zA-Z0-9_-]")
 
 
-def _normalize_tool_name(name: str | None) -> str:
+def _sanitize_tool_name(name: str | None) -> str:
     """Sanitise a tool name the same way the LangChain runtime does."""
     if not name:
         return ""
@@ -62,7 +62,7 @@ def _match_key(actual_name: str, actual_id: str | None, expected_key: str) -> bo
     """
     if actual_id is not None and expected_key == actual_id:
         return True
-    return _normalize_tool_name(expected_key) == _normalize_tool_name(actual_name)
+    return _sanitize_tool_name(expected_key) == _sanitize_tool_name(actual_name)
 
 
 def _calls_match(actual, expected) -> bool:
@@ -74,7 +74,7 @@ def _calls_match(actual, expected) -> bool:
     """
     if actual.id is not None and expected.id is not None:
         return actual.id == expected.id
-    return _normalize_tool_name(actual.name) == _normalize_tool_name(expected.name)
+    return _sanitize_tool_name(actual.name) == _sanitize_tool_name(expected.name)
 
 
 def _parse_tool_args(input_value: Any) -> dict[str, Any]:
@@ -448,7 +448,7 @@ def tool_calls_count_score(
         # `is None` not `or` — count of 0 is a legitimate hit, not a fallback trigger.
         actual_count = actual_tool_calls_count.get(tool_name)
         if actual_count is None:
-            actual_count = actual_tool_calls_count.get(_normalize_tool_name(tool_name), 0)
+            actual_count = actual_tool_calls_count.get(_sanitize_tool_name(tool_name), 0)
         comparator = f"__{COMPARATOR_MAPPINGS[expected_comparator]}__"
         to_add = float(getattr(actual_count, comparator)(expected_count))
 

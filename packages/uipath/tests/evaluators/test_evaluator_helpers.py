@@ -14,7 +14,7 @@ import pytest
 from uipath.eval._helpers.evaluators_helpers import (
     _calls_match,
     _match_key,
-    _normalize_tool_name,
+    _sanitize_tool_name,
     extract_tool_calls,
     extract_tool_calls_names,
     extract_tool_calls_outputs,
@@ -1152,10 +1152,10 @@ class TestSanitizedNameMatch:
         ],
     )
     def test_normalize_matches_langchain_reference(self, raw: str) -> None:
-        assert _normalize_tool_name(raw) == self._reference_sanitize(raw)
+        assert _sanitize_tool_name(raw) == self._reference_sanitize(raw)
 
     def test_normalize_handles_none(self) -> None:
-        assert _normalize_tool_name(None) == ""
+        assert _sanitize_tool_name(None) == ""
 
     def test_match_key_display_vs_sanitised(self) -> None:
         assert _match_key("Web_Search", None, "Web Search") is True
