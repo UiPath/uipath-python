@@ -16,7 +16,8 @@ from ..common._models import Endpoint, RequestSpec
 from ..errors import EnrichedException
 from .guardrails import BuiltInValidatorGuardrail
 
-# W3C traceparent format: {version}-{trace_id}-{span_id}[-{trace_flags}]
+# x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
+# Based on W3C traceparent but allows 16- or 32-hex span IDs.
 _TRACEPARENT_PATTERN = re.compile(
     r"^[0-9a-f]{2}-[0-9a-f]{32}-(?P<span_id>[0-9a-f]{16}|[0-9a-f]{32})(?:-[0-9a-f]{2})?$",
     re.IGNORECASE,
@@ -46,11 +47,13 @@ class GuardrailsService(BaseService):
     def _extract_span_id_from_traceparent(
         traceparent: Optional[str],
     ) -> Optional[str]:
-        """Extract span ID from traceparent header and format as GUID.
+        """Extract span ID from x-uipath-traceparent-id header and format as GUID.
 
         Args:
-            traceparent: W3C traceparent value, 3-part ``"00-{trace_id}-{span_id}"``
-                or 4-part ``"00-{trace_id}-{span_id}-{trace_flags}"``.
+            traceparent: Value from the ``x-uipath-traceparent-id`` response header.
+                Accepts 3-part ``"00-{trace_id}-{span_id}"`` or 4-part
+                ``"00-{trace_id}-{span_id}-{trace_flags}"``. Span ID may be
+                16 or 32 hex chars.
 
         Returns:
             Span ID formatted as lowercase GUID (8-4-4-4-12), or None if not parseable.
