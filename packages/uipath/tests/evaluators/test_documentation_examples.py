@@ -340,6 +340,52 @@ class TestExactMatchExamples:
 
         assert result.score == 1.0
 
+    @pytest.mark.asyncio
+    async def test_list_target_output_key(self) -> None:
+        """Test evaluating multiple output fields at once using a list of keys.
+
+        Mirrors the multi-output-agent sample (list-keys-exact-match evaluator).
+        """
+        # Agent returns a rich nested output; we only care about two summary fields.
+        agent_execution = AgentExecution(
+            agent_input={"customer_name": "John Doe", "items": []},
+            agent_output={
+                "order_id": "ORD-001",
+                "summary": {"status": "completed", "total": 44.97, "item_count": 3},
+                "tags": ["priority", "express"],
+            },
+            agent_trace=[],
+        )
+
+        evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
+            dict(
+                id="list-keys-exact-match",
+                evaluatorConfig={
+                    "name": "ListKeysExactMatch",
+                    # Pass a list to assert multiple fields in a single evaluator run.
+                    "target_output_key": ["summary.status", "summary.total"],
+                },
+            )
+        )
+
+        # Both keys match → score 1.0
+        result = await evaluator.validate_and_evaluate_criteria(
+            agent_execution=agent_execution,
+            evaluation_criteria={
+                "expected_output": {"summary": {"status": "completed", "total": 44.97}}
+            },
+        )
+        assert result.score == 1.0
+
+        # One key differs → score 0.0
+        result = await evaluator.validate_and_evaluate_criteria(
+            agent_execution=agent_execution,
+            evaluation_criteria={
+                "expected_output": {"summary": {"status": "completed", "total": 999.0}}
+            },
+        )
+        assert result.score == 0.0
+
 
 class TestJsonSimilarityExamples:
     """Test examples from docs/eval/json_similarity.md."""

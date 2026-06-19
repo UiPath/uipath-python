@@ -8,6 +8,21 @@ from opentelemetry.sdk.trace import Span as OTelSpan
 from opentelemetry.trace import SpanContext, StatusCode
 
 from uipath.platform.common import UiPathSpan, _SpanUtils
+from uipath.platform.common.constants import (
+    ENV_PROJECT_KEY,
+    ENV_UIPATH_AGENT_ID,
+    ENV_UIPATH_PROJECT_ID,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_id_cache():
+    """Isolate the process-global id cache between tests."""
+    from uipath.platform.common._span_utils import _read_config_id
+
+    _read_config_id.cache_clear()
+    yield
+    _read_config_id.cache_clear()
 
 
 class TestOTelToUiPathSpan:
@@ -87,6 +102,198 @@ class TestOTelToUiPathSpan:
 
         assert uipath_span.verbosity_level is None
         assert "VerbosityLevel" not in span_dict
+
+
+class TestReferenceIdResolution:
+    """`reference_id` resolution chain.
+
+    `reference_id` is derived from the span's resolved `agentId` attribute
+    (which itself goes through `resolve_project_id()`), falling back to the
+    `referenceId` attribute. Falsy values (missing / empty string) at each step
+    fall through to the next source. The `referenceId` fallback exists for
+    backwards compatibility with older producers that only emit that attribute.
+    """
+
+    @pytest.mark.parametrize(
+        ("env_value", "attributes", "expected"),
+        [
+            pytest.param(
+                "env-agent",
+                {"agentId": "attr-agent", "referenceId": "attr-ref"},
+                "env-agent",
+                id="env-var-overrides-attr",
+            ),
+            pytest.param(
+                None,
+                {"agentId": "attr-agent", "referenceId": "attr-ref"},
+                "attr-agent",
+                id="agent-id-attr-when-env-unset",
+            ),
+            pytest.param(
+                None,
+                {"referenceId": "attr-ref"},
+                "attr-ref",
+                id="reference-id-fallback-when-agent-id-missing",
+            ),
+            pytest.param(
+                None,
+                {"agentId": "", "referenceId": "attr-ref"},
+                "attr-ref",
+                id="reference-id-fallback-when-agent-id-empty",
+            ),
+            pytest.param(
+                None,
+                {},
+                None,
+                id="none-when-all-sources-missing",
+            ),
+        ],
+    )
+    def test_reference_id_chain(
+        self,
+        env_value: str | None,
+        attributes: dict[str, object],
+        expected: str | None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+        monkeypatch.delenv(ENV_UIPATH_AGENT_ID, raising=False)
+        monkeypatch.delenv(ENV_UIPATH_PROJECT_ID, raising=False)
+        if env_value is None:
+            monkeypatch.delenv(ENV_PROJECT_KEY, raising=False)
+        else:
+            monkeypatch.setenv(ENV_PROJECT_KEY, env_value)
+
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = attributes
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        assert uipath_span.reference_id == expected
+
+
+class TestAgentIdResolution:
+    """`agentId` span attribute resolution via `resolve_project_id()`.
+
+    Priority: `uipath.json#id` (cached, read once per process) > `UIPATH_AGENT_ID`
+    / `UIPATH_PROJECT_ID` > the legacy `PROJECT_KEY` env var injected by the
+    executor at runtime. When no source is present the `agentId` attribute is
+    omitted entirely.
+    """
+
+    @staticmethod
+    def _make_span() -> Mock:
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+        return mock_span
+
+    @staticmethod
+    def _resolve(monkeypatch: pytest.MonkeyPatch, tmp_path) -> object:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+        monkeypatch.delenv("UIPATH_CONFIG_PATH", raising=False)
+        monkeypatch.delenv(ENV_UIPATH_AGENT_ID, raising=False)
+        monkeypatch.delenv(ENV_UIPATH_PROJECT_ID, raising=False)
+        monkeypatch.chdir(tmp_path)
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            TestAgentIdResolution._make_span(), serialize_attributes=False
+        )
+        attributes = uipath_span.attributes
+        assert isinstance(attributes, dict)
+        return attributes.get("agentId")
+
+    def test_agent_id_from_uipath_json_wins_over_env(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        (tmp_path / "uipath.json").write_text(
+            json.dumps({"id": "00000000-0000-0000-0000-000000000001"})
+        )
+        monkeypatch.setenv(ENV_PROJECT_KEY, "from-env")
+        assert (
+            self._resolve(monkeypatch, tmp_path)
+            == "00000000-0000-0000-0000-000000000001"
+        )
+
+    def test_agent_id_falls_back_to_project_key(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # No uipath.json on disk.
+        monkeypatch.setenv(ENV_PROJECT_KEY, "from-env")
+        assert self._resolve(monkeypatch, tmp_path) == "from-env"
+
+    def test_agent_id_falls_back_when_config_has_no_id(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        (tmp_path / "uipath.json").write_text(json.dumps({"functions": {}}))
+        monkeypatch.setenv(ENV_PROJECT_KEY, "from-env")
+        assert self._resolve(monkeypatch, tmp_path) == "from-env"
+
+    def test_agent_id_absent_when_no_source(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        monkeypatch.delenv(ENV_PROJECT_KEY, raising=False)
+        assert self._resolve(monkeypatch, tmp_path) is None
+
+    def test_non_guid_config_id_is_ignored_and_falls_back(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        # A malformed (non-GUID) id must not reach ReferenceId; fall back to env.
+        (tmp_path / "uipath.json").write_text(json.dumps({"id": "not-a-guid"}))
+        monkeypatch.setenv(ENV_PROJECT_KEY, "from-env")
+        assert self._resolve(monkeypatch, tmp_path) == "from-env"
+
+    def test_config_id_is_cached(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path
+    ) -> None:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        first = "00000000-0000-0000-0000-000000000001"
+        second = "00000000-0000-0000-0000-000000000002"
+
+        _read_config_id.cache_clear()
+        monkeypatch.delenv("UIPATH_CONFIG_PATH", raising=False)
+        monkeypatch.chdir(tmp_path)
+        config = tmp_path / "uipath.json"
+
+        config.write_text(json.dumps({"id": first}))
+        assert _read_config_id() == first
+
+        # A later edit is not observed: the value is read once and cached.
+        config.write_text(json.dumps({"id": second}))
+        assert _read_config_id() == first
+
+        _read_config_id.cache_clear()
+        assert _read_config_id() == second
 
 
 class TestNormalizeIds:

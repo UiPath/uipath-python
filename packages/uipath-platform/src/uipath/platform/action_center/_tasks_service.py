@@ -118,10 +118,34 @@ def _create_spec(
         ),
     }
 
+    _apply_priority_labels_and_actionable_toggle(
+        json_payload, priority, labels, is_actionable_message_enabled
+    )
+    _apply_task_source(json_payload, source_name)
+
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
+        json=json_payload,
+        headers=header_folder(app_folder_key, app_folder_path),
+    )
+
+
+def _apply_priority_labels_and_actionable_toggle(
+    payload: Dict[str, Any],
+    priority: Optional[str],
+    labels: Optional[List[str]],
+    is_actionable_message_enabled: Optional[bool],
+) -> None:
+    """Apply priority / tags / isActionableMessageEnabled to ``payload`` in-place.
+
+    Shared between AppTask and QuickForm spec builders — they handle these three
+    optional fields identically.
+    """
     if priority and (normalized_priority := _normalize_priority(priority)):
-        json_payload["priority"] = normalized_priority
+        payload["priority"] = normalized_priority
     if labels is not None:
-        json_payload["tags"] = [
+        payload["tags"] = [
             {
                 "name": label,
                 "displayName": label,
@@ -131,37 +155,29 @@ def _create_spec(
             for label in labels
         ]
     if is_actionable_message_enabled is not None:
-        json_payload["isActionableMessageEnabled"] = is_actionable_message_enabled
+        payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
+
+def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
+    """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
+
+    Shared between AppTask and QuickForm spec builders — the taskSource block is
+    identical for both task types.
+    """
     project_id = UiPathConfig.project_id
     trace_id = UiPathConfig.trace_id
-
-    if project_id and trace_id:
-        folder_key = UiPathConfig.folder_key
-        job_key = UiPathConfig.job_key
-        process_key = UiPathConfig.process_uuid
-
-        task_source_metadata: Dict[str, Any] = {
+    if not (project_id and trace_id):
+        return
+    payload["taskSource"] = {
+        "sourceName": source_name,
+        "sourceId": project_id,
+        "taskSourceMetadata": {
             "InstanceId": trace_id,
-            "FolderKey": folder_key,
-            "JobKey": job_key,
-            "ProcessKey": process_key,
-        }
-
-        task_source = {
-            "sourceName": source_name,
-            "sourceId": project_id,
-            "taskSourceMetadata": task_source_metadata,
-        }
-
-        json_payload["taskSource"] = task_source
-
-    return RequestSpec(
-        method="POST",
-        endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
-        json=json_payload,
-        headers=header_folder(app_folder_key, app_folder_path),
-    )
+            "FolderKey": UiPathConfig.folder_key,
+            "JobKey": UiPathConfig.job_key,
+            "ProcessKey": UiPathConfig.process_uuid,
+        },
+    }
 
 
 def _normalize_priority(priority: str | None) -> str | None:
@@ -194,6 +210,62 @@ def _normalize_priority(priority: str | None) -> str | None:
         )
 
     return normalized
+
+
+_TASK_TYPE_QUICKFORM = 6
+
+
+def _create_quickform_spec(
+    data: Optional[Dict[str, Any]],
+    title: str,
+    task_schema_key: str,
+    schema: Dict[str, Any],
+    creator_job_key: Optional[str] = None,
+    folder_key: Optional[str] = None,
+    folder_path: Optional[str] = None,
+    priority: Optional[str] = None,
+    labels: Optional[List[str]] = None,
+    is_actionable_message_enabled: Optional[bool] = None,
+    actionable_message_metadata: Optional[Dict[str, Any]] = None,
+    source_name: str = "Agent",
+) -> RequestSpec:
+    """Build the RequestSpec for Orchestrator's GenericTasks/CreateTask endpoint.
+
+    Sets TaskType=QuickFormTask. Mirrors _create_spec but skips the AppTask-specific
+    shape (no appId, no action-schema-derived fieldSet/actionSet) and instead sends
+    taskSchemaKey + inline schema together.
+
+    Both taskSchemaKey AND schema are sent on every call: the Agents runtime has no
+    Action Center package.uploaded subscriber populating the TaskSchemas table, so
+    Orchestrator upserts the schema (keyed by taskSchemaKey) and then creates the task
+    in the same call.
+
+    Wire contract: UiPath/Orchestrator/src/Core/Application/Dto/Tasks/TaskCreateRequest.cs.
+    """
+    json_payload: Dict[str, Any] = {
+        "type": _TASK_TYPE_QUICKFORM,
+        "taskSchemaKey": task_schema_key,
+        "schema": schema,
+        "title": title,
+        "data": data if data is not None else {},
+    }
+
+    if creator_job_key is not None:
+        json_payload["creatorJobKey"] = creator_job_key
+
+    _apply_priority_labels_and_actionable_toggle(
+        json_payload, priority, labels, is_actionable_message_enabled
+    )
+    if actionable_message_metadata is not None:
+        json_payload["actionableMessageMetaData"] = actionable_message_metadata
+    _apply_task_source(json_payload, source_name)
+
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/CreateTask"),
+        json=json_payload,
+        headers=header_folder(folder_key, folder_path),
+    )
 
 
 def _retrieve_action_spec(
@@ -230,6 +302,34 @@ async def _assign_task_spec(
                         "taskId": task_key,
                         "assignmentCriteria": "SingleUser",
                         "userNameOrEmail": recipient_value,
+                    }
+                ]
+            }
+        elif task_recipient.type == TaskRecipientType.WORKLOAD:
+            # This branch covers BOTH agent-side Workload criteria (single
+            # group, distributed by workload) AND agent-side CustomAssignees
+            # criteria (explicit email list — already resolved into
+            # `task_recipient.values` upstream). Both submit to the Action
+            # Center API as a "Workload" assignment; the difference is whether
+            # `values` carries one group or N emails.
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "Workload",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
+                    }
+                ]
+            }
+        elif task_recipient.type == TaskRecipientType.ROUND_ROBIN:
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "RoundRobin",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
                     }
                 ]
             }
@@ -503,6 +603,154 @@ class TasksService(FolderContext, BaseService):
             )
             self.request(
                 spec.method, spec.endpoint, json=spec.json, content=spec.content
+            )
+        return Task.model_validate(json_response)
+
+    @traced(name="tasks_create_quickform", run_type="uipath")
+    async def create_quickform_async(
+        self,
+        title: str,
+        task_schema_key: str,
+        schema: Dict[str, Any],
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        assignee: Optional[str] = None,
+        recipient: Optional[TaskRecipient] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        creator_job_key: Optional[str] = None,
+        source_name: str = "Agent",
+    ) -> Task:
+        """Creates a new QuickForm task asynchronously.
+
+        QuickForm tasks are schema-first HITL tasks rendered by FormLib in Action
+        Center. Both task_schema_key AND schema are required: the Agents runtime
+        does not pre-populate TaskSchemas via a package.uploaded subscriber, so
+        Orchestrator upserts the schema (keyed by task_schema_key) and creates
+        the task in the same call.
+
+        Args:
+            title: The title of the task.
+            task_schema_key: UUID key of the schema. Used as the key under which
+                Orchestrator stores/looks up the schema in TaskSchemas.
+            schema: The HITL schema body to register/upsert. Sent inline on every
+                call.
+            data: Optional dictionary containing input data for the task.
+            folder_path: Optional folder path for the task. Required by the
+                Orchestrator controller (RequireOrganizationUnit) unless
+                folder_key is provided.
+            folder_key: Optional folder key, alternative to folder_path.
+            assignee: Optional username or email to assign the task to.
+            recipient: Optional structured recipient (user id / group id /
+                email). Resolved via identity service before assignment.
+            priority: Optional priority. Low / Medium / High / Critical.
+            labels: Optional list of labels for the task.
+            is_actionable_message_enabled: Whether actionable notifications are
+                enabled for this task.
+            actionable_message_metadata: Optional metadata override. For
+                QuickForm, when null, Orchestrator derives it from the
+                referenced TaskSchema.
+            creator_job_key: Optional. Identifies the job that triggered the
+                inline schema creation/upsert.
+            source_name: Source name on TaskSource. Defaults to 'Agent'.
+
+        Returns:
+            Task: The created task object.
+        """
+        spec = _create_quickform_spec(
+            title=title,
+            data=data,
+            task_schema_key=task_schema_key,
+            schema=schema,
+            creator_job_key=creator_job_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
+            source_name=source_name,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        json_response = response.json()
+        if assignee or recipient:
+            assign_spec = await _assign_task_spec(
+                self, json_response["id"], assignee, recipient
+            )
+            await self.request_async(
+                assign_spec.method,
+                assign_spec.endpoint,
+                json=assign_spec.json,
+                content=assign_spec.content,
+            )
+        return Task.model_validate(json_response)
+
+    @traced(name="tasks_create_quickform", run_type="uipath")
+    def create_quickform(
+        self,
+        title: str,
+        task_schema_key: str,
+        schema: Dict[str, Any],
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+        assignee: Optional[str] = None,
+        recipient: Optional[TaskRecipient] = None,
+        priority: Optional[str] = None,
+        labels: Optional[List[str]] = None,
+        is_actionable_message_enabled: Optional[bool] = None,
+        actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        creator_job_key: Optional[str] = None,
+        source_name: str = "Agent",
+    ) -> Task:
+        """Create a new QuickForm task synchronously.
+
+        See :meth:`create_quickform_async` for parameter docs.
+        """
+        spec = _create_quickform_spec(
+            title=title,
+            data=data,
+            task_schema_key=task_schema_key,
+            schema=schema,
+            creator_job_key=creator_job_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            priority=priority,
+            labels=labels,
+            is_actionable_message_enabled=is_actionable_message_enabled,
+            actionable_message_metadata=actionable_message_metadata,
+            source_name=source_name,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        json_response = response.json()
+        if assignee or recipient:
+            assign_spec = asyncio.run(
+                _assign_task_spec(self, json_response["id"], assignee, recipient)
+            )
+            self.request(
+                assign_spec.method,
+                assign_spec.endpoint,
+                json=assign_spec.json,
+                content=assign_spec.content,
             )
         return Task.model_validate(json_response)
 

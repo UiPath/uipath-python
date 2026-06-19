@@ -160,7 +160,6 @@ def debug(
                             debug_bridge: UiPathDebugProtocol = get_debug_bridge(
                                 ctx, attach=attach_mode
                             )
-
                             runtime = await factory.new_runtime(
                                 entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",

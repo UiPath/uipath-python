@@ -283,6 +283,56 @@ class AssetsService(FolderContext, BaseService):
         else:
             return Asset.model_validate(response.json()["value"][0])
 
+    def _resolve_robot_key(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Return the robot key, or ``None`` if the asset opts into direct API access.
+
+        Raises ``ValueError`` when no robot key is available and ``AllowDirectApiAccess``
+        is not enabled on the asset.
+        """
+        try:
+            robot_key = self._execution_context.robot_key
+        except ValueError:
+            robot_key = None
+
+        if robot_key is None:
+            asset = self.retrieve(
+                name=name, folder_key=folder_key, folder_path=folder_path
+            )
+            if not asset.allow_direct_api_access:
+                raise ValueError(
+                    f"No robot key available and 'AllowDirectApiAccess' is disabled for asset '{name}'."
+                )
+        return robot_key
+
+    async def _resolve_robot_key_async(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Async variant of :meth:`_resolve_robot_key`."""
+        try:
+            robot_key = self._execution_context.robot_key
+        except ValueError:
+            robot_key = None
+
+        if robot_key is None:
+            asset = await self.retrieve_async(
+                name=name, folder_key=folder_key, folder_path=folder_path
+            )
+            if not asset.allow_direct_api_access:
+                raise ValueError(
+                    f"No robot key available and 'AllowDirectApiAccess' is disabled for asset '{name}'."
+                )
+        return robot_key
+
     @resource_override(resource_type="asset")
     @traced(
         name="assets_credential", run_type="uipath", hide_input=True, hide_output=True
@@ -294,9 +344,11 @@ class AssetsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Optional[str]:
-        """Gets a specified Orchestrator credential.
+        """Get the decrypted password of a Credential asset.
 
-        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable)
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
+        If no robot key is available, the asset's `AllowDirectApiAccess` flag is checked: when
+        enabled, the credential is fetched without a robot key; otherwise a `ValueError` is raised.
 
         Related Activity: [Get Credential](https://docs.uipath.com/activities/other/latest/workflow/get-robot-credential)
 
@@ -309,22 +361,18 @@ class AssetsService(FolderContext, BaseService):
             Optional[str]: The decrypted credential password.
 
         Raises:
-            ValueError: If the method is called for a user asset.
+            ValueError: If no robot key is available and the asset does not have `AllowDirectApiAccess` enabled.
         """
-        try:
-            is_user = self._execution_context.robot_key is not None
-        except ValueError:
-            is_user = False
+        robot_key = self._resolve_robot_key(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
 
-        if not is_user:
-            raise ValueError("This method can only be used for robot assets.")
-
-        spec = self._retrieve_spec(
+        spec = self._retrieve_credential_spec(
             name,
+            robot_key=robot_key,
             folder_key=folder_key,
             folder_path=folder_path,
         )
-
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -333,10 +381,7 @@ class AssetsService(FolderContext, BaseService):
             content=spec.content,
             headers=spec.headers,
         )
-
-        user_asset = UserAsset.model_validate(response.json())
-
-        return user_asset.credential_password
+        return UserAsset.model_validate(response.json()).credential_password
 
     @resource_override(resource_type="asset")
     @traced(
@@ -349,9 +394,11 @@ class AssetsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Optional[str]:
-        """Asynchronously gets a specified Orchestrator credential.
+        """Asynchronously get the decrypted password of a Credential asset.
 
-        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable)
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
+        If no robot key is available, the asset's `AllowDirectApiAccess` flag is checked: when
+        enabled, the credential is fetched without a robot key; otherwise a `ValueError` is raised.
 
         Related Activity: [Get Credential](https://docs.uipath.com/activities/other/latest/workflow/get-robot-credential)
 
@@ -364,22 +411,18 @@ class AssetsService(FolderContext, BaseService):
             Optional[str]: The decrypted credential password.
 
         Raises:
-            ValueError: If the method is called for a user asset.
+            ValueError: If no robot key is available and the asset does not have `AllowDirectApiAccess` enabled.
         """
-        try:
-            is_user = self._execution_context.robot_key is not None
-        except ValueError:
-            is_user = False
+        robot_key = await self._resolve_robot_key_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
 
-        if not is_user:
-            raise ValueError("This method can only be used for robot assets.")
-
-        spec = self._retrieve_spec(
+        spec = self._retrieve_credential_spec(
             name,
+            robot_key=robot_key,
             folder_key=folder_key,
             folder_path=folder_path,
         )
-
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -388,10 +431,99 @@ class AssetsService(FolderContext, BaseService):
             content=spec.content,
             headers=spec.headers,
         )
+        return UserAsset.model_validate(response.json()).credential_password
 
-        user_asset = UserAsset.model_validate(response.json())
+    @resource_override(resource_type="asset")
+    @traced(name="assets_secret", run_type="uipath", hide_input=True, hide_output=True)
+    def retrieve_secret(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Get the decrypted value of a Secret asset.
 
-        return user_asset.credential_password
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
+        If no robot key is available, the asset's `AllowDirectApiAccess` flag is checked: when
+        enabled, the secret is fetched without a robot key; otherwise a `ValueError` is raised.
+
+        Args:
+            name (str): The name of the secret asset.
+            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+
+        Returns:
+            Optional[str]: The decrypted secret value.
+
+        Raises:
+            ValueError: If no robot key is available and the asset does not have `AllowDirectApiAccess` enabled.
+        """
+        robot_key = self._resolve_robot_key(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+
+        spec = self._retrieve_credential_spec(
+            name,
+            robot_key=robot_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        return UserAsset.model_validate(response.json()).secret_value
+
+    @resource_override(resource_type="asset")
+    @traced(name="assets_secret", run_type="uipath", hide_input=True, hide_output=True)
+    async def retrieve_secret_async(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """Asynchronously get the decrypted value of a Secret asset.
+
+        The robot id is retrieved from the execution context (`UIPATH_ROBOT_KEY` environment variable).
+        If no robot key is available, the asset's `AllowDirectApiAccess` flag is checked: when
+        enabled, the secret is fetched without a robot key; otherwise a `ValueError` is raised.
+
+        Args:
+            name (str): The name of the secret asset.
+            folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+
+        Returns:
+            Optional[str]: The decrypted secret value.
+
+        Raises:
+            ValueError: If no robot key is available and the asset does not have `AllowDirectApiAccess` enabled.
+        """
+        robot_key = await self._resolve_robot_key_async(
+            name, folder_key=folder_key, folder_path=folder_path
+        )
+
+        spec = self._retrieve_credential_spec(
+            name,
+            robot_key=robot_key,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            content=spec.content,
+            headers=spec.headers,
+        )
+        return UserAsset.model_validate(response.json()).secret_value
 
     @traced(name="assets_update", run_type="uipath", hide_input=True, hide_output=True)
     def update(
@@ -508,6 +640,32 @@ class AssetsService(FolderContext, BaseService):
                 "robotKey": robot_key,
                 "supportsCredentialsProxyDisconnected": True,
             },
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _retrieve_credential_spec(
+        self,
+        name: str,
+        *,
+        robot_key: Optional[str],
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        body: Dict[str, Any] = {
+            "assetName": name,
+            "supportsCredentialsProxyDisconnected": True,
+        }
+        if robot_key is not None:
+            body["robotKey"] = robot_key
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey"
+            ),
+            json=body,
             headers={
                 **header_folder(folder_key, folder_path),
             },

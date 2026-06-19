@@ -112,3 +112,10 @@ async def test_generate_llm_input_with_model_settings(
     assert len(chat_completion_requests) == 1, (
         "Expected exactly one chat completion request"
     )
+
+    # OpenAI returns content via response_format; no tool-call fallback needed.
+    import json
+
+    body = json.loads(chat_completion_requests[0].content.decode("utf-8"))
+    assert "response_format" in body
+    assert "tools" not in body

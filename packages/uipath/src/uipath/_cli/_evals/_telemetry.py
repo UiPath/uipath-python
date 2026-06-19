@@ -308,10 +308,12 @@ class EvalTelemetrySubscriber:
         Args:
             properties: The properties dictionary to enrich.
         """
+        from uipath.platform.common._span_utils import resolve_project_id
+
         if UiPathConfig.project_id:
             properties["ProjectId"] = UiPathConfig.project_id
-        if UiPathConfig.agent_id:
-            properties["AgentId"] = UiPathConfig.agent_id
+        if agent_id := resolve_project_id():
+            properties["AgentId"] = agent_id
 
         if UiPathConfig.organization_id:
             properties["CloudOrganizationId"] = UiPathConfig.organization_id
@@ -328,6 +330,16 @@ class EvalTelemetrySubscriber:
         tenant_id = os.getenv("UIPATH_TENANT_ID")
         if tenant_id:
             properties["TenantId"] = tenant_id
+
+        # Origin of the eval-set run as classified by the caller (e.g. Manual,
+        # Protegi, FirstSuccessfulRun). The Agents backend forwards the value
+        # via UIPATH_EVAL_RUN_SOURCE so adoption dashboards can exclude
+        # auto-triggered runs (e.g. first-successful-run) from user-driven counts.
+        # Distinct from the `Source` dimension below, which categorises the SDK
+        # emitter ("uipath-python-cli"), not the run origin.
+        run_source = os.getenv("UIPATH_EVAL_RUN_SOURCE")
+        if run_source:
+            properties["RunSource"] = run_source
 
         properties["Source"] = "uipath-python-cli"
         properties["ApplicationName"] = "UiPath.Eval"

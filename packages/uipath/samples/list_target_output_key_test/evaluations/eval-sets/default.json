@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "id": "list-target-output-key-tests",
+  "name": "List Target Output Key Tests",
+  "evaluatorRefs": [
+    "ListKeysExactMatch",
+    "ListKeysJsonSimilarity"
+  ],
+  "evaluations": [
+    {
+      "id": "headphones-all-match",
+      "name": "Headphones - all keys match",
+      "inputs": {
+        "product_id": "p001"
+      },
+      "evaluationCriterias": {
+        "ListKeysExactMatch": {
+          "expectedOutput": {
+            "name": "Wireless Headphones",
+            "price": 79.99
+          }
+        },
+        "ListKeysJsonSimilarity": {
+          "expectedOutput": {
+            "category": "Electronics",
+            "in_stock": true
+          }
+        }
+      }
+    },
+    {
+      "id": "shoes-all-match",
+      "name": "Running Shoes - all keys match",
+      "inputs": {
+        "product_id": "p002"
+      },
+      "evaluationCriterias": {
+        "ListKeysExactMatch": {
+          "expectedOutput": {
+            "name": "Running Shoes",
+            "price": 120.0
+          }
+        },
+        "ListKeysJsonSimilarity": {
+          "expectedOutput": {
+            "category": "Sports",
+            "in_stock": false
+          }
+        }
+      }
+    },
+    {
+      "id": "headphones-wrong-price",
+      "name": "Headphones - wrong price (should fail)",
+      "inputs": {
+        "product_id": "p001"
+      },
+      "evaluationCriterias": {
+        "ListKeysExactMatch": {
+          "expectedOutput": {
+            "name": "Wireless Headphones",
+            "price": 999.0
+          }
+        },
+        "ListKeysJsonSimilarity": {
+          "expectedOutput": {
+            "category": "Electronics",
+            "in_stock": true
+          }
+        }
+      }
+    }
+  ]
+}

@@ -71,6 +71,7 @@ from .error import (
 )
 from .event import UiPathConversationEvent, UiPathConversationLabelUpdatedEvent
 from .exchange import (
+    UiPathClientSideToolDeclaration,
     UiPathConversationExchange,
     UiPathConversationExchangeData,
     UiPathConversationExchangeEndEvent,
@@ -107,6 +108,7 @@ from .session import (
     UiPathSessionStartEvent,
 )
 from .tool import (
+    UiPathConversationExecutingToolCallEvent,
     UiPathConversationToolCall,
     UiPathConversationToolCallConfirmation,
     UiPathConversationToolCallConfirmationData,
@@ -138,6 +140,7 @@ __all__ = [
     "UiPathSessionEndingEvent",
     "UiPathSessionEndEvent",
     # Exchange
+    "UiPathClientSideToolDeclaration",
     "UiPathConversationExchangeStartEvent",
     "UiPathConversationExchangeEndEvent",
     "UiPathConversationExchangeEvent",
@@ -171,6 +174,7 @@ __all__ = [
     "UiPathConversationCitationData",
     "UiPathConversationCitation",
     # Tool
+    "UiPathConversationExecutingToolCallEvent",
     "UiPathConversationToolCallStartEvent",
     "UiPathConversationToolCallEndEvent",
     "UiPathConversationToolCallConfirmation",
