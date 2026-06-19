@@ -18,10 +18,8 @@ from uipath.eval.evaluators._aggregator_specs import (
 )
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.classification_dataset_evaluators import (
+    ClassificationDatasetEvaluator,
     ClassificationDetails,
-    FScoreDatasetEvaluator,
-    PrecisionDatasetEvaluator,
-    RecallDatasetEvaluator,
 )
 from uipath.eval.evaluators.dataset_evaluator_factory import build_dataset_evaluator
 from uipath.eval.evaluators.multiclass_classification_evaluator import (
@@ -53,25 +51,27 @@ def _result(
 
 def _precision(
     classes: list[str], averaging: str = "macro"
-) -> PrecisionDatasetEvaluator:
+) -> ClassificationDatasetEvaluator:
     spec = PrecisionAggregatorSpec(classes=classes, averaging=averaging)  # type: ignore[arg-type]
-    return PrecisionDatasetEvaluator(spec, source_evaluator="intent_match")
+    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match")
 
 
-def _recall(classes: list[str], averaging: str = "macro") -> RecallDatasetEvaluator:
+def _recall(
+    classes: list[str], averaging: str = "macro"
+) -> ClassificationDatasetEvaluator:
     spec = RecallAggregatorSpec(classes=classes, averaging=averaging)  # type: ignore[arg-type]
-    return RecallDatasetEvaluator(spec, source_evaluator="intent_match")
+    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match")
 
 
 def _fscore(
     classes: list[str], averaging: str = "macro", f_value: float = 1.0
-) -> FScoreDatasetEvaluator:
+) -> ClassificationDatasetEvaluator:
     spec = FScoreAggregatorSpec(
         classes=classes,
         averaging=averaging,  # type: ignore[arg-type]
         f_value=f_value,
     )
-    return FScoreDatasetEvaluator(spec, source_evaluator="intent_match")
+    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match")
 
 
 def _details(result: object) -> ClassificationDetails:
@@ -276,14 +276,16 @@ class TestFactory:
     def test_builds_precision_from_spec(self) -> None:
         spec = PrecisionAggregatorSpec(classes=["yes", "no"], averaging="macro")
         evaluator = build_dataset_evaluator(spec, "intent_match")
-        assert isinstance(evaluator, PrecisionDatasetEvaluator)
+        assert isinstance(evaluator, ClassificationDatasetEvaluator)
+        assert evaluator.spec.type == "precision"
         assert evaluator.source_evaluator == "intent_match"
         assert evaluator.name == "intent_match.precision"
 
     def test_builds_recall_from_spec(self) -> None:
         spec = RecallAggregatorSpec(classes=["yes", "no"], averaging="micro")
         evaluator = build_dataset_evaluator(spec, "intent_match")
-        assert isinstance(evaluator, RecallDatasetEvaluator)
+        assert isinstance(evaluator, ClassificationDatasetEvaluator)
+        assert evaluator.spec.type == "recall"
         assert evaluator.name == "intent_match.recall"
 
     def test_builds_fscore_from_spec(self) -> None:
@@ -291,7 +293,8 @@ class TestFactory:
             classes=["yes", "no"], averaging="macro", f_value=2.0
         )
         evaluator = build_dataset_evaluator(spec, "intent_match")
-        assert isinstance(evaluator, FScoreDatasetEvaluator)
+        assert isinstance(evaluator, ClassificationDatasetEvaluator)
+        assert isinstance(evaluator.spec, FScoreAggregatorSpec)
         assert evaluator.spec.f_value == 2.0
 
 

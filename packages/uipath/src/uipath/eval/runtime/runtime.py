@@ -237,13 +237,11 @@ def compute_dataset_evaluator_results(
 
     dataset_results: dict[str, EvaluationResultDto] = {}
     for evaluator in evaluators:
-        evaluator_config = getattr(evaluator, "evaluator_config", None)
-        if evaluator_config is None:
+        config = getattr(evaluator, "evaluator_config", None)
+        aggregators = getattr(config, "aggregators", None)
+        if config is None or not aggregators:
             continue
-        aggregators = getattr(evaluator_config, "aggregators", None)
-        if not aggregators:
-            continue
-        source_name = evaluator_config.name
+        source_name = config.name
         source_results = results_by_evaluator.get(source_name, [])
         for spec in aggregators:
             dataset_evaluator = build_dataset_evaluator(spec, source_name)

@@ -39,27 +39,17 @@ class BaseDatasetEvaluator(ABC, Generic[SpecT]):
     """
 
     spec: SpecT
-    _source_evaluator: str
+    source_evaluator: str
 
     def __init__(self, spec: SpecT, source_evaluator: str) -> None:
         """Store the aggregator spec and the source evaluator name."""
         self.spec = spec
-        self._source_evaluator = source_evaluator
-
-    @property
-    def source_evaluator(self) -> str:
-        """Name of the upstream evaluator whose results this one consumes."""
-        return self._source_evaluator
+        self.source_evaluator = source_evaluator
 
     @property
     def name(self) -> str:
         """Stable key for this dataset evaluator's result in the output map."""
-        return f"{self._source_evaluator}.{self.spec.type}"
-
-    @classmethod
-    @abstractmethod
-    def get_evaluator_id(cls) -> str:
-        """Stable identifier matching the ``type`` discriminator on specs."""
+        return f"{self.source_evaluator}.{self.spec.type}"
 
     @abstractmethod
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:

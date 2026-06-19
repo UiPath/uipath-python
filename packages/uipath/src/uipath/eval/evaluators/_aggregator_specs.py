@@ -16,30 +16,30 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
-class PrecisionAggregatorSpec(BaseModel):
-    """Run-level precision aggregator (multiclass, micro or macro averaged)."""
+class _AggregatorSpecBase(BaseModel):
+    """Shared pydantic config for every aggregator variant."""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class PrecisionAggregatorSpec(_AggregatorSpecBase):
+    """Run-level precision aggregator (multiclass, micro or macro averaged)."""
 
     type: Literal["precision"] = "precision"
     classes: list[str] = Field(..., min_length=1)
     averaging: Literal["macro", "micro"]
 
 
-class RecallAggregatorSpec(BaseModel):
+class RecallAggregatorSpec(_AggregatorSpecBase):
     """Run-level recall aggregator (multiclass, micro or macro averaged)."""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     type: Literal["recall"] = "recall"
     classes: list[str] = Field(..., min_length=1)
     averaging: Literal["macro", "micro"]
 
 
-class FScoreAggregatorSpec(BaseModel):
+class FScoreAggregatorSpec(_AggregatorSpecBase):
     """Run-level F-beta aggregator (multiclass, micro or macro averaged)."""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     type: Literal["fscore"] = "fscore"
     classes: list[str] = Field(..., min_length=1)
