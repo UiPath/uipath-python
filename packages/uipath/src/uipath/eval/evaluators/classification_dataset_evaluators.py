@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from ..models.models import (
@@ -51,7 +51,17 @@ class ClassificationDetails(BaseModel):
     metric: str
     average: str
     classes: list[str]
-    confusion_matrix: list[list[int]]
+    confusion_matrix: list[list[int]] = Field(
+        ...,
+        description=(
+            "k x k confusion matrix indexed as "
+            "``confusion_matrix[predicted_idx][expected_idx]`` "
+            "(rows are predicted classes, columns are expected). "
+            "This is the transpose of sklearn's convention "
+            "(``[true][predicted]``); UI / consumer code must use the "
+            "orientation documented here."
+        ),
+    )
     per_class: dict[str, PerClassMetrics]
     micro: float
     macro: float
@@ -113,9 +123,6 @@ def _build_confusion(
     )
 
 
-_METRIC_NAME = {"precision": "precision", "recall": "recall", "fscore": "f_score"}
-
-
 class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
     """One implementation for all three classification aggregators.
 
@@ -162,7 +169,7 @@ class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
         macro = sum(per_class[c].value for c in confusion.classes) / k
 
         details = ClassificationDetails(
-            metric=_METRIC_NAME[metric_type],
+            metric=metric_type,
             average=self.spec.averaging,
             classes=confusion.classes,
             confusion_matrix=confusion.matrix,
@@ -184,7 +191,12 @@ def _metric(metric_type: str, tp: int, fp: int, fn: int, beta_sq: float) -> floa
         return tp / (tp + fp) if (tp + fp) > 0 else 0.0
     if metric_type == "recall":
         return tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    denom = beta_sq * p + r
-    return (1 + beta_sq) * p * r / denom if denom > 0 else 0.0
+    if metric_type == "fscore":
+        p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        denom = beta_sq * p + r
+        return (1 + beta_sq) * p * r / denom if denom > 0 else 0.0
+    raise ValueError(
+        f"Unknown metric_type: {metric_type!r}. "
+        "Expected one of: precision, recall, fscore."
+    )

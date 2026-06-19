@@ -110,7 +110,27 @@ class TestPrecisionEvaluator:
         assert d.per_class["cat"].tp == 0
         assert d.per_class["cat"].tn == 0
 
-    def test_two_class_macro(self) -> None:
+    def test_confusion_matrix_is_predicted_by_expected(self) -> None:
+        # Pin the documented orientation: confusion_matrix[predicted][expected].
+        # Differs from sklearn's [true][predicted] convention.
+        results = [
+            _result("cat", "cat"),  # expected=cat, predicted=cat -> [cat][cat]
+            _result("cat", "dog"),  # expected=cat, predicted=dog -> [dog][cat]
+            _result("dog", "dog"),  # expected=dog, predicted=dog -> [dog][dog]
+            _result("dog", "dog"),
+        ]
+        d = _details(_precision(["cat", "dog"]).evaluate(results))
+        # classes -> index: cat=0, dog=1
+        # [predicted=cat][expected=cat] = 1
+        assert d.confusion_matrix[0][0] == 1
+        # [predicted=dog][expected=cat] = 1 (the FP for dog / FN for cat)
+        assert d.confusion_matrix[1][0] == 1
+        # [predicted=dog][expected=dog] = 2
+        assert d.confusion_matrix[1][1] == 2
+        # [predicted=cat][expected=dog] = 0
+        assert d.confusion_matrix[0][1] == 0
+
+    def test_precision_two_class_macro(self) -> None:
         results = [
             _result("yes", "yes"),
             _result("yes", "yes"),
@@ -164,7 +184,7 @@ class TestPrecisionEvaluator:
 
 
 class TestRecallEvaluator:
-    def test_two_class_macro(self) -> None:
+    def test_recall_two_class_macro(self) -> None:
         results = [
             _result("yes", "yes"),
             _result("yes", "yes"),
