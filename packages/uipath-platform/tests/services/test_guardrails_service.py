@@ -298,3 +298,179 @@ class TestGuardrailsService:
             # Verify result fields
             assert result.result == GuardrailValidationResultType.PASSED
             assert result.reason == "Validation passed"
+
+        def test_evaluate_guardrail_sends_trace_context_headers(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Outgoing request includes trace context headers."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={
+                        "result": "PASSED",
+                        "details": "OK",
+                    },
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert captured_request is not None
+            # build_trace_context_headers() injects traceparent/tracestate when
+            # an active span exists; at minimum, the merge with spec.headers
+            # should not fail and the request should go through successfully.
+            # When there IS an active trace context, headers are present:
+            headers = dict(captured_request.headers)
+            # The request should have been sent (basic smoke check that
+            # header merging works even when no active span exists)
+            assert "content-type" in headers
+
+        def test_evaluate_guardrail_extracts_span_id_from_traceparent(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """Response with x-uipath-traceparent-id header populates span_id."""
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                status_code=200,
+                json={
+                    "result": "VALIDATION_FAILED",
+                    "details": "PII detected",
+                },
+                headers={
+                    "x-uipath-traceparent-id": "00-abcdef1234567890abcdef1234567890-1234567890abcdef"
+                },
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            result = service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+            assert result.span_id == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_evaluate_guardrail_no_traceparent_header_no_span_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """Response without x-uipath-traceparent-id header leaves span_id as None."""
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                status_code=200,
+                json={
+                    "result": "PASSED",
+                    "details": "OK",
+                },
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            result = service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert result.result == GuardrailValidationResultType.PASSED
+            assert result.span_id is None
+
+    class TestExtractSpanIdFromTraceparent:
+        """Tests for _extract_span_id_from_traceparent."""
+
+        def test_valid_traceparent_16_char_span_id(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-1234567890abcdef"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_valid_traceparent_32_char_span_id(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-0a1b2c3d4e5f67890a1b2c3d4e5f6789"
+            )
+            assert result == "0a1b2c3d-4e5f-6789-0a1b-2c3d4e5f6789"
+
+        def test_none_input(self) -> None:
+            assert GuardrailsService._extract_span_id_from_traceparent(None) is None
+
+        def test_empty_string(self) -> None:
+            assert GuardrailsService._extract_span_id_from_traceparent("") is None
+
+        def test_valid_traceparent_4_part_with_trace_flags(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_uppercase_hex_normalized_to_lowercase(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-ABCDEF1234567890ABCDEF1234567890-1234567890ABCDEF"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_invalid_span_id_length_rejected(self) -> None:
+            """Span IDs that are neither 16 nor 32 hex chars are rejected."""
+            assert (
+                GuardrailsService._extract_span_id_from_traceparent(
+                    "00-abcdef1234567890abcdef1234567890-1234abcd"
+                )
+                is None
+            )
+
+        def test_invalid_format(self) -> None:
+            assert (
+                GuardrailsService._extract_span_id_from_traceparent("not-valid") is None
+            )

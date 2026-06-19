@@ -2659,7 +2659,7 @@ dev = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.19"
+version = "0.5.20"
 source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.70"
+version = "0.1.71"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },
