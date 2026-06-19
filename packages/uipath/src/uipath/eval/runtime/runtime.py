@@ -45,6 +45,7 @@ from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
+from ..evaluators._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
 from ..evaluators.base_evaluator import GenericBaseEvaluator
 from ..evaluators.binary_classification_evaluator import (
     BinaryClassificationEvaluatorConfig,
@@ -227,8 +228,13 @@ def compute_dataset_evaluator_results(
 
     Returns:
         Dict mapping ``"{evaluator_name}.{aggregator_type}"`` to the run-level
-        EvaluationResultDto. Aggregators whose source produced no results are
-        still invoked with an empty list so they emit a zeroed result.
+        EvaluationResultDto. When the same aggregator ``type`` appears more
+        than once on a source (e.g. macro+micro precision), each variant is
+        disambiguated as ``"{evaluator_name}.{type}.{averaging}"`` and, for
+        fscore, with the ``f_value`` suffix (``"...fbN"``), so a duplicate
+        type never overwrites a previous result. Aggregators whose source
+        produced no results are still invoked with an empty list so they emit
+        a zeroed result.
     """
     results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
         list
@@ -261,13 +267,38 @@ def compute_dataset_evaluator_results(
             continue
         source_name = config.name
         source_results = results_by_evaluator.get(source_name, [])
+        # Count occurrences of each aggregator type to detect duplicates
+        # (e.g. macro+micro precision on the same source). The default key
+        # shape ``{source}.{type}`` collides on duplicates; disambiguate with
+        # ``.{averaging}`` (and ``.fb{f_value}`` for fscore variants) only
+        # when more than one aggregator of that type exists, to preserve the
+        # simple key shape in the common case.
+        type_counts: dict[str, int] = defaultdict(int)
+        for spec in config.aggregators:
+            type_counts[spec.type] += 1
         for spec in config.aggregators:
             dataset_evaluator = build_dataset_evaluator(spec, source_name)
-            evaluation_result = dataset_evaluator.evaluate(source_results)
-            dataset_results[dataset_evaluator.name] = (
-                EvaluationResultDto.from_evaluation_result(evaluation_result)
+            key = _dataset_result_key(source_name, spec, type_counts[spec.type] > 1)
+            dataset_results[key] = EvaluationResultDto.from_evaluation_result(
+                dataset_evaluator.evaluate(source_results)
             )
     return dataset_results
+
+
+def _dataset_result_key(
+    source_name: str, spec: AggregatorSpec, disambiguate: bool
+) -> str:
+    """Build the result-dict key for a dataset evaluator.
+
+    Uses ``{source}.{type}`` for unique-type aggregators, and appends
+    ``.{averaging}`` (plus ``.fb{f_value}`` for fscore) when the same type
+    appears more than once on the same source.
+    """
+    if not disambiguate:
+        return f"{source_name}.{spec.type}"
+    if isinstance(spec, FScoreAggregatorSpec):
+        return f"{source_name}.{spec.type}.{spec.averaging}.fb{spec.f_value}"
+    return f"{source_name}.{spec.type}.{spec.averaging}"
 
 
 class UiPathEvalRuntime:

@@ -26,7 +26,11 @@ from uipath.eval.evaluators.classification_dataset_evaluators import (
     ClassificationDetails,
 )
 from uipath.eval.evaluators.dataset_evaluator_factory import build_dataset_evaluator
-from uipath.eval.models.models import EvaluationResultDto, NumericEvaluationResult
+from uipath.eval.models.models import (
+    EvaluationResult,
+    EvaluationResultDto,
+    NumericEvaluationResult,
+)
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,12 +98,13 @@ def print_per_class(details: ClassificationDetails) -> None:
 
 def report(
     title: str,
-    result: NumericEvaluationResult,
+    result: EvaluationResult,
     *,
     show_json_tail: bool = False,
 ) -> None:
     """Render one scenario's result block."""
     print_header(title)
+    assert isinstance(result, NumericEvaluationResult)
     assert isinstance(result.details, ClassificationDetails)
     d = result.details
     print(
