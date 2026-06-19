@@ -46,6 +46,7 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
 from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..evaluators.dataset_evaluator_factory import build_dataset_evaluator
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
 from ..mocks._cache_manager import CacheManager
@@ -200,6 +201,57 @@ def compute_evaluator_scores(
     final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
 
     return final_score, agg_metrics_per_evaluator
+
+
+def compute_dataset_evaluator_results(
+    evaluation_set_results: list[UiPathEvalRunResult],
+    evaluators: Iterable[GenericBaseEvaluator[Any, Any, Any]],
+) -> dict[str, EvaluationResultDto]:
+    """Run any dataset-level aggregators embedded in per-datapoint evaluator configs.
+
+    Walks ``evaluators`` looking for any whose config carries an ``aggregators``
+    list (currently only Binary/Multiclass classification). For each aggregator
+    spec, builds the corresponding dataset evaluator via the factory and runs it
+    over the per-datapoint results that came from that source evaluator.
+
+    Args:
+        evaluation_set_results: Per-datapoint results from the run.
+        evaluators: Per-datapoint evaluator instances that ran during this eval
+            set. Their configs may carry ``aggregators`` lists.
+
+    Returns:
+        Dict mapping ``"{evaluator_name}.{aggregator_type}"`` to the run-level
+        EvaluationResultDto. Aggregators whose source produced no results are
+        still invoked with an empty list so they emit a zeroed result.
+    """
+    results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for eval_run_result in evaluation_set_results:
+        for eval_run_result_dto in eval_run_result.evaluation_run_results:
+            if eval_run_result_dto.is_line_result:
+                continue
+            results_by_evaluator[eval_run_result_dto.evaluator_name].append(
+                eval_run_result_dto.result
+            )
+
+    dataset_results: dict[str, EvaluationResultDto] = {}
+    for evaluator in evaluators:
+        evaluator_config = getattr(evaluator, "evaluator_config", None)
+        if evaluator_config is None:
+            continue
+        aggregators = getattr(evaluator_config, "aggregators", None)
+        if not aggregators:
+            continue
+        source_name = evaluator_config.name
+        source_results = results_by_evaluator.get(source_name, [])
+        for spec in aggregators:
+            dataset_evaluator = build_dataset_evaluator(spec, source_name)
+            evaluation_result = dataset_evaluator.evaluate(source_results)
+            dataset_results[dataset_evaluator.name] = (
+                EvaluationResultDto.from_evaluation_result(evaluation_result)
+            )
+    return dataset_results
 
 
 class UiPathEvalRuntime:
@@ -379,6 +431,19 @@ class UiPathEvalRuntime:
                     _, evaluator_averages = compute_evaluator_scores(
                         results.evaluation_set_results,
                         evaluators,
+                    )
+
+                    # Run any dataset-level aggregators embedded in per-datapoint
+                    # classification evaluator configs (the ``aggregators`` list).
+                    # Each aggregator consumes per-datapoint results from its
+                    # parent evaluator and emits one run-level EvaluationResultDto
+                    # keyed ``{evaluator_name}.{aggregator_type}`` on
+                    # UiPathEvalOutput.dataset_evaluator_results.
+                    results.dataset_evaluator_results = (
+                        compute_dataset_evaluator_results(
+                            results.evaluation_set_results,
+                            evaluators,
+                        )
                     )
 
                     # Configure span with output and metadata

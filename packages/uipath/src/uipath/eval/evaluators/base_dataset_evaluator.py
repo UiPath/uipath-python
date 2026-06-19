@@ -1,0 +1,66 @@
+"""Base abstractions for dataset-level evaluators.
+
+A dataset-level evaluator runs once per evaluation set, after all per-datapoint
+evaluators have produced their results. It consumes the per-datapoint
+EvaluationResultDto values from one named source evaluator and emits a single
+EvaluationResult that summarizes the dataset.
+
+Unlike the earlier pointer-style design, dataset evaluators no longer carry
+their own JSON config or a ``source_evaluator`` field. They are constructed by
+the factory directly from an :class:`AggregatorSpec` embedded in a per-datapoint
+classification evaluator's config, together with the source evaluator's name
+which is supplied externally by the runtime when walking those configs.
+
+Concretely distinct from GenericBaseEvaluator: different evaluate() signature,
+different lifecycle. Kept as a parallel hierarchy rather than a subclass so the
+runtime cannot accidentally dispatch a dataset evaluator through the
+per-datapoint loop.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Generic, TypeVar
+
+from ..models.models import EvaluationResult, EvaluationResultDto
+from ._aggregator_specs import AggregatorSpec
+
+SpecT = TypeVar("SpecT", bound="AggregatorSpec")
+
+
+class BaseDatasetEvaluator(ABC, Generic[SpecT]):
+    """Abstract base for dataset-level evaluators.
+
+    Constructed from an :class:`AggregatorSpec` and the name of the source
+    per-datapoint evaluator whose results this aggregator consumes. The
+    dataset evaluator's "name" used for result keying is derived from
+    ``"{source_evaluator}.{spec.type}"`` so two aggregators on the same source
+    don't collide.
+    """
+
+    spec: SpecT
+    _source_evaluator: str
+
+    def __init__(self, spec: SpecT, source_evaluator: str) -> None:
+        """Store the aggregator spec and the source evaluator name."""
+        self.spec = spec
+        self._source_evaluator = source_evaluator
+
+    @property
+    def source_evaluator(self) -> str:
+        """Name of the upstream evaluator whose results this one consumes."""
+        return self._source_evaluator
+
+    @property
+    def name(self) -> str:
+        """Stable key for this dataset evaluator's result in the output map."""
+        return f"{self._source_evaluator}.{self.spec.type}"
+
+    @classmethod
+    @abstractmethod
+    def get_evaluator_id(cls) -> str:
+        """Stable identifier matching the ``type`` discriminator on specs."""
+
+    @abstractmethod
+    def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
+        """Reduce per-datapoint results into a single run-level EvaluationResult."""

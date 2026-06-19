@@ -19,6 +19,7 @@ from ..models.models import (
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
 )
+from ._aggregator_specs import AggregatorSpec
 from .base_evaluator import BaseEvaluationCriteria, BaseEvaluatorJustification
 from .output_evaluator import (
     BaseOutputEvaluator,
@@ -41,6 +42,12 @@ class BinaryClassificationEvaluatorConfig(
     positive_class: str
     metric_type: Literal["precision", "recall", "f-score"] = "precision"
     f_value: float = 1.0
+    # Optional run-level aggregators (precision / recall / fscore). Each is a
+    # self-contained spec carrying its own ``classes``, ``averaging``, and
+    # (for fscore) ``f_value``. The dataset-evaluator runtime walks this list
+    # after all per-datapoint evaluators complete and emits one structured
+    # result per aggregator keyed by ``{evaluator_name}.{aggregator.type}``.
+    aggregators: list[AggregatorSpec] | None = None
 
 
 class BinaryClassificationEvaluator(
