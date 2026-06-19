@@ -3,15 +3,14 @@
 All three share the same internal machinery — a k x k confusion matrix built
 from each per-datapoint result's BaseEvaluatorJustification (expected, actual)
 strings. They differ only in the final formula and (for F-score) the beta
-parameter. The headline ``score`` is the micro or macro average per config;
-``details`` carries the full per-class breakdown plus the confusion matrix.
+parameter. The headline ``score`` is the micro or macro average per the
+embedded :class:`AggregatorSpec`; ``details`` carries the full per-class
+breakdown plus the confusion matrix.
 """
 
 from __future__ import annotations
 
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from ..models.models import (
@@ -20,7 +19,12 @@ from ..models.models import (
     EvaluatorType,
     NumericEvaluationResult,
 )
-from .base_dataset_evaluator import BaseDatasetEvaluator, BaseDatasetEvaluatorConfig
+from ._aggregator_specs import (
+    FScoreAggregatorSpec,
+    PrecisionAggregatorSpec,
+    RecallAggregatorSpec,
+)
+from .base_dataset_evaluator import BaseDatasetEvaluator
 from .base_evaluator import BaseEvaluatorJustification
 
 
@@ -99,19 +103,15 @@ class _ConfusionData:
 def _build_confusion(
     results: list[EvaluationResultDto],
     classes: list[str],
-    case_sensitive: bool,
 ) -> _ConfusionData:
     """Build a confusion matrix from per-datapoint results.
 
     Results without a parseable justification are counted in ``n_skipped`` and
     omitted from the matrix. Pairs whose expected or actual label isn't in
-    ``classes`` are also skipped.
+    ``classes`` are also skipped. Labels are normalized to lowercase so a
+    classifier returning "Book" vs configured "book" still matches.
     """
-
-    def norm(label: str) -> str:
-        return label if case_sensitive else label.lower()
-
-    canonical_classes = [norm(c) for c in classes]
+    canonical_classes = [c.lower() for c in classes]
     index_of = {c: i for i, c in enumerate(canonical_classes)}
     k = len(canonical_classes)
     matrix = [[0] * k for _ in range(k)]
@@ -125,8 +125,8 @@ def _build_confusion(
         if j is None:
             n_skipped += 1
             continue
-        exp = norm(j[0])
-        act = norm(j[1])
+        exp = j[0].lower()
+        act = j[1].lower()
         if exp not in index_of or act not in index_of:
             n_skipped += 1
             continue
@@ -168,11 +168,7 @@ def _build_details(
     average: str,
     per_class_fn,
 ) -> tuple[ClassificationDetails, float]:
-    """Compute per-class values, micro, macro, and pick the headline.
-
-    Returns (details, headline_score). ``headline_score`` is the micro or macro
-    average per the evaluator's ``average`` setting.
-    """
+    """Compute per-class values, micro, macro, and pick the headline."""
     per_class: dict[str, PerClassMetrics] = {}
     total_tp = 0
     total_fp = 0
@@ -214,98 +210,58 @@ def _build_details(
     return details, headline
 
 
-# ─── configs ──────────────────────────────────────────────────────────────────
-
-
-class _BaseClassificationConfig(BaseDatasetEvaluatorConfig):
-    """Shared config for the three classification evaluators."""
-
-    classes: list[str] = Field(
-        ...,
-        min_length=1,
-        description="Class labels expected in the upstream evaluator's justifications.",
-    )
-    average: Literal["micro", "macro"] = "macro"
-    case_sensitive: bool = False
-
-
-class PrecisionDatasetEvaluatorConfig(_BaseClassificationConfig):
-    """Configuration for the dataset-level precision evaluator."""
-
-    type: str = EvaluatorType.DATASET_PRECISION.value
-
-
-class RecallDatasetEvaluatorConfig(_BaseClassificationConfig):
-    """Configuration for the dataset-level recall evaluator."""
-
-    type: str = EvaluatorType.DATASET_RECALL.value
-
-
-class FScoreDatasetEvaluatorConfig(_BaseClassificationConfig):
-    """Configuration for the dataset-level F-score evaluator."""
-
-    type: str = EvaluatorType.DATASET_F_SCORE.value
-    f_value: float = Field(default=1.0, gt=0, description="Beta value for F_beta.")
-
-
 # ─── evaluators ───────────────────────────────────────────────────────────────
 
 
-class PrecisionDatasetEvaluator(BaseDatasetEvaluator[PrecisionDatasetEvaluatorConfig]):
+class PrecisionDatasetEvaluator(BaseDatasetEvaluator[PrecisionAggregatorSpec]):
     """Dataset-level precision evaluator (multiclass, micro or macro averaged)."""
 
     @classmethod
     def get_evaluator_id(cls) -> str:
-        """Identifier matching the type discriminator on configs."""
+        """Identifier matching the type discriminator on specs."""
         return EvaluatorType.DATASET_PRECISION.value
 
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
         """Compute the precision report and return the headline as score."""
-        confusion = _build_confusion(
-            results, self.config.classes, self.config.case_sensitive
-        )
+        confusion = _build_confusion(results, self.spec.classes)
         details, headline = _build_details(
-            confusion, "precision", self.config.average, _precision_of
+            confusion, "precision", self.spec.averaging, _precision_of
         )
         return NumericEvaluationResult(score=headline, details=details)
 
 
-class RecallDatasetEvaluator(BaseDatasetEvaluator[RecallDatasetEvaluatorConfig]):
+class RecallDatasetEvaluator(BaseDatasetEvaluator[RecallAggregatorSpec]):
     """Dataset-level recall evaluator (multiclass, micro or macro averaged)."""
 
     @classmethod
     def get_evaluator_id(cls) -> str:
-        """Identifier matching the type discriminator on configs."""
+        """Identifier matching the type discriminator on specs."""
         return EvaluatorType.DATASET_RECALL.value
 
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
         """Compute the recall report and return the headline as score."""
-        confusion = _build_confusion(
-            results, self.config.classes, self.config.case_sensitive
-        )
+        confusion = _build_confusion(results, self.spec.classes)
         details, headline = _build_details(
-            confusion, "recall", self.config.average, _recall_of
+            confusion, "recall", self.spec.averaging, _recall_of
         )
         return NumericEvaluationResult(score=headline, details=details)
 
 
-class FScoreDatasetEvaluator(BaseDatasetEvaluator[FScoreDatasetEvaluatorConfig]):
+class FScoreDatasetEvaluator(BaseDatasetEvaluator[FScoreAggregatorSpec]):
     """Dataset-level F-beta evaluator (multiclass, micro or macro averaged)."""
 
     @classmethod
     def get_evaluator_id(cls) -> str:
-        """Identifier matching the type discriminator on configs."""
+        """Identifier matching the type discriminator on specs."""
         return EvaluatorType.DATASET_F_SCORE.value
 
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
         """Compute the F-beta report and return the headline as score."""
-        confusion = _build_confusion(
-            results, self.config.classes, self.config.case_sensitive
-        )
+        confusion = _build_confusion(results, self.spec.classes)
         details, headline = _build_details(
             confusion,
             "f_score",
-            self.config.average,
-            _f_score_of(self.config.f_value),
+            self.spec.averaging,
+            _f_score_of(self.spec.f_value),
         )
         return NumericEvaluationResult(score=headline, details=details)

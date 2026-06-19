@@ -4,7 +4,6 @@ from typing import Any
 
 from uipath.runtime.schema import UiPathRuntimeSchema
 
-from ..evaluators.base_dataset_evaluator import BaseDatasetEvaluator
 from ..evaluators.base_evaluator import GenericBaseEvaluator
 from ..models.evaluation_set import EvaluationSet
 
@@ -28,4 +27,3 @@ class UiPathEvalContext:
     input_overrides: dict[str, Any] | None = None
     resume: bool = False
     job_id: str | None = None
-    dataset_evaluators: list[BaseDatasetEvaluator[Any]] | None = None

@@ -16,18 +16,17 @@ from __future__ import annotations
 import json
 from typing import Iterable
 
+from uipath.eval.evaluators._aggregator_specs import (
+    FScoreAggregatorSpec,
+    PrecisionAggregatorSpec,
+    RecallAggregatorSpec,
+)
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.classification_dataset_evaluators import (
     ClassificationDetails,
-    FScoreDatasetEvaluator,
-    FScoreDatasetEvaluatorConfig,
-    PrecisionDatasetEvaluator,
-    PrecisionDatasetEvaluatorConfig,
-    RecallDatasetEvaluator,
-    RecallDatasetEvaluatorConfig,
 )
+from uipath.eval.evaluators.dataset_evaluator_factory import build_dataset_evaluator
 from uipath.eval.models.models import EvaluationResultDto, NumericEvaluationResult
-
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,9 +34,9 @@ from uipath.eval.models.models import EvaluationResultDto, NumericEvaluationResu
 def make_result(expected: str, actual: str) -> EvaluationResultDto:
     """Build a single per-datapoint EvaluationResultDto.
 
-    Models what an upstream ExactMatch evaluator would produce after running
-    on one datapoint: score is 1.0 if the labels match, 0.0 otherwise, with
-    the expected/actual labels carried in the justification.
+    Models what an upstream classification evaluator would produce after running
+    on one datapoint: score is 1.0 if the labels match, 0.0 otherwise, with the
+    expected/actual labels carried in the justification.
     """
     score = 1.0 if expected.lower() == actual.lower() else 0.0
     justification = BaseEvaluatorJustification(expected=expected, actual=actual)
@@ -45,10 +44,12 @@ def make_result(expected: str, actual: str) -> EvaluationResultDto:
 
 
 def materialize_pairs(pairs: Iterable[tuple[str, str]]) -> list[EvaluationResultDto]:
+    """Build a list of EvaluationResultDto from (expected, actual) pairs."""
     return [make_result(e, a) for e, a in pairs]
 
 
 def print_header(title: str) -> None:
+    """Print a section header banner."""
     print()
     print("═" * 78)
     print(f" {title}")
@@ -59,7 +60,12 @@ def print_confusion(details: ClassificationDetails) -> None:
     """Pretty-print the confusion matrix as a table."""
     classes = details.classes
     cell_width = max(7, max(len(c) for c in classes) + 1)
-    header = " " * cell_width + " │ " + " │ ".join(c.center(cell_width) for c in classes) + " │  ← expected"
+    header = (
+        " " * cell_width
+        + " │ "
+        + " │ ".join(c.center(cell_width) for c in classes)
+        + " │  ← expected"
+    )
     print(header)
     print("─" * len(header))
     for predicted_idx, predicted_label in enumerate(classes):
@@ -111,7 +117,6 @@ def report(
     if show_json_tail:
         print()
         print("  ── wire JSON (matches frontend zod schema) ──")
-        # Just show a snippet to keep output focused.
         payload = d.model_dump(by_alias=True)
         print(
             "  "
@@ -130,69 +135,44 @@ def scenario_1_balanced_three_class() -> None:
     pairs = [
         ("book", "book"),
         ("book", "book"),
-        ("book", "cancel"),  # FN_book, FP_cancel
+        ("book", "cancel"),
         ("cancel", "cancel"),
         ("cancel", "cancel"),
-        ("cancel", "reschedule"),  # FN_cancel, FP_reschedule
+        ("cancel", "reschedule"),
         ("reschedule", "reschedule"),
         ("reschedule", "reschedule"),
-        ("reschedule", "book"),  # FN_reschedule, FP_book
+        ("reschedule", "book"),
     ]
-    results = materialize_pairs(pairs)
-    evaluator = PrecisionDatasetEvaluator(
-        PrecisionDatasetEvaluatorConfig(
-            id="precision_intent",
-            name="precision_intent",
-            source_evaluator="intent_match",
-            classes=["book", "cancel", "reschedule"],
-            average="macro",
-        )
+    spec = PrecisionAggregatorSpec(
+        classes=["book", "cancel", "reschedule"], averaging="macro"
     )
+    evaluator = build_dataset_evaluator(spec, source_evaluator="intent_match")
     report(
         "Scenario 1 — Balanced 3-class (intent recognition)\n"
         "  Each class: 2 TP, 1 FP, 1 FN. Symmetric setup → macro = micro = 2/3.",
-        evaluator.evaluate(results),
+        evaluator.evaluate(materialize_pairs(pairs)),
         show_json_tail=True,
     )
 
 
 def scenario_2_imbalanced_two_class() -> None:
-    """Rare-positive case — why macro vs micro matters.
-
-    20 datapoints. Only 4 are actually positive (the rare class). A weak
-    classifier could trivially get high accuracy by predicting "negative"
-    everywhere — micro precision masks that, macro doesn't.
-    """
+    """Rare-positive case — why macro vs micro matters."""
     pairs: list[tuple[str, str]] = []
-    # 16 true negatives where the classifier said "negative" (correct).
     pairs += [("negative", "negative")] * 13
-    # 3 false positives — classifier hallucinated "positive" on actual negatives.
     pairs += [("negative", "positive")] * 3
-    # 2 true positives.
     pairs += [("positive", "positive")] * 2
-    # 2 false negatives — classifier missed real positives.
     pairs += [("positive", "negative")] * 2
 
     results = materialize_pairs(pairs)
     classes = ["positive", "negative"]
 
-    macro = PrecisionDatasetEvaluator(
-        PrecisionDatasetEvaluatorConfig(
-            id="p_macro",
-            name="precision (macro)",
-            source_evaluator="positive_match",
-            classes=classes,
-            average="macro",
-        )
+    macro = build_dataset_evaluator(
+        PrecisionAggregatorSpec(classes=classes, averaging="macro"),
+        source_evaluator="positive_match",
     )
-    micro = PrecisionDatasetEvaluator(
-        PrecisionDatasetEvaluatorConfig(
-            id="p_micro",
-            name="precision (micro)",
-            source_evaluator="positive_match",
-            classes=classes,
-            average="micro",
-        )
+    micro = build_dataset_evaluator(
+        PrecisionAggregatorSpec(classes=classes, averaging="micro"),
+        source_evaluator="positive_match",
     )
     report(
         "Scenario 2a — Imbalanced 2-class, MACRO precision\n"
@@ -202,8 +182,7 @@ def scenario_2_imbalanced_two_class() -> None:
     )
     report(
         "Scenario 2b — Same data, MICRO precision\n"
-        "  Pools TP/FP across classes. In a 2-class case this equals accuracy.\n"
-        "  Notice macro << micro — that's the bias you'd miss with micro alone.",
+        "  Pools TP/FP across classes. In a 2-class case this equals accuracy.",
         micro.evaluate(results),
     )
 
@@ -213,69 +192,35 @@ def scenario_3_precision_vs_recall_vs_f() -> None:
     pairs = [
         ("yes", "yes"),
         ("yes", "yes"),
-        ("no", "yes"),  # FP for yes
-        ("no", "yes"),  # FP for yes
+        ("no", "yes"),
+        ("no", "yes"),
         ("no", "no"),
         ("no", "no"),
-        ("yes", "no"),  # FN for yes
+        ("yes", "no"),
     ]
     results = materialize_pairs(pairs)
     classes = ["yes", "no"]
 
-    p = PrecisionDatasetEvaluator(
-        PrecisionDatasetEvaluatorConfig(
-            id="p",
-            name="precision",
+    evaluators = {
+        "Scenario 3a — Precision on a recall-favourable dataset": build_dataset_evaluator(
+            PrecisionAggregatorSpec(classes=classes, averaging="macro"),
             source_evaluator="yes_match",
-            classes=classes,
-            average="macro",
-        )
-    )
-    r = RecallDatasetEvaluator(
-        RecallDatasetEvaluatorConfig(
-            id="r",
-            name="recall",
+        ),
+        "Scenario 3b — Recall (same data — note 'yes' recall is 1.0)": build_dataset_evaluator(
+            RecallAggregatorSpec(classes=classes, averaging="macro"),
             source_evaluator="yes_match",
-            classes=classes,
-            average="macro",
-        )
-    )
-    f1 = FScoreDatasetEvaluator(
-        FScoreDatasetEvaluatorConfig(
-            id="f1",
-            name="f1",
+        ),
+        "Scenario 3c — F1 (harmonic mean of P and R)": build_dataset_evaluator(
+            FScoreAggregatorSpec(classes=classes, averaging="macro", f_value=1.0),
             source_evaluator="yes_match",
-            classes=classes,
-            average="macro",
-            f_value=1.0,
-        )
-    )
-    f2 = FScoreDatasetEvaluator(
-        FScoreDatasetEvaluatorConfig(
-            id="f2",
-            name="f2",
+        ),
+        "Scenario 3d — F2 (β=2 weighs recall higher — score moves toward recall)": build_dataset_evaluator(
+            FScoreAggregatorSpec(classes=classes, averaging="macro", f_value=2.0),
             source_evaluator="yes_match",
-            classes=classes,
-            average="macro",
-            f_value=2.0,
-        )
-    )
-    report(
-        "Scenario 3a — Precision on a recall-favourable dataset",
-        p.evaluate(results),
-    )
-    report(
-        "Scenario 3b — Recall (same data — note 'yes' recall is 1.0)",
-        r.evaluate(results),
-    )
-    report(
-        "Scenario 3c — F1 (harmonic mean of P and R)",
-        f1.evaluate(results),
-    )
-    report(
-        "Scenario 3d — F2 (β=2 weighs recall higher — score moves toward recall)",
-        f2.evaluate(results),
-    )
+        ),
+    }
+    for title, evaluator in evaluators.items():
+        report(title, evaluator.evaluate(results))
 
 
 def scenario_4_skipped_datapoints() -> None:
@@ -283,19 +228,14 @@ def scenario_4_skipped_datapoints() -> None:
     results = [
         make_result("cat", "cat"),
         make_result("dog", "dog"),
-        make_result("cat", "platypus"),  # actual not in classes → skipped
-        make_result("zebra", "cat"),  # expected not in classes → skipped
+        make_result("cat", "platypus"),
+        make_result("zebra", "cat"),
         EvaluationResultDto(score=1.0, details="bare string — no justification"),
         EvaluationResultDto(score=0.0, details={"unrelated": "shape"}),
     ]
-    evaluator = PrecisionDatasetEvaluator(
-        PrecisionDatasetEvaluatorConfig(
-            id="precision_robustness",
-            name="precision_robustness",
-            source_evaluator="any_match",
-            classes=["cat", "dog"],
-            average="macro",
-        )
+    evaluator = build_dataset_evaluator(
+        PrecisionAggregatorSpec(classes=["cat", "dog"], averaging="macro"),
+        source_evaluator="any_match",
     )
     report(
         "Scenario 4 — Skipped datapoints (out-of-vocab + malformed details)\n"
@@ -309,33 +249,23 @@ def scenario_4_skipped_datapoints() -> None:
 def scenario_5_realistic_intent_classifier() -> None:
     """A larger, more interesting 4-class dataset — uneven per-class performance."""
     pairs = [
-        # 'book' is easy: classifier handles it well
         *[("book", "book")] * 10,
         ("book", "cancel"),
-        # 'cancel' is medium: a few errors
         *[("cancel", "cancel")] * 6,
         ("cancel", "book"),
         ("cancel", "modify"),
-        # 'reschedule' is hard: classifier confuses it with 'modify'
         ("reschedule", "reschedule"),
         ("reschedule", "reschedule"),
         ("reschedule", "modify"),
         ("reschedule", "modify"),
-        # 'modify' is rare: only 2 cases, classifier gets one
         ("modify", "modify"),
         ("modify", "reschedule"),
     ]
     results = materialize_pairs(pairs)
     classes = ["book", "cancel", "reschedule", "modify"]
-    macro_f1 = FScoreDatasetEvaluator(
-        FScoreDatasetEvaluatorConfig(
-            id="f1_4class",
-            name="f1_4class",
-            source_evaluator="intent_match",
-            classes=classes,
-            average="macro",
-            f_value=1.0,
-        )
+    macro_f1 = build_dataset_evaluator(
+        FScoreAggregatorSpec(classes=classes, averaging="macro", f_value=1.0),
+        source_evaluator="intent_match",
     )
     report(
         "Scenario 5 — Realistic 4-class intent classifier\n"
@@ -346,6 +276,7 @@ def scenario_5_realistic_intent_classifier() -> None:
 
 
 def main() -> None:
+    """Run every scenario sequentially."""
     scenario_1_balanced_three_class()
     scenario_2_imbalanced_two_class()
     scenario_3_precision_vs_recall_vs_f()

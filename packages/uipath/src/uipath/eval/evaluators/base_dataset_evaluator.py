@@ -5,9 +5,15 @@ evaluators have produced their results. It consumes the per-datapoint
 EvaluationResultDto values from one named source evaluator and emits a single
 EvaluationResult that summarizes the dataset.
 
+Unlike the earlier pointer-style design, dataset evaluators no longer carry
+their own JSON config or a ``source_evaluator`` field. They are constructed by
+the factory directly from an :class:`AggregatorSpec` embedded in a per-datapoint
+classification evaluator's config, together with the source evaluator's name
+which is supplied externally by the runtime when walking those configs.
+
 Concretely distinct from GenericBaseEvaluator: different evaluate() signature,
-different lifecycle. Kept as a parallel hierarchy rather than a subclass so
-the runtime cannot accidentally dispatch a dataset evaluator through the
+different lifecycle. Kept as a parallel hierarchy rather than a subclass so the
+runtime cannot accidentally dispatch a dataset evaluator through the
 per-datapoint loop.
 """
 
@@ -16,59 +22,44 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.alias_generators import to_camel
-
 from ..models.models import EvaluationResult, EvaluationResultDto
+from ._aggregator_specs import AggregatorSpec
+
+SpecT = TypeVar("SpecT", bound="AggregatorSpec")
 
 
-class BaseDatasetEvaluatorConfig(BaseModel):
-    """Configuration shared by all dataset-level evaluators."""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-
-    id: str
-    name: str
-    type: str
-    source_evaluator: str = Field(
-        ...,
-        description=(
-            "Name of the per-datapoint evaluator whose EvaluationResultDto values "
-            "this dataset evaluator consumes."
-        ),
-    )
-
-
-ConfigT = TypeVar("ConfigT", bound=BaseDatasetEvaluatorConfig)
-
-
-class BaseDatasetEvaluator(ABC, Generic[ConfigT]):
+class BaseDatasetEvaluator(ABC, Generic[SpecT]):
     """Abstract base for dataset-level evaluators.
 
-    Subclasses implement ``evaluate`` over the per-datapoint EvaluationResultDto
-    values produced by ``config.source_evaluator``.
+    Constructed from an :class:`AggregatorSpec` and the name of the source
+    per-datapoint evaluator whose results this aggregator consumes. The
+    dataset evaluator's "name" used for result keying is derived from
+    ``"{source_evaluator}.{spec.type}"`` so two aggregators on the same source
+    don't collide.
     """
 
-    config: ConfigT
+    spec: SpecT
+    _source_evaluator: str
 
-    def __init__(self, config: ConfigT) -> None:
-        """Store the evaluator's configuration."""
-        self.config = config
-
-    @property
-    def name(self) -> str:
-        """Logical name of this evaluator instance (used as result-dict key)."""
-        return self.config.name
+    def __init__(self, spec: SpecT, source_evaluator: str) -> None:
+        """Store the aggregator spec and the source evaluator name."""
+        self.spec = spec
+        self._source_evaluator = source_evaluator
 
     @property
     def source_evaluator(self) -> str:
         """Name of the upstream evaluator whose results this one consumes."""
-        return self.config.source_evaluator
+        return self._source_evaluator
+
+    @property
+    def name(self) -> str:
+        """Stable key for this dataset evaluator's result in the output map."""
+        return f"{self._source_evaluator}.{self.spec.type}"
 
     @classmethod
     @abstractmethod
     def get_evaluator_id(cls) -> str:
-        """Stable identifier matching the ``type`` discriminator on configs."""
+        """Stable identifier matching the ``type`` discriminator on specs."""
 
     @abstractmethod
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
