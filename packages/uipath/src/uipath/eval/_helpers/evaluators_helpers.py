@@ -442,7 +442,9 @@ def tool_calls_count_score(
         # Raw key first (id-keyed / exact-match), then sanitised (legacy display-name). `is None` not `or`: count of 0 is a hit.
         actual_count = actual_tool_calls_count.get(tool_name)
         if actual_count is None:
-            actual_count = actual_tool_calls_count.get(_sanitize_tool_name(tool_name), 0)
+            actual_count = actual_tool_calls_count.get(
+                _sanitize_tool_name(tool_name), 0
+            )
         comparator = f"__{COMPARATOR_MAPPINGS[expected_comparator]}__"
         to_add = float(getattr(actual_count, comparator)(expected_count))
 
