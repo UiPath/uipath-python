@@ -27,14 +27,7 @@ from .base_evaluator import BaseEvaluatorJustification
 
 def _coerce_justification(details: object) -> BaseEvaluatorJustification | None:
     """Extract the BaseEvaluatorJustification from an EvaluationResultDto.details payload."""
-    if isinstance(details, BaseEvaluatorJustification):
-        return details
-    if isinstance(details, dict):
-        try:
-            return BaseEvaluatorJustification.model_validate(details)
-        except Exception:
-            return None
-    return None
+    return BaseEvaluatorJustification.try_from(details)
 
 
 class PerClassMetrics(BaseModel):
@@ -165,6 +158,7 @@ class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
             )
 
         micro = _metric(metric_type, total_tp, total_fp, total_fn, beta_sq)
+        # AggregatorSpec.classes has min_length=1, so k >= 1 always.
         macro = sum(per_class[c].value for c in confusion.classes) / k
 
         details = ClassificationDetails(

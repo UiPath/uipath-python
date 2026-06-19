@@ -13,7 +13,6 @@ Run::
 
 from __future__ import annotations
 
-import json
 from typing import Iterable
 
 from uipath.eval.evaluators._aggregator_specs import (
@@ -56,75 +55,18 @@ def print_header(title: str) -> None:
     print("═" * 78)
 
 
-def print_confusion(details: ClassificationDetails) -> None:
-    """Pretty-print the confusion matrix as a table."""
-    classes = details.classes
-    cell_width = max(7, max(len(c) for c in classes) + 1)
-    header = (
-        " " * cell_width
-        + " │ "
-        + " │ ".join(c.center(cell_width) for c in classes)
-        + " │  ← expected"
-    )
-    print(header)
-    print("─" * len(header))
-    for predicted_idx, predicted_label in enumerate(classes):
-        row_cells = [
-            str(details.confusion_matrix[predicted_idx][expected_idx]).rjust(cell_width)
-            for expected_idx in range(len(classes))
-        ]
-        print(predicted_label.ljust(cell_width) + " │ " + " │ ".join(row_cells) + " │")
-    print(" " * cell_width + "↑ predicted")
-
-
-def print_per_class(details: ClassificationDetails) -> None:
-    """One-row-per-class table of TP/TN/FP/FN + the metric."""
-    label_w = max(len("class"), max(len(c) for c in details.classes))
-    metric = details.metric
-    header = f"  {'class'.ljust(label_w)}  │  TP  TN  FP  FN  support  {metric}"
-    print(header)
-    print("  " + "─" * (len(header) - 2))
-    for cls, m in details.per_class.items():
-        print(
-            f"  {cls.ljust(label_w)}  │  "
-            f"{m.tp:>2}  {m.tn:>2}  {m.fp:>2}  {m.fn:>2}  {m.support:>7}  "
-            f"{m.value:.3f}"
-        )
-
-
 def report(
     title: str,
     result: NumericEvaluationResult,
     *,
-    show_json_tail: bool = False,
+    show_json_tail: bool = False,  # kept for call-site compat; payload is always emitted
 ) -> None:
-    """Render one scenario's result block."""
+    """Render one scenario's result block as JSON — the actual wire shape."""
+    _ = show_json_tail
     print_header(title)
     assert isinstance(result.details, ClassificationDetails)
-    d = result.details
-    print(
-        f"  metric = {d.metric}   average = {d.average}   "
-        f"score (headline) = {result.score:.4f}"
-    )
-    print(
-        f"  micro = {d.micro:.4f}   macro = {d.macro:.4f}   "
-        f"scored = {d.n_scored}/{d.n_total}   skipped = {d.n_skipped}"
-    )
-    print()
-    print_confusion(d)
-    print()
-    print_per_class(d)
-    if show_json_tail:
-        print()
-        print("  ── wire JSON (matches frontend zod schema) ──")
-        payload = d.model_dump(by_alias=True)
-        print(
-            "  "
-            + json.dumps(
-                {k: payload[k] for k in ("metric", "average", "micro", "macro")},
-                indent=2,
-            ).replace("\n", "\n  ")
-        )
+    print(f"  headline score = {result.score:.4f}")
+    print(result.details.model_dump_json(indent=2, by_alias=True))
 
 
 # ─── scenarios ────────────────────────────────────────────────────────────────

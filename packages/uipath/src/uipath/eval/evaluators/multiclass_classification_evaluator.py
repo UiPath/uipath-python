@@ -121,14 +121,8 @@ class MulticlassClassificationEvaluator(
         # Reconstruct confusion matrix: confusion[pred_idx][exp_idx]
         confusion = [[0] * k for _ in range(k)]
         for r in results:
-            if isinstance(r.details, BaseEvaluatorJustification):
-                details = r.details
-            elif isinstance(r.details, dict):
-                try:
-                    details = BaseEvaluatorJustification.model_validate(r.details)
-                except Exception:
-                    continue
-            else:
+            details = BaseEvaluatorJustification.try_from(r.details)
+            if details is None:
                 continue
             pred = details.actual
             exp = details.expected
