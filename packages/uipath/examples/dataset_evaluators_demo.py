@@ -25,7 +25,11 @@ from uipath.eval.evaluators.classification_dataset_evaluators import (
     ClassificationDetails,
 )
 from uipath.eval.evaluators.dataset_evaluator_factory import build_dataset_evaluator
-from uipath.eval.models.models import EvaluationResultDto, NumericEvaluationResult
+from uipath.eval.models.models import (
+    EvaluationResult,
+    EvaluationResultDto,
+    NumericEvaluationResult,
+)
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,13 +61,14 @@ def print_header(title: str) -> None:
 
 def report(
     title: str,
-    result: NumericEvaluationResult,
+    result: EvaluationResult,
     *,
     show_json_tail: bool = False,  # kept for call-site compat; payload is always emitted
 ) -> None:
     """Render one scenario's result block as JSON — the actual wire shape."""
     _ = show_json_tail
     print_header(title)
+    assert isinstance(result, NumericEvaluationResult)
     assert isinstance(result.details, ClassificationDetails)
     print(f"  headline score = {result.score:.4f}")
     print(result.details.model_dump_json(indent=2, by_alias=True))
