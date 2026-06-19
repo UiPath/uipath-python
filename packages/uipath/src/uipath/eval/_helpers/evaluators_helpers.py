@@ -445,10 +445,10 @@ def tool_calls_count_score(
         # span (sanitised "Web_Search" + the id under count_tool_calls_by_name_and_id).
         # Try the raw key first (covers id-keyed and exact-match criteria),
         # then the sanitised form (covers display-name-keyed legacy criteria).
-        actual_count = actual_tool_calls_count.get(
-            tool_name,
-            actual_tool_calls_count.get(_normalize_tool_name(tool_name), 0.0),
-        )
+        # `is None` not `or` — count of 0 is a legitimate hit, not a fallback trigger.
+        actual_count = actual_tool_calls_count.get(tool_name)
+        if actual_count is None:
+            actual_count = actual_tool_calls_count.get(_normalize_tool_name(tool_name), 0)
         comparator = f"__{COMPARATOR_MAPPINGS[expected_comparator]}__"
         to_add = float(getattr(actual_count, comparator)(expected_count))
 

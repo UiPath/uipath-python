@@ -12,6 +12,9 @@ from typing import Any
 import pytest
 
 from uipath.eval._helpers.evaluators_helpers import (
+    _calls_match,
+    _match_key,
+    _normalize_tool_name,
     extract_tool_calls,
     extract_tool_calls_names,
     extract_tool_calls_outputs,
@@ -1124,7 +1127,8 @@ class TestSanitizedNameMatch:
     ``"Web_Search"``. Id-equality wins first when both sides carry an id.
     """
 
-    def _reference_sanitize(self, name: str) -> str:
+    @staticmethod
+    def _reference_sanitize(name: str) -> str:
         """Pinned copy of ``uipath_langchain.agent.tools.utils.sanitize_tool_name``."""
         import re
 
@@ -1148,48 +1152,32 @@ class TestSanitizedNameMatch:
         ],
     )
     def test_normalize_matches_langchain_reference(self, raw: str) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _normalize_tool_name
-
         assert _normalize_tool_name(raw) == self._reference_sanitize(raw)
 
     def test_normalize_handles_none(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _normalize_tool_name
-
         assert _normalize_tool_name(None) == ""
 
     def test_match_key_display_vs_sanitised(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _match_key
-
         assert _match_key("Web_Search", None, "Web Search") is True
 
     def test_match_key_id_wins_when_present(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _match_key
-
         assert _match_key("Web_Search", "webSearch1", "webSearch1") is True
         assert _match_key("Web_Search", "webSearch1", "Web Search") is True
 
     def test_match_key_mismatch_after_sanitising(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _match_key
-
         assert _match_key("Web_Search", None, "Image_Search") is False
 
     def test_calls_match_display_vs_sanitised(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _calls_match
-
         actual = ToolCall(name="Web_Search", args={})
         expected = ToolCall(name="Web Search", args={})
         assert _calls_match(actual, expected) is True
 
     def test_calls_match_id_equality_unchanged(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _calls_match
-
         actual = ToolCall(name="Web_Search", id="webSearch1", args={})
         expected = ToolCall(name="totally different", id="webSearch1", args={})
         assert _calls_match(actual, expected) is True
 
     def test_calls_match_output_display_vs_sanitised(self) -> None:
-        from uipath.eval._helpers.evaluators_helpers import _calls_match
-
         actual = ToolOutput(name="Web_Search", output="x")
         expected = ToolOutput(name="Web Search", output="x")
         assert _calls_match(actual, expected) is True
