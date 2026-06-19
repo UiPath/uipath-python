@@ -1114,3 +1114,94 @@ class TestIdAwareMatching:
         ]
         score, _ = tool_calls_order_score_with_ids(actual, ["get_temp", "get_humidity"])
         assert score == 1.0
+
+
+class TestSanitizedNameMatch:
+    """Sanitised-name fallback in ``_match_key`` and ``_calls_match``.
+
+    Closes the display-vs-sanitised gap: an editor criterion ``"Web Search"``
+    must match a runtime span whose ``tool.name`` is the sanitised form
+    ``"Web_Search"``. Id-equality wins first when both sides carry an id.
+    """
+
+    def _reference_sanitize(self, name: str) -> str:
+        """Pinned copy of ``uipath_langchain.agent.tools.utils.sanitize_tool_name``."""
+        import re
+
+        trim_whitespaces = "_".join(name.split())
+        sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", trim_whitespaces)
+        return sanitized[:64]
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "Web Search",
+            "Google Sheets / Read",
+            "Add Numbers",
+            "tool with spaces and (parens)",
+            "snake_case_tool",
+            "kebab-case-tool",
+            "alreadySanitised",
+            "  multiple   whitespace  ",
+            "very-long-name-" + "x" * 100,
+            "",
+        ],
+    )
+    def test_normalize_matches_langchain_reference(self, raw: str) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _normalize_tool_name
+
+        assert _normalize_tool_name(raw) == self._reference_sanitize(raw)
+
+    def test_normalize_handles_none(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _normalize_tool_name
+
+        assert _normalize_tool_name(None) == ""
+
+    def test_match_key_display_vs_sanitised(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _match_key
+
+        assert _match_key("Web_Search", None, "Web Search") is True
+
+    def test_match_key_id_wins_when_present(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _match_key
+
+        assert _match_key("Web_Search", "webSearch1", "webSearch1") is True
+        assert _match_key("Web_Search", "webSearch1", "Web Search") is True
+
+    def test_match_key_mismatch_after_sanitising(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _match_key
+
+        assert _match_key("Web_Search", None, "Image_Search") is False
+
+    def test_calls_match_display_vs_sanitised(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _calls_match
+
+        actual = ToolCall(name="Web_Search", args={})
+        expected = ToolCall(name="Web Search", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_id_equality_unchanged(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _calls_match
+
+        actual = ToolCall(name="Web_Search", id="webSearch1", args={})
+        expected = ToolCall(name="totally different", id="webSearch1", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_output_display_vs_sanitised(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import _calls_match
+
+        actual = ToolOutput(name="Web_Search", output="x")
+        expected = ToolOutput(name="Web Search", output="x")
+        assert _calls_match(actual, expected) is True
+
+    def test_count_score_display_name_matches_sanitised_actual(self) -> None:
+        actual = {"Web_Search": 2}
+        expected = {"Web Search": ("==", 2)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0
+
+    def test_count_score_id_keyed_expected_still_wins(self) -> None:
+        actual = {"Web_Search": 1, "webSearch1": 1}
+        expected = {"webSearch1": (">=", 1)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0
