@@ -300,9 +300,6 @@ class EvaluatorType(str, Enum):
     TOOL_CALL_OUTPUT = "uipath-tool-call-output"
     BINARY_CLASSIFICATION = "uipath-binary-classification"
     MULTICLASS_CLASSIFICATION = "uipath-multiclass-classification"
-    DATASET_PRECISION = "uipath-dataset-precision"
-    DATASET_RECALL = "uipath-dataset-recall"
-    DATASET_F_SCORE = "uipath-dataset-f-score"
 
 
 class ToolCall(BaseModel):
