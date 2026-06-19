@@ -206,6 +206,53 @@ class TestGetChatBridge:
         assert "X-UiPath-ConversationId" in bridge.headers
         assert bridge.headers["X-UiPath-ConversationId"] == "conv-789"
 
+    def test_get_chat_bridge_falls_back_to_env_when_tenant_and_org_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Tenant/account headers fall back to env vars when context values are None."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "env-tenant")
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "env-org")
+
+        context = MockRuntimeContext(
+            tenant_id=None,  # type: ignore[arg-type]
+            org_id=None,  # type: ignore[arg-type]
+            conversation_id="conv-789",
+        )
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
+        assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
+
+    def test_get_chat_bridge_includes_conversational_user_id_header_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Conversation owner id (from FpsProperties) is sent on the handshake for CAS to validate."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+
+        context = MockRuntimeContext(conversation_id="conv-789")
+        context.conversational_user_id = "owner-guid"  # type: ignore[attr-defined]
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-ConversationalUserId"] == "owner-guid"
+
+    def test_get_chat_bridge_omits_conversational_user_id_header_when_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No header is sent when the runtime has no owner id (backward compatible)."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+
+        context = MockRuntimeContext(conversation_id="conv-789")
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert "X-UiPath-Internal-ConversationalUserId" not in bridge.headers
+
     def test_get_chat_bridge_raises_without_uipath_url(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
