@@ -14,8 +14,7 @@ from ..models import (
 
 TOOL_NAME_ATTR = "tool.name"
 
-# Mirrors uipath_langchain.agent.tools.utils.sanitize_tool_name. Pinned by
-# TestSanitizedNameMatch in tests/evaluators/test_evaluator_helpers.py.
+# Mirrors uipath_langchain.agent.tools.utils.sanitize_tool_name; pinned by TestSanitizedNameMatch.
 _TOOL_NAME_DISALLOWED = re.compile(r"[^a-zA-Z0-9_-]")
 
 
@@ -440,12 +439,7 @@ def tool_calls_count_score(
         expected_comparator,
         expected_count,
     ) in expected_tool_calls_count.items():
-        # Expected dict keys come from the editor (display name "Web Search"
-        # OR canvas id "webSearch1"). Actual dict keys come from the runtime
-        # span (sanitised "Web_Search" + the id under count_tool_calls_by_name_and_id).
-        # Try the raw key first (covers id-keyed and exact-match criteria),
-        # then the sanitised form (covers display-name-keyed legacy criteria).
-        # `is None` not `or` — count of 0 is a legitimate hit, not a fallback trigger.
+        # Raw key first (id-keyed / exact-match), then sanitised (legacy display-name). `is None` not `or`: count of 0 is a hit.
         actual_count = actual_tool_calls_count.get(tool_name)
         if actual_count is None:
             actual_count = actual_tool_calls_count.get(_sanitize_tool_name(tool_name), 0)

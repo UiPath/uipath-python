@@ -1120,12 +1120,7 @@ class TestIdAwareMatching:
 
 
 class TestSanitizedNameMatch:
-    """Sanitised-name fallback in ``_match_key`` and ``_calls_match``.
-
-    Closes the display-vs-sanitised gap: an editor criterion ``"Web Search"``
-    must match a runtime span whose ``tool.name`` is the sanitised form
-    ``"Web_Search"``. Id-equality wins first when both sides carry an id.
-    """
+    """Sanitised-name fallback in ``_match_key`` / ``_calls_match`` — id-equality wins first."""
 
     @staticmethod
     def _reference_sanitize(name: str) -> str:
