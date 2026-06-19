@@ -46,7 +46,13 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
 from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..evaluators.binary_classification_evaluator import (
+    BinaryClassificationEvaluatorConfig,
+)
 from ..evaluators.dataset_evaluator_factory import build_dataset_evaluator
+from ..evaluators.multiclass_classification_evaluator import (
+    MulticlassClassificationEvaluatorConfig,
+)
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
 from ..mocks._cache_manager import CacheManager
@@ -237,13 +243,25 @@ def compute_dataset_evaluator_results(
 
     dataset_results: dict[str, EvaluationResultDto] = {}
     for evaluator in evaluators:
+        # Aggregators currently only live on classification evaluator configs.
+        # ``GenericBaseEvaluator`` doesn't declare ``evaluator_config``, so we
+        # retrieve it via ``getattr`` and narrow with ``isinstance`` to a
+        # classification config type before reading ``aggregators``. Widen the
+        # tuple if a future evaluator type grows an ``aggregators`` field.
         config = getattr(evaluator, "evaluator_config", None)
-        aggregators = getattr(config, "aggregators", None)
-        if config is None or not aggregators:
+        if not isinstance(
+            config,
+            (
+                BinaryClassificationEvaluatorConfig,
+                MulticlassClassificationEvaluatorConfig,
+            ),
+        ):
+            continue
+        if not config.aggregators:
             continue
         source_name = config.name
         source_results = results_by_evaluator.get(source_name, [])
-        for spec in aggregators:
+        for spec in config.aggregators:
             dataset_evaluator = build_dataset_evaluator(spec, source_name)
             evaluation_result = dataset_evaluator.evaluate(source_results)
             dataset_results[dataset_evaluator.name] = (
