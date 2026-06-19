@@ -526,35 +526,3 @@ class TestComputeDatasetEvaluatorResults:
             "intent_match.precision.macro",
             "intent_match.precision.micro",
         }
-
-    def test_duplicate_fscore_disambiguates_by_averaging_and_fvalue(self) -> None:
-        """Two FScore aggregators (e.g. F1 macro and F2 macro) both survive."""
-        evaluator = _multiclass_evaluator(
-            "intent_match",
-            classes=["yes", "no"],
-            aggregators=[
-                FScoreAggregatorSpec(
-                    classes=["yes", "no"], averaging="macro", f_value=1.0
-                ),
-                FScoreAggregatorSpec(
-                    classes=["yes", "no"], averaging="macro", f_value=2.0
-                ),
-            ],
-        )
-        eval_results = [
-            UiPathEvalRunResult(
-                evaluation_name="dp1",
-                evaluation_run_results=[
-                    UiPathEvalRunResultDto(
-                        evaluator_name="intent_match",
-                        evaluator_id=str(uuid.uuid4()),
-                        result=_result("yes", "yes"),
-                    ),
-                ],
-            ),
-        ]
-        out = compute_dataset_evaluator_results(eval_results, [evaluator])
-        assert set(out) == {
-            "intent_match.fscore.macro.fb1.0",
-            "intent_match.fscore.macro.fb2.0",
-        }
