@@ -9,6 +9,8 @@ macro averaging.
 
 from typing import Literal
 
+from pydantic import model_validator
+
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -20,12 +22,21 @@ from ..models.models import (
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
 )
-from ._aggregator_specs import AggregatorSpec
+from ._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
 from .base_evaluator import BaseEvaluationCriteria, BaseEvaluatorJustification
 from .output_evaluator import (
     BaseOutputEvaluator,
     OutputEvaluatorConfig,
 )
+
+# Maps the evaluator-level ``metric_type`` strings to the corresponding
+# aggregator-spec ``type`` values. The two spellings differ historically:
+# the evaluator uses "f-score" (hyphen), the aggregator uses "fscore".
+_METRIC_TYPE_TO_AGGREGATOR_TYPE = {
+    "precision": "precision",
+    "recall": "recall",
+    "f-score": "fscore",
+}
 
 
 class MulticlassClassificationEvaluationCriteria(BaseEvaluationCriteria):
@@ -50,6 +61,61 @@ class MulticlassClassificationEvaluatorConfig(
     # after all per-datapoint evaluators complete and emits one structured
     # result per aggregator keyed by ``{evaluator_name}.{aggregator.type}``.
     aggregators: list[AggregatorSpec] | None = None
+
+    @model_validator(mode="after")
+    def _validate_aggregators_against_evaluator_config(
+        self,
+    ) -> "MulticlassClassificationEvaluatorConfig":
+        """Reject aggregators that are inconsistent with the evaluator's own config.
+
+        Two checks:
+          * Every evaluator-level class must appear in every aggregator's
+            ``classes`` list (case-insensitive). Otherwise the per-datapoint
+            and aggregator paths score disjoint label spaces.
+          * For each aggregator whose ``type`` matches the evaluator-level
+            ``metric_type`` (mapped via :data:`_METRIC_TYPE_TO_AGGREGATOR_TYPE`),
+            the aggregator's ``averaging`` must match the evaluator's
+            ``averaging``, and for ``fscore`` the ``f_value`` must match too.
+            Otherwise the per-evaluator headline and the dataset evaluator's
+            per-aggregator score diverge silently.
+        """
+        if not self.aggregators:
+            return self
+        evaluator_classes_lower = {c.lower() for c in self.classes}
+        evaluator_aggregator_type = _METRIC_TYPE_TO_AGGREGATOR_TYPE.get(
+            self.metric_type
+        )
+        for spec in self.aggregators:
+            spec_classes_lower = {c.lower() for c in spec.classes}
+            missing = evaluator_classes_lower - spec_classes_lower
+            if missing:
+                raise ValueError(
+                    f"Aggregator '{spec.type}' on evaluator '{self.name}' "
+                    f"declares classes={spec.classes!r} but the evaluator's "
+                    f"classes={self.classes!r} include {sorted(missing)!r} "
+                    "that the aggregator does not. Aggregators must cover "
+                    "the evaluator's full class space."
+                )
+            if spec.type == evaluator_aggregator_type:
+                if spec.averaging != self.averaging:
+                    raise ValueError(
+                        f"Aggregator '{spec.type}' on evaluator '{self.name}' "
+                        f"has averaging={spec.averaging!r} but the evaluator's "
+                        f"averaging={self.averaging!r}. The per-evaluator "
+                        "headline and the aggregator would compute different "
+                        "scores."
+                    )
+                if (
+                    isinstance(spec, FScoreAggregatorSpec)
+                    and spec.f_value != self.f_value
+                ):
+                    raise ValueError(
+                        f"Aggregator 'fscore' on evaluator '{self.name}' has "
+                        f"f_value={spec.f_value} but the evaluator's f_value="
+                        f"{self.f_value}. The per-evaluator headline and the "
+                        "aggregator would compute different F-beta scores."
+                    )
+        return self
 
 
 class MulticlassClassificationEvaluator(
@@ -76,7 +142,16 @@ class MulticlassClassificationEvaluator(
         agent_execution: AgentExecution,
         evaluation_criteria: MulticlassClassificationEvaluationCriteria,
     ) -> EvaluationResult:
-        """Evaluate multiclass classification by comparing predicted vs expected class."""
+        """Evaluate multiclass classification by comparing predicted vs expected class.
+
+        Configuration errors (e.g. ``expected_class`` not in the configured
+        ``classes``) raise — that's a setup mistake the user must fix. But a
+        predicted class outside the vocabulary (a sloppy LLM returning
+        "unknown", garbage, or an unconfigured label) returns a 0.0 score with
+        the OOV label preserved in the justification, mirroring the binary
+        evaluator's behavior. The dataset evaluator's confusion matrix
+        accounts for these via ``n_skipped``.
+        """
         predicted_class = str(self._get_actual_output(agent_execution)).lower()
         expected_class = evaluation_criteria.expected_class.lower()
         classes = [c.lower() for c in self.evaluator_config.classes]
@@ -86,14 +161,6 @@ class MulticlassClassificationEvaluator(
                 code="INVALID_EXPECTED_CLASS",
                 title="Expected class not in configured classes",
                 detail=f"Expected class '{expected_class}' is not in the configured classes: {classes}",
-                category=UiPathEvaluationErrorCategory.USER,
-            )
-
-        if predicted_class not in classes:
-            raise UiPathEvaluationError(
-                code="INVALID_PREDICTED_CLASS",
-                title="Predicted class not in configured classes",
-                detail=f"Predicted class '{predicted_class}' is not in the configured classes: {classes}",
                 category=UiPathEvaluationErrorCategory.USER,
             )
 

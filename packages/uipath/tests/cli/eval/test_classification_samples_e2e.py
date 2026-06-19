@@ -1,9 +1,12 @@
 """End-to-end tests that run the classification sample projects through evaluate().
 
 These tests double as integration coverage for the binary and multiclass
-classification evaluators added in #1397 — they wire each sample's main.py
-into a stand-in runtime, run the full eval set, and assert the per-row scores
-plus the aggregated metric produced by `reduce_scores`.
+classification evaluators added in #1397 plus the embedded dataset-level
+aggregators added in #1669 — they wire each sample's main.py into a stand-in
+runtime, run the full eval set, and assert the per-row scores AND the
+specific aggregator scores produced by the embedded ``aggregators[]``. A
+regression that returns 0.0 for all aggregators (or one that swaps macro
+for micro silently) fails these tests.
 """
 
 import importlib.util
@@ -178,6 +181,16 @@ async def test_binary_classification_sample_end_to_end():
         "BinarySpamPrecision.recall",
         "BinarySpamPrecision.fscore",
     }
+    # Confusion matrix (predicted x expected, classes=[spam, ham]):
+    #   matrix[spam][spam] = 2  matrix[spam][ham] = 1  (the FP)
+    #   matrix[ham][spam]  = 0  matrix[ham][ham]  = 2
+    # per-class precision: spam = 2/3, ham = 1.0  → macro = (2/3 + 1) / 2 = 5/6
+    # per-class recall:    spam = 1.0, ham = 2/3  → macro = (1 + 2/3) / 2 = 5/6
+    # per-class F1:        spam = 0.8, ham = 0.8  → macro = 0.8
+    agg = output.dataset_evaluator_results
+    assert agg["BinarySpamPrecision.precision"].score == pytest.approx(5 / 6, rel=1e-6)
+    assert agg["BinarySpamPrecision.recall"].score == pytest.approx(5 / 6, rel=1e-6)
+    assert agg["BinarySpamPrecision.fscore"].score == pytest.approx(0.8, rel=1e-6)
 
 
 async def test_multiclass_classification_sample_end_to_end():

@@ -25,11 +25,6 @@ from .base_dataset_evaluator import BaseDatasetEvaluator
 from .base_evaluator import BaseEvaluatorJustification
 
 
-def _coerce_justification(details: object) -> BaseEvaluatorJustification | None:
-    """Extract the BaseEvaluatorJustification from an EvaluationResultDto.details payload."""
-    return BaseEvaluatorJustification.try_from(details)
-
-
 class PerClassMetrics(BaseModel):
     """Per-class confusion counts plus the metric the evaluator computed."""
 
@@ -89,12 +84,14 @@ def _build_confusion(
 
     Results without a parseable justification are counted in ``n_skipped`` and
     omitted from the matrix. Pairs whose expected or actual label isn't in
-    ``classes`` are also skipped. Labels are normalized to lowercase so a
-    classifier returning "Book" vs configured "book" still matches.
+    ``classes`` are also skipped. Labels are normalized to lowercase for the
+    lookup index so a classifier returning "Book" vs configured "book" still
+    matches, but the user-supplied casing is preserved in the returned
+    ``_ConfusionData.classes`` so downstream output (per_class keys, UI labels)
+    shows what the user typed.
     """
-    canonical_classes = [c.lower() for c in classes]
-    index_of = {c: i for i, c in enumerate(canonical_classes)}
-    k = len(canonical_classes)
+    index_of = {c.lower(): i for i, c in enumerate(classes)}
+    k = len(classes)
     matrix = [[0] * k for _ in range(k)]
 
     n_total = len(results)
@@ -102,7 +99,7 @@ def _build_confusion(
     n_skipped = 0
 
     for r in results:
-        j = _coerce_justification(r.details)
+        j = BaseEvaluatorJustification.try_from(r.details)
         if j is None:
             n_skipped += 1
             continue
@@ -115,7 +112,7 @@ def _build_confusion(
         n_scored += 1
 
     return _ConfusionData(
-        classes=canonical_classes,
+        classes=list(classes),
         matrix=matrix,
         n_total=n_total,
         n_scored=n_scored,
