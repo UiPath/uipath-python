@@ -578,6 +578,12 @@ class StudioClient:
         with open(UiPathConfig.bindings_file_path, "rb") as f:
             file_content = f.read()
 
+        logger.info(
+            "Resource bindings (%s):\n%s",
+            UiPathConfig.bindings_file_path,
+            file_content.decode(),
+        )
+
         solution_id = await self._get_solution_id()
         tenant_id = os.getenv(ENV_TENANT_ID, None)
 
@@ -600,17 +606,17 @@ class StudioClient:
             files=files,
         )
         data = response.json()
-        overwrites = {}
-
-        for key, value in data.items():
-            overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         logger.info(
-            "Loaded %d resource overwrite(s) from Studio API for solution %s: %s",
-            len(overwrites),
+            "Resource overwrites received for solution %s (%d entries):\n%s",
             solution_id,
-            overwrites,
+            len(data),
+            json.dumps(data, indent=2),
         )
+
+        overwrites = {}
+        for key, value in data.items():
+            overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         return overwrites
 

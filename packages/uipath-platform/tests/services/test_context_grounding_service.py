@@ -6,7 +6,11 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.common.constants import (
+    ENV_JOB_KEY,
+    HEADER_JOB_KEY,
+    HEADER_USER_AGENT,
+)
 from uipath.platform.context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -3782,3 +3786,135 @@ class TestContextGroundingService:
         assert "filter" not in request_body
         assert request_body["scope"]["folder"] == "docs"
         assert request_body["scope"]["extension"] == ".pdf"
+
+
+class TestJobKeyHeader:
+    """X-UiPath-JobKey is attached to outbound ECS calls when UIPATH_JOB_KEY is set."""
+
+    _INDEX = ContextGroundingIndex(
+        id="test-index-id",
+        name="test-index",
+        last_ingestion_status="Completed",
+    )
+
+    def test_ingest_data_carries_job_key_header(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-ingest")
+
+        with patch.object(service, "request") as mock_request:
+            mock_request.return_value = MagicMock()
+            service.ingest_data(self._INDEX, folder_key="test-folder-key")
+
+        headers = mock_request.call_args[1]["headers"]
+        assert headers[HEADER_JOB_KEY] == "job-key-ingest"
+
+    @pytest.mark.anyio
+    async def test_ingest_data_async_carries_job_key_header(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-ingest-async")
+
+        with patch.object(service, "request_async") as mock_request:
+            mock_request.return_value = MagicMock()
+            await service.ingest_data_async(self._INDEX, folder_key="test-folder-key")
+
+        headers = mock_request.call_args[1]["headers"]
+        assert headers[HEADER_JOB_KEY] == "job-key-ingest-async"
+
+    def test_unified_search_carries_job_key_header(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-search")
+
+        with patch.object(service, "request") as mock_request:
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "semanticResults": {"values": []},
+                "explanation": None,
+            }
+            mock_request.return_value = mock_response
+            with patch.object(service, "retrieve", return_value=self._INDEX):
+                service.unified_search(
+                    name="test-index",
+                    query="test query",
+                    folder_key="test-folder-key",
+                )
+
+        headers = mock_request.call_args[1]["headers"]
+        assert headers[HEADER_JOB_KEY] == "job-key-search"
+
+    def test_start_deep_rag_carries_job_key_header(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-deeprag")
+
+        with patch.object(service, "request") as mock_request:
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            }
+            mock_request.return_value = mock_response
+            service.start_deep_rag(
+                index_id="test-index-id",
+                name="my-deep-rag-task",
+                prompt="Summarize",
+                glob_pattern="*.pdf",
+                citation_mode=CitationMode.INLINE,
+                folder_key="test-folder-key",
+            )
+
+        headers = mock_request.call_args[1]["headers"]
+        assert headers[HEADER_JOB_KEY] == "job-key-deeprag"
+
+    def test_start_batch_transform_carries_job_key_header(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-batch")
+
+        with patch.object(service, "request") as mock_request:
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "id": "new-batch-id",
+                "lastBatchRagStatus": "Queued",
+            }
+            mock_request.return_value = mock_response
+            service.start_batch_transform(
+                index_id="test-index-id",
+                name="my-batch-task",
+                prompt="Extract",
+                output_columns=[
+                    BatchTransformOutputColumn(name="col1", description="d")
+                ],
+                enable_web_search_grounding=False,
+                folder_key="test-folder-key",
+            )
+
+        headers = mock_request.call_args[1]["headers"]
+        assert headers[HEADER_JOB_KEY] == "job-key-batch"
+
+    def test_ingest_data_omits_job_key_header_when_env_unset(
+        self,
+        service: ContextGroundingService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv(ENV_JOB_KEY, raising=False)
+
+        with patch.object(service, "request") as mock_request:
+            mock_request.return_value = MagicMock()
+            service.ingest_data(self._INDEX, folder_key="test-folder-key")
+
+        headers = mock_request.call_args[1]["headers"]
+        assert HEADER_JOB_KEY not in headers

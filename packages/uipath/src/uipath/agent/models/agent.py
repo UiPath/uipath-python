@@ -112,9 +112,12 @@ class AgentToolType(str, CaseInsensitiveEnum):
     PROCESS = "Process"
     API = "Api"
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    FLOW = "Flow"
+    FUNCTION = "Function"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
     IXP = "Ixp"
+    CLIENT_SIDE = "ClientSide"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -137,6 +140,16 @@ class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
     ASSET_GROUP_NAME = "AssetGroupName"
     ARGUMENT_EMAIL = "ArgumentEmail"
     ARGUMENT_GROUP_NAME = "ArgumentGroupName"
+    WORKLOAD = "Workload"
+    ROUND_ROBIN = "RoundRobin"
+    CUSTOM_ASSIGNEES = "CustomAssignees"
+
+
+class AgentEscalationChannelType(str, CaseInsensitiveEnum):
+    """Agent escalation channel type enumeration."""
+
+    ACTION_CENTER = "actionCenter"
+    ACTION_CENTER_QUICK_FORM = "actionCenterQuickForm"
 
 
 class AgentContextRetrievalMode(str, CaseInsensitiveEnum):
@@ -188,6 +201,7 @@ class AgentToolArgumentPropertiesVariant(str, CaseInsensitiveEnum):
     ARGUMENT = "argument"
     STATIC = "static"
     TEXT_BUILDER = "textBuilder"
+    ARRAY_BUILDER = "arrayBuilder"
 
 
 class TextTokenType(str, CaseInsensitiveEnum):
@@ -276,11 +290,21 @@ class AgentToolTextBuilderArgumentProperties(BaseAgentToolArgumentProperties):
     tokens: List[TextToken]
 
 
+class AgentToolArrayBuilderArgumentProperties(BaseCfg):
+    """Agent array builder argument properties model."""
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.ARRAY_BUILDER] = Field(
+        default=AgentToolArgumentPropertiesVariant.ARRAY_BUILDER,
+        frozen=True,
+    )
+
+
 AgentToolArgumentProperties = Annotated[
     Union[
         AgentToolStaticArgumentProperties,
         AgentToolArgumentArgumentProperties,
         AgentToolTextBuilderArgumentProperties,
+        AgentToolArrayBuilderArgumentProperties,
     ],
     Field(discriminator="variant"),
     _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
@@ -446,11 +470,46 @@ class AgentMcpTool(BaseCfg):
 
 
 class DynamicToolsMode(str, CaseInsensitiveEnum):
-    """Dynamic tools mode enumeration."""
+    """Dynamic tools mode enumeration.
+
+    Deprecated: kept for backwards compatibility with older ``agent.json`` files
+    that still serialize the ``dynamicTools`` field. New code should use
+    :class:`ToolsConfiguration` (see ``AgentMcpResourceConfig.tools_configuration``).
+    """
 
     NONE = "none"
     SCHEMA = "schema"
     ALL = "all"
+
+
+class CachedToolsConfig(BaseCfg):
+    """Cached tools configuration: use the tools saved in the agent definition snapshot."""
+
+    type: Literal["cached"] = Field(default="cached", frozen=True)
+
+
+class DynamicToolsConfig(BaseCfg):
+    """Dynamic tools configuration: fetch the tool list from the MCP server at runtime.
+
+    When ``allow_all`` is true, every tool the server exposes is forwarded
+    to the agent. When false, the live list is filtered by the snapshot's
+    ``available_tools`` allowlist (live schemas, curated tool set).
+    """
+
+    type: Literal["dynamic"] = Field(default="dynamic", frozen=True)
+    allow_all: bool = Field(alias="allowAll")
+
+
+DiscoveryMode = Annotated[
+    Union[CachedToolsConfig, DynamicToolsConfig],
+    Field(discriminator="type"),
+]
+
+
+class ToolsConfiguration(BaseCfg):
+    """Configuration describing how tools are sourced for an MCP resource."""
+
+    discovery_mode: DiscoveryMode = Field(alias="discoveryMode")
 
 
 class AgentMcpResourceConfig(BaseAgentResourceConfig):
@@ -462,8 +521,8 @@ class AgentMcpResourceConfig(BaseAgentResourceConfig):
     folder_path: str = Field(alias="folderPath")
     slug: str = Field(..., alias="slug")
     available_tools: List[AgentMcpTool] = Field(..., alias="availableTools")
-    dynamic_tools: DynamicToolsMode = Field(
-        default=DynamicToolsMode.NONE, alias="dynamicTools"
+    tools_configuration: Optional[ToolsConfiguration] = Field(
+        default=None, alias="toolsConfiguration"
     )
 
 
@@ -491,6 +550,9 @@ _RECIPIENT_TYPE_NORMALIZED_MAP: Mapping[int | str, AgentEscalationRecipientType]
     6: AgentEscalationRecipientType.ASSET_GROUP_NAME,
     7: AgentEscalationRecipientType.ARGUMENT_EMAIL,
     8: AgentEscalationRecipientType.ARGUMENT_GROUP_NAME,
+    9: AgentEscalationRecipientType.WORKLOAD,
+    10: AgentEscalationRecipientType.ROUND_ROBIN,
+    11: AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
 }
 
 
@@ -570,14 +632,105 @@ class ArgumentGroupNameRecipient(BaseEscalationRecipient):
     argument_path: str = Field(..., alias="argumentName")
 
 
+class WorkloadRecipient(BaseEscalationRecipient):
+    """Workload-based group assignment.
+
+    The Action Center distributes tasks to the group member with the lightest workload.
+    """
+
+    type: Literal[AgentEscalationRecipientType.WORKLOAD,] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: str = Field(..., alias="displayName")
+
+
+class RoundRobinRecipient(BaseEscalationRecipient):
+    """Round-robin group assignment.
+
+    The Action Center cycles through group members in order on each new task.
+    """
+
+    type: Literal[AgentEscalationRecipientType.ROUND_ROBIN,] = Field(..., alias="type")
+    value: str = Field(..., alias="value")
+    display_name: str = Field(..., alias="displayName")
+
+
+class CustomAssigneesRecipient(BaseEscalationRecipient):
+    """Custom multi-user assignment.
+
+    A channel can carry multiple instances, one per assignee email. All are passed
+    to Action Center together using a Workload assignment criteria.
+    """
+
+    type: Literal[AgentEscalationRecipientType.CUSTOM_ASSIGNEES,] = Field(
+        ..., alias="type"
+    )
+    value: str = Field(..., alias="value")
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+
+
+class ToolOutputRecipient(BaseEscalationRecipient):
+    """Recipient whose value is resolved at runtime from a named tool's output.
+
+    Instead of a literal value entered at design time, this binding points at a
+    field within a named tool's output. The runtime walks the agent's message
+    history, finds the most recent ToolMessage matching `tool_name`, parses its
+    content as JSON, and extracts `output_path` (a top-level field for v1).
+
+    Only the assignment-criteria recipient types that accept a runtime-computed
+    value are supported: USER_ID, GROUP_ID, WORKLOAD, ROUND_ROBIN,
+    CUSTOM_ASSIGNEES. The asset/static/argument types do not participate in
+    tool-output binding (they have their own design-time resolution rules).
+    """
+
+    type: Literal[
+        AgentEscalationRecipientType.USER_ID,
+        AgentEscalationRecipientType.GROUP_ID,
+        AgentEscalationRecipientType.WORKLOAD,
+        AgentEscalationRecipientType.ROUND_ROBIN,
+        AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
+    ] = Field(..., alias="type")
+    source: Literal["toolOutput"] = Field(..., alias="source")
+    tool_name: str = Field(..., alias="toolName")
+    output_path: str = Field(..., alias="outputPath")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# AgentEscalationRecipient — Union ordering & invariants
+# ──────────────────────────────────────────────────────────────────────────────
+# Pydantic evaluates Union members left-to-right and stops at the first
+# successful match, so member order determines which class a payload resolves
+# to when multiple members share the same `type` value (e.g. WORKLOAD is valid
+# on both WorkloadRecipient and ToolOutputRecipient).
+#
+# How dispatching works:
+#   - Payload with `source: "toolOutput"` → matches ToolOutputRecipient
+#     (it is the only class declaring `source` as a required Literal field).
+#   - Payload without `source` → ToolOutputRecipient validation fails
+#     (`source` missing), so it falls through to the literal class below
+#     that owns its `type`.
+#
+# Why we don't use `Field(discriminator="type")`:
+#   The `type` values are NOT unique across the Union — both WorkloadRecipient
+#   and ToolOutputRecipient declare `type=WORKLOAD`, same for the other
+#   tool-output-capable criteria. A typed discriminator requires unique
+#   discriminator values across members, which this union violates by design.
+#
+# Critical invariants (any of these breaking causes silent mis-typing):
+#   1. ToolOutputRecipient remains the FIRST member of the Union.
+#   2. ToolOutputRecipient.source remains a required `Literal["toolOutput"]`
+#      (NOT `Optional`, NOT a default value).
+#   3. No literal class below it gains an optional `source` field.
 AgentEscalationRecipient = Annotated[
     Union[
+        ToolOutputRecipient,
         StandardRecipient,
         AssetRecipient,
         ArgumentEmailRecipient,
         ArgumentGroupNameRecipient,
+        WorkloadRecipient,
+        RoundRobinRecipient,
+        CustomAssigneesRecipient,
     ],
-    Field(discriminator="type"),
     BeforeValidator(_normalize_recipient_type),
 ]
 
@@ -642,13 +795,9 @@ def _resolve_task_title(v: Any) -> Any:
     return v
 
 
-class AgentEscalationChannelProperties(BaseResourceProperties):
-    """Agent escalation channel properties model."""
+class BaseEscalationChannelProperties(BaseResourceProperties):
+    """Fields shared by every escalation channel's properties."""
 
-    app_name: str | None = Field(default=None, alias="appName")
-    app_version: int = Field(..., alias="appVersion")
-    folder_name: Optional[str] = Field(None, alias="folderName")
-    resource_key: str | None = Field(default=None, alias="resourceKey")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
     )
@@ -657,12 +806,31 @@ class AgentEscalationChannelProperties(BaseResourceProperties):
     )
 
 
-class AgentEscalationChannel(BaseCfg):
-    """Agent escalation channel model."""
+class AgentEscalationChannelProperties(BaseEscalationChannelProperties):
+    """Action Center app-task channel properties (channel type ``actionCenter``)."""
+
+    app_name: str | None = Field(default=None, alias="appName")
+    app_version: int = Field(..., alias="appVersion")
+    folder_name: Optional[str] = Field(None, alias="folderName")
+    resource_key: str | None = Field(default=None, alias="resourceKey")
+
+
+class AgentQuickFormChannelProperties(BaseEscalationChannelProperties):
+    """Quick Form channel properties (channel type ``actionCenterQuickForm``)."""
+
+    form_schema: Dict[str, Any] = Field(..., alias="schema")
+
+    @property
+    def schema_id(self) -> str | None:
+        """Return the schema id nested inside the form schema body."""
+        return self.form_schema.get("schemaId")
+
+
+class BaseAgentEscalationChannel(BaseCfg):
+    """Fields shared by every escalation channel variant."""
 
     id: Optional[str] = Field(None, alias="id")
     name: str = Field(..., alias="name")
-    type: str = Field(alias="type")
     description: str = Field(..., alias="description")
     input_schema: Dict[str, Any] = Field(..., alias="inputSchema")
     output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
@@ -670,7 +838,6 @@ class AgentEscalationChannel(BaseCfg):
         {}, alias="argumentProperties"
     )
     outcome_mapping: Optional[Dict[str, str]] = Field(None, alias="outcomeMapping")
-    properties: AgentEscalationChannelProperties = Field(..., alias="properties")
     recipients: List[AgentEscalationRecipient] = Field(..., alias="recipients")
     task_title: Optional[Union[str, TaskTitle]] = Field(
         default="Escalation Task", alias="taskTitle"
@@ -685,6 +852,34 @@ class AgentEscalationChannel(BaseCfg):
         return _resolve_task_title(v)
 
 
+class AgentEscalationChannel(BaseAgentEscalationChannel):
+    """Action Center app-task escalation channel (channel type ``actionCenter``)."""
+
+    type: Literal[AgentEscalationChannelType.ACTION_CENTER] = Field(
+        default=AgentEscalationChannelType.ACTION_CENTER, alias="type"
+    )
+    properties: AgentEscalationChannelProperties = Field(..., alias="properties")
+
+
+class AgentQuickFormEscalationChannel(BaseAgentEscalationChannel):
+    """Quick Form escalation channel; FormLib schema lives in ``properties.form_schema``."""
+
+    type: Literal[AgentEscalationChannelType.ACTION_CENTER_QUICK_FORM] = Field(
+        default=AgentEscalationChannelType.ACTION_CENTER_QUICK_FORM, alias="type"
+    )
+    properties: AgentQuickFormChannelProperties = Field(..., alias="properties")
+
+
+EscalationChannel = Annotated[
+    Union[
+        AgentEscalationChannel,
+        AgentQuickFormEscalationChannel,
+    ],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", AgentEscalationChannelType),
+]
+
+
 class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     """Agent escalation resource configuration model."""
 
@@ -692,7 +887,7 @@ class AgentEscalationResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(
         alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
     )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    channels: List[EscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: Literal[0] = Field(default=0, alias="escalationType")
 
@@ -712,7 +907,7 @@ class AgentIxpVsEscalationResourceConfig(BaseAgentResourceConfig):
     resource_type: Literal[AgentResourceType.ESCALATION] = Field(
         alias="$resourceType", default=AgentResourceType.ESCALATION, frozen=True
     )
-    channels: List[AgentEscalationChannel] = Field(alias="channels")
+    channels: List[EscalationChannel] = Field(alias="channels")
     is_agent_memory_enabled: bool = Field(default=False, alias="isAgentMemoryEnabled")
     escalation_type: Literal[1] = Field(default=1, alias="escalationType")
     vs_escalation_properties: AgentIxpVsEscalationProperties = Field(
@@ -744,6 +939,8 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
         AgentToolType.PROCESS,
         AgentToolType.API,
         AgentToolType.PROCESS_ORCHESTRATION,
+        AgentToolType.FLOW,
+        AgentToolType.FUNCTION,
     ]
     output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     properties: AgentProcessToolProperties
@@ -895,6 +1092,15 @@ class AgentInternalToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentClientSideToolResourceConfig(BaseAgentToolResourceConfig):
+    """Resource config for client-side tools executed by the client SDK."""
+
+    type: Literal[AgentToolType.CLIENT_SIDE] = AgentToolType.CLIENT_SIDE
+    properties: BaseResourceProperties = Field(default_factory=BaseResourceProperties)
+    output_schema: Optional[Dict[str, Any]] = Field(None, alias="outputSchema")
+    arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
     """Fallback for unknown tool types (parent normalizer sets type='Unknown')."""
 
@@ -908,10 +1114,12 @@ ToolResourceConfig = Annotated[
         AgentIntegrationToolResourceConfig,
         AgentInternalToolResourceConfig,
         AgentIxpExtractionResourceConfig,
+        AgentClientSideToolResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
 ]
+
 
 EscalationResourceConfig = Annotated[
     Union[
@@ -1287,9 +1495,12 @@ class AgentDefinition(BaseModel):
             "process": "Process",
             "api": "Api",
             "processorchestration": "ProcessOrchestration",
+            "flow": "Flow",
+            "function": "Function",
             "integration": "Integration",
             "internal": "Internal",
             "ixp": "Ixp",
+            "clientside": "ClientSide",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {

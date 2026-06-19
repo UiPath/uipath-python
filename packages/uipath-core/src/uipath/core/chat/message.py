@@ -1,5 +1,6 @@
 """Message-level events."""
 
+import uuid
 from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -61,7 +62,9 @@ class UiPathConversationMessageData(BaseModel):
     content_parts: Sequence[UiPathConversationContentPartData] = Field(
         ..., alias="contentParts"
     )
-    tool_calls: Sequence[UiPathConversationToolCallData] = Field(..., alias="toolCalls")
+    tool_calls: Sequence[UiPathConversationToolCallData] = Field(
+        default_factory=list, alias="toolCalls"
+    )
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
@@ -69,15 +72,19 @@ class UiPathConversationMessageData(BaseModel):
 class UiPathConversationMessage(UiPathConversationMessageData):
     """Represents a single message within an exchange."""
 
-    message_id: str = Field(..., alias="messageId")
-    created_at: str = Field(..., alias="createdAt")
-    updated_at: str = Field(..., alias="updatedAt")
+    message_id: str = Field(
+        default_factory=lambda: str(uuid.uuid4()), alias="messageId"
+    )
+    created_at: str | None = Field(None, alias="createdAt")
+    updated_at: str | None = Field(None, alias="updatedAt")
     span_id: str | None = Field(None, alias="spanId")
 
     # Overrides to use full types
     content_parts: Sequence[UiPathConversationContentPart] = Field(
         ..., alias="contentParts"
     )
-    tool_calls: Sequence[UiPathConversationToolCall] = Field(..., alias="toolCalls")
+    tool_calls: Sequence[UiPathConversationToolCall] = Field(
+        default_factory=list, alias="toolCalls"
+    )
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

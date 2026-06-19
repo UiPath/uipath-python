@@ -25,6 +25,7 @@ from uipath.eval.runtime.events import (
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
 )
+from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
 
 
 class TestEventNameConstants:
@@ -422,6 +423,10 @@ class TestEnrichProperties:
         """Test that environment variables are added when present."""
         mock_get_claim.return_value = "user-789"
 
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+
         subscriber = EvalTelemetrySubscriber()
         properties: dict[str, Any] = {}
 
@@ -429,22 +434,29 @@ class TestEnrichProperties:
             os.environ,
             {
                 "UIPATH_PROJECT_ID": "project-123",
+                ENV_UIPATH_AGENT_ID: "agent-123",
                 "UIPATH_ORGANIZATION_ID": "org-456",
                 "UIPATH_TENANT_ID": "tenant-abc",
+                "UIPATH_EVAL_RUN_SOURCE": "FirstSuccessfulRun",
             },
         ):
             subscriber._enrich_properties(properties)
 
         assert properties["ProjectId"] == "project-123"
-        assert properties["AgentId"] == "project-123"
+        assert properties["AgentId"] == "agent-123"
         assert properties["CloudOrganizationId"] == "org-456"
         assert properties["CloudUserId"] == "user-789"
         assert properties["TenantId"] == "tenant-abc"
+        assert properties["RunSource"] == "FirstSuccessfulRun"
 
     @patch("uipath._cli._evals._telemetry.get_claim_from_token")
     def test_enrich_properties_skips_missing_env_vars(self, mock_get_claim):
         """Test that missing environment variables are not added."""
         mock_get_claim.side_effect = Exception("No token")
+
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
 
         subscriber = EvalTelemetrySubscriber()
         properties: dict[str, Any] = {}
@@ -453,8 +465,10 @@ class TestEnrichProperties:
             # Remove env vars if they exist
             for key in [
                 "UIPATH_PROJECT_ID",
+                ENV_UIPATH_AGENT_ID,
                 "UIPATH_ORGANIZATION_ID",
                 "UIPATH_TENANT_ID",
+                "UIPATH_EVAL_RUN_SOURCE",
             ]:
                 os.environ.pop(key, None)
 
@@ -465,6 +479,7 @@ class TestEnrichProperties:
         assert "CloudOrganizationId" not in properties
         assert "CloudUserId" not in properties
         assert "TenantId" not in properties
+        assert "RunSource" not in properties
 
 
 class TestExceptionHandling:
