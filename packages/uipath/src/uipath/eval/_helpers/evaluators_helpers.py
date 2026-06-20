@@ -51,28 +51,18 @@ def _unsynthesized_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
 
 
 def _match_key(actual_name: str, actual_id: str | None, expected_key: str) -> bool:
-    """True when `expected_key` matches either the actual call's `id` or `name`.
-
-    Eval-set criteria can be authored against either the tool's stable id or
-    its display name; the scorers accept whichever the author used. The name
-    fallback normalises both sides through the LangChain sanitiser so an
-    editor-persisted display name (``"Web Search"``) matches a runtime span
-    whose ``tool.name`` is the sanitised form (``"Web_Search"``).
-    """
-    if actual_id is not None and expected_key == actual_id:
-        return True
+    """Strict per-call kind: id-only when actual has one, sanitised-name otherwise — never cross-kind."""
+    if actual_id is not None:
+        return expected_key == actual_id
     return _sanitize_tool_name(expected_key) == _sanitize_tool_name(actual_name)
 
 
 def _calls_match(actual, expected) -> bool:
-    """True when an actual ToolCall/ToolOutput matches an expected one.
-
-    Prefers id-equality when both sides carry an id; otherwise falls back to
-    sanitised-name equality. Old display-name-keyed eval-sets keep working
-    while new id-keyed eval-sets become rename-safe.
-    """
-    if actual.id is not None and expected.id is not None:
-        return actual.id == expected.id
+    """Strict per-call kind: id-only when actual has one, sanitised-name otherwise — never cross-kind."""
+    if actual.id is not None:
+        # Picker stores the id under `expected.name` when an id was chosen — honour either field.
+        expected_key = expected.id if expected.id is not None else expected.name
+        return actual.id == expected_key
     return _sanitize_tool_name(actual.name) == _sanitize_tool_name(expected.name)
 
 
@@ -118,18 +108,11 @@ def _build_tool_call(span: ReadableSpan, include_args: bool) -> ToolCall | None:
 
 
 def count_tool_calls_by_name_and_id(tool_calls: Sequence[ToolCall]) -> dict[str, int]:
-    """Count tool calls under BOTH their name and id keys.
-
-    Each call contributes one unit to its name bucket and (when present and
-    different) one unit to its id bucket. Lookups by either return the same
-    count for that tool. This lets `tool_calls_count_score` honour eval-set
-    criteria keyed by id with no signature change to the score function.
-    """
+    """Bucket each call under its id when present, else its name — strict per-call kind, no cross-kind matching."""
     counts: dict[str, int] = {}
     for c in tool_calls:
-        counts[c.name] = counts.get(c.name, 0) + 1
-        if c.id is not None and c.id != c.name:
-            counts[c.id] = counts.get(c.id, 0) + 1
+        key = c.id if c.id is not None else c.name
+        counts[key] = counts.get(key, 0) + 1
     return counts
 
 

@@ -1043,12 +1043,21 @@ class TestIdAwareMatching:
         score, _ = tool_calls_args_score(actual, expected)
         assert score == 1.0
 
-    def test_args_score_falls_back_to_name_when_id_missing(self) -> None:
-        """Legacy eval-set without id still matches by name (back-compat)."""
+    def test_args_score_strict_kind_no_id_fallback(self) -> None:
+        """Strict kind: actual has id → id-only mode, no name fallback even when actual.name matches expected.name."""
         from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
 
         actual = [ToolCall(name="Web_Search", id="uuid-1", args={"q": "x"})]
         expected = [ToolCall(name="Web_Search", args={"q": "x"})]
+        score, _ = tool_calls_args_score(actual, expected)
+        assert score == 0.0  # actual.id="uuid-1" != expected.name="Web_Search"
+
+    def test_args_score_name_only_when_actual_has_no_id(self) -> None:
+        """When actual has no id, sanitised-name comparison is the only path."""
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
+
+        actual = [ToolCall(name="Web_Search", args={"q": "x"})]
+        expected = [ToolCall(name="Web Search", args={"q": "x"})]
         score, _ = tool_calls_args_score(actual, expected)
         assert score == 1.0
 
@@ -1070,7 +1079,7 @@ class TestIdAwareMatching:
         assert score == 1.0
 
     def test_count_by_name_and_id_helper(self) -> None:
-        """Each call contributes one unit to its name AND to its id key."""
+        """Strict per-call kind: id-keyed when call has id, name-keyed otherwise — never both."""
         from uipath.eval._helpers.evaluators_helpers import (
             count_tool_calls_by_name_and_id,
         )
@@ -1081,12 +1090,12 @@ class TestIdAwareMatching:
             ToolCall(name="get_temp", args={}),  # no id
         ]
         counts = count_tool_calls_by_name_and_id(calls)
-        assert counts["Web_Search"] == 2
-        assert counts["uuid-1"] == 2  # same calls retrievable by id
-        assert counts["get_temp"] == 1
+        assert counts == {"uuid-1": 2, "get_temp": 1}
+        # Name key is NOT populated when id is present — kind separation.
+        assert "Web_Search" not in counts
 
     def test_order_score_with_ids_matches_id_keyed_expected(self) -> None:
-        """LCS treats expected key as match if it equals actual.id OR actual.name."""
+        """Strict kind: actual has id → only id-keyed expected matches; legacy name-keyed against id-bearing actual is a miss."""
         from uipath.eval._helpers.evaluators_helpers import (
             tool_calls_order_score_with_ids,
         )
@@ -1095,15 +1104,15 @@ class TestIdAwareMatching:
             ToolCall(name="Web_Search", id="uuid-1", args={}),
             ToolCall(name="Web_Search", id="uuid-1", args={}),
         ]
-        # Expected authored by id
+        # Expected authored by id matches.
         score, _ = tool_calls_order_score_with_ids(actual, ["uuid-1", "uuid-1"])
         assert score == 1.0
-        # Expected authored by name (legacy)
+        # Expected authored by name against id-bearing actual is a miss (no cross-kind).
         score, _ = tool_calls_order_score_with_ids(actual, ["Web_Search", "Web_Search"])
-        assert score == 1.0
-        # Mixed: works either way
+        assert score == 0.0
+        # Mixed expected: only the id-keyed element matches.
         score, _ = tool_calls_order_score_with_ids(actual, ["uuid-1", "Web_Search"])
-        assert score == 1.0
+        assert 0.0 < score < 1.0
 
     def test_order_score_with_ids_back_compat_when_id_absent(self) -> None:
         """When actual has no ids (legacy traces), comparison is name-only."""
@@ -1157,7 +1166,8 @@ class TestSanitizedNameMatch:
 
     def test_match_key_id_wins_when_present(self) -> None:
         assert _match_key("Web_Search", "webSearch1", "webSearch1") is True
-        assert _match_key("Web_Search", "webSearch1", "Web Search") is True
+        # Strict kind: actual has id → display-name expected is rejected (no cross-kind).
+        assert _match_key("Web_Search", "webSearch1", "Web Search") is False
 
     def test_match_key_mismatch_after_sanitising(self) -> None:
         assert _match_key("Web_Search", None, "Image_Search") is False
