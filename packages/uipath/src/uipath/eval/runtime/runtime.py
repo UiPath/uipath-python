@@ -1022,6 +1022,9 @@ class UiPathEvalRuntime:
                 agent_output=output_data,
                 agent_trace=execution_output.spans,
                 expected_agent_behavior=eval_item.expected_agent_behavior,
+                simulation_instructions=eval_item.mocking_strategy.prompt
+                if isinstance(eval_item.mocking_strategy, LLMMockingStrategy)
+                else "",
             )
 
             result = await evaluator.validate_and_evaluate_criteria(
