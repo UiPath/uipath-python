@@ -22,11 +22,13 @@ class MockRuntimeContext:
         exchange_id: str = "test-exchange-id",
         tenant_id: str = "test-tenant-id",
         org_id: str = "test-org-id",
+        end_exchange: bool = True,
     ):
         self.conversation_id = conversation_id
         self.exchange_id = exchange_id
         self.tenant_id = tenant_id
         self.org_id = org_id
+        self.end_exchange = end_exchange
 
 
 class TestSocketIOChatBridgeDebugMode:
@@ -206,6 +208,53 @@ class TestGetChatBridge:
         assert "X-UiPath-ConversationId" in bridge.headers
         assert bridge.headers["X-UiPath-ConversationId"] == "conv-789"
 
+    def test_get_chat_bridge_falls_back_to_env_when_tenant_and_org_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Tenant/account headers fall back to env vars when context values are None."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "env-tenant")
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "env-org")
+
+        context = MockRuntimeContext(
+            tenant_id=None,  # type: ignore[arg-type]
+            org_id=None,  # type: ignore[arg-type]
+            conversation_id="conv-789",
+        )
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
+        assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
+
+    def test_get_chat_bridge_includes_conversational_user_id_header_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Conversation owner id (from FpsProperties) is sent on the handshake for CAS to validate."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+
+        context = MockRuntimeContext(conversation_id="conv-789")
+        context.conversational_user_id = "owner-guid"  # type: ignore[attr-defined]
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-ConversationalUserId"] == "owner-guid"
+
+    def test_get_chat_bridge_omits_conversational_user_id_header_when_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No header is sent when the runtime has no owner id (backward compatible)."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+
+        context = MockRuntimeContext(conversation_id="conv-789")
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert "X-UiPath-Internal-ConversationalUserId" not in bridge.headers
+
     def test_get_chat_bridge_raises_without_uipath_url(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -308,6 +357,89 @@ class TestSocketIOChatBridgeConnectionStates:
             await bridge.emit_exchange_end_event()
 
         assert "not connected" in str(exc_info.value).lower()
+
+
+class TestSocketIOChatBridgeEndExchange:
+    """The bridge owns whether to honor the exchange-end event (CAS-specific)."""
+
+    def _make_connected_bridge(self, end_exchange: bool) -> SocketIOChatBridge:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+            end_exchange=end_exchange,
+        )
+        bridge._websocket_disabled = False
+        bridge._client = AsyncMock()
+        bridge._connected_event.set()
+        return bridge
+
+    def test_end_exchange_defaults_true(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        assert bridge.end_exchange is True
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_end_sends_when_end_exchange_true(self) -> None:
+        bridge = self._make_connected_bridge(end_exchange=True)
+
+        await bridge.emit_exchange_end_event()
+
+        cast(AsyncMock, bridge._client).emit.assert_awaited_once()
+        assert (
+            cast(AsyncMock, bridge._client).emit.await_args.args[0]
+            == "ConversationEvent"
+        )
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_end_suppressed_when_end_exchange_false(self) -> None:
+        bridge = self._make_connected_bridge(end_exchange=False)
+
+        await bridge.emit_exchange_end_event()
+
+        cast(AsyncMock, bridge._client).emit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_end_false_does_not_require_client(self) -> None:
+        """With the exchange kept open, suppression happens before the connection check."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+            end_exchange=False,
+        )
+
+        # Should not raise even though _client is None.
+        await bridge.emit_exchange_end_event()
+
+    def test_get_chat_bridge_propagates_end_exchange_false(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        context = MockRuntimeContext(end_exchange=False)
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.end_exchange is False
+
+    def test_get_chat_bridge_defaults_end_exchange_true(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        context = MockRuntimeContext()
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.end_exchange is True
 
 
 class TestSignalRDebugBridgeSendMethod:
