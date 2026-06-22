@@ -437,9 +437,9 @@ class DataFabricOntologyItem(BaseCfg):
     """
 
     id: Optional[str] = Field(None, alias="id")
-    reference_key: Optional[str] = Field(None, alias="referenceKey")
+    ontology_key: Optional[str] = Field(None, alias="referenceKey")
     name: str = Field(..., alias="name")
-    folder_key: Optional[str] = Field(None, alias="folderId")
+    folder_key: str = Field(..., alias="folderId")
     description: Optional[str] = Field(None, alias="description")
 
 

@@ -64,6 +64,9 @@ logger = logging.getLogger(__name__)
 # Ontology name contract (QueryEngine OntologyController): lowercase, starts
 # with a letter, max 64 chars. The name becomes a URL path segment.
 _ONTOLOGY_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+# Allowed ontology component file types (also URL path segments).
+_ONTOLOGY_FILE_TYPES = frozenset({"owl", "r2rml", "shacl", "summary", "context"})
+
 
 class EntitiesService(BaseService):
     """Service for managing UiPath Data Service entities.
@@ -1130,9 +1133,10 @@ class EntitiesService(BaseService):
             Dict[str, Any]: The file record (e.g. ``content``, ``mediaType``).
 
         Raises:
-            ValueError: If the ontology name is invalid.
+            ValueError: If the ontology name or file type is invalid.
         """
         self._validate_ontology_name(ontology_name)
+        self._validate_file_type(file_type)
         spec = self._ontology_file_spec(ontology_name, file_type)
         headers = {"Accept": "application/json", **header_folder(folder_key, None)}
         response = await self.request_async(spec.method, spec.endpoint, headers=headers)
@@ -1145,6 +1149,15 @@ class EntitiesService(BaseService):
             raise ValueError(
                 f"Invalid ontology name {ontology_name!r}. "
                 "Must match ^[a-z][a-z0-9-]{0,63}$."
+            )
+
+    @staticmethod
+    def _validate_file_type(file_type: str) -> None:
+        """Validate the file type before it becomes a URL path segment."""
+        if file_type not in _ONTOLOGY_FILE_TYPES:
+            allowed = ", ".join(sorted(_ONTOLOGY_FILE_TYPES))
+            raise ValueError(
+                f"Invalid ontology file type {file_type!r}. One of: {allowed}."
             )
 
     @staticmethod

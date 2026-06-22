@@ -2647,3 +2647,78 @@ class TestEntitiesServiceAsyncCoverage:
                 entity_key=str(entity_key),
                 records=[{"name": "x"}],
             )
+
+
+class TestGetOntologyFileAsync:
+    """Tests for EntitiesService.get_ontology_file_async."""
+
+    @pytest.mark.anyio
+    async def test_builds_endpoint_and_folder_header(
+        self, service: EntitiesService
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
+        service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        result = await service.get_ontology_file_async(
+            "library", "owl", folder_key="folder-1"
+        )
+
+        assert result == {"content": "OWL", "mediaType": "text/plain"}
+        service.request_async.assert_called_once()
+        call = service.request_async.call_args
+        method, endpoint = call.args[0], call.args[1]
+        headers = call.kwargs["headers"]
+        assert method == "GET"
+        assert str(endpoint) == "/datafabric_/api/ontologies/library/files/owl"
+        assert headers["Accept"] == "application/json"
+        assert headers["x-uipath-folderkey"] == "folder-1"
+
+    @pytest.mark.anyio
+    async def test_no_folder_header_when_folder_key_none(
+        self, service: EntitiesService
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
+        service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.get_ontology_file_async("library")
+
+        headers = service.request_async.call_args.kwargs["headers"]
+        assert "x-uipath-folderkey" not in headers
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "file_type", ["owl", "r2rml", "shacl", "summary", "context"]
+    )
+    async def test_accepts_allowed_file_types(
+        self, service: EntitiesService, file_type: str
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"content": "x"}
+        service.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.get_ontology_file_async("library", file_type)
+
+        endpoint = service.request_async.call_args.args[1]
+        assert str(endpoint) == f"/datafabric_/api/ontologies/library/files/{file_type}"
+
+    @pytest.mark.anyio
+    async def test_rejects_invalid_ontology_name(
+        self, service: EntitiesService
+    ) -> None:
+        service.request_async = AsyncMock()  # type: ignore[method-assign]
+
+        with pytest.raises(ValueError, match="Invalid ontology name"):
+            await service.get_ontology_file_async("Bad_Name")  # uppercase + underscore
+
+        service.request_async.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_rejects_invalid_file_type(self, service: EntitiesService) -> None:
+        service.request_async = AsyncMock()  # type: ignore[method-assign]
+
+        with pytest.raises(ValueError, match="Invalid ontology file type"):
+            await service.get_ontology_file_async("library", "exe")
+
+        service.request_async.assert_not_called()

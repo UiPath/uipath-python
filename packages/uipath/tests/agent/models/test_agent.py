@@ -3867,6 +3867,87 @@ class TestDataFabricContextConfig:
         assert parsed.entity_set[1].entity_key == "orders-ref"
         assert parsed.entity_set[1].description is None
 
+    def test_datafabric_context_config_parses_ontology_set(self):
+        """ontologySet parses into typed DataFabricOntologyItem entries."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [{"id": "e1", "name": "Customers", "folderId": "f1"}],
+            "ontologySet": [
+                {"name": "ecommerce", "folderId": "f1"},
+                {
+                    "id": "o2",
+                    "referenceKey": "ont-ref",
+                    "name": "finance",
+                    "folderId": "f2",
+                    "description": "Finance domain",
+                },
+            ],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.ontology_set is not None
+        assert len(parsed.ontology_set) == 2
+        # first: minimal, no referenceKey
+        assert parsed.ontology_set[0].name == "ecommerce"
+        assert parsed.ontology_set[0].folder_key == "f1"
+        assert parsed.ontology_set[0].ontology_key is None
+        # second: its own folder + referenceKey (aliased to ontology_key)
+        assert parsed.ontology_set[1].name == "finance"
+        assert parsed.ontology_set[1].folder_key == "f2"
+        assert parsed.ontology_set[1].ontology_key == "ont-ref"
+        assert parsed.ontology_set[1].description == "Finance domain"
+
+    def test_datafabric_context_config_dumps_ontology_set_by_alias(self):
+        """ontologySet round-trips back to aliased JSON keys."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "ontologySet": [
+                {"referenceKey": "ont-ref", "name": "finance", "folderId": "f2"}
+            ],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+        dumped = parsed.model_dump(by_alias=True, exclude_none=True)
+
+        assert "ontologySet" in dumped
+        assert dumped["ontologySet"][0]["name"] == "finance"
+        assert dumped["ontologySet"][0]["folderId"] == "f2"
+        assert dumped["ontologySet"][0]["referenceKey"] == "ont-ref"
+
+    def test_datafabric_ontology_requires_folder_id(self):
+        """folderId is required on each ontology (mirrors DataFabricEntityItem)."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "ontologySet": [{"name": "ecommerce"}],  # missing folderId
+        }
+
+        with pytest.raises(ValidationError):
+            AgentContextResourceConfig.model_validate(config)
+
+    def test_datafabric_context_config_without_ontology_set(self):
+        """ontology_set defaults to None when not provided (backward compatible)."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [{"id": "e1", "name": "Customers", "folderId": "f1"}],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.ontology_set is None
+
     def test_is_datafabric(self):
         """Test is_datafabric property with datafabricentityset contextType."""
         config = {
