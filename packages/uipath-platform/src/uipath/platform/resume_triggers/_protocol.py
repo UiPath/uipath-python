@@ -1,5 +1,6 @@
 """Implementation of UiPath resume trigger protocols."""
 
+import hashlib
 import json
 import os
 import uuid
@@ -67,6 +68,17 @@ from uipath.platform.resume_triggers._enums import (
     PropertyName,
     TriggerMarker,
 )
+
+
+def _schema_key(schema: Any) -> str:
+    """Return a deterministic UUID derived from the schema's wire format.
+
+    The same schema content always maps to the same key so Orchestrator can
+    upsert rather than duplicate schema records.
+    """
+    wire = json.dumps(schema.to_wire_format(), sort_keys=True)
+    digest = hashlib.sha256(wire.encode()).digest()[:16]
+    return str(uuid.UUID(bytes=digest))
 
 
 def _try_convert_to_json_format(value: str | None) -> Any:
@@ -625,21 +637,41 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = value.action.key
         elif isinstance(value, (CreateTask, CreateEscalation)):
             uipath = UiPath()
-            action = await uipath.tasks.create_async(
-                title=value.title,
-                app_name=value.app_name if value.app_name else "",
-                app_folder_path=value.app_folder_path or None,
-                app_folder_key=value.app_folder_key or None,
-                app_key=value.app_key if value.app_key else "",
-                assignee=value.assignee if value.assignee else "",
-                recipient=value.recipient if value.recipient else "",
-                data=value.data,
-                priority=value.priority,
-                labels=value.labels,
-                is_actionable_message_enabled=value.is_actionable_message_enabled,
-                actionable_message_metadata=value.actionable_message_metadata,
-                source_name=value.source_name,
-            )
+            if getattr(value, "hitl_schema", None) is not None:
+                # Dynamic-schema path: create a QuickForm task with the inline schema.
+                # No pre-deployed Action App is required.
+                task_schema_key = _schema_key(value.hitl_schema)
+                action = await uipath.tasks.create_quickform_async(
+                    title=value.title,
+                    task_schema_key=task_schema_key,
+                    schema=value.hitl_schema.to_wire_format(),
+                    data=value.data,
+                    folder_path=value.app_folder_path or None,
+                    folder_key=value.app_folder_key or None,
+                    assignee=value.assignee if value.assignee else None,
+                    recipient=value.recipient if value.recipient else None,
+                    priority=value.priority,
+                    labels=value.labels,
+                    is_actionable_message_enabled=value.is_actionable_message_enabled,
+                    actionable_message_metadata=value.actionable_message_metadata,
+                    source_name=value.source_name,
+                )
+            else:
+                action = await uipath.tasks.create_async(
+                    title=value.title,
+                    app_name=value.app_name if value.app_name else "",
+                    app_folder_path=value.app_folder_path or None,
+                    app_folder_key=value.app_folder_key or None,
+                    app_key=value.app_key if value.app_key else "",
+                    assignee=value.assignee if value.assignee else "",
+                    recipient=value.recipient if value.recipient else "",
+                    data=value.data,
+                    priority=value.priority,
+                    labels=value.labels,
+                    is_actionable_message_enabled=value.is_actionable_message_enabled,
+                    actionable_message_metadata=value.actionable_message_metadata,
+                    source_name=value.source_name,
+                )
             if not action:
                 raise Exception("Failed to create action")
             resume_trigger.item_key = action.key
