@@ -28,6 +28,31 @@ _DEFS_PREFIX = "#/$defs/"
 logger = logging.getLogger(__name__)
 
 
+def _model_supports_only_default_temperature(model: str | None) -> bool:
+    """Return whether ``model`` rejects any non-default ``temperature``.
+
+    The gpt-5 family and the o-series reasoning models only accept the default
+    temperature (1) on the LLM Gateway and return HTTP 400 for any explicit
+    value, including ``0``.
+    """
+    name = (model or "").lower()
+    return name.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _normalize_completion_kwargs(completion_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Strip parameters a model rejects before calling the gateway.
+
+    Models that only accept the default temperature reject an explicit
+    ``temperature``, so it is dropped here rather than forwarded verbatim
+    (SRE-607465 / PC-4769).
+    """
+    if "temperature" not in completion_kwargs:
+        return completion_kwargs
+    if not _model_supports_only_default_temperature(completion_kwargs.get("model")):
+        return completion_kwargs
+    return {k: v for k, v in completion_kwargs.items() if k != "temperature"}
+
+
 def _inline_defs(
     schema: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -248,6 +273,7 @@ async def generate_structured_output(
     completion_kwargs: dict[str, Any],
 ) -> Any:
     """Generate structured output using the strategy for the requested model."""
+    completion_kwargs = _normalize_completion_kwargs(completion_kwargs)
     strategy = _strategy_for_model(completion_kwargs.get("model"))
     return await strategy.generate(
         llm,
