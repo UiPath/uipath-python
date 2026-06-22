@@ -48,7 +48,7 @@ def is_tool_simulated(tool_name: str) -> bool:
 
     normalized_tool_name = _normalize_tool_name(tool_name)
 
-    if ctx.components is not None:
+    if ctx.components:
         return any(
             _normalize_tool_name(c.component_id) == normalized_tool_name
             for c in ctx.components
@@ -77,13 +77,7 @@ async def get_mocked_response(
     invocation: tuple[tuple[Any, ...], dict[str, Any]],
 ) -> Any:
     """Get a mocked response."""
-    import sys
-
     mocker = mocker_context.get()
-    print(
-        f"[simulate-component] get_mocked_response called for '{func.__name__}', mocker={type(mocker).__name__ if mocker else None}",
-        file=sys.stderr,
-    )
     if mocker is None:
         raise UiPathNoMockFoundError()
     else:

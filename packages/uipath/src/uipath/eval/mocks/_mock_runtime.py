@@ -144,12 +144,6 @@ def set_execution_context(
         if context and (context.strategy or context.components):
             mocker = MockerFactory.create(context)
             mocker_context.set(mocker)
-            import sys
-
-            print(
-                f"[simulate-component] mocker set: {type(mocker).__name__}",
-                file=sys.stderr,
-            )
             logger.info(
                 "simulate-component: mocker created (%s)", type(mocker).__name__
             )
