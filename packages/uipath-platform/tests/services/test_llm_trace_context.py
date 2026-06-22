@@ -8,6 +8,7 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform.chat.llm_trace_context import build_trace_context_headers
+from uipath.platform.common.constants import ENV_PROJECT_KEY
 
 FEATURE_FLAG = "EnableTraceContextHeaders"
 
@@ -110,13 +111,16 @@ class TestBaggageHeader:
     """When enabled, x-uipath-tracebaggage is populated from UiPathConfig."""
 
     def setup_method(self) -> None:
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
         FeatureFlags.reset_flags()
         FeatureFlags.configure_flags({FEATURE_FLAG: True})
 
     def test_all_env_vars_present(self) -> None:
         env = {
             "UIPATH_FOLDER_KEY": "folder-abc",
-            "UIPATH_AGENT_ID": "agent-123",
+            ENV_PROJECT_KEY: "agent-123",
             "UIPATH_PROCESS_KEY": "process-789",
         }
         with patch.dict(os.environ, env, clear=True):
@@ -135,21 +139,13 @@ class TestBaggageHeader:
         baggage = headers["x-uipath-tracebaggage"]
         assert "folderKey=folder-only" in baggage
 
-    def test_agent_id_from_agent_id_env(self) -> None:
-        env = {"UIPATH_AGENT_ID": "real-agent-id"}
+    def test_agent_id_from_project_key_env(self) -> None:
+        env = {ENV_PROJECT_KEY: "real-agent-id"}
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()
 
         baggage = headers["x-uipath-tracebaggage"]
         assert "agentId=real-agent-id" in baggage
-
-    def test_agent_id_falls_back_to_project_id(self) -> None:
-        env = {"UIPATH_PROJECT_ID": "project-123"}
-        with patch.dict(os.environ, env, clear=True):
-            headers = build_trace_context_headers()
-
-        baggage = headers["x-uipath-tracebaggage"]
-        assert "agentId=project-123" in baggage
 
     def test_no_agent_id_without_env_vars(self) -> None:
         env = {"UIPATH_FOLDER_KEY": "f1"}
@@ -169,7 +165,7 @@ class TestBaggageHeader:
     def test_baggage_comma_separated(self) -> None:
         env = {
             "UIPATH_FOLDER_KEY": "f1",
-            "UIPATH_AGENT_ID": "a1",
+            ENV_PROJECT_KEY: "a1",
         }
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()

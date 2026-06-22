@@ -294,9 +294,7 @@ class SocketIOChatBridge:
            RuntimeError: If client is not connected
         """
         if not self.end_exchange:
-            logger.info(
-                "end_exchange is False; leaving the exchange open."
-            )
+            logger.info("end_exchange is False; leaving the exchange open.")
             return
 
         if self._client is None:
@@ -531,12 +529,21 @@ def get_chat_bridge(
     # Build headers from context
     headers = {
         "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
-        "X-UiPath-Internal-TenantId": f"{context.tenant_id}"
+        "X-UiPath-Internal-TenantId": context.tenant_id
         or os.environ.get("UIPATH_TENANT_ID", ""),
-        "X-UiPath-Internal-AccountId": f"{context.org_id}"
+        "X-UiPath-Internal-AccountId": context.org_id
         or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
         "X-UiPath-ConversationId": context.conversation_id,
     }
+
+    # Conversation owner id (conversationalService.conversationalUserId) that CAS forwards via
+    # FpsProperties; always sent when present. It's there for RunAsMe=false, where the unattended
+    # robot's token subject is the robot account rather than the conversation owner, so CAS validates
+    # this presented id against conversation.user_id on the handshake instead of the token subject.
+    # Sent as a header (not a query param) to keep it out of access / load-balancer logs.
+    conversational_user_id = getattr(context, "conversational_user_id", None)
+    if conversational_user_id:
+        headers["X-UiPath-Internal-ConversationalUserId"] = conversational_user_id
 
     return SocketIOChatBridge(
         websocket_url=websocket_url,
@@ -544,7 +551,7 @@ def get_chat_bridge(
         conversation_id=context.conversation_id,
         exchange_id=context.exchange_id,
         headers=headers,
-        end_exchange=context.end_exchange,
+        end_exchange=getattr(context, "end_exchange", True),
     )
 
 
