@@ -25,6 +25,7 @@ from ..common._base_service import BaseService
 from ..common._bindings import _resource_overwrites
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
+from ..common._folder_context import header_folder
 from ..common._models import Endpoint, RequestSpec
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
@@ -1133,7 +1134,7 @@ class EntitiesService(BaseService):
         """
         self._validate_ontology_name(ontology_name)
         spec = self._ontology_file_spec(ontology_name, file_type)
-        headers = {"Accept": "application/json", **self._folder_key_headers(folder_key)}
+        headers = {"Accept": "application/json", **header_folder(folder_key, None)}
         response = await self.request_async(spec.method, spec.endpoint, headers=headers)
         return response.json()
 
