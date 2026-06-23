@@ -1117,7 +1117,9 @@ class EntitiesService(BaseService):
     ) -> Dict[str, Any]:
         """Fetch one file of an ontology from Data Fabric.
 
-        PREVIEW: This method is in preview and may change in future releases.
+        !!! warning "Preview Feature"
+            This method is currently experimental. Behavior and parameters are
+            subject to change in future versions.
 
         Ontologies are served by the same QueryEngine service as entity SQL
         queries, under ``datafabric_/api/ontologies``. The JSON wrapper is
