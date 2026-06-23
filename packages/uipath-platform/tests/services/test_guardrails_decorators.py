@@ -26,6 +26,7 @@ from uipath.platform.guardrails.decorators import (
     GuardrailBlockException,
     GuardrailExclude,
     GuardrailExecutionStage,
+    LLMJudgeValidator,
     LogAction,
     LoggingSeverityLevel,
     PIIDetectionEntity,
@@ -307,6 +308,96 @@ class TestPromptInjectionValidator:
     def test_selector_is_none(self):
         v = PromptInjectionValidator()
         g = v.get_built_in_guardrail("PI", None, True)
+        assert g.selector is None
+
+
+# ---------------------------------------------------------------------------
+# 5b. LLMJudgeValidator — guardrail-text/model/examples/threshold, all stages
+# ---------------------------------------------------------------------------
+
+
+class TestLLMJudgeValidator:
+    def test_empty_guardrail_text_raises(self):
+        with pytest.raises(ValueError, match="guardrail_text"):
+            LLMJudgeValidator(guardrail_text="", model="anthropic.claude-haiku")
+
+    def test_whitespace_only_guardrail_text_raises(self):
+        with pytest.raises(ValueError, match="guardrail_text"):
+            LLMJudgeValidator(guardrail_text="   ", model="anthropic.claude-haiku")
+
+    def test_guardrail_text_over_4000_chars_raises(self):
+        with pytest.raises(ValueError, match="4000"):
+            LLMJudgeValidator(guardrail_text="x" * 4001, model="anthropic.claude-haiku")
+
+    def test_empty_model_raises(self):
+        with pytest.raises(ValueError, match="model"):
+            LLMJudgeValidator(guardrail_text="be polite", model="")
+
+    def test_positive_example_over_1000_chars_raises(self):
+        with pytest.raises(ValueError, match="positive example"):
+            LLMJudgeValidator(
+                guardrail_text="be polite",
+                model="anthropic.claude-haiku",
+                positive_examples=["x" * 1001],
+            )
+
+    def test_negative_example_over_1000_chars_raises(self):
+        with pytest.raises(ValueError, match="negative example"):
+            LLMJudgeValidator(
+                guardrail_text="be polite",
+                model="anthropic.claude-haiku",
+                negative_examples=["x" * 1001],
+            )
+
+    def test_no_scope_restriction(self):
+        v = LLMJudgeValidator(guardrail_text="be polite", model="m")
+        v.validate_stage(GuardrailExecutionStage.PRE)
+        v.validate_stage(GuardrailExecutionStage.POST)
+
+    def test_builds_llm_judge_guardrail_with_all_parameters(self):
+        v = LLMJudgeValidator(
+            guardrail_text="The output must be a valid JSON object.",
+            model="anthropic.claude-sonnet-4-6",
+            positive_examples=['{"ok": true}', "{}"],
+            negative_examples=["plain text", "<html>"],
+            threshold=4.0,
+        )
+        g = v.get_built_in_guardrail("Judge", None, True)
+        assert g.validator_type == "llm_judge"
+
+        param_by_id = {p.id: p for p in g.validator_parameters}
+        assert param_by_id["guardrailText"].parameter_type == "text"
+        assert (
+            param_by_id["guardrailText"].value
+            == "The output must be a valid JSON object."
+        )
+        assert param_by_id["model"].parameter_type == "enum"
+        assert param_by_id["model"].value == "anthropic.claude-sonnet-4-6"
+        assert param_by_id["positiveExamples"].parameter_type == "text-list"
+        assert param_by_id["positiveExamples"].value == ['{"ok": true}', "{}"]
+        assert param_by_id["negativeExamples"].parameter_type == "text-list"
+        assert param_by_id["negativeExamples"].value == ["plain text", "<html>"]
+        assert param_by_id["threshold"].parameter_type == "number"
+        assert param_by_id["threshold"].value == 4.0
+
+    def test_default_threshold_and_empty_example_lists(self):
+        v = LLMJudgeValidator(guardrail_text="be polite", model="m")
+        g = v.get_built_in_guardrail("Judge", None, True)
+        param_by_id = {p.id: p for p in g.validator_parameters}
+        assert param_by_id["threshold"].value == 2.0
+        assert param_by_id["positiveExamples"].value == []
+        assert param_by_id["negativeExamples"].value == []
+
+    def test_default_description_includes_model_and_guardrail_text(self):
+        v = LLMJudgeValidator(guardrail_text="be polite", model="anthropic.claude")
+        g = v.get_built_in_guardrail("Judge", None, True)
+        assert g.description is not None
+        assert "anthropic.claude" in g.description
+        assert "be polite" in g.description
+
+    def test_selector_is_none(self):
+        v = LLMJudgeValidator(guardrail_text="be polite", model="m")
+        g = v.get_built_in_guardrail("Judge", None, True)
         assert g.selector is None
 
 
