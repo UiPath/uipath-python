@@ -121,18 +121,133 @@ class UnknownMockingStrategy(BaseMockingStrategy):
 MockingStrategy = Union[KnownMockingStrategy, UnknownMockingStrategy]
 
 
+# ---------------------------------------------------------------------------
+# Per-component simulation types — mirror the simulate-component API contract
+# ---------------------------------------------------------------------------
+
+
+class SimulationStrategy(int, Enum):
+    """Simulation strategy matching the simulate-component API.
+
+    Integer values are part of the cross-language API contract — do not reorder.
+    """
+
+    LLM = 0
+    MOCKITO = 1
+    STATIC = 2
+
+
+class RuleOperator(int, Enum):
+    """Comparison operator for Mockito condition matching.
+
+    Integer values are part of the cross-language API contract — do not reorder.
+    """
+
+    EQ = 0
+    NE = 1
+    GT = 2
+    GTE = 3
+    LT = 4
+    LTE = 5
+    CONTAINS = 6
+
+
+class SimulationAnswerType(int, Enum):
+    """Answer type for a Mockito simulation behavior.
+
+    Integer values are part of the cross-language API contract — do not reorder.
+    """
+
+    RETURN = 0
+    RAISE = 1
+
+
+class SimulationAnswer(BaseModel):
+    type: SimulationAnswerType = SimulationAnswerType.RETURN
+    value: Any = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class SimulationCondition(BaseModel):
+    field: str
+    op: RuleOperator = RuleOperator.EQ
+    value: Any = None
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class SimulationBehavior(BaseModel):
+    when: list[SimulationCondition] | None = None
+    then: list[SimulationAnswer]
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
+class ComponentSimulationConfig(BaseModel):
+    """Per-component simulation config matching the simulate-component API request schema.
+
+    Runtime-injected fields (workloadId, runId, input, traceId, parentSpanId,
+    folderKey) are supplied at call time. inputSchema and outputSchema can be
+    overridden here; if omitted they are derived from the function annotations.
+    """
+
+    component_id: str = Field(..., alias="componentId")
+    component_type: str | None = Field(None, alias="componentType")
+    component_description: str | None = Field(None, alias="componentDescription")
+    simulation_instruction: str | None = Field(None, alias="simulationInstruction")
+    simulation_strategy: SimulationStrategy = Field(
+        SimulationStrategy.LLM, alias="simulationStrategy"
+    )
+    mock_value: Any = Field(None, alias="mockValue")
+    behaviors: list[SimulationBehavior] | None = None
+    input_schema: dict[str, Any] | None = Field(None, alias="inputSchema")
+    output_schema: dict[str, Any] | None = Field(None, alias="outputSchema")
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+
 class MockingContext(BaseModel):
     """Execution context for mocking, holding strategy and inputs."""
 
     strategy: MockingStrategy | None
     inputs: dict[str, Any] = Field(default_factory=lambda: {})
     name: str = Field(default="debug")
+    # When set, SimulateComponentMocker routes each tool call to the simulate-component API.
+    components: list[ComponentSimulationConfig] | None = None
+    workload_id: str | None = None
 
 
 class SimulationConfig(BaseModel):
-    """Top-level schema for simulation.json / --simulation flag."""
+    """Top-level schema for simulation.json / --simulation flag.
+
+    New format (routes to simulate-component API):
+        {
+            "enabled": true,
+            "components": [
+                {
+                    "componentId": "my_tool",
+                    "componentType": "tool",
+                    "simulationStrategy": 0,
+                    "simulationInstruction": "Simulate this tool by..."
+                }
+            ]
+        }
+
+    Legacy format (routes to local LLM mocker):
+        {
+            "enabled": true,
+            "toolsToSimulate": [{"name": "my_tool"}],
+            "instructions": "Simulate these tools by..."
+        }
+    """
 
     enabled: bool = True
+    # New per-component format — when non-empty, routes to simulate-component API.
+    components: list[ComponentSimulationConfig] = Field(default_factory=list)
+    # Legacy flat format — used when components is empty; routes to local LLM mocker.
     tools_to_simulate: list[ToolSimulation] = Field(
         default_factory=list, alias="toolsToSimulate"
     )
