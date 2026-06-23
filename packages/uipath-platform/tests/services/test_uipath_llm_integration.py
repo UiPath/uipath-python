@@ -231,7 +231,7 @@ class TestUiPathLLMServiceMocked:
             "id": "chatcmpl-123",
             "object": "chat.completion",
             "created": 1677858242,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -290,7 +290,7 @@ class TestUiPathLLMServiceMocked:
             "id": "chatcmpl-456",
             "object": "chat.completion",
             "created": 1677858242,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -384,7 +384,7 @@ class TestUiPathLLMServiceMocked:
             "id": "chatcmpl-raw",
             "object": "chat.completion",
             "created": 1677858242,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -462,7 +462,7 @@ class TestUiPathLLMServiceMocked:
             "id": "chatcmpl-789",
             "object": "chat.completion",
             "created": 1677858242,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -543,7 +543,7 @@ class TestUiPathLLMServiceMocked:
             "id": "chatcmpl-abc",
             "object": "chat.completion",
             "created": 1677858242,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,

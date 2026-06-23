@@ -31,7 +31,7 @@ async def test_generate_llm_input_with_model_settings(
         "inputMockingStrategy": {
             "prompt": "Generate a multiplication query with 5 and 7",
             "model": {
-                "model": "gpt-4o-mini-2024-07-18",
+                "model": "gpt-4.1-mini-2025-04-14",
                 "temperature": 0.5,
                 "maxTokens": 150,
             },
@@ -44,7 +44,7 @@ async def test_generate_llm_input_with_model_settings(
 
     assert isinstance(eval_item.input_mocking_strategy, InputMockingStrategy)
     assert isinstance(eval_item.input_mocking_strategy.model, ModelSettings)
-    assert eval_item.input_mocking_strategy.model.model == "gpt-4o-mini-2024-07-18"
+    assert eval_item.input_mocking_strategy.model.model == "gpt-4.1-mini-2025-04-14"
     assert eval_item.input_mocking_strategy.model.temperature == 0.5
     assert eval_item.input_mocking_strategy.model.max_tokens == 150
 
@@ -77,7 +77,7 @@ async def test_generate_llm_input_with_model_settings(
             "id": "response-id",
             "object": "chat.completion",
             "created": 0,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,

@@ -296,7 +296,7 @@ class TestLangchainExporter(unittest.TestCase):
             "Attributes": {
                 "input.value": '{"messages": [[{"lc": 1, "type": "constructor", "id": ["langchain", "schema", "messages", "HumanMessage"], "kwargs": {"content": "Test content", "type": "human"}}]]}',
                 "output.value": '{"generations": []}',
-                "llm.model_name": "gpt-4o-mini-2024-07-18",
+                "llm.model_name": "gpt-4.1-mini-2025-04-14",
                 "openinference.span.kind": "LLM",
             },
             "Status": 1,
@@ -311,7 +311,7 @@ class TestLangchainExporter(unittest.TestCase):
         attributes = span_data["Attributes"]
         assert isinstance(attributes, dict)
         self.assertIsInstance(attributes, dict)
-        self.assertEqual(attributes["model"], "gpt-4o-mini-2024-07-18")
+        self.assertEqual(attributes["model"], "gpt-4.1-mini-2025-04-14")
         self.assertIn("input", attributes)
         self.assertIn("output", attributes)
 
@@ -322,7 +322,7 @@ class TestLangchainExporter(unittest.TestCase):
         attributes_dict = {
             "input.value": '{"messages": [[{"lc": 1, "type": "constructor", "id": ["langchain", "schema", "messages", "HumanMessage"], "kwargs": {"content": "Test content", "type": "human"}}]]}',
             "output.value": '{"generations": []}',
-            "llm.model_name": "gpt-4o-mini-2024-07-18",
+            "llm.model_name": "gpt-4.1-mini-2025-04-14",
             "openinference.span.kind": "LLM",
         }
         span_data = {
@@ -344,7 +344,7 @@ class TestLangchainExporter(unittest.TestCase):
         attributes_value = span_data["Attributes"]
         assert isinstance(attributes_value, str)
         attributes = json.loads(attributes_value)
-        self.assertEqual(attributes["model"], "gpt-4o-mini-2024-07-18")
+        self.assertEqual(attributes["model"], "gpt-4.1-mini-2025-04-14")
         self.assertIn("input", attributes)
         self.assertIn("output", attributes)
 
@@ -526,7 +526,7 @@ class TestLangchainExporter(unittest.TestCase):
             "Attributes": {
                 "input.value": '{"messages": []}',
                 "output.value": '{"generations": []}',
-                "llm.model_name": "gpt-4o-mini-2024-07-18",
+                "llm.model_name": "gpt-4.1-mini-2025-04-14",
                 "llm.token_count.prompt": 219,
                 "llm.token_count.completion": 66,
                 "llm.token_count.total": 285,
@@ -561,7 +561,7 @@ class TestLangchainExporter(unittest.TestCase):
         self.assertIsInstance(attributes, dict)
 
         # Verify LLM-specific attributes are present
-        self.assertEqual(attributes["model"], "gpt-4o-mini-2024-07-18")
+        self.assertEqual(attributes["model"], "gpt-4.1-mini-2025-04-14")
         self.assertIn("usage", attributes)
         usage = attributes["usage"]
         assert isinstance(usage, dict)

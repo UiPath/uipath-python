@@ -126,7 +126,7 @@ class TestOpenAIService:
             "id": "chatcmpl-test123",
             "object": "chat.completion",
             "created": 1234567890,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -300,7 +300,7 @@ class TestOpenAIService:
             "id": "chatcmpl-test123",
             "object": "chat.completion",
             "created": 1234567890,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -473,7 +473,7 @@ class TestNormalizedLlmServiceClaudeFiltering:
             "id": "chatcmpl-test",
             "object": "chat.completion",
             "created": 1234567890,
-            "model": "gpt-4o-mini-2024-07-18",
+            "model": "gpt-4.1-mini-2025-04-14",
             "choices": [
                 {
                     "index": 0,
@@ -487,7 +487,7 @@ class TestNormalizedLlmServiceClaudeFiltering:
 
         await llm_service.chat_completions(
             messages=[{"role": "user", "content": "Hello"}],
-            model="gpt-4o-mini-2024-07-18",
+            model="gpt-4.1-mini-2025-04-14",
             max_tokens=1000,
             temperature=0,
         )
