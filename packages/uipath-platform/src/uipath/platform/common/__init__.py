@@ -4,7 +4,7 @@ This module contains common models used across multiple services.
 """
 
 from ._api_client import ApiClient
-from ._base_service import BaseService
+from ._base_service import BaseService, resolve_trace_id
 from ._bindings import (
     ConnectionResourceOverwrite,
     EntityResourceOverwrite,
@@ -112,6 +112,7 @@ __all__ = [
     "_SpanUtils",
     "resolve_service_url",
     "inject_routing_headers",
+    "resolve_trace_id",
 ]
 
 from .validation import validate_pagination_params

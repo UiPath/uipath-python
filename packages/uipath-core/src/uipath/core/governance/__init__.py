@@ -19,6 +19,14 @@ from .exceptions import (
     Severity,
 )
 from .models import Action, AuditRecord, EnforcementMode, LifecycleHook, RuleEvaluation
+from .providers import (
+    FiredRule,
+    GovernanceCompensationProvider,
+    GovernancePolicyProvider,
+    GovernRequest,
+    PolicyContext,
+    PolicyResponse,
+)
 
 __all__ = [
     # Output models (cross adapter boundary)
@@ -35,4 +43,11 @@ __all__ = [
     "GovernanceConfigError",
     "GovernanceViolation",
     "Severity",
+    # Provider protocols + wire models
+    "FiredRule",
+    "GovernanceCompensationProvider",
+    "GovernancePolicyProvider",
+    "GovernRequest",
+    "PolicyContext",
+    "PolicyResponse",
 ]

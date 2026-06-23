@@ -515,9 +515,18 @@ class DynamicToolsMode(str, CaseInsensitiveEnum):
 
 
 class CachedToolsConfig(BaseCfg):
-    """Cached tools configuration: use the tools saved in the agent definition snapshot."""
+    """Cached tools configuration: use the tools saved in the agent definition snapshot.
+
+    When ``refresh_schema_before_call`` is true, the live tool schema is fetched
+    from the MCP server immediately before a tool is invoked. The agent still uses
+    the cached schema to decide which tool to call; the fresh schema is applied only
+    at invocation time.
+    """
 
     type: Literal["cached"] = Field(default="cached", frozen=True)
+    refresh_schema_before_call: bool = Field(
+        default=True, alias="refreshSchemaBeforeCall"
+    )
 
 
 class DynamicToolsConfig(BaseCfg):
