@@ -102,6 +102,7 @@ class AgentResourceType(str, CaseInsensitiveEnum):
     ESCALATION = "escalation"
     MCP = "mcp"
     A2A = "a2a"
+    ONTOLOGY = "ontology"
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
@@ -341,6 +342,7 @@ class BaseAgentResourceConfig(BaseCfg):
         AgentResourceType.ESCALATION,
         AgentResourceType.MCP,
         AgentResourceType.A2A,
+        AgentResourceType.ONTOLOGY,
         AgentResourceType.UNKNOWN,
     ] = Field(alias="$resourceType")
 
@@ -427,20 +429,25 @@ class AgentContextSettings(BaseCfg):
     )
 
 
-class DataFabricOntologyItem(BaseCfg):
-    """A single ontology attached to a Data Fabric context.
+class AgentOntologyResourceConfig(BaseAgentResourceConfig):
+    """A Data Fabric ontology as a standalone, first-class agent resource.
 
-    Mirrors :class:`DataFabricEntityItem`. A context may attach one or more
-    ontologies (see ``ontology_set``). Each carries its own ``folderId`` so it
-    is resolved from its own folder, independent of the entities (which may also
-    span several folders).
+    Promoted from a nested context field to its own ``resources[]`` entry so a
+    single ontology can be defined once and referenced by one or more Data
+    Fabric contexts (see ``AgentContextResourceConfig.ontology_refs``). Each
+    ontology carries its own ``folderId`` so it resolves from its own folder,
+    independent of the entities (which may also span several folders).
+
+    ``name`` (inherited) is the ontology name used both to reference this
+    resource from a context and to fetch it from the QueryEngine ontology API.
     """
 
+    resource_type: Literal[AgentResourceType.ONTOLOGY] = Field(
+        alias="$resourceType", default=AgentResourceType.ONTOLOGY, frozen=True
+    )
     id: Optional[str] = Field(None, alias="id")
     ontology_key: Optional[str] = Field(None, alias="referenceKey")
-    name: str = Field(..., alias="name")
     folder_key: str = Field(..., alias="folderId")
-    description: Optional[str] = Field(None, alias="description")
 
 
 class AgentContextResourceConfig(BaseAgentResourceConfig):
@@ -456,10 +463,14 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
         None, description="Context settings"
     )
     entity_set: Optional[List[DataFabricEntityItem]] = Field(None, alias="entitySet")
-    ontology_set: Optional[List[DataFabricOntologyItem]] = Field(
+    ontology_refs: Optional[List[str]] = Field(
         None,
-        alias="ontologySet",
-        description="Ontologies attached to this context (mirrors entity_set).",
+        alias="ontologyRefs",
+        description=(
+            "Names of standalone ontology resources "
+            "(AgentOntologyResourceConfig) this context is grounded by. "
+            "Resolved against the agent's resources at runtime."
+        ),
     )
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
@@ -1157,6 +1168,7 @@ AgentResourceConfig = Annotated[
         EscalationResourceConfig,  # nested discrim on 'escalation_type'
         AgentMcpResourceConfig,
         AgentA2aResourceConfig,
+        AgentOntologyResourceConfig,
         AgentUnknownResourceConfig,  # when parent sets resource_type="Unknown"
     ],
     Field(discriminator="resource_type"),
@@ -1510,7 +1522,7 @@ class AgentDefinition(BaseModel):
 
     @staticmethod
     def _normalize_resources(v: Dict[str, Any]) -> None:
-        KNOWN_RES = {"tool", "context", "escalation", "mcp", "a2a"}
+        KNOWN_RES = {"tool", "context", "escalation", "mcp", "a2a", "ontology"}
         TOOL_MAP = {
             "agent": "Agent",
             "process": "Process",
