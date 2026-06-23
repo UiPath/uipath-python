@@ -3926,7 +3926,9 @@ class TestDataFabricContextConfig:
             "folderId": "f1",
         }
 
-        parsed = TypeAdapter(AgentResourceConfig).validate_python(config)
+        parsed: AgentResourceConfig = TypeAdapter(AgentResourceConfig).validate_python(
+            config
+        )
 
         assert isinstance(parsed, AgentOntologyResourceConfig)
         assert parsed.resource_type == AgentResourceType.ONTOLOGY
@@ -3945,7 +3947,9 @@ class TestDataFabricContextConfig:
             "folderId": "f2",
         }
 
-        parsed = TypeAdapter(AgentResourceConfig).validate_python(config)
+        parsed: AgentResourceConfig = TypeAdapter(AgentResourceConfig).validate_python(
+            config
+        )
 
         assert isinstance(parsed, AgentOntologyResourceConfig)
         assert parsed.id == "o2"
@@ -3955,7 +3959,7 @@ class TestDataFabricContextConfig:
 
     def test_ontology_resource_dumps_by_alias(self):
         """The ontology resource round-trips back to aliased JSON keys."""
-        parsed = TypeAdapter(AgentResourceConfig).validate_python(
+        parsed: AgentResourceConfig = TypeAdapter(AgentResourceConfig).validate_python(
             {
                 "$resourceType": "ontology",
                 "referenceKey": "ont-ref",
