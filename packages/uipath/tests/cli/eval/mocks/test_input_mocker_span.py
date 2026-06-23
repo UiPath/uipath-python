@@ -51,7 +51,7 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
                 "id": "response-id",
                 "object": "chat.completion",
                 "created": 0,
-                "model": "gpt-4o-mini-2024-07-18",
+                "model": "gpt-4.1-mini-2025-04-14",
                 "choices": [
                     {
                         "index": 0,
@@ -75,7 +75,7 @@ async def test_simulate_input_span_attributes(httpx_mock: HTTPXMock, monkeypatch
         mocking_strategy = InputMockingStrategy(
             prompt="Generate a formal greeting for Alice",
             model=ModelSettings(
-                model="gpt-4o-mini-2024-07-18",
+                model="gpt-4.1-mini-2025-04-14",
                 temperature=0.0,
                 maxTokens=150,
             ),
@@ -193,7 +193,7 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
                 "id": "response-id",
                 "object": "chat.completion",
                 "created": 0,
-                "model": "gpt-4o-mini-2024-07-18",
+                "model": "gpt-4.1-mini-2025-04-14",
                 "choices": [
                     {
                         "index": 0,
@@ -223,7 +223,7 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
 
         mocking_strategy = InputMockingStrategy(
             prompt="Generate input",
-            model=ModelSettings(model="gpt-4o-mini-2024-07-18"),
+            model=ModelSettings(model="gpt-4.1-mini-2025-04-14"),
         )
 
         input_schema = {

@@ -83,7 +83,7 @@ Read the agent's Input/Output schema from entry-points.json to understand the da
   "evaluatorTypeId": "uipath-llm-judge-output-semantic-similarity",
   "evaluatorConfig": {
     "name": "LLMJudgeOutputEvaluator",
-    "model": "gpt-4o-mini-2024-07-18"
+    "model": "gpt-4.1-mini-2025-04-14"
   }
 }
 ```
@@ -151,7 +151,7 @@ Read the agent's Input/Output schema from entry-points.json to understand the da
 - `evaluationCriterias` keys must match entries in `evaluatorRefs`
 - Use `expectedOutput` for most evaluators
 - LLM evaluators need `model` in their config. Available models are defined in the SDK's `ChatModels` class (`uipath.platform.chat.ChatModels`):
-  - `gpt-4o-mini-2024-07-18` (recommended for cost-efficiency)
+  - `gpt-4.1-mini-2025-04-14` (recommended for cost-efficiency)
   - `gpt-4o-2024-08-06` (higher quality, higher cost)
   - `o3-mini-2025-01-31` (latest reasoning model)
   - Model availability varies by region and tenant configuration
