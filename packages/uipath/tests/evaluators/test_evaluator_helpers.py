@@ -12,6 +12,9 @@ from typing import Any
 import pytest
 
 from uipath.eval._helpers.evaluators_helpers import (
+    _calls_match,
+    _match_key,
+    _sanitize_tool_name,
     extract_tool_calls,
     extract_tool_calls_names,
     extract_tool_calls_outputs,
@@ -1040,12 +1043,21 @@ class TestIdAwareMatching:
         score, _ = tool_calls_args_score(actual, expected)
         assert score == 1.0
 
-    def test_args_score_falls_back_to_name_when_id_missing(self) -> None:
-        """Legacy eval-set without id still matches by name (back-compat)."""
+    def test_args_score_strict_kind_no_id_fallback(self) -> None:
+        """Strict kind: actual has id → id-only mode, no name fallback even when actual.name matches expected.name."""
         from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
 
         actual = [ToolCall(name="Web_Search", id="uuid-1", args={"q": "x"})]
         expected = [ToolCall(name="Web_Search", args={"q": "x"})]
+        score, _ = tool_calls_args_score(actual, expected)
+        assert score == 0.0  # actual.id="uuid-1" != expected.name="Web_Search"
+
+    def test_args_score_name_only_when_actual_has_no_id(self) -> None:
+        """When actual has no id, sanitised-name comparison is the only path."""
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
+
+        actual = [ToolCall(name="Web_Search", args={"q": "x"})]
+        expected = [ToolCall(name="Web Search", args={"q": "x"})]
         score, _ = tool_calls_args_score(actual, expected)
         assert score == 1.0
 
@@ -1067,7 +1079,7 @@ class TestIdAwareMatching:
         assert score == 1.0
 
     def test_count_by_name_and_id_helper(self) -> None:
-        """Each call contributes one unit to its name AND to its id key."""
+        """Strict per-call kind: id-keyed when call has id, name-keyed otherwise — never both."""
         from uipath.eval._helpers.evaluators_helpers import (
             count_tool_calls_by_name_and_id,
         )
@@ -1078,12 +1090,12 @@ class TestIdAwareMatching:
             ToolCall(name="get_temp", args={}),  # no id
         ]
         counts = count_tool_calls_by_name_and_id(calls)
-        assert counts["Web_Search"] == 2
-        assert counts["uuid-1"] == 2  # same calls retrievable by id
-        assert counts["get_temp"] == 1
+        assert counts == {"uuid-1": 2, "get_temp": 1}
+        # Name key is NOT populated when id is present — kind separation.
+        assert "Web_Search" not in counts
 
     def test_order_score_with_ids_matches_id_keyed_expected(self) -> None:
-        """LCS treats expected key as match if it equals actual.id OR actual.name."""
+        """Strict kind: actual has id → only id-keyed expected matches; legacy name-keyed against id-bearing actual is a miss."""
         from uipath.eval._helpers.evaluators_helpers import (
             tool_calls_order_score_with_ids,
         )
@@ -1092,15 +1104,15 @@ class TestIdAwareMatching:
             ToolCall(name="Web_Search", id="uuid-1", args={}),
             ToolCall(name="Web_Search", id="uuid-1", args={}),
         ]
-        # Expected authored by id
+        # Expected authored by id matches.
         score, _ = tool_calls_order_score_with_ids(actual, ["uuid-1", "uuid-1"])
         assert score == 1.0
-        # Expected authored by name (legacy)
+        # Expected authored by name against id-bearing actual is a miss (no cross-kind).
         score, _ = tool_calls_order_score_with_ids(actual, ["Web_Search", "Web_Search"])
-        assert score == 1.0
-        # Mixed: works either way
+        assert score == 0.0
+        # Mixed expected: only the id-keyed element matches.
         score, _ = tool_calls_order_score_with_ids(actual, ["uuid-1", "Web_Search"])
-        assert score == 1.0
+        assert 0.0 < score < 1.0
 
     def test_order_score_with_ids_back_compat_when_id_absent(self) -> None:
         """When actual has no ids (legacy traces), comparison is name-only."""
@@ -1113,4 +1125,76 @@ class TestIdAwareMatching:
             ToolCall(name="get_humidity", args={}),
         ]
         score, _ = tool_calls_order_score_with_ids(actual, ["get_temp", "get_humidity"])
+        assert score == 1.0
+
+
+class TestSanitizedNameMatch:
+    """Sanitised-name fallback in ``_match_key`` / ``_calls_match`` — id-equality wins first."""
+
+    @staticmethod
+    def _reference_sanitize(name: str) -> str:
+        """Pinned copy of ``uipath_langchain.agent.tools.utils.sanitize_tool_name``."""
+        import re
+
+        trim_whitespaces = "_".join(name.split())
+        sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", trim_whitespaces)
+        return sanitized[:64]
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "Web Search",
+            "Google Sheets / Read",
+            "Add Numbers",
+            "tool with spaces and (parens)",
+            "snake_case_tool",
+            "kebab-case-tool",
+            "alreadySanitised",
+            "  multiple   whitespace  ",
+            "very-long-name-" + "x" * 100,
+            "",
+        ],
+    )
+    def test_normalize_matches_langchain_reference(self, raw: str) -> None:
+        assert _sanitize_tool_name(raw) == self._reference_sanitize(raw)
+
+    def test_normalize_handles_none(self) -> None:
+        assert _sanitize_tool_name(None) == ""
+
+    def test_match_key_display_vs_sanitised(self) -> None:
+        assert _match_key("Web_Search", None, "Web Search") is True
+
+    def test_match_key_id_wins_when_present(self) -> None:
+        assert _match_key("Web_Search", "webSearch1", "webSearch1") is True
+        # Strict kind: actual has id → display-name expected is rejected (no cross-kind).
+        assert _match_key("Web_Search", "webSearch1", "Web Search") is False
+
+    def test_match_key_mismatch_after_sanitising(self) -> None:
+        assert _match_key("Web_Search", None, "Image_Search") is False
+
+    def test_calls_match_display_vs_sanitised(self) -> None:
+        actual = ToolCall(name="Web_Search", args={})
+        expected = ToolCall(name="Web Search", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_id_equality_unchanged(self) -> None:
+        actual = ToolCall(name="Web_Search", id="webSearch1", args={})
+        expected = ToolCall(name="totally different", id="webSearch1", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_output_display_vs_sanitised(self) -> None:
+        actual = ToolOutput(name="Web_Search", output="x")
+        expected = ToolOutput(name="Web Search", output="x")
+        assert _calls_match(actual, expected) is True
+
+    def test_count_score_display_name_matches_sanitised_actual(self) -> None:
+        actual = {"Web_Search": 2}
+        expected = {"Web Search": ("==", 2)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0
+
+    def test_count_score_id_keyed_expected_still_wins(self) -> None:
+        actual = {"Web_Search": 1, "webSearch1": 1}
+        expected = {"webSearch1": (">=", 1)}
+        score, _ = tool_calls_count_score(actual, expected)
         assert score == 1.0

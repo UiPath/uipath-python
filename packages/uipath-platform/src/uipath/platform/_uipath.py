@@ -22,6 +22,7 @@ from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
+from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService
 from .orchestrator import (
@@ -168,6 +169,10 @@ class UiPath:
     @property
     def guardrails(self) -> GuardrailsService:
         return GuardrailsService(self._config, self._execution_context)
+
+    @cached_property
+    def governance(self) -> GovernanceService:
+        return GovernanceService(self._config, self._execution_context)
 
     @property
     def agenthub(self) -> AgentHubService:

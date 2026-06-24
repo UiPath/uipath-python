@@ -106,6 +106,7 @@ class SocketIOChatBridge:
         exchange_id: str,
         headers: dict[str, str],
         auth: dict[str, Any] | None = None,
+        end_exchange: bool = True,
     ):
         """Initialize the WebSocket chat bridge.
 
@@ -115,6 +116,8 @@ class SocketIOChatBridge:
             exchange_id: The exchange ID for this session
             headers: HTTP headers to send during connection
             auth: Optional authentication data to send during connection
+            end_exchange: Whether to send the exchange-end event to CAS on
+                completion.
         """
         self.websocket_url = websocket_url
         self.websocket_path = websocket_path
@@ -122,6 +125,7 @@ class SocketIOChatBridge:
         self.exchange_id = exchange_id
         self.auth = auth
         self.headers = headers
+        self.end_exchange = end_exchange
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
@@ -283,9 +287,16 @@ class SocketIOChatBridge:
     async def emit_exchange_end_event(self) -> None:
         """Send an exchange end event.
 
+        When end_exchange is False the exchange is left open — the event is not
+        sent to CAS so a downstream consumer can continue and end it later.
+
         Raises:
            RuntimeError: If client is not connected
         """
+        if not self.end_exchange:
+            logger.info("end_exchange is False; leaving the exchange open.")
+            return
+
         if self._client is None:
             raise RuntimeError("WebSocket client not connected. Call connect() first.")
 
@@ -540,6 +551,7 @@ def get_chat_bridge(
         conversation_id=context.conversation_id,
         exchange_id=context.exchange_id,
         headers=headers,
+        end_exchange=getattr(context, "end_exchange", True),
     )
 
 
