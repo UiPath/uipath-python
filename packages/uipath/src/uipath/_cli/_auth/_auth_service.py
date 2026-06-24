@@ -9,6 +9,12 @@ from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils._auth import update_env_file
 from uipath.platform.common import ExternalApplicationService, TokenData
+from uipath.platform.common.constants import (
+    ENV_BASE_URL,
+    ENV_ORGANIZATION_ID,
+    ENV_TENANT_ID,
+    ENV_UIPATH_ACCESS_TOKEN,
+)
 
 from ._utils import update_auth_file
 
@@ -61,9 +67,9 @@ class AuthService:
             )
 
         env_vars = {
-            "UIPATH_ACCESS_TOKEN": token_data.access_token,
-            "UIPATH_URL": external_app_service._base_url,
-            "UIPATH_ORGANIZATION_ID": get_parsed_token_data(token_data).get("prt_id"),
+            ENV_UIPATH_ACCESS_TOKEN: token_data.access_token,
+            ENV_BASE_URL: external_app_service._base_url,
+            ENV_ORGANIZATION_ID: get_parsed_token_data(token_data).get("prt_id"),
         }
 
         if tenant_name:
@@ -71,7 +77,7 @@ class AuthService:
             auth_session = AuthSession(self._domain)
             auth_session.update_token_data(token_data)
             tenant_info = await auth_session.resolve_tenant_info(self._tenant)
-            env_vars["UIPATH_TENANT_ID"] = tenant_info["tenant_id"]
+            env_vars[ENV_TENANT_ID] = tenant_info["tenant_id"]
         else:
             self._console.warning("Could not extract tenant from --base-url.")
         update_env_file(env_vars)
@@ -90,10 +96,10 @@ class AuthService:
 
         update_env_file(
             {
-                "UIPATH_ACCESS_TOKEN": token_data.access_token,
-                "UIPATH_URL": uipath_url,
-                "UIPATH_TENANT_ID": tenant_info["tenant_id"],
-                "UIPATH_ORGANIZATION_ID": tenant_info["organization_id"],
+                ENV_UIPATH_ACCESS_TOKEN: token_data.access_token,
+                ENV_BASE_URL: uipath_url,
+                ENV_TENANT_ID: tenant_info["tenant_id"],
+                ENV_ORGANIZATION_ID: tenant_info["organization_id"],
             }
         )
 
@@ -110,9 +116,9 @@ class AuthService:
 
     async def _can_reuse_existing_token(self, auth_session: AuthSession) -> bool:
         if (
-            os.getenv("UIPATH_URL")
-            and os.getenv("UIPATH_TENANT_ID")
-            and os.getenv("UIPATH_ORGANIZATION_ID")
+            os.getenv(ENV_BASE_URL)
+            and os.getenv(ENV_TENANT_ID)
+            and os.getenv(ENV_ORGANIZATION_ID)
         ):
             try:
                 await auth_session.ensure_valid_token()

@@ -38,6 +38,11 @@ from uipath.eval.runtime.events import (
 )
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
+from uipath.platform.common.constants import (
+    ENV_UIPATH_AGENT_ID,
+    ENV_UIPATH_PROJECT_FILES_SOURCE,
+    ENV_UIPATH_PROJECT_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +106,8 @@ class StudioWebProgressReporter:
         self._client = uipath.api_client
         self._console = console_logger
         self._rich_console = Console()
-        self._project_id = os.getenv("UIPATH_PROJECT_ID", None)
-        self._agent_id = os.getenv("UIPATH_AGENT_ID") or self._project_id
+        self._project_id = os.getenv(ENV_UIPATH_PROJECT_ID, None)
+        self._agent_id = os.getenv(ENV_UIPATH_AGENT_ID) or self._project_id
         if not self._agent_id:
             logger.warning(
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
@@ -1098,7 +1103,7 @@ class StudioWebProgressReporter:
 
     @staticmethod
     def _resolve_project_files_source() -> int | None:
-        raw = os.getenv("UIPATH_PROJECT_FILES_SOURCE")
+        raw = os.getenv(ENV_UIPATH_PROJECT_FILES_SOURCE)
         if not raw:
             return None
         normalized = raw.strip().lower()
