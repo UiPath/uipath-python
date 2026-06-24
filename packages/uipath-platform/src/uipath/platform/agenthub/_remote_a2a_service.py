@@ -242,6 +242,13 @@ class RemoteA2aService(FolderContext, BaseService):
     def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
+    def _resolve_folder_key(self, folder_path: str | None) -> str | None:
+        """Resolve folder key from folder_path, falling back to FolderContext."""
+        if folder_path is not None:
+            return self._folders_service.retrieve_folder_key(folder_path)
+
+        return self._folder_key
+
     def _list_spec(
         self,
         *,
@@ -276,7 +283,7 @@ class RemoteA2aService(FolderContext, BaseService):
         *,
         folder_path: str | None,
     ) -> RequestSpec:
-        folder_key = self._folders_service.retrieve_folder_key(folder_path)
+        folder_key = self._resolve_folder_key(folder_path)
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/agenthub_/api/remote-a2a-agents/{slug}"),

@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "2026-06-22T12:09:32.9206897Z"
+exclude-newer = "2026-06-22T13:55:56.0776194Z"
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
@@ -1095,7 +1095,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.74"
+version = "0.1.75"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
