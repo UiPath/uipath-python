@@ -9,6 +9,7 @@ import warnings
 from typing import Any, List
 
 from ..common._base_service import BaseService
+from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
@@ -149,6 +150,7 @@ class RemoteA2aService(FolderContext, BaseService):
         data = response.json()
         return [RemoteA2aAgent.model_validate(agent) for agent in data.get("value", [])]
 
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
     def retrieve(
         self,
         slug: str,
@@ -190,6 +192,7 @@ class RemoteA2aService(FolderContext, BaseService):
         )
         return RemoteA2aAgent.model_validate(response.json())
 
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
     async def retrieve_async(
         self,
         slug: str,
