@@ -1036,9 +1036,7 @@ class TestWaitForResumeEdgeCases:
         """emit_interrupt_event with non-dict request does not crash or register."""
         bridge = self._make_bridge()
 
-        trigger = UiPathResumeTrigger(
-            api_resume=UiPathApiTrigger(request="not-a-dict")
-        )
+        trigger = UiPathResumeTrigger(api_resume=UiPathApiTrigger(request="not-a-dict"))
         await bridge.emit_interrupt_event(trigger)
 
         assert len(bridge._expected_tool_call_ids) == 0
