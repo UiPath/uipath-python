@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import deque
 from typing import Any
 from urllib.parse import urlparse
 
@@ -24,6 +25,14 @@ from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
 logger = logging.getLogger(__name__)
+
+# Type for tool call resume values (confirmToolCall or endToolCall payloads)
+ToolResumeValue = (
+    UiPathConversationToolCallConfirmationEvent | UiPathConversationToolCallEndEvent
+)
+
+# Wrapper that pairs a resume value with its tool_call_id for keyed matching
+ToolResumeItem = dict[str, Any]  # {"tool_call_id": str, "value": ToolResumeValue}
 
 
 class CASErrorId:
@@ -129,12 +138,15 @@ class SocketIOChatBridge:
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
-        self._tool_resume_event = asyncio.Event()
-        self._tool_resume_value: (
-            UiPathConversationToolCallConfirmationEvent
-            | UiPathConversationToolCallEndEvent
-            | None
-        ) = None
+        # Tool call resume state — matches responses to the correct tool call
+        # by tool_call_id, regardless of arrival order.
+        # Results: responses received before wait_for_resume() was called for that tool_call_id
+        self._tool_resume_results: dict[str, ToolResumeItem] = {}
+        # Pending: wait_for_resume() is waiting for a response that hasn't arrived yet
+        self._tool_resume_pending: dict[str, asyncio.Future[ToolResumeItem]] = {}
+        # Expected order: tool_call_ids registered by emit_interrupt_event,
+        # consumed by wait_for_resume() to know which response to wait for
+        self._expected_tool_call_ids: deque[str] = deque()
         self._current_message_id: str | None = None
 
         # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
@@ -382,8 +394,19 @@ class SocketIOChatBridge:
         ``requireConfirmation: true`` paired with ``wait_for_resume()``.
         executingToolCall is emitted by the MessageMapper (non-confirmed
         tools) and the runtime loop post-confirmation (confirmed tools).
+
+        Registers the trigger's tool_call_id so the next ``wait_for_resume()``
+        can match the correct response regardless of arrival order.
         """
-        return None
+        if resume_trigger.api_resume and isinstance(
+            resume_trigger.api_resume.request, dict
+        ):
+            tool_call_id = resume_trigger.api_resume.request.get("tool_call_id")
+            if tool_call_id:
+                self._expected_tool_call_ids.append(tool_call_id)
+                self._log_resume(
+                    f"REGISTER expected={tool_call_id} queue={list(self._expected_tool_call_ids)}"
+                )
 
     async def emit_executing_tool_call_event(
         self,
@@ -410,21 +433,75 @@ class SocketIOChatBridge:
         await self.emit_message_event(executing_event)
 
     async def wait_for_resume(self) -> dict[str, Any]:
-        """Wait for a tool resume event (confirmToolCall or endToolCall) to be received."""
-        if self._tool_resume_value is None:
-            self._tool_resume_event.clear()
-            await self._tool_resume_event.wait()
+        """Wait for a tool resume event (confirmToolCall or endToolCall).
 
-        value = self._tool_resume_value
-        self._tool_resume_value = None
-        self._tool_resume_event.clear()
+        If ``emit_interrupt_event`` registered an expected tool_call_id,
+        waits for that specific response regardless of arrival order.
+        Otherwise waits for the next available response (backwards compatible).
 
-        """For the case where there's no tool confirmation and the client side tool sends endToolCall back before wait_for_resume is called.
-        Unlikely in practice, but possible in theory, since executingToolCall is emitted during the streaming.
+        Returns:
+            The resume data dict, including ``tool_call_id``.
         """
-        if value:
-            return value.model_dump(mode="python", by_alias=False)
-        return {}
+        expected_id = self._expected_tool_call_ids.popleft()
+        self._log_resume(
+            f"WAIT expected={expected_id} results={list(self._tool_resume_results.keys())} pending={list(self._tool_resume_pending.keys())}"
+        )
+
+        # TEMP TEST: simulate slow runtime processing so client responses pile up
+        self._log_resume(f"DELAY 5s before consuming (simulating slow runtime)...")
+        await asyncio.sleep(5)
+
+        # Check if it already arrived
+        if expected_id in self._tool_resume_results:
+            item = self._tool_resume_results.pop(expected_id)
+            self._log_resume(f"MATCHED (early arrival) tool_call_id={expected_id}")
+        else:
+            # Wait for this specific tool call
+            future: asyncio.Future[ToolResumeItem] = (
+                asyncio.get_running_loop().create_future()
+            )
+            self._tool_resume_pending[expected_id] = future
+            self._log_resume(f"WAITING (not yet arrived) tool_call_id={expected_id}")
+            item = await future
+            self._log_resume(f"RESOLVED tool_call_id={expected_id}")
+
+        value = item["value"]
+        result = value.model_dump(mode="python", by_alias=False)
+        result["tool_call_id"] = item["tool_call_id"]
+        return result
+
+    def _resolve_or_store_resume(
+        self, tool_call_id: str, value: ToolResumeValue
+    ) -> None:
+        """Route an incoming resume event to the correct waiter, or store it.
+
+        If a keyed pending Future exists for this tool_call_id, resolve it.
+        Otherwise, if an unkeyed pending Future exists, resolve that.
+        Otherwise, store in results for a future wait_for_resume() call.
+        """
+        item: ToolResumeItem = {"tool_call_id": tool_call_id, "value": value}
+        event_type = "confirm" if hasattr(value, "approved") else "end"
+        if tool_call_id in self._tool_resume_pending:
+            self._tool_resume_pending.pop(tool_call_id).set_result(item)
+            self._log_resume(
+                f"RECEIVED {event_type} tool_call_id={tool_call_id} -> resolved pending future"
+            )
+        else:
+            self._tool_resume_results[tool_call_id] = item
+            self._log_resume(
+                f"RECEIVED {event_type} tool_call_id={tool_call_id} -> stored (no one waiting yet)"
+            )
+
+    def _log_resume(self, msg: str) -> None:
+        """Write resume debug info to a file for inspection."""
+        import datetime
+
+        line = f"[{datetime.datetime.now().isoformat()}] {msg}\n"
+        try:
+            with open("/tmp/bridge_resume2.log", "a") as f:
+                f.write(line)
+        except Exception:
+            pass
 
     @property
     def is_connected(self) -> bool:
@@ -461,11 +538,9 @@ class SocketIOChatBridge:
                 and (tool_call := parsed_event.exchange.message.tool_call)
             ):
                 if confirm := tool_call.confirm:
-                    self._tool_resume_value = confirm
-                    self._tool_resume_event.set()
+                    self._resolve_or_store_resume(tool_call.tool_call_id, confirm)
                 elif end := tool_call.end:
-                    self._tool_resume_value = end
-                    self._tool_resume_event.set()
+                    self._resolve_or_store_resume(tool_call.tool_call_id, end)
         except Exception as e:
             logger.warning(f"Error parsing conversation event: {e}")
 
