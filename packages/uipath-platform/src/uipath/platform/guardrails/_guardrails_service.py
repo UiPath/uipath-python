@@ -116,6 +116,7 @@ class GuardrailsService(BaseService):
             "validator": guardrail.validator_type,
             "input": input_data if isinstance(input_data, str) else str(input_data),
             "parameters": parameters,
+            "guardrailName": guardrail.name,
         }
         spec = RequestSpec(
             method="POST",
