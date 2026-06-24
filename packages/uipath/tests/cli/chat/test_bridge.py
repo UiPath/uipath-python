@@ -1037,7 +1037,7 @@ class TestWaitForResumeEdgeCases:
         bridge = self._make_bridge()
 
         trigger = UiPathResumeTrigger(
-            api_resume=UiPathApiTrigger(request="not-a-dict")  # type: ignore[arg-type]
+            api_resume=UiPathApiTrigger(request="not-a-dict")
         )
         await bridge.emit_interrupt_event(trigger)
 
