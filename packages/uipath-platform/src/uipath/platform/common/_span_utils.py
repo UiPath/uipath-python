@@ -153,15 +153,18 @@ class UiPathSpan:
     status: SpanStatus = SpanStatus.OK
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
+    # Emit None (omitted on the wire) rather than "" when unset: the v3 ingest
+    # endpoint binds these to Guid fields and a "" value crashes the serializer
+    # (400) instead of failing cleanly.
     organization_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID", "")
+        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID") or None
     )
     tenant_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_TENANT_ID", "")
+        default_factory=lambda: env.get("UIPATH_TENANT_ID") or None
     )
     expiry_time_utc: Optional[str] = None
     folder_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
+        default_factory=lambda: env.get("UIPATH_FOLDER_KEY") or None
     )
     source: SpanSource = SpanSource.CODED_AGENTS
     span_type: str = "Coded Agents"
@@ -226,7 +229,9 @@ class UiPathSpan:
             "JobKey": self.job_key,
             "ReferenceId": self.reference_id,
             "ExecutionType": self.execution_type,
-            "AgentVersion": self.agent_version,
+            # v3 ingest (SpanV3Req) has no AgentVersion field; the agent version
+            # is carried by ReferenceVersion (pairs with ReferenceId above).
+            "ReferenceVersion": self.agent_version,
             "Attachments": attachments_out,
         }
         if self.verbosity_level is not None:

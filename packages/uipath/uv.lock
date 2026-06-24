@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "2026-06-22T13:56:19.8527915Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
@@ -2552,7 +2552,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.11.12"
+version = "2.11.13"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.76"
+version = "0.1.77"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },

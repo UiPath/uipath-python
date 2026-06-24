@@ -915,7 +915,9 @@ class TestV3EndToEnd:
         assert "v3/spans" in posted_url, f"Expected v3/spans in URL, got: {posted_url}"
 
         # Body must contain string enum values, not integers
-        payload: list[dict[str, object]] = call_args.kwargs.get("json") or call_args.args[1]
+        payload: list[dict[str, object]] = (
+            call_args.kwargs.get("json") or call_args.args[1]
+        )
         assert len(payload) == 1
         span_payload = payload[0]
 

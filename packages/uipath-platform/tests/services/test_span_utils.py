@@ -67,6 +67,39 @@ class TestStrEnums:
         assert isinstance(ExecutionType.RUNTIME, str)
 
 
+class TestGuidFieldDefaults:
+    """Guid-typed env-derived fields must default to None, not "".
+
+    v3 ingest (SpanV3Req) binds OrganizationId/FolderKey/TenantId to Guid
+    fields; an empty string crashes the serializer (400). When the env vars
+    are unset the span must omit these (None) rather than send "".
+    """
+
+    def test_guid_fields_none_when_env_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for var in ("UIPATH_ORGANIZATION_ID", "UIPATH_TENANT_ID", "UIPATH_FOLDER_KEY"):
+            monkeypatch.delenv(var, raising=False)
+
+        span = UiPathSpan(id="s", trace_id="t", name="n", attributes={})
+
+        assert span.organization_id is None
+        assert span.tenant_id is None
+        assert span.folder_key is None
+
+    def test_empty_string_env_coerced_to_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for var in ("UIPATH_ORGANIZATION_ID", "UIPATH_TENANT_ID", "UIPATH_FOLDER_KEY"):
+            monkeypatch.setenv(var, "")
+
+        span = UiPathSpan(id="s", trace_id="t", name="n", attributes={})
+
+        assert span.organization_id is None
+        assert span.tenant_id is None
+        assert span.folder_key is None
+
+
 class TestOTelToUiPathSpan:
     """OTEL attribute -> top-level UiPathSpan field mapping.
 
@@ -80,7 +113,7 @@ class TestOTelToUiPathSpan:
     ATTRIBUTE_FIELD_MAP = [
         # (otel_attr, span_field, top_level_key, otel_input_int, expected_output)
         ("executionType", "execution_type", "ExecutionType", 1, ExecutionType.RUNTIME),
-        ("agentVersion", "agent_version", "AgentVersion", "1.2.3", "1.2.3"),
+        ("agentVersion", "agent_version", "ReferenceVersion", "1.2.3", "1.2.3"),
         ("agentId", "reference_id", "ReferenceId", "ref-abc", "ref-abc"),
         ("verbosityLevel", "verbosity_level", "VerbosityLevel", 6, VerbosityLevel.OFF),
     ]
@@ -619,7 +652,7 @@ class TestSpanUtils:
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_includes_agent_version(self):
-        """Test that agentVersion from attributes becomes top-level AgentVersion."""
+        """Test that agentVersion from attributes becomes top-level ReferenceVersion."""
         mock_span = Mock(spec=OTelSpan)
 
         trace_id = 0x123456789ABCDEF0123456789ABCDEF0
@@ -641,7 +674,7 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        assert span_dict["AgentVersion"] == "2.0.0"
+        assert span_dict["ReferenceVersion"] == "2.0.0"
         assert uipath_span.agent_version == "2.0.0"
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
@@ -669,7 +702,7 @@ class TestSpanUtils:
         span_dict = uipath_span.to_dict()
 
         assert span_dict["ExecutionType"] == ExecutionType.RUNTIME
-        assert span_dict["AgentVersion"] == "1.0.0"
+        assert span_dict["ReferenceVersion"] == "1.0.0"
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_missing_execution_type_and_agent_version(self):
@@ -696,7 +729,7 @@ class TestSpanUtils:
         span_dict = uipath_span.to_dict()
 
         assert span_dict["ExecutionType"] is None
-        assert span_dict["AgentVersion"] is None
+        assert span_dict["ReferenceVersion"] is None
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_source_defaults_to_coded_agents(self):
