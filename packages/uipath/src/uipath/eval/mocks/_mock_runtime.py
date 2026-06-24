@@ -37,16 +37,32 @@ logger = logging.getLogger(__name__)
 def build_mocking_context(
     config: SimulationConfig, agent_model: str | None = None
 ) -> MockingContext | None:
-    """Build a MockingContext from a validated SimulationConfig.
+    """Build a MockingContext from a validated SimulationConfig."""
+    if not config.enabled:
+        return None
 
-    Args:
-        config: Validated simulation config.
-        agent_model: Optional agent model name to use as fallback.
+    # New per-component format → routes to simulate-component API
+    if config.components:
+        from uipath.platform.common._config import UiPathConfig
 
-    Returns:
-        MockingContext if enabled and tools are specified, None otherwise.
-    """
-    if not config.enabled or not config.tools_to_simulate:
+        workload_id = (
+            getattr(UiPathConfig, "agent_id", None)
+            or getattr(UiPathConfig, "project_id", None)
+            or str(uuid.uuid4())
+        )
+        logger.debug(
+            f"Loaded simulation config for {len(config.components)} component(s)"
+        )
+        return MockingContext(
+            strategy=None,
+            name="debug-simulation",
+            inputs={},
+            components=config.components,
+            workload_id=workload_id,
+        )
+
+    # Legacy format (toolsToSimulate + instructions) → routes to local LLM mocker
+    if not config.tools_to_simulate:
         return None
 
     model = (
@@ -125,12 +141,16 @@ def set_execution_context(
     mocking_context.set(context)
 
     try:
-        if context and context.strategy:
-            mocker_context.set(MockerFactory.create(context))
+        if context and (context.strategy or context.components):
+            mocker = MockerFactory.create(context)
+            mocker_context.set(mocker)
+            logger.info(
+                "simulate-component: mocker created (%s)", type(mocker).__name__
+            )
         else:
             mocker_context.set(None)
     except Exception:
-        logger.warning("Failed to create mocker.")
+        logger.warning("Failed to create mocker.", exc_info=True)
         mocker_context.set(None)
 
     span_collector_context.set(span_collector)

@@ -66,6 +66,60 @@ def _get_caller_component() -> str:
 _TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
 
 
+def resolve_trace_id(fallback: str | None = None) -> str | None:
+    """Resolve the current UiPath trace id as a 32-char hex string.
+
+    Same lookup chain :func:`_inject_trace_context` uses to compose the
+    ``x-uipath-traceparent-id`` header, exposed as a public helper so
+    callers can capture the value when they need it in a request body
+    (e.g. governance compensation) or before hopping to a background
+    thread that won't inherit the OpenTelemetry context.
+
+    Resolution order (first hit wins):
+
+    1. :attr:`UiPathConfig.trace_id` (``UIPATH_TRACE_ID`` env var),
+       normalized via :meth:`_SpanUtils.normalize_trace_id`. This is the
+       canonical agent trace id the LLMOps exporter binds spans to.
+    2. The LLMOps external span trace id, when a provider is registered
+       via :meth:`UiPathSpanUtils.register_current_span_provider`.
+    3. The current OpenTelemetry span trace id.
+    4. The caller-supplied ``fallback``.
+
+    Args:
+        fallback: Returned when nothing above resolves.
+
+    Returns:
+        Lower-case 32-char hex trace id, or ``fallback`` (which may be
+        ``None``) when no source yields a usable value.
+
+    Thread Safety:
+        Steps 2 and 3 read OpenTelemetry's thread-local context. Call this
+        on the thread that owns the live span (e.g. the agent's hook
+        thread) and capture the result before submitting work to a
+        background pool — worker threads do not inherit the context.
+    """
+    from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    from ._config import UiPathConfig
+    from ._span_utils import _SpanUtils
+
+    config_trace_id = UiPathConfig.trace_id
+    if config_trace_id:
+        try:
+            return _SpanUtils.normalize_trace_id(config_trace_id)
+        except ValueError:
+            # Malformed UIPATH_TRACE_ID — fall through to OTel context.
+            pass
+
+    llmops_span = UiPathSpanUtils.get_external_current_span()
+    span = llmops_span or trace.get_current_span()
+    ctx = span.get_span_context()
+    if ctx.trace_id:
+        return format_trace_id(ctx.trace_id)
+
+    return fallback
+
+
 def _inject_trace_context(headers: dict[str, str]) -> None:
     """Inject UiPath trace context header.
 

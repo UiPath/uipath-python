@@ -9,6 +9,7 @@ import warnings
 from typing import Any, List
 
 from ..common._base_service import BaseService
+from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
@@ -149,6 +150,7 @@ class RemoteA2aService(FolderContext, BaseService):
         data = response.json()
         return [RemoteA2aAgent.model_validate(agent) for agent in data.get("value", [])]
 
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
     def retrieve(
         self,
         slug: str,
@@ -190,6 +192,7 @@ class RemoteA2aService(FolderContext, BaseService):
         )
         return RemoteA2aAgent.model_validate(response.json())
 
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
     async def retrieve_async(
         self,
         slug: str,
@@ -239,6 +242,13 @@ class RemoteA2aService(FolderContext, BaseService):
     def custom_headers(self) -> dict[str, str]:
         return self.folder_headers
 
+    def _resolve_folder_key(self, folder_path: str | None) -> str | None:
+        """Resolve folder key from folder_path, falling back to FolderContext."""
+        if folder_path is not None:
+            return self._folders_service.retrieve_folder_key(folder_path)
+
+        return self._folder_key
+
     def _list_spec(
         self,
         *,
@@ -273,7 +283,7 @@ class RemoteA2aService(FolderContext, BaseService):
         *,
         folder_path: str | None,
     ) -> RequestSpec:
-        folder_key = self._folders_service.retrieve_folder_key(folder_path)
+        folder_key = self._resolve_folder_key(folder_path)
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/agenthub_/api/remote-a2a-agents/{slug}"),
