@@ -683,7 +683,9 @@ class TestWaitForResumeEndToolCall:
                     "toolCall": {
                         "toolCallId": tool_call_id,
                         "endToolCall": {
-                            "output": output or {"result": "ok"},
+                            "output": output
+                            if output is not None
+                            else {"result": "ok"},
                             "isError": False,
                         },
                     },
@@ -915,7 +917,9 @@ class TestWaitForResumeEdgeCases:
                     "toolCall": {
                         "toolCallId": tool_call_id,
                         "endToolCall": {
-                            "output": output or {"result": "ok"},
+                            "output": output
+                            if output is not None
+                            else {"result": "ok"},
                             "isError": False,
                         },
                     },

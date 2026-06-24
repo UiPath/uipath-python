@@ -498,10 +498,13 @@ class SocketIOChatBridge:
             if not future.done():
                 future.set_result(item)
             else:
+                # Future was cancelled or already resolved — store the payload
+                # so a subsequent wait_for_resume() can still find it.
                 logger.warning(
-                    f"Duplicate resume for tool_call_id={tool_call_id} — "
-                    "future already resolved, ignoring."
+                    f"Resume for tool_call_id={tool_call_id} — "
+                    "future already done, storing as fallback."
                 )
+                self._tool_resume_results[tool_call_id] = item
         else:
             if tool_call_id in self._tool_resume_results:
                 logger.warning(
