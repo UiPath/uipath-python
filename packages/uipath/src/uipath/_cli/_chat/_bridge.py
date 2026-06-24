@@ -454,6 +454,12 @@ class SocketIOChatBridge:
         Returns:
             The resume data dict, including ``tool_call_id``.
         """
+        if not self._expected_tool_call_ids:
+            raise RuntimeError(
+                "wait_for_resume() called but no tool_call_id was registered "
+                "by emit_interrupt_event(). This indicates a caller/protocol mismatch."
+            )
+
         expected_id = self._expected_tool_call_ids.popleft()
 
         if expected_id in self._tool_resume_results:
@@ -488,8 +494,20 @@ class SocketIOChatBridge:
         """
         item: ToolResumeItem = {"tool_call_id": tool_call_id, "value": value}
         if tool_call_id in self._tool_resume_pending:
-            self._tool_resume_pending.pop(tool_call_id).set_result(item)
+            future = self._tool_resume_pending.pop(tool_call_id)
+            if not future.done():
+                future.set_result(item)
+            else:
+                logger.warning(
+                    f"Duplicate resume for tool_call_id={tool_call_id} — "
+                    "future already resolved, ignoring."
+                )
         else:
+            if tool_call_id in self._tool_resume_results:
+                logger.warning(
+                    f"Duplicate resume for tool_call_id={tool_call_id} — "
+                    "overwriting previously stored result."
+                )
             self._tool_resume_results[tool_call_id] = item
 
     @property
