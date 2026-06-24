@@ -27,3 +27,7 @@ jobs:
   check-versions:
     if: github.event_name == 'pull_request'
     uses: ./.github/workflows/check-version-availability.yml
+
+  check-dependency-bumps:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/check-dependency-bumps.yml

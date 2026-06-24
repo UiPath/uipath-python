@@ -72,13 +72,17 @@ jobs:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
 
-      - name: Update uipath packages
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-langchain-python
         run: |
-          uv add ../wheels/uipath-core/dist/*.whl --dev
-          uv add ../wheels/uipath-platform/dist/*.whl --dev
-          uv add ../wheels/uipath/dist/*.whl --dev
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Run uipath-langchain tests
         working-directory: uipath-langchain-python
@@ -146,13 +150,17 @@ jobs:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
 
-      - name: Update uipath packages
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-langchain-python
         run: |
-          uv add ../wheels/uipath-core/dist/*.whl
-          uv add ../wheels/uipath-platform/dist/*.whl
-          uv add ../wheels/uipath/dist/*.whl
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Install dependencies
         working-directory: uipath-langchain-python

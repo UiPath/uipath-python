@@ -71,9 +71,47 @@ def sensitive_operation(secret):
 - Regular functions (sync/async)
 - Generator functions (sync/async)
 
-## Example with plain python agents
+## Example with coded functions
 
-When used with plain python agents please call `wait_for_tracers()` at the end of the script to ensure all traces are sent, if this is not called the agent could end without sending all the traces.
+Apply `@traced` to individual steps inside your function. Do **not** trace the entry point — the Orchestrator runtime wraps the job execution in its own span, so decorating the entry point creates a duplicate outer span.
+
+```python hl_lines="4 9 14"
+from uipath.tracing import traced
+
+
+@traced(name="fetch_document", run_type="uipath")
+def fetch_document(document_id: str) -> bytes:
+    ...
+
+
+@traced(name="extract_fields", run_type="uipath")
+def extract_fields(content: bytes) -> dict:
+    ...
+
+
+@traced(name="post_to_erp", run_type="uipath")
+def post_to_erp(data: dict) -> str:
+    ...
+
+
+def main(input: Input) -> Output:   # entry point — NOT traced
+    content = fetch_document(input.document_id)
+    data = extract_fields(content)
+    result_id = post_to_erp(data)
+    return Output(result_id=result_id)
+```
+
+Use `hide_input=True` or `hide_output=True` on steps that handle credentials or PII:
+
+```python hl_lines="1"
+@traced(name="get_api_token", run_type="uipath", hide_input=True, hide_output=True)
+def get_api_token(client_id: str, client_secret: str) -> str:
+    ...
+```
+
+## Example with plain python scripts
+
+When used outside the Orchestrator runtime (e.g. a standalone script), call `wait_for_tracers()` at the end to ensure all traces are flushed before the process exits.
 
 ```python hl_lines="3 8"
 

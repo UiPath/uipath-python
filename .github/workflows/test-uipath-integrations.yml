@@ -102,13 +102,17 @@ jobs:
           repository: 'UiPath/uipath-integrations-python'
           path: 'uipath-integrations-python'
 
-      - name: Update uipath packages
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-integrations-python/packages/${{ matrix.package }}
         run: |
-          uv add ../../../wheels/uipath-core/dist/*.whl --dev
-          uv add ../../../wheels/uipath-platform/dist/*.whl --dev
-          uv add ../../../wheels/uipath/dist/*.whl --dev
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Install dependencies and run tests
         shell: bash
@@ -202,13 +206,17 @@ jobs:
           repository: 'UiPath/uipath-integrations-python'
           path: 'uipath-integrations-python'
 
-      - name: Update uipath packages
+      - name: Checkout uipath-python scripts
+        uses: actions/checkout@v4
+        with:
+          path: _scripts
+          sparse-checkout: .github/scripts
+
+      - name: Override uipath packages with local wheels
         shell: bash
-        working-directory: uipath-integrations-python/packages/${{ matrix.package }}
         run: |
-          uv add ../../../wheels/uipath-core/dist/*.whl
-          uv add ../../../wheels/uipath-platform/dist/*.whl
-          uv add ../../../wheels/uipath/dist/*.whl
+          PYBIN=$(command -v python || command -v python3)
+          "$PYBIN" "$GITHUB_WORKSPACE/_scripts/.github/scripts/write_uv_overrides.py"
 
       - name: Install dependencies
         working-directory: uipath-integrations-python/packages/${{ matrix.package }}

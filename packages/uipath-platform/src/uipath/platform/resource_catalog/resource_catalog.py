@@ -22,6 +22,7 @@ class ResourceType(str, Enum):
     CONNECTOR = "connector"
     MCP_SERVER = "mcpserver"
     QUEUE = "queue"
+    ENTITY = "entity"
 
     @classmethod
     def from_string(cls, value: str) -> "ResourceType":

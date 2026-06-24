@@ -1,0 +1,12 @@
+[project]
+name = "list-target-output-key-evals"
+version = "0.0.1"
+description = "Tests for evaluating multiple output keys at once using a list targetOutputKey"
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath",
+]
+requires-python = ">=3.11"
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }

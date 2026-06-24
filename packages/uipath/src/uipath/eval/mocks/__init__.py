@@ -6,13 +6,31 @@ from ._mock_runtime import (
     build_mocking_context,
     build_mocking_context_from_dict,
 )
-from ._types import ExampleCall, MockingContext, SimulationConfig
+from ._types import (
+    ComponentSimulationConfig,
+    ExampleCall,
+    MockingContext,
+    RuleOperator,
+    SimulationAnswer,
+    SimulationAnswerType,
+    SimulationBehavior,
+    SimulationCondition,
+    SimulationConfig,
+    SimulationStrategy,
+)
 from .mockable import mockable
 
 __all__ = [
+    "ComponentSimulationConfig",
     "ExampleCall",
     "MockingContext",
+    "RuleOperator",
+    "SimulationAnswer",
+    "SimulationAnswerType",
+    "SimulationBehavior",
+    "SimulationCondition",
     "SimulationConfig",
+    "SimulationStrategy",
     "UiPathMockRuntime",
     "build_mocking_context",
     "build_mocking_context_from_dict",

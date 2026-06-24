@@ -22,6 +22,7 @@ from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
+from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService
 from .orchestrator import (
@@ -35,6 +36,7 @@ from .orchestrator import (
     ProcessesService,
     QueuesService,
 )
+from .pii_detection import PiiDetectionService
 from .resource_catalog import ResourceCatalogService
 from .semantic_proxy import SemanticProxyService
 
@@ -168,6 +170,10 @@ class UiPath:
     def guardrails(self) -> GuardrailsService:
         return GuardrailsService(self._config, self._execution_context)
 
+    @cached_property
+    def governance(self) -> GovernanceService:
+        return GovernanceService(self._config, self._execution_context)
+
     @property
     def agenthub(self) -> AgentHubService:
         return AgentHubService(self._config, self._execution_context, self.folders)
@@ -183,6 +189,10 @@ class UiPath:
     @property
     def automation_ops(self) -> AutomationOpsService:
         return AutomationOpsService(self._config, self._execution_context)
+
+    @property
+    def pii_detection(self) -> PiiDetectionService:
+        return PiiDetectionService(self._config, self._execution_context)
 
     @property
     def semantic_proxy(self) -> SemanticProxyService:

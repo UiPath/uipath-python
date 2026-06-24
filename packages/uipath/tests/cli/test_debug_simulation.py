@@ -82,11 +82,12 @@ class TestLoadSimulationConfig:
             assert result is not None
             assert isinstance(result, MockingContext)
             assert result.name == "debug-simulation"
-            assert result.strategy is not None
+            # Legacy format routes to local LLM mocker via strategy
+            assert result.components is None or len(result.components) == 0
             assert isinstance(result.strategy, LLMMockingStrategy)
-            assert result.strategy.prompt == valid_simulation_config["instructions"]
             assert len(result.strategy.tools_to_simulate) == 3
             assert result.strategy.tools_to_simulate[0].name == "Web Reader"
+            assert result.strategy.prompt == valid_simulation_config["instructions"]
 
     def test_returns_none_when_disabled(
         self, temp_dir: str, disabled_simulation_config: dict[str, Any]
@@ -421,6 +422,34 @@ class TestSimulationConfigFields:
             result = load_simulation_config()
             # Should load successfully since enabled defaults to true
             assert result is not None
+
+    def test_new_format_loads_components(self, temp_dir: str):
+        """Test that new per-component format routes to API-based mocker (components set)."""
+        config = {
+            "enabled": True,
+            "components": [
+                {
+                    "componentId": "my_tool",
+                    "componentType": "tool",
+                    "simulationStrategy": 0,
+                    "simulationInstruction": "Simulate this tool",
+                }
+            ],
+        }
+        simulation_path = Path(temp_dir) / "simulation.json"
+        with open(simulation_path, "w", encoding="utf-8") as f:
+            json.dump(config, f)
+
+        with patch(f"{MOCK_RUNTIME_PATCH_PATH}.Path.cwd", return_value=Path(temp_dir)):
+            result = load_simulation_config()
+
+            assert result is not None
+            assert isinstance(result, MockingContext)
+            # New format: components set, strategy is None
+            assert result.components is not None
+            assert len(result.components) == 1
+            assert result.components[0].component_id == "my_tool"
+            assert result.strategy is None
 
     def test_handles_tool_name_normalization(self, temp_dir: str):
         """Test that tool names with underscores work correctly."""

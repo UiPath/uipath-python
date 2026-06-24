@@ -1,5 +1,6 @@
 """Tests for SocketIOChatBridge and get_chat_bridge."""
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, cast
@@ -9,6 +10,7 @@ import pytest
 
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
 from uipath._cli._debug._bridge import SignalRDebugBridge
+from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
 
 
 class MockRuntimeContext:
@@ -20,11 +22,13 @@ class MockRuntimeContext:
         exchange_id: str = "test-exchange-id",
         tenant_id: str = "test-tenant-id",
         org_id: str = "test-org-id",
+        end_exchange: bool = True,
     ):
         self.conversation_id = conversation_id
         self.exchange_id = exchange_id
         self.tenant_id = tenant_id
         self.org_id = org_id
+        self.end_exchange = end_exchange
 
 
 class TestSocketIOChatBridgeDebugMode:
@@ -204,6 +208,53 @@ class TestGetChatBridge:
         assert "X-UiPath-ConversationId" in bridge.headers
         assert bridge.headers["X-UiPath-ConversationId"] == "conv-789"
 
+    def test_get_chat_bridge_falls_back_to_env_when_tenant_and_org_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Tenant/account headers fall back to env vars when context values are None."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+        monkeypatch.setenv("UIPATH_TENANT_ID", "env-tenant")
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "env-org")
+
+        context = MockRuntimeContext(
+            tenant_id=None,  # type: ignore[arg-type]
+            org_id=None,  # type: ignore[arg-type]
+            conversation_id="conv-789",
+        )
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
+        assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
+
+    def test_get_chat_bridge_includes_conversational_user_id_header_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Conversation owner id (from FpsProperties) is sent on the handshake for CAS to validate."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+
+        context = MockRuntimeContext(conversation_id="conv-789")
+        context.conversational_user_id = "owner-guid"  # type: ignore[attr-defined]
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.headers["X-UiPath-Internal-ConversationalUserId"] == "owner-guid"
+
+    def test_get_chat_bridge_omits_conversational_user_id_header_when_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No header is sent when the runtime has no owner id (backward compatible)."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/org/tenant")
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "my-access-token")
+
+        context = MockRuntimeContext(conversation_id="conv-789")
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert "X-UiPath-Internal-ConversationalUserId" not in bridge.headers
+
     def test_get_chat_bridge_raises_without_uipath_url(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -308,6 +359,89 @@ class TestSocketIOChatBridgeConnectionStates:
         assert "not connected" in str(exc_info.value).lower()
 
 
+class TestSocketIOChatBridgeEndExchange:
+    """The bridge owns whether to honor the exchange-end event (CAS-specific)."""
+
+    def _make_connected_bridge(self, end_exchange: bool) -> SocketIOChatBridge:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+            end_exchange=end_exchange,
+        )
+        bridge._websocket_disabled = False
+        bridge._client = AsyncMock()
+        bridge._connected_event.set()
+        return bridge
+
+    def test_end_exchange_defaults_true(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        assert bridge.end_exchange is True
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_end_sends_when_end_exchange_true(self) -> None:
+        bridge = self._make_connected_bridge(end_exchange=True)
+
+        await bridge.emit_exchange_end_event()
+
+        cast(AsyncMock, bridge._client).emit.assert_awaited_once()
+        assert (
+            cast(AsyncMock, bridge._client).emit.await_args.args[0]
+            == "ConversationEvent"
+        )
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_end_suppressed_when_end_exchange_false(self) -> None:
+        bridge = self._make_connected_bridge(end_exchange=False)
+
+        await bridge.emit_exchange_end_event()
+
+        cast(AsyncMock, bridge._client).emit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_end_false_does_not_require_client(self) -> None:
+        """With the exchange kept open, suppression happens before the connection check."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+            end_exchange=False,
+        )
+
+        # Should not raise even though _client is None.
+        await bridge.emit_exchange_end_event()
+
+    def test_get_chat_bridge_propagates_end_exchange_false(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        context = MockRuntimeContext(end_exchange=False)
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.end_exchange is False
+
+    def test_get_chat_bridge_defaults_end_exchange_true(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        context = MockRuntimeContext()
+
+        bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
+
+        assert bridge.end_exchange is True
+
+
 class TestSignalRDebugBridgeSendMethod:
     """Tests for SignalRDebugBridge."""
 
@@ -351,3 +485,254 @@ class TestSignalRDebugBridgeSendMethod:
         assert parsed_data["message"] == "test message"
         assert isinstance(parsed_data["timestamp"], str)
         assert isinstance(parsed_data["nested"]["created_at"], str)
+
+
+class TestEmitInterruptEvent:
+    """Tests for emit_interrupt_event (now a no-op for executingToolCall)."""
+
+    def _make_bridge(self) -> SocketIOChatBridge:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._current_message_id = "msg-100"
+        return bridge
+
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_is_noop(self) -> None:
+        """emit_interrupt_event no longer emits executingToolCall."""
+        bridge = self._make_bridge()
+
+        emitted_events: list[Any] = []
+
+        async def capture_emit(event: Any) -> None:
+            emitted_events.append(event)
+
+        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
+
+        trigger = UiPathResumeTrigger(
+            api_resume=UiPathApiTrigger(
+                request={
+                    "tool_call_id": "tc-42",
+                    "tool_name": "my_tool",
+                    "input": {"key": "value"},
+                }
+            )
+        )
+
+        await bridge.emit_interrupt_event(trigger)
+
+        assert len(emitted_events) == 0
+
+
+class TestEmitExecutingToolCall:
+    """Tests for emit_executing_tool_call_event (post-confirmation executingToolCall emission)."""
+
+    def _make_bridge(self) -> SocketIOChatBridge:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._current_message_id = "msg-100"
+        return bridge
+
+    @pytest.mark.anyio
+    async def test_emits_executing_tool_call_event(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Should emit executingToolCall with tool_call_id and input."""
+        monkeypatch.setenv("CAS_WEBSOCKET_DISABLED", "true")
+        bridge = self._make_bridge()
+        await bridge.connect()
+
+        emitted_events: list[Any] = []
+        original_emit = bridge.emit_message_event
+
+        async def capture_emit(event: Any) -> None:
+            emitted_events.append(event)
+            await original_emit(event)
+
+        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
+
+        await bridge.emit_executing_tool_call_event(
+            tool_call_id="tc-42",
+            tool_input={"key": "value"},
+        )
+
+        assert len(emitted_events) == 1
+        event = emitted_events[0]
+        assert event.message_id == "msg-100"
+        assert event.tool_call is not None
+        assert event.tool_call.tool_call_id == "tc-42"
+        assert event.tool_call.executing is not None
+        assert event.tool_call.executing.input == {"key": "value"}
+
+    @pytest.mark.anyio
+    async def test_no_message_id_does_not_emit(self) -> None:
+        """Should not emit if no current message ID is set."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        # _current_message_id is not set
+
+        emitted_events: list[Any] = []
+
+        async def capture_emit(event: Any) -> None:
+            emitted_events.append(event)
+
+        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
+
+        await bridge.emit_executing_tool_call_event(tool_call_id="tc-42")
+
+        assert len(emitted_events) == 0
+
+    @pytest.mark.anyio
+    async def test_none_input_emits_with_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Should emit with None input when no input provided."""
+        monkeypatch.setenv("CAS_WEBSOCKET_DISABLED", "true")
+        bridge = self._make_bridge()
+        await bridge.connect()
+
+        emitted_events: list[Any] = []
+        original_emit = bridge.emit_message_event
+
+        async def capture_emit(event: Any) -> None:
+            emitted_events.append(event)
+            await original_emit(event)
+
+        bridge.emit_message_event = capture_emit  # type: ignore[assignment]
+
+        await bridge.emit_executing_tool_call_event(tool_call_id="tc-42")
+
+        assert len(emitted_events) == 1
+        assert emitted_events[0].tool_call.executing.input is None
+
+
+class TestWaitForResumeEndToolCall:
+    """Tests for wait_for_resume unblocking on endToolCall events."""
+
+    @pytest.mark.anyio
+    async def test_end_tool_call_unblocks_wait_for_resume(self) -> None:
+        """Receiving an endToolCall event unblocks wait_for_resume and returns parsed payload."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+
+        end_event = {
+            "conversationId": "conv-123",
+            "exchange": {
+                "exchangeId": "exch-456",
+                "message": {
+                    "messageId": "msg-200",
+                    "toolCall": {
+                        "toolCallId": "tc-99",
+                        "endToolCall": {
+                            "output": {"result": "ok"},
+                            "isError": False,
+                        },
+                    },
+                },
+            },
+        }
+
+        async def simulate_end_event() -> None:
+            await asyncio.sleep(0.05)
+            await bridge._handle_conversation_event(end_event, "sid-1")
+
+        task = asyncio.create_task(simulate_end_event())
+        result = await bridge.wait_for_resume()
+        await task
+
+        assert result["output"] == {"result": "ok"}
+        assert result["is_error"] is False
+
+    @pytest.mark.anyio
+    async def test_confirm_tool_call_unblocks_wait_for_resume(self) -> None:
+        """Receiving a confirmToolCall event also unblocks wait_for_resume."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+
+        confirm_event = {
+            "conversationId": "conv-123",
+            "exchange": {
+                "exchangeId": "exch-456",
+                "message": {
+                    "messageId": "msg-200",
+                    "toolCall": {
+                        "toolCallId": "tc-99",
+                        "confirmToolCall": {
+                            "approved": True,
+                            "input": {"edited": "data"},
+                        },
+                    },
+                },
+            },
+        }
+
+        async def simulate_confirm_event() -> None:
+            await asyncio.sleep(0.05)
+            await bridge._handle_conversation_event(confirm_event, "sid-1")
+
+        task = asyncio.create_task(simulate_confirm_event())
+        result = await bridge.wait_for_resume()
+        await task
+
+        assert result["approved"] is True
+        assert result["input"] == {"edited": "data"}
+
+    @pytest.mark.anyio
+    async def test_early_end_tool_call_is_not_lost(self) -> None:
+        """An endToolCall that arrives before wait_for_resume is called must not be lost."""
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+
+        end_event = {
+            "conversationId": "conv-123",
+            "exchange": {
+                "exchangeId": "exch-456",
+                "message": {
+                    "messageId": "msg-300",
+                    "toolCall": {
+                        "toolCallId": "tc-100",
+                        "endToolCall": {
+                            "output": {"early": True},
+                            "isError": False,
+                        },
+                    },
+                },
+            },
+        }
+
+        # Simulate the event arriving BEFORE wait_for_resume is called
+        await bridge._handle_conversation_event(end_event, "sid-1")
+
+        result = await bridge.wait_for_resume()
+
+        assert result["output"] == {"early": True}
+        assert result["is_error"] is False
