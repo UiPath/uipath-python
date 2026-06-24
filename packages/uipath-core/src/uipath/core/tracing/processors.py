@@ -11,7 +11,10 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
 )
 
-from uipath.core.tracing.types import UiPathTraceSettings
+from uipath.core.tracing.types import (
+    UiPathTraceSettings,
+    is_excluded_instrumentation_scope,
+)
 
 
 class UiPathExecutionTraceProcessorMixin:
@@ -34,6 +37,10 @@ class UiPathExecutionTraceProcessorMixin:
 
     def on_end(self, span: ReadableSpan):
         """Called when a span ends. Filters before delegating to parent."""
+        # Always drop third-party instrumentation noise, then apply the
+        # optional span filter.
+        if is_excluded_instrumentation_scope(span):
+            return
         span_filter = self._settings.span_filter if self._settings else None
         if span_filter is None or span_filter(span):
             parent = cast(SpanProcessor, super())

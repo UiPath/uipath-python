@@ -106,6 +106,34 @@ class TestLiveTrackingSpanProcessor:
 
         mock_exporter.upsert_span.assert_called_once_with(span)
 
+    # Tests for excluded third-party instrumentation scopes (a2a-sdk)
+
+    def test_on_start_skips_excluded_instrumentation_scope(
+        self, processor_no_filter, mock_exporter, monkeypatch
+    ):
+        """With the flag on, on_start drops excluded-scope spans even with no filter."""
+        monkeypatch.setenv("UIPATH_FEATURE_ExcludeThirdPartyTraceScopes", "true")
+        span = self.create_mock_span({"span_type": "agent"})
+        span.instrumentation_scope = Mock()
+        span.instrumentation_scope.name = "a2a-python-sdk"
+
+        processor_no_filter.on_start(span, None)
+
+        mock_exporter.upsert_span.assert_not_called()
+
+    def test_on_end_skips_excluded_instrumentation_scope(
+        self, processor_no_filter, mock_exporter, monkeypatch
+    ):
+        """With the flag on, on_end drops excluded-scope spans even with no filter."""
+        monkeypatch.setenv("UIPATH_FEATURE_ExcludeThirdPartyTraceScopes", "true")
+        span = self.create_mock_readable_span({"span_type": "agent"})
+        span.instrumentation_scope = Mock()
+        span.instrumentation_scope.name = "a2a-python-sdk"
+
+        processor_no_filter.on_end(span)
+
+        mock_exporter.upsert_span.assert_not_called()
+
     # Tests for custom instrumentation filter
 
     def test_on_start_with_filter_accepts_matching(

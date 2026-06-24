@@ -4,7 +4,10 @@ from concurrent.futures import ThreadPoolExecutor
 from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 
-from uipath.core.tracing import UiPathTraceSettings
+from uipath.core.tracing import (
+    UiPathTraceSettings,
+    is_excluded_instrumentation_scope,
+)
 from uipath.tracing._otel_exporters import LlmOpsHttpExporter, SpanStatus
 
 logger = logging.getLogger(__name__)
@@ -72,13 +75,17 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         self, span: Span, parent_context: context_api.Context | None = None
     ) -> None:
         """Called when span starts - upsert with RUNNING status (non-blocking)."""
-        # Apply factory span filter if configured
+        # Drop third-party instrumentation noise, then apply the optional filter.
+        if is_excluded_instrumentation_scope(span):
+            return
         if self.span_filter is None or self.span_filter(span):
             self._upsert_span_async(span, status_override=SpanStatus.RUNNING)
 
     def on_end(self, span: ReadableSpan) -> None:
         """Called when span ends - upsert with final status (non-blocking)."""
-        # Apply factory span filter if configured
+        # Drop third-party instrumentation noise, then apply the optional filter.
+        if is_excluded_instrumentation_scope(span):
+            return
         if self.span_filter is None or self.span_filter(span):
             self._upsert_span_async(span)
 

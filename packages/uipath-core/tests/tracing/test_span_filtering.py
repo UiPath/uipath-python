@@ -196,6 +196,90 @@ class TestSpanFiltering:
         assert "has-required" in exported_names
         assert "no-attrs" not in exported_names
 
+    def test_excluded_instrumentation_scope_dropped(self, monkeypatch):
+        """With the feature flag on, excluded third-party scopes (a2a-sdk) are
+        dropped even with no span_filter — the coded-agent path."""
+        from unittest.mock import MagicMock
+
+        from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+        monkeypatch.setenv("UIPATH_FEATURE_ExcludeThirdPartyTraceScopes", "true")
+
+        mock_exporter = MagicMock(spec=SpanExporter)
+        mock_exporter.export.return_value = SpanExportResult.SUCCESS
+
+        settings = UiPathTraceSettings(span_filter=None)
+        trace_manager = UiPathTraceManager()
+        trace_manager.add_span_exporter(mock_exporter, batch=False, settings=settings)
+
+        a2a_tracer = trace.get_tracer("a2a-python-sdk")
+        normal_tracer = trace.get_tracer("uipath.test.agent")
+        with a2a_tracer.start_as_current_span("JsonRpcTransport.send_message"):
+            pass
+        with normal_tracer.start_as_current_span("finance-agent"):
+            pass
+
+        trace_manager.flush_spans()
+
+        exported_spans = []
+        for call in mock_exporter.export.call_args_list:
+            exported_spans.extend(call[0][0])
+
+        exported_names = {s.name for s in exported_spans}
+        assert "finance-agent" in exported_names
+        assert "JsonRpcTransport.send_message" not in exported_names
+
+    def test_excluded_scope_kept_when_flag_disabled(self):
+        """With the feature flag off (default), excluded-scope spans are still
+        exported — the change ships dark."""
+        from unittest.mock import MagicMock
+
+        from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+        mock_exporter = MagicMock(spec=SpanExporter)
+        mock_exporter.export.return_value = SpanExportResult.SUCCESS
+
+        settings = UiPathTraceSettings(span_filter=None)
+        trace_manager = UiPathTraceManager()
+        trace_manager.add_span_exporter(mock_exporter, batch=False, settings=settings)
+
+        a2a_tracer = trace.get_tracer("a2a-python-sdk")
+        with a2a_tracer.start_as_current_span("JsonRpcTransport.send_message"):
+            pass
+
+        trace_manager.flush_spans()
+
+        exported_names = {
+            s.name for call in mock_exporter.export.call_args_list for s in call[0][0]
+        }
+        assert "JsonRpcTransport.send_message" in exported_names
+
+    def test_is_excluded_instrumentation_scope_helper(self, monkeypatch):
+        """The scope helper is a no-op when the flag is off, and (flag on) matches
+        a2a-sdk spans while ignoring normal spans."""
+        from typing import cast
+
+        from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+
+        from uipath.core.tracing.types import is_excluded_instrumentation_scope
+
+        provider = TracerProvider()
+        a2a = provider.get_tracer("a2a-python-sdk").start_span("x")
+        a2a.end()
+        normal = provider.get_tracer("uipath.agent").start_span("y")
+        normal.end()
+        # start_span is typed as the API Span; the runtime object is a ReadableSpan.
+        a2a_span = cast(ReadableSpan, a2a)
+        normal_span = cast(ReadableSpan, normal)
+
+        # Flag off (default): no exclusion.
+        assert is_excluded_instrumentation_scope(a2a_span) is False
+
+        # Flag on: a2a-sdk excluded, normal scope kept.
+        monkeypatch.setenv("UIPATH_FEATURE_ExcludeThirdPartyTraceScopes", "true")
+        assert is_excluded_instrumentation_scope(a2a_span) is True
+        assert is_excluded_instrumentation_scope(normal_span) is False
+
     def test_different_filters_per_exporter(self):
         """Test that different exporters can have different filters."""
         from unittest.mock import MagicMock
