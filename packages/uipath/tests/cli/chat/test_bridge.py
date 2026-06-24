@@ -962,7 +962,7 @@ class TestWaitForResumeEdgeCases:
 
     @pytest.mark.anyio
     async def test_duplicate_response_pending_does_not_crash(self) -> None:
-        """Two responses while a Future is pending — first resolves, second is ignored safely."""
+        """Two responses while a Future is pending — first resolves it, second is stored as fallback."""
         bridge = self._make_bridge()
         await self._register(bridge, "tc-dup")
 

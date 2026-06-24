@@ -413,7 +413,7 @@ class SocketIOChatBridge:
             resume_trigger.api_resume.request, dict
         ):
             tool_call_id = resume_trigger.api_resume.request.get("tool_call_id")
-            if tool_call_id:
+            if isinstance(tool_call_id, str) and tool_call_id:
                 self._expected_tool_call_ids.append(tool_call_id)
 
     async def emit_executing_tool_call_event(
