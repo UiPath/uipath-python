@@ -138,14 +138,28 @@ class SocketIOChatBridge:
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
-        # Tool call resume state — matches responses to the correct tool call
-        # by tool_call_id, regardless of arrival order.
-        # Results: responses received before wait_for_resume() was called for that tool_call_id
+        # --- Tool call resume state ---
+        # When the LLM invokes multiple tools in one turn, the client can send
+        # back confirmToolCall / endToolCall responses concurrently and in any
+        # order.  Three data structures coordinate matching each response to the
+        # correct wait_for_resume() call:
+        #
+        # 1. _expected_tool_call_ids (deque):
+        #    Ordered queue of tool_call_ids populated by emit_interrupt_event()
+        #    (called by the runtime BEFORE each wait_for_resume()).  Tells
+        #    wait_for_resume() WHICH tool_call_id it should consume next.
+        #
+        # 2. _tool_resume_results (dict):
+        #    Responses that arrived BEFORE wait_for_resume() was called for that
+        #    tool_call_id.  When wait_for_resume() runs, it checks here first
+        #    and returns immediately if a match exists — no blocking needed.
+        #
+        # 3. _tool_resume_pending (dict of Futures):
+        #    Created by wait_for_resume() when the response hasn't arrived yet.
+        #    When the response later arrives in _handle_conversation_event, the
+        #    Future is resolved and wait_for_resume() unblocks.
         self._tool_resume_results: dict[str, ToolResumeItem] = {}
-        # Pending: wait_for_resume() is waiting for a response that hasn't arrived yet
         self._tool_resume_pending: dict[str, asyncio.Future[ToolResumeItem]] = {}
-        # Expected order: tool_call_ids registered by emit_interrupt_event,
-        # consumed by wait_for_resume() to know which response to wait for
         self._expected_tool_call_ids: deque[str] = deque()
         self._current_message_id: str | None = None
 
@@ -388,15 +402,12 @@ class SocketIOChatBridge:
             raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
-        """No-op.
+        """Register the trigger's tool_call_id for the upcoming wait_for_resume().
 
-        Tool confirmation is handled end-to-end via ``startToolCall`` with
-        ``requireConfirmation: true`` paired with ``wait_for_resume()``.
-        executingToolCall is emitted by the MessageMapper (non-confirmed
-        tools) and the runtime loop post-confirmation (confirmed tools).
-
-        Registers the trigger's tool_call_id so the next ``wait_for_resume()``
-        can match the correct response regardless of arrival order.
+        Does not emit any websocket event — tool confirmation and execution
+        events are handled elsewhere.  The runtime calls this immediately
+        before wait_for_resume() for each trigger, so we record the
+        tool_call_id here so wait_for_resume() knows which response to match.
         """
         if resume_trigger.api_resume and isinstance(
             resume_trigger.api_resume.request, dict
@@ -404,9 +415,6 @@ class SocketIOChatBridge:
             tool_call_id = resume_trigger.api_resume.request.get("tool_call_id")
             if tool_call_id:
                 self._expected_tool_call_ids.append(tool_call_id)
-                self._log_resume(
-                    f"REGISTER expected={tool_call_id} queue={list(self._expected_tool_call_ids)}"
-                )
 
     async def emit_executing_tool_call_event(
         self,
@@ -435,35 +443,29 @@ class SocketIOChatBridge:
     async def wait_for_resume(self) -> dict[str, Any]:
         """Wait for a tool resume event (confirmToolCall or endToolCall).
 
-        If ``emit_interrupt_event`` registered an expected tool_call_id,
-        waits for that specific response regardless of arrival order.
-        Otherwise waits for the next available response (backwards compatible).
+        Pops the next expected tool_call_id (registered by emit_interrupt_event)
+        and returns the matching response.  Two cases:
+
+        1. Response already arrived (stored in _tool_resume_results) — return
+           immediately without blocking.
+        2. Response hasn't arrived yet — create a Future in _tool_resume_pending,
+           block until _handle_conversation_event resolves it.
 
         Returns:
             The resume data dict, including ``tool_call_id``.
         """
         expected_id = self._expected_tool_call_ids.popleft()
-        self._log_resume(
-            f"WAIT expected={expected_id} results={list(self._tool_resume_results.keys())} pending={list(self._tool_resume_pending.keys())}"
-        )
 
-        # TEMP TEST: simulate slow runtime processing so client responses pile up
-        self._log_resume(f"DELAY 5s before consuming (simulating slow runtime)...")
-        await asyncio.sleep(5)
-
-        # Check if it already arrived
         if expected_id in self._tool_resume_results:
+            # Response arrived before we got here — return it immediately
             item = self._tool_resume_results.pop(expected_id)
-            self._log_resume(f"MATCHED (early arrival) tool_call_id={expected_id}")
         else:
-            # Wait for this specific tool call
+            # Response hasn't arrived yet — wait for it
             future: asyncio.Future[ToolResumeItem] = (
                 asyncio.get_running_loop().create_future()
             )
             self._tool_resume_pending[expected_id] = future
-            self._log_resume(f"WAITING (not yet arrived) tool_call_id={expected_id}")
             item = await future
-            self._log_resume(f"RESOLVED tool_call_id={expected_id}")
 
         value = item["value"]
         result = value.model_dump(mode="python", by_alias=False)
@@ -473,35 +475,22 @@ class SocketIOChatBridge:
     def _resolve_or_store_resume(
         self, tool_call_id: str, value: ToolResumeValue
     ) -> None:
-        """Route an incoming resume event to the correct waiter, or store it.
+        """Route an incoming confirmToolCall/endToolCall to the correct consumer.
 
-        If a keyed pending Future exists for this tool_call_id, resolve it.
-        Otherwise, if an unkeyed pending Future exists, resolve that.
-        Otherwise, store in results for a future wait_for_resume() call.
+        Called from _handle_conversation_event when a tool resume response
+        arrives from the client.  Two cases:
+
+        1. wait_for_resume() is already waiting (Future in _tool_resume_pending)
+           — resolve the Future so it unblocks immediately.
+        2. wait_for_resume() hasn't been called yet for this tool_call_id
+           — store in _tool_resume_results so it's found instantly when
+           wait_for_resume() runs later.
         """
         item: ToolResumeItem = {"tool_call_id": tool_call_id, "value": value}
-        event_type = "confirm" if hasattr(value, "approved") else "end"
         if tool_call_id in self._tool_resume_pending:
             self._tool_resume_pending.pop(tool_call_id).set_result(item)
-            self._log_resume(
-                f"RECEIVED {event_type} tool_call_id={tool_call_id} -> resolved pending future"
-            )
         else:
             self._tool_resume_results[tool_call_id] = item
-            self._log_resume(
-                f"RECEIVED {event_type} tool_call_id={tool_call_id} -> stored (no one waiting yet)"
-            )
-
-    def _log_resume(self, msg: str) -> None:
-        """Write resume debug info to a file for inspection."""
-        import datetime
-
-        line = f"[{datetime.datetime.now().isoformat()}] {msg}\n"
-        try:
-            with open("/tmp/bridge_resume2.log", "a") as f:
-                f.write(line)
-        except Exception:
-            pass
 
     @property
     def is_connected(self) -> bool:
