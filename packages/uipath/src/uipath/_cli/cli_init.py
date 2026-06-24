@@ -34,7 +34,11 @@ from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
-from ._utils._constants import AGENT_INITIAL_CODE_VERSION, SCHEMA_VERSION
+from ._utils._constants import (
+    AGENT_INITIAL_CODE_VERSION,
+    RUNTIME_PURPOSE_SCHEMA,
+    SCHEMA_VERSION,
+)
 from ._utils._project_files import read_toml_project, resolve_existing_project_id
 from .middlewares import Middlewares
 from .models.runtime_schema import Bindings, EntryPoint
@@ -449,12 +453,14 @@ def init(no_agents_md_override: bool) -> None:
                             'No entrypoints found. Add them to `uipath.json` under "functions" or "agents": {"my_function": "src/main.py:main"}'
                         )
 
-                    # Gather schemas from all discovered runtimes
+                    # Gather schemas from all discovered runtimes.
                     for entrypoint_name in entrypoints:
                         runtime: UiPathRuntimeProtocol | None = None
                         try:
                             runtime = await factory.new_runtime(
-                                entrypoint_name, runtime_id="default"
+                                entrypoint_name,
+                                runtime_id="default",
+                                purpose=RUNTIME_PURPOSE_SCHEMA,
                             )
                             schema = await runtime.get_schema()
 

@@ -1,7 +1,7 @@
 import json
 import os
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -181,6 +181,60 @@ class TestInit:
                 assert len(entry_points["entryPoints"]) == 1
                 assert entry_points["entryPoints"][0]["filePath"] == "main"
                 assert "uniqueId" in entry_points["entryPoints"][0]
+
+    def test_init_passes_schema_purpose_to_factory(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """`init` must hint `purpose="schema"` so factories can skip side effects.
+
+        Regression test for the SQLite "database is locked" failure mode where
+        the LangGraph factory opened `__uipath/state.db` on every `new_runtime`
+        call — including schema-only paths used by `init` — causing concurrent
+        `init` runs to race the checkpoint setup.
+        """
+        from uipath.runtime.schema import UiPathRuntimeSchema
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            self._generate_pyproject()
+
+            captured_kwargs: dict = {}
+
+            fake_runtime = MagicMock()
+            fake_runtime.get_schema = AsyncMock(
+                return_value=UiPathRuntimeSchema(
+                    filePath="main",
+                    uniqueId="main",
+                    type="function",
+                    input={},
+                    output={},
+                )
+            )
+            fake_runtime.dispose = AsyncMock()
+
+            async def capturing_new_runtime(entrypoint, runtime_id, **kwargs):
+                captured_kwargs.update(kwargs)
+                return fake_runtime
+
+            fake_factory = MagicMock()
+            fake_factory.discover_entrypoints = MagicMock(return_value=["main"])
+            fake_factory.new_runtime = capturing_new_runtime
+            fake_factory.dispose = AsyncMock()
+
+            with patch(
+                "uipath._cli.cli_init.UiPathRuntimeFactoryRegistry.get",
+                return_value=fake_factory,
+            ):
+                result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 0, result.output
+            assert captured_kwargs.get("purpose") == "schema", (
+                f"init must pass purpose='schema' to new_runtime; "
+                f"got kwargs={captured_kwargs}"
+            )
 
     def test_init_middleware_interaction(
         self, runner: CliRunner, temp_dir: str
