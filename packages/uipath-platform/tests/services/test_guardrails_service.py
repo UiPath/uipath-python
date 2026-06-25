@@ -262,15 +262,18 @@ class TestGuardrailsService:
             # Parse the request payload
             request_payload = json.loads(captured_request.content)
 
-            # Verify the payload structure matches the reverted format:
+            # Verify the payload structure:
             # {
             #     "validator": guardrail.validator_type,
             #     "input": input_data,
             #     "parameters": parameters,
+            #     "guardrailName": guardrail.name,
             # }
             assert "validator" in request_payload
             assert "input" in request_payload
             assert "parameters" in request_payload
+            assert "guardrailName" in request_payload
+            assert request_payload["guardrailName"] == "PII detection guardrail"
 
             # Verify validator is a string (not an object)
             assert isinstance(request_payload["validator"], str)

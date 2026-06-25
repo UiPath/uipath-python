@@ -4113,7 +4113,6 @@ class TestDataFabricContextConfig:
                     "slug": "philosopher-agent",
                     "description": "A philosophical agent that answers questions with wisdom and philosopher quotes",
                     "folderPath": "shared",
-                    "a2a_url": "https://cloud.uipath.com/a2a/5045dca3",
                     "cachedAgentCard": {
                         "name": "Philosopher Agent",
                         "description": "Philosopher Agent assistant",
@@ -4189,7 +4188,6 @@ class TestDataFabricContextConfig:
         )
         assert a2a_resource.id == "755e2f7d-5a3d-47f3-8e9d-7ff0bf226357"
         assert a2a_resource.folder_path == "shared"
-        assert a2a_resource.a2a_url == "https://cloud.uipath.com/a2a/5045dca3"
 
         # Validate cached agent card is a plain dict
         card = a2a_resource.cached_agent_card
@@ -4228,7 +4226,6 @@ class TestDataFabricContextConfig:
                     "slug": "minimal-a2a",
                     "description": "A minimal A2A agent",
                     "folderPath": "shared",
-                    "a2a_url": "https://cloud.uipath.com/a2a/abc-123",
                 }
             ],
             "features": [],
@@ -4248,7 +4245,6 @@ class TestDataFabricContextConfig:
         assert a2a_resource.name == "Minimal A2A Agent"
         assert a2a_resource.slug == "minimal-a2a"
         assert a2a_resource.folder_path == "shared"
-        assert a2a_resource.a2a_url == "https://cloud.uipath.com/a2a/abc-123"
         assert a2a_resource.cached_agent_card is None
 
     def test_a2a_resource_case_insensitive(self):
@@ -4276,7 +4272,6 @@ class TestDataFabricContextConfig:
                     "slug": "case-test",
                     "description": "Testing case insensitive parsing",
                     "folderPath": "shared",
-                    "a2a_url": "https://cloud.uipath.com/a2a/case-test-id",
                 }
             ],
             "features": [],

@@ -553,7 +553,6 @@ class AgentA2aResourceConfig(BaseAgentResourceConfig):
     id: str
     slug: str = Field(..., alias="slug")
     folder_path: str = Field(alias="folderPath")
-    a2a_url: str = Field(..., alias="a2aUrl")
     cached_agent_card: Optional[Dict[str, Any]] = Field(
         default=None, alias="cachedAgentCard"
     )
