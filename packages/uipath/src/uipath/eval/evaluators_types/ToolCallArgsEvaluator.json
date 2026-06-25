@@ -120,6 +120,14 @@
   "justificationSchema": {
     "description": "Justification for the tool call args evaluator.",
     "properties": {
+      "expected": {
+        "title": "Expected",
+        "type": "string"
+      },
+      "actual": {
+        "title": "Actual",
+        "type": "string"
+      },
       "explained_tool_calls_args": {
         "additionalProperties": {
           "type": "string"
@@ -129,6 +137,8 @@
       }
     },
     "required": [
+      "expected",
+      "actual",
       "explained_tool_calls_args"
     ],
     "title": "ToolCallArgsEvaluatorJustification",
