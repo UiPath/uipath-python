@@ -169,6 +169,7 @@ class AgentContextType(str, CaseInsensitiveEnum):
     INDEX = "index"
     ATTACHMENTS = "attachments"
     DATA_FABRIC_ENTITY_SET = "datafabricentityset"
+    DATA_FABRIC_ONTOLOGY = "datafabricontology"
 
 
 class AgentMessageRole(str, CaseInsensitiveEnum):
@@ -444,9 +445,10 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
         None,
         alias="ontologySet",
         description=(
-            "Data Fabric ontologies grounding this context, configured inline "
-            "alongside the entity set. Each carries its own folderId and is "
-            "fetched from the QueryEngine ontology API at runtime."
+            "Data Fabric ontologies, on the dedicated ontology context "
+            "(contextType 'datafabricontology'). Mirrors entitySet on the entity "
+            "context; each item carries its own folderId and is fetched from the "
+            "QueryEngine ontology API at runtime."
         ),
     )
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
@@ -457,6 +459,11 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     def is_datafabric(self) -> bool:
         """Check if this context is a Data Fabric entity set resource."""
         return self.context_type == AgentContextType.DATA_FABRIC_ENTITY_SET
+
+    @property
+    def is_datafabric_ontology(self) -> bool:
+        """Check if this context is a Data Fabric ontology resource."""
+        return self.context_type == AgentContextType.DATA_FABRIC_ONTOLOGY
 
     @property
     def datafabric_entity_identifiers(self) -> list[str]:

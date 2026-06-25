@@ -844,12 +844,13 @@ class DataFabricEntityItem(BaseModel):
 
 
 class DataFabricOntologyItem(BaseModel):
-    """A single Data Fabric ontology reference nested in a context's ontologySet.
+    """A single Data Fabric ontology in an ontology context's ontologySet.
 
-    Mirrors :class:`DataFabricEntityItem`: the ontology is configured inline on
-    the Data Fabric context (alongside ``entitySet``), carrying its own
-    ``folderId`` so it resolves from its own folder. ``name`` is used to fetch
-    the ontology from the QueryEngine ontology API.
+    Mirrors :class:`DataFabricEntityItem`: the ontology context (contextType
+    ``datafabricontology``) holds an ``ontologySet`` array just as the entity
+    context holds an ``entitySet``. Each item carries its own ``folderId`` so it
+    is fetched from its own folder; ``name`` identifies it to the QueryEngine
+    ontology API.
     """
 
     model_config = ConfigDict(
