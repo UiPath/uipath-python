@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import IntEnum, StrEnum
 from functools import lru_cache
 from os import environ as env
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
@@ -103,6 +103,20 @@ _SOURCE_BY_INT: dict[int, SpanSource] = {
     16: SpanSource.DOCUMENT_UNDERSTANDING,
 }
 
+_IntEnumT = TypeVar("_IntEnumT")
+
+
+def _enum_from_int(table: dict[int, _IntEnumT], raw: Any) -> Optional[_IntEnumT]:
+    """Map a raw OTEL int attribute to its enum member, or None.
+
+    Returns None for missing / non-int input — and explicitly for ``bool``,
+    since ``bool`` is an ``int`` subclass (``True == 1``) and would otherwise
+    be coerced to the value-1 member.
+    """
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return None
+    return table.get(raw)
+
 
 @lru_cache(maxsize=1)
 def _read_config_id() -> str | None:
@@ -182,9 +196,10 @@ class UiPathSpan:
     status: SpanStatus = SpanStatus.OK
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
-    # Emit None (omitted on the wire) rather than "" when unset: the v3 ingest
-    # endpoint binds these to Guid fields and a "" value crashes the serializer
-    # (400) instead of failing cleanly.
+    # Default to None (not "") when unset; to_dict() then omits these keys
+    # entirely. The v3 ingest endpoint binds them to Guid fields: "" crashes the
+    # serializer, and even null fails for the required OrganizationId/FolderKey.
+    # In the platform runtime these are always set to real GUIDs.
     organization_id: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID") or None
     )
@@ -263,6 +278,11 @@ class UiPathSpan:
             "ReferenceVersion": self.agent_version,
             "Attachments": attachments_out,
         }
+        # Omit Guid-typed keys when unset — v3 binds them to Guid columns and
+        # rejects null/"". When present (platform runtime) they hold real GUIDs.
+        for guid_key in ("OrganizationId", "TenantId", "FolderKey"):
+            if result[guid_key] is None:
+                del result[guid_key]
         if self.verbosity_level is not None:
             result["VerbosityLevel"] = self.verbosity_level
         return result
@@ -410,40 +430,33 @@ class _SpanUtils:
         span_type_value = attributes_dict.get("span_type", "OpenTelemetry")
         span_type = str(span_type_value)
 
-        # Top-level fields for internal tracing schema
-        execution_type_raw = attributes_dict.get("executionType")
-        execution_type: Optional[ExecutionType] = (
-            _EXECUTION_TYPE_BY_INT.get(execution_type_raw)
-            if isinstance(execution_type_raw, int)
-            else None
+        # Top-level fields for internal tracing schema. The int->enum lookups go
+        # through _enum_from_int so they all ignore bools/non-ints identically.
+        execution_type = _enum_from_int(
+            _EXECUTION_TYPE_BY_INT, attributes_dict.get("executionType")
         )
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("agentId") or attributes_dict.get(
             "referenceId"
         )
-        verbosity_level_raw = attributes_dict.get("verbosityLevel")
-        verbosity_level: Optional[VerbosityLevel] = (
-            _VERBOSITY_LEVEL_BY_INT.get(verbosity_level_raw)
-            if isinstance(verbosity_level_raw, int)
-            else None
+        verbosity_level = _enum_from_int(
+            _VERBOSITY_LEVEL_BY_INT, attributes_dict.get("verbosityLevel")
         )
 
         # Source: override via uipath.source attribute, else CodedAgents.
-        # An unknown int is relabeled CodedAgents but logged — v3 ingest rejects
-        # raw integers, so an unmapped value cannot be forwarded verbatim.
+        # A real int that isn't a known source is relabeled CodedAgents but
+        # logged — v3 ingest rejects raw integers, so it can't be forwarded.
         uipath_source_raw = attributes_dict.get("uipath.source")
-        source: SpanSource = SpanSource.CODED_AGENTS
-        if isinstance(uipath_source_raw, int) and not isinstance(
-            uipath_source_raw, bool
-        ):
-            mapped_source = _SOURCE_BY_INT.get(uipath_source_raw)
-            if mapped_source is None:
+        source = _enum_from_int(_SOURCE_BY_INT, uipath_source_raw)
+        if source is None:
+            if isinstance(uipath_source_raw, int) and not isinstance(
+                uipath_source_raw, bool
+            ):
                 logger.warning(
                     "Unknown uipath.source int %s; defaulting to CodedAgents",
                     uipath_source_raw,
                 )
-            else:
-                source = mapped_source
+            source = SpanSource.CODED_AGENTS
 
         attachments = None
         attachments_data = attributes_dict.get("attachments")

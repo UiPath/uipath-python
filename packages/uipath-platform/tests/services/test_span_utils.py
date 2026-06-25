@@ -101,6 +101,33 @@ class TestGuidFieldDefaults:
         assert span.tenant_id is None
         assert span.folder_key is None
 
+    def test_none_guid_fields_omitted_from_to_dict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unset Guid fields are omitted from the wire payload, not sent as null."""
+        for var in ("UIPATH_ORGANIZATION_ID", "UIPATH_TENANT_ID", "UIPATH_FOLDER_KEY"):
+            monkeypatch.delenv(var, raising=False)
+
+        d = UiPathSpan(id="s", trace_id="t", name="n", attributes={}).to_dict()
+
+        assert "OrganizationId" not in d
+        assert "TenantId" not in d
+        assert "FolderKey" not in d
+
+    def test_set_guid_fields_present_in_to_dict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guid fields that are set are still emitted."""
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "org-1")
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-1")
+        monkeypatch.delenv("UIPATH_TENANT_ID", raising=False)
+
+        d = UiPathSpan(id="s", trace_id="t", name="n", attributes={}).to_dict()
+
+        assert d["OrganizationId"] == "org-1"
+        assert d["FolderKey"] == "folder-1"
+        assert "TenantId" not in d
+
 
 class TestOTelToUiPathSpan:
     """OTEL attribute -> top-level UiPathSpan field mapping.
@@ -854,6 +881,36 @@ class TestSpanUtils:
 
         assert uipath_span.source == SpanSource.CODED_AGENTS
         assert any("999" in record.message for record in caplog.records)
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_bool_attributes_do_not_map_as_ints(self) -> None:
+        """bool is an int subclass; True must not map to the value-1 enum member."""
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {
+            "executionType": True,
+            "verbosityLevel": True,
+            "uipath.source": True,
+        }
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.execution_type is None
+        assert uipath_span.verbosity_level is None
+        assert uipath_span.source == SpanSource.CODED_AGENTS
 
 
 class TestUiPathSpanDictUsesStrings:
