@@ -10,6 +10,7 @@ from uipath.core.guardrails import (
 )
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common import ExecutionSourceContext
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
@@ -355,6 +356,103 @@ class TestGuardrailsService:
             # The request should have been sent (basic smoke check that
             # header merging works even when no active span exists)
             assert "content-type" in headers
+
+        def test_evaluate_guardrail_sends_source_and_job_key_headers(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Outgoing request includes execution source and job key headers."""
+            monkeypatch.setenv("UIPATH_JOB_KEY", "job-123")
+
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "OK"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            with ExecutionSourceContext("runtime"):
+                service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert captured_request is not None
+            headers = dict(captured_request.headers)
+            assert headers.get("x-uipath-guardrails-source") == "runtime"
+            assert headers.get("x-uipath-jobkey") == "job-123"
+
+        def test_evaluate_guardrail_omits_source_and_job_key_when_unset(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Source/job key headers are absent when unset."""
+            monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
+
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "OK"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert captured_request is not None
+            headers = dict(captured_request.headers)
+            assert "x-uipath-guardrails-source" not in headers
+            assert "x-uipath-jobkey" not in headers
 
         def test_evaluate_guardrail_extracts_span_id_from_traceparent(
             self,

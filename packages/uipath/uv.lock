@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "2026-06-22T13:56:19.8527915Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
@@ -2552,7 +2552,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.11.12"
+version = "2.11.13"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2625,7 +2625,7 @@ requires-dist = [
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
     { name = "uipath-platform", editable = "../uipath-platform" },
-    { name = "uipath-runtime", specifier = ">=0.11.0,<0.12.0" },
+    { name = "uipath-runtime", specifier = ">=0.11.4,<0.12.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.77"
+version = "0.1.78"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },
@@ -2729,14 +2729,14 @@ dev = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.11.2"
+version = "0.11.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "uipath-core" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/da/87/fed3a5bd3479b9e7dc6cba769b054f5f1c00e93762356a70010e32f1f03c/uipath_runtime-0.11.2.tar.gz", hash = "sha256:8b3cc986644d6c9f2365345c231577f97d3bad8fb105fe8a6c7e16508d00d9ef", size = 145770, upload-time = "2026-06-22T16:31:40.786Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/a4/944a7d6ef63aedea3592cdd73f2477b156562f3fb094ecf613117decbec5/uipath_runtime-0.11.4.tar.gz", hash = "sha256:7094b63f259249c763774d971ce0f3e611ca5abc160f2e4157e888b1690d9aa8", size = 152254, upload-time = "2026-06-24T14:26:07.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/62/c649c18ac39f53e5603abbcfa6917f6e880ac08047b1ce69d4c3ee937de8/uipath_runtime-0.11.2-py3-none-any.whl", hash = "sha256:a3a14dc2378bc934437bbd7523cf884d0cee0eeef26c736a9d6ce504d8a9fea0", size = 43874, upload-time = "2026-06-22T16:31:39.328Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/73/730469eb53fcb1bc6b05251323830bc6012993f8cc12b2bb302deeea5679/uipath_runtime-0.11.4-py3-none-any.whl", hash = "sha256:072a620a45584d745da7c7b0ab43d590768acfed846c1b860b15aaa8fb93071a", size = 49826, upload-time = "2026-06-24T14:26:05.831Z" },
 ]
 
 [[package]]

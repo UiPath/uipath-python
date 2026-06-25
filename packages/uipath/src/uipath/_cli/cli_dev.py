@@ -7,11 +7,18 @@ from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.middlewares import Middlewares
 from uipath.core.tracing import UiPathTraceManager
+from uipath.platform.common import ExecutionSourceContext
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from ._telemetry import track_command
 
 console = ConsoleLogger()
+
+
+def _create_dev_context_and_factory(trace_manager: UiPathTraceManager):
+    """Build the dev runtime context and its factory."""
+    context = UiPathRuntimeContext(trace_manager=trace_manager, command="dev")
+    return context, UiPathRuntimeFactoryRegistry.get(context=context)
 
 
 def _check_dev_dependency(interface: str) -> None:
@@ -80,17 +87,14 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
             factory = None
             try:
                 trace_manager = UiPathTraceManager()
-                factory = UiPathRuntimeFactoryRegistry.get(
-                    context=UiPathRuntimeContext(
-                        trace_manager=trace_manager, command="dev"
-                    )
-                )
+                context, factory = _create_dev_context_and_factory(trace_manager)
 
                 app = UiPathDeveloperConsole(
                     runtime_factory=factory, trace_manager=trace_manager
                 )
 
-                await app.run_async()
+                with ExecutionSourceContext(context.execution_source):
+                    await app.run_async()
 
             except KeyboardInterrupt:
                 console.info("Debug session interrupted by user")
@@ -124,11 +128,7 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
 
             try:
                 trace_manager = UiPathTraceManager()
-                factory = UiPathRuntimeFactoryRegistry.get(
-                    context=UiPathRuntimeContext(
-                        trace_manager=trace_manager, command="dev"
-                    )
-                )
+                context, factory = _create_dev_context_and_factory(trace_manager)
 
                 app = UiPathDeveloperServer(
                     runtime_factory=factory,
@@ -140,13 +140,17 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
                     ),
                 )
 
-                server_task = asyncio.create_task(app.run_async())
-                shutdown_task = asyncio.create_task(shutdown_event.wait())
+                # Enter the execution source context before creating the server
+                # task so request tasks spawned during the run inherit it.
+                with ExecutionSourceContext(context.execution_source):
+                    server_task = asyncio.create_task(app.run_async())
+                    shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-                # Wait for either server to complete or shutdown signal
-                done, pending = await asyncio.wait(
-                    {server_task, shutdown_task}, return_when=asyncio.FIRST_COMPLETED
-                )
+                    # Wait for either server to complete or shutdown signal
+                    done, pending = await asyncio.wait(
+                        {server_task, shutdown_task},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
 
                 for task in pending:
                     task.cancel()

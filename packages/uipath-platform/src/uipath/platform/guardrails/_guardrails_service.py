@@ -12,7 +12,9 @@ from ..chat.llm_trace_context import build_trace_context_headers
 from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
+from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
+from ..common.constants import HEADER_GUARDRAILS_SOURCE
 from ..errors import EnrichedException
 from .guardrails import BuiltInValidatorGuardrail
 
@@ -123,9 +125,21 @@ class GuardrailsService(BaseService):
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
             json=payload,
         )
-        # Include trace context headers for server-side span correlation
+        # Include trace context headers for server-side span correlation, plus
+        # the execution source (x-uipath-guardrails-source) and job key headers
+        # for licensing/metering correlation. The execution source is read from
+        # the execution context, propagated from the runtime context.
         trace_headers = build_trace_context_headers()
-        request_headers = {**(spec.headers or {}), **trace_headers}
+        source_headers: dict[str, str] = {}
+        execution_source = self._execution_context.execution_source
+        if execution_source:
+            source_headers[HEADER_GUARDRAILS_SOURCE] = execution_source
+        request_headers = {
+            **(spec.headers or {}),
+            **trace_headers,
+            **source_headers,
+            **header_job_key(),
+        }
         span_id = None
         try:
             response = self.request(
