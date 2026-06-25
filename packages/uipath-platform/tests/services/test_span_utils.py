@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from unittest.mock import Mock, patch
@@ -9,6 +10,7 @@ from opentelemetry.trace import SpanContext, StatusCode
 
 from uipath.platform.common import UiPathSpan, _SpanUtils
 from uipath.platform.common._span_utils import (
+    _SOURCE_BY_INT,
     ExecutionType,
     SpanSource,
     SpanStatus,
@@ -796,6 +798,62 @@ class TestSpanUtils:
         # String source still in Attributes JSON
         attrs = json.loads(span_dict["Attributes"])
         assert attrs["source"] == "runtime"
+
+    @pytest.mark.parametrize(("source_int", "expected"), list(_SOURCE_BY_INT.items()))
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_uipath_source_int_maps_to_full_source_enum(
+        self, source_int: int, expected: SpanSource
+    ) -> None:
+        """Every server-known SourceEnum int round-trips (no silent relabeling)."""
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {"uipath.source": source_int}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.source == expected
+        assert uipath_span.to_dict()["Source"] == expected.value
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_unknown_uipath_source_int_warns_and_defaults(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unmapped uipath.source int is relabeled CodedAgents and logged."""
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {"uipath.source": 999}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        with caplog.at_level(logging.WARNING):
+            uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.source == SpanSource.CODED_AGENTS
+        assert any("999" in record.message for record in caplog.records)
 
 
 class TestUiPathSpanDictUsesStrings:

@@ -28,11 +28,28 @@ class SpanStatus(StrEnum):
 
 
 class SpanSource(StrEnum):
+    # Mirrors the server's SourceEnum
+    # (llm-observability: UiPath.LLMOps.DataAccess/Models/SourceEnum.cs).
+    # Member name = exact wire string (no naming policy on the v3 API).
+    # Keep complete: an unknown int is relabeled CodedAgents (see
+    # otel_span_to_uipath_span), and v3 rejects raw integers.
+    TESTING = "Testing"
     AGENTS = "Agents"
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     API_WORKFLOWS = "ApiWorkflows"
     ROBOTS = "Robots"
+    CONVERSATIONAL_AGENTS_SERVICE = "ConversationalAgentsService"
+    INTEGRATION_SERVICE_TRIGGER = "IntegrationServiceTrigger"
+    PLAYGROUND = "Playground"
+    GOVERNANCE = "Governance"
+    IXP_UNSTRUCTURED_AND_COMPLEX_DOCUMENTS = "IXPUnstructuredAndComplexDocuments"
     CODED_AGENTS = "CodedAgents"
+    IXP_COMMUNICATIONS_MINING = "IXPCommunicationsMining"
+    ENTERPRISE_CONTEXT_SERVICE = "EnterpriseContextService"
+    MCP = "MCP"
+    A2A = "A2A"
+    SERVERLESS = "Serverless"
+    DOCUMENT_UNDERSTANDING = "DocumentUnderstanding"
 
 
 class VerbosityLevel(StrEnum):
@@ -67,11 +84,23 @@ _VERBOSITY_LEVEL_BY_INT: dict[int, VerbosityLevel] = {
 }
 
 _SOURCE_BY_INT: dict[int, SpanSource] = {
+    0: SpanSource.TESTING,
     1: SpanSource.AGENTS,
     2: SpanSource.PROCESS_ORCHESTRATION,
     3: SpanSource.API_WORKFLOWS,
     4: SpanSource.ROBOTS,
+    5: SpanSource.CONVERSATIONAL_AGENTS_SERVICE,
+    6: SpanSource.INTEGRATION_SERVICE_TRIGGER,
+    7: SpanSource.PLAYGROUND,
+    8: SpanSource.GOVERNANCE,
+    9: SpanSource.IXP_UNSTRUCTURED_AND_COMPLEX_DOCUMENTS,
     10: SpanSource.CODED_AGENTS,
+    11: SpanSource.IXP_COMMUNICATIONS_MINING,
+    12: SpanSource.ENTERPRISE_CONTEXT_SERVICE,
+    13: SpanSource.MCP,
+    14: SpanSource.A2A,
+    15: SpanSource.SERVERLESS,
+    16: SpanSource.DOCUMENT_UNDERSTANDING,
 }
 
 
@@ -399,13 +428,22 @@ class _SpanUtils:
             else None
         )
 
-        # Source: override via uipath.source attribute, else CodedAgents
+        # Source: override via uipath.source attribute, else CodedAgents.
+        # An unknown int is relabeled CodedAgents but logged — v3 ingest rejects
+        # raw integers, so an unmapped value cannot be forwarded verbatim.
         uipath_source_raw = attributes_dict.get("uipath.source")
-        source: SpanSource = (
-            _SOURCE_BY_INT.get(uipath_source_raw, SpanSource.CODED_AGENTS)
-            if isinstance(uipath_source_raw, int)
-            else SpanSource.CODED_AGENTS
-        )
+        source: SpanSource = SpanSource.CODED_AGENTS
+        if isinstance(uipath_source_raw, int) and not isinstance(
+            uipath_source_raw, bool
+        ):
+            mapped_source = _SOURCE_BY_INT.get(uipath_source_raw)
+            if mapped_source is None:
+                logger.warning(
+                    "Unknown uipath.source int %s; defaulting to CodedAgents",
+                    uipath_source_raw,
+                )
+            else:
+                source = mapped_source
 
         attachments = None
         attachments_data = attributes_dict.get("attachments")

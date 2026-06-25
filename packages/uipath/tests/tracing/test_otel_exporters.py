@@ -300,11 +300,12 @@ def test_determine_status_error_returns_string(mock_env_vars):
     assert exporter._determine_status("some error") == SpanStatus.ERROR
 
 
-def test_determine_status_graph_interrupt_returns_cancelled(mock_env_vars):
+def test_determine_status_graph_interrupt_returns_running(mock_env_vars):
     with patch("uipath.tracing._otel_exporters.httpx.Client"):
         exporter = LlmOpsHttpExporter()
-    assert exporter._determine_status("GraphInterrupt()") == "Cancelled"
-    assert exporter._determine_status("GraphInterrupt()") == SpanStatus.CANCELLED
+    # GraphInterrupt is a HITL pause (still in-progress), not a terminal abort.
+    assert exporter._determine_status("GraphInterrupt()") == "Running"
+    assert exporter._determine_status("GraphInterrupt()") == SpanStatus.RUNNING
 
 
 class TestLangchainExporter(unittest.TestCase):
