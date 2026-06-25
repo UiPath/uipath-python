@@ -843,6 +843,26 @@ class DataFabricEntityItem(BaseModel):
     description: Optional[str] = None
 
 
+class DataFabricOntologyItem(BaseModel):
+    """A single Data Fabric ontology reference nested in a context's ontologySet.
+
+    Mirrors :class:`DataFabricEntityItem`: the ontology is configured inline on
+    the Data Fabric context (alongside ``entitySet``), carrying its own
+    ``folderId`` so it resolves from its own folder. ``name`` is used to fetch
+    the ontology from the QueryEngine ontology API.
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True, validate_by_alias=True, extra="allow"
+    )
+
+    name: str
+    ontology_key: Optional[str] = Field(None, alias="referenceKey")
+    folder_key: str = Field(alias="folderId")
+    description: Optional[str] = None
+    id: Optional[str] = None
+
+
 class EntitySetResolution(BaseModel):
     """Result of resolving an agent entity set with overwrites applied."""
 

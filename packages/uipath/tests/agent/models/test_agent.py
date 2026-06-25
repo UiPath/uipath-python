@@ -35,10 +35,8 @@ from uipath.agent.models.agent import (
     AgentMessageRole,
     AgentNumberOperator,
     AgentNumberRule,
-    AgentOntologyResourceConfig,
     AgentProcessToolResourceConfig,
     AgentQuickFormChannelProperties,
-    AgentResourceConfig,
     AgentResourceType,
     AgentToolArgumentPropertiesVariant,
     AgentToolType,
@@ -3917,108 +3915,65 @@ class TestDataFabricContextConfig:
         assert parsed.entity_set[1].entity_key == "orders-ref"
         assert parsed.entity_set[1].description is None
 
-    def test_ontology_resource_parses_standalone(self):
-        """A standalone ontology resource parses via the resource union."""
-        config = {
-            "$resourceType": "ontology",
-            "name": "ecommerce",
-            "description": "E-commerce domain ontology",
-            "folderId": "f1",
-        }
-
-        parsed: AgentResourceConfig = TypeAdapter(AgentResourceConfig).validate_python(
-            config
-        )
-
-        assert isinstance(parsed, AgentOntologyResourceConfig)
-        assert parsed.resource_type == AgentResourceType.ONTOLOGY
-        assert parsed.name == "ecommerce"
-        assert parsed.folder_key == "f1"
-        assert parsed.ontology_key is None
-
-    def test_ontology_resource_parses_optional_fields(self):
-        """id / referenceKey are optional and aliased on the ontology resource."""
-        config = {
-            "$resourceType": "ontology",
-            "id": "o2",
-            "referenceKey": "ont-ref",
-            "name": "finance",
-            "description": "Finance domain",
-            "folderId": "f2",
-        }
-
-        parsed: AgentResourceConfig = TypeAdapter(AgentResourceConfig).validate_python(
-            config
-        )
-
-        assert isinstance(parsed, AgentOntologyResourceConfig)
-        assert parsed.id == "o2"
-        assert parsed.ontology_key == "ont-ref"
-        assert parsed.folder_key == "f2"
-        assert parsed.description == "Finance domain"
-
-    def test_ontology_resource_dumps_by_alias(self):
-        """The ontology resource round-trips back to aliased JSON keys."""
-        parsed: AgentResourceConfig = TypeAdapter(AgentResourceConfig).validate_python(
-            {
-                "$resourceType": "ontology",
-                "referenceKey": "ont-ref",
-                "name": "finance",
-                "description": "Finance domain",
-                "folderId": "f2",
-            }
-        )
-        dumped = parsed.model_dump(by_alias=True, exclude_none=True)
-
-        assert dumped["$resourceType"] == "ontology"
-        assert dumped["name"] == "finance"
-        assert dumped["folderId"] == "f2"
-        assert dumped["referenceKey"] == "ont-ref"
-
-    def test_ontology_resource_requires_folder_id(self):
-        """folderId is required on an ontology resource."""
-        config = {
-            "$resourceType": "ontology",
-            "name": "ecommerce",
-            "description": "",
-            # missing folderId
-        }
-
-        with pytest.raises(ValidationError):
-            TypeAdapter(AgentResourceConfig).validate_python(config)
-
-    def test_context_config_parses_ontology_refs(self):
-        """ontologyRefs parses into a list of ontology resource names."""
+    def test_context_config_parses_ontology_set(self):
+        """ontologySet parses into nested ontology items alongside entitySet."""
         config = {
             "$resourceType": "context",
             "name": "TestDataFabric",
             "description": "",
             "contextType": "datafabricentityset",
             "entitySet": [{"id": "e1", "name": "Customers", "folderId": "f1"}],
-            "ontologyRefs": ["ecommerce", "finance"],
+            "ontologySet": [
+                {"name": "ecommerce", "folderId": "f1", "referenceKey": "ont-1"},
+                {"name": "finance", "folderId": "f2"},
+            ],
         }
 
         parsed = AgentContextResourceConfig.model_validate(config)
 
-        assert parsed.ontology_refs == ["ecommerce", "finance"]
+        assert parsed.ontology_set is not None
+        assert len(parsed.ontology_set) == 2
+        assert parsed.ontology_set[0].name == "ecommerce"
+        assert parsed.ontology_set[0].folder_key == "f1"
+        assert parsed.ontology_set[0].ontology_key == "ont-1"
+        assert parsed.ontology_set[1].name == "finance"
+        assert parsed.ontology_set[1].folder_key == "f2"
+        assert parsed.ontology_set[1].ontology_key is None
 
-    def test_context_config_dumps_ontology_refs_by_alias(self):
-        """ontology_refs round-trips back to the ontologyRefs alias."""
+    def test_context_config_ontology_item_requires_folder_id(self):
+        """folderId is required on a nested ontology item."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "ontologySet": [{"name": "ecommerce"}],  # missing folderId
+        }
+
+        with pytest.raises(ValidationError):
+            AgentContextResourceConfig.model_validate(config)
+
+    def test_context_config_dumps_ontology_set_by_alias(self):
+        """ontology_set round-trips back to the ontologySet alias."""
         parsed = AgentContextResourceConfig.model_validate(
             {
                 "$resourceType": "context",
                 "name": "TestDataFabric",
                 "description": "",
                 "contextType": "datafabricentityset",
-                "ontologyRefs": ["library"],
+                "ontologySet": [
+                    {"name": "library", "folderId": "f1", "referenceKey": "ont-ref"}
+                ],
             }
         )
         dumped = parsed.model_dump(by_alias=True, exclude_none=True)
 
-        assert dumped["ontologyRefs"] == ["library"]
+        assert dumped["ontologySet"][0]["name"] == "library"
+        assert dumped["ontologySet"][0]["folderId"] == "f1"
+        assert dumped["ontologySet"][0]["referenceKey"] == "ont-ref"
 
-    def test_context_config_without_ontology_refs(self):
-        """ontology_refs defaults to None when not provided (backward compatible)."""
+    def test_context_config_without_ontology_set(self):
+        """ontology_set defaults to None when not provided (backward compatible)."""
         config = {
             "$resourceType": "context",
             "name": "TestDataFabric",
@@ -4029,22 +3984,20 @@ class TestDataFabricContextConfig:
 
         parsed = AgentContextResourceConfig.model_validate(config)
 
-        assert parsed.ontology_refs is None
+        assert parsed.ontology_set is None
 
-    def test_ontology_resource_survives_full_definition_normalization(self):
-        """Regression: an ontology resource parses through the full
-        AgentDefinition normalizer (not coerced to Unknown).
+    def test_ontology_set_survives_full_definition_normalization(self):
+        """Regression: a context's nested ontologySet survives the full
+        AgentDefinition normalizer and parses into DataFabricOntologyItem.
 
-        The per-resource union recognises ``$resourceType: "ontology"``, but the
-        runtime parses the whole AgentDefinition, which runs
-        ``_normalize_resources``. That normalizer's known-type set must include
-        "ontology"; otherwise it is rewritten to "unknown", parses as
-        AgentUnknownResourceConfig, and the context's ``ontologyRefs`` never
-        resolve at runtime.
+        The runtime parses the whole AgentDefinition, which runs
+        ``_normalize_resources``. The context resource (and its nested
+        ontologySet) must come through unchanged so the ontologies resolve at
+        runtime.
         """
         json_data = {
             "id": "test-ontology-def",
-            "name": "Agent with ontology resource",
+            "name": "Agent with nested ontology set",
             "version": "1.0.0",
             "settings": {
                 "model": "gpt-4o-2024-11-20",
@@ -4063,13 +4016,7 @@ class TestDataFabricContextConfig:
                     "entitySet": [
                         {"id": "e1", "name": "LibraryLoan", "folderId": "f1"}
                     ],
-                    "ontologyRefs": ["library"],
-                },
-                {
-                    "$resourceType": "ontology",
-                    "name": "library",
-                    "description": "Library ontology",
-                    "folderId": "f1",
+                    "ontologySet": [{"name": "library", "folderId": "f1"}],
                 },
             ],
             "messages": [{"role": "system", "content": "Test system message"}],
@@ -4079,14 +4026,12 @@ class TestDataFabricContextConfig:
             json_data
         )
 
-        type_names = {type(r).__name__ for r in config.resources}
-        assert "AgentOntologyResourceConfig" in type_names
-        assert "AgentUnknownResourceConfig" not in type_names
-        onto = next(
-            r for r in config.resources if isinstance(r, AgentOntologyResourceConfig)
+        ctx = next(
+            r for r in config.resources if isinstance(r, AgentContextResourceConfig)
         )
-        assert onto.name == "library"
-        assert onto.folder_key == "f1"
+        assert ctx.ontology_set is not None
+        assert ctx.ontology_set[0].name == "library"
+        assert ctx.ontology_set[0].folder_key == "f1"
 
     def test_is_datafabric(self):
         """Test is_datafabric property with datafabricentityset contextType."""
