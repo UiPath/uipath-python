@@ -21,7 +21,11 @@ from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers, get_agent
 from uipath.eval.models.evaluation_set import EvaluationSet
 from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
-from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.platform.common import (
+    ExecutionSourceContext,
+    ResourceOverwritesContext,
+    UiPathConfig,
+)
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
@@ -309,12 +313,13 @@ def eval(
 
                 trace_manager = UiPathTraceManager()
 
-                with UiPathRuntimeContext.with_defaults(
+                ctx = UiPathRuntimeContext.with_defaults(
                     output_file=output_file,
                     trace_manager=trace_manager,
                     command="eval",
                     resume=resume,
-                ) as ctx:
+                )
+                with ExecutionSourceContext(ctx.execution_source), ctx:
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
 
