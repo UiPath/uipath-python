@@ -1,6 +1,33 @@
+from contextvars import ContextVar, Token
 from os import environ as env
 
 from uipath.platform.common.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
+
+_execution_source: ContextVar[str | None] = ContextVar("execution_source", default=None)
+
+
+class ExecutionSourceContext:
+    """Scope the execution source for the duration of a run.
+
+    Carries the source (e.g. ``runtime``/``playground``/``eval``) via a context
+    variable and releases it on exit so it stays correctly scoped in concurrent
+    runs. The CLI enters this with ``UiPathRuntimeContext.execution_source`` so
+    platform clients can read it via
+    :attr:`UiPathExecutionContext.execution_source`.
+    """
+
+    def __init__(self, execution_source: str | None) -> None:
+        self._execution_source = execution_source
+        self._token: Token[str | None] | None = None
+
+    def __enter__(self) -> "ExecutionSourceContext":
+        self._token = _execution_source.set(self._execution_source)
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        if self._token is not None:
+            _execution_source.reset(self._token)
+            self._token = None
 
 
 class UiPathExecutionContext:
@@ -76,3 +103,13 @@ class UiPathExecutionContext:
             raise ValueError(f"Robot key is not set ({ENV_ROBOT_KEY})")
 
         return self._robot_key
+
+    @property
+    def execution_source(self) -> str | None:
+        """Get the execution source for the current run.
+
+        Identifies the run context (e.g. ``runtime``/``playground``/``eval``),
+        derived from the CLI command and carried via
+        :class:`ExecutionSourceContext`. Returns ``None`` when not set.
+        """
+        return _execution_source.get()
