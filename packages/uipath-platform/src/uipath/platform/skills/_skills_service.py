@@ -142,52 +142,50 @@ class SkillsService(FolderContext, BaseService):
         *,
         key: Optional[str] = None,
         name: Optional[str] = None,
+        include_content: bool = True,
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
     ) -> Skill:
         """Retrieve a single skill by key or by name.
 
+        Both lookups go through the OData ``$filter`` form — the single-entity
+        URL ``/Skills({key})`` is not currently routed on the BE (returns 405).
+        With ``include_content=True`` (the default), the skill's ``versions``
+        array includes the prompt body; callers that need a specific version's
+        content should look it up there rather than calling ``get_version``,
+        whose bound-function URL is also unroutable on the current BE.
+
         Args:
-            key: Skill identifier (Guid).
-            name: Skill name (uses list+filter under the hood; the BE has no
-                by-name endpoint).
+            key: Skill identifier (Guid). When set, takes precedence over name.
+            name: Skill name.
+            include_content: When true (default), populate ``versions[].content``.
             folder_path: Folder path scope.
             folder_key: Folder key scope.
 
         Returns:
-            Skill: The skill with its versions and content populated.
+            Skill: The matching skill.
 
         Raises:
             ValueError: If neither key nor name is provided.
             LookupError: If no skill matches the criteria.
         """
-        if key:
-            spec = self._retrieve_by_key_spec(
-                key, folder_key=folder_key, folder_path=folder_path
-            )
-            try:
-                response = self.request(
-                    spec.method,
-                    url=spec.endpoint,
-                    params=spec.params,
-                    headers=spec.headers,
-                ).json()
-            except Exception as e:
-                raise LookupError(f"Skill with key '{key}' not found") from e
-            return Skill.model_validate(response)
-
-        if not name:
-            raise ValueError("Must specify a skill key or skill name")
-
-        spec = self._retrieve_by_name_spec(
-            name, folder_key=folder_key, folder_path=folder_path
+        spec = self._retrieve_by_filter_spec(
+            key=key,
+            name=name,
+            include_content=include_content,
+            folder_key=folder_key,
+            folder_path=folder_path,
         )
         response = self.request(
-            spec.method, url=spec.endpoint, params=spec.params, headers=spec.headers
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            headers=spec.headers,
         ).json()
         items = response.get("value", [])
         if not items:
-            raise LookupError(f"Skill with name '{name}' not found")
+            criterion = f"key '{key}'" if key else f"name '{name}'"
+            raise LookupError(f"Skill with {criterion} not found")
         return Skill.model_validate(items[0])
 
     @traced(name="skills_retrieve", run_type="uipath")
@@ -196,41 +194,30 @@ class SkillsService(FolderContext, BaseService):
         *,
         key: Optional[str] = None,
         name: Optional[str] = None,
+        include_content: bool = True,
         folder_path: Optional[str] = None,
         folder_key: Optional[str] = None,
     ) -> Skill:
         """Async version of retrieve()."""
-        if key:
-            spec = self._retrieve_by_key_spec(
-                key, folder_key=folder_key, folder_path=folder_path
-            )
-            try:
-                response = (
-                    await self.request_async(
-                        spec.method,
-                        url=spec.endpoint,
-                        params=spec.params,
-                        headers=spec.headers,
-                    )
-                ).json()
-            except Exception as e:
-                raise LookupError(f"Skill with key '{key}' not found") from e
-            return Skill.model_validate(response)
-
-        if not name:
-            raise ValueError("Must specify a skill key or skill name")
-
-        spec = self._retrieve_by_name_spec(
-            name, folder_key=folder_key, folder_path=folder_path
+        spec = self._retrieve_by_filter_spec(
+            key=key,
+            name=name,
+            include_content=include_content,
+            folder_key=folder_key,
+            folder_path=folder_path,
         )
         response = (
             await self.request_async(
-                spec.method, url=spec.endpoint, params=spec.params, headers=spec.headers
+                spec.method,
+                url=spec.endpoint,
+                params=spec.params,
+                headers=spec.headers,
             )
         ).json()
         items = response.get("value", [])
         if not items:
-            raise LookupError(f"Skill with name '{name}' not found")
+            criterion = f"key '{key}'" if key else f"name '{name}'"
+            raise LookupError(f"Skill with {criterion} not found")
         return Skill.model_validate(items[0])
 
     @traced(name="skills_create", run_type="uipath")
@@ -854,31 +841,36 @@ class SkillsService(FolderContext, BaseService):
             ),
         )
 
-    def _retrieve_by_key_spec(
+    def _retrieve_by_filter_spec(
         self,
-        key: str,
         *,
+        key: Optional[str],
+        name: Optional[str],
+        include_content: bool,
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> RequestSpec:
-        return RequestSpec(
-            method="GET",
-            endpoint=Endpoint(f"/ecs_/v2/Skills({key})"),
-            headers={**header_folder(folder_key, folder_path)},
-        )
+        """Build an OData filter request that retrieves at most one skill.
 
-    def _retrieve_by_name_spec(
-        self,
-        name: str,
-        *,
-        folder_key: Optional[str],
-        folder_path: Optional[str],
-    ) -> RequestSpec:
-        escaped = name.replace("'", "''")
+        The BE does not currently route the single-entity URL
+        ``/Skills({key})`` (returns 405), so both key and name lookups share
+        the same filter-based shape. Caller chooses which to send.
+        """
+        if key:
+            filter_expr = f"id eq {key}"
+        elif name:
+            escaped = name.replace("'", "''")
+            filter_expr = f"name eq '{escaped}'"
+        else:
+            raise ValueError("Must specify a skill key or skill name")
+
+        params: Dict[str, Any] = {"$filter": filter_expr, "$top": 1}
+        if include_content:
+            params["includeContent"] = "true"
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/ecs_/v2/Skills"),
-            params={"$filter": f"Name eq '{escaped}'", "$top": 1},
+            params=params,
             headers={**header_folder(folder_key, folder_path)},
         )
 

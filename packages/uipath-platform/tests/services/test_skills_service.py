@@ -28,23 +28,23 @@ VERSION_ID = "22222222-2222-2222-2222-222222222222"
 
 def _sample_skill_json() -> dict[str, object]:
     return {
-        "Id": SKILL_KEY,
-        "Name": "my-skill",
-        "Description": "A test skill",
-        "GracePeriodDays": 30,
-        "CreatedDate": "2026-05-01T00:00:00Z",
-        "LastUpdatedDate": "2026-05-01T00:00:00Z",
-        "FolderKey": "33333333-3333-3333-3333-333333333333",
-        "PublishedVersion": {
-            "Id": VERSION_ID,
-            "Version": "1.0.0",
-            "Status": int(SkillVersionStatus.PUBLISHED),
-            "PublishedAt": "2026-05-01T00:00:00Z",
-            "CreatedDate": "2026-05-01T00:00:00Z",
+        "id": SKILL_KEY,
+        "name": "my-skill",
+        "description": "A test skill",
+        "gracePeriodDays": 30,
+        "createdDate": "2026-05-01T00:00:00Z",
+        "lastUpdatedDate": "2026-05-01T00:00:00Z",
+        "folderKey": "33333333-3333-3333-3333-333333333333",
+        "publishedVersion": {
+            "id": VERSION_ID,
+            "version": "1.0.0",
+            "status": SkillVersionStatus.PUBLISHED.value,
+            "publishedAt": "2026-05-01T00:00:00Z",
+            "createdDate": "2026-05-01T00:00:00Z",
         },
-        "CurrentDraft": None,
-        "Versions": [],
-        "Tags": ["alpha"],
+        "currentDraft": None,
+        "versions": [],
+        "tags": ["alpha"],
     }
 
 
@@ -52,15 +52,15 @@ def _sample_version_json(
     status: SkillVersionStatus = SkillVersionStatus.PUBLISHED,
 ) -> dict[str, object]:
     return {
-        "Id": VERSION_ID,
-        "SkillId": SKILL_KEY,
-        "Version": "1.0.0",
-        "Content": "You are a helpful skill.",
-        "Status": int(status),
-        "PublishedAt": "2026-05-01T00:00:00Z",
-        "DeprecatedAt": None,
-        "RetiredAt": None,
-        "CreatedDate": "2026-05-01T00:00:00Z",
+        "id": VERSION_ID,
+        "skillId": SKILL_KEY,
+        "version": "1.0.0",
+        "content": "You are a helpful skill.",
+        "status": status.value,
+        "publishedAt": "2026-05-01T00:00:00Z",
+        "deprecatedAt": None,
+        "retiredAt": None,
+        "createdDate": "2026-05-01T00:00:00Z",
     }
 
 
@@ -168,9 +168,12 @@ class TestSkillsService:
             tenant: str,
         ):
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/ecs_/v2/Skills({SKILL_KEY})",
+                url=(
+                    f"{base_url}{org}{tenant}/ecs_/v2/Skills"
+                    f"?$filter=id eq {SKILL_KEY}&$top=1&includeContent=true"
+                ),
                 status_code=200,
-                json=_sample_skill_json(),
+                json={"value": [_sample_skill_json()]},
             )
             skill = service.retrieve(key=SKILL_KEY)
             assert skill.id == SKILL_KEY
@@ -186,7 +189,10 @@ class TestSkillsService:
             tenant: str,
         ):
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/ecs_/v2/Skills?$filter=Name eq 'my-skill'&$top=1",
+                url=(
+                    f"{base_url}{org}{tenant}/ecs_/v2/Skills"
+                    "?$filter=name eq 'my-skill'&$top=1&includeContent=true"
+                ),
                 status_code=200,
                 json={"value": [_sample_skill_json()]},
             )
@@ -206,7 +212,10 @@ class TestSkillsService:
             tenant: str,
         ):
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/ecs_/v2/Skills?$filter=Name eq 'nope'&$top=1",
+                url=(
+                    f"{base_url}{org}{tenant}/ecs_/v2/Skills"
+                    "?$filter=name eq 'nope'&$top=1&includeContent=true"
+                ),
                 status_code=200,
                 json={"value": []},
             )
@@ -223,9 +232,12 @@ class TestSkillsService:
             tenant: str,
         ):
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/ecs_/v2/Skills({SKILL_KEY})",
+                url=(
+                    f"{base_url}{org}{tenant}/ecs_/v2/Skills"
+                    f"?$filter=id eq {SKILL_KEY}&$top=1&includeContent=true"
+                ),
                 status_code=200,
-                json=_sample_skill_json(),
+                json={"value": [_sample_skill_json()]},
             )
             skill = await service.retrieve_async(key=SKILL_KEY)
             assert skill.id == SKILL_KEY
@@ -426,7 +438,10 @@ class TestSkillsService:
                 method="POST",
                 status_code=200,
                 json=_sample_version_json(SkillVersionStatus.DRAFT),
-                match_json={"BumpLevel": int(VersionBumpLevel.MINOR), "Content": "x"},
+                match_json={
+                    "BumpLevel": VersionBumpLevel.MINOR.value,
+                    "Content": "x",
+                },
             )
             v = service.create_version(
                 key=SKILL_KEY, bump_level=VersionBumpLevel.MINOR, content="x"

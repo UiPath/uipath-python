@@ -1791,7 +1791,11 @@ class TestAgentBuilderConfig:
         assert tool_resource.description == "A tool type that doesn't exist yet"
 
     def test_agent_with_skill_tool(self):
-        """A `type=Skill` tool resource deserializes to AgentSkillToolResourceConfig."""
+        """A `type=Skill` tool resource deserializes to AgentSkillToolResourceConfig.
+
+        Skill tools take no args and have no output schema — only the binding
+        (skillId, optional versionId, optional folder) and a description.
+        """
 
         json_data = {
             "id": "test-skill",
@@ -1810,28 +1814,11 @@ class TestAgentBuilderConfig:
                     "$resourceType": "tool",
                     "type": "Skill",
                     "name": "Summarize",
-                    "description": "Summarize a document using the company-summary skill",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {"text": {"type": "string"}},
-                        "required": ["text"],
-                    },
-                    "outputSchema": {
-                        "type": "object",
-                        "properties": {"summary": {"type": "string"}},
-                    },
+                    "description": "Load the company-summary skill prompt",
                     "properties": {
                         "skillId": "11111111-1111-1111-1111-111111111111",
                         "versionId": "22222222-2222-2222-2222-222222222222",
                         "folderPath": "TestFolder",
-                    },
-                    "settings": {},
-                    "argumentProperties": {
-                        "text": {
-                            "variant": "argument",
-                            "argumentPath": "$['text']",
-                            "isSensitive": False,
-                        }
                     },
                 }
             ],
@@ -1851,14 +1838,13 @@ class TestAgentBuilderConfig:
         assert resource.properties.skill_id == "11111111-1111-1111-1111-111111111111"
         assert resource.properties.version_id == "22222222-2222-2222-2222-222222222222"
         assert resource.properties.folder_path == "TestFolder"
-        assert resource.input_schema["properties"]["text"]["type"] == "string"
 
-    def test_agent_with_skill_tool_no_version_pin(self):
-        """When versionId is omitted, the binding falls back to the current published version."""
+    def test_agent_with_skill_tool_missing_version_rejected(self):
+        """Omitting `versionId` on a Skill binding is a validation error — pinning is required."""
 
         json_data = {
-            "id": "test-skill-unpinned",
-            "name": "Agent with Unpinned Skill",
+            "id": "test-skill-no-version",
+            "name": "Agent with Skill Missing Version",
             "version": "1.0.0",
             "settings": {
                 "model": "gpt-4o-2024-11-20",
@@ -1873,8 +1859,7 @@ class TestAgentBuilderConfig:
                     "$resourceType": "tool",
                     "type": "Skill",
                     "name": "ClassifyTicket",
-                    "description": "Classify a support ticket",
-                    "inputSchema": {"type": "object", "properties": {}},
+                    "description": "Load the classify-ticket skill prompt",
                     "properties": {
                         "skillId": "33333333-3333-3333-3333-333333333333",
                     },
@@ -1883,13 +1868,8 @@ class TestAgentBuilderConfig:
             "messages": [{"role": "system", "content": "Test"}],
         }
 
-        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
-            json_data
-        )
-        resource = config.resources[0]
-        assert isinstance(resource, AgentSkillToolResourceConfig)
-        assert resource.properties.version_id is None
-        assert resource.properties.folder_path is None
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentDefinition).validate_python(json_data)
 
     def test_agent_with_mixed_known_and_unknown_types(self):
         """Test that AgentDefinition handles a mix of known and unknown types"""
