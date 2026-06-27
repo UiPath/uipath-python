@@ -1,5 +1,6 @@
 """Models for interrupt operations in UiPath platform."""
 
+from datetime import datetime
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -279,3 +280,11 @@ class WaitIntegrationEvent(BaseModel):
     object_name: str
     filter_expression: str | None = None
     parameters: dict[str, str] | None = None
+
+
+class WaitTimeTrigger(BaseModel):
+    """Model representing a wait on an Orchestrator time trigger."""
+
+    resume_time: datetime | str = Field(alias="resumeTime")
+
+    model_config = ConfigDict(validate_by_name=True)

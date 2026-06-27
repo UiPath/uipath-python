@@ -49,6 +49,7 @@ from uipath.platform.common.interrupt_models import (
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
+    WaitTimeTrigger,
 )
 from uipath.platform.connections import EventArguments
 from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
@@ -129,6 +130,12 @@ class UiPathResumeTriggerReader:
             UiPathRuntimeError: If reading fails, job failed, API connection failed,
                 trigger type is unknown, or HITL feedback retrieval failed.
         """
+        if trigger.trigger_type == UiPathResumeTriggerType.TIMER:
+            return {
+                "resumeTime": trigger.resume_time,
+                PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+            }
+
         uipath = UiPath()
 
         match trigger.trigger_type:
@@ -484,6 +491,9 @@ class UiPathResumeTriggerCreator:
                 case UiPathResumeTriggerType.INBOX:
                     await self._handle_inbox_trigger(suspend_value, resume_trigger)
 
+                case UiPathResumeTriggerType.TIMER:
+                    self._handle_time_trigger(suspend_value, resume_trigger)
+
                 case UiPathResumeTriggerType.DEEP_RAG:
                     await self._handle_deep_rag_job_trigger(
                         suspend_value, resume_trigger
@@ -570,6 +580,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.IXP_VS_ESCALATION
         if isinstance(value, WaitIntegrationEvent):
             return UiPathResumeTriggerType.INBOX
+        if isinstance(value, WaitTimeTrigger):
+            return UiPathResumeTriggerType.TIMER
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -606,6 +618,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.EXTRACTION
         if isinstance(value, WaitIntegrationEvent):
             return UiPathResumeTriggerName.INBOX
+        if isinstance(value, WaitTimeTrigger):
+            return UiPathResumeTriggerName.TIMER
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -978,6 +992,20 @@ class UiPathResumeTriggerCreator:
             parameters=value.parameters,
             inbox_id=str(uuid.uuid4()),
         )
+
+    def _handle_time_trigger(
+        self, value: WaitTimeTrigger, resume_trigger: UiPathResumeTrigger
+    ) -> None:
+        """Handle Timer-type resume triggers.
+
+        Orchestrator expects timer resume triggers as a top-level
+        `resumeTime` value on the resume trigger DTO.
+
+        Args:
+            value: The suspend value (WaitTimeTrigger)
+            resume_trigger: The resume trigger to populate
+        """
+        resume_trigger.resume_time = value.resume_time
 
 
 class UiPathResumeTriggerHandler:

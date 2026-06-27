@@ -1,5 +1,6 @@
 """Module defining resume trigger types and data models."""
 
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -87,6 +88,7 @@ class UiPathResumeTrigger(BaseModel):
     integration_resume: UiPathIntegrationTrigger | None = Field(
         default=None, alias="integrationResume"
     )
+    resume_time: datetime | str | None = Field(default=None, alias="resumeTime")
     folder_path: str | None = Field(default=None, alias="folderPath")
     folder_key: str | None = Field(default=None, alias="folderKey")
     payload: Any | None = Field(default=None, alias="interruptObject", exclude=True)
