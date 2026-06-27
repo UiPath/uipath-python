@@ -3,6 +3,7 @@
 import json
 import os
 import uuid
+from functools import cache
 from typing import Any
 
 from uipath.core.errors import (
@@ -49,6 +50,7 @@ from uipath.platform.common.interrupt_models import (
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
+    WaitUntil,
 )
 from uipath.platform.connections import EventArguments
 from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
@@ -129,12 +131,18 @@ class UiPathResumeTriggerReader:
             UiPathRuntimeError: If reading fails, job failed, API connection failed,
                 trigger type is unknown, or HITL feedback retrieval failed.
         """
-        uipath = UiPath()
+
+        @cache
+        def get_uipath() -> UiPath:
+            return UiPath()
 
         match trigger.trigger_type:
+            case UiPathResumeTriggerType.TIMER:
+                return {"resumeTime": serialize_object(trigger.resume_time)}
+
             case UiPathResumeTriggerType.TASK:
                 if trigger.item_key:
-                    task: Task = await uipath.tasks.retrieve_async(
+                    task: Task = await get_uipath().tasks.retrieve_async(
                         trigger.item_key,
                         app_folder_key=trigger.folder_key,
                         app_folder_path=trigger.folder_path,
@@ -182,7 +190,7 @@ class UiPathResumeTriggerReader:
 
             case UiPathResumeTriggerType.JOB:
                 if trigger.item_key:
-                    job = await uipath.jobs.retrieve_async(
+                    job = await get_uipath().jobs.retrieve_async(
                         trigger.item_key,
                         folder_key=trigger.folder_key,
                         folder_path=trigger.folder_path,
@@ -223,7 +231,7 @@ class UiPathResumeTriggerReader:
                             f"Process did not finish successfully. Error: {job_error}",
                         )
 
-                    output_data = await uipath.jobs.extract_output_async(job)
+                    output_data = await get_uipath().jobs.extract_output_async(job)
                     trigger_response = _try_convert_to_json_format(output_data)
 
                     # if response is an empty dictionary, use job state as placeholder value
@@ -239,9 +247,13 @@ class UiPathResumeTriggerReader:
                     return trigger_response
             case UiPathResumeTriggerType.DEEP_RAG:
                 if trigger.item_key:
-                    deep_rag = await uipath.context_grounding.retrieve_deep_rag_async(
-                        trigger.item_key,
-                        index_name=self._extract_field("index_name", trigger.payload),
+                    deep_rag = (
+                        await get_uipath().context_grounding.retrieve_deep_rag_async(
+                            trigger.item_key,
+                            index_name=self._extract_field(
+                                "index_name", trigger.payload
+                            ),
+                        )
                     )
                     deep_rag_status = deep_rag.last_deep_rag_status
 
@@ -279,7 +291,7 @@ class UiPathResumeTriggerReader:
 
             case UiPathResumeTriggerType.INDEX_INGESTION:
                 if trigger.item_key:
-                    index = await uipath.context_grounding.retrieve_by_id_async(
+                    index = await get_uipath().context_grounding.retrieve_by_id_async(
                         trigger.item_key
                     )
 
@@ -319,7 +331,7 @@ class UiPathResumeTriggerReader:
                     )
                     assert destination_path is not None
                     try:
-                        await uipath.context_grounding.download_batch_transform_result_async(
+                        await get_uipath().context_grounding.download_batch_transform_result_async(
                             trigger.item_key,
                             destination_path,
                             validate_status=True,
@@ -349,10 +361,8 @@ class UiPathResumeTriggerReader:
                     assert tag is not None
 
                     try:
-                        extraction_response = (
-                            await uipath.documents.retrieve_ixp_extraction_result_async(
-                                project_id, tag, trigger.item_key
-                            )
+                        extraction_response = await get_uipath().documents.retrieve_ixp_extraction_result_async(
+                            project_id, tag, trigger.item_key
                         )
                     except OperationNotCompleteException as e:
                         raise UiPathPendingTriggerError(
@@ -370,7 +380,7 @@ class UiPathResumeTriggerReader:
                     assert project_id is not None
                     assert tag is not None
                     try:
-                        escalation_response = await uipath.documents.retrieve_ixp_extraction_validation_result_async(
+                        escalation_response = await get_uipath().documents.retrieve_ixp_extraction_validation_result_async(
                             project_id, tag, trigger.item_key
                         )
                     except OperationNotCompleteException as e:
@@ -394,7 +404,7 @@ class UiPathResumeTriggerReader:
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
                     try:
-                        return await uipath.jobs.retrieve_api_payload_async(
+                        return await get_uipath().jobs.retrieve_api_payload_async(
                             trigger.api_resume.inbox_id
                         )
                     except Exception as e:
@@ -407,12 +417,16 @@ class UiPathResumeTriggerReader:
             case UiPathResumeTriggerType.INBOX:
                 if trigger.integration_resume and trigger.integration_resume.inbox_id:
                     try:
-                        inbox_payload = await uipath.jobs.retrieve_inbox_payload_async(
-                            trigger.integration_resume.inbox_id
+                        inbox_payload = (
+                            await get_uipath().jobs.retrieve_inbox_payload_async(
+                                trigger.integration_resume.inbox_id
+                            )
                         )
                         event_args = EventArguments.model_validate(inbox_payload)
-                        return await uipath.connections.retrieve_event_payload_async(
-                            event_args
+                        return (
+                            await get_uipath().connections.retrieve_event_payload_async(
+                                event_args
+                            )
                         )
                     except Exception as e:
                         raise UiPathFaultedTriggerError(
@@ -483,6 +497,9 @@ class UiPathResumeTriggerCreator:
 
                 case UiPathResumeTriggerType.INBOX:
                     await self._handle_inbox_trigger(suspend_value, resume_trigger)
+
+                case UiPathResumeTriggerType.TIMER:
+                    self._handle_time_trigger(suspend_value, resume_trigger)
 
                 case UiPathResumeTriggerType.DEEP_RAG:
                     await self._handle_deep_rag_job_trigger(
@@ -570,6 +587,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.IXP_VS_ESCALATION
         if isinstance(value, WaitIntegrationEvent):
             return UiPathResumeTriggerType.INBOX
+        if isinstance(value, WaitUntil):
+            return UiPathResumeTriggerType.TIMER
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -606,6 +625,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.EXTRACTION
         if isinstance(value, WaitIntegrationEvent):
             return UiPathResumeTriggerName.INBOX
+        if isinstance(value, WaitUntil):
+            return UiPathResumeTriggerName.TIMER
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -978,6 +999,20 @@ class UiPathResumeTriggerCreator:
             parameters=value.parameters,
             inbox_id=str(uuid.uuid4()),
         )
+
+    def _handle_time_trigger(
+        self, value: WaitUntil, resume_trigger: UiPathResumeTrigger
+    ) -> None:
+        """Handle Timer-type resume triggers.
+
+        Orchestrator expects timer resume triggers as a top-level
+        `resumeTime` value on the resume trigger DTO.
+
+        Args:
+            value: The suspend value (WaitUntil)
+            resume_trigger: The resume trigger to populate
+        """
+        resume_trigger.resume_time = value.resume_time
 
 
 class UiPathResumeTriggerHandler:
