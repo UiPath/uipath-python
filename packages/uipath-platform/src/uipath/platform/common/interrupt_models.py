@@ -36,6 +36,7 @@ class InvokeProcess(BaseModel):
     process_folder_key: str | None = None
     input_arguments: dict[str, Any] | None
     attachments: list[Attachment] | None = None
+    timeout: float | None = None
 
 
 class WaitJob(BaseModel):

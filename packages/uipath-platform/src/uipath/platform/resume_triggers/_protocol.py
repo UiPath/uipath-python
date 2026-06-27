@@ -3,6 +3,7 @@
 import json
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from uipath.core.errors import (
@@ -69,6 +70,9 @@ from uipath.platform.resume_triggers._enums import (
     TriggerMarker,
 )
 
+_TIMEOUT_TRIGGER_KIND = "timeout"
+_TIMEOUT_SOURCE_INVOKE_PROCESS = "InvokeProcess"
+
 
 def _try_convert_to_json_format(value: str | None) -> Any:
     """Attempts to parse a string as JSON and returns the parsed object or original string.
@@ -131,6 +135,17 @@ class UiPathResumeTriggerReader:
                 trigger type is unknown, or HITL feedback retrieval failed.
         """
         if trigger.trigger_type == UiPathResumeTriggerType.TIMER:
+            if (
+                isinstance(trigger.payload, dict)
+                and trigger.payload.get("kind") == _TIMEOUT_TRIGGER_KIND
+            ):
+                return {
+                    "timedOut": True,
+                    "timeout": trigger.payload.get("timeout"),
+                    "jobKey": trigger.payload.get("jobKey"),
+                    "processName": trigger.payload.get("processName"),
+                    PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
+                }
             return {
                 "resumeTime": trigger.resume_time,
                 PropertyName.INTERNAL.value: TriggerMarker.NO_CONTENT.value,
@@ -445,6 +460,26 @@ class UiPathResumeTriggerCreator:
 
     Implements UiPathResumeTriggerCreatorProtocol.
     """
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value.
+
+        Most values create a single trigger. `InvokeProcess(timeout=...)` creates
+        both the process-completion trigger and a timer trigger so whichever
+        condition happens first resumes the same interrupt.
+        """
+        resume_trigger = await self.create_trigger(suspend_value)
+        if (
+            isinstance(suspend_value, InvokeProcess)
+            and not isinstance(suspend_value, InvokeProcessRaw)
+            and suspend_value.timeout is not None
+        ):
+            timeout_trigger = self._create_invoke_process_timeout_trigger(
+                suspend_value, resume_trigger
+            )
+            return [resume_trigger, timeout_trigger]
+
+        return [resume_trigger]
 
     async def create_trigger(self, suspend_value: Any) -> UiPathResumeTrigger:
         """Create a resume trigger from a suspend value.
@@ -1007,6 +1042,30 @@ class UiPathResumeTriggerCreator:
         """
         resume_trigger.resume_time = value.resume_time
 
+    def _create_invoke_process_timeout_trigger(
+        self, value: InvokeProcess, job_trigger: UiPathResumeTrigger
+    ) -> UiPathResumeTrigger:
+        """Create the timer side of an InvokeProcess timeout race."""
+        timeout = value.timeout
+        if timeout is None:
+            raise ValueError("InvokeProcess timeout is required.")
+        if timeout <= 0:
+            raise ValueError("InvokeProcess timeout must be greater than zero.")
+
+        resume_time = datetime.now(timezone.utc) + timedelta(seconds=timeout)
+        return UiPathResumeTrigger(
+            trigger_type=UiPathResumeTriggerType.TIMER,
+            trigger_name=UiPathResumeTriggerName.TIMER,
+            resume_time=resume_time,
+            payload={
+                "kind": _TIMEOUT_TRIGGER_KIND,
+                "source": _TIMEOUT_SOURCE_INVOKE_PROCESS,
+                "timeout": timeout,
+                "jobKey": job_trigger.item_key,
+                "processName": value.name,
+            },
+        )
+
 
 class UiPathResumeTriggerHandler:
     """Combined handler for creating and reading resume triggers.
@@ -1032,6 +1091,10 @@ class UiPathResumeTriggerHandler:
             UiPathRuntimeError: If trigger creation fails
         """
         return await self._creator.create_trigger(suspend_value)
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value."""
+        return await self._creator.create_triggers(suspend_value)
 
     async def read_trigger(self, trigger: UiPathResumeTrigger) -> Any | None:
         """Read a resume trigger and convert it to runtime-compatible input.
