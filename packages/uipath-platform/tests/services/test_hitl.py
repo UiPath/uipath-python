@@ -2109,6 +2109,45 @@ class TestHitlProcessor:
         with pytest.raises(ValueError, match="resume_time must include timezone"):
             WaitUntil(resume_time=datetime(2026, 6, 27, 20, 14, 49))
 
+    @pytest.mark.anyio
+    async def test_create_resume_triggers_for_interrupt_list(
+        self,
+    ) -> None:
+        """Test an interrupt list creates sibling triggers for the same interrupt."""
+        job_key = "test-job-key"
+        wait_job = WaitJob(
+            job=Job(
+                id=1234,
+                key=job_key,
+                folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
+            ),
+            process_folder_path="/test/path",
+        )
+        wait_until = WaitUntil(
+            resume_time=datetime(2026, 6, 27, 23, 14, 49, tzinfo=timezone.utc)
+        )
+
+        processor = UiPathResumeTriggerCreator()
+        triggers = await processor.create_triggers([wait_job, wait_until])
+
+        assert len(triggers) == 2
+        job_trigger, timer_trigger = triggers
+        assert job_trigger.trigger_type == UiPathResumeTriggerType.JOB
+        assert job_trigger.item_key == job_key
+        assert timer_trigger.trigger_type == UiPathResumeTriggerType.TIMER
+        assert timer_trigger.trigger_name == UiPathResumeTriggerName.TIMER
+        assert timer_trigger.resume_time == datetime(
+            2026, 6, 27, 23, 14, 49, tzinfo=timezone.utc
+        )
+
+    @pytest.mark.anyio
+    async def test_create_resume_triggers_rejects_empty_interrupt_list(self) -> None:
+        """Test an interrupt list must include at least one model."""
+        processor = UiPathResumeTriggerCreator()
+
+        with pytest.raises(ValueError, match="At least one interrupt model"):
+            await processor.create_triggers([])
+
 
 class TestDocumentExtractionModels:
     """Tests for document extraction models."""
