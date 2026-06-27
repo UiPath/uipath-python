@@ -443,6 +443,23 @@ class UiPathResumeTriggerCreator:
     Implements UiPathResumeTriggerCreatorProtocol.
     """
 
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value.
+
+        Most values create a single trigger. A list or tuple creates sibling
+        triggers for the same interrupt; whichever one fires first resumes it.
+        """
+        if isinstance(suspend_value, (list, tuple)):
+            if not suspend_value:
+                raise ValueError("At least one interrupt model is required.")
+            return [
+                await self.create_trigger(child_suspend_value)
+                for child_suspend_value in suspend_value
+            ]
+
+        resume_trigger = await self.create_trigger(suspend_value)
+        return [resume_trigger]
+
     async def create_trigger(self, suspend_value: Any) -> UiPathResumeTrigger:
         """Create a resume trigger from a suspend value.
 
@@ -1029,6 +1046,10 @@ class UiPathResumeTriggerHandler:
             UiPathRuntimeError: If trigger creation fails
         """
         return await self._creator.create_trigger(suspend_value)
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value."""
+        return await self._creator.create_triggers(suspend_value)
 
     async def read_trigger(self, trigger: UiPathResumeTrigger) -> Any | None:
         """Read a resume trigger and convert it to runtime-compatible input.
