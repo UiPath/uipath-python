@@ -28,7 +28,13 @@ from ..documents.documents import StartExtractionValidationResponse
 from ..orchestrator.job import Job
 
 
-class InvokeProcess(BaseModel):
+class InterruptTimeoutMixin(BaseModel):
+    """Mixin for interrupt models that can race their normal trigger with a timeout."""
+
+    timeout: float | None = None
+
+
+class InvokeProcess(InterruptTimeoutMixin):
     """Model representing a process invocation."""
 
     name: str
@@ -38,7 +44,7 @@ class InvokeProcess(BaseModel):
     attachments: list[Attachment] | None = None
 
 
-class WaitJob(BaseModel):
+class WaitJob(InterruptTimeoutMixin):
     """Model representing a wait job operation."""
 
     job: Job
@@ -58,7 +64,7 @@ class WaitJobRaw(WaitJob):
     pass
 
 
-class CreateTask(BaseModel):
+class CreateTask(InterruptTimeoutMixin):
     """Model representing an action creation."""
 
     title: str
@@ -82,7 +88,7 @@ class CreateEscalation(CreateTask):
     pass
 
 
-class WaitTask(BaseModel):
+class WaitTask(InterruptTimeoutMixin):
     """Model representing a wait action operation."""
 
     action: Task
@@ -98,7 +104,7 @@ class WaitEscalation(WaitTask):
     pass
 
 
-class CreateDeepRag(BaseModel):
+class CreateDeepRag(InterruptTimeoutMixin):
     """Model representing a Deep RAG task creation."""
 
     name: str
@@ -125,7 +131,7 @@ class CreateDeepRagRaw(CreateDeepRag):
     pass
 
 
-class WaitDeepRag(BaseModel):
+class WaitDeepRag(InterruptTimeoutMixin):
     """Model representing a wait Deep RAG task."""
 
     deep_rag: DeepRagCreationResponse
@@ -139,7 +145,7 @@ class WaitDeepRagRaw(WaitDeepRag):
     pass
 
 
-class CreateEphemeralIndex(BaseModel):
+class CreateEphemeralIndex(InterruptTimeoutMixin):
     """Model representing an Ephemeral Index task creation."""
 
     usage: EphemeralIndexUsage
@@ -152,7 +158,7 @@ class CreateEphemeralIndexRaw(CreateEphemeralIndex):
     pass
 
 
-class WaitEphemeralIndex(BaseModel):
+class WaitEphemeralIndex(InterruptTimeoutMixin):
     """Model representing a wait Ephemeral Index task."""
 
     index: ContextGroundingIndex
@@ -164,7 +170,7 @@ class WaitEphemeralIndexRaw(WaitEphemeralIndex):
     pass
 
 
-class CreateBatchTransform(BaseModel):
+class CreateBatchTransform(InterruptTimeoutMixin):
     """Model representing a Batch Transform task creation."""
 
     name: str
@@ -189,7 +195,7 @@ class CreateBatchTransform(BaseModel):
         return self
 
 
-class WaitBatchTransform(BaseModel):
+class WaitBatchTransform(InterruptTimeoutMixin):
     """Model representing a wait Batch Transform task."""
 
     batch_transform: BatchTransformCreationResponse
@@ -197,7 +203,7 @@ class WaitBatchTransform(BaseModel):
     index_folder_key: str | None = None
 
 
-class InvokeSystemAgent(BaseModel):
+class InvokeSystemAgent(InterruptTimeoutMixin):
     """Model representing a system agent job invocation."""
 
     agent_name: str
@@ -207,7 +213,7 @@ class InvokeSystemAgent(BaseModel):
     folder_key: str | None = None
 
 
-class WaitSystemAgent(BaseModel):
+class WaitSystemAgent(InterruptTimeoutMixin):
     """Model representing a wait system agent job invocation."""
 
     job_key: str
@@ -215,7 +221,7 @@ class WaitSystemAgent(BaseModel):
     process_folder_key: str | None = None
 
 
-class DocumentExtraction(BaseModel):
+class DocumentExtraction(InterruptTimeoutMixin):
     """Model representing a document extraction task creation."""
 
     project_name: str
@@ -237,13 +243,13 @@ class DocumentExtraction(BaseModel):
         return self
 
 
-class WaitDocumentExtraction(BaseModel):
+class WaitDocumentExtraction(InterruptTimeoutMixin):
     """Model representing a wait document extraction task creation."""
 
     extraction: StartExtractionResponse
 
 
-class DocumentExtractionValidation(BaseModel):
+class DocumentExtractionValidation(InterruptTimeoutMixin):
     """Model representing a document extraction task creation."""
 
     extraction_response: ExtractionResponseIXP
@@ -255,14 +261,14 @@ class DocumentExtractionValidation(BaseModel):
     storage_bucket_directory_path: str | None = None
 
 
-class WaitDocumentExtractionValidation(BaseModel):
+class WaitDocumentExtractionValidation(InterruptTimeoutMixin):
     """Model representing a wait document extraction task creation."""
 
     extraction_validation: StartExtractionValidationResponse
     task_url: str | None = None
 
 
-class WaitIntegrationEvent(BaseModel):
+class WaitIntegrationEvent(InterruptTimeoutMixin):
     """Model representing a wait on an Integration Services event.
 
     Used to suspend a job until a remote event (e.g. Slack message, Teams reply)
