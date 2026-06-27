@@ -3,6 +3,7 @@
 import json
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from uipath.core.errors import (
@@ -33,6 +34,7 @@ from uipath.platform.common.interrupt_models import (
     CreateTask,
     DocumentExtraction,
     DocumentExtractionValidation,
+    InterruptTimeoutMixin,
     InvokeProcess,
     InvokeProcessRaw,
     InvokeSystemAgent,
@@ -67,6 +69,11 @@ from uipath.platform.resume_triggers._enums import (
     ExternalTriggerType,
     PropertyName,
     TriggerMarker,
+)
+from uipath.platform.resume_triggers._timeout import (
+    UIPATH_METADATA_KEY,
+    UIPATH_TIMEOUT_KIND,
+    get_timeout,
 )
 
 
@@ -131,6 +138,9 @@ class UiPathResumeTriggerReader:
                 trigger type is unknown, or HITL feedback retrieval failed.
         """
         if trigger.trigger_type == UiPathResumeTriggerType.TIMER:
+            timeout = get_timeout(trigger.payload)
+            if timeout is not None:
+                return {UIPATH_METADATA_KEY: timeout}
             return {"resumeTime": serialize_object(trigger.resume_time)}
 
         uipath = UiPath()
@@ -442,6 +452,25 @@ class UiPathResumeTriggerCreator:
 
     Implements UiPathResumeTriggerCreatorProtocol.
     """
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value.
+
+        Most values create a single trigger. Interrupt models with
+        `timeout=...` create both their normal trigger and a timer trigger so
+        whichever condition happens first resumes the same interrupt.
+        """
+        resume_trigger = await self.create_trigger(suspend_value)
+        if isinstance(suspend_value, InterruptTimeoutMixin) and (
+            suspend_value.timeout is not None
+        ):
+            timeout_trigger = self._create_timeout_trigger(
+                suspend_value,
+                resume_trigger,
+            )
+            return [resume_trigger, timeout_trigger]
+
+        return [resume_trigger]
 
     async def create_trigger(self, suspend_value: Any) -> UiPathResumeTrigger:
         """Create a resume trigger from a suspend value.
@@ -1004,6 +1033,63 @@ class UiPathResumeTriggerCreator:
         """
         resume_trigger.resume_time = value.resume_time
 
+    def _create_timeout_trigger(
+        self, value: InterruptTimeoutMixin, trigger: UiPathResumeTrigger
+    ) -> UiPathResumeTrigger:
+        """Create the timer side of an interrupt timeout race."""
+        timeout = value.timeout
+        if timeout is None:
+            raise ValueError("Interrupt timeout is required.")
+        if timeout <= 0:
+            raise ValueError("Interrupt timeout must be greater than zero.")
+
+        resume_time = datetime.now(timezone.utc) + timedelta(seconds=timeout)
+        return UiPathResumeTrigger(
+            trigger_type=UiPathResumeTriggerType.TIMER,
+            trigger_name=UiPathResumeTriggerName.TIMER,
+            resume_time=resume_time,
+            payload=self._create_timeout_resume_value(value, trigger, timeout),
+        )
+
+    def _create_timeout_resume_value(
+        self,
+        value: InterruptTimeoutMixin,
+        trigger: UiPathResumeTrigger,
+        timeout: float,
+    ) -> dict[str, dict[str, Any]]:
+        """Create the resume value returned when an interrupt timeout fires."""
+        metadata: dict[str, Any] = {
+            "kind": UIPATH_TIMEOUT_KIND,
+            "source": type(value).__name__,
+            "timeout": timeout,
+            "triggerType": trigger.trigger_type.value,
+            "triggerName": trigger.trigger_name.value,
+        }
+        if trigger.item_key:
+            metadata["itemKey"] = trigger.item_key
+        if trigger.folder_key:
+            metadata["folderKey"] = trigger.folder_key
+        if trigger.folder_path:
+            metadata["folderPath"] = trigger.folder_path
+        if trigger.api_resume and trigger.api_resume.inbox_id:
+            metadata["inboxId"] = trigger.api_resume.inbox_id
+        if trigger.integration_resume and trigger.integration_resume.inbox_id:
+            metadata["inboxId"] = trigger.integration_resume.inbox_id
+
+        if trigger.trigger_type == UiPathResumeTriggerType.JOB and trigger.item_key:
+            metadata["jobKey"] = trigger.item_key
+        elif trigger.trigger_type == UiPathResumeTriggerType.TASK and trigger.item_key:
+            metadata["actionKey"] = trigger.item_key
+
+        if isinstance(value, InvokeProcess):
+            metadata["processName"] = value.name
+        elif isinstance(value, InvokeSystemAgent):
+            metadata["agentName"] = value.agent_name
+        elif isinstance(value, CreateTask):
+            metadata["actionTitle"] = value.title
+
+        return {UIPATH_METADATA_KEY: metadata}
+
 
 class UiPathResumeTriggerHandler:
     """Combined handler for creating and reading resume triggers.
@@ -1029,6 +1115,10 @@ class UiPathResumeTriggerHandler:
             UiPathRuntimeError: If trigger creation fails
         """
         return await self._creator.create_trigger(suspend_value)
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value."""
+        return await self._creator.create_triggers(suspend_value)
 
     async def read_trigger(self, trigger: UiPathResumeTrigger) -> Any | None:
         """Read a resume trigger and convert it to runtime-compatible input.

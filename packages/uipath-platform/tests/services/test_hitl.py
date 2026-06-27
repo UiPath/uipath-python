@@ -74,6 +74,7 @@ from uipath.platform.resume_triggers import (
     TriggerMarker,
     UiPathResumeTriggerCreator,
     UiPathResumeTriggerReader,
+    get_timeout,
 )
 
 
@@ -1232,6 +1233,36 @@ class TestHitlReader:
 
         assert result == {"resumeTime": serialize_object(resume_time)}
 
+    @pytest.mark.anyio
+    async def test_read_timer_timeout_trigger_returns_timeout_metadata(self) -> None:
+        """Test reading a timeout timer trigger returns timeout metadata."""
+        resume_trigger = UiPathResumeTrigger(
+            trigger_type=UiPathResumeTriggerType.TIMER,
+            trigger_name=UiPathResumeTriggerName.TIMER,
+            payload={
+                "__uipath": {
+                    "kind": "timeout",
+                    "source": "WaitJob",
+                    "timeout": 10,
+                    "triggerType": "Job",
+                    "triggerName": "Job",
+                    "jobKey": "job-123",
+                }
+            },
+        )
+
+        reader = UiPathResumeTriggerReader()
+        result = await reader.read_trigger(resume_trigger)
+
+        assert get_timeout(result) == {
+            "kind": "timeout",
+            "source": "WaitJob",
+            "timeout": 10,
+            "triggerType": "Job",
+            "triggerName": "Job",
+            "jobKey": "job-123",
+        }
+
 
 class TestHitlProcessor:
     """Tests for the HitlProcessor class."""
@@ -2108,6 +2139,60 @@ class TestHitlProcessor:
         """Test WaitUntil rejects timezone-naive resume times."""
         with pytest.raises(ValueError, match="resume_time must include timezone"):
             WaitUntil(resume_time=datetime(2026, 6, 27, 20, 14, 49))
+
+    @pytest.mark.anyio
+    async def test_create_resume_triggers_wait_job_timeout_adds_timer(
+        self,
+    ) -> None:
+        """Test timeout-enabled interrupts create normal and timer triggers."""
+        job_key = "test-job-key"
+        wait_job = WaitJob(
+            job=Job(
+                id=1234,
+                key=job_key,
+                folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
+            ),
+            process_folder_path="/test/path",
+            timeout=10,
+        )
+
+        processor = UiPathResumeTriggerCreator()
+        before = datetime.now(timezone.utc)
+        triggers = await processor.create_triggers(wait_job)
+        after = datetime.now(timezone.utc)
+
+        assert len(triggers) == 2
+        job_trigger, timeout_trigger = triggers
+        assert job_trigger.trigger_type == UiPathResumeTriggerType.JOB
+        assert job_trigger.item_key == job_key
+        assert timeout_trigger.trigger_type == UiPathResumeTriggerType.TIMER
+        assert timeout_trigger.trigger_name == UiPathResumeTriggerName.TIMER
+        assert timeout_trigger.resume_time is not None
+        assert before + timedelta(seconds=9) < timeout_trigger.resume_time
+        assert timeout_trigger.resume_time < after + timedelta(seconds=11)
+        assert get_timeout(timeout_trigger.payload) == {
+            "kind": "timeout",
+            "source": "WaitJob",
+            "timeout": 10.0,
+            "triggerType": "Job",
+            "triggerName": "Job",
+            "itemKey": job_key,
+            "folderPath": "/test/path",
+            "jobKey": job_key,
+        }
+
+    @pytest.mark.anyio
+    async def test_create_resume_triggers_rejects_non_positive_timeout(self) -> None:
+        """Test timeout-enabled interrupts require a positive timeout."""
+        wait_job = WaitJob(
+            job=Job(id=1234, key="test-job-key"),
+            timeout=0,
+        )
+
+        processor = UiPathResumeTriggerCreator()
+
+        with pytest.raises(ValueError, match="timeout must be greater than zero"):
+            await processor.create_triggers(wait_job)
 
 
 class TestDocumentExtractionModels:
