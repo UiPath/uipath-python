@@ -442,14 +442,7 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     )
     entity_set: Optional[List[DataFabricEntityItem]] = Field(None, alias="entitySet")
     ontology_set: Optional[List[DataFabricOntologyItem]] = Field(
-        None,
-        alias="ontologySet",
-        description=(
-            "Data Fabric ontologies, on the dedicated ontology context "
-            "(contextType 'datafabricontology'). Mirrors entitySet on the entity "
-            "context; each item carries its own folderId and is fetched from the "
-            "QueryEngine ontology API at runtime."
-        ),
+        None, alias="ontologySet"
     )
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"

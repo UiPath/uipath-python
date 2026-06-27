@@ -15,7 +15,6 @@ resolution.
 """
 
 import logging
-import re
 from typing import Any, Dict, List, Optional, Type
 
 from httpx import Response
@@ -25,10 +24,9 @@ from ..common._base_service import BaseService
 from ..common._bindings import _resource_overwrites
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
-from ..common._folder_context import header_folder
-from ..common._models import Endpoint, RequestSpec
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
+from ._entity_ontology_service import EntityOntologyService
 from ._entity_resolution import (
     build_resolution_service,
     create_resolution_plan,
@@ -60,12 +58,6 @@ from .entities import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Ontology name contract (QueryEngine OntologyController): lowercase, starts
-# with a letter, max 64 chars. The name becomes a URL path segment.
-_ONTOLOGY_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
-# Allowed ontology component file types (also URL path segments).
-_ONTOLOGY_FILE_TYPES = frozenset({"owl", "r2rml", "shacl", "summary", "context"})
 
 
 class EntitiesService(BaseService):
@@ -112,6 +104,11 @@ class EntitiesService(BaseService):
             execution_context=execution_context,
             folders_service=folders_service,
             routing_strategy=self._routing_strategy,
+        )
+        self._ontology = EntityOntologyService(
+            config=config,
+            execution_context=execution_context,
+            folders_service=folders_service,
         )
 
     # ------------------------------------------------------------------
@@ -1121,55 +1118,16 @@ class EntitiesService(BaseService):
             This method is currently experimental. Behavior and parameters are
             subject to change in future versions.
 
-        Ontologies are served by the same QueryEngine service as entity SQL
-        queries, under ``datafabric_/api/ontologies``. The JSON wrapper is
-        requested so the result is notation-agnostic — the ``owl`` file content
-        may be Turtle or OWL Functional Notation.
-
         Args:
-            ontology_name: Ontology name. Validated against the QE name contract.
-            file_type: One of owl, r2rml, shacl, summary, context.
-            folder_key: Folder the ontology lives in.
+            ontology_name (str): Name of the ontology.
+            file_type (str): The ontology file to fetch — one of owl, r2rml,
+                shacl, summary, context.
+            folder_key (Optional[str]): Key of the folder the ontology lives in.
 
         Returns:
             Dict[str, Any]: The file record (e.g. ``content``, ``mediaType``).
-
-        Raises:
-            ValueError: If the ontology name or file type is invalid.
         """
-        self._validate_ontology_name(ontology_name)
-        self._validate_file_type(file_type)
-        spec = self._ontology_file_spec(ontology_name, file_type)
-        headers = {"Accept": "application/json", **header_folder(folder_key, None)}
-        response = await self.request_async(spec.method, spec.endpoint, headers=headers)
-        return response.json()
-
-    @staticmethod
-    def _validate_ontology_name(ontology_name: str) -> None:
-        """Validate the ontology name before it becomes a URL path segment."""
-        if not _ONTOLOGY_NAME_RE.match(ontology_name or ""):
-            raise ValueError(
-                f"Invalid ontology name {ontology_name!r}. "
-                "Must match ^[a-z][a-z0-9-]{0,63}$."
-            )
-
-    @staticmethod
-    def _validate_file_type(file_type: str) -> None:
-        """Validate the file type before it becomes a URL path segment."""
-        if file_type not in _ONTOLOGY_FILE_TYPES:
-            allowed = ", ".join(sorted(_ONTOLOGY_FILE_TYPES))
-            raise ValueError(
-                f"Invalid ontology file type {file_type!r}. One of: {allowed}."
-            )
-
-    @staticmethod
-    def _ontology_file_spec(ontology_name: str, file_type: str) -> RequestSpec:
-        return RequestSpec(
-            method="GET",
-            endpoint=Endpoint(
-                f"datafabric_/api/ontologies/{ontology_name}/files/{file_type}"
-            ),
-        )
+        return await self._ontology.get_file_async(ontology_name, file_type, folder_key)
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
