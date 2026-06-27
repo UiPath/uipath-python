@@ -1011,7 +1011,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.22"
+version = "0.5.23"
 source = { editable = "." }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
