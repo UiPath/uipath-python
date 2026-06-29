@@ -22,7 +22,14 @@ from ._folder_context import FolderContext, header_folder
 from ._http_config import get_ca_bundle_path, get_httpx_client_kwargs
 from ._models import Endpoint, RequestSpec
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
-from ._span_utils import UiPathSpan, _SpanUtils
+from ._span_utils import (
+    ExecutionType,
+    SpanSource,
+    SpanStatus,
+    UiPathSpan,
+    VerbosityLevel,
+    _SpanUtils,
+)
 from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .auth import TokenData
@@ -105,11 +112,15 @@ __all__ = [
     "jsonschema_to_pydantic",
     "ConnectionResourceOverwrite",
     "EntityResourceOverwrite",
+    "ExecutionType",
     "GenericResourceOverwrite",
     "ResourceOverwrite",
     "ResourceOverwriteParser",
     "ResourceOverwritesContext",
+    "SpanSource",
+    "SpanStatus",
     "UiPathSpan",
+    "VerbosityLevel",
     "_SpanUtils",
     "resolve_service_url",
     "inject_routing_headers",
