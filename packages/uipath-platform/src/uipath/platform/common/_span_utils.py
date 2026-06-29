@@ -10,10 +10,24 @@ from functools import lru_cache
 from os import environ as env
 from typing import Any, Dict, List, Optional
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, Span
 from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
+from uipath.core.tracing.processors import register_span_start_hook
+
+from ._reference_context import ReferenceContextAccessor
+
+
+def _inject_reference_hierarchy(span: Span) -> None:
+    ref_ctx = ReferenceContextAccessor.get()
+    if ref_ctx:
+        wire = ref_ctx.to_wire_list()
+        if wire:
+            span.set_attribute("uipath.reference_hierarchy", json.dumps(wire))
+
+
+register_span_start_hook(_inject_reference_hierarchy)
 
 logger = logging.getLogger(__name__)
 
@@ -110,14 +124,14 @@ class UiPathSpan:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     organization_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID", "")
+        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID") or None
     )
     tenant_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_TENANT_ID", "")
+        default_factory=lambda: env.get("UIPATH_TENANT_ID") or None
     )
     expiry_time_utc: Optional[str] = None
     folder_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
+        default_factory=lambda: env.get("UIPATH_FOLDER_KEY") or None
     )
     source: int = DEFAULT_SOURCE
     span_type: str = "Coded Agents"
@@ -135,6 +149,7 @@ class UiPathSpan:
     agent_version: Optional[str] = None
     verbosity_level: Optional[int] = None
     attachments: Optional[List[SpanAttachment]] = None
+    context: Optional[Dict[str, Any]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
@@ -187,6 +202,8 @@ class UiPathSpan:
         }
         if self.verbosity_level is not None:
             result["VerbosityLevel"] = self.verbosity_level
+        if self.context is not None:
+            result["Context"] = self.context
         return result
 
 
@@ -262,6 +279,11 @@ class _SpanUtils:
         otel_attrs = otel_span.attributes if otel_span.attributes else {}
         # Only copy if we need to modify - we'll build attributes_dict lazily
         attributes_dict: dict[str, Any] = dict(otel_attrs) if otel_attrs else {}
+
+        # Pull the reference hierarchy stamped by the span-start hook (runs in the
+        # correct thread/context; BatchSpanProcessor exports in a background thread
+        # where ContextVar values are not available).
+        ref_hierarchy_json = attributes_dict.pop("uipath.reference_hierarchy", None)
 
         # Map status
         status = 1  # Default to OK
@@ -362,6 +384,13 @@ class _SpanUtils:
             except Exception as e:
                 logger.warning(f"Error processing attachments: {e}")
 
+        context: Optional[Dict[str, Any]] = None
+        if ref_hierarchy_json:
+            try:
+                context = {"referenceHierarchy": json.loads(ref_hierarchy_json)}
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
             (otel_span.start_time or 0) / 1e9
@@ -393,6 +422,7 @@ class _SpanUtils:
             reference_id=reference_id,
             source=source,
             attachments=attachments,
+            context=context,
         )
 
     @staticmethod
