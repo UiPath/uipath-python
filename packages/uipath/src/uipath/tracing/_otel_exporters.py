@@ -300,11 +300,9 @@ class LlmOpsHttpExporter(SpanExporter):
     def _determine_status(self, error: Optional[Any]) -> SpanStatus:
         if error:
             if isinstance(error, str) and error.startswith("GraphInterrupt("):
-                # HITL pause — agent is suspended awaiting human input, not aborted.
-                # Preserves prior wire behavior (int 3 == Running) and matches the
-                # Agent Builder runtime, which keeps interrupted runs Running
-                # (ConversationalEngineWorkflow waits via WaitConditionAsync; no
-                # terminal status). StatusEnum has no Interrupted member.
+                # GraphInterrupt = HITL pause, not a failure. Server StatusEnum has
+                # no Interrupted member; preserves prior wire behavior (old int
+                # 3 == Running).
                 return SpanStatus.RUNNING
             return SpanStatus.ERROR
         return SpanStatus.OK
