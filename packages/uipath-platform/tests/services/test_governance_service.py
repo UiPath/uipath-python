@@ -433,6 +433,99 @@ class TestGovernanceService:
             with pytest.raises(ValueError, match="UIPATH_ORGANIZATION_ID"):
                 service.compensate(**_compensate_kwargs())
 
+        def test_self_resolves_trace_id_when_caller_leaves_none(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """``trace_id=None`` from the caller is filled via resolve_trace_id().
+
+            The runtime layer intentionally stays env-free; the platform
+            service fills the canonical trace id at HTTP-call time from
+            the OTel/env source. ``UIPATH_TRACE_ID`` covers the
+            resolver-finds-a-value branch of ``_resolve_request_trace_id``.
+            """
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(200, json={})
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/govern",
+            )
+
+            service.compensate(**_compensate_kwargs(trace_id=None))
+
+            body = json.loads(captured["request"].content)
+            assert body["traceId"] == TENANT_ID_HEX
+
+        def test_omits_trace_id_when_no_source_resolves(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Resolver returns nothing → traceId is omitted from the body.
+
+            Covers the resolver-finds-nothing branch of
+            ``_resolve_request_trace_id``: no ``UIPATH_TRACE_ID``, no
+            active OTel context → ``trace_id`` stays ``None`` on the
+            request and ``model_dump(exclude_none=True)`` drops it from
+            the wire JSON.
+            """
+            monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(200, json={})
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/govern",
+            )
+
+            service.compensate(**_compensate_kwargs(trace_id=None))
+
+            body = json.loads(captured["request"].content)
+            assert "traceId" not in body
+
+        def test_caller_empty_string_wins_over_resolver(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """An explicit ``trace_id=""`` from the caller is not overridden.
+
+            With the absence-via-``None`` contract, the empty string is
+            a legitimate caller-supplied value — it must not trigger
+            the auto-resolve.
+            """
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(200, json={})
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/govern",
+            )
+
+            service.compensate(**_compensate_kwargs(trace_id=""))
+
+            body = json.loads(captured["request"].content)
+            assert body["traceId"] == ""
+
     class TestCompensateAsync:
         """Test compensate_async."""
 

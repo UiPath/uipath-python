@@ -18,9 +18,14 @@ from uipath.core.governance import (
 class _FakePolicyProvider:
     def __init__(self) -> None:
         self.calls: list[PolicyContext] = []
+        self.async_calls: list[PolicyContext] = []
 
     def get_policy(self, context: PolicyContext) -> PolicyResponse:
         self.calls.append(context)
+        return PolicyResponse(mode=EnforcementMode.ENFORCE, policies="rules: []")
+
+    async def get_policy_async(self, context: PolicyContext) -> PolicyResponse:
+        self.async_calls.append(context)
         return PolicyResponse(mode=EnforcementMode.ENFORCE, policies="rules: []")
 
 
@@ -140,6 +145,24 @@ class TestEndToEndDispatch:
 
         assert response.mode is EnforcementMode.ENFORCE
         assert provider.calls == [PolicyContext(is_conversational=True)]
+
+    @pytest.mark.asyncio
+    async def test_policy_round_trip_async(self) -> None:
+        """The async variant is the preferred entry point for event-loop hosts.
+
+        Hosts running ``await provider.get_policy_async(ctx)`` overlap
+        the fetch with the rest of agent setup; the sync ``get_policy``
+        path remains for callers outside an event loop.
+        """
+        provider = _FakePolicyProvider()
+        response = await provider.get_policy_async(
+            PolicyContext(is_conversational=False)
+        )
+
+        assert response.mode is EnforcementMode.ENFORCE
+        assert provider.async_calls == [PolicyContext(is_conversational=False)]
+        # Sync slot stays untouched — the two entrypoints are independent.
+        assert provider.calls == []
 
     def test_compensation_round_trip(self) -> None:
         provider = _FakeCompensationProvider()
