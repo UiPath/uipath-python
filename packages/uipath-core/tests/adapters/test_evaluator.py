@@ -96,9 +96,9 @@ def test_protocol_subclass_methods_execute_stub_bodies():
     """Calling each method via ``super()`` executes the stub body and returns None."""
     e = _ProtocolSubclass()
 
-    assert e.evaluate_before_agent("input", "agent", "rt", "trace") is None
-    assert e.evaluate_after_agent("output", "agent", "rt", "trace") is None
-    assert e.evaluate_before_model("input", "agent", "rt", "trace") is None
-    assert e.evaluate_after_model("output", "agent", "rt", "trace") is None
-    assert e.evaluate_tool_call("tool", {"arg": 1}, "agent", "rt", "trace") is None
-    assert e.evaluate_after_tool("tool", "result", "agent", "rt", "trace") is None
+    assert e.evaluate_before_agent("input", "agent", "rt") is None
+    assert e.evaluate_after_agent("output", "agent", "rt") is None
+    assert e.evaluate_before_model("input", "agent", "rt") is None
+    assert e.evaluate_after_model("output", "agent", "rt") is None
+    assert e.evaluate_tool_call("tool", {"arg": 1}, "agent", "rt") is None
+    assert e.evaluate_after_tool("tool", "result", "agent", "rt") is None

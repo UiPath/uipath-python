@@ -9,9 +9,9 @@ the native policy model:
   boundary at evaluation time: every evaluator implementation (native,
   AGT, composite, …) produces them, and every adapter consumes them.
 - **Configuration value types** (:class:`EnforcementMode`) — describe
-  governance configuration shared by core, runtime, and consumers. The
-  runtime state that selects an enforcement mode lives in
-  ``uipath-runtime``; only the value type lives here.
+  governance configuration shared by core and its consumers. The
+  per-policy runtime state that selects a mode lives outside this
+  package; only the value type lives here.
 """
 
 from __future__ import annotations
@@ -66,12 +66,17 @@ class RuleEvaluation:
 
 @dataclass
 class AuditRecord:
-    """Complete audit record for a governance evaluation."""
+    """Complete audit record for a governance evaluation.
+
+    ``trace_id`` is intentionally absent. Trace correlation is resolved
+    by the concrete provider at request time (via OpenTelemetry's
+    native span identity) — per-evaluation trace ids aren't part of
+    the audit-record contract.
+    """
 
     timestamp: datetime
     agent_name: str
     runtime_id: str
-    trace_id: str
     hook: LifecycleHook
     evaluations: list[RuleEvaluation]
     final_action: Action

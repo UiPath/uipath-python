@@ -22,7 +22,7 @@ from uipath.core.governance import (
     PolicyResponse,
 )
 
-from ..common._base_service import BaseService
+from ..common._base_service import BaseService, resolve_trace_id
 from ..common._config import UiPathConfig
 from ..common._service_url_overrides import (
     inject_routing_headers,
@@ -139,10 +139,10 @@ class GovernanceService(BaseService):
         validators: list[str],
         rules: list[FiredRule],
         data: dict[str, Any],
-        trace_id: str,
         src_timestamp: str,
         agent_name: str,
         runtime_id: str,
+        trace_id: str | None = None,
         folder_key: str | None = None,
         job_key: str | None = None,
         process_key: str | None = None,
@@ -154,8 +154,8 @@ class GovernanceService(BaseService):
         Fired when a ``guardrail_fallback`` rule matches: the centralized
         guardrail is disabled, so the server is asked to run the
         guardrail check server-side and write the per-rule LLMOps audit
-        records bound to ``trace_id``. The agent does not inspect the
-        response body.
+        records bound to the agent's trace. The agent does not inspect
+        the response body.
 
         Job-context fields (``folder_key`` / ``job_key`` /
         ``process_key`` / ``reference_id`` / ``agent_version``) are
@@ -171,9 +171,12 @@ class GovernanceService(BaseService):
                 written per entry.
             data: Hook payload the server replays through the
                 centralized guardrail.
-            trace_id: Canonical 32-char hex trace id. Capture via
-                :func:`resolve_trace_id` on the hook thread before
-                hopping to a background pool.
+            trace_id: Canonical 32-char hex trace id. Optional — when
+                ``None`` (default) the service resolves the value
+                itself at call time via :func:`resolve_trace_id`.
+                Callers that already hold a resolved id (typically
+                captured on the hook thread before a background-pool
+                hop) pass it in to win over the auto-resolve.
             src_timestamp: ISO-8601 timestamp on the source side.
             agent_name: Agent identifier as known to the platform.
             runtime_id: Runtime instance identifier.
@@ -189,10 +192,11 @@ class GovernanceService(BaseService):
             EnrichedException: If the backend returns a non-2xx response.
 
         Threading:
-            ``trace_id`` must be the agent's canonical trace id, and
-            OpenTelemetry context is thread-local; capture it on the
-            hook thread (via :func:`resolve_trace_id`) before hopping
-            to a background pool.
+            OpenTelemetry context is thread-local; callers that
+            background-pool the compensation call must capture the
+            canonical trace id (via :func:`resolve_trace_id`) on the
+            hook thread and pass it in explicitly — the auto-resolve
+            on the worker thread will see a detached context.
         """
         self._compensate(
             GovernRequest(
@@ -219,10 +223,10 @@ class GovernanceService(BaseService):
         validators: list[str],
         rules: list[FiredRule],
         data: dict[str, Any],
-        trace_id: str,
         src_timestamp: str,
         agent_name: str,
         runtime_id: str,
+        trace_id: str | None = None,
         folder_key: str | None = None,
         job_key: str | None = None,
         process_key: str | None = None,
@@ -262,17 +266,45 @@ class GovernanceService(BaseService):
         to satisfy :class:`uipath.core.governance.GovernanceCompensationProvider`
         without unpacking the request. The public ergonomic counterpart
         is :meth:`compensate`.
+
+        When ``request.trace_id`` is ``None`` the service resolves the
+        canonical trace id itself via :func:`resolve_trace_id` — same
+        fallback ``track_event`` uses. Callers that have a resolved
+        value still pass it in; callers that don't (e.g. the runtime
+        layer, which intentionally stays env-free) leave it ``None``
+        and let the service do the work.
         """
+        request = self._resolve_request_trace_id(request)
         url, headers = self._build_org_scoped_request(GOVERN_API_PATH)
         payload = self._build_govern_payload(request)
         self.request("POST", url=url, headers=headers, json=payload)
 
     @traced(name="governance_compensate", run_type="uipath")
     async def _compensate_async(self, request: GovernRequest) -> None:
-        """Async variant of :meth:`_compensate`."""
+        """Async variant of :meth:`_compensate`.
+
+        Same ``trace_id`` self-resolution behavior as the sync variant.
+        """
+        request = self._resolve_request_trace_id(request)
         url, headers = self._build_org_scoped_request(GOVERN_API_PATH)
         payload = self._build_govern_payload(request)
         await self.request_async("POST", url=url, headers=headers, json=payload)
+
+    @staticmethod
+    def _resolve_request_trace_id(request: GovernRequest) -> GovernRequest:
+        """Fill ``request.trace_id`` from :func:`resolve_trace_id` when absent.
+
+        Caller-supplied values (including ``""``) win — the runtime
+        captures on the hook thread (via ``contextvars.copy_context``
+        for the background pool) and the resolver here only fires when
+        the field was left ``None``.
+        """
+        if request.trace_id is not None:
+            return request
+        resolved = resolve_trace_id()
+        if not resolved:
+            return request
+        return request.model_copy(update={"trace_id": resolved})
 
     # ── Internals ────────────────────────────────────────────────────
 
