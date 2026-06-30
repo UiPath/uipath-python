@@ -8,10 +8,22 @@ from click.testing import CliRunner
 
 from uipath._cli import cli
 
-docker_available = (
-    shutil.which("docker") is not None
-    and subprocess.run(["docker", "info"], capture_output=True).returncode == 0
-)
+
+def _docker_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return (
+            subprocess.run(
+                ["docker", "info"], capture_output=True, timeout=5
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+docker_available = _docker_available()
 
 
 def _scaffold(tmp: Path) -> None:
@@ -67,24 +79,31 @@ def test_image_build_produces_runnable_image(runner: CliRunner, temp_dir: str) -
     """Build the image and verify uipath CLI is on PATH (so 'uipath run' works)."""
     with runner.isolated_filesystem(temp_dir=temp_dir):
         _scaffold(Path("."))
-        # Build the real image (no --dry-run); network required for uv sync
-        result = runner.invoke(
-            cli, ["image", "build", "--tag", "uipath-itest/invoice:0"], env={}
-        )
-        assert result.exit_code == 0, result.output
-        # The image must expose the uipath CLI on PATH
-        inspect = subprocess.run(
-            [
-                "docker",
-                "run",
-                "--rm",
-                "--entrypoint",
-                "uipath",
-                "uipath-itest/invoice:0",
-                "--help",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        assert inspect.returncode == 0, inspect.stderr
-        assert "run" in inspect.stdout
+        try:
+            # Build the real image (no --dry-run); network required for uv sync
+            result = runner.invoke(
+                cli, ["image", "build", "--tag", "uipath-itest/invoice:0"], env={}
+            )
+            assert result.exit_code == 0, result.output
+            # The image must expose the uipath CLI on PATH
+            docker_run = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--entrypoint",
+                    "uipath",
+                    "uipath-itest/invoice:0",
+                    "--help",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert docker_run.returncode == 0, docker_run.stderr
+            assert "run" in docker_run.stdout
+        finally:
+            subprocess.run(
+                ["docker", "rmi", "-f", "uipath-itest/invoice:0"],
+                check=False,
+                capture_output=True,
+            )
