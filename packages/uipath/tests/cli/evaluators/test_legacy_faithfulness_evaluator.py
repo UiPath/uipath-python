@@ -370,7 +370,7 @@ class TestLegacyFaithfulnessEvaluator:
         )
 
         assert result.score == 0.0
-        assert "no agent output" in result.details.lower()
+        assert "no workload output" in result.details.lower()
 
     @pytest.mark.asyncio
     async def test_full_evaluation_with_no_context_sources(

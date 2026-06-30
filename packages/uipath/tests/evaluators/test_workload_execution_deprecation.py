@@ -51,7 +51,7 @@ def test_old_field_names_are_a_hard_break() -> None:
         WorkloadExecution(
             agent_input={},
             agent_output={"result": "ok"},  # type: ignore[call-arg]
-            agent_trace=[],  # type: ignore[call-arg]
+            agent_trace=[],
         )
 
 
@@ -62,7 +62,7 @@ async def test_old_param_name_still_dispatches_positionally() -> None:
 
     class CustomEvaluator(ExactMatchEvaluator):
         # Deliberately uses the pre-2.12.0 parameter name.
-        async def evaluate(self, agent_execution, evaluation_criteria):  # type: ignore[override]
+        async def evaluate(self, agent_execution, evaluation_criteria):
             return await super().evaluate(agent_execution, evaluation_criteria)
 
     evaluator = CustomEvaluator.model_validate(
