@@ -120,16 +120,10 @@ _IntEnumT = TypeVar("_IntEnumT")
 def _enum_from_raw(table: dict[int, _IntEnumT], raw: Any) -> Optional[_IntEnumT]:
     """Map a raw OTEL attribute to its StrEnum member, or None.
 
-    Accepts both wire forms seen across SDK versions:
-
-    - legacy integer (e.g. ``6``) — looked up in ``table``.
-    - v3 string enum value (e.g. ``"Off"``, the ``StrEnum``'s value) — matched
-      against the table's members. An already-typed ``StrEnum`` member is a
-      ``str`` and is matched here too.
-
-    ``bool`` is rejected up front: it is an ``int`` subclass (``True == 1``) and
-    would otherwise coerce to the value-1 member. Unknown ints/strings return
-    None so callers can apply their own default.
+    Accepts a legacy int (looked up in ``table``) or the v3 string enum value
+    like ``"Off"`` (which also matches an already-typed member). ``bool`` is
+    rejected (``True == 1`` would match the value-1 member); unknown values
+    return None so callers can apply their own default.
     """
     if isinstance(raw, bool):
         return None
