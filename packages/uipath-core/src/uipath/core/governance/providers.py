@@ -130,6 +130,12 @@ class GovernRequest(BaseModel):
     reference_id: str | None = Field(default=None, alias="referenceId")
     agent_version: str | None = Field(default=None, alias="agentVersion")
 
+    # Runtime identity for governance telemetry; the server stamps these on the
+    # rule-denied events it emits. Optional — omitted from the wire when None.
+    agent_framework: str | None = Field(default=None, alias="agentFramework")
+    agent_type: str | None = Field(default=None, alias="agentType")
+    runtime_version: str | None = Field(default=None, alias="runtimeVersion")
+
 
 # ----------------------------------------------------------------------
 # Provider protocols
