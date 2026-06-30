@@ -129,7 +129,7 @@ class TestGuidFieldDefaults:
         assert "TenantId" not in d
 
 
-def _make_otel_span(attributes: dict) -> Mock:
+def _make_otel_span(attributes: dict[str, object]) -> Mock:
     """Build a minimal mocked OTEL span carrying the given attributes."""
     mock_span = Mock(spec=OTelSpan)
     mock_span.get_span_context.return_value = SpanContext(
