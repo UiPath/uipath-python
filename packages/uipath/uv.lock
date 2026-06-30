@@ -2691,7 +2691,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.84"
+version = "0.1.85"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },
