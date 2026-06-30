@@ -60,6 +60,7 @@ from .interrupt_models import (
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
+    WaitUntil,
 )
 from .paging import PagedResult
 
@@ -99,6 +100,7 @@ __all__ = [
     "DocumentExtractionValidation",
     "WaitDocumentExtractionValidation",
     "WaitIntegrationEvent",
+    "WaitUntil",
     "RequestSpec",
     "Endpoint",
     "UiPathUrl",
