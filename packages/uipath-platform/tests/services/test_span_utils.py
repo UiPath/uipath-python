@@ -129,6 +129,26 @@ class TestGuidFieldDefaults:
         assert "TenantId" not in d
 
 
+def _make_otel_span(attributes: dict) -> Mock:
+    """Build a minimal mocked OTEL span carrying the given attributes."""
+    mock_span = Mock(spec=OTelSpan)
+    mock_span.get_span_context.return_value = SpanContext(
+        trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+        span_id=0x0123456789ABCDEF,
+        is_remote=False,
+    )
+    mock_span.name = "test-span"
+    mock_span.parent = None
+    mock_span.status.status_code = StatusCode.OK
+    mock_span.attributes = attributes
+    mock_span.events = []
+    mock_span.links = []
+    now_ns = int(datetime.now().timestamp() * 1e9)
+    mock_span.start_time = now_ns
+    mock_span.end_time = now_ns + 1_000_000
+    return mock_span
+
+
 class TestOTelToUiPathSpan:
     """OTEL attribute -> top-level UiPathSpan field mapping.
 
@@ -214,6 +234,23 @@ class TestOTelToUiPathSpan:
 
         assert uipath_span.verbosity_level is None
         assert "VerbosityLevel" not in span_dict
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_string_value_maps_to_top_level(self) -> None:
+        """v3 producers emit verbosityLevel as the StrEnum value "Off" (string).
+
+        The converter must promote it to the top-level VerbosityLevel field so
+        the LLMOps server can apply its verbosity-Off filter. Before the fix the
+        string was dropped, the field omitted, and the server defaulted the span
+        to Information (2) — leaking the AgentDefinition span into the trace.
+        """
+        mock_span = _make_otel_span({"verbosityLevel": "Off"})
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        assert uipath_span.verbosity_level == VerbosityLevel.OFF
+        assert span_dict["VerbosityLevel"] == VerbosityLevel.OFF
 
 
 class TestReferenceIdResolution:

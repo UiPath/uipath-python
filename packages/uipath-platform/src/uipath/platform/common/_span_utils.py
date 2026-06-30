@@ -117,16 +117,30 @@ _SOURCE_BY_INT: dict[int, SpanSource] = {
 _IntEnumT = TypeVar("_IntEnumT")
 
 
-def _enum_from_int(table: dict[int, _IntEnumT], raw: Any) -> Optional[_IntEnumT]:
-    """Map a raw OTEL int attribute to its enum member, or None.
+def _enum_from_raw(table: dict[int, _IntEnumT], raw: Any) -> Optional[_IntEnumT]:
+    """Map a raw OTEL attribute to its StrEnum member, or None.
 
-    Returns None for missing / non-int input — and explicitly for ``bool``,
-    since ``bool`` is an ``int`` subclass (``True == 1``) and would otherwise
-    be coerced to the value-1 member.
+    Accepts both wire forms seen across SDK versions:
+
+    - legacy integer (e.g. ``6``) — looked up in ``table``.
+    - v3 string enum value (e.g. ``"Off"``, the ``StrEnum``'s value) — matched
+      against the table's members. An already-typed ``StrEnum`` member is a
+      ``str`` and is matched here too.
+
+    ``bool`` is rejected up front: it is an ``int`` subclass (``True == 1``) and
+    would otherwise coerce to the value-1 member. Unknown ints/strings return
+    None so callers can apply their own default.
     """
-    if isinstance(raw, bool) or not isinstance(raw, int):
+    if isinstance(raw, bool):
         return None
-    return table.get(raw)
+    if isinstance(raw, int):
+        return table.get(raw)
+    if isinstance(raw, str):
+        for member in table.values():
+            if member == raw:
+                return member
+        return None
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -441,16 +455,17 @@ class _SpanUtils:
         span_type_value = attributes_dict.get("span_type", "OpenTelemetry")
         span_type = str(span_type_value)
 
-        # Top-level fields for internal tracing schema. The int->enum lookups go
-        # through _enum_from_int so they all ignore bools/non-ints identically.
-        execution_type = _enum_from_int(
+        # Top-level fields for internal tracing schema. The enum lookups go
+        # through _enum_from_raw, which accepts both the legacy integer wire form
+        # and the v3 string-enum value (and rejects bools) identically.
+        execution_type = _enum_from_raw(
             _EXECUTION_TYPE_BY_INT, attributes_dict.get("executionType")
         )
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("agentId") or attributes_dict.get(
             "referenceId"
         )
-        verbosity_level = _enum_from_int(
+        verbosity_level = _enum_from_raw(
             _VERBOSITY_LEVEL_BY_INT, attributes_dict.get("verbosityLevel")
         )
 
@@ -458,7 +473,7 @@ class _SpanUtils:
         # A real int that isn't a known source is relabeled CodedAgents but
         # logged — v3 ingest rejects raw integers, so it can't be forwarded.
         uipath_source_raw = attributes_dict.get("uipath.source")
-        source = _enum_from_int(_SOURCE_BY_INT, uipath_source_raw)
+        source = _enum_from_raw(_SOURCE_BY_INT, uipath_source_raw)
         if source is None:
             if isinstance(uipath_source_raw, int) and not isinstance(
                 uipath_source_raw, bool
