@@ -7,6 +7,7 @@ import click
 import httpx
 
 from .._utils._ssl_context import get_httpx_client_kwargs
+from ..platform.common.constants import PYTHON_CONFIGURATION_FILE
 from ._telemetry import track_command
 from ._utils._common import get_env_vars
 from ._utils._console import ConsoleLogger
@@ -20,7 +21,7 @@ console = ConsoleLogger()
 
 def _read_project_details() -> tuple[str, str]:
     current_path = os.getcwd()
-    toml_path = os.path.join(current_path, "pyproject.toml")
+    toml_path = os.path.join(current_path, PYTHON_CONFIGURATION_FILE)
     if not os.path.isfile(toml_path):
         console.error("pyproject.toml not found.")
 

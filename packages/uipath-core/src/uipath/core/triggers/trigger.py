@@ -6,6 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Reserved key for UiPath-owned metadata embedded in user-visible payloads.
+UIPATH_METADATA_KEY = "__uipath"
+
 
 class UiPathResumeTriggerType(str, Enum):
     """Constants representing different types of resume job triggers in the system."""

@@ -35,8 +35,6 @@ COMPARATOR_MAPPINGS = {
     "!=": "ne",
 }
 
-COMMUNITY_agents_SUFFIX = "-community-agents"
-
 
 def _unsynthesized_tool_attrs(span: ReadableSpan) -> Mapping[str, Any] | None:
     """Return span.attributes if this is a real tool invocation, else None."""

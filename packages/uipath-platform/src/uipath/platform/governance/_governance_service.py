@@ -1,12 +1,19 @@
 """Service for the ``agenticgovernance_`` ingress.
 
-Wraps the two governance backend endpoints UiPath exposes:
+Wraps the governance backend endpoints UiPath exposes:
 
 - ``GET  /{org}/agenticgovernance_/api/v1/runtime/policy``  — fetch the
   tenant-managed policy pack (see :meth:`GovernanceService.retrieve_policy`).
 - ``POST /{org}/agenticgovernance_/api/v1/runtime/govern``  — compensating
   governance call fired when a ``guardrail_fallback`` rule matches
   (see :meth:`GovernanceService.compensate`).
+
+A third backend endpoint —
+``POST /{org}/agenticgovernance_/api/v1/runtime/log`` — emits custom
+telemetry events to App Insights. It's reached only through the
+internal ``_track_event`` helper, which the runtime adapter
+(:class:`UiPathPlatformGovernanceProvider`) calls; not part of the
+client-facing service surface.
 
 Org/tenant scoping is read from :class:`UiPathConfig`; auth, retries,
 trace context, and error enrichment come from :class:`BaseService`.
@@ -35,7 +42,13 @@ from ..common.constants import HEADER_INTERNAL_TENANT_ID
 GOVERNANCE_SERVICE_PREFIX = "agenticgovernance_"
 POLICY_API_PATH = "api/v1/runtime/policy"
 GOVERN_API_PATH = "api/v1/runtime/govern"
+LOG_API_PATH = "api/v1/runtime/log"
 AGENT_TYPE_PARAM = "agentType"
+
+# Caller-set correlation id that becomes the App Insights ``operation_Id``
+# stamped on every customEvent produced by the matching ``/runtime/log``
+# request — see the spec on the platform-side ``postLogHandler``.
+HEADER_OPERATION_ID = "x-uipath-operation-id"
 
 
 class GovernanceService(BaseService):
@@ -305,6 +318,92 @@ class GovernanceService(BaseService):
         if not resolved:
             return request
         return request.model_copy(update={"trace_id": resolved})
+
+    # ── Custom telemetry events (internal runtime seam) ──────────────
+    #
+    # ``_track_event`` / ``_track_event_async`` are intentionally
+    # underscore-prefixed: they exist for the runtime adapter
+    # (:class:`UiPathPlatformGovernanceProvider`) to fire telemetry
+    # events through the platform's HTTP stack, not as a client-facing
+    # SDK call. Keeping them off the public surface keeps the auto-
+    # generated docs (``mkdocs`` + ``mkdocstrings``) focused on the
+    # endpoints customers consume directly (``retrieve_policy`` /
+    # ``compensate``).
+
+    def _track_event(
+        self,
+        *,
+        event_name: str,
+        data: dict[str, Any] | None = None,
+        operation_id: str | None = None,
+    ) -> None:
+        """POST a custom telemetry event to ``/runtime/log``.
+
+        Internal seam — the runtime adapter
+        (:class:`UiPathPlatformGovernanceProvider`) calls this to emit
+        governance audit events through the platform's HTTP stack.
+        The server forwards the event to App Insights as a
+        ``customEvents`` row; account / tenant / organization are
+        stamped server-side from the gateway headers and JWT.
+
+        Args:
+            event_name: Non-empty event name — becomes the App Insights
+                row ``name``. The platform redactor runs over this before
+                it reaches the sink.
+            data: Optional properties flattened into the event. Non-dict
+                values are dropped server-side.
+            operation_id: Optional correlation id forwarded as the
+                ``x-uipath-operation-id`` header. When omitted, falls
+                back to :func:`resolve_trace_id` so events emitted from
+                the same agent trace share an ``operation_Id`` and are
+                queryable together in KQL. When neither is available,
+                the header is omitted and App Insights generates its
+                own id per event.
+
+        Raises:
+            ValueError: If ``event_name`` is empty / whitespace-only, or
+                if ``UiPathConfig.organization_id`` /
+                ``UiPathConfig.tenant_id`` is not set.
+            EnrichedException: If the backend returns a non-2xx response.
+        """
+        self._validate_event_name(event_name)
+        url, headers = self._build_org_scoped_request(LOG_API_PATH)
+        resolved_op_id = operation_id or resolve_trace_id()
+        if resolved_op_id:
+            headers[HEADER_OPERATION_ID] = resolved_op_id
+        payload: dict[str, Any] = {"eventName": event_name}
+        if data is not None:
+            payload["data"] = data
+        self.request("POST", url=url, headers=headers, json=payload)
+
+    async def _track_event_async(
+        self,
+        *,
+        event_name: str,
+        data: dict[str, Any] | None = None,
+        operation_id: str | None = None,
+    ) -> None:
+        """Async variant of :meth:`_track_event`. Internal seam."""
+        self._validate_event_name(event_name)
+        url, headers = self._build_org_scoped_request(LOG_API_PATH)
+        resolved_op_id = operation_id or resolve_trace_id()
+        if resolved_op_id:
+            headers[HEADER_OPERATION_ID] = resolved_op_id
+        payload: dict[str, Any] = {"eventName": event_name}
+        if data is not None:
+            payload["data"] = data
+        await self.request_async("POST", url=url, headers=headers, json=payload)
+
+    @staticmethod
+    def _validate_event_name(event_name: str) -> None:
+        """Reject empty/whitespace-only event names client-side.
+
+        The platform's ``/runtime/log`` handler rejects these with a
+        4xx; failing fast here gives the caller a clearer error and
+        avoids the round trip.
+        """
+        if not event_name or not event_name.strip():
+            raise ValueError("event_name must be a non-empty string.")
 
     # ── Internals ────────────────────────────────────────────────────
 

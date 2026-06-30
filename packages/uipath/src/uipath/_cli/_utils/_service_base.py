@@ -19,6 +19,7 @@ from typing import Any, Callable
 import click
 from httpx import HTTPError
 
+from ...platform.common.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
 from ...platform.errors import (
     BaseUrlMissingError,
     EnrichedException,
@@ -321,8 +322,8 @@ class ServiceCommandBase:
         if cli_ctx._client is None:
             from ...platform._uipath import UiPath
 
-            base_url = os.environ.get("UIPATH_URL")
-            secret = os.environ.get("UIPATH_ACCESS_TOKEN")
+            base_url = os.environ.get(ENV_BASE_URL)
+            secret = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
 
             if not base_url:
                 raise click.ClickException(

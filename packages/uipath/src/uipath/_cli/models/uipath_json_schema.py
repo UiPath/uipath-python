@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ...platform.common.constants import UIPATH_CONFIG_FILE
+
 
 class BaseModelWithDefaultConfig(BaseModel):
     model_config = ConfigDict(
@@ -126,7 +128,7 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
         )
 
     @classmethod
-    def load_from_file(cls, file_path: str = "uipath.json") -> "UiPathJsonConfig":
+    def load_from_file(cls, file_path: str = UIPATH_CONFIG_FILE) -> "UiPathJsonConfig":
         """Load configuration from a JSON file."""
         import json
         from pathlib import Path

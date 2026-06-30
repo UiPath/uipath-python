@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
 from uipath.platform.common import UiPathConfig
+from uipath.platform.common.constants import (
+    LEGACY_EVAL_FOLDER,
+    PYTHON_CONFIGURATION_FILE,
+    UIPATH_CONFIG_FILE,
+)
 
 from .._utils._console import ConsoleLogger
 from ._constants import is_binary_file
@@ -118,8 +123,8 @@ def get_project_config(directory: str) -> dict[str, Any]:
     Raises:
         SystemExit: If required configuration files are missing or invalid
     """
-    config_path = os.path.join(directory, "uipath.json")
-    toml_path = os.path.join(directory, "pyproject.toml")
+    config_path = os.path.join(directory, UIPATH_CONFIG_FILE)
+    toml_path = os.path.join(directory, PYTHON_CONFIGURATION_FILE)
 
     if not os.path.isfile(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
@@ -228,7 +233,7 @@ def ensure_config_file(directory: str) -> None:
     Raises:
         SystemExit: If uipath.json is not found in the directory
     """
-    if not os.path.isfile(os.path.join(directory, "uipath.json")):
+    if not os.path.isfile(os.path.join(directory, UIPATH_CONFIG_FILE)):
         console.error(
             "uipath.json not found. Please run `uipath init` in the project directory."
         )
@@ -418,7 +423,7 @@ def files_to_include(
         tuple[list[FileInfo], list[str]]: Tuple of (included files, skipped file paths)
     """
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
-    files_included = ["pyproject.toml"]
+    files_included = [PYTHON_CONFIGURATION_FILE]
     files_excluded = []
 
     if directories_to_ignore is None:
@@ -458,7 +463,7 @@ def files_to_include(
         # Determine if we're in the root evals folder
         root_rel_path = os.path.relpath(root, directory)
         normalized_root_rel_path = root_rel_path.replace(os.sep, "/")
-        is_root_evals_folder = normalized_root_rel_path == "evals"
+        is_root_evals_folder = normalized_root_rel_path == LEGACY_EVAL_FOLDER
 
         # Skip all directories that start with . or are a venv or are excluded
         included_dirs = []
