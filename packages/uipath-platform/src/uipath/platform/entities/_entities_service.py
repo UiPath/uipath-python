@@ -26,6 +26,7 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
+from ._entity_ontology_service import EntityOntologyService
 from ._entity_resolution import (
     build_resolution_service,
     create_resolution_plan,
@@ -103,6 +104,11 @@ class EntitiesService(BaseService):
             execution_context=execution_context,
             folders_service=folders_service,
             routing_strategy=self._routing_strategy,
+        )
+        self._ontology = EntityOntologyService(
+            config=config,
+            execution_context=execution_context,
+            folders_service=folders_service,
         )
 
     # ------------------------------------------------------------------
@@ -1099,6 +1105,29 @@ class EntitiesService(BaseService):
                 await entities_service.delete_record_async("Customers", "rec-1")
         """
         await self._data.delete_record_async(entity_key, record_id)
+
+    async def get_ontology_file_async(
+        self,
+        ontology_name: str,
+        file_type: str = "owl",
+        folder_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fetch one file of an ontology from Data Fabric.
+
+        !!! warning "Preview Feature"
+            This method is currently experimental. Behavior and parameters are
+            subject to change in future versions.
+
+        Args:
+            ontology_name (str): Name of the ontology.
+            file_type (str): The ontology file to fetch — one of owl, r2rml,
+                shacl, summary, context.
+            folder_key (Optional[str]): Key of the folder the ontology lives in.
+
+        Returns:
+            Dict[str, Any]: The file record (e.g. ``content``, ``mediaType``).
+        """
+        return await self._ontology.get_file_async(ontology_name, file_type, folder_key)
 
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
