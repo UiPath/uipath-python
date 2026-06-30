@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from .._helpers.helpers import track_evaluation_metrics
-from ..models import AgentExecution, EvaluationResult
+from ..models import EvaluationResult, WorkloadExecution
 from ..models.models import (
     EvaluationResultDto,
     UiPathEvaluationError,
@@ -575,19 +575,19 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
 
     @abstractmethod
     async def validate_and_evaluate_criteria(
-        self, agent_execution: AgentExecution, evaluation_criteria: Any
+        self, workload_execution: WorkloadExecution, evaluation_criteria: Any
     ) -> EvaluationResult:
         """Evaluate the given data and return a result from a raw evaluation criteria."""
         pass
 
     @abstractmethod
     async def evaluate(
-        self, agent_execution: AgentExecution, evaluation_criteria: T
+        self, workload_execution: WorkloadExecution, evaluation_criteria: T
     ) -> EvaluationResult:
         """Evaluate the given data and return a result.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - agent_output: The actual output from the agent
                 - agent_trace: The execution trace from the agent
@@ -626,7 +626,7 @@ class BaseEvaluator(GenericBaseEvaluator[T, C, J]):
             self.description = self.evaluator_config.description
 
     async def validate_and_evaluate_criteria(
-        self, agent_execution: AgentExecution, evaluation_criteria: Any
+        self, workload_execution: WorkloadExecution, evaluation_criteria: Any
     ) -> EvaluationResult:
         """Evaluate the given data and return a result from a raw evaluation criteria."""
         if evaluation_criteria is None:
@@ -639,4 +639,4 @@ class BaseEvaluator(GenericBaseEvaluator[T, C, J]):
                 category=UiPathEvaluationErrorCategory.SYSTEM,
             )
         criteria = self.validate_evaluation_criteria(evaluation_criteria)
-        return await self.evaluate(agent_execution, criteria)
+        return await self.evaluate(workload_execution, criteria)

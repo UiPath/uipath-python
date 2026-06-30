@@ -44,10 +44,10 @@ The Contains Evaluator checks whether the agent's output contains a specific sea
 
 ```python
 from uipath.eval.evaluators import ContainsEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # Sample agent execution
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"query": "What is the capital of France?"},
     agent_output={"response": "The capital of France is Paris."},
     agent_trace=[],
@@ -65,7 +65,7 @@ evaluator = ContainsEvaluator(
 
 # Evaluate - searches in the "response" field value
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"search_text": "Paris"}
 )
 
@@ -76,7 +76,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 
 ```python
 # Sample agent execution
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"message": "Hello World"},
     agent_trace=[],
@@ -93,7 +93,7 @@ evaluator = ContainsEvaluator(
 
 # This will fail because of case mismatch
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"search_text": "hello"}
 )
 
@@ -106,7 +106,7 @@ Use negation to ensure specific text is NOT present:
 
 ```python
 # Sample agent execution
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"status": "Success: Operation completed"},
     agent_trace=[],
@@ -123,7 +123,7 @@ evaluator = ContainsEvaluator(
 
 # Passes because "error" is NOT found
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"search_text": "error"}
 )
 
@@ -134,7 +134,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 
 ```python
 # Sample agent execution
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={
         "status": "success",
@@ -153,7 +153,7 @@ evaluator = ContainsEvaluator(
 
 # Only searches within the "message" field
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"search_text": "updated"}
 )
 

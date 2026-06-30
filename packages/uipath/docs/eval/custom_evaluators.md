@@ -94,7 +94,7 @@ Implement the core evaluation logic:
 ```python
 from uipath.eval.evaluators import BaseEvaluator
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
-from uipath.eval.models import AgentExecution, NumericEvaluationResult
+from uipath.eval.models import WorkloadExecution, NumericEvaluationResult
 
 class MyCustomEvaluator(
     BaseEvaluator[MyEvaluationCriteria, MyEvaluatorConfig, BaseEvaluatorJustification]
@@ -107,13 +107,13 @@ class MyCustomEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: MyEvaluationCriteria
     ) -> NumericEvaluationResult:
         """Evaluate the agent execution against criteria.
 
         Args:
-            agent_execution: The agent execution containing:
+            workload_execution: The agent execution containing:
                 - agent_input: Input received by the agent
                 - agent_output: Output produced by the agent
                 - agent_trace: OpenTelemetry spans with execution trace
@@ -124,7 +124,7 @@ class MyCustomEvaluator(
             EvaluationResult with score and details
         """
         # Extract data from agent execution
-        actual_values = self._extract_values(agent_execution)
+        actual_values = self._extract_values(workload_execution)
         expected_values = evaluation_criteria.expected_values
 
         # Apply case sensitivity from config
@@ -146,7 +146,7 @@ class MyCustomEvaluator(
             }),
         )
 
-    def _extract_values(self, agent_execution: AgentExecution) -> list[str]:
+    def _extract_values(self, workload_execution: WorkloadExecution) -> list[str]:
         """Extract values from agent execution (implement your logic)."""
         # Your custom extraction logic here
         return []
@@ -244,9 +244,9 @@ Custom evaluators often need to extract information from tool calls in the agent
 ```python
 from uipath.eval._helpers.evaluators_helpers import extract_tool_calls
 
-def _process_tool_calls(self, agent_execution: AgentExecution) -> list[str]:
+def _process_tool_calls(self, workload_execution: WorkloadExecution) -> list[str]:
     """Extract and process tool calls from the execution trace."""
-    tool_calls = extract_tool_calls(agent_execution.agent_trace)
+    tool_calls = extract_tool_calls(workload_execution.agent_trace)
 
     results = []
     for tool_call in tool_calls:
@@ -290,7 +290,7 @@ from uipath.eval.evaluators.base_evaluator import (
     BaseEvaluatorJustification,
 )
 from uipath.eval.models import EvaluationResult, NumericEvaluationResult
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 from uipath.eval._helpers.evaluators_helpers import extract_tool_calls
 
 
@@ -335,13 +335,13 @@ class PatternComparisonEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: PatternEvaluatorCriteria
     ) -> EvaluationResult:
         """Evaluate the pattern comparison.
 
         Args:
-            agent_execution: The agent execution containing trace data
+            workload_execution: The agent execution containing trace data
             evaluation_criteria: Expected output patterns
 
         Returns:
@@ -350,7 +350,7 @@ class PatternComparisonEvaluator(
         expected_output = evaluation_criteria.expected_output
 
         # Extract actual output from tool calls
-        actual_output = self._extract_patterns(agent_execution)
+        actual_output = self._extract_patterns(workload_execution)
 
         # Compute score using intersection over union
         score = _compute_jaccard_similarity(expected_output, actual_output)
@@ -363,17 +363,17 @@ class PatternComparisonEvaluator(
             }),
         )
 
-    def _extract_patterns(self, agent_execution: AgentExecution) -> list[str]:
+    def _extract_patterns(self, workload_execution: WorkloadExecution) -> list[str]:
         """Extract patterns from tool calls.
 
         Args:
-            agent_execution: The agent execution containing trace data
+            workload_execution: The agent execution containing trace data
 
         Returns:
             List of pattern strings found
         """
         # Extract tool calls with arguments using the helper function
-        tool_calls = extract_tool_calls(agent_execution.agent_trace)
+        tool_calls = extract_tool_calls(workload_execution.agent_trace)
 
         for tool_call in tool_calls:
             if tool_call.name == "DataProcessingTool":
@@ -408,13 +408,13 @@ Always include complete type annotations and Google-style docstrings:
 ```python
 def _extract_data(
     self,
-    agent_execution: AgentExecution,
+    workload_execution: WorkloadExecution,
     tool_name: str
 ) -> list[str]:
     """Extract data from specific tool calls.
 
     Args:
-        agent_execution: The agent execution to process
+        workload_execution: The agent execution to process
         tool_name: The name of the tool to extract data from
 
     Returns:
@@ -435,13 +435,13 @@ from uipath.eval.models import ErrorEvaluationResult
 
 async def evaluate(
     self,
-    agent_execution: AgentExecution,
+    workload_execution: WorkloadExecution,
     evaluation_criteria: MyCriteria
 ) -> EvaluationResult:
     """Evaluate with error handling."""
     try:
         # Your evaluation logic
-        score = self._compute_score(agent_execution)
+        score = self._compute_score(workload_execution)
         return NumericEvaluationResult(score=score)
     except Exception as e:
         return ErrorEvaluationResult(
@@ -456,12 +456,12 @@ Extract common logic into reusable helper methods:
 ```python
 def _extract_from_tool(
     self,
-    agent_execution: AgentExecution,
+    workload_execution: WorkloadExecution,
     tool_name: str,
     parameter_name: str
 ) -> str:
     """Reusable method to extract parameter from tool calls."""
-    tool_calls = extract_tool_calls(agent_execution.agent_trace)
+    tool_calls = extract_tool_calls(workload_execution.agent_trace)
     for tool_call in tool_calls:
         if tool_call.name == tool_name:
             args = tool_call.args or {}
@@ -571,13 +571,13 @@ Test your evaluators locally before registration:
 
 ```python
 import pytest
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 @pytest.mark.asyncio
 async def test_custom_evaluator() -> None:
     """Test custom evaluator logic."""
     # Create test data
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"query": "test"},
         agent_output={"result": "test output"},
         agent_trace=[],
@@ -595,7 +595,7 @@ async def test_custom_evaluator() -> None:
 
     # Evaluate with criteria
     criteria = MyEvaluationCriteria(expected_values=["value1"])
-    result = await evaluator.evaluate(agent_execution, criteria)
+    result = await evaluator.evaluate(workload_execution, criteria)
 
     # Assert
     assert result.score >= 0.0
@@ -608,10 +608,10 @@ async def test_custom_evaluator() -> None:
 
 ```python
 def _extract_from_specific_tool(
-    self, agent_execution: AgentExecution
+    self, workload_execution: WorkloadExecution
 ) -> str:
     """Extract data from a specific tool call."""
-    tool_calls = extract_tool_calls(agent_execution.agent_trace)
+    tool_calls = extract_tool_calls(workload_execution.agent_trace)
 
     for tool_call in tool_calls:
         if tool_call.name == "TargetTool":
@@ -643,12 +643,12 @@ def _compute_set_similarity(
 ```python
 async def evaluate(
     self,
-    agent_execution: AgentExecution,
+    workload_execution: WorkloadExecution,
     evaluation_criteria: MyCriteria
 ) -> EvaluationResult:
     """Multi-step validation using config settings."""
     # Step 1: Validate structure (use strict mode from config)
-    if not self._validate_structure(agent_execution, self.evaluator_config.strict):
+    if not self._validate_structure(workload_execution, self.evaluator_config.strict):
         return NumericEvaluationResult(
             score=0.0,
             details=self.validate_justification({
@@ -658,7 +658,7 @@ async def evaluate(
         )
 
     # Step 2: Extract data
-    data = self._extract_data(agent_execution)
+    data = self._extract_data(workload_execution)
 
     # Step 3: Compare and score
     score = self._compare_data(data, evaluation_criteria.expected_data)

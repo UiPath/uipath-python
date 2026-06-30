@@ -13,9 +13,9 @@ from uipath.eval.evaluators import LegacyExactMatchEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.evaluators.output_evaluator import LineByLineEvaluationDetails
 from uipath.eval.models.models import (
-    AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 
 
@@ -55,14 +55,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_same_strings(self, evaluator) -> None:
         """Test exact match with identical string outputs."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="Hello World",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="Hello World",
                 expected_agent_behavior="",
@@ -75,14 +75,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_different_strings(self, evaluator) -> None:
         """Test exact match with different string outputs."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="Hello World",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="Goodbye World",
                 expected_agent_behavior="",
@@ -95,14 +95,14 @@ class TestLegacyExactMatchEvaluator:
     async def test_exact_match_identical_dicts(self, evaluator) -> None:
         """Test exact match with identical dictionaries."""
         output = {"name": "John", "age": 30}
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output=output,
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=output,
                 expected_agent_behavior="",
@@ -114,14 +114,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_different_dicts(self, evaluator) -> None:
         """Test exact match with different dictionaries."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"name": "John", "age": 30},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"name": "Jane", "age": 25},
                 expected_agent_behavior="",
@@ -133,14 +133,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_dict_key_order_doesnt_matter(self, evaluator) -> None:
         """Test that canonical JSON normalization handles key order."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"a": 1, "b": 2},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"b": 2, "a": 1},
                 expected_agent_behavior="",
@@ -154,14 +154,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator
     ) -> None:
         """Test that integers are normalized to floats for comparison."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"value": 42},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"value": 42.0},
                 expected_agent_behavior="",
@@ -173,14 +173,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_number_normalization_in_list(self, evaluator) -> None:
         """Test number normalization in lists."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"values": [1, 2, 3]},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"values": [1.0, 2.0, 3.0]},
                 expected_agent_behavior="",
@@ -192,14 +192,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_booleans_preserved(self, evaluator) -> None:
         """Test that booleans are not converted to numbers."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"active": True, "deleted": False},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"active": True, "deleted": False},
                 expected_agent_behavior="",
@@ -220,14 +220,14 @@ class TestLegacyExactMatchEvaluator:
             "metadata": {"version": 1.0},
         }
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output=output,
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=output,
                 expected_agent_behavior="",
@@ -241,14 +241,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator_with_target_key
     ) -> None:
         """Test target_output_key extraction when both outputs have the key."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"result": {"status": "success"}, "other": "ignore"},
         )
 
         result = await evaluator_with_target_key.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"result": {"status": "success"}, "other": "different"},
                 expected_agent_behavior="",
@@ -263,14 +263,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator_with_target_key
     ) -> None:
         """Test target_output_key when key is missing in both outputs."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"other": "data"},
         )
 
         result = await evaluator_with_target_key.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"other": "different"},
                 expected_agent_behavior="",
@@ -285,14 +285,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator_with_target_key
     ) -> None:
         """Test target_output_key when key is missing in actual output."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"other": "data"},
         )
 
         result = await evaluator_with_target_key.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"result": {"status": "success"}},
                 expected_agent_behavior="",
@@ -307,14 +307,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator_with_target_key
     ) -> None:
         """Test target_output_key when key is missing in expected output."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"result": {"status": "success"}},
         )
 
         result = await evaluator_with_target_key.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"other": "data"},
                 expected_agent_behavior="",
@@ -327,14 +327,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_with_wildcard_target_key(self, evaluator) -> None:
         """Test that wildcard target_output_key compares full outputs."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"data": "value", "extra": "field"},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"data": "value", "extra": "field"},
                 expected_agent_behavior="",
@@ -348,14 +348,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator_with_target_key
     ) -> None:
         """Test target_output_key with non-dict inputs (should compare as-is)."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="string_value",
         )
 
         result = await evaluator_with_target_key.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="other_string",
                 expected_agent_behavior="",
@@ -367,14 +367,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_null_values(self, evaluator) -> None:
         """Test exact match with None values."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"value": None},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"value": None},
                 expected_agent_behavior="",
@@ -386,14 +386,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_empty_dict(self, evaluator) -> None:
         """Test exact match with empty dictionaries."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={},
                 expected_agent_behavior="",
@@ -405,14 +405,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_empty_string(self, evaluator) -> None:
         """Test exact match with empty strings."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="",
                 expected_agent_behavior="",
@@ -425,14 +425,14 @@ class TestLegacyExactMatchEvaluator:
     async def test_exact_match_unicode_characters(self, evaluator) -> None:
         """Test exact match with unicode characters."""
         output = {"greeting": "你好世界", "emoji": "🎉"}
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output=output,
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=output,
                 expected_agent_behavior="",
@@ -444,14 +444,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_whitespace_matters(self, evaluator) -> None:
         """Test that whitespace differences are detected."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="Hello World",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="Hello  World",
                 expected_agent_behavior="",
@@ -463,14 +463,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_case_sensitivity(self, evaluator) -> None:
         """Test that string comparison is case sensitive."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="Hello",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="hello",
                 expected_agent_behavior="",
@@ -482,14 +482,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_large_numbers(self, evaluator) -> None:
         """Test exact match with large numbers."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"value": 999999999999999},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"value": 999999999999999.0},
                 expected_agent_behavior="",
@@ -501,14 +501,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_floating_point_precision(self, evaluator) -> None:
         """Test exact match with floating point numbers."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"pi": 3.14159},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"pi": 3.14159},
                 expected_agent_behavior="",
@@ -520,14 +520,14 @@ class TestLegacyExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_exact_match_float_vs_int_zero(self, evaluator) -> None:
         """Test that 0 and 0.0 are considered equal."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"value": 0},
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"value": 0.0},
                 expected_agent_behavior="",
@@ -541,14 +541,14 @@ class TestLegacyExactMatchEvaluator:
         self, evaluator_with_target_key
     ) -> None:
         """Test target_output_key with different values in target key."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={"result": {"status": "success"}, "other": "ignore"},
         )
 
         result = await evaluator_with_target_key.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"result": {"status": "failed"}, "other": "ignore"},
                 expected_agent_behavior="",
@@ -561,7 +561,7 @@ class TestLegacyExactMatchEvaluator:
     async def test_canonical_json_normalization(self, evaluator) -> None:
         """Test that canonical JSON normalization works correctly."""
         # Create complex nested structure with mixed types
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output={
@@ -572,7 +572,7 @@ class TestLegacyExactMatchEvaluator:
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={
                     "a_key": [3, 2, 1],
@@ -597,14 +597,14 @@ async def test_line_by_line_all_match():
             lineDelimiter="\n",
         )
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
         agent_output="Line 1\nLine 2\nLine 3",
         agent_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output="Line 1\nLine 2\nLine 3",
             expected_agent_behavior="",
@@ -631,14 +631,14 @@ async def test_line_by_line_partial_match():
             lineDelimiter="\n",
         )
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
         agent_output="Line 1\nDifferent\nLine 3",
         agent_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output="Line 1\nLine 2\nLine 3",
             expected_agent_behavior="",
@@ -669,14 +669,14 @@ async def test_line_by_line_with_target_output_key():
             lineDelimiter="\n",
         )
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
         agent_output={"result": "Line 1\nLine 2\nLine 3"},
         agent_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output={"result": "Line 1\nLine 2\nLine 3"},
             expected_agent_behavior="",
@@ -701,14 +701,14 @@ async def test_line_by_line_custom_delimiter():
             lineDelimiter="|",
         )
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
         agent_output="Item1|Item2|Item3",
         agent_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output="Item1|Item2|Item3",
             expected_agent_behavior="",
@@ -734,14 +734,14 @@ async def test_line_by_line_unequal_line_counts():
             lineDelimiter="\n",
         )
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
         agent_output="Line 1\nLine 2",
         agent_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output="Line 1\nLine 2\nLine 3",
             expected_agent_behavior="",

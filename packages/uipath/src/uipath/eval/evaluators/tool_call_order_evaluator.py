@@ -4,7 +4,7 @@ from .._helpers.evaluators_helpers import (
     extract_tool_calls_names,
     tool_calls_order_score,
 )
-from ..models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from ..models import EvaluationResult, NumericEvaluationResult, WorkloadExecution
 from ..models.models import EvaluatorType
 from .base_evaluator import (
     BaseEvaluationCriteria,
@@ -55,13 +55,13 @@ class ToolCallOrderEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: ToolCallOrderEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate if the tool calls are in the correct order.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - agent_output: The final output of the agent
                 - agent_trace: The execution spans to use for the evaluation
@@ -69,7 +69,7 @@ class ToolCallOrderEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating correct tool call order (True/False)
         """
-        tool_calls_order = extract_tool_calls_names(agent_execution.agent_trace)
+        tool_calls_order = extract_tool_calls_names(workload_execution.agent_trace)
         score, justification = tool_calls_order_score(
             tool_calls_order,
             evaluation_criteria.tool_calls_order,

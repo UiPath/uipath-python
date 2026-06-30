@@ -8,9 +8,9 @@ from uipath.eval.evaluators.base_evaluator import (
     BaseEvaluatorJustification,
 )
 from uipath.eval.models import (
-    AgentExecution,
     EvaluationResult,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 
 
@@ -57,10 +57,10 @@ class CorrectOperatorEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: CorrectOperatorEvaluationCriteria,
     ) -> EvaluationResult:
-        actual_operator = self.extract_operator_from_spans(agent_execution.agent_trace)
+        actual_operator = self.extract_operator_from_spans(workload_execution.agent_trace)
         print(actual_operator)
         is_expected_operator = evaluation_criteria.operator == actual_operator
         if self.evaluator_config.negated:

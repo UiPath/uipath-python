@@ -9,10 +9,10 @@ TP/FP/FN/TN counts and compute precision, recall, or F-score.
 from typing import Literal
 
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from ..models.models import (
     EvaluationResultDto,
@@ -63,11 +63,11 @@ class BinaryClassificationEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: BinaryClassificationEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate binary classification by comparing predicted vs expected class."""
-        predicted_class = str(self._get_actual_output(agent_execution)).lower()
+        predicted_class = str(self._get_actual_output(workload_execution)).lower()
         expected_class = evaluation_criteria.expected_class.lower()
         positive_class = self.evaluator_config.positive_class.lower()
 

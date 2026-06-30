@@ -59,9 +59,9 @@ The final score represents the percentage of matching leaf nodes in the tree str
 
 ```python
 from uipath.eval.evaluators import JsonSimilarityEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"name": "John Doe", "age": 30, "city": "New York"},
     agent_trace=[]
@@ -76,7 +76,7 @@ evaluator = JsonSimilarityEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"name": "John Doe", "age": 30, "city": "New York"}
     }
@@ -90,7 +90,7 @@ print(f"Total: {result.details.total_leaves}")  # 3.0
 ### Numeric Tolerance
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"temperature": 20.5, "humidity": 65},
     agent_trace=[]
@@ -103,7 +103,7 @@ evaluator = JsonSimilarityEvaluator(
 
 # Slightly different numbers
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"temperature": 20.3, "humidity": 65}
     }
@@ -116,7 +116,7 @@ print(f"Score: {result.score}")  # ~0.99 (very high similarity)
 ### String Similarity
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"status": "completed successfully"},
     agent_trace=[]
@@ -129,7 +129,7 @@ evaluator = JsonSimilarityEvaluator(
 
 # Similar but not exact string
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"status": "completed sucessfully"}  # typo
     }
@@ -142,7 +142,7 @@ print(f"Score: {result.score}")  # ~0.95 (high similarity despite typo)
 ### Nested Structures
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={
         "user": {
@@ -163,7 +163,7 @@ evaluator = JsonSimilarityEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {
             "user": {
@@ -184,7 +184,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 ### Array Comparison
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"items": ["apple", "banana", "orange"]},
     agent_trace=[]
@@ -197,7 +197,7 @@ evaluator = JsonSimilarityEvaluator(
 
 # Partial match (2 out of 3 correct)
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"items": ["apple", "banana", "grape"]}
     }
@@ -209,7 +209,7 @@ print(f"Score: {result.score}")  # ~0.67 (2/3 correct)
 ### Handling Extra Keys in Actual Output
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={
         "name": "Bob",
@@ -226,7 +226,7 @@ evaluator = JsonSimilarityEvaluator(
 
 # Only expected keys are evaluated
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {
             "name": "Bob",
@@ -241,7 +241,7 @@ print(f"Score: {result.score}")  # Output: 1.0 (extra fields ignored)
 ### Target Specific Field
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={
         "result": {"score": 95, "passed": True},
@@ -260,7 +260,7 @@ evaluator = JsonSimilarityEvaluator(
 
 # Only compares the "result" field
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"result": {"score": 95, "passed": True}}
     }

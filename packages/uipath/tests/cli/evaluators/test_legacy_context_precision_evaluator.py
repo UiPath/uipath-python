@@ -13,9 +13,9 @@ import pytest
 from uipath.eval.evaluators import LegacyContextPrecisionEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
-    AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 
 
@@ -205,14 +205,14 @@ class TestLegacyContextPrecisionEvaluator:
         evaluator = evaluator_with_mocked_llm
 
         # Create empty agent execution (no spans)
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_trace=[],
             agent_output="",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="",
                 expected_agent_behavior="",

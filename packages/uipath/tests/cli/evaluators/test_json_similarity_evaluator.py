@@ -11,9 +11,9 @@ import pytest
 from uipath.eval.evaluators import LegacyJsonSimilarityEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
-    AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 
 
@@ -65,7 +65,7 @@ class TestJsonSimilarityEvaluator:
             """
 
         result = await evaluator.evaluate(
-            AgentExecution(
+            WorkloadExecution(
                 agent_input={},
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
@@ -101,7 +101,7 @@ class TestJsonSimilarityEvaluator:
         """
 
         result = await evaluator.evaluate(
-            AgentExecution(
+            WorkloadExecution(
                 agent_input={},
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
@@ -135,7 +135,7 @@ class TestJsonSimilarityEvaluator:
         """
 
         result = await evaluator.evaluate(
-            AgentExecution(
+            WorkloadExecution(
                 agent_input={},
                 agent_trace=[],
                 agent_output=json.loads(actual_json),
@@ -229,7 +229,7 @@ class TestJsonSimilarityEvaluator:
         """
 
         result = await evaluator.evaluate(
-            AgentExecution(
+            WorkloadExecution(
                 agent_input={},
                 agent_trace=[],
                 agent_output=json.loads(actual_json),

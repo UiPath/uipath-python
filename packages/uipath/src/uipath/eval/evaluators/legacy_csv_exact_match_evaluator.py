@@ -12,7 +12,7 @@ from uipath.eval.models import (
     EvaluationResult,
 )
 
-from ..models.models import AgentExecution
+from ..models.models import WorkloadExecution
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
 from .line_by_line_utils import wrap_line_in_structure
@@ -59,13 +59,13 @@ class LegacyCSVExactMatchEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate whether specific CSV columns exactly match between actual and expected.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - agent_output: The actual output from the agent (can be CSV string or job attachment)
                 - spans: The execution spans to use for the evaluation
@@ -78,7 +78,7 @@ class LegacyCSVExactMatchEvaluator(
             ValueError: If CSV format is invalid or required columns are missing
         """
         # Get actual output (handles job attachments and target_output_key extraction)
-        actual_output = self._get_actual_output(agent_execution)
+        actual_output = self._get_actual_output(workload_execution)
 
         # Get expected output from criteria
         expected_output = evaluation_criteria.expected_output
@@ -241,7 +241,7 @@ class LegacyCSVExactMatchEvaluator(
 
     async def _evaluate_line_by_line(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Override line-by-line evaluation to handle CSV structure properly.
@@ -255,7 +255,7 @@ class LegacyCSVExactMatchEvaluator(
         5. Aggregates results
 
         Args:
-            agent_execution: The execution details
+            workload_execution: The execution details
             evaluation_criteria: The evaluation criteria
 
         Returns:
@@ -271,7 +271,7 @@ class LegacyCSVExactMatchEvaluator(
         )
 
         # Get actual output (this handles job attachments automatically)
-        actual_output = self._get_actual_output(agent_execution)
+        actual_output = self._get_actual_output(workload_execution)
 
         # Get expected output from criteria
         expected_output = evaluation_criteria.expected_output
@@ -331,17 +331,17 @@ class LegacyCSVExactMatchEvaluator(
                 expected_mini_csv = expected_header  # Just header, will fail validation
 
             # Create a modified agent execution for this line
-            line_agent_execution = AgentExecution(
-                agent_input=agent_execution.agent_input,
+            line_agent_execution = WorkloadExecution(
+                agent_input=workload_execution.agent_input,
                 agent_output=wrap_line_in_structure(
                     actual_mini_csv, self.target_output_key
                 ),
-                agent_trace=agent_execution.agent_trace,
+                agent_trace=workload_execution.agent_trace,
                 expected_agent_behavior=getattr(
-                    agent_execution, "expected_agent_behavior", None
+                    workload_execution, "expected_agent_behavior", None
                 ),
                 simulation_instructions=getattr(
-                    agent_execution, "simulation_instructions", ""
+                    workload_execution, "simulation_instructions", ""
                 ),
             )
 

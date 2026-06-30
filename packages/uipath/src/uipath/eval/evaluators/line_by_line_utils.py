@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
-    from ..models import AgentExecution, EvaluationResult
+    from ..models import EvaluationResult, WorkloadExecution
 
 
 def split_into_lines(
@@ -79,7 +79,7 @@ async def evaluate_lines(
     actual_lines: list[str],
     expected_lines: list[str],
     target_output_key: str,
-    agent_execution: "AgentExecution",
+    workload_execution: "WorkloadExecution",
     evaluate_fn: Callable[[Any, Any], Any],
     create_line_criteria_fn: Callable[[str], Any],
 ) -> tuple[list[Any], list[tuple[int, "EvaluationResult"]]]:
@@ -89,7 +89,7 @@ async def evaluate_lines(
         actual_lines: List of actual output lines
         expected_lines: List of expected output lines
         target_output_key: Key for wrapping lines
-        agent_execution: Original agent execution
+        workload_execution: Original agent execution
         evaluate_fn: Function to evaluate (line_execution, line_criteria) -> result
         create_line_criteria_fn: Function to create criteria for a line (expected_line) -> criteria
 
@@ -111,17 +111,17 @@ async def evaluate_lines(
         line_agent_output = wrap_line_in_structure(actual_line, target_output_key)
 
         # Create a modified agent execution for this line
-        from ..models.models import AgentExecution
+        from ..models.models import WorkloadExecution
 
-        line_agent_execution = AgentExecution(
-            agent_input=agent_execution.agent_input,
+        line_agent_execution = WorkloadExecution(
+            agent_input=workload_execution.agent_input,
             agent_output=line_agent_output,
-            agent_trace=agent_execution.agent_trace,
+            agent_trace=workload_execution.agent_trace,
             expected_agent_behavior=getattr(
-                agent_execution, "expected_agent_behavior", None
+                workload_execution, "expected_agent_behavior", None
             ),
             simulation_instructions=getattr(
-                agent_execution, "simulation_instructions", ""
+                workload_execution, "simulation_instructions", ""
             ),
         )
 

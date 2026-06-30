@@ -19,9 +19,9 @@ from uipath.eval.evaluators.output_evaluator import (
     OutputEvaluatorConfig,
 )
 from uipath.eval.models import (
-    AgentExecution,
     EvaluationResult,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from uipath.eval.models.models import (
     EvaluationResultDto,
@@ -80,10 +80,10 @@ class BalancedAccuracyEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: BalancedAccuracyEvaluationCriteria,
     ) -> EvaluationResult:
-        predicted_class = str(self._get_actual_output(agent_execution)).lower()
+        predicted_class = str(self._get_actual_output(workload_execution)).lower()
         expected_class = evaluation_criteria.expected_class.lower()
         classes = [c.lower() for c in self.evaluator_config.classes]
         class_counts = {

@@ -64,7 +64,7 @@ For each expected tool output:
 ```python
 from opentelemetry.sdk.trace import ReadableSpan
 from uipath.eval.evaluators import ToolCallOutputEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # Sample agent execution with tool calls and outputs
 mock_spans = [
@@ -79,7 +79,7 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"user_id": 123},
     agent_output={"status": "completed"},
     agent_trace=mock_spans,
@@ -94,7 +94,7 @@ evaluator = ToolCallOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_outputs": [
             {
@@ -126,7 +126,7 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"items": ["item1", "item2"]},
     agent_output={"status": "calculated"},
     agent_trace=mock_spans,
@@ -142,7 +142,7 @@ evaluator = ToolCallOutputEvaluator(
 
 # Outputs must match exactly
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_outputs": [
             {
@@ -162,7 +162,7 @@ print(f"Score: {result.score}")  # 1.0
 ```python
 from opentelemetry.sdk.trace import ReadableSpan
 from uipath.eval.evaluators import ToolCallOutputEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # Agent produced 3 outputs, but only 2 match expected
 mock_spans = [
@@ -195,7 +195,7 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Process data pipeline"},
     agent_output={"status": "completed"},
     agent_trace=mock_spans,
@@ -210,7 +210,7 @@ evaluator = ToolCallOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_outputs": [
             {
@@ -269,7 +269,7 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Process data pipeline"},
     agent_output={"status": "completed"},
     agent_trace=mock_spans,
@@ -284,7 +284,7 @@ evaluator = ToolCallOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_outputs": [
             {
@@ -323,7 +323,7 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Generate report"},
     agent_output={"status": "generated"},
     agent_trace=mock_spans,
@@ -338,7 +338,7 @@ evaluator = ToolCallOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_outputs": [
             {

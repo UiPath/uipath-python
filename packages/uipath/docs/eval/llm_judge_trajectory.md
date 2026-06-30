@@ -111,9 +111,9 @@ The prompt template supports these placeholders:
 
 ```python
 from uipath.eval.evaluators import LLMJudgeTrajectoryEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"user_query": "Book a flight to Paris"},
     agent_output={"booking_id": "FL123", "status": "confirmed"},
     agent_trace=[
@@ -133,7 +133,7 @@ evaluator = LLMJudgeTrajectoryEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_agent_behavior": """
         The agent should:
@@ -152,7 +152,7 @@ print(f"Justification: {result.details}")
 #### Validating Tool Usage Sequence
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Update user profile and send notification"},
     agent_output={"status": "completed"},
     agent_trace=[
@@ -170,7 +170,7 @@ evaluator = LLMJudgeTrajectoryEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_agent_behavior": """
         The agent must:
@@ -259,7 +259,7 @@ Same as `LLMJudgeTrajectoryEvaluatorConfig` but with:
 ```python
 from uipath.eval.evaluators import LLMJudgeTrajectorySimulationEvaluator
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"query": "Book a flight to Paris for tomorrow"},
     agent_output={"booking_id": "FL123", "status": "confirmed"},
     agent_trace=[
@@ -284,7 +284,7 @@ evaluator = LLMJudgeTrajectorySimulationEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_agent_behavior": """
         The agent should:

@@ -1,7 +1,9 @@
 """UiPath evaluation module for agent performance assessment."""
 
+import warnings
+from typing import Any
+
 from uipath.eval.models.models import (
-    AgentExecution,
     BooleanEvaluationResult,
     ErrorEvaluationResult,
     EvalItemResult,
@@ -15,10 +17,11 @@ from uipath.eval.models.models import (
     ScoreType,
     ToolCall,
     ToolOutput,
+    WorkloadExecution,
 )
 
 __all__ = [
-    "AgentExecution",
+    "WorkloadExecution",
     "EvaluationResult",
     "EvaluationResultDto",
     "LLMResponse",
@@ -34,3 +37,21 @@ __all__ = [
     "EvaluatorType",
     "ToolOutput",
 ]
+
+# Backward-compatibility shim: ``AgentExecution`` was renamed to
+# ``WorkloadExecution``. The old name keeps working but emits a
+# DeprecationWarning. Remove in uipath 3.0.
+_DEPRECATED_NAMES = {"AgentExecution": "WorkloadExecution"}
+
+
+def __getattr__(name: str) -> Any:
+    new_name = _DEPRECATED_NAMES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated and will be removed in uipath 3.0; "
+            f"use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -15,10 +15,10 @@ from uipath.platform.chat import UiPathLlmChatService
 from .._execution_context import eval_set_run_id_context
 from .._helpers.evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     LLMResponse,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from ..models.llm_judge_types import (
     LLMJudgeOutputSchema,
@@ -142,7 +142,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
             ) from e
 
     @abstractmethod
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
+    def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
         """Get the actual output from the agent execution. Must be implemented by concrete evaluator classes."""
         pass
 
@@ -153,12 +153,12 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: T,
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge."""
         evaluation_prompt = self._create_evaluation_prompt(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria=evaluation_criteria,
         )
 
@@ -166,7 +166,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
         validated_justification = self.validate_justification(
             {
                 "expected": str(self._get_expected_output(evaluation_criteria)),
-                "actual": str(self._get_actual_output(agent_execution)),
+                "actual": str(self._get_actual_output(workload_execution)),
                 "justification": llm_response.justification,
             }
         )
@@ -178,7 +178,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
 
     def _create_evaluation_prompt(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: T,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
@@ -186,7 +186,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
 
         formatted_prompt = self.evaluator_config.prompt.replace(
             self.actual_output_placeholder,
-            str(self._get_actual_output(agent_execution)),
+            str(self._get_actual_output(workload_execution)),
         )
         formatted_prompt = formatted_prompt.replace(
             self.expected_output_placeholder,

@@ -14,9 +14,9 @@ from uipath.eval.evaluators import (
 )
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
-    AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 
 NESTED_OUTPUT = {
@@ -74,7 +74,7 @@ class TestExactMatchWithNestedPaths:
             **_make_exact_match_params("summary.status")
         )
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -87,7 +87,7 @@ class TestExactMatchWithNestedPaths:
             **_make_exact_match_params("customer.address.city")
         )
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -100,7 +100,7 @@ class TestExactMatchWithNestedPaths:
             **_make_exact_match_params("items[0].name")
         )
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -111,7 +111,7 @@ class TestExactMatchWithNestedPaths:
     async def test_array_index_tags_1(self) -> None:
         evaluator = LegacyExactMatchEvaluator(**_make_exact_match_params("tags[1]"))
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -128,7 +128,7 @@ class TestExactMatchWithNestedPaths:
         modified_summary = {**original_summary, "status": "pending"}
         different_output = {**NESTED_OUTPUT, "summary": modified_summary}
         result = await evaluator.evaluate(
-            AgentExecution(
+            WorkloadExecution(
                 agent_input={}, agent_trace=[], agent_output=different_output
             ),
             LegacyEvaluationCriteria(
@@ -144,7 +144,7 @@ class TestExactMatchWithNestedPaths:
             **_make_exact_match_params("nonexistent.path")
         )
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -156,7 +156,7 @@ class TestExactMatchWithNestedPaths:
         """Flat key like 'order_id' still works as before."""
         evaluator = LegacyExactMatchEvaluator(**_make_exact_match_params("order_id"))
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -172,7 +172,7 @@ class TestJsonSimilarityWithNestedPaths:
         """JSON similarity on nested 'summary' object should score 100."""
         evaluator = LegacyJsonSimilarityEvaluator(**_make_json_sim_params("summary"))
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -184,7 +184,7 @@ class TestJsonSimilarityWithNestedPaths:
         """JSON similarity on nested 'customer' object should score 100."""
         evaluator = LegacyJsonSimilarityEvaluator(**_make_json_sim_params("customer"))
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -196,7 +196,7 @@ class TestJsonSimilarityWithNestedPaths:
         """JSON similarity on items[0] should score 100 when matching."""
         evaluator = LegacyJsonSimilarityEvaluator(**_make_json_sim_params("items[0]"))
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -208,7 +208,7 @@ class TestJsonSimilarityWithNestedPaths:
         """Wildcard '*' should compare the full output (backward compatible)."""
         evaluator = LegacyJsonSimilarityEvaluator(**_make_json_sim_params("*"))
         result = await evaluator.evaluate(
-            AgentExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
+            WorkloadExecution(agent_input={}, agent_trace=[], agent_output=NESTED_OUTPUT),
             LegacyEvaluationCriteria(
                 expected_output=NESTED_OUTPUT, expected_agent_behavior=""
             ),
@@ -224,7 +224,7 @@ class TestJsonSimilarityWithNestedPaths:
             "summary": {"total": 45.0, "item_count": 3, "status": "completed"},
         }
         result = await evaluator.evaluate(
-            AgentExecution(
+            WorkloadExecution(
                 agent_input={}, agent_trace=[], agent_output=different_summary
             ),
             LegacyEvaluationCriteria(

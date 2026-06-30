@@ -60,7 +60,7 @@ from ..models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
 )
-from ..models.models import AgentExecution, EvalItemResult, EvaluationResultDto
+from ..models.models import EvalItemResult, EvaluationResultDto, WorkloadExecution
 from ._exporters import (
     ExecutionLogsExporter,
     ExecutionSpanExporter,
@@ -1017,7 +1017,7 @@ class UiPathEvalRuntime:
                 else:
                     output_data = execution_output.result.output
 
-            agent_execution = AgentExecution(
+            workload_execution = WorkloadExecution(
                 agent_input=eval_item.inputs,
                 agent_output=output_data,
                 agent_trace=execution_output.spans,
@@ -1025,7 +1025,7 @@ class UiPathEvalRuntime:
             )
 
             result = await evaluator.validate_and_evaluate_criteria(
-                agent_execution=agent_execution,
+                workload_execution=workload_execution,
                 evaluation_criteria=evaluation_criteria,
             )
 

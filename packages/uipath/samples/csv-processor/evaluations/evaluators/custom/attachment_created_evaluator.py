@@ -4,7 +4,11 @@ from uipath.eval.evaluators import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
-from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from uipath.eval.models import (
+    EvaluationResult,
+    NumericEvaluationResult,
+    WorkloadExecution,
+)
 
 
 class AttachmentCreatedEvaluationCriteria(BaseEvaluationCriteria):
@@ -39,7 +43,7 @@ class AttachmentCreatedEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: AttachmentCreatedEvaluationCriteria,
     ) -> EvaluationResult:
         # Check if the agent created an attachment by looking for:
@@ -49,7 +53,7 @@ class AttachmentCreatedEvaluator(
         attachment_created = False
 
         # Look for attachment creation in traces
-        for span in agent_execution.agent_trace:
+        for span in workload_execution.agent_trace:
             # Check span name for attachment operations
             if "attachment" in span.name.lower() or "create" in span.name.lower():
                 attachment_created = True
@@ -70,8 +74,8 @@ class AttachmentCreatedEvaluator(
                 break
 
         # Also check if output contains attachment information
-        if not attachment_created and agent_execution.agent_output:
-            output_str = str(agent_execution.agent_output)
+        if not attachment_created and workload_execution.agent_output:
+            output_str = str(workload_execution.agent_output)
             if (
                 "attachment" in output_str.lower()
                 or evaluation_criteria.attachment_name in output_str

@@ -44,10 +44,10 @@ The Exact Match Evaluator performs exact string matching between the agent's out
 
 ```python
 from uipath.eval.evaluators import ExactMatchEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # agent_output must be a dict
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"query": "What is 2+2?"},
     agent_output={"result": "4"},
     agent_trace=[]
@@ -65,7 +65,7 @@ evaluator = ExactMatchEvaluator(
 
 # Evaluate - compares just the "result" field value
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"result": "4"}}
 )
 
@@ -75,7 +75,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 ### Case-Sensitive Matching
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"status": "SUCCESS"},
     agent_trace=[]
@@ -92,7 +92,7 @@ evaluator = ExactMatchEvaluator(
 
 # Fails due to case mismatch
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"status": "success"}}
 )
 
@@ -100,7 +100,7 @@ print(f"Score: {result.score}")  # Output: 0.0
 
 # This would pass
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"status": "SUCCESS"}}
 )
 
@@ -112,7 +112,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 When `target_output_key` is `"*"` (default), the entire output dict is compared:
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"status": "success", "code": 200},
     agent_trace=[]
@@ -128,7 +128,7 @@ evaluator = ExactMatchEvaluator(
 
 # Entire dict structure must match
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"status": "success", "code": 200}}
 )
 
@@ -138,7 +138,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 ### Target Specific Field
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={
         "result": "approved",
@@ -157,7 +157,7 @@ evaluator = ExactMatchEvaluator(
 
 # Only checks the "result" field
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"result": "approved"}}
 )
 
@@ -167,7 +167,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 ### Negated Mode
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"result": "error"},
     agent_trace=[]
@@ -184,7 +184,7 @@ evaluator = ExactMatchEvaluator(
 
 # Passes because outputs do NOT match
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"result": "success"}}
 )
 
@@ -194,7 +194,7 @@ print(f"Score: {result.score}")  # Output: 1.0
 ### Using Default Criteria
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
     agent_output={"status": "OK"},
     agent_trace=[]
@@ -211,7 +211,7 @@ evaluator = ExactMatchEvaluator(
 
 # Use default criteria
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution, evaluation_criteria=None
+    workload_execution=workload_execution, evaluation_criteria=None
 )
 
 print(f"Score: {result.score}")  # Output: 1.0

@@ -10,7 +10,7 @@ from uipath.platform.chat import UiPathLlmChatService
 
 from .._execution_context import eval_set_run_id_context
 from ..models import NumericEvaluationResult
-from ..models.models import AgentExecution, EvaluationResult
+from ..models.models import EvaluationResult, WorkloadExecution
 from .base_legacy_evaluator import (
     BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
@@ -63,13 +63,13 @@ class LegacyFaithfulnessEvaluator(
     @track_evaluation_metrics
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate faithfulness of agent output against available context.
 
         Args:
-            agent_execution: The execution details containing agent_trace with spans
+            workload_execution: The execution details containing agent_trace with spans
             evaluation_criteria: Legacy evaluation criteria containing expected_output
 
         Returns:
@@ -88,7 +88,7 @@ class LegacyFaithfulnessEvaluator(
             )
 
         # Extract context sources from traces
-        context_sources = self._extract_context_sources(agent_execution.agent_trace)
+        context_sources = self._extract_context_sources(workload_execution.agent_trace)
 
         if not context_sources:
             return NumericEvaluationResult(

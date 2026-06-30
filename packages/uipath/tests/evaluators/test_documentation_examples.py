@@ -30,7 +30,7 @@ from uipath.eval.evaluators.json_similarity_evaluator import (
 from uipath.eval.evaluators.tool_call_order_evaluator import (
     ToolCallOrderEvaluatorJustification,
 )
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 
 class TestIndexExamples:
@@ -40,7 +40,7 @@ class TestIndexExamples:
     async def test_getting_started_example(self) -> None:
         """Test the getting started example from index.md."""
         # Sample agent execution (this is what the docs were missing!)
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"query": "Greet the world"},
             agent_output={"result": "hello, world!"},
             agent_trace=[],
@@ -60,7 +60,7 @@ class TestIndexExamples:
 
         # Evaluate
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"result": "Hello, World!"}},
         )
 
@@ -86,7 +86,7 @@ class TestContainsExamples:
         )
 
         # agent_output must be a dict
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"query": "What is the capital of France?"},
             agent_output={"response": "The capital of France is Paris."},
             agent_trace=[],
@@ -94,7 +94,7 @@ class TestContainsExamples:
 
         # Evaluate - searches in the "response" field value
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"search_text": "Paris"},
         )
 
@@ -114,7 +114,7 @@ class TestContainsExamples:
             )
         )
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"message": "Hello World"},
             agent_trace=[],
@@ -122,7 +122,7 @@ class TestContainsExamples:
 
         # This will fail because of case mismatch
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"search_text": "hello"},
         )
 
@@ -142,7 +142,7 @@ class TestContainsExamples:
             )
         )
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"status": "Success: Operation completed"},
             agent_trace=[],
@@ -150,7 +150,7 @@ class TestContainsExamples:
 
         # Passes because "error" is NOT found
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"search_text": "error"},
         )
 
@@ -169,7 +169,7 @@ class TestContainsExamples:
             )
         )
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={
                 "status": "success",
@@ -180,7 +180,7 @@ class TestContainsExamples:
 
         # Only searches within the "message" field
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"search_text": "updated"},
         )
 
@@ -194,7 +194,7 @@ class TestExactMatchExamples:
     async def test_basic_usage(self) -> None:
         """Test basic usage example."""
         # agent_output must be a dict
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"query": "What is 2+2?"},
             agent_output={"result": "4"},
             agent_trace=[],
@@ -214,7 +214,7 @@ class TestExactMatchExamples:
 
         # Evaluate - compares just the "result" field value
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"result": "4"}},
         )
 
@@ -223,7 +223,7 @@ class TestExactMatchExamples:
     @pytest.mark.asyncio
     async def test_case_sensitive_matching(self) -> None:
         """Test case-sensitive matching example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"status": "SUCCESS"},
             agent_trace=[],
@@ -242,7 +242,7 @@ class TestExactMatchExamples:
 
         # Fails due to case mismatch
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"status": "success"}},
         )
 
@@ -250,7 +250,7 @@ class TestExactMatchExamples:
 
         # This would pass
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"status": "SUCCESS"}},
         )
 
@@ -259,7 +259,7 @@ class TestExactMatchExamples:
     @pytest.mark.asyncio
     async def test_matching_structured_outputs(self) -> None:
         """Test matching structured outputs example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"status": "success", "code": 200},
             agent_trace=[],
@@ -277,7 +277,7 @@ class TestExactMatchExamples:
 
         # Entire dict structure must match
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"status": "success", "code": 200}},
         )
 
@@ -286,7 +286,7 @@ class TestExactMatchExamples:
     @pytest.mark.asyncio
     async def test_negated_mode(self) -> None:
         """Test negated mode example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"result": "error"},
             agent_trace=[],
@@ -305,7 +305,7 @@ class TestExactMatchExamples:
 
         # Passes because outputs do NOT match
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"result": "success"}},
         )
 
@@ -314,7 +314,7 @@ class TestExactMatchExamples:
     @pytest.mark.asyncio
     async def test_using_default_criteria(self) -> None:
         """Test using default criteria example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"status": "OK"},
             agent_trace=[],
@@ -335,7 +335,7 @@ class TestExactMatchExamples:
 
         # Use default criteria
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution, evaluation_criteria=None
+            workload_execution=workload_execution, evaluation_criteria=None
         )
 
         assert result.score == 1.0
@@ -347,7 +347,7 @@ class TestExactMatchExamples:
         Mirrors the multi-output-agent sample (list-keys-exact-match evaluator).
         """
         # Agent returns a rich nested output; we only care about two summary fields.
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"customer_name": "John Doe", "items": []},
             agent_output={
                 "order_id": "ORD-001",
@@ -370,7 +370,7 @@ class TestExactMatchExamples:
 
         # Both keys match → score 1.0
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"summary": {"status": "completed", "total": 44.97}}
             },
@@ -379,7 +379,7 @@ class TestExactMatchExamples:
 
         # One key differs → score 0.0
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"summary": {"status": "completed", "total": 999.0}}
             },
@@ -393,7 +393,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_basic_json_comparison(self) -> None:
         """Test basic JSON comparison example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"name": "John Doe", "age": 30, "city": "New York"},
             agent_trace=[],
@@ -410,7 +410,7 @@ class TestJsonSimilarityExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"name": "John Doe", "age": 30, "city": "New York"}
             },
@@ -425,7 +425,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_numeric_tolerance(self) -> None:
         """Test numeric tolerance example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"temperature": 20.5, "humidity": 65},
             agent_trace=[],
@@ -440,7 +440,7 @@ class TestJsonSimilarityExamples:
 
         # Slightly different numbers
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"temperature": 20.3, "humidity": 65}
             },
@@ -452,7 +452,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_string_similarity(self) -> None:
         """Test string similarity example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"status": "completed successfully"},
             agent_trace=[],
@@ -467,7 +467,7 @@ class TestJsonSimilarityExamples:
 
         # Similar but not exact string
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"status": "completed sucessfully"}  # typo
             },
@@ -480,7 +480,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_nested_structures(self) -> None:
         """Test nested structures example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={
                 "user": {"name": "Alice", "profile": {"age": 25, "location": "Paris"}},
@@ -497,7 +497,7 @@ class TestJsonSimilarityExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {
                     "user": {
@@ -514,7 +514,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_array_comparison(self) -> None:
         """Test array comparison example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={"items": ["apple", "banana", "orange"]},
             agent_trace=[],
@@ -529,7 +529,7 @@ class TestJsonSimilarityExamples:
 
         # Partial match (2 out of 3 correct)
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"items": ["apple", "banana", "grape"]}
             },
@@ -542,7 +542,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_handling_extra_keys(self) -> None:
         """Test handling extra keys in actual output example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={
                 "name": "Bob",
@@ -561,7 +561,7 @@ class TestJsonSimilarityExamples:
 
         # Only expected keys are evaluated
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"expected_output": {"name": "Bob", "age": 30}},
         )
 
@@ -570,7 +570,7 @@ class TestJsonSimilarityExamples:
     @pytest.mark.asyncio
     async def test_target_specific_field(self) -> None:
         """Test target specific field example."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={
                 "result": {"score": 95, "passed": True},
@@ -591,7 +591,7 @@ class TestJsonSimilarityExamples:
 
         # Only compares the "result" field
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"result": {"score": 95, "passed": True}}
             },
@@ -625,7 +625,7 @@ class TestLLMJudgeOutputExamples:
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"query": "What is the capital of France?"},
             agent_output={"answer": "Paris is the capital city of France."},
             agent_trace=[],
@@ -645,7 +645,7 @@ class TestLLMJudgeOutputExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"answer": "The capital of France is Paris."}
             },
@@ -685,7 +685,7 @@ Expected Output: {{ExpectedOutput}}
 Provide a score from 0-100 based on semantic similarity.
 """
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={
                 "message": "The product has been successfully added to your cart."
@@ -708,7 +708,7 @@ Provide a score from 0-100 based on semantic similarity.
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {"message": "Item added to shopping cart."}
             },
@@ -740,7 +740,7 @@ Provide a score from 0-100 based on semantic similarity.
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Write a professional email"},
             agent_output={
                 "email": """Dear Customer,
@@ -769,7 +769,7 @@ Support Team"""
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {
                     "email": "A professional, courteous response addressing the customer's inquiry"
@@ -802,7 +802,7 @@ Support Team"""
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
             agent_output={
                 "status": "success",
@@ -828,7 +828,7 @@ Support Team"""
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_output": {
                     "status": "success",
@@ -867,7 +867,7 @@ class TestLLMJudgeTrajectoryExamples:
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"user_query": "Book a flight to Paris"},
             agent_output={"booking_id": "FL123", "status": "confirmed"},
             agent_trace=[
@@ -889,7 +889,7 @@ class TestLLMJudgeTrajectoryExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_agent_behavior": """
         The agent should:
@@ -925,7 +925,7 @@ class TestLLMJudgeTrajectoryExamples:
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Update user profile and send notification"},
             agent_output={"status": "completed"},
             agent_trace=[
@@ -946,7 +946,7 @@ class TestLLMJudgeTrajectoryExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_agent_behavior": """
         The agent must:
@@ -983,7 +983,7 @@ class TestLLMJudgeTrajectoryExamples:
         async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
             return mock_response
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"query": "Book a flight to Paris for tomorrow"},
             agent_output={"booking_id": "FL123", "status": "confirmed"},
             agent_trace=[
@@ -1011,7 +1011,7 @@ class TestLLMJudgeTrajectoryExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "expected_agent_behavior": """
         The agent should:
@@ -1064,7 +1064,7 @@ class TestToolCallOrderExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Process user order"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1078,7 +1078,7 @@ class TestToolCallOrderExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_order": ["validate_user", "check_inventory", "create_order"]
             },
@@ -1113,7 +1113,7 @@ class TestToolCallOrderExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Access secured resource"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1127,7 +1127,7 @@ class TestToolCallOrderExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_order": [
                     "authenticate_user",
@@ -1167,7 +1167,7 @@ class TestToolCallOrderExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Search and display"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1184,7 +1184,7 @@ class TestToolCallOrderExamples:
         expected = ["search", "filter", "sort", "display"]
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={"tool_calls_order": expected},
         )
 
@@ -1225,7 +1225,7 @@ class TestToolCallOrderExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Update database"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1239,7 +1239,7 @@ class TestToolCallOrderExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_order": [
                     "begin_transaction",
@@ -1291,7 +1291,7 @@ class TestToolCallOrderExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "API integration"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1305,7 +1305,7 @@ class TestToolCallOrderExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_order": [
                     "get_api_token",
@@ -1345,7 +1345,7 @@ class TestToolCallOrderExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Standard workflow"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1366,7 +1366,7 @@ class TestToolCallOrderExamples:
 
         # Use default criteria
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution, evaluation_criteria=None
+            workload_execution=workload_execution, evaluation_criteria=None
         )
 
         assert result.score == 1.0
@@ -1426,7 +1426,7 @@ class TestToolCallCountExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Fetch and process data"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1440,7 +1440,7 @@ class TestToolCallCountExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_count": {
                     "fetch_data": ("=", 1),
@@ -1484,7 +1484,7 @@ class TestToolCallCountExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "API operation"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1498,7 +1498,7 @@ class TestToolCallCountExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_count": {
                     "validate": (">=", 1),  # At least once
@@ -1537,7 +1537,7 @@ class TestToolCallCountExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Database operation"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1551,7 +1551,7 @@ class TestToolCallCountExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_count": {
                     "authenticate": ("=", 1),
@@ -1597,7 +1597,7 @@ class TestToolCallCountExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Optimize resource usage"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1612,7 +1612,7 @@ class TestToolCallCountExamples:
 
         # Ensure expensive operations aren't called too many times
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_count": {
                     "expensive_api_call": (
@@ -1658,7 +1658,7 @@ class TestToolCallCountExamples:
                 ]
             )
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Process 10 items"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1673,7 +1673,7 @@ class TestToolCallCountExamples:
 
         # Verify loop processed correct number of items
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls_count": {
                     "process_item": ("=", 10),  # Should process 10 items
@@ -1707,7 +1707,7 @@ class TestToolCallArgsExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"user_id": 123, "action": "update"},
             agent_output={"status": "success"},
             agent_trace=mock_spans,
@@ -1725,7 +1725,7 @@ class TestToolCallArgsExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls": [
                     {
@@ -1759,7 +1759,7 @@ class TestToolCallArgsExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Send email"},
             agent_output={"status": "sent"},
             agent_trace=mock_spans,
@@ -1777,7 +1777,7 @@ class TestToolCallArgsExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls": [
                     {
@@ -1811,7 +1811,7 @@ class TestToolCallArgsExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Create user"},
             agent_output={"status": "created"},
             agent_trace=mock_spans,
@@ -1830,7 +1830,7 @@ class TestToolCallArgsExamples:
 
         # Only validate critical fields
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls": [
                     {
@@ -1878,7 +1878,7 @@ class TestToolCallArgsExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Data pipeline"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -1896,7 +1896,7 @@ class TestToolCallArgsExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls": [
                     {
@@ -1934,7 +1934,7 @@ class TestToolCallArgsExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "evaluatorConfigure API service"},
             agent_output={"status": "evaluatorConfigured"},
             agent_trace=mock_spans,
@@ -1952,7 +1952,7 @@ class TestToolCallArgsExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls": [
                     {
@@ -2008,7 +2008,7 @@ class TestToolCallArgsExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Update user profile"},
             agent_output={"status": "updated"},
             agent_trace=mock_spans,
@@ -2026,7 +2026,7 @@ class TestToolCallArgsExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_calls": [
                     {
@@ -2073,7 +2073,7 @@ class TestToolCallOutputExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"user_id": 123},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -2087,7 +2087,7 @@ class TestToolCallOutputExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_outputs": [
                     {
@@ -2117,7 +2117,7 @@ class TestToolCallOutputExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"operation": "multiply"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -2131,7 +2131,7 @@ class TestToolCallOutputExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_outputs": [
                     {
@@ -2170,7 +2170,7 @@ class TestToolCallOutputExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Process items"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -2184,7 +2184,7 @@ class TestToolCallOutputExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_outputs": [
                     {"name": "fetch", "output": '{"data": ["item1", "item2"]}'},
@@ -2212,7 +2212,7 @@ class TestToolCallOutputExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"email": "invalid-email"},
             agent_output={"status": "validation_failed"},
             agent_trace=mock_spans,
@@ -2226,7 +2226,7 @@ class TestToolCallOutputExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_outputs": [
                     {
@@ -2275,7 +2275,7 @@ class TestToolCallOutputExamples:
             ),
         ]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"task": "Process data pipeline"},
             agent_output={"status": "completed"},
             agent_trace=mock_spans,
@@ -2292,7 +2292,7 @@ class TestToolCallOutputExamples:
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria={
                 "tool_outputs": [
                     {
