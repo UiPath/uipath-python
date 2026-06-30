@@ -252,6 +252,61 @@ class TestOTelToUiPathSpan:
         assert uipath_span.verbosity_level == VerbosityLevel.OFF
         assert span_dict["VerbosityLevel"] == VerbosityLevel.OFF
 
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            (6, VerbosityLevel.OFF),  # legacy int
+            ("Off", VerbosityLevel.OFF),  # v3 string value
+            (2, VerbosityLevel.INFORMATION),  # legacy int
+            ("Information", VerbosityLevel.INFORMATION),  # v3 string value
+            ("Nope", None),  # unknown string -> None (server default applies)
+        ],
+    )
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_accepts_int_and_string(self, raw, expected) -> None:
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            _make_otel_span({"verbosityLevel": raw})
+        )
+        assert uipath_span.verbosity_level == expected
+        if expected is None:
+            assert "VerbosityLevel" not in uipath_span.to_dict()
+        else:
+            assert uipath_span.to_dict()["VerbosityLevel"] == expected
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            (1, ExecutionType.RUNTIME),  # legacy int
+            ("Runtime", ExecutionType.RUNTIME),  # v3 string value
+            (0, ExecutionType.DEBUG),  # legacy int
+            ("Debug", ExecutionType.DEBUG),  # v3 string value
+        ],
+    )
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_execution_type_accepts_int_and_string(self, raw, expected) -> None:
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            _make_otel_span({"executionType": raw})
+        )
+        assert uipath_span.execution_type == expected
+        assert uipath_span.to_dict()["ExecutionType"] == expected
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            (1, SpanSource.AGENTS),  # legacy int
+            ("Agents", SpanSource.AGENTS),  # v3 string value
+            (10, SpanSource.CODED_AGENTS),  # legacy int
+            ("CodedAgents", SpanSource.CODED_AGENTS),  # v3 string value
+        ],
+    )
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_source_accepts_int_and_string(self, raw, expected) -> None:
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            _make_otel_span({"uipath.source": raw})
+        )
+        assert uipath_span.source == expected
+        assert uipath_span.to_dict()["Source"] == expected
+
 
 class TestReferenceIdResolution:
     """`reference_id` resolution chain.
