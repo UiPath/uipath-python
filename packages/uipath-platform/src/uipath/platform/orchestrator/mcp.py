@@ -18,6 +18,7 @@ class McpServerType(IntEnum):
     Remote = 4  # HTTP connection to remote MCP server
     ProcessAssistant = 5  # Dynamic user process assistant
     Platform = 6  # Platform MCP server (e.g: Orchestrator, TestManager)
+    Swagger = 7  # User-provided Swagger/OpenAPI spec exposed as MCP server
 
 
 class McpServerStatus(IntEnum):

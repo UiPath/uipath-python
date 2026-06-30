@@ -433,6 +433,99 @@ class TestGovernanceService:
             with pytest.raises(ValueError, match="UIPATH_ORGANIZATION_ID"):
                 service.compensate(**_compensate_kwargs())
 
+        def test_self_resolves_trace_id_when_caller_leaves_none(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """``trace_id=None`` from the caller is filled via resolve_trace_id().
+
+            The runtime layer intentionally stays env-free; the platform
+            service fills the canonical trace id at HTTP-call time from
+            the OTel/env source. ``UIPATH_TRACE_ID`` covers the
+            resolver-finds-a-value branch of ``_resolve_request_trace_id``.
+            """
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(200, json={})
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/govern",
+            )
+
+            service.compensate(**_compensate_kwargs(trace_id=None))
+
+            body = json.loads(captured["request"].content)
+            assert body["traceId"] == TENANT_ID_HEX
+
+        def test_omits_trace_id_when_no_source_resolves(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Resolver returns nothing → traceId is omitted from the body.
+
+            Covers the resolver-finds-nothing branch of
+            ``_resolve_request_trace_id``: no ``UIPATH_TRACE_ID``, no
+            active OTel context → ``trace_id`` stays ``None`` on the
+            request and ``model_dump(exclude_none=True)`` drops it from
+            the wire JSON.
+            """
+            monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(200, json={})
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/govern",
+            )
+
+            service.compensate(**_compensate_kwargs(trace_id=None))
+
+            body = json.loads(captured["request"].content)
+            assert "traceId" not in body
+
+        def test_caller_empty_string_wins_over_resolver(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """An explicit ``trace_id=""`` from the caller is not overridden.
+
+            With the absence-via-``None`` contract, the empty string is
+            a legitimate caller-supplied value — it must not trigger
+            the auto-resolve.
+            """
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(200, json={})
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/govern",
+            )
+
+            service.compensate(**_compensate_kwargs(trace_id=""))
+
+            body = json.loads(captured["request"].content)
+            assert body["traceId"] == ""
+
     class TestCompensateAsync:
         """Test compensate_async."""
 
@@ -552,6 +645,253 @@ class TestGovernanceService:
             sent = httpx_mock.get_requests()[-1]
             assert sent.method == "POST"
             assert sent.headers["X-UiPath-Internal-AccountId"] == ORG_ID
+
+        def test_redirects_track_event_to_override(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.setenv(
+                "UIPATH_SERVICE_URL_AGENTICGOVERNANCE", "http://localhost:8123"
+            )
+            httpx_mock.add_response(
+                url="http://localhost:8123/api/v1/runtime/log",
+                method="POST",
+                status_code=204,
+            )
+
+            service._track_event(event_name="hello", operation_id="op-1")
+
+            sent = httpx_mock.get_requests()[-1]
+            assert sent.method == "POST"
+            assert sent.headers["X-UiPath-Internal-AccountId"] == ORG_ID
+            assert sent.headers["x-uipath-operation-id"] == "op-1"
+
+    class TestTrackEvent:
+        """Test track_event (sync)."""
+
+        def test_posts_event_name_only_payload(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+        ) -> None:
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(204)
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            )
+
+            service._track_event(event_name="agent.started")
+
+            request = captured["request"]
+            assert request.method == "POST"
+            assert request.headers["x-uipath-internal-tenantid"] == TENANT_ID
+            assert json.loads(request.content) == {"eventName": "agent.started"}
+
+        def test_includes_data_when_provided(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+        ) -> None:
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(204)
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            )
+
+            service._track_event(
+                event_name="agent.completed",
+                data={"duration_ms": 1234, "outcome": "success"},
+            )
+
+            body = json.loads(captured["request"].content)
+            assert body == {
+                "eventName": "agent.completed",
+                "data": {"duration_ms": 1234, "outcome": "success"},
+            }
+
+        def test_sends_caller_operation_id_header(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+        ) -> None:
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(204)
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            )
+
+            service._track_event(event_name="ev", operation_id="caller-supplied")
+
+            assert captured["request"].headers["x-uipath-operation-id"] == (
+                "caller-supplied"
+            )
+
+        def test_falls_back_to_resolved_trace_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            # When the caller omits operation_id, the header is filled
+            # from resolve_trace_id() so events join the agent's trace.
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(204)
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            )
+
+            service._track_event(event_name="ev")
+
+            assert captured["request"].headers["x-uipath-operation-id"] == TENANT_ID_HEX
+
+        def test_caller_operation_id_overrides_trace_fallback(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(204)
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            )
+
+            service._track_event(event_name="ev", operation_id="explicit")
+
+            assert captured["request"].headers["x-uipath-operation-id"] == "explicit"
+
+        def test_omits_operation_id_header_when_no_source(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+            captured: dict[str, httpx.Request] = {}
+
+            def capture(request: httpx.Request) -> httpx.Response:
+                captured["request"] = request
+                return httpx.Response(204)
+
+            httpx_mock.add_callback(
+                capture,
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            )
+
+            service._track_event(event_name="ev")
+
+            assert "x-uipath-operation-id" not in captured["request"].headers
+
+        def test_raises_when_org_id_missing(
+            self,
+            config: UiPathApiConfig,
+            execution_context: UiPathExecutionContext,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.delenv("UIPATH_ORGANIZATION_ID", raising=False)
+            monkeypatch.setenv("UIPATH_TENANT_ID", TENANT_ID)
+            service = GovernanceService(
+                config=config, execution_context=execution_context
+            )
+
+            with pytest.raises(ValueError, match="UIPATH_ORGANIZATION_ID"):
+                service._track_event(event_name="ev")
+
+        def test_raises_on_http_error(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+        ) -> None:
+            from uipath.platform.errors import EnrichedException
+
+            httpx_mock.add_response(
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+                status_code=400,
+                text="bad event",
+            )
+
+            with pytest.raises(EnrichedException):
+                service._track_event(event_name="ev")
+
+        @pytest.mark.parametrize("invalid_name", ["", "   ", "\t", "\n"])
+        def test_raises_on_empty_event_name(
+            self,
+            service: GovernanceService,
+            invalid_name: str,
+        ) -> None:
+            # Fail fast client-side instead of round-tripping a backend
+            # 400; matches the platform's own non-empty check on
+            # /runtime/log.
+            with pytest.raises(ValueError, match="event_name"):
+                service._track_event(event_name=invalid_name)
+
+    class TestTrackEventAsync:
+        """Test track_event_async."""
+
+        async def test_posts_event_and_falls_back_to_trace_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GovernanceService,
+            base_url: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            monkeypatch.setenv("UIPATH_TRACE_ID", TENANT_ID_HEX)
+            httpx_mock.add_response(
+                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+                status_code=204,
+            )
+
+            await service._track_event_async(event_name="ev", data={"foo": "bar"})
+
+            sent = httpx_mock.get_requests()[-1]
+            assert sent.method == "POST"
+            assert sent.headers["x-uipath-operation-id"] == TENANT_ID_HEX
+            assert json.loads(sent.content) == {
+                "eventName": "ev",
+                "data": {"foo": "bar"},
+            }
+
+        async def test_raises_on_empty_event_name(
+            self, service: GovernanceService
+        ) -> None:
+            with pytest.raises(ValueError, match="event_name"):
+                await service._track_event_async(event_name="   ")
 
 
 class TestResolveTraceId:

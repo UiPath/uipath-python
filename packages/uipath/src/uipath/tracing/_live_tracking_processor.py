@@ -5,7 +5,8 @@ from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 
 from uipath.core.tracing import UiPathTraceSettings
-from uipath.tracing._otel_exporters import LlmOpsHttpExporter, SpanStatus
+from uipath.platform.common._span_utils import SpanStatus
+from uipath.tracing._otel_exporters import LlmOpsHttpExporter
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
         )
 
     def _upsert_span_async(
-        self, span: Span | ReadableSpan, status_override: int | None = None
+        self, span: Span | ReadableSpan, status_override: SpanStatus | None = None
     ) -> None:
         """Run upsert_span in a background thread without blocking.
 
@@ -57,7 +58,7 @@ class LiveTrackingSpanProcessor(SpanProcessor):
 
         def _upsert():
             try:
-                if status_override:
+                if status_override is not None:
                     self.exporter.upsert_span(span, status_override=status_override)
                 else:
                     self.exporter.upsert_span(span)

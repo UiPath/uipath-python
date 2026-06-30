@@ -2,6 +2,7 @@ import os
 from typing import Tuple
 from urllib.parse import urlparse
 
+from ...platform.common.constants import ENV_BASE_URL
 from .._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -26,7 +27,7 @@ def resolve_domain(base_url: str | None, environment: str | None) -> str:
             return domain
 
     if environment is None:
-        uipath_url = os.getenv("UIPATH_URL")
+        uipath_url = os.getenv(ENV_BASE_URL)
         if uipath_url:
             parsed = urlparse(uipath_url)
             if parsed.scheme and parsed.netloc:

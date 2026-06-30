@@ -21,6 +21,14 @@ from uipath.core.chat import (
     UiPathConversationToolCallEvent,
 )
 from uipath.core.triggers import UiPathResumeTrigger
+from uipath.platform.common.constants import (
+    ENV_BASE_URL,
+    ENV_ORGANIZATION_ID,
+    ENV_TENANT_ID,
+    ENV_UIPATH_ACCESS_TOKEN,
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
@@ -588,7 +596,7 @@ def get_chat_bridge(
     assert context.exchange_id is not None, "exchange_id must be set in context"
 
     # Extract host from UIPATH_URL
-    base_url = os.environ.get("UIPATH_URL")
+    base_url = os.environ.get(ENV_BASE_URL)
     if not base_url:
         raise RuntimeError(
             "UIPATH_URL environment variable required for conversational mode"
@@ -613,11 +621,11 @@ def get_chat_bridge(
 
     # Build headers from context
     headers = {
-        "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
-        "X-UiPath-Internal-TenantId": context.tenant_id
-        or os.environ.get("UIPATH_TENANT_ID", ""),
-        "X-UiPath-Internal-AccountId": context.org_id
-        or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
+        "Authorization": f"Bearer {os.environ.get(ENV_UIPATH_ACCESS_TOKEN, '')}",
+        HEADER_INTERNAL_TENANT_ID: context.tenant_id
+        or os.environ.get(ENV_TENANT_ID, ""),
+        HEADER_INTERNAL_ACCOUNT_ID: context.org_id
+        or os.environ.get(ENV_ORGANIZATION_ID, ""),
         "X-UiPath-ConversationId": context.conversation_id,
     }
 

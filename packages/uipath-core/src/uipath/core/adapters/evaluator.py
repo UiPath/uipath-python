@@ -1,9 +1,9 @@
-"""Structural contract for the policy evaluator an adapter talks to.
+"""Structural contract for the policy evaluator a framework plugin talks to.
 
-Framework adapters call into a policy evaluator at each lifecycle hook.
+Framework plugins call into a policy evaluator at each lifecycle hook.
 Concrete evaluator implementations (the native runtime evaluator, a
 Microsoft AGT bridge, a composite, …) live in packages outside
-``uipath-core`` — adapters depend only on this structural protocol so
+``uipath-core`` — plugins depend only on this structural protocol so
 they can be swapped against any of them without code change.
 
 ``EvaluatorProtocol`` is a :class:`typing.Protocol` so any class whose
@@ -15,15 +15,18 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from uipath.core.governance.models import AuditRecord
+
 
 @runtime_checkable
 class EvaluatorProtocol(Protocol):
-    """Structural protocol an adapter expects from a policy evaluator.
+    """Structural protocol a framework plugin expects from a policy evaluator.
 
-    Return types are intentionally :class:`typing.Any`: the concrete
-    audit record shape lives in the plugin package that owns the
-    evaluator and the policy model. Adapters in that package cast the
-    return value back to the concrete type they know.
+    Every ``evaluate_*`` method returns an :class:`AuditRecord` — the
+    per-hook audit envelope holding the per-rule
+    :class:`RuleEvaluation` list, the final action, and the trace /
+    agent metadata. Callers get a typed result; no downcasting is
+    required.
     """
 
     def evaluate_before_agent(
@@ -31,10 +34,9 @@ class EvaluatorProtocol(Protocol):
         agent_input: str,
         agent_name: str,
         runtime_id: str,
-        trace_id: str,
         model_name: str = "",
         **kwargs: Any,
-    ) -> Any:
+    ) -> AuditRecord:
         """Evaluate BEFORE_AGENT rules."""
         ...
 
@@ -43,9 +45,8 @@ class EvaluatorProtocol(Protocol):
         agent_output: str,
         agent_name: str,
         runtime_id: str,
-        trace_id: str,
         **kwargs: Any,
-    ) -> Any:
+    ) -> AuditRecord:
         """Evaluate AFTER_AGENT rules."""
         ...
 
@@ -54,11 +55,10 @@ class EvaluatorProtocol(Protocol):
         model_input: str,
         agent_name: str,
         runtime_id: str,
-        trace_id: str,
         messages: list[dict[str, Any]] | None = None,
         model_name: str = "",
         **kwargs: Any,
-    ) -> Any:
+    ) -> AuditRecord:
         """Evaluate BEFORE_MODEL rules."""
         ...
 
@@ -67,9 +67,8 @@ class EvaluatorProtocol(Protocol):
         model_output: str,
         agent_name: str,
         runtime_id: str,
-        trace_id: str,
         **kwargs: Any,
-    ) -> Any:
+    ) -> AuditRecord:
         """Evaluate AFTER_MODEL rules."""
         ...
 
@@ -79,10 +78,9 @@ class EvaluatorProtocol(Protocol):
         tool_args: dict[str, Any],
         agent_name: str,
         runtime_id: str,
-        trace_id: str,
         session_state: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> AuditRecord:
         """Evaluate TOOL_CALL rules."""
         ...
 
@@ -92,8 +90,7 @@ class EvaluatorProtocol(Protocol):
         tool_result: str,
         agent_name: str,
         runtime_id: str,
-        trace_id: str,
         **kwargs: Any,
-    ) -> Any:
+    ) -> AuditRecord:
         """Evaluate AFTER_TOOL rules."""
         ...

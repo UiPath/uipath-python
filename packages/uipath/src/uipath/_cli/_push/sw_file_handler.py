@@ -10,6 +10,12 @@ import click
 
 from uipath._cli.models.uipath_json_schema import PackOptions
 from uipath.platform.common import UiPathConfig
+from uipath.platform.common.constants import (
+    EVALS_FOLDER,
+    LEGACY_EVAL_FOLDER,
+    PYTHON_CONFIGURATION_FILE,
+    STUDIO_METADATA_FILE,
+)
 
 from ...platform.errors import EnrichedException
 from .._utils._common import get_claim_from_token
@@ -245,12 +251,12 @@ class SwFileHandler:
         deleted_files = self._collect_deleted_files(
             remote_files,
             processed_source_files,
-            files_to_ignore=["studio_metadata.json"],
+            files_to_ignore=[STUDIO_METADATA_FILE],
             directories_to_ignore=[
                 name
                 for name, condition in [
-                    ("evals", not UiPathConfig.has_legacy_eval_folder),
-                    ("evaluations", not UiPathConfig.has_eval_folder),
+                    (LEGACY_EVAL_FOLDER, not UiPathConfig.has_legacy_eval_folder),
+                    (EVALS_FOLDER, not UiPathConfig.has_eval_folder),
                 ]
                 if condition
             ],
@@ -420,7 +426,7 @@ class SwFileHandler:
                 pass
 
             toml_data = read_toml_project(
-                os.path.join(self.directory, "pyproject.toml")
+                os.path.join(self.directory, PYTHON_CONFIGURATION_FILE)
             )
             return toml_data.get("authors", "").strip()
 
@@ -489,7 +495,7 @@ class SwFileHandler:
         else:
             structural_migration.added_resources.append(
                 AddedResource(
-                    file_name="studio_metadata.json",
+                    file_name=STUDIO_METADATA_FILE,
                     content_string=json.dumps(metadata),
                     parent_path=".uipath",
                 )
@@ -543,7 +549,7 @@ class SwFileHandler:
 
         # Log skipped files from root evals folder
         if skipped_files:
-            evals_folder_path = os.path.join(self.directory, "evals")
+            evals_folder_path = os.path.join(self.directory, LEGACY_EVAL_FOLDER)
             logger.info(
                 f"Skipping {len(skipped_files)} file(s) in evals folder ({evals_folder_path}): {', '.join(skipped_files)}"
             )

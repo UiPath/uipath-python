@@ -15,6 +15,7 @@ layer is bypassed.
 import os
 
 from ._config import UiPathConfig
+from .constants import HEADER_INTERNAL_ACCOUNT_ID, HEADER_INTERNAL_TENANT_ID
 
 
 def resolve_service_url(endpoint_path: str) -> str | None:
@@ -57,8 +58,8 @@ def inject_routing_headers(headers: dict[str, str]) -> None:
     """
     tenant_id = UiPathConfig.tenant_id
     if tenant_id:
-        headers["X-UiPath-Internal-TenantId"] = tenant_id
+        headers[HEADER_INTERNAL_TENANT_ID] = tenant_id
 
     organization_id = UiPathConfig.organization_id
     if organization_id:
-        headers["X-UiPath-Internal-AccountId"] = organization_id
+        headers[HEADER_INTERNAL_ACCOUNT_ID] = organization_id

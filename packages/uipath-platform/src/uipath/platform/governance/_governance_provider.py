@@ -12,6 +12,8 @@ pass ``config``/``execution_context`` to construct one inline.
 
 from __future__ import annotations
 
+from typing import Any
+
 from uipath.core.governance import GovernRequest, PolicyContext, PolicyResponse
 
 from ..common._config import UiPathApiConfig
@@ -79,3 +81,34 @@ class UiPathPlatformGovernanceProvider:
     async def compensate_async(self, request: GovernRequest) -> None:
         """Async variant of :meth:`compensate`."""
         await self._service._compensate_async(request)
+
+    # ── Custom telemetry events ──────────────────────────────────────
+
+    def track_event(
+        self,
+        *,
+        event_name: str,
+        data: dict[str, Any] | None = None,
+        operation_id: str | None = None,
+    ) -> None:
+        """Record a custom telemetry event — delegates to ``GovernanceService``.
+
+        See :meth:`GovernanceService._track_event` for parameter
+        semantics — in particular, the ``operation_id`` → trace-id
+        fallback.
+        """
+        self._service._track_event(
+            event_name=event_name, data=data, operation_id=operation_id
+        )
+
+    async def track_event_async(
+        self,
+        *,
+        event_name: str,
+        data: dict[str, Any] | None = None,
+        operation_id: str | None = None,
+    ) -> None:
+        """Async variant of :meth:`track_event`."""
+        await self._service._track_event_async(
+            event_name=event_name, data=data, operation_id=operation_id
+        )

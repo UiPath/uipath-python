@@ -27,6 +27,7 @@ from ..common._config import UiPathApiConfig
 from ..common._endpoints_manager import EndpointManager
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint
+from ..common.constants import HEADER_AGENTHUB_CONFIG
 from .llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
@@ -59,7 +60,7 @@ def _build_llm_headers(
         "X-UiPath-LlmGateway-RequestingFeature": requesting_feature,
     }
     if agenthub_config:
-        headers["X-UiPath-AgentHub-Config"] = agenthub_config
+        headers[HEADER_AGENTHUB_CONFIG] = agenthub_config
     if action_id:
         headers["X-UiPath-LlmGateway-ActionId"] = action_id
     return headers

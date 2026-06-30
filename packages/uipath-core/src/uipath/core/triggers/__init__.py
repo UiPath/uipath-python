@@ -6,9 +6,11 @@ __all__ = [
     "UiPathApiTrigger",
     "UiPathIntegrationTrigger",
     "UiPathResumeTriggerName",
+    "UIPATH_METADATA_KEY",
 ]
 
 from uipath.core.triggers.trigger import (
+    UIPATH_METADATA_KEY,
     UiPathApiTrigger,
     UiPathIntegrationTrigger,
     UiPathResumeTrigger,
