@@ -1,10 +1,17 @@
-"""Shared governance output types.
+"""Shared governance contracts.
 
-These dataclasses cross the adapter boundary — every evaluator
-implementation (native, AGT, composite, …) produces them, and every
-adapter consumes them. They are kept free of policy-input concepts
-(``Rule``/``Check``/``Condition``) so the adapter packages don't
-inherit the native policy model.
+Two groups of types live here, both kept free of policy-input concepts
+(``Rule``/``Check``/``Condition``) so adapter packages don't inherit
+the native policy model:
+
+- **Output types** (:class:`Action`, :class:`LifecycleHook`,
+  :class:`RuleEvaluation`, :class:`AuditRecord`) — cross the adapter
+  boundary at evaluation time: every evaluator implementation (native,
+  AGT, composite, …) produces them, and every adapter consumes them.
+- **Configuration value types** (:class:`EnforcementMode`) — describe
+  governance configuration shared by core and its consumers. The
+  per-policy runtime state that selects a mode lives outside this
+  package; only the value type lives here.
 """
 
 from __future__ import annotations
@@ -35,6 +42,14 @@ class LifecycleHook(str, Enum):
     AFTER_TOOL = "after_tool"
 
 
+class EnforcementMode(str, Enum):
+    """Governance enforcement modes."""
+
+    AUDIT = "audit"  # Evaluate and log; never block.
+    ENFORCE = "enforce"  # Block on DENY rules.
+    DISABLED = "disabled"  # Skip evaluation entirely.
+
+
 @dataclass
 class RuleEvaluation:
     """Result of evaluating a single rule."""
@@ -51,12 +66,17 @@ class RuleEvaluation:
 
 @dataclass
 class AuditRecord:
-    """Complete audit record for a governance evaluation."""
+    """Complete audit record for a governance evaluation.
+
+    ``trace_id`` is intentionally absent. Trace correlation is resolved
+    by the concrete provider at request time (via OpenTelemetry's
+    native span identity) — per-evaluation trace ids aren't part of
+    the audit-record contract.
+    """
 
     timestamp: datetime
     agent_name: str
     runtime_id: str
-    trace_id: str
     hook: LifecycleHook
     evaluations: list[RuleEvaluation]
     final_action: Action

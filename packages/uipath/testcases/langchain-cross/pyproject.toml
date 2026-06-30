@@ -11,3 +11,10 @@ requires-python = ">=3.11"
 
 [tool.uv.sources]
 uipath = { path = "../../", editable = true }
+
+# Force the local uipath (the version under test) regardless of the upper bound
+# the published uipath-langchain declares, so a backward-compatible minor bump
+# does not break resolution purely on that cap. Mirrors the uv override used in
+# the cross-repo test workflows.
+[tool.uv]
+override-dependencies = ["uipath"]

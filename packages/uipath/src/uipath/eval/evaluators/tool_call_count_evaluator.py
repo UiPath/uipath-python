@@ -1,9 +1,8 @@
 """Tool call count evaluator for validating expected tool usage patterns."""
 
-from collections import Counter
-
 from .._helpers.evaluators_helpers import (
-    extract_tool_calls_names,
+    count_tool_calls_by_name_and_id,
+    extract_tool_calls,
     tool_calls_count_score,
 )
 from ..models import EvaluationResult, NumericEvaluationResult, WorkloadExecution
@@ -72,8 +71,8 @@ class ToolCallCountEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating correct tool call order (True/False)
         """
-        tool_calls_count = Counter(
-            extract_tool_calls_names(workload_execution.workload_trace)
+        tool_calls_count = count_tool_calls_by_name_and_id(
+            extract_tool_calls(workload_execution.workload_trace, include_args=False)
         )
         score, justification = tool_calls_count_score(
             tool_calls_count,

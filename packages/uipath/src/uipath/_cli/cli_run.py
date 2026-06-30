@@ -9,7 +9,11 @@ from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath.core.tracing import UiPathTraceManager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
-from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.platform.common import (
+    ExecutionSourceContext,
+    ResourceOverwritesContext,
+    UiPathConfig,
+)
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeFactoryProtocol,
@@ -209,7 +213,7 @@ def run(
                 async with ResourceOverwritesContext(
                     lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                 ):
-                    with ctx:
+                    with ExecutionSourceContext(ctx.execution_source), ctx:
                         base_runtime: UiPathRuntimeProtocol | None = None
                         runtime: UiPathRuntimeProtocol | None = None
                         chat_runtime: UiPathRuntimeProtocol | None = None

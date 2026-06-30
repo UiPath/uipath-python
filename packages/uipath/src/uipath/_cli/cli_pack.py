@@ -8,11 +8,10 @@ import click
 from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings, EntryPoint, EntryPoints
-from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
+from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 from uipath.platform.common import UiPathConfig
 
-from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
@@ -21,6 +20,7 @@ from ._utils._project_files import (
     files_to_include,
     get_project_config,
     read_toml_project,
+    resolve_existing_project_id,
     validate_config,
 )
 from ._utils._uv_helpers import handle_uv_operations
@@ -28,31 +28,6 @@ from ._utils._uv_helpers import handle_uv_operations
 console = ConsoleLogger()
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
-
-
-def get_project_id() -> str:
-    """Get project ID from telemetry file if it exists, otherwise generate a new one.
-
-    Returns:
-        Project ID string (either from telemetry file or newly generated).
-    """
-    # first check if this is a studio project
-    if project_id := UiPathConfig.project_id:
-        return project_id
-
-    telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
-
-    if os.path.exists(telemetry_file):
-        try:
-            with open(telemetry_file, "r") as f:
-                telemetry_data = json.load(f)
-                project_id = telemetry_data.get(_PROJECT_KEY)
-                if project_id:
-                    return project_id
-        except (json.JSONDecodeError, IOError):
-            pass
-
-    return str(uuid.uuid4())
 
 
 def get_project_version(directory):
@@ -72,14 +47,27 @@ def validate_config_structure(config_data):
 
 
 def generate_operate_file(
-    entrypoints: list[EntryPoint], runtimeOptions: RuntimeOptions, dependencies=None
+    entrypoints: list[EntryPoint],
+    config: UiPathJsonConfig,
+    dependencies=None,
+    directory: str = ".",
 ):
     if not entrypoints:
         raise ValueError(
             "No entry points found in entry-points.json. Please run 'uipath init' to generate valid entry points."
         )
 
-    project_id = get_project_id()
+    # prefer id from uipath.json; fall back to the legacy
+    # .telemetry.json or SW project id.
+    if config.id:
+        try:
+            uuid.UUID(config.id)
+        except ValueError:
+            console.error(f"uipath.json 'id' must be a valid GUID, got '{config.id}'.")
+
+    project_id = (
+        config.id or resolve_existing_project_id(directory) or str(uuid.uuid4())
+    )
 
     project_type = determine_project_type(entrypoints)
     first_entry = entrypoints[0]
@@ -94,7 +82,7 @@ def generate_operate_file(
         "runtimeOptions": {
             "requiresUserInteraction": False,
             "isAttended": False,
-            "isConversational": runtimeOptions.is_conversational,
+            "isConversational": config.runtime_options.is_conversational,
         },
     }
 
@@ -239,7 +227,7 @@ def pack_fn(
         config_data = TypeAdapter(UiPathJsonConfig).validate_python(json.load(f))
 
     operate_file = generate_operate_file(
-        entrypoints, config_data.runtime_options, dependencies
+        entrypoints, config_data, dependencies, directory
     )
 
     # try to read bindings from bindings.json

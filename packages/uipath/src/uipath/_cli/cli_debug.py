@@ -11,7 +11,11 @@ from uipath._cli._utils._studio_project import StudioClient
 from uipath.core.tracing import UiPathTraceManager
 from uipath.eval.mocks import UiPathMockRuntime
 from uipath.eval.mocks._mock_runtime import load_simulation_config
-from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.platform.common import (
+    ExecutionSourceContext,
+    ResourceOverwritesContext,
+    UiPathConfig,
+)
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeContext,
@@ -122,14 +126,15 @@ def debug(
             async def execute_debug_runtime():
                 trace_manager = UiPathTraceManager()
 
-                with UiPathRuntimeContext.with_defaults(
+                ctx = UiPathRuntimeContext.with_defaults(
                     input=input,
                     input_file=input_file,
                     output_file=output_file,
                     resume=resume,
                     trace_manager=trace_manager,
                     command="debug",
-                ) as ctx:
+                )
+                with ExecutionSourceContext(ctx.execution_source), ctx:
                     factory: UiPathRuntimeFactoryProtocol | None = None
 
                     try:
@@ -160,7 +165,6 @@ def debug(
                             debug_bridge: UiPathDebugProtocol = get_debug_bridge(
                                 ctx, attach=attach_mode
                             )
-
                             runtime = await factory.new_runtime(
                                 entrypoint,
                                 ctx.conversation_id or ctx.job_id or "default",

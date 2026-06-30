@@ -304,17 +304,29 @@ class EvaluatorType(str, Enum):
 
 
 class ToolCall(BaseModel):
-    """Represents a tool call with its arguments."""
+    """Represents a tool call with its arguments.
+
+    `id` is the stable identifier from the tool's resource definition (e.g. a
+    UUID from `bindings.json`). When present on both the actual call and the
+    expected criterion, scorers match by `id` so a rename of `name` does not
+    break eval sets. When `id` is absent on either side, scorers fall back to
+    matching by `name` (the legacy behavior).
+    """
 
     name: str
     args: dict[str, Any]
+    id: str | None = None
 
 
 class ToolOutput(BaseModel):
-    """Represents a tool output with its output."""
+    """Represents a tool output with its output.
+
+    See `ToolCall.id` for the id semantics.
+    """
 
     name: str
     output: str
+    id: str | None = None
 
 
 class UiPathEvaluationErrorCategory(str, Enum):
