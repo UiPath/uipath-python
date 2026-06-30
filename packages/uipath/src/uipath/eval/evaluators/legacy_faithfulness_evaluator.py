@@ -88,7 +88,9 @@ class LegacyFaithfulnessEvaluator(
             )
 
         # Extract context sources from traces
-        context_sources = self._extract_context_sources(workload_execution.workload_trace)
+        context_sources = self._extract_context_sources(
+            workload_execution.workload_trace
+        )
 
         if not context_sources:
             return NumericEvaluationResult(
@@ -127,7 +129,9 @@ class LegacyFaithfulnessEvaluator(
             details=justification,
         )
 
-    def _extract_context_sources(self, workload_trace: list[Any]) -> list[dict[str, str]]:
+    def _extract_context_sources(
+        self, workload_trace: list[Any]
+    ) -> list[dict[str, str]]:
         """Extract context sources from agent execution trace.
 
         Looks for tool call outputs and context grounding spans that provide context.
@@ -204,7 +208,9 @@ class LegacyFaithfulnessEvaluator(
             return []
 
         # Stage 3: Decomposition
-        claims = await self._decompose_to_claims(disambiguated_sentences, workload_output)
+        claims = await self._decompose_to_claims(
+            disambiguated_sentences, workload_output
+        )
         return claims
 
     async def _select_verifiable_sentences(self, workload_output: str) -> list[str]:

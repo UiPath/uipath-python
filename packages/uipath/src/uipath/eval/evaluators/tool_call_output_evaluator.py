@@ -74,7 +74,9 @@ class ToolCallOutputEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating correct tool call order (True/False)
         """
-        tool_calls_outputs = extract_tool_calls_outputs(workload_execution.workload_trace)
+        tool_calls_outputs = extract_tool_calls_outputs(
+            workload_execution.workload_trace
+        )
         score, justification = tool_calls_output_score(
             tool_calls_outputs,
             evaluation_criteria.tool_outputs,

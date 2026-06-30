@@ -73,7 +73,9 @@ class BaseLLMOutputEvaluator(
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge."""
         # Explicitly delegate to LLMJudgeMixin's evaluate method to override BaseEvaluator
-        return await LLMJudgeMixin.evaluate(self, workload_execution, evaluation_criteria)
+        return await LLMJudgeMixin.evaluate(
+            self, workload_execution, evaluation_criteria
+        )
 
 
 class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConfig]):

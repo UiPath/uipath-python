@@ -199,7 +199,10 @@ class BaseLegacyEvaluator(
         if self.target_output_key == "*":
             result = workload_output
         # Otherwise, extract specific key
-        elif isinstance(workload_output, dict) and self.target_output_key in workload_output:
+        elif (
+            isinstance(workload_output, dict)
+            and self.target_output_key in workload_output
+        ):
             result = workload_output[self.target_output_key]
         else:
             # Fallback to full output

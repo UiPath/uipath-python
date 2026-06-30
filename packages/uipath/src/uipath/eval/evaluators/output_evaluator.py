@@ -146,7 +146,8 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                 )
             try:
                 list_result: dict[str, Any] = {
-                    k: resolve_output_path(workload_execution.workload_output, k) for k in key
+                    k: resolve_output_path(workload_execution.workload_output, k)
+                    for k in key
                 }
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
