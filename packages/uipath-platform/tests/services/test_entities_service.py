@@ -16,6 +16,7 @@ from uipath.platform.common._bindings import (
 from uipath.platform.entities import ChoiceSetValue, DataFabricEntityItem, Entity
 from uipath.platform.entities._entities_service import EntitiesService
 from uipath.platform.entities._entity_data_service import EntityDataService
+from uipath.platform.errors import EnrichedException
 
 
 @pytest.fixture
@@ -2704,3 +2705,36 @@ class TestGetOntologyFileAsync:
 
         endpoint = service._ontology.request_async.call_args.args[1]
         assert str(endpoint) == f"/datafabric_/api/ontologies/library/files/{file_type}"
+
+    @pytest.mark.anyio
+    async def test_rejects_unsupported_file_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """File-type validation is server-side (the ontology API), not in the
+        client. The SDK forwards the requested type and must surface the API's
+        rejection of an unsupported one as ``EnrichedException`` rather than
+        swallowing it."""
+        api_message = "Unsupported ontology file type: exe"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/ontologies/library/files/exe",
+            method="GET",
+            status_code=400,
+            json={"message": api_message},
+        )
+
+        with pytest.raises(EnrichedException) as exc_info:
+            await service.get_ontology_file_async("library", "exe")
+
+        # The SDK surfaces the API's rejection verbatim — status code, response
+        # body, and the extracted message — rather than masking it.
+        exc = exc_info.value
+        assert exc.status_code == 400
+        assert api_message in exc.response_content
+        assert exc.error_info is not None
+        assert exc.error_info.message == api_message
