@@ -101,6 +101,29 @@ def build(
     subprocess.run(cmd, check=True)
 
 
+@image.command(name="publish")
+@click.option(
+    "--registry",
+    required=True,
+    help="ACR login server, e.g. myacr.azurecr.io",
+)
+@click.option(
+    "--tag",
+    "image_tag",
+    required=True,
+    help="Local image tag to push.",
+)
+@track_command("image-publish")
+def publish(registry: str, image_tag: str) -> None:
+    """Push a built image to an Azure Container Registry."""
+    acr_name = registry.split(".")[0]
+    target = f"{registry}/{image_tag}"
+    subprocess.run(["az", "acr", "login", "--name", acr_name], check=True)
+    subprocess.run(["docker", "tag", image_tag, target], check=True)
+    subprocess.run(["docker", "push", target], check=True)
+    console.success(f"Pushed {target}")
+
+
 def _resolve_entrypoint(project_root: Path, override: str | None) -> str:
     """Return the mcp.json server name to run (the AgentHub slug)."""
     if override:

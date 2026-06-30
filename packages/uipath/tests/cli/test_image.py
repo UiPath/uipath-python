@@ -107,3 +107,29 @@ def test_image_build_produces_runnable_image(runner: CliRunner, temp_dir: str) -
                 check=False,
                 capture_output=True,
             )
+
+
+def test_image_publish_constructs_push(
+    runner: CliRunner, temp_dir: str, monkeypatch
+) -> None:
+    calls = []
+    monkeypatch.setattr(
+        "uipath._cli.cli_image.subprocess.run",
+        lambda cmd, **kw: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0),
+    )
+    with runner.isolated_filesystem(temp_dir=temp_dir):
+        _scaffold(Path("."))
+        runner.invoke(
+            cli, ["image", "build", "--tag", "invoice:0", "--dry-run"], env={}
+        )
+        result = runner.invoke(
+            cli,
+            ["image", "publish", "--registry", "ah.azurecr.io", "--tag", "invoice:0"],
+            env={},
+        )
+        assert result.exit_code == 0, result.output
+        assert ["az", "acr", "login", "--name", "ah"] in calls
+        assert any(
+            c[:2] == ["docker", "push"] and c[-1] == "ah.azurecr.io/invoice:0"
+            for c in calls
+        )
