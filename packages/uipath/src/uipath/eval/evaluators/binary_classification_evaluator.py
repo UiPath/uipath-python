@@ -8,6 +8,8 @@ TP/FP/FN/TN counts and compute precision, recall, or F-score.
 
 from typing import Literal
 
+from pydantic import model_validator
+
 from ..models import (
     AgentExecution,
     EvaluationResult,
@@ -19,11 +21,21 @@ from ..models.models import (
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
 )
+from ._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
 from .base_evaluator import BaseEvaluationCriteria, BaseEvaluatorJustification
 from .output_evaluator import (
     BaseOutputEvaluator,
     OutputEvaluatorConfig,
 )
+
+# Maps the evaluator-level ``metric_type`` strings to the corresponding
+# aggregator-spec ``type`` values. The two spellings differ historically:
+# the evaluator uses "f-score" (hyphen), the aggregator uses "fscore".
+_METRIC_TYPE_TO_AGGREGATOR_TYPE = {
+    "precision": "precision",
+    "recall": "recall",
+    "f-score": "fscore",
+}
 
 
 class BinaryClassificationEvaluationCriteria(BaseEvaluationCriteria):
@@ -41,6 +53,58 @@ class BinaryClassificationEvaluatorConfig(
     positive_class: str
     metric_type: Literal["precision", "recall", "f-score"] = "precision"
     f_value: float = 1.0
+    # Optional run-level aggregators (precision / recall / fscore). Each is a
+    # self-contained spec carrying its own ``classes``, ``averaging``, and
+    # (for fscore) ``f_value``. The dataset-evaluator runtime walks this list
+    # after all per-datapoint evaluators complete and emits one structured
+    # result per aggregator keyed by ``{evaluator_name}.{aggregator.type}``.
+    aggregators: list[AggregatorSpec] | None = None
+
+    @model_validator(mode="after")
+    def _validate_aggregators_against_evaluator_config(
+        self,
+    ) -> "BinaryClassificationEvaluatorConfig":
+        """Reject aggregators that are inconsistent with the evaluator's own config.
+
+        Two checks:
+          * ``positive_class`` must appear in every aggregator's ``classes``
+            list (case-insensitive). Otherwise the per-datapoint headline
+            and the aggregator's confusion matrix score completely
+            disjoint label spaces.
+          * For each aggregator whose ``type`` matches the evaluator-level
+            ``metric_type`` (mapped via :data:`_METRIC_TYPE_TO_AGGREGATOR_TYPE`),
+            the aggregator's ``f_value`` must match the evaluator's
+            ``f_value``. Otherwise the per-evaluator headline produced via
+            ``reduce_scores`` and the dataset evaluator's per-aggregator
+            score diverge silently.
+        """
+        if not self.aggregators:
+            return self
+        positive_lower = self.positive_class.lower() if self.positive_class else ""
+        evaluator_aggregator_type = _METRIC_TYPE_TO_AGGREGATOR_TYPE.get(
+            self.metric_type
+        )
+        for spec in self.aggregators:
+            if positive_lower and positive_lower not in {
+                c.lower() for c in spec.classes
+            }:
+                raise ValueError(
+                    f"Aggregator '{spec.type}' on evaluator '{self.name}' "
+                    f"declares classes={spec.classes!r} but positive_class="
+                    f"{self.positive_class!r} is not in that list. Add the "
+                    "positive class to the aggregator's classes or remove it."
+                )
+            if spec.type == evaluator_aggregator_type and isinstance(
+                spec, FScoreAggregatorSpec
+            ):
+                if spec.f_value != self.f_value:
+                    raise ValueError(
+                        f"Aggregator 'fscore' on evaluator '{self.name}' has "
+                        f"f_value={spec.f_value} but the evaluator's f_value="
+                        f"{self.f_value}. The per-evaluator headline and the "
+                        "aggregator would compute different F-beta scores."
+                    )
+        return self
 
 
 class BinaryClassificationEvaluator(
@@ -98,14 +162,8 @@ class BinaryClassificationEvaluator(
         tp = fp = fn = 0
 
         for r in results:
-            if isinstance(r.details, BaseEvaluatorJustification):
-                details = r.details
-            elif isinstance(r.details, dict):
-                try:
-                    details = BaseEvaluatorJustification.model_validate(r.details)
-                except Exception:
-                    continue
-            else:
+            details = BaseEvaluatorJustification.try_from(r.details)
+            if details is None:
                 continue
             pred = details.actual
             exp = details.expected
