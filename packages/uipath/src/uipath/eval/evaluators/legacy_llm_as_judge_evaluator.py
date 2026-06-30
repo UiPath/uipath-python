@@ -1,4 +1,4 @@
-"""LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
+"""LLM-as-a-judge evaluator for subjective quality assessment of workload outputs."""
 
 import logging
 from typing import Any, Optional
@@ -15,11 +15,11 @@ from .._helpers.helpers import is_empty_value
 from .._helpers.output_path import resolve_output_path
 from ..models import NumericEvaluationResult
 from ..models.models import (
-    AgentExecution,
     EvaluationResult,
     LLMResponse,
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
+    WorkloadExecution,
 )
 from .base_legacy_evaluator import (
     BaseLegacyEvaluator,
@@ -38,7 +38,7 @@ class LegacyLlmAsAJudgeEvaluatorConfig(LegacyEvaluatorConfig):
 
 
 class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorConfig]):
-    """Legacy evaluator that uses an LLM to judge the quality of agent output."""
+    """Legacy evaluator that uses an LLM to judge the quality of workload output."""
 
     prompt: str
     model: str = Field(default="same-as-agent")
@@ -104,7 +104,7 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate using an LLM as a judge.
@@ -112,7 +112,7 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         Sends the formatted prompt to the configured LLM and expects a JSON response
         with a numerical score (0-100) and justification.
 
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
                 - spans: The execution spans to use for the evaluation
@@ -125,7 +125,7 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         if self.llm is None:
             self._initialize_llm()
 
-        actual_output = agent_execution.agent_output
+        actual_output = workload_execution.workload_output
         expected_output = evaluation_criteria.expected_output
 
         if self.target_output_key and self.target_output_key != "*":

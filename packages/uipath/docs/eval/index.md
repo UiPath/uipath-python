@@ -72,13 +72,13 @@ To use an evaluator, you typically:
 
 ```python
 from uipath.eval.evaluators import ExactMatchEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # Sample agent execution (this should be replaced with your agent run data)
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"query": "Greet the world"},
-    agent_output={"result": "hello, world!"},
-    agent_trace=[],
+    workload_output={"result": "hello, world!"},
+    workload_trace=[],
 )
 
 # Create evaluator
@@ -93,7 +93,7 @@ evaluator = ExactMatchEvaluator(
 
 # Evaluate
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={"expected_output": {"result": "Hello, World!"}}
 )
 

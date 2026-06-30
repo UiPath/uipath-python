@@ -363,7 +363,7 @@ class StudioWebProgressReporter:
         """Extract token usage and cost from OpenTelemetry spans.
 
         Args:
-            spans: List of ReadableSpan objects from agent execution
+            spans: List of ReadableSpan objects from workload execution
 
         Returns:
             Dictionary with tokens, completionTokens, promptTokens, and cost

@@ -231,7 +231,7 @@ def _discover_eval_sets() -> list[Path]:
     "--verbose",
     is_flag=True,
     default=False,
-    help="Include agent execution output (trace, result) in the output file",
+    help="Include workload execution output (trace, result) in the output file",
 )
 def eval(
     entrypoint: str | None,

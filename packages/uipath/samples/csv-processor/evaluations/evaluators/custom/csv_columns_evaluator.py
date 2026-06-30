@@ -6,7 +6,11 @@ from uipath.eval.evaluators import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
-from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from uipath.eval.models import (
+    EvaluationResult,
+    NumericEvaluationResult,
+    WorkloadExecution,
+)
 
 
 class CSVColumnsEvaluationCriteria(BaseEvaluationCriteria):
@@ -39,7 +43,7 @@ class CSVColumnsEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: CSVColumnsEvaluationCriteria,
     ) -> EvaluationResult:
         # Check if all expected columns are mentioned in the output
@@ -55,7 +59,7 @@ class CSVColumnsEvaluator(
             )
 
         # Look for column names in agent traces (where print output is captured)
-        for span in agent_execution.agent_trace:
+        for span in workload_execution.workload_trace:
             # Check span attributes
             if span.attributes:
                 for attr_value in span.attributes.values():
@@ -75,8 +79,8 @@ class CSVColumnsEvaluator(
                                         columns_found.add(column)
 
         # Also check in the output
-        if len(columns_found) < total_columns and agent_execution.agent_output:
-            output_str = str(agent_execution.agent_output)
+        if len(columns_found) < total_columns and workload_execution.workload_output:
+            output_str = str(workload_execution.workload_output)
             for column in evaluation_criteria.expected_columns:
                 if column in output_str:
                     columns_found.add(column)
