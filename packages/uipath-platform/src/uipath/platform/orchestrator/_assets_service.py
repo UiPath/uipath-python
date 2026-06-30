@@ -602,6 +602,51 @@ class AssetsService(FolderContext, BaseService):
 
         return response.json()
 
+    @traced(name="assets_exists", run_type="uipath")
+    def exists(
+        self,
+        name: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> bool:
+        """Check whether an asset with the given name exists.
+
+        Args:
+            name (str): The name of the asset.
+            folder_key (Optional[str]): The key of the folder. Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder. Override the default one set in the SDK config.
+
+        Returns:
+            bool: True if an asset with the given name exists, False otherwise.
+
+        Examples:
+            ```python
+            from uipath.platform import UiPath
+
+            client = UiPath()
+
+            client.assets.exists(name="MyAsset")
+            ```
+        """
+        spec = self._list_spec(
+            folder_path=folder_path,
+            folder_key=folder_key,
+            filter=f"Name eq '{name}'",
+            orderby=None,
+            skip=0,
+            top=1,
+        )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            params=spec.params,
+            content=spec.content,
+            headers=spec.headers,
+            json=spec.json,
+        )
+        return len(response.json().get("value", [])) > 0
+
     @property
     def custom_headers(self) -> Dict[str, str]:
         return self.folder_headers
