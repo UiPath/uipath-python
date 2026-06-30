@@ -164,3 +164,39 @@ class TestDelegation:
         requests = httpx_mock.get_requests()
         assert len(requests) == 1
         assert requests[0].method == "POST"
+
+    def test_track_event_delegates_to_service(
+        self,
+        httpx_mock: HTTPXMock,
+        provider: UiPathPlatformGovernanceProvider,
+        base_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            method="POST",
+            status_code=204,
+        )
+
+        provider.track_event(event_name="ev", data={"k": "v"}, operation_id="op-1")
+
+        sent = httpx_mock.get_requests()[-1]
+        assert sent.method == "POST"
+        assert sent.headers["x-uipath-operation-id"] == "op-1"
+
+    async def test_track_event_async_delegates_to_service(
+        self,
+        httpx_mock: HTTPXMock,
+        provider: UiPathPlatformGovernanceProvider,
+        base_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/log",
+            method="POST",
+            status_code=204,
+        )
+
+        await provider.track_event_async(event_name="ev", operation_id="op-2")
+
+        sent = httpx_mock.get_requests()[-1]
+        assert sent.method == "POST"
+        assert sent.headers["x-uipath-operation-id"] == "op-2"
