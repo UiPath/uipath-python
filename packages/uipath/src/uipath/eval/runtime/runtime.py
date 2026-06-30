@@ -1024,9 +1024,13 @@ class UiPathEvalRuntime:
                 expected_agent_behavior=eval_item.expected_agent_behavior,
             )
 
+            # Pass positionally so custom evaluators that still declare the old
+            # `agent_execution` parameter name keep working (the public keyword
+            # rename to `workload_execution` is a documented break — see the
+            # 2.12.0 migration notes).
             result = await evaluator.validate_and_evaluate_criteria(
-                workload_execution=workload_execution,
-                evaluation_criteria=evaluation_criteria,
+                workload_execution,
+                evaluation_criteria,
             )
 
             # Create "Evaluation output" child span with the result

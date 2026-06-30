@@ -34,7 +34,6 @@ __all__ = [
     "NumericEvaluationResult",
     "ErrorEvaluationResult",
     "ToolCall",
-    "EvaluatorType",
     "ToolOutput",
 ]
 
