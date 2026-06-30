@@ -3959,9 +3959,7 @@ class TestDataFabricContextConfig:
                 "name": "Ontologies",
                 "description": "",
                 "contextType": "datafabricontology",
-                "ontologySet": [
-                    {"name": "library", "folderId": "f1"}
-                ],
+                "ontologySet": [{"name": "library", "folderId": "f1"}],
             }
         )
         dumped = parsed.model_dump(by_alias=True, exclude_none=True)
