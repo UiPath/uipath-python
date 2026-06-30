@@ -66,14 +66,14 @@ class ToolCallCountEvaluator(
         Args:
             workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
-                - agent_output: The final output of the agent
-                - agent_trace: The execution spans to use for the evaluation
+                - workload_output: The final output of the agent
+                - workload_trace: The execution spans to use for the evaluation
             evaluation_criteria: The criteria to evaluate
         Returns:
             EvaluationResult: Boolean result indicating correct tool call order (True/False)
         """
         tool_calls_count = Counter(
-            extract_tool_calls_names(workload_execution.agent_trace)
+            extract_tool_calls_names(workload_execution.workload_trace)
         )
         score, justification = tool_calls_count_score(
             tool_calls_count,

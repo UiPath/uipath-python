@@ -131,7 +131,7 @@ class LegacyContextPrecisionEvaluator(
         """Evaluate context precision from agent execution traces.
 
         Args:
-            workload_execution: The execution details containing agent_trace with spans
+            workload_execution: The execution details containing workload_trace with spans
             evaluation_criteria: Legacy evaluation criteria (unused for context precision)
 
         Returns:
@@ -143,7 +143,7 @@ class LegacyContextPrecisionEvaluator(
 
         # Extract context grounding spans from the trace
         context_groundings = self._extract_context_groundings(
-            workload_execution.agent_trace
+            workload_execution.workload_trace
         )
 
         if not context_groundings:
@@ -224,7 +224,7 @@ class LegacyContextPrecisionEvaluator(
                 raise ValueError(f"Cannot parse value: {value_str}") from e
 
     def _extract_context_groundings(
-        self, agent_trace: list[Any]
+        self, workload_trace: list[Any]
     ) -> list[dict[str, Any]]:
         """Extract context groundings from agent execution trace.
 
@@ -233,7 +233,7 @@ class LegacyContextPrecisionEvaluator(
         """
         context_groundings = []
 
-        for span in agent_trace:
+        for span in workload_trace:
             if not hasattr(span, "attributes") or span.attributes is None:
                 continue
 

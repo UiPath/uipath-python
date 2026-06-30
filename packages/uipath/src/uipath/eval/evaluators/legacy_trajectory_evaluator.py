@@ -86,7 +86,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
             workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
+                - workload_trace: The execution spans to use for the evaluation
                 - expected_agent_behavior: The expected agent behavior
             evaluation_criteria: The criteria to evaluate
         Returns:
@@ -101,7 +101,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
 
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=workload_execution.expected_agent_behavior,
-            agent_run_history=workload_execution.agent_trace,
+            agent_run_history=workload_execution.workload_trace,
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 

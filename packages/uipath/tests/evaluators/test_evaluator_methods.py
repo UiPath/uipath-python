@@ -70,8 +70,8 @@ def sample_agent_execution() -> WorkloadExecution:
     """Create a sample WorkloadExecution for testing."""
     return WorkloadExecution(
         agent_input={"input": "Test input"},
-        agent_output={"output": "Test output"},
-        agent_trace=[],  # Empty trace for basic tests
+        workload_output={"output": "Test output"},
+        workload_trace=[],  # Empty trace for basic tests
     )
 
 
@@ -124,10 +124,10 @@ def sample_agent_execution_with_trace() -> WorkloadExecution:
 
     return WorkloadExecution(
         agent_input={"input": "Test input with tools"},
-        agent_output={
+        workload_output={
             "output": "Test output with tools",
         },
-        agent_trace=mock_spans,
+        workload_trace=mock_spans,
     )
 
 
@@ -217,8 +217,8 @@ class TestExactMatchEvaluator:
         """Test that int and float scalar values are normalized before comparison."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"value": actual_output},
-            agent_trace=[],
+            workload_output={"value": actual_output},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchNumericTest", "target_output_key": "value"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -262,8 +262,8 @@ class TestExactMatchEvaluator:
         """Test that int/float normalization works recursively for dicts, lists, and nested structures."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output=actual_output,
-            agent_trace=[],
+            workload_output=actual_output,
+            workload_trace=[],
         )
         config = {"name": "ExactMatchRecursiveTest", "target_output_key": target_key}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -313,8 +313,8 @@ class TestExactMatchEvaluator:
         # Multi-line output
         workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="line1\nline2\nline3",
-            agent_trace=[],
+            workload_output="line1\nline2\nline3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
 
@@ -348,8 +348,8 @@ class TestExactMatchEvaluator:
         # Multi-line output with 2 out of 3 lines matching
         workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="line1\nwrong\nline3",
-            agent_trace=[],
+            workload_output="line1\nwrong\nline3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
 
@@ -386,8 +386,8 @@ class TestExactMatchEvaluator:
         # Pipe-delimited output
         workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="part1|part2|part3",
-            agent_trace=[],
+            workload_output="part1|part2|part3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="part1|part2|part3")  # pyright: ignore[reportCallIssue]
 
@@ -417,8 +417,8 @@ class TestExactMatchEvaluator:
         # Multi-line output with 2 out of 3 lines matching
         workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="line1\nwrong\nline3",
-            agent_trace=[],
+            workload_output="line1\nwrong\nline3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
 
@@ -455,8 +455,8 @@ class TestListTargetOutputKey:
         """All listed keys match → score 1.0."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok", "total": 42, "extra": "ignored"},
-            agent_trace=[],
+            workload_output={"status": "ok", "total": 42, "extra": "ignored"},
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListKeys",
@@ -477,8 +477,8 @@ class TestListTargetOutputKey:
         """One key's value differs → score 0.0."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok", "total": 99},
-            agent_trace=[],
+            workload_output={"status": "ok", "total": 99},
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListKeys",
@@ -499,8 +499,8 @@ class TestListTargetOutputKey:
         """Nested dot-notation paths inside a list of keys."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"order": {"status": "shipped"}, "qty": 3},
-            agent_trace=[],
+            workload_output={"order": {"status": "shipped"}, "qty": 3},
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListDotKeys",
@@ -523,8 +523,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok"},  # 'total' is missing
-            agent_trace=[],
+            workload_output={"status": "ok"},  # 'total' is missing
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListKeys",
@@ -547,8 +547,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok", "total": 42},
-            agent_trace=[],
+            workload_output={"status": "ok", "total": 42},
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListKeys",
@@ -573,8 +573,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok", "total": 5},
-            agent_trace=[],
+            workload_output={"status": "ok", "total": 5},
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListKeys",
@@ -597,8 +597,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok"},
-            agent_trace=[],
+            workload_output={"status": "ok"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -616,8 +616,8 @@ class TestListTargetOutputKey:
         """line_by_line_evaluator=True is ignored when target_output_key is a list."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"a": "x", "b": "y"},
-            agent_trace=[],
+            workload_output={"a": "x", "b": "y"},
+            workload_trace=[],
         )
         config = {
             "name": "ExactMatchListLbl",
@@ -647,8 +647,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"name": "Alice", "score": 100, "extra": "ignored"},
-            agent_trace=[],
+            workload_output={"name": "Alice", "score": 100, "extra": "ignored"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimListKeys",
@@ -666,13 +666,13 @@ class TestListTargetOutputKey:
 
     @pytest.mark.asyncio
     async def test_list_keys_non_dict_actual_raises(self) -> None:
-        """Non-dict agent_output with list key returns ErrorEvaluationResult."""
+        """Non-dict workload_output with list key returns ErrorEvaluationResult."""
         from uipath.eval.models.models import ErrorEvaluationResult
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output="just a string",  # pyright: ignore[reportArgumentType]
-            agent_trace=[],
+            workload_output="just a string",  # pyright: ignore[reportArgumentType]
+            workload_trace=[],
         )
         config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -694,8 +694,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok"},
-            agent_trace=[],
+            workload_output={"status": "ok"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -723,8 +723,8 @@ class TestListTargetOutputKey:
         )
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"file": att_uri, "status": "ok"},
-            agent_trace=[],
+            workload_output={"file": att_uri, "status": "ok"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchListKeys", "target_output_key": ["file", "status"]}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -751,8 +751,8 @@ class TestListTargetOutputKey:
         )
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"report": att_uri},
-            agent_trace=[],
+            workload_output={"report": att_uri},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchScalarAtt", "target_output_key": "report"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -772,8 +772,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"other": "value"},
-            agent_trace=[],
+            workload_output={"other": "value"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchMissingActual", "target_output_key": "missing_key"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -793,8 +793,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok"},
-            agent_trace=[],
+            workload_output={"status": "ok"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchMissingExpected", "target_output_key": "status"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -815,8 +815,8 @@ class TestListTargetOutputKey:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok"},
-            agent_trace=[],
+            workload_output={"status": "ok"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchInvalidJson", "target_output_key": "status"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -834,8 +834,8 @@ class TestListTargetOutputKey:
         """None criteria with no default configured raises UiPathEvaluationError."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "ok"},
-            agent_trace=[],
+            workload_output={"status": "ok"},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchNoCriteria"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -894,7 +894,7 @@ class TestContainsEvaluator:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "agent_output, search_text, target_key, case_sensitive, negated, expected_score",
+        "workload_output, search_text, target_key, case_sensitive, negated, expected_score",
         [
             # Basic match
             ("Test output", "Test output", "*", False, False, 1.0),
@@ -918,7 +918,7 @@ class TestContainsEvaluator:
     )
     async def test_contains_evaluator(
         self,
-        agent_output: Any,
+        workload_output: Any,
         search_text: str,
         target_key: str,
         case_sensitive: bool,
@@ -929,13 +929,13 @@ class TestContainsEvaluator:
         """Test ContainsEvaluator across match, no-match, case sensitivity, and negation cases."""
         if target_key == "output":
             execution = (
-                sample_agent_execution  # has agent_output={"output": "Test output"}
+                sample_agent_execution  # has workload_output={"output": "Test output"}
             )
         else:
             execution = WorkloadExecution(
                 agent_input={},
-                agent_output=agent_output,
-                agent_trace=[],
+                workload_output=workload_output,
+                workload_trace=[],
             )
         config = {
             "name": "ContainsTest",
@@ -980,8 +980,8 @@ class TestJsonSimilarityEvaluator:
         """Test JSON similarity with identical structures."""
         execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -1003,8 +1003,8 @@ class TestJsonSimilarityEvaluator:
         """Test JSON similarity with partial matches."""
         execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "LA"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "LA"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -1046,8 +1046,8 @@ class TestJsonSimilarityEvaluator:
         """Test that int/float normalization is applied before JSON similarity comparison."""
         execution = WorkloadExecution(
             agent_input={},
-            agent_output=actual_output,
-            agent_trace=[],
+            workload_output=actual_output,
+            workload_trace=[],
         )
         config = {"name": "JsonSimilarityTest"}
         evaluator = JsonSimilarityEvaluator.model_validate(
@@ -1065,8 +1065,8 @@ class TestJsonSimilarityEvaluator:
         """Test JSON similarity using validate_and_evaluate_criteria."""
         execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -1874,8 +1874,8 @@ class TestJustificationHandling:
 
         execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -2504,8 +2504,8 @@ class TestBinaryClassificationEvaluator:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": predicted},
-            agent_trace=[],
+            workload_output={"class": predicted},
+            workload_trace=[],
         )
         config = {
             "name": "BinaryClassificationTest",
@@ -2559,8 +2559,8 @@ class TestMulticlassClassificationEvaluator:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": predicted},
-            agent_trace=[],
+            workload_output={"class": predicted},
+            workload_trace=[],
         )
         config = {
             "name": "MulticlassClassificationTest",
@@ -2590,8 +2590,8 @@ class TestMulticlassClassificationEvaluator:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": "cat"},
-            agent_trace=[],
+            workload_output={"class": "cat"},
+            workload_trace=[],
         )
         config = {
             "name": "MulticlassClassificationTest",
@@ -2617,8 +2617,8 @@ class TestMulticlassClassificationEvaluator:
 
         execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": "fish"},
-            agent_trace=[],
+            workload_output={"class": "fish"},
+            workload_trace=[],
         )
         config = {
             "name": "MulticlassClassificationTest",

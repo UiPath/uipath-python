@@ -94,8 +94,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Fetch and process data"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -156,8 +156,8 @@ mock_spans.append(
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Fetch and process data"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -218,8 +218,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Database operation"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -280,8 +280,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Optimize resource usage"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -338,8 +338,8 @@ for i in range(10):
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Process 10 items"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -400,8 +400,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Retry operation"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -456,8 +456,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Secure operation"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(

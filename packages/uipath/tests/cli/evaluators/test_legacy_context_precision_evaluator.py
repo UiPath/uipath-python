@@ -207,8 +207,8 @@ class TestLegacyContextPrecisionEvaluator:
         # Create empty agent execution (no spans)
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="",
+            workload_trace=[],
+            workload_output="",
         )
 
         result = await evaluator.evaluate(

@@ -67,8 +67,8 @@ class TestJsonSimilarityEvaluator:
         result = await evaluator.evaluate(
             WorkloadExecution(
                 agent_input={},
-                agent_trace=[],
-                agent_output=json.loads(actual_json),
+                workload_trace=[],
+                workload_output=json.loads(actual_json),
             ),
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=json.loads(expected_json),
@@ -103,8 +103,8 @@ class TestJsonSimilarityEvaluator:
         result = await evaluator.evaluate(
             WorkloadExecution(
                 agent_input={},
-                agent_trace=[],
-                agent_output=json.loads(actual_json),
+                workload_trace=[],
+                workload_output=json.loads(actual_json),
             ),
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=json.loads(expected_json),
@@ -137,8 +137,8 @@ class TestJsonSimilarityEvaluator:
         result = await evaluator.evaluate(
             WorkloadExecution(
                 agent_input={},
-                agent_trace=[],
-                agent_output=json.loads(actual_json),
+                workload_trace=[],
+                workload_output=json.loads(actual_json),
             ),
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=json.loads(expected_json),
@@ -231,8 +231,8 @@ class TestJsonSimilarityEvaluator:
         result = await evaluator.evaluate(
             WorkloadExecution(
                 agent_input={},
-                agent_trace=[],
-                agent_output=json.loads(actual_json),
+                workload_trace=[],
+                workload_output=json.loads(actual_json),
             ),
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output=json.loads(expected_json),

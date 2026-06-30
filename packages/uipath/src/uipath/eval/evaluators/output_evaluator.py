@@ -137,16 +137,16 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         key = self.evaluator_config.target_output_key
 
         if isinstance(key, list):
-            if not isinstance(workload_execution.agent_output, dict):
+            if not isinstance(workload_execution.workload_output, dict):
                 raise UiPathEvaluationError(
                     code="INVALID_ACTUAL_OUTPUT",
                     title="When target output keys are specified, actual output must be a dictionary",
-                    detail=f"Got {type(workload_execution.agent_output).__name__}",
+                    detail=f"Got {type(workload_execution.workload_output).__name__}",
                     category=UiPathEvaluationErrorCategory.USER,
                 )
             try:
                 list_result: dict[str, Any] = {
-                    k: resolve_output_path(workload_execution.agent_output, k) for k in key
+                    k: resolve_output_path(workload_execution.workload_output, k) for k in key
                 }
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
@@ -162,7 +162,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             return self._normalize_numbers(list_result)
         elif key != "*":
             try:
-                result = resolve_output_path(workload_execution.agent_output, key)
+                result = resolve_output_path(workload_execution.workload_output, key)
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
@@ -171,7 +171,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
         else:
-            result = workload_execution.agent_output
+            result = workload_execution.workload_output
 
         if is_job_attachment_uri(result):
             attachment_id = extract_attachment_id(result)
@@ -324,7 +324,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             expected_output, self.evaluator_config.line_delimiter, key_str
         )
 
-        original_agent_output = workload_execution.agent_output
+        original_agent_output = workload_execution.workload_output
 
         def create_line_criteria(expected_line: str) -> Any:
             from .line_by_line_utils import wrap_line_in_structure
@@ -344,7 +344,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             create_line_criteria_fn=create_line_criteria,
         )
 
-        workload_execution.agent_output = original_agent_output
+        workload_execution.workload_output = original_agent_output
 
         return build_line_by_line_result(
             line_details=line_details,

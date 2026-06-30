@@ -18,7 +18,7 @@ The Exact Match Evaluator performs exact string matching between the agent's out
 ## Configuration
 
 !!! note "Agent Output Structure"
-    `agent_output` must always be a dictionary (e.g., `{"result": "value"}`). To evaluate simple values like strings or numbers, wrap them in a dict and use `target_output_key` to extract the specific field.
+    `workload_output` must always be a dictionary (e.g., `{"result": "value"}`). To evaluate simple values like strings or numbers, wrap them in a dict and use `target_output_key` to extract the specific field.
 
 ### ExactMatchEvaluatorConfig
 
@@ -46,11 +46,11 @@ The Exact Match Evaluator performs exact string matching between the agent's out
 from uipath.eval.evaluators import ExactMatchEvaluator
 from uipath.eval.models import WorkloadExecution
 
-# agent_output must be a dict
+# workload_output must be a dict
 workload_execution = WorkloadExecution(
     agent_input={"query": "What is 2+2?"},
-    agent_output={"result": "4"},
-    agent_trace=[]
+    workload_output={"result": "4"},
+    workload_trace=[]
 )
 
 # Create evaluator - extracts "result" field for comparison
@@ -77,8 +77,8 @@ print(f"Score: {result.score}")  # Output: 1.0
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"status": "SUCCESS"},
-    agent_trace=[]
+    workload_output={"status": "SUCCESS"},
+    workload_trace=[]
 )
 
 evaluator = ExactMatchEvaluator(
@@ -114,8 +114,8 @@ When `target_output_key` is `"*"` (default), the entire output dict is compared:
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"status": "success", "code": 200},
-    agent_trace=[]
+    workload_output={"status": "success", "code": 200},
+    workload_trace=[]
 )
 
 evaluator = ExactMatchEvaluator(
@@ -140,11 +140,11 @@ print(f"Score: {result.score}")  # Output: 1.0
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "result": "approved",
         "timestamp": "2024-01-01T12:00:00Z"
     },
-    agent_trace=[]
+    workload_trace=[]
 )
 
 evaluator = ExactMatchEvaluator(
@@ -169,8 +169,8 @@ print(f"Score: {result.score}")  # Output: 1.0
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"result": "error"},
-    agent_trace=[]
+    workload_output={"result": "error"},
+    workload_trace=[]
 )
 
 evaluator = ExactMatchEvaluator(
@@ -196,8 +196,8 @@ print(f"Score: {result.score}")  # Output: 1.0
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"status": "OK"},
-    agent_trace=[]
+    workload_output={"status": "OK"},
+    workload_trace=[]
 )
 
 evaluator = ExactMatchEvaluator(

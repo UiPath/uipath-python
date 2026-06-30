@@ -94,8 +94,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Process user order"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -151,8 +151,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Access secured resource"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -207,8 +207,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Search and display"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -268,8 +268,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Update database"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -336,8 +336,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "API integration"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -392,8 +392,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Standard workflow"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(

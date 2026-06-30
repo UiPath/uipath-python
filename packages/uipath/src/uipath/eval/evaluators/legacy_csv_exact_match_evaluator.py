@@ -67,7 +67,7 @@ class LegacyCSVExactMatchEvaluator(
         Args:
             workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent (can be CSV string or job attachment)
+                - workload_output: The actual output from the agent (can be CSV string or job attachment)
                 - spans: The execution spans to use for the evaluation
             evaluation_criteria: The criteria to evaluate containing expected output
 
@@ -333,10 +333,10 @@ class LegacyCSVExactMatchEvaluator(
             # Create a modified agent execution for this line
             line_agent_execution = WorkloadExecution(
                 agent_input=workload_execution.agent_input,
-                agent_output=wrap_line_in_structure(
+                workload_output=wrap_line_in_structure(
                     actual_mini_csv, self.target_output_key
                 ),
-                agent_trace=workload_execution.agent_trace,
+                workload_trace=workload_execution.workload_trace,
                 expected_agent_behavior=getattr(
                     workload_execution, "expected_agent_behavior", None
                 ),

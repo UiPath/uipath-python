@@ -53,8 +53,8 @@ class ContainsEvaluator(
         Args:
             workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
+                - workload_output: The actual output from the agent
+                - workload_trace: The execution spans to use for the evaluation
             evaluation_criteria: The criteria to evaluate
 
         Returns:

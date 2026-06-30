@@ -18,7 +18,7 @@ The Contains Evaluator checks whether the agent's output contains a specific sea
 ## Configuration
 
 !!! note "Agent Output Structure"
-    `agent_output` must always be a dictionary. When comparing, the value (or specific field via `target_output_key`) is converted to a string before checking if it contains the search text.
+    `workload_output` must always be a dictionary. When comparing, the value (or specific field via `target_output_key`) is converted to a string before checking if it contains the search text.
 
 ### ContainsEvaluatorConfig
 
@@ -49,8 +49,8 @@ from uipath.eval.models import WorkloadExecution
 # Sample agent execution
 workload_execution = WorkloadExecution(
     agent_input={"query": "What is the capital of France?"},
-    agent_output={"response": "The capital of France is Paris."},
-    agent_trace=[],
+    workload_output={"response": "The capital of France is Paris."},
+    workload_trace=[],
 )
 
 # Create evaluator - extracts "response" field for comparison
@@ -78,8 +78,8 @@ print(f"Score: {result.score}")  # Output: 1.0
 # Sample agent execution
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"message": "Hello World"},
-    agent_trace=[],
+    workload_output={"message": "Hello World"},
+    workload_trace=[],
 )
 
 evaluator = ContainsEvaluator(
@@ -108,8 +108,8 @@ Use negation to ensure specific text is NOT present:
 # Sample agent execution
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"status": "Success: Operation completed"},
-    agent_trace=[],
+    workload_output={"status": "Success: Operation completed"},
+    workload_trace=[],
 )
 
 evaluator = ContainsEvaluator(
@@ -136,11 +136,11 @@ print(f"Score: {result.score}")  # Output: 1.0
 # Sample agent execution
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "status": "success",
         "message": "User profile updated successfully"
     },
-    agent_trace=[],
+    workload_trace=[],
 )
 
 evaluator = ContainsEvaluator(

@@ -86,8 +86,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"user_id": 123, "action": "update"},
-    agent_output={"status": "success"},
-    agent_trace=mock_spans,
+    workload_output={"status": "success"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallArgsEvaluator(
@@ -138,8 +138,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"action": "fetch_users"},
-    agent_output={"status": "success"},
-    agent_trace=mock_spans,
+    workload_output={"status": "success"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallArgsEvaluator(
@@ -212,8 +212,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Update user profile"},
-    agent_output={"status": "updated"},
-    agent_trace=mock_spans,
+    workload_output={"status": "updated"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallArgsEvaluator(
@@ -272,8 +272,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"action": "send_welcome"},
-    agent_output={"status": "sent"},
-    agent_trace=mock_spans,
+    workload_output={"status": "sent"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallArgsEvaluator(
@@ -343,8 +343,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Update user profile"},
-    agent_output={"status": "updated"},
-    agent_trace=mock_spans,
+    workload_output={"status": "updated"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallArgsEvaluator(
@@ -401,8 +401,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Create order"},
-    agent_output={"status": "created"},
-    agent_trace=mock_spans,
+    workload_output={"status": "created"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallArgsEvaluator(

@@ -191,19 +191,19 @@ class BaseLegacyEvaluator(
             workload_execution: The agent execution
 
         Returns:
-            The actual output (either the full agent_output or a specific key)
+            The actual output (either the full workload_output or a specific key)
         """
-        agent_output = workload_execution.agent_output
+        workload_output = workload_execution.workload_output
 
         # If target_output_key is "*", return full output
         if self.target_output_key == "*":
-            result = agent_output
+            result = workload_output
         # Otherwise, extract specific key
-        elif isinstance(agent_output, dict) and self.target_output_key in agent_output:
-            result = agent_output[self.target_output_key]
+        elif isinstance(workload_output, dict) and self.target_output_key in workload_output:
+            result = workload_output[self.target_output_key]
         else:
             # Fallback to full output
-            result = agent_output
+            result = workload_output
 
         # Check if result is a job attachment URI and download if so
         if is_job_attachment_uri(result):

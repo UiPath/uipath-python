@@ -53,7 +53,7 @@ class AttachmentCreatedEvaluator(
         attachment_created = False
 
         # Look for attachment creation in traces
-        for span in workload_execution.agent_trace:
+        for span in workload_execution.workload_trace:
             # Check span name for attachment operations
             if "attachment" in span.name.lower() or "create" in span.name.lower():
                 attachment_created = True
@@ -74,8 +74,8 @@ class AttachmentCreatedEvaluator(
                 break
 
         # Also check if output contains attachment information
-        if not attachment_created and workload_execution.agent_output:
-            output_str = str(workload_execution.agent_output)
+        if not attachment_created and workload_execution.workload_output:
+            output_str = str(workload_execution.workload_output)
             if (
                 "attachment" in output_str.lower()
                 or evaluation_criteria.attachment_name in output_str

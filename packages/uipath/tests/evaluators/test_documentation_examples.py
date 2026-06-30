@@ -42,8 +42,8 @@ class TestIndexExamples:
         # Sample agent execution (this is what the docs were missing!)
         workload_execution = WorkloadExecution(
             agent_input={"query": "Greet the world"},
-            agent_output={"result": "hello, world!"},
-            agent_trace=[],
+            workload_output={"result": "hello, world!"},
+            workload_trace=[],
         )
 
         # Create evaluator
@@ -85,11 +85,11 @@ class TestContainsExamples:
             )
         )
 
-        # agent_output must be a dict
+        # workload_output must be a dict
         workload_execution = WorkloadExecution(
             agent_input={"query": "What is the capital of France?"},
-            agent_output={"response": "The capital of France is Paris."},
-            agent_trace=[],
+            workload_output={"response": "The capital of France is Paris."},
+            workload_trace=[],
         )
 
         # Evaluate - searches in the "response" field value
@@ -116,8 +116,8 @@ class TestContainsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"message": "Hello World"},
-            agent_trace=[],
+            workload_output={"message": "Hello World"},
+            workload_trace=[],
         )
 
         # This will fail because of case mismatch
@@ -144,8 +144,8 @@ class TestContainsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "Success: Operation completed"},
-            agent_trace=[],
+            workload_output={"status": "Success: Operation completed"},
+            workload_trace=[],
         )
 
         # Passes because "error" is NOT found
@@ -171,11 +171,11 @@ class TestContainsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={
+            workload_output={
                 "status": "success",
                 "message": "User profile updated successfully",
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         # Only searches within the "message" field
@@ -193,11 +193,11 @@ class TestExactMatchExamples:
     @pytest.mark.asyncio
     async def test_basic_usage(self) -> None:
         """Test basic usage example."""
-        # agent_output must be a dict
+        # workload_output must be a dict
         workload_execution = WorkloadExecution(
             agent_input={"query": "What is 2+2?"},
-            agent_output={"result": "4"},
-            agent_trace=[],
+            workload_output={"result": "4"},
+            workload_trace=[],
         )
 
         # Create evaluator - extracts "result" field for comparison
@@ -225,8 +225,8 @@ class TestExactMatchExamples:
         """Test case-sensitive matching example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "SUCCESS"},
-            agent_trace=[],
+            workload_output={"status": "SUCCESS"},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
@@ -261,8 +261,8 @@ class TestExactMatchExamples:
         """Test matching structured outputs example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "success", "code": 200},
-            agent_trace=[],
+            workload_output={"status": "success", "code": 200},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
@@ -288,8 +288,8 @@ class TestExactMatchExamples:
         """Test negated mode example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"result": "error"},
-            agent_trace=[],
+            workload_output={"result": "error"},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
@@ -316,8 +316,8 @@ class TestExactMatchExamples:
         """Test using default criteria example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "OK"},
-            agent_trace=[],
+            workload_output={"status": "OK"},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
@@ -349,12 +349,12 @@ class TestExactMatchExamples:
         # Agent returns a rich nested output; we only care about two summary fields.
         workload_execution = WorkloadExecution(
             agent_input={"customer_name": "John Doe", "items": []},
-            agent_output={
+            workload_output={
                 "order_id": "ORD-001",
                 "summary": {"status": "completed", "total": 44.97, "item_count": 3},
                 "tags": ["priority", "express"],
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(ExactMatchEvaluator).validate_python(
@@ -395,8 +395,8 @@ class TestJsonSimilarityExamples:
         """Test basic JSON comparison example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"name": "John Doe", "age": 30, "city": "New York"},
-            agent_trace=[],
+            workload_output={"name": "John Doe", "age": 30, "city": "New York"},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -427,8 +427,8 @@ class TestJsonSimilarityExamples:
         """Test numeric tolerance example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"temperature": 20.5, "humidity": 65},
-            agent_trace=[],
+            workload_output={"temperature": 20.5, "humidity": 65},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -454,8 +454,8 @@ class TestJsonSimilarityExamples:
         """Test string similarity example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"status": "completed successfully"},
-            agent_trace=[],
+            workload_output={"status": "completed successfully"},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -482,11 +482,11 @@ class TestJsonSimilarityExamples:
         """Test nested structures example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={
+            workload_output={
                 "user": {"name": "Alice", "profile": {"age": 25, "location": "Paris"}},
                 "status": "active",
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -516,8 +516,8 @@ class TestJsonSimilarityExamples:
         """Test array comparison example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={"items": ["apple", "banana", "orange"]},
-            agent_trace=[],
+            workload_output={"items": ["apple", "banana", "orange"]},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -544,12 +544,12 @@ class TestJsonSimilarityExamples:
         """Test handling extra keys in actual output example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={
+            workload_output={
                 "name": "Bob",
                 "age": 30,
                 "extra_field": "ignored",  # Extra field in actual output
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -572,11 +572,11 @@ class TestJsonSimilarityExamples:
         """Test target specific field example."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={
+            workload_output={
                 "result": {"score": 95, "passed": True},
                 "metadata": {"timestamp": "2024-01-01"},
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(JsonSimilarityEvaluator).validate_python(
@@ -627,8 +627,8 @@ class TestLLMJudgeOutputExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"query": "What is the capital of France?"},
-            agent_output={"answer": "Paris is the capital city of France."},
-            agent_trace=[],
+            workload_output={"answer": "Paris is the capital city of France."},
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
@@ -687,10 +687,10 @@ Provide a score from 0-100 based on semantic similarity.
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={
+            workload_output={
                 "message": "The product has been successfully added to your cart."
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
@@ -742,7 +742,7 @@ Provide a score from 0-100 based on semantic similarity.
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Write a professional email"},
-            agent_output={
+            workload_output={
                 "email": """Dear Customer,
 
 Thank you for your inquiry. We have reviewed your request
@@ -752,7 +752,7 @@ needs. Please let us know if you have any questions.
 Best regards,
 Support Team"""
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(LLMJudgeOutputEvaluator).validate_python(
@@ -804,13 +804,13 @@ Support Team"""
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_output={
+            workload_output={
                 "status": "success",
                 "user_id": 12345,
                 "name": "John Doe",
                 "email": "john@example.com",
             },
-            agent_trace=[],
+            workload_trace=[],
         )
 
         evaluator = TypeAdapter(
@@ -869,8 +869,8 @@ class TestLLMJudgeTrajectoryExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"user_query": "Book a flight to Paris"},
-            agent_output={"booking_id": "FL123", "status": "confirmed"},
-            agent_trace=[
+            workload_output={"booking_id": "FL123", "status": "confirmed"},
+            workload_trace=[
                 # Trace contains spans showing the agent's execution path
                 # Each span represents a step in the agent's decision-making
             ],
@@ -927,8 +927,8 @@ class TestLLMJudgeTrajectoryExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Update user profile and send notification"},
-            agent_output={"status": "completed"},
-            agent_trace=[
+            workload_output={"status": "completed"},
+            workload_trace=[
                 # Spans showing: validate_user -> update_profile -> send_notification
             ],
         )
@@ -985,8 +985,8 @@ class TestLLMJudgeTrajectoryExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"query": "Book a flight to Paris for tomorrow"},
-            agent_output={"booking_id": "FL123", "status": "confirmed"},
-            agent_trace=[
+            workload_output={"booking_id": "FL123", "status": "confirmed"},
+            workload_trace=[
                 # Execution spans showing tool calls and their simulated responses
             ],
             simulation_instructions="""
@@ -1066,8 +1066,8 @@ class TestToolCallOrderExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Process user order"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
@@ -1115,8 +1115,8 @@ class TestToolCallOrderExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Access secured resource"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
@@ -1169,8 +1169,8 @@ class TestToolCallOrderExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Search and display"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
@@ -1227,8 +1227,8 @@ class TestToolCallOrderExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Update database"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
@@ -1293,8 +1293,8 @@ class TestToolCallOrderExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "API integration"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
@@ -1347,8 +1347,8 @@ class TestToolCallOrderExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Standard workflow"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOrderEvaluator).validate_python(
@@ -1428,8 +1428,8 @@ class TestToolCallCountExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Fetch and process data"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
@@ -1486,8 +1486,8 @@ class TestToolCallCountExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "API operation"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
@@ -1539,8 +1539,8 @@ class TestToolCallCountExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Database operation"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
@@ -1599,8 +1599,8 @@ class TestToolCallCountExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Optimize resource usage"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
@@ -1660,8 +1660,8 @@ class TestToolCallCountExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Process 10 items"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallCountEvaluator).validate_python(
@@ -1709,8 +1709,8 @@ class TestToolCallArgsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"user_id": 123, "action": "update"},
-            agent_output={"status": "success"},
-            agent_trace=mock_spans,
+            workload_output={"status": "success"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
@@ -1761,8 +1761,8 @@ class TestToolCallArgsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Send email"},
-            agent_output={"status": "sent"},
-            agent_trace=mock_spans,
+            workload_output={"status": "sent"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
@@ -1813,8 +1813,8 @@ class TestToolCallArgsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Create user"},
-            agent_output={"status": "created"},
-            agent_trace=mock_spans,
+            workload_output={"status": "created"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
@@ -1880,8 +1880,8 @@ class TestToolCallArgsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Data pipeline"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
@@ -1936,8 +1936,8 @@ class TestToolCallArgsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "evaluatorConfigure API service"},
-            agent_output={"status": "evaluatorConfigured"},
-            agent_trace=mock_spans,
+            workload_output={"status": "evaluatorConfigured"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
@@ -2010,8 +2010,8 @@ class TestToolCallArgsExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Update user profile"},
-            agent_output={"status": "updated"},
-            agent_trace=mock_spans,
+            workload_output={"status": "updated"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallArgsEvaluator).validate_python(
@@ -2075,8 +2075,8 @@ class TestToolCallOutputExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"user_id": 123},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
@@ -2119,8 +2119,8 @@ class TestToolCallOutputExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"operation": "multiply"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
@@ -2172,8 +2172,8 @@ class TestToolCallOutputExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Process items"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
@@ -2214,8 +2214,8 @@ class TestToolCallOutputExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"email": "invalid-email"},
-            agent_output={"status": "validation_failed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "validation_failed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(
@@ -2277,8 +2277,8 @@ class TestToolCallOutputExamples:
 
         workload_execution = WorkloadExecution(
             agent_input={"task": "Process data pipeline"},
-            agent_output={"status": "completed"},
-            agent_trace=mock_spans,
+            workload_output={"status": "completed"},
+            workload_trace=mock_spans,
         )
 
         evaluator = TypeAdapter(ToolCallOutputEvaluator).validate_python(

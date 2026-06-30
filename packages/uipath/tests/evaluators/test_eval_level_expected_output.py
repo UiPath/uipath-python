@@ -389,8 +389,8 @@ class TestExactMatchWithEvaluationLevelExpectedOutput:
         """ExactMatchEvaluator uses evaluation-level expectedOutput when criteria is null."""
         execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
         evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": {"name": "Test"}, "id": str(uuid.uuid4())}
@@ -410,8 +410,8 @@ class TestExactMatchWithEvaluationLevelExpectedOutput:
         """Per-evaluator expectedOutput overrides evaluation-level."""
         execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
         evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": {"name": "Test"}, "id": str(uuid.uuid4())}
@@ -435,8 +435,8 @@ class TestJsonSimilarityWithEvaluationLevelExpectedOutput:
         """JsonSimilarityEvaluator uses evaluation-level expectedOutput."""
         execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         evaluator = JsonSimilarityEvaluator.model_validate(
             {"evaluatorConfig": {"name": "Test"}, "id": str(uuid.uuid4())}
@@ -492,8 +492,8 @@ class TestLLMJudgeWithEvaluationLevelExpectedOutput:
 
         execution = WorkloadExecution(
             agent_input={"query": "test"},
-            agent_output={"result": "test output"},
-            agent_trace=[],
+            workload_output={"result": "test output"},
+            workload_trace=[],
         )
 
         # Criteria built from evaluation-level expectedOutput
@@ -629,8 +629,8 @@ class TestEndToEndCriteriaResolution:
         )
         execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
 
         # Simulate runtime merge
@@ -682,8 +682,8 @@ class TestEndToEndCriteriaResolution:
         )
         execution = WorkloadExecution(
             agent_input={"query": "hello"},
-            agent_output="Hello World",
-            agent_trace=[],
+            workload_output="Hello World",
+            workload_trace=[],
         )
 
         # Process exact-match (output-based)
@@ -731,8 +731,8 @@ class TestEndToEndCriteriaResolution:
         )
         execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
 
         # Simulate runtime merge

@@ -115,8 +115,8 @@ from uipath.eval.models import WorkloadExecution
 
 workload_execution = WorkloadExecution(
     agent_input={"user_query": "Book a flight to Paris"},
-    agent_output={"booking_id": "FL123", "status": "confirmed"},
-    agent_trace=[
+    workload_output={"booking_id": "FL123", "status": "confirmed"},
+    workload_trace=[
         # Trace contains spans showing the agent's execution path
         # Each span represents a step in the agent's decision-making
     ]
@@ -154,8 +154,8 @@ print(f"Justification: {result.details}")
 ```python
 workload_execution = WorkloadExecution(
     agent_input={"task": "Update user profile and send notification"},
-    agent_output={"status": "completed"},
-    agent_trace=[
+    workload_output={"status": "completed"},
+    workload_trace=[
         # Spans showing: validate_user -> update_profile -> send_notification
     ]
 )
@@ -261,8 +261,8 @@ from uipath.eval.evaluators import LLMJudgeTrajectorySimulationEvaluator
 
 workload_execution = WorkloadExecution(
     agent_input={"query": "Book a flight to Paris for tomorrow"},
-    agent_output={"booking_id": "FL123", "status": "confirmed"},
-    agent_trace=[
+    workload_output={"booking_id": "FL123", "status": "confirmed"},
+    workload_trace=[
         # Execution spans showing tool calls and their simulated responses
     ],
     simulation_instructions="""
@@ -303,7 +303,7 @@ print(f"Justification: {result.details}")
 
 ## Understanding Agent Traces
 
-The `agent_trace` contains execution spans that show:
+The `workload_trace` contains execution spans that show:
 
 - Tool calls made by the agent
 - LLM reasoning steps
@@ -313,7 +313,7 @@ The `agent_trace` contains execution spans that show:
 
 Example trace structure:
 ```python
-agent_trace = [
+workload_trace = [
     {
         "name": "search_flights",
         "type": "tool",

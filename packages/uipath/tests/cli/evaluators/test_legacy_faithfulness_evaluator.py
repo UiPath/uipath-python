@@ -142,7 +142,7 @@ class TestLegacyFaithfulnessEvaluator:
         """Test Stage 1: Selection of verifiable sentences."""
         evaluator = evaluator_with_mocked_llm
 
-        agent_output = (
+        workload_output = (
             "The capital of France is Paris. Do you agree? This is important."
         )
 
@@ -153,7 +153,7 @@ class TestLegacyFaithfulnessEvaluator:
         ) as mock_llm:
             mock_llm.return_value = mock_response
 
-            sentences = await evaluator._select_verifiable_sentences(agent_output)
+            sentences = await evaluator._select_verifiable_sentences(workload_output)
 
             assert len(sentences) == 1
             assert "capital of France" in sentences[0]
@@ -357,8 +357,8 @@ class TestLegacyFaithfulnessEvaluator:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="",
+            workload_trace=[],
+            workload_output="",
         )
 
         result = await evaluator.evaluate(
@@ -390,8 +390,8 @@ class TestLegacyFaithfulnessEvaluator:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="The sky is blue.",
+            workload_trace=[],
+            workload_output="The sky is blue.",
         )
 
         with patch.object(evaluator, "_extract_context_sources", return_value=[]):
@@ -415,8 +415,8 @@ class TestLegacyFaithfulnessEvaluator:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Just a greeting.",
+            workload_trace=[],
+            workload_output="Just a greeting.",
         )
 
         with (
@@ -451,8 +451,8 @@ class TestLegacyFaithfulnessEvaluator:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Paris is in France.",
+            workload_trace=[],
+            workload_output="Paris is in France.",
         )
 
         # Mock the extraction and evaluation steps
@@ -508,8 +508,8 @@ class TestLegacyFaithfulnessEvaluator:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Paris is in France. The sky is green.",
+            workload_trace=[],
+            workload_output="Paris is in France. The sky is green.",
         )
 
         # Mock the extraction and evaluation steps

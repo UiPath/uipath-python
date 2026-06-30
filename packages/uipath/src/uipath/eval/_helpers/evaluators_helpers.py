@@ -449,14 +449,14 @@ def tool_calls_output_score(
     ), justifications
 
 
-def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
+def trace_to_str(workload_trace: Sequence[ReadableSpan]) -> str:
     """Convert OTEL spans to a platform-style agent run history string.
 
     Creates a similar structure to LangChain message processing but using OTEL spans.
     Only processes tool spans (spans with 'tool.name' attribute).
 
     Args:
-        agent_trace: List of ReadableSpan objects from the agent execution
+        workload_trace: List of ReadableSpan objects from the agent execution
 
     Returns:
         String representation of the agent run history in platform format
@@ -464,7 +464,7 @@ def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
     platform_history = []
     seen_tool_calls = set()
 
-    for span in agent_trace:
+    for span in workload_trace:
         if span.attributes and (tool_name := span.attributes.get("tool.name")):
             # Get span timing information
             start_time = span.start_time

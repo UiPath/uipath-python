@@ -81,8 +81,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"user_id": 123},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOutputEvaluator(
@@ -128,8 +128,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"items": ["item1", "item2"]},
-    agent_output={"status": "calculated"},
-    agent_trace=mock_spans,
+    workload_output={"status": "calculated"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOutputEvaluator(
@@ -197,8 +197,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Process data pipeline"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOutputEvaluator(
@@ -271,8 +271,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Process data pipeline"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOutputEvaluator(
@@ -325,8 +325,8 @@ mock_spans = [
 
 workload_execution = WorkloadExecution(
     agent_input={"task": "Generate report"},
-    agent_output={"status": "generated"},
-    agent_trace=mock_spans,
+    workload_output={"status": "generated"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOutputEvaluator(

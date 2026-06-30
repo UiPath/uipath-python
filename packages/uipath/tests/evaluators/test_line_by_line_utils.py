@@ -156,8 +156,8 @@ class TestEvaluateLines:
 
         workload_execution = WorkloadExecution(
             agent_input={"test": "input"},
-            agent_output="line1\nline2\nline3",
-            agent_trace=[],
+            workload_output="line1\nline2\nline3",
+            workload_trace=[],
         )
 
         async def mock_evaluate(execution, criteria):
@@ -188,8 +188,8 @@ class TestEvaluateLines:
 
         workload_execution = WorkloadExecution(
             agent_input={"test": "input"},
-            agent_output="line1\nline2",
-            agent_trace=[],
+            workload_output="line1\nline2",
+            workload_trace=[],
         )
 
         async def mock_evaluate(execution, criteria):
@@ -231,13 +231,13 @@ class TestEvaluateLines:
 
         workload_execution = WorkloadExecution(
             agent_input={"test": "input"},
-            agent_output={"result": "line1\nline2"},
-            agent_trace=[],
+            workload_output={"result": "line1\nline2"},
+            workload_trace=[],
         )
 
         async def mock_evaluate(execution, criteria):
             # Verify the execution has the wrapped structure
-            assert "result" in execution.agent_output
+            assert "result" in execution.workload_output
             return NumericEvaluationResult(score=1.0, details="match")
 
         def mock_create_criteria(expected_line):

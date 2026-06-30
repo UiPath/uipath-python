@@ -115,8 +115,8 @@ async def evaluate_lines(
 
         line_agent_execution = WorkloadExecution(
             agent_input=workload_execution.agent_input,
-            agent_output=line_agent_output,
-            agent_trace=workload_execution.agent_trace,
+            workload_output=line_agent_output,
+            workload_trace=workload_execution.workload_trace,
             expected_agent_behavior=getattr(
                 workload_execution, "expected_agent_behavior", None
             ),

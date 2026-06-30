@@ -77,8 +77,8 @@ from uipath.eval.models import WorkloadExecution
 # Sample agent execution (this should be replaced with your agent run data)
 workload_execution = WorkloadExecution(
     agent_input={"query": "Greet the world"},
-    agent_output={"result": "hello, world!"},
-    agent_trace=[],
+    workload_output={"result": "hello, world!"},
+    workload_trace=[],
 )
 
 # Create evaluator

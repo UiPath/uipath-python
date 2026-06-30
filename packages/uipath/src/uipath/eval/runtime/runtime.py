@@ -1019,8 +1019,8 @@ class UiPathEvalRuntime:
 
             workload_execution = WorkloadExecution(
                 agent_input=eval_item.inputs,
-                agent_output=output_data,
-                agent_trace=execution_output.spans,
+                workload_output=output_data,
+                workload_trace=execution_output.spans,
                 expected_agent_behavior=eval_item.expected_agent_behavior,
             )
 

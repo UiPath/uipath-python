@@ -115,8 +115,8 @@ class MyCustomEvaluator(
         Args:
             workload_execution: The agent execution containing:
                 - agent_input: Input received by the agent
-                - agent_output: Output produced by the agent
-                - agent_trace: OpenTelemetry spans with execution trace
+                - workload_output: Output produced by the agent
+                - workload_trace: OpenTelemetry spans with execution trace
                 - simulation_instructions: Simulation instructions
             evaluation_criteria: Criteria to evaluate against
 
@@ -246,7 +246,7 @@ from uipath.eval._helpers.evaluators_helpers import extract_tool_calls
 
 def _process_tool_calls(self, workload_execution: WorkloadExecution) -> list[str]:
     """Extract and process tool calls from the execution trace."""
-    tool_calls = extract_tool_calls(workload_execution.agent_trace)
+    tool_calls = extract_tool_calls(workload_execution.workload_trace)
 
     results = []
     for tool_call in tool_calls:
@@ -373,7 +373,7 @@ class PatternComparisonEvaluator(
             List of pattern strings found
         """
         # Extract tool calls with arguments using the helper function
-        tool_calls = extract_tool_calls(workload_execution.agent_trace)
+        tool_calls = extract_tool_calls(workload_execution.workload_trace)
 
         for tool_call in tool_calls:
             if tool_call.name == "DataProcessingTool":
@@ -461,7 +461,7 @@ def _extract_from_tool(
     parameter_name: str
 ) -> str:
     """Reusable method to extract parameter from tool calls."""
-    tool_calls = extract_tool_calls(workload_execution.agent_trace)
+    tool_calls = extract_tool_calls(workload_execution.workload_trace)
     for tool_call in tool_calls:
         if tool_call.name == tool_name:
             args = tool_call.args or {}
@@ -579,8 +579,8 @@ async def test_custom_evaluator() -> None:
     # Create test data
     workload_execution = WorkloadExecution(
         agent_input={"query": "test"},
-        agent_output={"result": "test output"},
-        agent_trace=[],
+        workload_output={"result": "test output"},
+        workload_trace=[],
     )
 
     # Create evaluator with config
@@ -611,7 +611,7 @@ def _extract_from_specific_tool(
     self, workload_execution: WorkloadExecution
 ) -> str:
     """Extract data from a specific tool call."""
-    tool_calls = extract_tool_calls(workload_execution.agent_trace)
+    tool_calls = extract_tool_calls(workload_execution.workload_trace)
 
     for tool_call in tool_calls:
         if tool_call.name == "TargetTool":

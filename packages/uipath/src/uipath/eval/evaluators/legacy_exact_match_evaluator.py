@@ -41,7 +41,7 @@ class LegacyExactMatchEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating exact match (True/False)
         """
-        actual_output = workload_execution.agent_output
+        actual_output = workload_execution.workload_output
         expected_output = evaluation_criteria.expected_output
 
         if self.target_output_key and self.target_output_key != "*":

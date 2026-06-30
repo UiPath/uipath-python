@@ -67,13 +67,13 @@ class ToolCallArgsEvaluator(
         Args:
             workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
-                - agent_output: The final output of the agent
-                - agent_trace: The execution spans to use for the evaluation
+                - workload_output: The final output of the agent
+                - workload_trace: The execution spans to use for the evaluation
             evaluation_criteria: The criteria to evaluate
         Returns:
             EvaluationResult: Boolean result indicating correct tool call order (True/False)
         """
-        tool_calls_order = extract_tool_calls(workload_execution.agent_trace)
+        tool_calls_order = extract_tool_calls(workload_execution.workload_trace)
         score, justification = tool_calls_args_score(
             tool_calls_order,
             evaluation_criteria.tool_calls,

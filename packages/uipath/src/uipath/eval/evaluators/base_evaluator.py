@@ -589,8 +589,8 @@ class GenericBaseEvaluator(BaseModel, Generic[T, C, J], ABC):
         Args:
             workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent
-                - agent_trace: The execution trace from the agent
+                - workload_output: The actual output from the agent
+                - workload_trace: The execution trace from the agent
                 - simulation_instructions: The simulation instructions for the agent
             evaluation_criteria: The criteria to evaluate
 

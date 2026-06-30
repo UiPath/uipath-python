@@ -125,7 +125,7 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         if self.llm is None:
             self._initialize_llm()
 
-        actual_output = workload_execution.agent_output
+        actual_output = workload_execution.workload_output
         expected_output = evaluation_criteria.expected_output
 
         if self.target_output_key and self.target_output_key != "*":

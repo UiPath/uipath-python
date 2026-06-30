@@ -57,8 +57,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with identical string outputs."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Hello World",
+            workload_trace=[],
+            workload_output="Hello World",
         )
 
         result = await evaluator.evaluate(
@@ -77,8 +77,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with different string outputs."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Hello World",
+            workload_trace=[],
+            workload_output="Hello World",
         )
 
         result = await evaluator.evaluate(
@@ -97,8 +97,8 @@ class TestLegacyExactMatchEvaluator:
         output = {"name": "John", "age": 30}
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=output,
+            workload_trace=[],
+            workload_output=output,
         )
 
         result = await evaluator.evaluate(
@@ -116,8 +116,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with different dictionaries."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"name": "John", "age": 30},
+            workload_trace=[],
+            workload_output={"name": "John", "age": 30},
         )
 
         result = await evaluator.evaluate(
@@ -135,8 +135,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that canonical JSON normalization handles key order."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"a": 1, "b": 2},
+            workload_trace=[],
+            workload_output={"a": 1, "b": 2},
         )
 
         result = await evaluator.evaluate(
@@ -156,8 +156,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that integers are normalized to floats for comparison."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"value": 42},
+            workload_trace=[],
+            workload_output={"value": 42},
         )
 
         result = await evaluator.evaluate(
@@ -175,8 +175,8 @@ class TestLegacyExactMatchEvaluator:
         """Test number normalization in lists."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"values": [1, 2, 3]},
+            workload_trace=[],
+            workload_output={"values": [1, 2, 3]},
         )
 
         result = await evaluator.evaluate(
@@ -194,8 +194,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that booleans are not converted to numbers."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"active": True, "deleted": False},
+            workload_trace=[],
+            workload_output={"active": True, "deleted": False},
         )
 
         result = await evaluator.evaluate(
@@ -222,8 +222,8 @@ class TestLegacyExactMatchEvaluator:
 
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=output,
+            workload_trace=[],
+            workload_output=output,
         )
 
         result = await evaluator.evaluate(
@@ -243,8 +243,8 @@ class TestLegacyExactMatchEvaluator:
         """Test target_output_key extraction when both outputs have the key."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"result": {"status": "success"}, "other": "ignore"},
+            workload_trace=[],
+            workload_output={"result": {"status": "success"}, "other": "ignore"},
         )
 
         result = await evaluator_with_target_key.evaluate(
@@ -265,8 +265,8 @@ class TestLegacyExactMatchEvaluator:
         """Test target_output_key when key is missing in both outputs."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"other": "data"},
+            workload_trace=[],
+            workload_output={"other": "data"},
         )
 
         result = await evaluator_with_target_key.evaluate(
@@ -287,8 +287,8 @@ class TestLegacyExactMatchEvaluator:
         """Test target_output_key when key is missing in actual output."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"other": "data"},
+            workload_trace=[],
+            workload_output={"other": "data"},
         )
 
         result = await evaluator_with_target_key.evaluate(
@@ -309,8 +309,8 @@ class TestLegacyExactMatchEvaluator:
         """Test target_output_key when key is missing in expected output."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"result": {"status": "success"}},
+            workload_trace=[],
+            workload_output={"result": {"status": "success"}},
         )
 
         result = await evaluator_with_target_key.evaluate(
@@ -329,8 +329,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that wildcard target_output_key compares full outputs."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"data": "value", "extra": "field"},
+            workload_trace=[],
+            workload_output={"data": "value", "extra": "field"},
         )
 
         result = await evaluator.evaluate(
@@ -350,8 +350,8 @@ class TestLegacyExactMatchEvaluator:
         """Test target_output_key with non-dict inputs (should compare as-is)."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="string_value",
+            workload_trace=[],
+            workload_output="string_value",
         )
 
         result = await evaluator_with_target_key.evaluate(
@@ -369,8 +369,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with None values."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"value": None},
+            workload_trace=[],
+            workload_output={"value": None},
         )
 
         result = await evaluator.evaluate(
@@ -388,8 +388,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with empty dictionaries."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={},
+            workload_trace=[],
+            workload_output={},
         )
 
         result = await evaluator.evaluate(
@@ -407,8 +407,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with empty strings."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="",
+            workload_trace=[],
+            workload_output="",
         )
 
         result = await evaluator.evaluate(
@@ -427,8 +427,8 @@ class TestLegacyExactMatchEvaluator:
         output = {"greeting": "你好世界", "emoji": "🎉"}
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=output,
+            workload_trace=[],
+            workload_output=output,
         )
 
         result = await evaluator.evaluate(
@@ -446,8 +446,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that whitespace differences are detected."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Hello World",
+            workload_trace=[],
+            workload_output="Hello World",
         )
 
         result = await evaluator.evaluate(
@@ -465,8 +465,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that string comparison is case sensitive."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Hello",
+            workload_trace=[],
+            workload_output="Hello",
         )
 
         result = await evaluator.evaluate(
@@ -484,8 +484,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with large numbers."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"value": 999999999999999},
+            workload_trace=[],
+            workload_output={"value": 999999999999999},
         )
 
         result = await evaluator.evaluate(
@@ -503,8 +503,8 @@ class TestLegacyExactMatchEvaluator:
         """Test exact match with floating point numbers."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"pi": 3.14159},
+            workload_trace=[],
+            workload_output={"pi": 3.14159},
         )
 
         result = await evaluator.evaluate(
@@ -522,8 +522,8 @@ class TestLegacyExactMatchEvaluator:
         """Test that 0 and 0.0 are considered equal."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"value": 0},
+            workload_trace=[],
+            workload_output={"value": 0},
         )
 
         result = await evaluator.evaluate(
@@ -543,8 +543,8 @@ class TestLegacyExactMatchEvaluator:
         """Test target_output_key with different values in target key."""
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"result": {"status": "success"}, "other": "ignore"},
+            workload_trace=[],
+            workload_output={"result": {"status": "success"}, "other": "ignore"},
         )
 
         result = await evaluator_with_target_key.evaluate(
@@ -563,8 +563,8 @@ class TestLegacyExactMatchEvaluator:
         # Create complex nested structure with mixed types
         workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={
+            workload_trace=[],
+            workload_output={
                 "z_key": 1,
                 "a_key": [3, 2, 1],
                 "m_key": {"nested": 42},
@@ -599,8 +599,8 @@ async def test_line_by_line_all_match():
 
     workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output="Line 1\nLine 2\nLine 3",
-        agent_trace=[],
+        workload_output="Line 1\nLine 2\nLine 3",
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
@@ -633,8 +633,8 @@ async def test_line_by_line_partial_match():
 
     workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output="Line 1\nDifferent\nLine 3",
-        agent_trace=[],
+        workload_output="Line 1\nDifferent\nLine 3",
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
@@ -671,8 +671,8 @@ async def test_line_by_line_with_target_output_key():
 
     workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output={"result": "Line 1\nLine 2\nLine 3"},
-        agent_trace=[],
+        workload_output={"result": "Line 1\nLine 2\nLine 3"},
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
@@ -703,8 +703,8 @@ async def test_line_by_line_custom_delimiter():
 
     workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output="Item1|Item2|Item3",
-        agent_trace=[],
+        workload_output="Item1|Item2|Item3",
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
@@ -736,8 +736,8 @@ async def test_line_by_line_unequal_line_counts():
 
     workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output="Line 1\nLine 2",
-        agent_trace=[],
+        workload_output="Line 1\nLine 2",
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(

@@ -18,7 +18,7 @@ The JSON Similarity Evaluator performs flexible structural comparison of JSON-li
 ## Configuration
 
 !!! note "Agent Output Structure"
-    `agent_output` must always be a dictionary. The evaluator compares dictionary structures recursively, making it ideal for complex nested JSON-like outputs.
+    `workload_output` must always be a dictionary. The evaluator compares dictionary structures recursively, making it ideal for complex nested JSON-like outputs.
 
 ### JsonSimilarityEvaluatorConfig
 
@@ -63,8 +63,8 @@ from uipath.eval.models import WorkloadExecution
 
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"name": "John Doe", "age": 30, "city": "New York"},
-    agent_trace=[]
+    workload_output={"name": "John Doe", "age": 30, "city": "New York"},
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(
@@ -92,8 +92,8 @@ print(f"Total: {result.details.total_leaves}")  # 3.0
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"temperature": 20.5, "humidity": 65},
-    agent_trace=[]
+    workload_output={"temperature": 20.5, "humidity": 65},
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(
@@ -118,8 +118,8 @@ print(f"Score: {result.score}")  # ~0.99 (very high similarity)
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"status": "completed successfully"},
-    agent_trace=[]
+    workload_output={"status": "completed successfully"},
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(
@@ -144,7 +144,7 @@ print(f"Score: {result.score}")  # ~0.95 (high similarity despite typo)
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "user": {
             "name": "Alice",
             "profile": {
@@ -154,7 +154,7 @@ workload_execution = WorkloadExecution(
         },
         "status": "active"
     },
-    agent_trace=[]
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(
@@ -186,8 +186,8 @@ print(f"Score: {result.score}")  # Output: 1.0
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"items": ["apple", "banana", "orange"]},
-    agent_trace=[]
+    workload_output={"items": ["apple", "banana", "orange"]},
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(
@@ -211,12 +211,12 @@ print(f"Score: {result.score}")  # ~0.67 (2/3 correct)
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "name": "Bob",
         "age": 30,
         "extra_field": "ignored"  # Extra field in actual output
     },
-    agent_trace=[]
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(
@@ -243,11 +243,11 @@ print(f"Score: {result.score}")  # Output: 1.0 (extra fields ignored)
 ```python
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "result": {"score": 95, "passed": True},
         "metadata": {"timestamp": "2024-01-01"}
     },
-    agent_trace=[]
+    workload_trace=[]
 )
 
 evaluator = JsonSimilarityEvaluator(

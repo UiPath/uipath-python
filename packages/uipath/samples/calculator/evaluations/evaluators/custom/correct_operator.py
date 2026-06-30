@@ -41,8 +41,8 @@ class CorrectOperatorEvaluator(
 ):
     """A custom evaluator that checks if the correct operator is being used by the agent"""
 
-    def extract_operator_from_spans(self, agent_trace: list[ReadableSpan]) -> str:
-        for span in agent_trace:
+    def extract_operator_from_spans(self, workload_trace: list[ReadableSpan]) -> str:
+        for span in workload_trace:
             if span.name == "track_operator":
                 if span.attributes:
                     input_value_as_str = span.attributes.get("input.value", "{}")
@@ -60,7 +60,7 @@ class CorrectOperatorEvaluator(
         workload_execution: WorkloadExecution,
         evaluation_criteria: CorrectOperatorEvaluationCriteria,
     ) -> EvaluationResult:
-        actual_operator = self.extract_operator_from_spans(workload_execution.agent_trace)
+        actual_operator = self.extract_operator_from_spans(workload_execution.workload_trace)
         print(actual_operator)
         is_expected_operator = evaluation_criteria.operator == actual_operator
         if self.evaluator_config.negated:

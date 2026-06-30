@@ -113,8 +113,8 @@ from uipath.eval.models import WorkloadExecution
 
 workload_execution = WorkloadExecution(
     agent_input={"query": "What is the capital of France?"},
-    agent_output={"answer": "Paris is the capital city of France."},
-    agent_trace=[]
+    workload_output={"answer": "Paris is the capital city of France."},
+    workload_trace=[]
 )
 
 evaluator = LLMJudgeOutputEvaluator(
@@ -154,8 +154,8 @@ Provide a score from 0-100 based on semantic similarity.
 
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"message": "The product has been successfully added to your cart."},
-    agent_trace=[]
+    workload_output={"message": "The product has been successfully added to your cart."},
+    workload_trace=[]
 )
 
 evaluator = LLMJudgeOutputEvaluator(
@@ -185,7 +185,7 @@ print(f"Justification: {result.details}")
 ```python
 workload_execution = WorkloadExecution(
     agent_input={"task": "Write a professional email"},
-    agent_output={"email": """Dear Customer,
+    workload_output={"email": """Dear Customer,
 
 Thank you for your inquiry. We have reviewed your request
 and are pleased to inform you that we can accommodate your
@@ -193,7 +193,7 @@ needs. Please let us know if you have any questions.
 
 Best regards,
 Support Team"""},
-    agent_trace=[]
+    workload_trace=[]
 )
 
 evaluator = LLMJudgeOutputEvaluator(
@@ -273,13 +273,13 @@ evaluator = LLMJudgeStrictJSONSimilarityOutputEvaluator(
 
 workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "status": "success",
         "user_id": 12345,
         "name": "John Doe",
         "email": "john@example.com"
     },
-    agent_trace=[]
+    workload_trace=[]
 )
 
 result = await evaluator.evaluate(

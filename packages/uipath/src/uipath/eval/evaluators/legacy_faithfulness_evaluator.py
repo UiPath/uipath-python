@@ -69,7 +69,7 @@ class LegacyFaithfulnessEvaluator(
         """Evaluate faithfulness of agent output against available context.
 
         Args:
-            workload_execution: The execution details containing agent_trace with spans
+            workload_execution: The execution details containing workload_trace with spans
             evaluation_criteria: Legacy evaluation criteria containing expected_output
 
         Returns:
@@ -80,15 +80,15 @@ class LegacyFaithfulnessEvaluator(
             self._initialize_llm()
 
         # Extract agent output
-        agent_output = str(evaluation_criteria.expected_output or "")
-        if not agent_output or not agent_output.strip():
+        workload_output = str(evaluation_criteria.expected_output or "")
+        if not workload_output or not workload_output.strip():
             return NumericEvaluationResult(
                 score=0.0,
                 details="No agent output provided for faithfulness evaluation.",
             )
 
         # Extract context sources from traces
-        context_sources = self._extract_context_sources(workload_execution.agent_trace)
+        context_sources = self._extract_context_sources(workload_execution.workload_trace)
 
         if not context_sources:
             return NumericEvaluationResult(
@@ -97,7 +97,7 @@ class LegacyFaithfulnessEvaluator(
             )
 
         # Stage 1: Extract verifiable claims from agent output
-        claims = await self._extract_claims(agent_output)
+        claims = await self._extract_claims(workload_output)
 
         if not claims:
             return NumericEvaluationResult(
@@ -127,7 +127,7 @@ class LegacyFaithfulnessEvaluator(
             details=justification,
         )
 
-    def _extract_context_sources(self, agent_trace: list[Any]) -> list[dict[str, str]]:
+    def _extract_context_sources(self, workload_trace: list[Any]) -> list[dict[str, str]]:
         """Extract context sources from agent execution trace.
 
         Looks for tool call outputs and context grounding spans that provide context.
@@ -137,7 +137,7 @@ class LegacyFaithfulnessEvaluator(
         """
         context_sources = []
 
-        for span in agent_trace:
+        for span in workload_trace:
             if not hasattr(span, "attributes") or span.attributes is None:
                 continue
 
@@ -180,7 +180,7 @@ class LegacyFaithfulnessEvaluator(
         """Serialize content to string format."""
         return serialize_object(content, sort_keys=False)
 
-    async def _extract_claims(self, agent_output: str) -> list[dict[str, str]]:
+    async def _extract_claims(self, workload_output: str) -> list[dict[str, str]]:
         """Extract verifiable claims from agent output using 3-stage pipeline.
 
         Stages:
@@ -192,22 +192,22 @@ class LegacyFaithfulnessEvaluator(
             List of claim dicts with 'text' and 'original_sentence' keys
         """
         # Stage 1: Selection
-        verifiable_sentences = await self._select_verifiable_sentences(agent_output)
+        verifiable_sentences = await self._select_verifiable_sentences(workload_output)
         if not verifiable_sentences:
             return []
 
         # Stage 2: Disambiguation
         disambiguated_sentences = await self._disambiguate_sentences(
-            verifiable_sentences, agent_output
+            verifiable_sentences, workload_output
         )
         if not disambiguated_sentences:
             return []
 
         # Stage 3: Decomposition
-        claims = await self._decompose_to_claims(disambiguated_sentences, agent_output)
+        claims = await self._decompose_to_claims(disambiguated_sentences, workload_output)
         return claims
 
-    async def _select_verifiable_sentences(self, agent_output: str) -> list[str]:
+    async def _select_verifiable_sentences(self, workload_output: str) -> list[str]:
         """Stage 1: Filter agent output to verifiable sentences."""
         prompt = f"""You are an expert evaluator identifying verifiable claims.
 
@@ -217,9 +217,9 @@ Filter out subjective opinions, instructions, questions, and meta-commentary.
 OUTPUT FORMAT: Return a JSON object with a "sentences" field containing an array of strings.
 Each string should be a complete sentence from the original output.
 
-<agent_output>
-{agent_output}
-</agent_output>
+<workload_output>
+{workload_output}
+</workload_output>
 
 Identify and return only the verifiable sentences."""
 
