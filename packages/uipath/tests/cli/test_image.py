@@ -45,3 +45,10 @@ def test_image_build_dry_run_generates_artifacts(
         assert manifest["command"] == ["uipath", "run", "invoice"]
         assert manifest["defaultEntrypoint"] == "invoice"
         assert manifest["image"] == "uipath/invoice-mcp:1.2.3"
+
+        dockerignore = (out / ".dockerignore").read_text(encoding="utf-8")
+        assert ".git" in dockerignore
+        assert ".venv" in dockerignore
+        assert (
+            ".uipath/image" in dockerignore
+        )  # output dir excluded from its own build context
