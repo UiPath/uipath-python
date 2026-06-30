@@ -129,7 +129,7 @@ class GuardrailsService(BaseService):
         # the execution source (x-uipath-guardrails-source) and job key headers
         # for licensing/metering correlation. The execution source is read from
         # the execution context, propagated from the runtime context.
-        trace_headers = build_trace_context_headers()
+        trace_headers = build_trace_context_headers(extra_baggage=["source=agents"])
         source_headers: dict[str, str] = {}
         execution_source = self._execution_context.execution_source
         if execution_source:

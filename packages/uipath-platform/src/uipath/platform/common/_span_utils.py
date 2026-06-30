@@ -5,10 +5,10 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from functools import lru_cache
 from os import environ as env
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
 
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.trace import StatusCode
@@ -17,8 +17,105 @@ from uipath.core.serialization import serialize_json
 
 logger = logging.getLogger(__name__)
 
-# SourceEnum.CodedAgents = 10 (default for Python SDK / coded agents)
-DEFAULT_SOURCE = 10
+
+class SpanStatus(StrEnum):
+    UNSET = "Unset"
+    OK = "Ok"
+    ERROR = "Error"
+    RUNNING = "Running"
+    RESTRICTED = "Restricted"
+    CANCELLED = "Cancelled"
+
+
+class SpanSource(StrEnum):
+    # Mirrors the server's SourceEnum
+    # (llm-observability: UiPath.LLMOps.DataAccess/Models/SourceEnum.cs).
+    # Member name = exact wire string (no naming policy on the v3 API).
+    # Keep complete: an unknown int is relabeled CodedAgents (see
+    # otel_span_to_uipath_span), and v3 rejects raw integers.
+    TESTING = "Testing"
+    AGENTS = "Agents"
+    PROCESS_ORCHESTRATION = "ProcessOrchestration"
+    API_WORKFLOWS = "ApiWorkflows"
+    ROBOTS = "Robots"
+    CONVERSATIONAL_AGENTS_SERVICE = "ConversationalAgentsService"
+    INTEGRATION_SERVICE_TRIGGER = "IntegrationServiceTrigger"
+    PLAYGROUND = "Playground"
+    GOVERNANCE = "Governance"
+    IXP_UNSTRUCTURED_AND_COMPLEX_DOCUMENTS = "IXPUnstructuredAndComplexDocuments"
+    CODED_AGENTS = "CodedAgents"
+    IXP_COMMUNICATIONS_MINING = "IXPCommunicationsMining"
+    ENTERPRISE_CONTEXT_SERVICE = "EnterpriseContextService"
+    MCP = "MCP"
+    A2A = "A2A"
+    SERVERLESS = "Serverless"
+    DOCUMENT_UNDERSTANDING = "DocumentUnderstanding"
+
+
+class VerbosityLevel(StrEnum):
+    VERBOSE = "Verbose"
+    TRACE = "Trace"
+    INFORMATION = "Information"
+    WARNING = "Warning"
+    ERROR = "Error"
+    CRITICAL = "Critical"
+    OFF = "Off"
+
+
+class ExecutionType(StrEnum):
+    DEBUG = "Debug"
+    RUNTIME = "Runtime"
+
+
+# Int→StrEnum lookup tables for converting raw OTEL attribute integers
+_EXECUTION_TYPE_BY_INT: dict[int, ExecutionType] = {
+    0: ExecutionType.DEBUG,
+    1: ExecutionType.RUNTIME,
+}
+
+_VERBOSITY_LEVEL_BY_INT: dict[int, VerbosityLevel] = {
+    0: VerbosityLevel.VERBOSE,
+    1: VerbosityLevel.TRACE,
+    2: VerbosityLevel.INFORMATION,
+    3: VerbosityLevel.WARNING,
+    4: VerbosityLevel.ERROR,
+    5: VerbosityLevel.CRITICAL,
+    6: VerbosityLevel.OFF,
+}
+
+_SOURCE_BY_INT: dict[int, SpanSource] = {
+    0: SpanSource.TESTING,
+    1: SpanSource.AGENTS,
+    2: SpanSource.PROCESS_ORCHESTRATION,
+    3: SpanSource.API_WORKFLOWS,
+    4: SpanSource.ROBOTS,
+    5: SpanSource.CONVERSATIONAL_AGENTS_SERVICE,
+    6: SpanSource.INTEGRATION_SERVICE_TRIGGER,
+    7: SpanSource.PLAYGROUND,
+    8: SpanSource.GOVERNANCE,
+    9: SpanSource.IXP_UNSTRUCTURED_AND_COMPLEX_DOCUMENTS,
+    10: SpanSource.CODED_AGENTS,
+    11: SpanSource.IXP_COMMUNICATIONS_MINING,
+    12: SpanSource.ENTERPRISE_CONTEXT_SERVICE,
+    13: SpanSource.MCP,
+    14: SpanSource.A2A,
+    15: SpanSource.SERVERLESS,
+    16: SpanSource.DOCUMENT_UNDERSTANDING,
+}
+
+_IntEnumT = TypeVar("_IntEnumT")
+
+
+def _enum_from_int(table: dict[int, _IntEnumT], raw: Any) -> Optional[_IntEnumT]:
+    """Map a raw OTEL int attribute to its enum member, or None.
+
+    Returns None for missing / non-int input — and explicitly for ``bool``,
+    since ``bool`` is an ``int`` subclass (``True == 1``) and would otherwise
+    be coerced to the value-1 member.
+    """
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return None
+    return table.get(raw)
 
 
 @lru_cache(maxsize=1)
@@ -65,16 +162,6 @@ class AttachmentDirection(IntEnum):
     OUT = 2
 
 
-class VerbosityLevel(IntEnum):
-    VERBOSE = 0
-    TRACE = 1
-    INFORMATION = 2
-    WARNING = 3
-    ERROR = 4
-    CRITICAL = 5
-    OFF = 6
-
-
 class SpanAttachment(BaseModel):
     """Represents an attachment in the UiPath tracing system."""
 
@@ -106,20 +193,24 @@ class UiPathSpan:
     parent_id: Optional[str] = None  # 16-char hex (OTEL span ID format)
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
     end_time: str = field(default_factory=lambda: datetime.now().isoformat())
-    status: int = 1
+    status: SpanStatus = SpanStatus.OK
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
+    # Default to None (not "") when unset; to_dict() then omits these keys
+    # entirely. The v3 ingest endpoint binds them to Guid fields: "" crashes the
+    # serializer, and even null fails for the required OrganizationId/FolderKey.
+    # In the platform runtime these are always set to real GUIDs.
     organization_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID", "")
+        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID") or None
     )
     tenant_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_TENANT_ID", "")
+        default_factory=lambda: env.get("UIPATH_TENANT_ID") or None
     )
     expiry_time_utc: Optional[str] = None
     folder_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_FOLDER_KEY", "")
+        default_factory=lambda: env.get("UIPATH_FOLDER_KEY") or None
     )
-    source: int = DEFAULT_SOURCE
+    source: SpanSource = SpanSource.CODED_AGENTS
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
         default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
@@ -131,9 +222,9 @@ class UiPathSpan:
     job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
 
     # Top-level fields for internal tracing schema
-    execution_type: Optional[int] = None
+    execution_type: Optional[ExecutionType] = None
     agent_version: Optional[str] = None
-    verbosity_level: Optional[int] = None
+    verbosity_level: Optional[VerbosityLevel] = None
     attachments: Optional[List[SpanAttachment]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
@@ -182,9 +273,16 @@ class UiPathSpan:
             "JobKey": self.job_key,
             "ReferenceId": self.reference_id,
             "ExecutionType": self.execution_type,
-            "AgentVersion": self.agent_version,
+            # v3 ingest (SpanV3Req) has no AgentVersion field; the agent version
+            # is carried by ReferenceVersion (pairs with ReferenceId above).
+            "ReferenceVersion": self.agent_version,
             "Attachments": attachments_out,
         }
+        # Omit Guid-typed keys when unset — v3 binds them to Guid columns and
+        # rejects null/"". When present (platform runtime) they hold real GUIDs.
+        for guid_key in ("OrganizationId", "TenantId", "FolderKey"):
+            if result[guid_key] is None:
+                del result[guid_key]
         if self.verbosity_level is not None:
             result["VerbosityLevel"] = self.verbosity_level
         return result
@@ -264,9 +362,9 @@ class _SpanUtils:
         attributes_dict: dict[str, Any] = dict(otel_attrs) if otel_attrs else {}
 
         # Map status
-        status = 1  # Default to OK
+        status = SpanStatus.OK
         if otel_span.status.status_code == StatusCode.ERROR:
-            status = 2  # Error
+            status = SpanStatus.ERROR
             attributes_dict["error"] = otel_span.status.description
 
         # Process inputs - avoid redundant parsing if already parsed
@@ -332,17 +430,33 @@ class _SpanUtils:
         span_type_value = attributes_dict.get("span_type", "OpenTelemetry")
         span_type = str(span_type_value)
 
-        # Top-level fields for internal tracing schema
-        execution_type = attributes_dict.get("executionType")
+        # Top-level fields for internal tracing schema. The int->enum lookups go
+        # through _enum_from_int so they all ignore bools/non-ints identically.
+        execution_type = _enum_from_int(
+            _EXECUTION_TYPE_BY_INT, attributes_dict.get("executionType")
+        )
         agent_version = attributes_dict.get("agentVersion")
         reference_id = attributes_dict.get("agentId") or attributes_dict.get(
             "referenceId"
         )
-        verbosity_level = attributes_dict.get("verbosityLevel")
+        verbosity_level = _enum_from_int(
+            _VERBOSITY_LEVEL_BY_INT, attributes_dict.get("verbosityLevel")
+        )
 
-        # Source: override via uipath.source attribute, else DEFAULT_SOURCE
-        uipath_source = attributes_dict.get("uipath.source")
-        source = uipath_source if isinstance(uipath_source, int) else DEFAULT_SOURCE
+        # Source: override via uipath.source attribute, else CodedAgents.
+        # A real int that isn't a known source is relabeled CodedAgents but
+        # logged — v3 ingest rejects raw integers, so it can't be forwarded.
+        uipath_source_raw = attributes_dict.get("uipath.source")
+        source = _enum_from_int(_SOURCE_BY_INT, uipath_source_raw)
+        if source is None:
+            if isinstance(uipath_source_raw, int) and not isinstance(
+                uipath_source_raw, bool
+            ):
+                logger.warning(
+                    "Unknown uipath.source int %s; defaulting to CodedAgents",
+                    uipath_source_raw,
+                )
+            source = SpanSource.CODED_AGENTS
 
         attachments = None
         attachments_data = attributes_dict.get("attachments")

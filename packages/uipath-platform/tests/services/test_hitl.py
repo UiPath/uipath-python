@@ -1,11 +1,13 @@
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
 from uipath.core.errors import ErrorCategory, UiPathFaultedTriggerError
+from uipath.core.serialization import serialize_object
 from uipath.core.triggers import (
     UiPathApiTrigger,
     UiPathIntegrationTrigger,
@@ -39,6 +41,7 @@ from uipath.platform.common import (
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
+    WaitUntil,
 )
 from uipath.platform.connections import Connection
 from uipath.platform.context_grounding import (
@@ -1214,6 +1217,21 @@ class TestHitlReader:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
 
+    @pytest.mark.anyio
+    async def test_read_timer_trigger_serializes_resume_time(self) -> None:
+        """Test reading a timer trigger returns JSON-safe resume time data."""
+        resume_time = datetime(2026, 6, 27, 20, 14, 49, tzinfo=timezone.utc)
+        resume_trigger = UiPathResumeTrigger(
+            trigger_type=UiPathResumeTriggerType.TIMER,
+            trigger_name=UiPathResumeTriggerName.TIMER,
+            resume_time=resume_time,
+        )
+
+        reader = UiPathResumeTriggerReader()
+        result = await reader.read_trigger(resume_trigger)
+
+        assert result == {"resumeTime": serialize_object(resume_time)}
+
 
 class TestHitlProcessor:
     """Tests for the HitlProcessor class."""
@@ -2062,6 +2080,34 @@ class TestHitlProcessor:
         assert resume_trigger is not None
         assert resume_trigger.trigger_type == UiPathResumeTriggerType.IXP_VS_ESCALATION
         assert resume_trigger.item_key == operation_id
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_wait_until_normalizes_to_utc(self) -> None:
+        """Test creating a timer resume trigger for WaitUntil."""
+        local_resume_time = datetime(
+            2026,
+            6,
+            27,
+            23,
+            14,
+            49,
+            tzinfo=timezone(timedelta(hours=3)),
+        )
+        wait_until = WaitUntil(resume_time=local_resume_time)
+
+        processor = UiPathResumeTriggerCreator()
+        resume_trigger = await processor.create_trigger(wait_until)
+
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.TIMER
+        assert resume_trigger.trigger_name == UiPathResumeTriggerName.TIMER
+        assert resume_trigger.resume_time == datetime(
+            2026, 6, 27, 20, 14, 49, tzinfo=timezone.utc
+        )
+
+    def test_wait_until_requires_timezone_aware_resume_time(self) -> None:
+        """Test WaitUntil rejects timezone-naive resume times."""
+        with pytest.raises(ValueError, match="resume_time must include timezone"):
+            WaitUntil(resume_time=datetime(2026, 6, 27, 20, 14, 49))
 
 
 class TestDocumentExtractionModels:
