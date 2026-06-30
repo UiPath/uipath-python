@@ -3923,7 +3923,7 @@ class TestDataFabricContextConfig:
             "description": "",
             "contextType": "datafabricontology",
             "ontologySet": [
-                {"name": "library", "folderId": "f1", "referenceKey": "ont-1"},
+                {"name": "library", "folderId": "f1"},
                 {"name": "finance", "folderId": "f2"},
             ],
         }
@@ -3936,9 +3936,7 @@ class TestDataFabricContextConfig:
         assert len(parsed.ontology_set) == 2
         assert parsed.ontology_set[0].name == "library"
         assert parsed.ontology_set[0].folder_key == "f1"
-        assert parsed.ontology_set[0].ontology_key == "ont-1"
         assert parsed.ontology_set[1].name == "finance"
-        assert parsed.ontology_set[1].ontology_key is None
 
     def test_ontology_item_requires_folder_id(self):
         """folderId is required on each ontology item."""
@@ -3962,7 +3960,7 @@ class TestDataFabricContextConfig:
                 "description": "",
                 "contextType": "datafabricontology",
                 "ontologySet": [
-                    {"name": "library", "folderId": "f1", "referenceKey": "ont-ref"}
+                    {"name": "library", "folderId": "f1"}
                 ],
             }
         )
@@ -3971,7 +3969,6 @@ class TestDataFabricContextConfig:
         assert dumped["contextType"] == "datafabricontology"
         assert dumped["ontologySet"][0]["name"] == "library"
         assert dumped["ontologySet"][0]["folderId"] == "f1"
-        assert dumped["ontologySet"][0]["referenceKey"] == "ont-ref"
 
     def test_entity_context_has_no_ontology_set(self):
         """A plain entity context has no ontologySet and is not an ontology context."""

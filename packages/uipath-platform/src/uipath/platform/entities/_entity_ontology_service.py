@@ -26,7 +26,6 @@ class DataFabricOntologyItem(BaseModel):
     )
 
     name: str
-    ontology_key: Optional[str] = Field(None, alias="referenceKey")
     folder_key: str = Field(alias="folderId")
     description: Optional[str] = None
     id: Optional[str] = None
