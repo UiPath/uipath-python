@@ -211,6 +211,71 @@ class TestConversationIdInPrompt:
         assert "conversation ID" not in prompt
 
 
+class TestStructuredOutputRequirement:
+    """Tests for the STRUCTURED OUTPUT REQUIREMENT block."""
+
+    def test_block_omitted_when_has_structured_output_false(self):
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+            has_structured_output=False,
+        )
+
+        assert "STRUCTURED OUTPUT REQUIREMENT" not in prompt
+        assert "end_execution" not in prompt
+        assert (
+            "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_structuredOutputPrompt}}"
+            not in prompt
+        )
+
+    def test_block_omitted_by_default(self):
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+        )
+
+        assert "STRUCTURED OUTPUT REQUIREMENT" not in prompt
+        assert (
+            "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_structuredOutputPrompt}}"
+            not in prompt
+        )
+
+    def test_block_present_when_has_structured_output_true(self):
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+            has_structured_output=True,
+        )
+
+        assert "STRUCTURED OUTPUT REQUIREMENT" in prompt
+        assert "`end_execution`" in prompt
+        assert (
+            "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_structuredOutputPrompt}}"
+            not in prompt
+        )
+
+    def test_block_does_not_embed_a_schema(self):
+        """The schema reaches the model via the tool definition, not the prompt."""
+        prompt = get_chat_system_prompt(
+            model="claude-3-sonnet",
+            system_message=SYSTEM_MESSAGE,
+            agent_name="Test Agent",
+            user_settings=None,
+            has_structured_output=True,
+        )
+
+        # No JSON schema fenced block introduced by this section.
+        structured_section = prompt.split("STRUCTURED OUTPUT REQUIREMENT", 1)[1]
+        assert "```json" not in structured_section
+        assert '"properties"' not in structured_section
+
+
 class TestCitationFormat:
     """Tests for citation format in generated prompts."""
 

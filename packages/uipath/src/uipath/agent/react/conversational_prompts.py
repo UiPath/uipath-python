@@ -120,7 +120,8 @@ Before each tool call, verify:
 
 If execution cannot proceed:
 - State why
-- Request missing or clarifying information"""
+- Request missing or clarifying information
+{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_structuredOutputPrompt}}"""
 
 _ATTACHMENTS_TEMPLATE = """=====================================================================
 ATTACHMENTS
@@ -142,6 +143,21 @@ _CONVERSATION_ID_TEMPLATE = """
 The current conversation ID is {conversation_id}. This may be useful to include in tool-calls when tool parameters specify passing in the conversation ID. Other than tool-call inputs, this ID should not be mentioned to the user.
 """
 
+_STRUCTURED_OUTPUT_TEMPLATE = """
+=====================================================================
+STRUCTURED OUTPUT REQUIREMENT
+=====================================================================
+To finalize your reply for a turn, you MUST produce BOTH of the following in the same assistant response:
+  1. Your normal user-facing reply as the message content (visible to the user).
+  2. An `end_execution` tool call carrying the structured output fields (NOT visible to the user).
+
+Rules:
+- The turn is only considered complete once `end_execution` is called. Do NOT send a final response without it.
+- Call other tools first when you need information and to perform actions. Only call `end_execution` once your reply is ready to send to the user.
+- Do NOT call `end_execution` alone — the user will see no reply.
+- Do NOT mention `end_execution` to the user or acknowledge it in your message content. Treat it as internal; respond as if the tool did not exist.
+"""
+
 
 def get_chat_system_prompt(
     model: str,
@@ -149,6 +165,8 @@ def get_chat_system_prompt(
     agent_name: str | None,
     user_settings: PromptUserSettings | None = None,
     conversation_id: str | None = None,
+    *,
+    has_structured_output: bool = False,
 ) -> str:
     """Generate a system prompt for a conversational agent.
 
@@ -158,6 +176,9 @@ def get_chat_system_prompt(
         agent_name: The agent display name; defaults to "Unnamed Agent" when None.
         user_settings: Optional user data that is injected into the system prompt.
         conversation_id: Optional conversation identifier that is injected into the system prompt.
+        has_structured_output: When True, append the STRUCTURED OUTPUT REQUIREMENT block
+            instructing the agent to call `end_execution` to finalize each turn. The schema
+            itself reaches the model via the `end_execution` tool definition, not the prompt.
 
     Returns:
         The complete system prompt string
@@ -190,6 +211,10 @@ def get_chat_system_prompt(
     prompt = prompt.replace(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}",
         get_conversation_id_template(conversation_id),
+    )
+    prompt = prompt.replace(
+        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_structuredOutputPrompt}}",
+        _STRUCTURED_OUTPUT_TEMPLATE if has_structured_output else "",
     )
 
     return prompt
