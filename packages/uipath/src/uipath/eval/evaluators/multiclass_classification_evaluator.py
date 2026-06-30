@@ -1,4 +1,4 @@
-"""Multiclass classification evaluator for agent outputs.
+"""Multiclass classification evaluator for workload outputs.
 
 Evaluates multiclass classification by comparing predicted vs expected class.
 Per-datapoint score is 1.0 (correct) or 0.0 (incorrect). The reduce_scores

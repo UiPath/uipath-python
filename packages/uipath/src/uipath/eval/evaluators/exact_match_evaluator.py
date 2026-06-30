@@ -1,4 +1,4 @@
-"""Exact match evaluator for agent outputs."""
+"""Exact match evaluator for workload outputs."""
 
 from ..models import (
     EvaluationResult,

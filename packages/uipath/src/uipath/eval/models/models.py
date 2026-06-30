@@ -176,7 +176,7 @@ class LegacyEvaluatorType(IntEnum):
 class TrajectoryEvaluationSpan:
     """Simplified span representation for trajectory evaluation.
 
-    Contains span information needed for evaluating agent execution paths,
+    Contains span information needed for evaluating workload execution paths,
     excluding timestamps which are not useful for trajectory analysis.
     """
 

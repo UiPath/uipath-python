@@ -1,4 +1,4 @@
-"""LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
+"""LLM-as-a-judge evaluator for subjective quality assessment of workload outputs."""
 
 import copy
 import json
@@ -143,7 +143,7 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
 
     @abstractmethod
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
-        """Get the actual output from the agent execution. Must be implemented by concrete evaluator classes."""
+        """Get the actual output from the workload execution. Must be implemented by concrete evaluator classes."""
         pass
 
     @abstractmethod

@@ -1,4 +1,4 @@
-"""Contains evaluator for agent outputs."""
+"""Contains evaluator for workload outputs."""
 
 from ..models import (
     EvaluationResult,

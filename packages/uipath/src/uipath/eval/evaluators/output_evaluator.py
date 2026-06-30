@@ -88,7 +88,7 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig[T]):
 
     target_output_key: str | list[str] = Field(
         default="*",
-        description="Key or list of keys to extract output from agent execution",
+        description="Key or list of keys to extract output from workload execution",
     )
     line_by_line_evaluator: bool = Field(
         default=False,
@@ -129,7 +129,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         return obj
 
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
-        """Get the actual output from the agent execution.
+        """Get the actual output from the workload execution.
 
         If the output is a job attachment URI, downloads the attachment
         and returns its content as a string.
@@ -257,13 +257,13 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         workload_execution: "WorkloadExecution",
         evaluation_criteria: Any,
     ) -> "EvaluationResult":
-        """Validate evaluation criteria and evaluate the agent execution.
+        """Validate evaluation criteria and evaluate the workload execution.
 
         If line_by_line_evaluator is enabled, splits the output by delimiter
         and evaluates each line separately, then aggregates the scores.
 
         Args:
-            workload_execution: The agent execution to evaluate
+            workload_execution: The workload execution to evaluate
             evaluation_criteria: The evaluation criteria (dict or typed object)
 
         Returns:
@@ -301,7 +301,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         """Evaluate output line by line and aggregate scores.
 
         Args:
-            workload_execution: The agent execution to evaluate
+            workload_execution: The workload execution to evaluate
             evaluation_criteria: Validated evaluation criteria
 
         Returns:

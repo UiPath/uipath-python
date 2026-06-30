@@ -96,7 +96,7 @@ class LegacyContextPrecisionEvaluator(
 ):
     """Legacy evaluator that assesses context precision using an LLM.
 
-    This evaluator extracts context grounding spans from agent execution traces
+    This evaluator extracts context grounding spans from workload execution traces
     and uses an LLM to score the relevance of each chunk to its corresponding query.
     The final score is the mean of all chunk relevancy scores (normalized to 0-1).
     """
@@ -128,7 +128,7 @@ class LegacyContextPrecisionEvaluator(
         workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
-        """Evaluate context precision from agent execution traces.
+        """Evaluate context precision from workload execution traces.
 
         Args:
             workload_execution: The execution details containing workload_trace with spans
@@ -149,7 +149,7 @@ class LegacyContextPrecisionEvaluator(
         if not context_groundings:
             return NumericEvaluationResult(
                 score=0.0,
-                details="No context grounding tool calls found in the agent execution trace.",
+                details="No context grounding tool calls found in the workload execution trace.",
             )
 
         # Evaluate each context grounding call
@@ -226,7 +226,7 @@ class LegacyContextPrecisionEvaluator(
     def _extract_context_groundings(
         self, workload_trace: list[Any]
     ) -> list[dict[str, Any]]:
-        """Extract context groundings from agent execution trace.
+        """Extract context groundings from workload execution trace.
 
         Looks for spans with input.value and output.value attributes that represent
         context grounding tool calls.

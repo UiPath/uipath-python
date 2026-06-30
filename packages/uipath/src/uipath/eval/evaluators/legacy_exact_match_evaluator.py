@@ -1,4 +1,4 @@
-"""Exact match evaluator for binary pass/fail evaluation of agent outputs."""
+"""Exact match evaluator for binary pass/fail evaluation of workload outputs."""
 
 from uipath.eval.models import BooleanEvaluationResult, EvaluationResult
 

@@ -1,7 +1,7 @@
 """Tests for examples in the eval documentation.
 
 This module ensures all code examples in the documentation actually work by
-testing them with proper agent execution data. For LLM judge examples, we use
+testing them with proper workload execution data. For LLM judge examples, we use
 mocked completions to avoid API calls.
 """
 
@@ -39,7 +39,7 @@ class TestIndexExamples:
     @pytest.mark.asyncio
     async def test_getting_started_example(self) -> None:
         """Test the getting started example from index.md."""
-        # Sample agent execution (this is what the docs were missing!)
+        # Sample workload execution (this is what the docs were missing!)
         workload_execution = WorkloadExecution(
             agent_input={"query": "Greet the world"},
             workload_output={"result": "hello, world!"},
@@ -1042,7 +1042,7 @@ class TestToolCallOrderExamples:
         """Test basic tool call order validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        # Sample agent execution with tool calls in trace (this is what was missing in docs!)
+        # Sample workload execution with tool calls in trace (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
                 name="validate_user",
@@ -1380,7 +1380,7 @@ class TestToolCallCountExamples:
         """Test basic count validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        # Sample agent execution with tool calls (this is what was missing in docs!)
+        # Sample workload execution with tool calls (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
                 name="fetch_data",
@@ -1694,7 +1694,7 @@ class TestToolCallArgsExamples:
         """Test basic argument validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        # Sample agent execution with tool calls and arguments (this is what was missing in docs!)
+        # Sample workload execution with tool calls and arguments (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
                 name="update_user",
@@ -2060,7 +2060,7 @@ class TestToolCallOutputExamples:
         """Test basic output validation example with sample trace."""
         from opentelemetry.sdk.trace import ReadableSpan
 
-        # Sample agent execution with tool calls and outputs (this is what was missing in docs!)
+        # Sample workload execution with tool calls and outputs (this is what was missing in docs!)
         mock_spans = [
             ReadableSpan(
                 name="get_user",

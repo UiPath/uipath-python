@@ -1,4 +1,4 @@
-"""LLM judge output evaluators for evaluating agent outputs."""
+"""LLM judge output evaluators for evaluating workload outputs."""
 
 from typing import TypeVar
 
@@ -79,7 +79,7 @@ class BaseLLMOutputEvaluator(
 
 
 class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConfig]):
-    """Evaluator that uses an LLM to judge the quality of agent output.
+    """Evaluator that uses an LLM to judge the quality of workload output.
 
     Inherits all functionality from BaseLLMOutputEvaluator but uses the standard
     system prompt and output schema for general output evaluation.
@@ -97,7 +97,7 @@ class LLMJudgeOutputEvaluator(BaseLLMOutputEvaluator[LLMJudgeOutputEvaluatorConf
 class LLMJudgeStrictJSONSimilarityOutputEvaluator(
     BaseLLMOutputEvaluator[LLMJudgeStrictJSONSimilarityOutputEvaluatorConfig]
 ):
-    """Evaluator that uses an LLM to judge the quality of agent output with strict JSON similarity.
+    """Evaluator that uses an LLM to judge the quality of workload output with strict JSON similarity.
 
     Inherits all functionality from BaseLLMOutputEvaluator but uses a different system prompt
     and output schema specific to strict JSON similarity evaluation.

@@ -553,10 +553,10 @@ class UiPathEvalRuntime:
                     )
 
                     logger.debug(
-                        f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
+                        f"DEBUG: Workload execution result status: {agent_execution_output.result.status}"
                     )
                     logger.debug(
-                        f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
+                        f"DEBUG: Workload execution result trigger: {agent_execution_output.result.trigger}"
                     )
 
                 except Exception as e:

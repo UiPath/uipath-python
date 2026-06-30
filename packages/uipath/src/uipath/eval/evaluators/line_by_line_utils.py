@@ -89,7 +89,7 @@ async def evaluate_lines(
         actual_lines: List of actual output lines
         expected_lines: List of expected output lines
         target_output_key: Key for wrapping lines
-        workload_execution: Original agent execution
+        workload_execution: Original workload execution
         evaluate_fn: Function to evaluate (line_execution, line_criteria) -> result
         create_line_criteria_fn: Function to create criteria for a line (expected_line) -> criteria
 
@@ -110,7 +110,7 @@ async def evaluate_lines(
         # Wrap lines in the same structure as original output
         line_agent_output = wrap_line_in_structure(actual_line, target_output_key)
 
-        # Create a modified agent execution for this line
+        # Create a modified workload execution for this line
         from ..models.models import WorkloadExecution
 
         line_agent_execution = WorkloadExecution(

@@ -330,7 +330,7 @@ class LegacyCSVExactMatchEvaluator(
             else:
                 expected_mini_csv = expected_header  # Just header, will fail validation
 
-            # Create a modified agent execution for this line
+            # Create a modified workload execution for this line
             line_agent_execution = WorkloadExecution(
                 agent_input=workload_execution.agent_input,
                 workload_output=wrap_line_in_structure(

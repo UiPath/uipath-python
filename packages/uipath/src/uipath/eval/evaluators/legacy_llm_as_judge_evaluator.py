@@ -1,4 +1,4 @@
-"""LLM-as-a-judge evaluator for subjective quality assessment of agent outputs."""
+"""LLM-as-a-judge evaluator for subjective quality assessment of workload outputs."""
 
 import logging
 from typing import Any, Optional
@@ -38,7 +38,7 @@ class LegacyLlmAsAJudgeEvaluatorConfig(LegacyEvaluatorConfig):
 
 
 class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorConfig]):
-    """Legacy evaluator that uses an LLM to judge the quality of agent output."""
+    """Legacy evaluator that uses an LLM to judge the quality of workload output."""
 
     prompt: str
     model: str = Field(default="same-as-agent")

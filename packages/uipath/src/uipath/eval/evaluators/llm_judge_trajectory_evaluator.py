@@ -1,4 +1,4 @@
-"""LLM judge trajectory evaluator for evaluating agent execution trajectories."""
+"""LLM judge trajectory evaluator for evaluating workload execution trajectories."""
 
 from typing import Any, TypeVar
 
@@ -79,7 +79,7 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
         return await super().evaluate(workload_execution, evaluation_criteria)
 
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
-        """Get the actual output from the agent execution."""
+        """Get the actual output from the workload execution."""
         return trace_to_str(workload_execution.workload_trace)
 
     def _get_expected_output(

@@ -182,13 +182,13 @@ class BaseLegacyEvaluator(
         )
 
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
-        """Extract actual output from agent execution.
+        """Extract actual output from workload execution.
 
         If the output is a job attachment URI, downloads the attachment
         and returns its content as a string.
 
         Args:
-            workload_execution: The agent execution
+            workload_execution: The workload execution
 
         Returns:
             The actual output (either the full workload_output or a specific key)
