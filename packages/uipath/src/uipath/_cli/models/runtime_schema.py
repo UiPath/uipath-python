@@ -2,6 +2,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ...platform.common.constants import ENTRY_POINTS_FILE
+
 
 class BaseModelWithDefaultConfig(BaseModel):
     model_config = ConfigDict(
@@ -48,7 +50,7 @@ class EntryPoints(BaseModelWithDefaultConfig):
         default="https://cloud.uipath.com/draft/2024-12/entry-point",
         alias="$schema",
     )
-    id_: str = Field(default="entry-points.json", alias="$id")
+    id_: str = Field(default=ENTRY_POINTS_FILE, alias="$id")
     entrypoints: list[EntryPoint] = Field(..., alias="entryPoints")
 
 

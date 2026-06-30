@@ -15,6 +15,17 @@ from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 
+from .constants import (
+    ENV_FOLDER_KEY,
+    ENV_JOB_KEY,
+    ENV_ORGANIZATION_ID,
+    ENV_PROCESS_KEY,
+    ENV_TENANT_ID,
+    ENV_UIPATH_PROCESS_UUID,
+    ENV_UIPATH_PROCESS_VERSION,
+    ENV_UIPATH_TRACE_ID,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -201,25 +212,25 @@ class UiPathSpan:
     # serializer, and even null fails for the required OrganizationId/FolderKey.
     # In the platform runtime these are always set to real GUIDs.
     organization_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_ORGANIZATION_ID") or None
+        default_factory=lambda: env.get(ENV_ORGANIZATION_ID) or None
     )
     tenant_id: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_TENANT_ID") or None
+        default_factory=lambda: env.get(ENV_TENANT_ID) or None
     )
     expiry_time_utc: Optional[str] = None
     folder_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_FOLDER_KEY") or None
+        default_factory=lambda: env.get(ENV_FOLDER_KEY) or None
     )
     source: SpanSource = SpanSource.CODED_AGENTS
     span_type: str = "Coded Agents"
     process_key: Optional[str] = field(
-        default_factory=lambda: env.get("UIPATH_PROCESS_UUID")
+        default_factory=lambda: env.get(ENV_UIPATH_PROCESS_UUID)
     )
     reference_id: Optional[str] = field(
         default_factory=lambda: env.get("TRACE_REFERENCE_ID")
     )
 
-    job_key: Optional[str] = field(default_factory=lambda: env.get("UIPATH_JOB_KEY"))
+    job_key: Optional[str] = field(default_factory=lambda: env.get(ENV_JOB_KEY))
 
     # Top-level fields for internal tracing schema
     execution_type: Optional[ExecutionType] = None
@@ -341,7 +352,7 @@ class _SpanUtils:
         span_id = format(span_context.span_id, "016x")
 
         # Override trace_id if custom or env var provided (supports both UUID and hex format)
-        trace_id_override = custom_trace_id or os.environ.get("UIPATH_TRACE_ID")
+        trace_id_override = custom_trace_id or os.environ.get(ENV_UIPATH_TRACE_ID)
         if trace_id_override:
             trace_id = _SpanUtils.normalize_trace_id(trace_id_override)
 
@@ -420,8 +431,8 @@ class _SpanUtils:
 
         # Add process context attributes from environment variables
         for env_key, attr_key in (
-            ("UIPATH_PROCESS_KEY", "agentName"),
-            ("UIPATH_PROCESS_VERSION", "agentVersion"),
+            (ENV_PROCESS_KEY, "agentName"),
+            (ENV_UIPATH_PROCESS_VERSION, "agentVersion"),
         ):
             value = env.get(env_key)
             if value:

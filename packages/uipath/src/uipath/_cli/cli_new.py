@@ -4,6 +4,7 @@ import shutil
 
 import click
 
+from ..platform.common.constants import PYTHON_CONFIGURATION_FILE, UIPATH_CONFIG_FILE
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -21,7 +22,7 @@ def generate_script(target_directory):
 
 
 def generate_pyproject(target_directory, project_name):
-    project_toml_path = os.path.join(target_directory, "pyproject.toml")
+    project_toml_path = os.path.join(target_directory, PYTHON_CONFIGURATION_FILE)
     toml_content = f"""[project]
 name = "{project_name}"
 version = "0.0.1"
@@ -38,7 +39,7 @@ requires-python = ">=3.11"
 
 
 def generate_uipath_json(target_directory):
-    uipath_json_path = os.path.join(target_directory, "uipath.json")
+    uipath_json_path = os.path.join(target_directory, UIPATH_CONFIG_FILE)
     uipath_config = {"functions": {"main": "main.py:main"}}
 
     with open(uipath_json_path, "w") as f:
@@ -74,9 +75,9 @@ def new(name: str):
         generate_script(directory)
         console.success("Created 'main.py' file.")
         generate_pyproject(directory, name)
-        console.success("Created 'pyproject.toml' file.")
+        console.success(f"Created '{PYTHON_CONFIGURATION_FILE}' file.")
         generate_uipath_json(directory)
-        console.success("Created 'uipath.json' file.")
+        console.success(f"Created '{UIPATH_CONFIG_FILE}' file.")
         init_command = """uipath init"""
         run_command = """uipath run main '{"message": "Hello World!"}'"""
         console.hint(f""" Initialize project: {click.style(init_command, fg="cyan")}""")

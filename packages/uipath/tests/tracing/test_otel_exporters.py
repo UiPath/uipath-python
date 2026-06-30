@@ -8,6 +8,10 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
 from uipath.platform.common._span_utils import SpanStatus
+from uipath.platform.common.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 from uipath.tracing._otel_exporters import LlmOpsHttpExporter
 
 
@@ -230,11 +234,11 @@ def test_internal_headers_set_when_trace_base_url_present():
             exporter = LlmOpsHttpExporter()
 
             assert (
-                exporter.headers["X-UiPath-Internal-TenantId"]
+                exporter.headers[HEADER_INTERNAL_TENANT_ID]
                 == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
             )
             assert (
-                exporter.headers["X-UiPath-Internal-AccountId"]
+                exporter.headers[HEADER_INTERNAL_ACCOUNT_ID]
                 == "11111111-2222-3333-4444-555555555555"
             )
 
@@ -254,8 +258,8 @@ def test_internal_headers_not_set_without_trace_base_url():
         with patch("uipath.tracing._otel_exporters.httpx.Client"):
             exporter = LlmOpsHttpExporter()
 
-            assert "X-UiPath-Internal-TenantId" not in exporter.headers
-            assert "X-UiPath-Internal-AccountId" not in exporter.headers
+            assert HEADER_INTERNAL_TENANT_ID not in exporter.headers
+            assert HEADER_INTERNAL_ACCOUNT_ID not in exporter.headers
 
 
 def test_send_with_retries_success():

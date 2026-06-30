@@ -23,6 +23,12 @@ from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
 )
 
 from uipath.platform.common import UiPathConfig
+from uipath.platform.common.constants import (
+    DOTENV_FILE,
+    ENTRY_POINTS_FILE,
+    PYTHON_CONFIGURATION_FILE,
+    UIPATH_CONFIG_FILE,
+)
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryProtocol,
@@ -43,7 +49,7 @@ from .models.uipath_json_schema import UiPathJsonConfig
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = "uipath.json"
+CONFIG_PATH = UIPATH_CONFIG_FILE
 
 GRAPH_INDENT = "    "
 
@@ -54,7 +60,7 @@ class Action(str, enum.Enum):
 
 
 def generate_env_file(target_directory):
-    env_path = os.path.join(target_directory, ".env")
+    env_path = os.path.join(target_directory, DOTENV_FILE)
 
     if not os.path.exists(env_path):
         relative_path = os.path.relpath(env_path, target_directory)
@@ -163,7 +169,7 @@ def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
     """
     json_object = {
         "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
-        "$id": "entry-points.json",
+        "$id": ENTRY_POINTS_FILE,
         "entryPoints": [
             ep.model_dump(
                 by_alias=True,
@@ -197,7 +203,9 @@ def write_uiproj_file(
     ]
     project_type = determine_project_type(entry_point_models).capitalize()
 
-    toml_data = read_toml_project(os.path.join(current_directory, "pyproject.toml"))
+    toml_data = read_toml_project(
+        os.path.join(current_directory, PYTHON_CONFIGURATION_FILE)
+    )
     project_name = toml_data["name"]
     project_description = toml_data.get("description")
 

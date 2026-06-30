@@ -19,6 +19,7 @@ from uipath.eval.runtime.events import (
     EvaluationEvents,
 )
 from uipath.platform.common import UiPathConfig
+from uipath.platform.common.constants import ENV_TENANT_ID
 from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)
@@ -327,7 +328,7 @@ class EvalTelemetrySubscriber:
         if cloud_user_id:
             properties["CloudUserId"] = cloud_user_id
 
-        tenant_id = os.getenv("UIPATH_TENANT_ID")
+        tenant_id = os.getenv(ENV_TENANT_ID)
         if tenant_id:
             properties["TenantId"] = tenant_id
 

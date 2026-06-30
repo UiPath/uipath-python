@@ -11,6 +11,10 @@ import pytest
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
 from uipath._cli._debug._bridge import SignalRDebugBridge
 from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
+from uipath.platform.common.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 
 class MockRuntimeContext:
@@ -203,8 +207,8 @@ class TestGetChatBridge:
 
         assert "Authorization" in bridge.headers
         assert "Bearer my-access-token" in bridge.headers["Authorization"]
-        assert "X-UiPath-Internal-TenantId" in bridge.headers
-        assert "X-UiPath-Internal-AccountId" in bridge.headers
+        assert HEADER_INTERNAL_TENANT_ID in bridge.headers
+        assert HEADER_INTERNAL_ACCOUNT_ID in bridge.headers
         assert "X-UiPath-ConversationId" in bridge.headers
         assert bridge.headers["X-UiPath-ConversationId"] == "conv-789"
 
@@ -225,8 +229,8 @@ class TestGetChatBridge:
 
         bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
 
-        assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
-        assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
+        assert bridge.headers[HEADER_INTERNAL_TENANT_ID] == "env-tenant"
+        assert bridge.headers[HEADER_INTERNAL_ACCOUNT_ID] == "env-org"
 
     def test_get_chat_bridge_includes_conversational_user_id_header_when_set(
         self, monkeypatch: pytest.MonkeyPatch

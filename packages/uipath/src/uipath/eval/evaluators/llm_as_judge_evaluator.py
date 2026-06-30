@@ -11,9 +11,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
+from uipath.platform.common.constants import COMMUNITY_agents_SUFFIX
 
 from .._execution_context import eval_set_run_id_context
-from .._helpers.evaluators_helpers import COMMUNITY_agents_SUFFIX
 from ..models import (
     AgentExecution,
     EvaluationResult,
