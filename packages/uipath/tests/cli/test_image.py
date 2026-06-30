@@ -1,9 +1,17 @@
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
+
+docker_available = (
+    shutil.which("docker") is not None
+    and subprocess.run(["docker", "info"], capture_output=True).returncode == 0
+)
 
 
 def _scaffold(tmp: Path) -> None:
@@ -52,3 +60,31 @@ def test_image_build_dry_run_generates_artifacts(
         assert (
             ".uipath/image" in dockerignore
         )  # output dir excluded from its own build context
+
+
+@pytest.mark.skipif(not docker_available, reason="docker not available")
+def test_image_build_produces_runnable_image(runner: CliRunner, temp_dir: str) -> None:
+    """Build the image and verify uipath CLI is on PATH (so 'uipath run' works)."""
+    with runner.isolated_filesystem(temp_dir=temp_dir):
+        _scaffold(Path("."))
+        # Build the real image (no --dry-run); network required for uv sync
+        result = runner.invoke(
+            cli, ["image", "build", "--tag", "uipath-itest/invoice:0"], env={}
+        )
+        assert result.exit_code == 0, result.output
+        # The image must expose the uipath CLI on PATH
+        inspect = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--entrypoint",
+                "uipath",
+                "uipath-itest/invoice:0",
+                "--help",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert inspect.returncode == 0, inspect.stderr
+        assert "run" in inspect.stdout
