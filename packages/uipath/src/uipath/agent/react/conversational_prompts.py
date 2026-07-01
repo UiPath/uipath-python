@@ -245,6 +245,9 @@ Rules:
 
 
 def get_generate_output_prompt() -> str:
-    """Framework-internal instruction appended as a final user-message to the
-    conversational structured-output node's LLM call."""
+    """Return the framework-internal generate-output instruction.
+
+    Appended as a final user-message to the conversational structured-output
+    node's LLM call.
+    """
     return _GENERATE_OUTPUT_INSTRUCTION
