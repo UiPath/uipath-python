@@ -121,7 +121,7 @@ class TestBaggageHeader:
         env = {
             "UIPATH_FOLDER_KEY": "folder-abc",
             ENV_PROJECT_KEY: "agent-123",
-            "UIPATH_PROCESS_KEY": "process-789",
+            "UIPATH_PROCESS_UUID": "process-789",
         }
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()
