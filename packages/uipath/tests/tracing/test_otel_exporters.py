@@ -7,7 +7,7 @@ import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
-from uipath.platform.common._span_utils import SpanStatus
+from uipath.platform.common._span_utils import SpanSource, SpanStatus
 from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
@@ -288,6 +288,35 @@ def test_build_url_uses_v3_endpoint(mock_env_vars):
     assert "/api/Traces/v3/spans" in url
     # Ensure the v2 path (without /v3/) is not present
     assert "/api/Traces/spans" not in url.replace("/api/Traces/v3/spans", "")
+
+
+def test_build_url_uses_span_source_agents(mock_env_vars):
+    """_build_url must render the span's Source (Agents), not the hardcoded CodedAgents."""
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    span_list = [{"TraceId": "ab" * 16, "Source": SpanSource.AGENTS}]
+    url = exporter._build_url(span_list)
+    assert "&source=Agents" in url
+    assert "&source=CodedAgents" not in url
+    assert "/api/Traces/v3/spans" in url
+
+
+def test_build_url_uses_span_source_coded_agents(mock_env_vars):
+    """An explicit CodedAgents Source still renders CodedAgents."""
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    span_list = [{"TraceId": "ab" * 16, "Source": SpanSource.CODED_AGENTS}]
+    url = exporter._build_url(span_list)
+    assert "&source=CodedAgents" in url
+
+
+def test_build_url_defaults_to_coded_agents_when_source_missing(mock_env_vars):
+    """When the span dict has no Source key, default to CodedAgents (back-compat)."""
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    span_list = [{"TraceId": "ab" * 16}]
+    url = exporter._build_url(span_list)
+    assert "&source=CodedAgents" in url
 
 
 def test_determine_status_ok_returns_string(mock_env_vars):
