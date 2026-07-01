@@ -319,6 +319,48 @@ def test_build_url_defaults_to_coded_agents_when_source_missing(mock_env_vars):
     assert "&source=CodedAgents" in url
 
 
+def test_agent_builder_span_yields_source_agents(mock_env_vars):
+    """A span with uipath.source=1 must flow through to &source=Agents in the URL.
+
+    Drives a real span dict through otel_span_to_uipath_span().to_dict() rather
+    than hand-building it, guarding the whole attribute->Source->URL path.
+    """
+    from opentelemetry.trace import SpanContext, StatusCode
+
+    from uipath.platform.common import _SpanUtils
+
+    # otel_span_to_uipath_span reads the context via get_span_context() and
+    # formats trace_id/span_id as hex, so provide a real SpanContext.
+    span = MagicMock(spec=ReadableSpan)
+    span.get_span_context.return_value = SpanContext(
+        trace_id=0xABCDEF1234567890ABCDEF1234567890,
+        span_id=0x1234567890ABCDEF,
+        is_remote=False,
+    )
+    span.parent = None
+    span.name = "agent-span"
+    span.status.status_code = StatusCode.OK
+    span.status.description = None
+    span.attributes = {
+        "uipath.custom_instrumentation": True,
+        "uipath.source": 1,  # SourceEnum.Agents
+    }
+    span.events = []
+    span.links = []
+    span.start_time = 0
+    span.end_time = 1
+
+    span_dict = _SpanUtils.otel_span_to_uipath_span(
+        span, serialize_attributes=False
+    ).to_dict(serialize_attributes=False)
+    assert str(span_dict["Source"]) == "Agents"
+
+    with patch("uipath.tracing._otel_exporters.httpx.Client"):
+        exporter = LlmOpsHttpExporter()
+    url = exporter._build_url([span_dict])
+    assert "&source=Agents" in url
+
+
 def test_determine_status_ok_returns_string(mock_env_vars):
     with patch("uipath.tracing._otel_exporters.httpx.Client"):
         exporter = LlmOpsHttpExporter()
