@@ -11,10 +11,18 @@ Public surface:
 
 - :class:`EvaluatorProtocol` – structural protocol the framework
   plugin expects from any policy evaluator.
+- :data:`MODEL_TEXT_CAP` / :func:`join_within_cap` / :func:`stringify` /
+  :func:`coerce_args` – shared payload helpers so every plugin caps and
+  coerces the blob it hands the evaluator identically.
 """
 
 from .evaluator import EvaluatorProtocol
+from .payload import MODEL_TEXT_CAP, coerce_args, join_within_cap, stringify
 
 __all__ = [
     "EvaluatorProtocol",
+    "MODEL_TEXT_CAP",
+    "coerce_args",
+    "join_within_cap",
+    "stringify",
 ]
