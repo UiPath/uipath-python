@@ -293,3 +293,45 @@ async def test_openai_models_prefer_response_format():
     assert result == {"a": 1}
     assert len(llm.calls) == 1
     assert "response_format" in llm.calls[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model",
+    [
+        "gpt-5-2025-08-07",
+        "gpt-5-mini",
+        "o1-2024-12-17",
+        "o3-mini-2025-01-31",
+    ],
+)
+async def test_default_only_temperature_models_drop_temperature(model: str):
+    # Models like gpt-5 / o-series only accept the default temperature (1); the
+    # LLM gateway returns HTTP 400 when temperature=0 is forwarded (SRE-607465 /
+    # PC-4769). The mock path must strip the restricted temperature before
+    # calling chat_completions.
+    llm = _FakeLLM([_response(SimpleNamespace(content='{"a": 1}', tool_calls=None))])
+    await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={"model": model, "temperature": 0},
+    )
+    assert "temperature" not in llm.calls[0]
+    assert llm.calls[0]["model"] == model
+
+
+@pytest.mark.asyncio
+async def test_standard_models_keep_temperature():
+    llm = _FakeLLM([_response(SimpleNamespace(content='{"a": 1}', tool_calls=None))])
+    await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs={"model": "gpt-4.1-mini-2025-04-14", "temperature": 0},
+    )
+    assert llm.calls[0]["temperature"] == 0
