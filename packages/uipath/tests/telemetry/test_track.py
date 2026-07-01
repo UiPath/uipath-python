@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_PROJECT_KEY,
     ENV_UIPATH_AGENT_ID,
     ENV_UIPATH_PROJECT_ID,

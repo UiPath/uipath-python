@@ -21,7 +21,7 @@ from uipath.core.chat import (
     UiPathConversationToolCallEvent,
 )
 from uipath.core.triggers import UiPathResumeTrigger
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TENANT_ID,

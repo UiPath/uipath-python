@@ -11,7 +11,7 @@ from uipath._cli.models.runtime_schema import Bindings, EntryPoint, EntryPoints
 from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENTRY_POINTS_FILE,
     PYTHON_CONFIGURATION_FILE,
     UIPATH_BINDINGS_FILE,

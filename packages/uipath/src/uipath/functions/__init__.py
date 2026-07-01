@@ -1,6 +1,6 @@
 """UiPath Functions Runtime - factory and runtime for function-based execution."""
 
-from uipath.platform.common.constants import UIPATH_CONFIG_FILE
+from uipath.platform.constants import UIPATH_CONFIG_FILE
 from uipath.runtime import UiPathRuntimeFactoryRegistry
 
 from .debug import UiPathDebugFunctionsRuntime

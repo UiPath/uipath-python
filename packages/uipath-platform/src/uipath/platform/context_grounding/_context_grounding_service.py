@@ -6,6 +6,10 @@ from pydantic import Field, TypeAdapter
 from typing_extensions import deprecated
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import (
+    ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
+)
+
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
@@ -14,9 +18,6 @@ from ..common._folder_context import FolderContext, header_folder
 from ..common._http_config import get_httpx_client_kwargs
 from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import (
-    ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
-)
 from ..errors import (
     BatchTransformFailedException,
     BatchTransformNotCompleteException,

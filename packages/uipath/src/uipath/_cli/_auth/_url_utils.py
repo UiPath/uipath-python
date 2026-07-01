@@ -2,7 +2,8 @@ import os
 from typing import Tuple
 from urllib.parse import urlparse
 
-from ...platform.common.constants import ENV_BASE_URL
+from uipath.platform.constants import ENV_BASE_URL
+
 from .._utils._console import ConsoleLogger
 
 console = ConsoleLogger()

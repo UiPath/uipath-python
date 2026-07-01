@@ -19,7 +19,7 @@ from uipath.eval.runtime.events import (
     EvaluationEvents,
 )
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import ENV_TENANT_ID
+from uipath.platform.constants import ENV_TENANT_ID
 from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)

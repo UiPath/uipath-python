@@ -4,7 +4,7 @@ from typing import Any
 
 from uipath._utils import Endpoint
 from uipath.platform.common import BaseService
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )

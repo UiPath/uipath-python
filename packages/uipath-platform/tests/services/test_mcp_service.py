@@ -4,7 +4,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.orchestrator import McpService
 from uipath.platform.orchestrator._folder_service import FolderService
 from uipath.platform.orchestrator.mcp import McpServer

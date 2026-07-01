@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ...platform.common.constants import UIPATH_CONFIG_FILE
+from uipath.platform.constants import UIPATH_CONFIG_FILE
 
 
 class BaseModelWithDefaultConfig(BaseModel):

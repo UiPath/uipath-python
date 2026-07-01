@@ -26,7 +26,7 @@ from uipath.platform.common import (
     ResourceOverwritesContext,
     UiPathConfig,
 )
-from uipath.platform.common.constants import ENV_FOLDER_KEY
+from uipath.platform.constants import ENV_FOLDER_KEY
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,

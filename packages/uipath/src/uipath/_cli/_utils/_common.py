@@ -13,7 +13,7 @@ from uipath.platform.common import (
     ResourceOverwriteParser,
     UiPathConfig,
 )
-from uipath.platform.common.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
+from uipath.platform.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
 
 from ..models.runtime_schema import EntryPoint
 from ..spinner import Spinner

@@ -34,7 +34,33 @@ Exception classes are available in the `errors` module and should be imported ex
 ```
 """
 
-from ._uipath import UiPath
-from .common import UiPathApiConfig, UiPathExecutionContext
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._uipath import UiPath
+    from .common import UiPathApiConfig, UiPathExecutionContext
 
 __all__ = ["UiPathApiConfig", "UiPath", "UiPathExecutionContext"]
+
+
+def __getattr__(name: str):
+    """Lazily resolve top-level exports (PEP 562).
+
+    Keeps this package's ``__init__`` cheap so lightweight submodules such as
+    ``uipath.platform.constants`` can be imported without pulling in the
+    ``UiPath`` facade and the full service layer. The heavy import happens only
+    when ``UiPath`` (or a config type) is actually accessed.
+    """
+    if name == "UiPath":
+        from ._uipath import UiPath
+
+        return UiPath
+    if name in ("UiPathApiConfig", "UiPathExecutionContext"):
+        from . import common
+
+        return getattr(common, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)

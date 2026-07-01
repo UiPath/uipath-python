@@ -3,7 +3,7 @@ import time
 import click
 
 from uipath.platform.common import TokenData
-from uipath.platform.common.constants import ENV_UIPATH_ACCESS_TOKEN
+from uipath.platform.constants import ENV_UIPATH_ACCESS_TOKEN
 from uipath.platform.identity import IdentityService
 from uipath.platform.portal import (
     PortalService as PlatformPortalService,

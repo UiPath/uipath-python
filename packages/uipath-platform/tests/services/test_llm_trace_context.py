@@ -8,7 +8,7 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform.chat.llm_trace_context import build_trace_context_headers
-from uipath.platform.common.constants import ENV_PROJECT_KEY
+from uipath.platform.constants import ENV_PROJECT_KEY
 
 FEATURE_FLAG = "EnableTraceContextHeaders"
 

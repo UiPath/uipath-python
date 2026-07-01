@@ -17,7 +17,7 @@ from uipath.core.chat import (
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
 )
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TENANT_ID,

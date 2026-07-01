@@ -16,7 +16,7 @@ from uipath.platform.common._span_utils import (
     SpanStatus,
     VerbosityLevel,
 )
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_PROJECT_KEY,
     ENV_UIPATH_AGENT_ID,
     ENV_UIPATH_PROJECT_ID,

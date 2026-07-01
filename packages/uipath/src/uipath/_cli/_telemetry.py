@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Optional
 
 from uipath._cli._utils._common import get_claim_from_token
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
+from uipath.platform.constants import ENV_UIPATH_AGENT_ID
 from uipath.telemetry._track import (
     _get_project_key,
     is_telemetry_enabled,

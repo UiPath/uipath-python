@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     LEGACY_EVAL_FOLDER,
     PYTHON_CONFIGURATION_FILE,
     UIPATH_CONFIG_FILE,

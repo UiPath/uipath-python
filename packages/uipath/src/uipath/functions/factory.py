@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from uipath.platform.common.constants import UIPATH_CONFIG_FILE
+from uipath.platform.constants import UIPATH_CONFIG_FILE
 from uipath.runtime import (
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,

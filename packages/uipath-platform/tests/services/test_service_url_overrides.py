@@ -4,7 +4,7 @@ from uipath.platform.common._service_url_overrides import (
     inject_routing_headers,
     resolve_service_url,
 )
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )

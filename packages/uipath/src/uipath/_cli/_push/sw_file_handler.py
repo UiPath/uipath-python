@@ -10,7 +10,7 @@ import click
 
 from uipath._cli.models.uipath_json_schema import PackOptions
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     EVALS_FOLDER,
     LEGACY_EVAL_FOLDER,
     PYTHON_CONFIGURATION_FILE,

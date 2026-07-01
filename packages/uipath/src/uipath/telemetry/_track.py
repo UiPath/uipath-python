@@ -9,7 +9,7 @@ from typing import Any, Callable, ClassVar, Dict, Mapping, Optional, Union
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import AnyValue
 
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TELEMETRY_ENABLED,

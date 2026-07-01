@@ -25,7 +25,7 @@ from uipath.eval.runtime.events import (
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
 )
-from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
+from uipath.platform.constants import ENV_UIPATH_AGENT_ID
 
 
 class TestEventNameConstants:
