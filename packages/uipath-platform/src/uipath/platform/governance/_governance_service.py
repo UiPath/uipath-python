@@ -29,13 +29,14 @@ from uipath.core.governance import (
     PolicyResponse,
 )
 
+from uipath.platform.constants import HEADER_INTERNAL_TENANT_ID
+
 from ..common._base_service import BaseService, resolve_trace_id
 from ..common._config import UiPathConfig
 from ..common._service_url_overrides import (
     inject_routing_headers,
     resolve_service_url,
 )
-from ..common.constants import HEADER_INTERNAL_TENANT_ID
 
 # The agenticgovernance_ ingress lives at a separate org-scoped path that
 # uses the organization UUID (not the slug exposed by ``UIPATH_URL``).

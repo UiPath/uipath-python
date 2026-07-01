@@ -1,7 +1,7 @@
 from base64 import b64encode
 from typing import Optional
 
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
     HEADER_FOLDER_PATH_ENCODED,

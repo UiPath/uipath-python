@@ -5,10 +5,11 @@ from urllib.parse import urlparse
 import httpx
 from httpx import HTTPStatusError
 
+from uipath.platform.constants import ENV_BASE_URL
+
 from ..errors import EnrichedException
 from ..identity import IdentityService
 from .auth import TokenData
-from .constants import ENV_BASE_URL
 
 
 class ExternalApplicationService:

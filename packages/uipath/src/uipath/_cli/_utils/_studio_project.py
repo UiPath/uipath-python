@@ -14,7 +14,7 @@ from uipath.platform.common import (
     ResourceOverwriteParser,
     UiPathConfig,
 )
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_TENANT_ID,
     HEADER_SW_LOCK_KEY,
     HEADER_TENANT_ID,

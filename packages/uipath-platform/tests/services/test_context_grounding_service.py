@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_JOB_KEY,
     HEADER_JOB_KEY,
     HEADER_USER_AGENT,

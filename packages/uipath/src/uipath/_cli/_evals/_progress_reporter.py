@@ -33,7 +33,7 @@ from uipath.eval.runtime.events import (
 )
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_EVAL_BACKEND_URL,
     ENV_TENANT_ID,
     ENV_UIPATH_AGENT_ID,

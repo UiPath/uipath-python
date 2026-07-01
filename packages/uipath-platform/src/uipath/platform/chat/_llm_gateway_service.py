@@ -22,12 +22,13 @@ from opentelemetry import trace
 from pydantic import BaseModel
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import HEADER_AGENTHUB_CONFIG
+
 from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._endpoints_manager import EndpointManager
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint
-from ..common.constants import HEADER_AGENTHUB_CONFIG
 from .llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,

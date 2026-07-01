@@ -14,7 +14,7 @@ from uipath.core.chat import (
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
 )
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )

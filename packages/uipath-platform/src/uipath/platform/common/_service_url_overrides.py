@@ -14,8 +14,12 @@ layer is bypassed.
 
 import os
 
+from uipath.platform.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
+
 from ._config import UiPathConfig
-from .constants import HEADER_INTERNAL_ACCOUNT_ID, HEADER_INTERNAL_TENANT_ID
 
 
 def resolve_service_url(endpoint_path: str) -> str | None:

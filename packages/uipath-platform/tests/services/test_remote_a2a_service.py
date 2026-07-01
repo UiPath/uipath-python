@@ -2,7 +2,7 @@ import pytest
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.agenthub._remote_a2a_service import RemoteA2aService
-from uipath.platform.common.constants import HEADER_FOLDER_KEY
+from uipath.platform.constants import HEADER_FOLDER_KEY
 from uipath.platform.orchestrator._folder_service import FolderService
 
 

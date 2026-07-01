@@ -9,7 +9,7 @@ from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils._auth import update_env_file
 from uipath.platform.common import ExternalApplicationService, TokenData
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TENANT_ID,

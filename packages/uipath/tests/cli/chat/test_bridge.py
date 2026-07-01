@@ -11,7 +11,7 @@ import pytest
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
 from uipath._cli._debug._bridge import SignalRDebugBridge
 from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )

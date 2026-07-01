@@ -14,7 +14,8 @@ from opentelemetry.sdk.trace.export import (
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
 from uipath.platform.common._span_utils import SpanStatus
-from uipath.platform.common.constants import (
+from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TENANT_ID,
@@ -22,7 +23,6 @@ from uipath.platform.common.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
 
 logger = logging.getLogger(__name__)
 

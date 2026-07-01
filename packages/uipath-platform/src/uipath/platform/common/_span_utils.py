@@ -15,7 +15,7 @@ from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 
-from .constants import (
+from uipath.platform.constants import (
     ENV_FOLDER_KEY,
     ENV_JOB_KEY,
     ENV_ORGANIZATION_ID,

@@ -1,9 +1,9 @@
 """Regression tests for the uipath._utils.constants deprecation shim.
 
-The shim re-exports from uipath.platform.common.constants and emits a
-FutureWarning so external consumers can migrate. Internal callsites are
-already on the canonical path; these tests pin the shim's behavior so it
-keeps working for downstream code.
+The shim re-exports from uipath.platform.constants (the source of truth) and emits
+a FutureWarning so external consumers can migrate. Internal callsites are
+already on the canonical path; these tests pin the shim's behavior so it keeps
+working for downstream code.
 """
 
 import importlib
@@ -13,11 +13,7 @@ import warnings
 
 def _reload_shim():
     """Force a fresh import of the shim so FutureWarning re-fires."""
-    for name in [
-        "uipath._utils.constants",
-        "uipath.platform.common.constants",
-    ]:
-        sys.modules.pop(name, None)
+    sys.modules.pop("uipath._utils.constants", None)
     return importlib.import_module("uipath._utils.constants")
 
 
@@ -31,7 +27,7 @@ def test_shim_emits_future_warning():
         for w in caught
         if issubclass(w.category, FutureWarning)
         and "uipath._utils.constants" in str(w.message)
-        and "uipath.platform.common.constants" in str(w.message)
+        and "uipath.platform.constants" in str(w.message)
     ]
     assert len(shim_warnings) == 1, (
         f"expected exactly one shim FutureWarning, got {len(shim_warnings)}: "
@@ -41,7 +37,7 @@ def test_shim_emits_future_warning():
 
 def test_shim_re_exports_canonical_symbols():
     shim = _reload_shim()
-    canonical = importlib.import_module("uipath.platform.common.constants")
+    canonical = importlib.import_module("uipath.platform.constants")
 
     # Sample a representative set: env vars, headers, mixed-case symbols,
     # file constants, data-source magic strings.
