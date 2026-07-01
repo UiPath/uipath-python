@@ -1022,6 +1022,9 @@ class UiPathEvalRuntime:
                 workload_output=output_data,
                 workload_trace=execution_output.spans,
                 expected_agent_behavior=eval_item.expected_agent_behavior,
+                simulation_instructions=eval_item.mocking_strategy.prompt
+                if isinstance(eval_item.mocking_strategy, LLMMockingStrategy)
+                else "",
             )
 
             # Pass positionally so custom evaluators that still declare the old
