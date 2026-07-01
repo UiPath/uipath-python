@@ -44,7 +44,9 @@ __all__ = ["UiPathApiConfig", "UiPath", "UiPathExecutionContext"]
 
 
 def __getattr__(name: str):
-    """Keeps this package's ``__init__`` cheap so lightweight submodules such as
+    """Resolve top-level exports on demand.
+
+    Keeps this package's ``__init__`` cheap so lightweight submodules such as
     ``uipath.platform.constants`` can be imported without pulling in the
     ``UiPath`` facade and the full service layer. The heavy import happens only
     when ``UiPath`` (or a config type) is actually accessed.
