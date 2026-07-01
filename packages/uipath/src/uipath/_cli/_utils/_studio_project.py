@@ -8,18 +8,18 @@ from typing import Any, Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from uipath._utils.constants import (
-    ENV_TENANT_ID,
-    HEADER_SW_LOCK_KEY,
-    HEADER_TENANT_ID,
-    PYTHON_CONFIGURATION_FILE,
-    STUDIO_METADATA_FILE,
-)
 from uipath.platform import UiPath
 from uipath.platform.common import (
     ResourceOverwrite,
     ResourceOverwriteParser,
     UiPathConfig,
+)
+from uipath.platform.common.constants import (
+    ENV_TENANT_ID,
+    HEADER_SW_LOCK_KEY,
+    HEADER_TENANT_ID,
+    PYTHON_CONFIGURATION_FILE,
+    STUDIO_METADATA_FILE,
 )
 from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced

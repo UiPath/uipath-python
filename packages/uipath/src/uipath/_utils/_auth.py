@@ -4,9 +4,8 @@ from os import environ as env
 from pathlib import Path
 from typing import Optional
 
-from uipath.platform.common.constants import DOTENV_FILE
-
-from .constants import (
+from uipath.platform.common.constants import (
+    DOTENV_FILE,
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
