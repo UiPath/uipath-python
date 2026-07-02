@@ -54,6 +54,19 @@ def record_schema_optional(request):
 
 
 class TestEntitiesService:
+    def test_query_entity_records_has_datafabric_error_mapping(self) -> None:
+        assert (
+            EntitiesService.query_entity_records.__uipath_datafabric_method__  # type: ignore[attr-defined]
+            == "query_entity_records"
+        )
+        assert (
+            EntitiesService.query_entity_records.__uipath_datafabric_error_codes__  # type: ignore[attr-defined]
+            == EntitiesService.query_entity_records_async.__uipath_datafabric_error_codes__  # type: ignore[attr-defined]
+        )
+        assert "SQL_PARSING" in (
+            EntitiesService.query_entity_records.__uipath_datafabric_error_codes__  # type: ignore[attr-defined]
+        )
+
     def test_retrieve(
         self,
         httpx_mock: HTTPXMock,
