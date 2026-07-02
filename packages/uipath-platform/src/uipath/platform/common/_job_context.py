@@ -1,5 +1,6 @@
+from uipath.platform.constants import HEADER_JOB_KEY
+
 from ._config import UiPathConfig
-from .constants import HEADER_JOB_KEY
 
 
 def header_job_key() -> dict[str, str]:

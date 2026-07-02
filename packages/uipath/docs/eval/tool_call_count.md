@@ -72,7 +72,7 @@ Each tool is evaluated independently:
 ```python
 from opentelemetry.sdk.trace import ReadableSpan
 from uipath.eval.evaluators import ToolCallCountEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # Sample agent execution with tool calls
 mock_spans = [
@@ -92,10 +92,10 @@ mock_spans = [
                  attributes={"tool.name": "send_notification"}),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Fetch and process data"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -107,7 +107,7 @@ evaluator = ToolCallCountEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "fetch_data": ("=", 1),      # Called exactly once
@@ -154,10 +154,10 @@ mock_spans.append(
     )
 )
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Fetch and process data"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -169,7 +169,7 @@ evaluator = ToolCallCountEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "fetch_data": ("=", 1),           # ✓ Matches (1 call)
@@ -216,10 +216,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Database operation"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -231,7 +231,7 @@ evaluator = ToolCallCountEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "authenticate": ("=", 1),      # ✓ Matches (1 call)
@@ -278,10 +278,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Optimize resource usage"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -294,7 +294,7 @@ evaluator = ToolCallCountEvaluator(
 
 # Ensure expensive operations aren't called too many times
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "expensive_api_call": ("<=", 1),  # Should not be called more than once
@@ -336,10 +336,10 @@ for i in range(10):
         ),
     ])
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Process 10 items"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -352,7 +352,7 @@ evaluator = ToolCallCountEvaluator(
 
 # Verify loop processed correct number of items
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "process_item": ("=", 10),  # Should process 10 items
@@ -398,10 +398,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Retry operation"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -414,7 +414,7 @@ evaluator = ToolCallCountEvaluator(
 
 # Verify retry logic doesn't exceed limits
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "attempt_operation": ("<=", 3),  # Max 3 retries
@@ -454,10 +454,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Secure operation"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallCountEvaluator(
@@ -470,7 +470,7 @@ evaluator = ToolCallCountEvaluator(
 
 # Ensure agent calls important tools
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_count": {
             "validate_input": (">=", 1),    # Must validate at least once

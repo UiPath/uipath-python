@@ -1,5 +1,6 @@
 """UiPath Functions Runtime - factory and runtime for function-based execution."""
 
+from uipath.platform.constants import UIPATH_CONFIG_FILE
 from uipath.runtime import UiPathRuntimeFactoryRegistry
 
 from .debug import UiPathDebugFunctionsRuntime
@@ -12,9 +13,9 @@ def register_default_runtime_factory():
     UiPathRuntimeFactoryRegistry.register(
         "uipath",
         factory_callable=lambda context: UiPathFunctionsRuntimeFactory(
-            config_path="uipath.json",
+            config_path=UIPATH_CONFIG_FILE,
         ),
-        config_file="uipath.json",
+        config_file=UIPATH_CONFIG_FILE,
     )
     UiPathRuntimeFactoryRegistry.set_default("uipath")
 

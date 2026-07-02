@@ -4,6 +4,10 @@ from uipath.platform.common._service_url_overrides import (
     inject_routing_headers,
     resolve_service_url,
 )
+from uipath.platform.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 
 class TestResolveServiceUrl:
@@ -68,16 +72,16 @@ class TestInjectRoutingHeaders:
         monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "org-456")
         headers: dict[str, str] = {}
         inject_routing_headers(headers)
-        assert headers["X-UiPath-Internal-TenantId"] == "tenant-123"
-        assert headers["X-UiPath-Internal-AccountId"] == "org-456"
+        assert headers[HEADER_INTERNAL_TENANT_ID] == "tenant-123"
+        assert headers[HEADER_INTERNAL_ACCOUNT_ID] == "org-456"
 
     def test_skips_missing_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("UIPATH_TENANT_ID", raising=False)
         monkeypatch.delenv("UIPATH_ORGANIZATION_ID", raising=False)
         headers: dict[str, str] = {}
         inject_routing_headers(headers)
-        assert "X-UiPath-Internal-TenantId" not in headers
-        assert "X-UiPath-Internal-AccountId" not in headers
+        assert HEADER_INTERNAL_TENANT_ID not in headers
+        assert HEADER_INTERNAL_ACCOUNT_ID not in headers
 
     def test_does_not_overwrite_existing_headers(
         self, monkeypatch: pytest.MonkeyPatch
@@ -87,4 +91,4 @@ class TestInjectRoutingHeaders:
         headers: dict[str, str] = {"X-Custom": "keep-me"}
         inject_routing_headers(headers)
         assert headers["X-Custom"] == "keep-me"
-        assert headers["X-UiPath-Internal-TenantId"] == "tenant-123"
+        assert headers[HEADER_INTERNAL_TENANT_ID] == "tenant-123"

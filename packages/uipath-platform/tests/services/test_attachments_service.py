@@ -10,7 +10,7 @@ from pytest_httpx import HTTPXMock
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.attachments import Attachment
 from uipath.platform.attachments.attachments import AttachmentMode
-from uipath.platform.common.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 from uipath.platform.orchestrator._attachments_service import AttachmentsService
 
 if TYPE_CHECKING:

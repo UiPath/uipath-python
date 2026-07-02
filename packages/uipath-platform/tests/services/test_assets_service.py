@@ -4,8 +4,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT
 from uipath.platform.common.paging import PagedResult
+from uipath.platform.constants import HEADER_USER_AGENT
 from uipath.platform.orchestrator import Asset, UserAsset
 from uipath.platform.orchestrator._assets_service import AssetsService
 

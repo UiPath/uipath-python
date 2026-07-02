@@ -24,6 +24,7 @@ from ..common._base_service import BaseService
 from ..common._bindings import _resource_overwrites
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
+from ..errors._datafabric_error import attach_datafabric_error_mapping
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
 from ._entity_ontology_service import EntityOntologyService
@@ -1819,6 +1820,7 @@ class EntitiesService(BaseService):
             limit=limit,
         )
 
+    @attach_datafabric_error_mapping("query_entity_records")
     @traced(name="entity_query_records", run_type="uipath")
     def query_entity_records(self, sql_query: str) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
@@ -1843,6 +1845,7 @@ class EntitiesService(BaseService):
         """
         return self._data.query_entity_records(sql_query)
 
+    @attach_datafabric_error_mapping("query_entity_records_async")
     @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(self, sql_query: str) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.

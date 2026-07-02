@@ -20,7 +20,7 @@ IMAGE_EXTENSIONS = {
 
 DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".pptx", ".xlsx", ".xls"}
 
-ARCHIVE_EXTENSIONS = {".zip", ".tar", ".gz", ".rar", ".7z", ".bz2", ".xz"}
+ARCHIVE_EXTENSIONS = {".zip", ".tar", ".gz", ".rar", ".7z", ".bz2", ".xz", ".whl"}
 
 MEDIA_EXTENSIONS = {
     ".mp3",

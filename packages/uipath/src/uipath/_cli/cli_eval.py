@@ -26,6 +26,7 @@ from uipath.platform.common import (
     ResourceOverwritesContext,
     UiPathConfig,
 )
+from uipath.platform.constants import ENV_FOLDER_KEY
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
@@ -64,7 +65,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     if not UiPathConfig.folder_key:
         folder_key = asyncio.run(get_personal_workspace_key_async())
         if folder_key:
-            os.environ["UIPATH_FOLDER_KEY"] = folder_key
+            os.environ[ENV_FOLDER_KEY] = folder_key
     return True
 
 
@@ -230,7 +231,7 @@ def _discover_eval_sets() -> list[Path]:
     "--verbose",
     is_flag=True,
     default=False,
-    help="Include agent execution output (trace, result) in the output file",
+    help="Include workload execution output (trace, result) in the output file",
 )
 def eval(
     entrypoint: str | None,

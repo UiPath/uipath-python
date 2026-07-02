@@ -25,7 +25,7 @@ from uipath.eval.runtime.events import (
     EvalSetRunCreatedEvent,
     EvalSetRunUpdatedEvent,
 )
-from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
+from uipath.platform.constants import ENV_UIPATH_AGENT_ID
 
 
 class TestEventNameConstants:
@@ -313,7 +313,7 @@ class TestEvalRunUpdated:
     async def test_on_eval_run_updated_agent_execution_time_converted_to_ms(
         self, mock_track_event
     ):
-        """Test that agent execution time is converted to milliseconds."""
+        """Test that workload execution time is converted to milliseconds."""
         subscriber = EvalTelemetrySubscriber()
         event = self._create_eval_run_updated_event(agent_execution_time=2.5)
 

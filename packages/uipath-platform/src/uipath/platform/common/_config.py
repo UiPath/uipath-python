@@ -36,13 +36,13 @@ class ConfigurationManager:
 
     @property
     def bindings_file_path(self) -> Path:
-        from uipath.platform.common.constants import UIPATH_BINDINGS_FILE
+        from uipath.platform.constants import UIPATH_BINDINGS_FILE
 
         return Path(UIPATH_BINDINGS_FILE)
 
     @property
     def config_file_path(self) -> Path:
-        from uipath.platform.common.constants import (
+        from uipath.platform.constants import (
             ENV_UIPATH_CONFIG_PATH,
             UIPATH_CONFIG_FILE,
         )
@@ -51,97 +51,97 @@ class ConfigurationManager:
 
     @property
     def config_file_name(self) -> str:
-        from uipath.platform.common.constants import UIPATH_CONFIG_FILE
+        from uipath.platform.constants import UIPATH_CONFIG_FILE
 
         return UIPATH_CONFIG_FILE
 
     @property
     def project_id(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_PROJECT_ID
+        from uipath.platform.constants import ENV_UIPATH_PROJECT_ID
 
         return os.getenv(ENV_UIPATH_PROJECT_ID, None)
 
     @property
     def agent_id(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_AGENT_ID
+        from uipath.platform.constants import ENV_UIPATH_AGENT_ID
 
         return os.getenv(ENV_UIPATH_AGENT_ID) or self.project_id
 
     @property
     def cloud_user_id(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_CLOUD_USER_ID
+        from uipath.platform.constants import ENV_UIPATH_CLOUD_USER_ID
 
         return os.getenv(ENV_UIPATH_CLOUD_USER_ID, None)
 
     @property
     def project_files_source(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_PROJECT_FILES_SOURCE
+        from uipath.platform.constants import ENV_UIPATH_PROJECT_FILES_SOURCE
 
         return os.getenv(ENV_UIPATH_PROJECT_FILES_SOURCE, None)
 
     @property
     def project_key(self) -> str | None:
-        from uipath.platform.common.constants import ENV_PROJECT_KEY
+        from uipath.platform.constants import ENV_PROJECT_KEY
 
         return os.getenv(ENV_PROJECT_KEY, None)
 
     @property
     def tenant_name(self) -> str | None:
-        from uipath.platform.common.constants import ENV_TENANT_NAME
+        from uipath.platform.constants import ENV_TENANT_NAME
 
         return os.getenv(ENV_TENANT_NAME, None)
 
     @property
     def tenant_id(self) -> str | None:
-        from uipath.platform.common.constants import ENV_TENANT_ID
+        from uipath.platform.constants import ENV_TENANT_ID
 
         return os.getenv(ENV_TENANT_ID, None)
 
     @property
     def organization_id(self) -> str | None:
-        from uipath.platform.common.constants import ENV_ORGANIZATION_ID
+        from uipath.platform.constants import ENV_ORGANIZATION_ID
 
         return os.getenv(ENV_ORGANIZATION_ID, None)
 
     @property
     def base_url(self) -> str | None:
-        from uipath.platform.common.constants import ENV_BASE_URL
+        from uipath.platform.constants import ENV_BASE_URL
 
         return os.getenv(ENV_BASE_URL, None)
 
     @property
     def folder_key(self) -> str | None:
-        from uipath.platform.common.constants import ENV_FOLDER_KEY
+        from uipath.platform.constants import ENV_FOLDER_KEY
 
         return os.getenv(ENV_FOLDER_KEY, None)
 
     @property
     def folder_path(self) -> str | None:
-        from uipath.platform.common.constants import ENV_FOLDER_PATH
+        from uipath.platform.constants import ENV_FOLDER_PATH
 
         return os.getenv(ENV_FOLDER_PATH, None)
 
     @property
     def process_key(self) -> str | None:
-        from uipath.platform.common.constants import ENV_PROCESS_KEY
+        from uipath.platform.constants import ENV_PROCESS_KEY
 
         return os.getenv(ENV_PROCESS_KEY, None)
 
     @property
     def process_uuid(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_PROCESS_UUID
+        from uipath.platform.constants import ENV_UIPATH_PROCESS_UUID
 
         return os.getenv(ENV_UIPATH_PROCESS_UUID, None)
 
     @property
     def trace_id(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_TRACE_ID
+        from uipath.platform.constants import ENV_UIPATH_TRACE_ID
 
         return os.getenv(ENV_UIPATH_TRACE_ID, None)
 
     @property
     def process_version(self) -> str | None:
-        from uipath.platform.common.constants import ENV_UIPATH_PROCESS_VERSION
+        from uipath.platform.constants import ENV_UIPATH_PROCESS_VERSION
 
         return os.getenv(ENV_UIPATH_PROCESS_VERSION, None)
 
@@ -151,39 +151,39 @@ class ConfigurationManager:
 
     @property
     def job_key(self) -> str | None:
-        from uipath.platform.common.constants import ENV_JOB_KEY
+        from uipath.platform.constants import ENV_JOB_KEY
 
         return os.getenv(ENV_JOB_KEY, None)
 
     @property
     def has_legacy_eval_folder(self) -> bool:
-        from uipath.platform.common.constants import LEGACY_EVAL_FOLDER
+        from uipath.platform.constants import LEGACY_EVAL_FOLDER
 
         eval_path = Path(os.getcwd()) / LEGACY_EVAL_FOLDER
         return eval_path.exists() and eval_path.is_dir()
 
     @property
     def has_eval_folder(self) -> bool:
-        from uipath.platform.common.constants import EVALS_FOLDER
+        from uipath.platform.constants import EVALS_FOLDER
 
         coded_eval_path = Path(os.getcwd()) / EVALS_FOLDER
         return coded_eval_path.exists() and coded_eval_path.is_dir()
 
     @property
     def entry_points_file_path(self) -> Path:
-        from uipath.platform.common.constants import ENTRY_POINTS_FILE
+        from uipath.platform.constants import ENTRY_POINTS_FILE
 
         return Path(ENTRY_POINTS_FILE)
 
     @property
     def uiproj_file_path(self) -> Path:
-        from uipath.platform.common.constants import UIPROJ_FILE
+        from uipath.platform.constants import UIPROJ_FILE
 
         return Path(UIPROJ_FILE)
 
     @property
     def studio_metadata_file_path(self) -> Path:
-        from uipath.platform.common.constants import STUDIO_METADATA_FILE
+        from uipath.platform.constants import STUDIO_METADATA_FILE
 
         return Path(".uipath", STUDIO_METADATA_FILE)
 
@@ -198,7 +198,7 @@ class ConfigurationManager:
 
     @property
     def is_tracing_enabled(self) -> bool:
-        from uipath.platform.common.constants import ENV_TRACING_ENABLED
+        from uipath.platform.constants import ENV_TRACING_ENABLED
 
         return os.getenv(ENV_TRACING_ENABLED, "true").lower() == "true"
 

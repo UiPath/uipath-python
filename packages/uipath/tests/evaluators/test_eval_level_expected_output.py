@@ -28,7 +28,7 @@ from uipath.eval.models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
 )
-from uipath.eval.models.models import AgentExecution
+from uipath.eval.models.models import WorkloadExecution
 
 # ─────────────────────────────────────────────────────────────────
 # Model Tests
@@ -387,10 +387,10 @@ class TestExactMatchWithEvaluationLevelExpectedOutput:
     @pytest.mark.asyncio
     async def test_exact_match_with_evaluation_level_expected_output(self) -> None:
         """ExactMatchEvaluator uses evaluation-level expectedOutput when criteria is null."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
         evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": {"name": "Test"}, "id": str(uuid.uuid4())}
@@ -408,10 +408,10 @@ class TestExactMatchWithEvaluationLevelExpectedOutput:
     @pytest.mark.asyncio
     async def test_exact_match_per_evaluator_overrides_evaluation_level(self) -> None:
         """Per-evaluator expectedOutput overrides evaluation-level."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
         evaluator = ExactMatchEvaluator.model_validate(
             {"evaluatorConfig": {"name": "Test"}, "id": str(uuid.uuid4())}
@@ -433,10 +433,10 @@ class TestJsonSimilarityWithEvaluationLevelExpectedOutput:
     @pytest.mark.asyncio
     async def test_json_similarity_with_evaluation_level_expected_output(self) -> None:
         """JsonSimilarityEvaluator uses evaluation-level expectedOutput."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         evaluator = JsonSimilarityEvaluator.model_validate(
             {"evaluatorConfig": {"name": "Test"}, "id": str(uuid.uuid4())}
@@ -490,10 +490,10 @@ class TestLLMJudgeWithEvaluationLevelExpectedOutput:
             }
         )
 
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"query": "test"},
-            agent_output={"result": "test output"},
-            agent_trace=[],
+            workload_output={"result": "test output"},
+            workload_trace=[],
         )
 
         # Criteria built from evaluation-level expectedOutput
@@ -627,10 +627,10 @@ class TestEndToEndCriteriaResolution:
                 "evaluationCriterias": {evaluator_id: None},
             }
         )
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
 
         # Simulate runtime merge
@@ -680,10 +680,10 @@ class TestEndToEndCriteriaResolution:
                 },
             }
         )
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"query": "hello"},
-            agent_output="Hello World",
-            agent_trace=[],
+            workload_output="Hello World",
+            workload_trace=[],
         )
 
         # Process exact-match (output-based)
@@ -729,10 +729,10 @@ class TestEndToEndCriteriaResolution:
                 },
             }
         )
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"query": "2+2"},
-            agent_output={"result": 4},
-            agent_trace=[],
+            workload_output={"result": 4},
+            workload_trace=[],
         )
 
         # Simulate runtime merge

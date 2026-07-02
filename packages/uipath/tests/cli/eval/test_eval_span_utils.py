@@ -460,16 +460,16 @@ class TestHighLevelConfigurationFunctions:
 
     @pytest.mark.asyncio
     async def test_configure_evaluation_span_with_error(self):
-        """Test configuring evaluation span when agent execution has error."""
+        """Test configuring evaluation span when workload execution has error."""
         span = MockSpan()
 
         # Mock evaluation run results (empty since agent failed)
         mock_evaluation_run_results = MagicMock()
         mock_evaluation_run_results.evaluation_run_results = []
 
-        # Mock agent execution output with error
+        # Mock workload execution output with error
         mock_agent_output = MagicMock()
-        mock_agent_output.result.error = "Agent execution failed"
+        mock_agent_output.result.error = "Workload execution failed"
 
         await configure_evaluation_span(
             span=span,  # type: ignore[arg-type]
@@ -487,11 +487,11 @@ class TestHighLevelConfigurationFunctions:
         assert span._status is not None
         assert span._status.status_code == StatusCode.ERROR
         assert span._status.description is not None
-        assert "Agent execution failed" in span._status.description
+        assert "Workload execution failed" in span._status.description
 
     @pytest.mark.asyncio
     async def test_configure_evaluation_span_without_agent_output(self):
-        """Test configuring evaluation span without agent execution output."""
+        """Test configuring evaluation span without workload execution output."""
         span = MockSpan()
 
         mock_result = MagicMock()

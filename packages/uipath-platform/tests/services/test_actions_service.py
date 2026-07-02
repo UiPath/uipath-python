@@ -8,7 +8,7 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
 from uipath.platform.action_center._tasks_service import TasksService
 from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_USER_AGENT
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 from contextvars import ContextVar, Token
 from os import environ as env
 
-from uipath.platform.common.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
+from uipath.platform.constants import ENV_JOB_ID, ENV_JOB_KEY, ENV_ROBOT_KEY
 
 _execution_source: ContextVar[str | None] = ContextVar("execution_source", default=None)
 

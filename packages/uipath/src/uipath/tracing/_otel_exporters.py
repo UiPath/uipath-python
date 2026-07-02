@@ -15,6 +15,14 @@ from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
 from uipath.platform.common._span_utils import SpanStatus
 from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
+from uipath.platform.constants import (
+    ENV_BASE_URL,
+    ENV_ORGANIZATION_ID,
+    ENV_TENANT_ID,
+    ENV_UIPATH_ACCESS_TOKEN,
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,18 +115,16 @@ class LlmOpsHttpExporter(SpanExporter):
         """
         super().__init__()
         self.base_url = self._get_base_url()
-        self.auth_token = os.environ.get("UIPATH_ACCESS_TOKEN")
+        self.auth_token = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
         self.headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.auth_token}",
         }
 
         if os.environ.get("UIPATH_TRACE_BASE_URL"):
-            self.headers["X-UiPath-Internal-TenantId"] = os.environ.get(
-                "UIPATH_TENANT_ID", ""
-            )
-            self.headers["X-UiPath-Internal-AccountId"] = os.environ.get(
-                "UIPATH_ORGANIZATION_ID", ""
+            self.headers[HEADER_INTERNAL_TENANT_ID] = os.environ.get(ENV_TENANT_ID, "")
+            self.headers[HEADER_INTERNAL_ACCOUNT_ID] = os.environ.get(
+                ENV_ORGANIZATION_ID, ""
             )
 
         client_kwargs = get_httpx_client_kwargs(headers=self.headers)
@@ -411,7 +417,7 @@ class LlmOpsHttpExporter(SpanExporter):
             return trace_base_url.rstrip("/")
 
         uipath_url = (
-            os.environ.get("UIPATH_URL")
+            os.environ.get(ENV_BASE_URL)
             or "https://cloud.uipath.com/dummyOrg/dummyTennant/"
         )
 

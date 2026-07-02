@@ -1,6 +1,7 @@
 """Models for evaluation framework including execution data and evaluation results."""
 
 import traceback
+import warnings
 from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Annotated, Any, Literal, Union
@@ -11,14 +12,14 @@ from pydantic.alias_generators import to_camel
 from pydantic_core import core_schema
 
 
-class AgentExecution(BaseModel):
-    """Represents the execution data of an agent for evaluation purposes."""
+class WorkloadExecution(BaseModel):
+    """Represents the execution data of a workload for evaluation purposes."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     agent_input: dict[str, Any] | None
-    agent_output: dict[str, Any] | str
-    agent_trace: list[ReadableSpan]
+    workload_output: dict[str, Any] | str
+    workload_trace: list[ReadableSpan]
     expected_agent_behavior: str | None = None
     simulation_instructions: str = ""
 
@@ -175,7 +176,7 @@ class LegacyEvaluatorType(IntEnum):
 class TrajectoryEvaluationSpan:
     """Simplified span representation for trajectory evaluation.
 
-    Contains span information needed for evaluating agent execution paths,
+    Contains span information needed for evaluating workload execution paths,
     excluding timestamps which are not useful for trajectory analysis.
     """
 
@@ -388,3 +389,23 @@ class UiPathEvaluationError(Exception):
     def as_dict(self) -> dict[str, Any]:
         """Get the error information as a dictionary."""
         return self.error_info.model_dump()
+
+
+# ── Backward-compatibility shim ──────────────────────────────────────────────
+# ``AgentExecution`` was renamed to ``WorkloadExecution`` (unified-evals naming).
+# Per the release policy's deprecation requirements, the old name keeps working
+# but emits a DeprecationWarning when accessed. Remove this shim in uipath 3.0.
+_DEPRECATED_NAMES = {"AgentExecution": "WorkloadExecution"}
+
+
+def __getattr__(name: str) -> Any:
+    new_name = _DEPRECATED_NAMES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated and will be removed in uipath 3.0; "
+            f"use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

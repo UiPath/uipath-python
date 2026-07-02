@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from uipath.platform.constants import UIPATH_CONFIG_FILE
 from uipath.runtime import (
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 class UiPathFunctionsRuntimeFactory:
     """Factory for discovering and creating function-based runtimes."""
 
-    def __init__(self, config_path: str = "uipath.json", base_dir: str | None = None):
+    def __init__(
+        self, config_path: str = UIPATH_CONFIG_FILE, base_dir: str | None = None
+    ):
         """Initialize the factory with the path to uipath.json configuration."""
         self.config_path = Path(config_path)
         self.base_dir = Path(base_dir) if base_dir else self.config_path.parent
