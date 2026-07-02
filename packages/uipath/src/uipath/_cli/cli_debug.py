@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import cast, get_args
+from typing import Any, cast, get_args
 
 import click
 
@@ -27,6 +27,7 @@ from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
+from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -136,6 +137,8 @@ def debug(
                 )
                 with ExecutionSourceContext(ctx.execution_source), ctx:
                     factory: UiPathRuntimeFactoryProtocol | None = None
+                    governance_bootstrap: GovernanceBootstrap | None = None
+                    live_tracking_processor: LiveTrackingSpanProcessor | None = None
 
                     try:
                         trigger_poll_interval: float = 5.0
@@ -147,14 +150,30 @@ def debug(
                             if factory_settings
                             else None
                         )
+                        agent_type = (
+                            factory_settings.agent_type if factory_settings else None
+                        )
+                        agent_framework = (
+                            factory_settings.agent_framework
+                            if factory_settings
+                            else None
+                        )
+                        governance_bootstrap = await resolve_governance(
+                            agent_framework=agent_framework,
+                            agent_type=agent_type,
+                        )
+                        governance_runtime_id = (
+                            ctx.conversation_id or ctx.job_id or "default"
+                        )
 
                         if ctx.job_id:
                             if UiPathConfig.is_tracing_enabled:
+                                live_tracking_processor = LiveTrackingSpanProcessor(
+                                    LlmOpsHttpExporter(),
+                                    settings=trace_settings,
+                                )
                                 trace_manager.add_span_processor(
-                                    LiveTrackingSpanProcessor(
-                                        LlmOpsHttpExporter(),
-                                        settings=trace_settings,
-                                    )
+                                    live_tracking_processor
                                 )
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
@@ -165,10 +184,23 @@ def debug(
                             debug_bridge: UiPathDebugProtocol = get_debug_bridge(
                                 ctx, attach=attach_mode
                             )
+                            new_runtime_kwargs: dict[str, Any] = {}
+                            if governance_bootstrap is not None:
+                                new_runtime_kwargs["evaluator"] = (
+                                    governance_bootstrap.evaluator
+                                )
                             runtime = await factory.new_runtime(
                                 entrypoint,
-                                ctx.conversation_id or ctx.job_id or "default",
+                                governance_runtime_id,
+                                **new_runtime_kwargs,
                             )
+
+                            if governance_bootstrap is not None:
+                                runtime = governance_bootstrap.wrap_runtime(
+                                    runtime,
+                                    agent_name=entrypoint,
+                                    runtime_id=governance_runtime_id,
+                                )
 
                             delegate = runtime
                             if ctx.conversation_id and ctx.exchange_id:
@@ -227,6 +259,13 @@ def debug(
                             await execute_debug_runtime()
 
                     finally:
+                        # Drain runtime-scoped sinks before the factory
+                        # shuts down — the factory may own transports they
+                        # use. (The inner runtime already disposed above.)
+                        if live_tracking_processor is not None:
+                            live_tracking_processor.shutdown()
+                        if governance_bootstrap is not None:
+                            governance_bootstrap.dispose()
                         if factory:
                             await factory.dispose()
 
