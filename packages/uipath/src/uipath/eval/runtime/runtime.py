@@ -45,7 +45,15 @@ from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
+from ..evaluators._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
 from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..evaluators.binary_classification_evaluator import (
+    BinaryClassificationEvaluatorConfig,
+)
+from ..evaluators.dataset_evaluator_factory import build_dataset_evaluator
+from ..evaluators.multiclass_classification_evaluator import (
+    MulticlassClassificationEvaluatorConfig,
+)
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
 from ..mocks._cache_manager import CacheManager
@@ -200,6 +208,97 @@ def compute_evaluator_scores(
     final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
 
     return final_score, agg_metrics_per_evaluator
+
+
+def compute_dataset_evaluator_results(
+    evaluation_set_results: list[UiPathEvalRunResult],
+    evaluators: Iterable[GenericBaseEvaluator[Any, Any, Any]],
+) -> dict[str, EvaluationResultDto]:
+    """Run any dataset-level aggregators embedded in per-datapoint evaluator configs.
+
+    Walks ``evaluators`` looking for any whose config carries an ``aggregators``
+    list (currently only Binary/Multiclass classification). For each aggregator
+    spec, builds the corresponding dataset evaluator via the factory and runs it
+    over the per-datapoint results that came from that source evaluator.
+
+    Args:
+        evaluation_set_results: Per-datapoint results from the run.
+        evaluators: Per-datapoint evaluator instances that ran during this eval
+            set. Their configs may carry ``aggregators`` lists.
+
+    Returns:
+        Dict mapping ``"{evaluator_name}.{aggregator_type}"`` to the run-level
+        EvaluationResultDto. When the same aggregator ``type`` appears more
+        than once on a source (e.g. macro+micro precision), each variant is
+        disambiguated as ``"{evaluator_name}.{type}.{averaging}"`` and, for
+        fscore, with the ``f_value`` suffix (``"...fbN"``), so a duplicate
+        type never overwrites a previous result. Aggregators whose source
+        produced no results are still invoked with an empty list so they emit
+        a zeroed result.
+    """
+    results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for eval_run_result in evaluation_set_results:
+        for eval_run_result_dto in eval_run_result.evaluation_run_results:
+            if eval_run_result_dto.is_line_result:
+                continue
+            results_by_evaluator[eval_run_result_dto.evaluator_name].append(
+                eval_run_result_dto.result
+            )
+
+    dataset_results: dict[str, EvaluationResultDto] = {}
+    for evaluator in evaluators:
+        # Aggregators currently only live on classification evaluator configs.
+        # ``GenericBaseEvaluator`` doesn't declare ``evaluator_config``, so we
+        # retrieve it via ``getattr`` and narrow with ``isinstance`` to a
+        # classification config type before reading ``aggregators``. Widen the
+        # tuple if a future evaluator type grows an ``aggregators`` field.
+        config = getattr(evaluator, "evaluator_config", None)
+        if not isinstance(
+            config,
+            (
+                BinaryClassificationEvaluatorConfig,
+                MulticlassClassificationEvaluatorConfig,
+            ),
+        ):
+            continue
+        if not config.aggregators:
+            continue
+        source_name = config.name
+        source_results = results_by_evaluator.get(source_name, [])
+        # Count occurrences of each aggregator type to detect duplicates
+        # (e.g. macro+micro precision on the same source). The default key
+        # shape ``{source}.{type}`` collides on duplicates; disambiguate with
+        # ``.{averaging}`` (and ``.fb{f_value}`` for fscore variants) only
+        # when more than one aggregator of that type exists, to preserve the
+        # simple key shape in the common case.
+        type_counts: dict[str, int] = defaultdict(int)
+        for spec in config.aggregators:
+            type_counts[spec.type] += 1
+        for spec in config.aggregators:
+            dataset_evaluator = build_dataset_evaluator(spec, source_name)
+            key = _dataset_result_key(source_name, spec, type_counts[spec.type] > 1)
+            dataset_results[key] = EvaluationResultDto.from_evaluation_result(
+                dataset_evaluator.evaluate(source_results)
+            )
+    return dataset_results
+
+
+def _dataset_result_key(
+    source_name: str, spec: AggregatorSpec, disambiguate: bool
+) -> str:
+    """Build the result-dict key for a dataset evaluator.
+
+    Uses ``{source}.{type}`` for unique-type aggregators, and appends
+    ``.{averaging}`` (plus ``.fb{f_value}`` for fscore) when the same type
+    appears more than once on the same source.
+    """
+    if not disambiguate:
+        return f"{source_name}.{spec.type}"
+    if isinstance(spec, FScoreAggregatorSpec):
+        return f"{source_name}.{spec.type}.{spec.averaging}.fb{spec.f_value}"
+    return f"{source_name}.{spec.type}.{spec.averaging}"
 
 
 class UiPathEvalRuntime:
@@ -379,6 +478,19 @@ class UiPathEvalRuntime:
                     _, evaluator_averages = compute_evaluator_scores(
                         results.evaluation_set_results,
                         evaluators,
+                    )
+
+                    # Run any dataset-level aggregators embedded in per-datapoint
+                    # classification evaluator configs (the ``aggregators`` list).
+                    # Each aggregator consumes per-datapoint results from its
+                    # parent evaluator and emits one run-level EvaluationResultDto
+                    # keyed ``{evaluator_name}.{aggregator_type}`` on
+                    # UiPathEvalOutput.dataset_evaluator_results.
+                    results.dataset_evaluator_results = (
+                        compute_dataset_evaluator_results(
+                            results.evaluation_set_results,
+                            evaluators,
+                        )
                     )
 
                     # Configure span with output and metadata
