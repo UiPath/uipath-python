@@ -604,6 +604,60 @@ class TestLangchainExporter(unittest.TestCase):
         self.assertEqual(usage["completionTokens"], 66)
         self.assertEqual(usage["totalTokens"], 285)
 
+    def test_llm_span_tool_calls_reconstructed_as_list(self):
+        """An LLM span's flattened tool_calls must rebuild into a list.
+
+        OpenInference flattens a tool call as
+        ``llm.output_messages.0.message.tool_calls.0.tool_call.function.name``.
+        The reconstruction must turn the ``tool_calls`` index segment into a
+        list element, not a ``{"0": ...}`` dict, so the toolCalls mapping (which
+        iterates the value as a list) actually picks the call up.
+        """
+        span_data = {
+            "Id": "1f1a4d8e-2b3c-4d5e-8f90-112233445566",
+            "TraceId": "2f1a4d8e-2b3c-4d5e-8f90-112233445566",
+            "ParentId": "3f1a4d8e-2b3c-4d5e-8f90-112233445566",
+            "Name": "UiPathChat",
+            "StartTime": "2025-09-18T15:25:36.486Z",
+            "EndTime": "2025-09-18T15:25:37.720Z",
+            "Attributes": {
+                "input.value": '{"messages": []}',
+                "output.value": '{"generations": []}',
+                "llm.model_name": "gpt-4o-mini-2024-07-18",
+                "openinference.span.kind": "LLM",
+                "llm.output_messages.0.message.role": "assistant",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_abc",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+                "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": '{"city": "NYC"}',
+                "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_def",
+                "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "get_time",
+                "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments": '{"tz": "EST"}',
+            },
+            "Status": 1,
+            "SpanType": "OpenTelemetry",
+            "ReferenceId": None,
+        }
+
+        self.exporter._process_span_attributes(span_data)
+
+        attributes = span_data["Attributes"]
+        assert isinstance(attributes, dict)
+        self.assertEqual(span_data["SpanType"], "completion")
+
+        # tool_calls reconstructed as a list, not a {"0": ...}/{"1": ...} dict.
+        message = attributes["output"][0]["message"]
+        self.assertIsInstance(message["tool_calls"], list)
+        self.assertEqual(len(message["tool_calls"]), 2)
+
+        # The toolCalls mapping picks both calls up, in order.
+        self.assertEqual(
+            attributes["toolCalls"],
+            [
+                {"id": "call_abc", "name": "get_weather", "arguments": {"city": "NYC"}},
+                {"id": "call_def", "name": "get_time", "arguments": {"tz": "EST"}},
+            ],
+        )
+
     def test_unknown_span_type_preserved(self):
         """
         Test that spans with UNKNOWN or unrecognized openinference.span.kind

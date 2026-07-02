@@ -59,26 +59,34 @@ def _get_llm_messages(attributes: Dict[str, Any], prefix: str) -> List[Dict[str,
                     messages[index] = {}
                 current: Any = messages[index]
 
-                # Traverse parts except the last one
+                # Reconstruct nested containers. A digit segment indexes a list;
+                # any other segment keys a dict. Each child's container type is
+                # decided by the NEXT segment (a following digit => the child is a
+                # list), so e.g. `tool_calls.0.tool_call...` rebuilds tool_calls
+                # as a list rather than a {"0": ...} dict the consumer skips.
                 parts_len = len(parts)
-                for i in range(1, parts_len - 1):
+                for i in range(1, parts_len):
                     part = parts[i]
-                    key_part: str | int = part
-                    if part.isdigit() and (
-                        i + 2 < parts_len and parts[i + 2].isdigit()
-                    ):
-                        key_part = int(part)
+                    key_part: str | int = int(part) if part.isdigit() else part
+                    is_last = i == parts_len - 1
+                    child: Any = (
+                        value if is_last else ([] if parts[i + 1].isdigit() else {})
+                    )
 
-                    if isinstance(current, dict):
-                        if key_part not in current:
-                            current[key_part] = {}
+                    if isinstance(current, list) and isinstance(key_part, int):
+                        while len(current) <= key_part:
+                            current.append(None)
+                        if is_last or current[key_part] is None:
+                            current[key_part] = child
                         current = current[key_part]
-                    elif isinstance(current, list) and isinstance(key_part, int):
-                        if key_part >= len(current):
-                            current.append({})
+                    elif isinstance(current, dict):
+                        if (
+                            is_last
+                            or key_part not in current
+                            or current[key_part] is None
+                        ):
+                            current[key_part] = child
                         current = current[key_part]
-
-                current[parts[-1]] = value
 
     # Convert dict to list, ordered by index, avoid sorted() if we can use range
     if not messages:
