@@ -2650,8 +2650,8 @@ class TestEntitiesServiceAsyncCoverage:
             )
 
 
-class TestGetOntologyFileAsync:
-    """Tests for EntitiesService.get_ontology_file_async (delegates to
+class TestGetOntologyBundleAsync:
+    """Tests for EntitiesService.get_ontology_bundle_async (delegates to
     EntityOntologyService). The HTTP call goes through ``service._ontology``,
     so the sub-service's ``request_async`` is what gets patched."""
 
@@ -2663,7 +2663,7 @@ class TestGetOntologyFileAsync:
         response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
         service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
-        result = await service.get_ontology_file_async(
+        result = await service.get_ontology_bundle_async(
             "library", "owl", folder_key="folder-1"
         )
 
@@ -2685,7 +2685,7 @@ class TestGetOntologyFileAsync:
         response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
         service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
-        await service.get_ontology_file_async("library")
+        await service.get_ontology_bundle_async("library")
 
         headers = service._ontology.request_async.call_args.kwargs["headers"]
         assert "x-uipath-folderkey" not in headers
@@ -2701,7 +2701,7 @@ class TestGetOntologyFileAsync:
         response.json.return_value = {"content": "x"}
         service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
 
-        await service.get_ontology_file_async("library", file_type)
+        await service.get_ontology_bundle_async("library", file_type)
 
         endpoint = service._ontology.request_async.call_args.args[1]
         assert str(endpoint) == f"/datafabric_/api/ontologies/library/files/{file_type}"
@@ -2729,7 +2729,7 @@ class TestGetOntologyFileAsync:
         )
 
         with pytest.raises(EnrichedException) as exc_info:
-            await service.get_ontology_file_async("library", "exe")
+            await service.get_ontology_bundle_async("library", "exe")
 
         # The SDK surfaces the API's rejection verbatim — status code, response
         # body, and the extracted message — rather than masking it.
