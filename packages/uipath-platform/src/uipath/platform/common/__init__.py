@@ -34,6 +34,14 @@ from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .auth import TokenData
 from .dynamic_schema import jsonschema_to_pydantic
+from ..hitl import (
+    HitlFieldDirection,
+    HitlFieldType,
+    HitlSchema,
+    HitlSchemaField,
+    HitlSchemaOutcome,
+    pydantic_to_hitl_schema,
+)
 from .interrupt_models import (
     CreateBatchTransform,
     CreateDeepRag,
@@ -112,6 +120,12 @@ __all__ = [
     "validate_pagination_params",
     "EndpointManager",
     "jsonschema_to_pydantic",
+    "HitlFieldDirection",
+    "HitlFieldType",
+    "HitlSchema",
+    "HitlSchemaField",
+    "HitlSchemaOutcome",
+    "pydantic_to_hitl_schema",
     "ConnectionResourceOverwrite",
     "EntityResourceOverwrite",
     "ExecutionType",
