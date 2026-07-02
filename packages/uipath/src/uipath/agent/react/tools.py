@@ -11,6 +11,7 @@ class FlowControlToolName(str, Enum):
 
     END_EXECUTION = "end_execution"
     RAISE_ERROR = "raise_error"
+    SET_CONVERSATIONAL_OUTPUT = "set_conversational_output"
 
 
 @dataclass(frozen=True)
@@ -71,4 +72,26 @@ RAISE_ERROR_TOOL = FlowControlToolConfig(
     name=FlowControlToolName.RAISE_ERROR,
     description="Raises an error and ends the execution of the agent",
     args_schema=RaiseErrorToolSchemaModel,
+)
+
+
+class SetConversationalOutputToolSchemaModel(BaseModel):
+    """Placeholder args_schema for the `set_conversational_output` tool.
+
+    Always overridden at construction time with the agent's stripped output
+    schema (i.e. the user's `outputSchema` with `uipath__agent_response_messages`
+    removed). Declared here so the tool entry has a well-typed default.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+SET_CONVERSATIONAL_OUTPUT_TOOL = FlowControlToolConfig(
+    name=FlowControlToolName.SET_CONVERSATIONAL_OUTPUT,
+    description=(
+        "Sets the structured output fields for the current conversational "
+        "turn. Called once per turn after the conversational response has been "
+        "delivered, to populate fields as the agent's output."
+    ),
+    args_schema=SetConversationalOutputToolSchemaModel,
 )
