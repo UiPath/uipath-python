@@ -286,6 +286,9 @@ class UiPathEvalRuntime:
                 f"Please run with a single evaluation using --eval-ids to specify one evaluation."
             )
 
+        factory_settings = await self.factory.get_settings()
+        agent_type = factory_settings.agent_type if factory_settings else None
+
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
             EvalSetRunCreatedEvent(
@@ -294,6 +297,7 @@ class UiPathEvalRuntime:
                 eval_set_run_id=self.context.eval_set_run_id,
                 eval_set_id=self.context.evaluation_set.id,
                 no_of_evals=len(self.context.evaluation_set.evaluations),
+                agent_type=agent_type,
                 evaluators=self.context.evaluators,
             ),
         )
