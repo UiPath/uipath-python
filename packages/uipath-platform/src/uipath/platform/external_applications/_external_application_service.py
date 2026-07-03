@@ -7,9 +7,9 @@ from httpx import HTTPStatusError
 
 from uipath.platform.constants import ENV_BASE_URL
 
+from ..common.auth import TokenData
 from ..errors import EnrichedException
 from ..identity import IdentityService
-from .auth import TokenData
 
 
 class ExternalApplicationService:
