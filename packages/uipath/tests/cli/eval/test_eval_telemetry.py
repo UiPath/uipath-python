@@ -96,6 +96,7 @@ class TestEvalSetRunCreated:
         entrypoint: str = "agent.py",
         no_of_evals: int = 5,
         evaluators: list[Any] | None = None,
+        agent_type: str | None = None,
     ) -> EvalSetRunCreatedEvent:
         """Helper to create EvalSetRunCreatedEvent."""
         return EvalSetRunCreatedEvent(
@@ -104,8 +105,59 @@ class TestEvalSetRunCreated:
             eval_set_run_id=eval_set_run_id,
             entrypoint=entrypoint,
             no_of_evals=no_of_evals,
+            agent_type=agent_type,
             evaluators=evaluators or [],
         )
+
+    @pytest.mark.asyncio
+    @patch("uipath._cli._evals._telemetry.track_event")
+    async def test_agent_type_normalized_to_wire_lowcode(self, mock_track_event):
+        """Modern factory labels containing ``lowcode`` map to ``"LowCode"``
+        so Application Insights dashboards that filter on the historical
+        wire value keep working after the factory-supplied refactor.
+        """
+        subscriber = EvalTelemetrySubscriber()
+        event = self._create_eval_set_run_created_event(agent_type="uipath_lowcode")
+
+        await subscriber._on_eval_set_run_created(event)
+
+        properties = mock_track_event.call_args[0][1]
+        assert properties["AgentType"] == "LowCode"
+
+    @pytest.mark.asyncio
+    @patch("uipath._cli._evals._telemetry.track_event")
+    async def test_agent_type_normalized_to_wire_coded(self, mock_track_event):
+        """Modern factory labels that aren't low-code map to ``"Coded"``."""
+        subscriber = EvalTelemetrySubscriber()
+        event = self._create_eval_set_run_created_event(agent_type="uipath_coded")
+
+        await subscriber._on_eval_set_run_created(event)
+
+        properties = mock_track_event.call_args[0][1]
+        assert properties["AgentType"] == "Coded"
+
+    @pytest.mark.asyncio
+    @patch("uipath._cli._evals._telemetry.track_event")
+    async def test_agent_type_falls_back_to_entrypoint_when_missing(
+        self, mock_track_event
+    ):
+        """Pre-refactor callers didn't set ``agent_type``; keep the
+        ``agent.json`` ⇒ ``"LowCode"`` derivation so no in-flight consumer
+        breaks. Anything else falls back to ``"Coded"``.
+        """
+        subscriber = EvalTelemetrySubscriber()
+
+        low_code_event = self._create_eval_set_run_created_event(
+            agent_type=None, entrypoint="agent.json"
+        )
+        await subscriber._on_eval_set_run_created(low_code_event)
+        assert mock_track_event.call_args[0][1]["AgentType"] == "LowCode"
+
+        coded_event = self._create_eval_set_run_created_event(
+            agent_type=None, entrypoint="agent.py"
+        )
+        await subscriber._on_eval_set_run_created(coded_event)
+        assert mock_track_event.call_args[0][1]["AgentType"] == "Coded"
 
     @pytest.mark.asyncio
     @patch("uipath._cli._evals._telemetry.track_event")
