@@ -54,13 +54,13 @@ class EntityOntologyService(BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    async def get_ontology_bundle_async(
+    async def get_file_async(
         self,
         ontology_name: str,
         file_type: str = "owl",
         folder_key: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Internal implementation; see :meth:`EntitiesService.get_ontology_bundle_async`."""
+        """Internal implementation; see :meth:`EntitiesService.get_ontology_file_async`."""
         spec = self._ontology_file_spec(ontology_name, file_type, folder_key)
         response = await self.request_async(
             spec.method, spec.endpoint, headers=spec.headers
