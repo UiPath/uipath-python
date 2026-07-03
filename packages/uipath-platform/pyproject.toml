@@ -48,6 +48,7 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
+  "import-linter>=2.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -125,6 +126,31 @@ exclude_lines = [
   "raise NotImplementedError",
   "if TYPE_CHECKING:",
   "@(abc\\.)?abstractmethod",
+]
+
+[tool.importlinter]
+root_package = "uipath.platform"
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+id = "platform-layers"
+name = "uipath-platform layered architecture"
+type = "layers"
+containers = ["uipath.platform"]
+exhaustive = true
+# TODO: Remove this exception in the next breaking-change release.
+ignore_imports = [
+  "uipath.platform.common.interrupt_models -> uipath.platform.resume_triggers.interrupt_models",
+]
+unmatched_ignore_imports_alerting = "error"
+layers = [
+  "guardrails",
+  "_uipath : resume_triggers",
+  "_guardrails_service | agenthub | automation_ops | automation_tracker | connections | context_grounding | entities | external_applications | governance | memory | pii_detection | portal | resource_catalog | semantic_proxy",
+  "orchestrator",
+  "action_center | attachments | chat | documents | identity",
+  "common",
+  "constants | errors",
 ]
 
 [tool.uv]

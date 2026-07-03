@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from uipath.platform.guardrails.guardrails import BuiltInValidatorGuardrail
+from uipath.platform._guardrails_service import BuiltInValidatorGuardrail
 
 from .._enums import GuardrailExecutionStage
 from ._base import BuiltInGuardrailValidator
