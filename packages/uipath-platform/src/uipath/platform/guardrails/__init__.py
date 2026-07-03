@@ -13,7 +13,18 @@ from uipath.core.guardrails import (
     GuardrailValidationResultType,
 )
 
-from ._guardrails_service import GuardrailsService
+from uipath.platform._guardrails_service import (
+    BYO_VALIDATOR_TYPE,
+    BuiltInValidatorGuardrail,
+    EnumListParameterValue,
+    GuardrailAttachment,
+    GuardrailsService,
+    GuardrailTerminationMode,
+    GuardrailType,
+    MapEnumParameterValue,
+    NumberParameterValue,
+)
+
 from .attachments import (
     DETECTION_SCOPE_PARAMETER_ID,
     DetectionScope,
@@ -54,15 +65,6 @@ from .decorators import (
     guardrail,
     register_guardrail_adapter,
 )
-from .guardrails import (
-    BYO_VALIDATOR_TYPE,
-    BuiltInValidatorGuardrail,
-    EnumListParameterValue,
-    GuardrailAttachment,
-    GuardrailTerminationMode,
-    GuardrailType,
-    MapEnumParameterValue,
-)
 
 __all__ = [
     # Service
@@ -81,6 +83,7 @@ __all__ = [
     "GuardrailValidationResult",
     "EnumListParameterValue",
     "MapEnumParameterValue",
+    "NumberParameterValue",
     # Attachments
     "DetectionScope",
     "DETECTION_SCOPE_PARAMETER_ID",

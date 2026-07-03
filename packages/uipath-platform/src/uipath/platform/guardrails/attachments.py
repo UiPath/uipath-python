@@ -29,7 +29,7 @@ from pydantic import BaseModel
 
 from uipath.platform.attachments import Attachment
 
-from .guardrails import (
+from uipath.platform._guardrails_service import (
     BuiltInValidatorGuardrail,
     EnumParameterValue,
     GuardrailAttachment,

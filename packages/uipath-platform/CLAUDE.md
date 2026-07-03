@@ -17,6 +17,7 @@ pytest tests/services/test_assets_service.py  # Single test file
 ruff check .                  # Lint
 ruff format --check .         # Format check
 mypy src tests                # Type check
+uv run lint-imports           # Import-graph layering contract
 ```
 
 No justfile exists for this package — run commands directly.

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from uipath.platform.automation_tracker import AutomationTrackerService
 
+from ._guardrails_service import GuardrailsService
 from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
 from .agenthub._remote_a2a_service import RemoteA2aService
@@ -26,7 +27,6 @@ from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
 from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
-from .guardrails import GuardrailsService
 from .memory import MemoryService
 from .ontology import OntologyService
 from .orchestrator import (

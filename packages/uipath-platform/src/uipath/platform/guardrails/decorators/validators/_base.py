@@ -6,16 +6,16 @@ from typing import Any, ClassVar
 
 from uipath.core.guardrails import GuardrailValidationResult
 
+from uipath.platform._guardrails_service import (
+    BuiltInValidatorGuardrail,
+    GuardrailAttachment,
+)
 from uipath.platform.errors import EnrichedException
 from uipath.platform.guardrails.attachments import (
     DETECTION_SCOPE_PARAMETER_ID,
     DetectionScope,
     detection_scope_includes_files,
     with_detection_scope,
-)
-from uipath.platform.guardrails.guardrails import (
-    BuiltInValidatorGuardrail,
-    GuardrailAttachment,
 )
 
 from .._enums import GuardrailExecutionStage
