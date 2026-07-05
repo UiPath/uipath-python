@@ -48,10 +48,12 @@ class TestEndSession:
 
     async def test_session_ended_preserves_payload_opaquely(self) -> None:
         session = _make_session()
-        call_context = {"type": "phone", "id": "CA123", "conversationId": "conv-1"}
         payload = {
-            "callContext": call_context,
-            "conversationId": "conv-1",
+            "callContext": {
+                "type": "phone",
+                "id": "CA123",
+                "conversationId": "conv-1",
+            },
             "endedBy": "agent",
             "callEnded": False,
             "reason": "agent_completed",
@@ -61,9 +63,6 @@ class TestEndSession:
         await session._handle_session_ended(payload)
 
         assert session.end_detail == payload
-        assert session.end_detail["callContext"] == call_context
-        assert session.end_detail["endedBy"] == "agent"
-        assert session.end_detail["callEnded"] is False
         assert session._end_reason == VoiceSessionEndReason.COMPLETED
 
     async def test_session_ended_non_dict_payload_is_empty_detail(self) -> None:
