@@ -13,7 +13,7 @@ from rich.tree import Tree
 
 from uipath.core.serialization import serialize_object
 from uipath.core.triggers import UiPathResumeTriggerType
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
     HEADER_FOLDER_KEY,

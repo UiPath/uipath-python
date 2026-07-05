@@ -1,4 +1,5 @@
 # type: ignore
+import io
 import json
 import os
 import zipfile
@@ -326,6 +327,57 @@ class TestPack:
                 extracted_binary_content = z.read(f"content/{binary_file_name}")
                 assert extracted_binary_content == binary_content, (
                     "Binary file content was corrupted during packing"
+                )
+
+    def test_include_wheel_file_not_corrupted(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that .whl files included via packOptions are packed byte-for-byte.
+
+        A .whl file is itself a zip archive full of arbitrary binary bytes. If it
+        is not recognized as binary by the packager, it gets round-tripped through
+        a text decode/encode (latin-1 -> UTF-8), which corrupts any byte >= 0x80
+        and produces an invalid zip file at runtime.
+        """
+        wheel_file_name = "example_pkg-1.0.0-py3-none-any.whl"
+
+        # Minimal valid zip (wheel) content, deliberately containing high bytes
+        # (0x80-0xff) that would be mangled by a latin-1 -> UTF-8 round trip.
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as wheel_zip:
+            wheel_zip.writestr("example_pkg/__init__.py", bytes(range(256)) * 4)
+        wheel_bytes = buf.getvalue()
+
+        pack_options = {"fileExtensionsIncluded": [".whl"]}
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump(create_uipath_json(pack_options=pack_options), f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            with open(wheel_file_name, "wb") as f:
+                f.write(wheel_bytes)
+
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 0
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                assert f"content/{wheel_file_name}" in z.namelist()
+                extracted_wheel_bytes = z.read(f"content/{wheel_file_name}")
+                assert extracted_wheel_bytes == wheel_bytes, (
+                    ".whl file content was corrupted during packing"
                 )
 
     def test_include_files(

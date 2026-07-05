@@ -8,13 +8,14 @@ from uipath._cli._auth._url_utils import extract_org_tenant, resolve_domain
 from uipath._cli._auth._utils import get_parsed_token_data
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils._auth import update_env_file
-from uipath.platform.common import ExternalApplicationService, TokenData
-from uipath.platform.common.constants import (
+from uipath.platform.common import TokenData
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TENANT_ID,
     ENV_UIPATH_ACCESS_TOKEN,
 )
+from uipath.platform.external_applications import ExternalApplicationService
 
 from ._utils import update_auth_file
 

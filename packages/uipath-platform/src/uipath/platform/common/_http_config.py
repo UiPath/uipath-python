@@ -66,8 +66,9 @@ def get_httpx_client_kwargs(
     ca_bundle = get_ca_bundle_path()
     client_kwargs["verify"] = create_ssl_context(ca_bundle) if ca_bundle else False
 
+    from uipath.platform.constants import HEADER_LICENSING_CONTEXT
+
     from ._config import UiPathConfig
-    from .constants import HEADER_LICENSING_CONTEXT
 
     merged_headers: Dict[str, str] = {}
     licensing_context = UiPathConfig.licensing_context

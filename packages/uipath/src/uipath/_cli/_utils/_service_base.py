@@ -19,7 +19,8 @@ from typing import Any, Callable
 import click
 from httpx import HTTPError
 
-from ...platform.common.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
+from uipath.platform.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
+
 from ...platform.errors import (
     BaseUrlMissingError,
     EnrichedException,

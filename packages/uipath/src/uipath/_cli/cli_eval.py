@@ -26,7 +26,7 @@ from uipath.platform.common import (
     ResourceOverwritesContext,
     UiPathConfig,
 )
-from uipath.platform.common.constants import ENV_FOLDER_KEY
+from uipath.platform.constants import ENV_FOLDER_KEY
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
@@ -231,7 +231,7 @@ def _discover_eval_sets() -> list[Path]:
     "--verbose",
     is_flag=True,
     default=False,
-    help="Include agent execution output (trace, result) in the output file",
+    help="Include workload execution output (trace, result) in the output file",
 )
 def eval(
     entrypoint: str | None,

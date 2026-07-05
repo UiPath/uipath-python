@@ -23,7 +23,7 @@ from mermaid_builder.flowchart import (  # type: ignore[import-untyped]
 )
 
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     DOTENV_FILE,
     ENTRY_POINTS_FILE,
     PYTHON_CONFIGURATION_FILE,

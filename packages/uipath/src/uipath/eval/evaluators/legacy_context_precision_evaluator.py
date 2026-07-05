@@ -11,7 +11,7 @@ from uipath.platform.chat import UiPathLlmChatService
 
 from .._execution_context import eval_set_run_id_context
 from ..models import NumericEvaluationResult
-from ..models.models import AgentExecution, EvaluationResult
+from ..models.models import EvaluationResult, WorkloadExecution
 from .base_legacy_evaluator import (
     BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
@@ -96,7 +96,7 @@ class LegacyContextPrecisionEvaluator(
 ):
     """Legacy evaluator that assesses context precision using an LLM.
 
-    This evaluator extracts context grounding spans from agent execution traces
+    This evaluator extracts context grounding spans from workload execution traces
     and uses an LLM to score the relevance of each chunk to its corresponding query.
     The final score is the mean of all chunk relevancy scores (normalized to 0-1).
     """
@@ -125,13 +125,13 @@ class LegacyContextPrecisionEvaluator(
     @track_evaluation_metrics
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
-        """Evaluate context precision from agent execution traces.
+        """Evaluate context precision from workload execution traces.
 
         Args:
-            agent_execution: The execution details containing agent_trace with spans
+            workload_execution: The execution details containing workload_trace with spans
             evaluation_criteria: Legacy evaluation criteria (unused for context precision)
 
         Returns:
@@ -143,13 +143,13 @@ class LegacyContextPrecisionEvaluator(
 
         # Extract context grounding spans from the trace
         context_groundings = self._extract_context_groundings(
-            agent_execution.agent_trace
+            workload_execution.workload_trace
         )
 
         if not context_groundings:
             return NumericEvaluationResult(
                 score=0.0,
-                details="No context grounding tool calls found in the agent execution trace.",
+                details="No context grounding tool calls found in the workload execution trace.",
             )
 
         # Evaluate each context grounding call
@@ -224,16 +224,16 @@ class LegacyContextPrecisionEvaluator(
                 raise ValueError(f"Cannot parse value: {value_str}") from e
 
     def _extract_context_groundings(
-        self, agent_trace: list[Any]
+        self, workload_trace: list[Any]
     ) -> list[dict[str, Any]]:
-        """Extract context groundings from agent execution trace.
+        """Extract context groundings from workload execution trace.
 
         Looks for spans with input.value and output.value attributes that represent
         context grounding tool calls.
         """
         context_groundings = []
 
-        for span in agent_trace:
+        for span in workload_trace:
             if not hasattr(span, "attributes") or span.attributes is None:
                 continue
 

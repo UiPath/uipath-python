@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ...platform.common.constants import ENTRY_POINTS_FILE
+from uipath.platform.constants import ENTRY_POINTS_FILE
 
 
 class BaseModelWithDefaultConfig(BaseModel):

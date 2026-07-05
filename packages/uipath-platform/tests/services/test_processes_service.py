@@ -5,7 +5,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_USER_AGENT
 from uipath.platform.orchestrator import Job
 from uipath.platform.orchestrator._attachments_service import AttachmentsService
 from uipath.platform.orchestrator._processes_service import ProcessesService

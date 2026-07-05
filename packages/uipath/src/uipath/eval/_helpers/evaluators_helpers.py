@@ -118,7 +118,7 @@ def extract_tool_calls_names(spans: Sequence[ReadableSpan]) -> list[str]:
     """Extract the tool call names from execution spans IN ORDER.
 
     Args:
-        spans: List of ReadableSpan objects from agent execution.
+        spans: List of ReadableSpan objects from workload execution.
 
     Returns:
         List of tool names in the order they were called.
@@ -139,7 +139,7 @@ def extract_tool_calls(
     """Extract the tool calls from execution spans.
 
     Args:
-        spans: List of ReadableSpan objects from agent execution.
+        spans: List of ReadableSpan objects from workload execution.
         include_args: When False, skip parsing `input.value` and return
             ToolCall objects with `args={}`. Use for evaluators that only
             need name/id (count, order) — avoids a parse per span on large
@@ -155,7 +155,7 @@ def extract_tool_calls_outputs(spans: Sequence[ReadableSpan]) -> list[ToolOutput
     """Extract the outputs of the tool calls from execution spans.
 
     Args:
-        spans: List of ReadableSpan objects from agent execution.
+        spans: List of ReadableSpan objects from workload execution.
 
     Returns:
         List of tool calls outputs.
@@ -634,22 +634,22 @@ def tool_calls_output_score(
     ), justifications
 
 
-def trace_to_str(agent_trace: Sequence[ReadableSpan]) -> str:
-    """Convert OTEL spans to a platform-style agent run history string.
+def trace_to_str(workload_trace: Sequence[ReadableSpan]) -> str:
+    """Convert OTEL spans to a platform-style workload run history string.
 
     Creates a similar structure to LangChain message processing but using OTEL spans.
     Only processes tool spans (spans with 'tool.name' attribute).
 
     Args:
-        agent_trace: List of ReadableSpan objects from the agent execution
+        workload_trace: List of ReadableSpan objects from the workload execution
 
     Returns:
-        String representation of the agent run history in platform format
+        String representation of the workload run history in platform format
     """
     platform_history = []
     seen_tool_calls = set()
 
-    for span in agent_trace:
+    for span in workload_trace:
         if span.attributes and (tool_name := span.attributes.get(TOOL_NAME_ATTR)):
             # Get span timing information
             start_time = span.start_time

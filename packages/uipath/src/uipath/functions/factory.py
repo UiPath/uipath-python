@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from uipath.platform.common.constants import UIPATH_CONFIG_FILE
+from uipath.platform.constants import UIPATH_CONFIG_FILE
 from uipath.runtime import (
     UiPathRuntimeFactorySettings,
     UiPathRuntimeProtocol,
@@ -16,6 +16,14 @@ from .debug import UiPathDebugFunctionsRuntime
 from .runtime import UiPathFunctionsRuntime
 
 logger = logging.getLogger(__name__)
+
+# Wire labels this factory advertises via
+# :class:`UiPathRuntimeFactorySettings`. The runtime does not enumerate
+# valid values -- each factory owns its own vocabulary and hosts
+# forward them verbatim to telemetry / audit consumers.
+_AGENT_TYPE_CODED = "uipath_coded"
+# Functions runtime is plain Python — no third-party agent framework.
+_AGENT_FRAMEWORK = "python"
 
 
 class UiPathFunctionsRuntimeFactory:
@@ -59,8 +67,16 @@ class UiPathFunctionsRuntimeFactory:
         return None
 
     async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
-        """Get factory settings for coded functions."""
-        return None
+        """Get factory settings for coded functions.
+
+        Advertises this factory's ``agent_type`` and ``agent_framework``
+        wire labels so hosts (governance audit, App Insights telemetry)
+        can stamp them onto events without any host-side classification.
+        """
+        return UiPathRuntimeFactorySettings(
+            agent_type=_AGENT_TYPE_CODED,
+            agent_framework=_AGENT_FRAMEWORK,
+        )
 
     async def new_runtime(
         self, entrypoint: str, runtime_id: str, **kwargs

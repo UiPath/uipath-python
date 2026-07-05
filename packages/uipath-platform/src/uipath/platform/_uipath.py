@@ -12,7 +12,6 @@ from .automation_ops import AutomationOpsService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
-    ExternalApplicationService,
     UiPathApiConfig,
     UiPathExecutionContext,
 )
@@ -22,6 +21,7 @@ from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
+from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService

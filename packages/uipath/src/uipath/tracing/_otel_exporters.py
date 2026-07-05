@@ -13,8 +13,9 @@ from opentelemetry.sdk.trace.export import (
 
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
-from uipath.platform.common._span_utils import SpanStatus
-from uipath.platform.common.constants import (
+from uipath.platform.common._span_utils import SpanSource, SpanStatus
+from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TENANT_ID,
@@ -22,7 +23,6 @@ from uipath.platform.common.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
-from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
 
 logger = logging.getLogger(__name__)
 
@@ -381,11 +381,15 @@ class LlmOpsHttpExporter(SpanExporter):
         span_data["Status"] = status
 
     def _build_url(self, span_list: list[Dict[str, Any]]) -> str:
-        """Construct the URL for the API request."""
+        """Construct the URL for the API request.
+
+        The `source` query param is what the server persists as Trace.Source
+        (the span-body Source is ignored on ingest), so derive it from the
+        span's resolved SpanSource. Falls back to CodedAgents when absent.
+        """
         trace_id = str(span_list[0]["TraceId"])
-        return (
-            f"{self.base_url}/api/Traces/v3/spans?traceId={trace_id}&source=CodedAgents"
-        )
+        source = str(span_list[0].get("Source") or SpanSource.CODED_AGENTS)
+        return f"{self.base_url}/api/Traces/v3/spans?traceId={trace_id}&source={source}"
 
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4

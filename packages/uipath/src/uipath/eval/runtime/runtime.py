@@ -60,7 +60,7 @@ from ..models.evaluation_set import (
     EvaluationItem,
     EvaluationSet,
 )
-from ..models.models import AgentExecution, EvalItemResult, EvaluationResultDto
+from ..models.models import EvalItemResult, EvaluationResultDto, WorkloadExecution
 from ._exporters import (
     ExecutionLogsExporter,
     ExecutionSpanExporter,
@@ -286,6 +286,9 @@ class UiPathEvalRuntime:
                 f"Please run with a single evaluation using --eval-ids to specify one evaluation."
             )
 
+        factory_settings = await self.factory.get_settings()
+        agent_type = factory_settings.agent_type if factory_settings else None
+
         await self.event_bus.publish(
             EvaluationEvents.CREATE_EVAL_SET_RUN,
             EvalSetRunCreatedEvent(
@@ -294,6 +297,7 @@ class UiPathEvalRuntime:
                 eval_set_run_id=self.context.eval_set_run_id,
                 eval_set_id=self.context.evaluation_set.id,
                 no_of_evals=len(self.context.evaluation_set.evaluations),
+                agent_type=agent_type,
                 evaluators=self.context.evaluators,
             ),
         )
@@ -553,10 +557,10 @@ class UiPathEvalRuntime:
                     )
 
                     logger.debug(
-                        f"DEBUG: Agent execution result status: {agent_execution_output.result.status}"
+                        f"DEBUG: Workload execution result status: {agent_execution_output.result.status}"
                     )
                     logger.debug(
-                        f"DEBUG: Agent execution result trigger: {agent_execution_output.result.trigger}"
+                        f"DEBUG: Workload execution result trigger: {agent_execution_output.result.trigger}"
                     )
 
                 except Exception as e:
@@ -1017,16 +1021,20 @@ class UiPathEvalRuntime:
                 else:
                     output_data = execution_output.result.output
 
-            agent_execution = AgentExecution(
+            workload_execution = WorkloadExecution(
                 agent_input=eval_item.inputs,
-                agent_output=output_data,
-                agent_trace=execution_output.spans,
+                workload_output=output_data,
+                workload_trace=execution_output.spans,
                 expected_agent_behavior=eval_item.expected_agent_behavior,
             )
 
+            # Pass positionally so custom evaluators that still declare the old
+            # `agent_execution` parameter name keep working (the public keyword
+            # rename to `workload_execution` is a documented break — see the
+            # 2.12.0 migration notes).
             result = await evaluator.validate_and_evaluate_criteria(
-                agent_execution=agent_execution,
-                evaluation_criteria=evaluation_criteria,
+                workload_execution,
+                evaluation_criteria,
             )
 
             # Create "Evaluation output" child span with the result

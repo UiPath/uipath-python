@@ -4,7 +4,8 @@ import shutil
 
 import click
 
-from ..platform.common.constants import PYTHON_CONFIGURATION_FILE, UIPATH_CONFIG_FILE
+from uipath.platform.constants import PYTHON_CONFIGURATION_FILE, UIPATH_CONFIG_FILE
+
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares

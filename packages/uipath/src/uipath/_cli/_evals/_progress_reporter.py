@@ -16,11 +16,6 @@ from rich.console import Console
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils import Endpoint, RequestSpec
-from uipath._utils.constants import (
-    ENV_EVAL_BACKEND_URL,
-    ENV_TENANT_ID,
-    HEADER_INTERNAL_TENANT_ID,
-)
 from uipath.core.events import EventBus
 from uipath.eval.evaluators import (
     BaseEvaluator,
@@ -38,10 +33,13 @@ from uipath.eval.runtime.events import (
 )
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
+    ENV_EVAL_BACKEND_URL,
+    ENV_TENANT_ID,
     ENV_UIPATH_AGENT_ID,
     ENV_UIPATH_PROJECT_FILES_SOURCE,
     ENV_UIPATH_PROJECT_ID,
+    HEADER_INTERNAL_TENANT_ID,
 )
 
 logger = logging.getLogger(__name__)
@@ -363,7 +361,7 @@ class StudioWebProgressReporter:
         """Extract token usage and cost from OpenTelemetry spans.
 
         Args:
-            spans: List of ReadableSpan objects from agent execution
+            spans: List of ReadableSpan objects from workload execution
 
         Returns:
             Dictionary with tokens, completionTokens, promptTokens, and cost
