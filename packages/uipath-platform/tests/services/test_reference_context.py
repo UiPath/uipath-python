@@ -9,10 +9,7 @@ from opentelemetry.sdk.trace import Span as OTelSpan
 from opentelemetry.trace import SpanContext, StatusCode
 
 from uipath.platform.common import _SpanUtils
-from uipath.platform.common._reference_context import (
-    ReferenceContext,
-    ReferenceContextAccessor,
-)
+from uipath.platform.common._reference_context import ReferenceContext, ReferenceContextAccessor
 
 
 # ---------------------------------------------------------------------------

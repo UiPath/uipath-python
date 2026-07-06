@@ -7,7 +7,10 @@ from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.middlewares import Middlewares
 from uipath.core.tracing import UiPathTraceManager
-from uipath.platform.common import ExecutionSourceContext, ReferenceHierarchySpanProcessor
+from uipath.platform.common import (
+    ExecutionSourceContext,
+    ReferenceHierarchySpanProcessor,
+)
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from ._telemetry import track_command

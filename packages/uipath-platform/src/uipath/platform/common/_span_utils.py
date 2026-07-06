@@ -15,8 +15,6 @@ from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
-from ._reference_context import ReferenceContextAccessor
-
 from uipath.platform.constants import (
     ENV_FOLDER_KEY,
     ENV_JOB_KEY,
@@ -27,6 +25,8 @@ from uipath.platform.constants import (
     ENV_UIPATH_PROCESS_VERSION,
     ENV_UIPATH_TRACE_ID,
 )
+
+from ._reference_context import ReferenceContextAccessor
 
 
 def _inject_reference_hierarchy(span: Span) -> None:
