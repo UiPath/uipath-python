@@ -369,3 +369,59 @@ class TestServerEnvIsolation:
         assert "SHOULD_NOT_PERSIST" not in os.environ
         for key in baseline:
             assert os.environ.get(key) == baseline[key]
+
+
+class TestPreloadModules:
+    """Tests for preload_modules and its find_spec guard."""
+
+    def _run_with_modules(self, monkeypatch, modules):
+        from uipath._cli import cli_server
+
+        class _FakeEntryPoint:
+            name = "fake"
+
+            def load(self):
+                return lambda: modules
+
+        monkeypatch.setattr(
+            cli_server, "entry_points", lambda group: [_FakeEntryPoint()]
+        )
+        monkeypatch.setattr(cli_server, "DEFAULT_PRELOAD_MODULES", [])
+        cli_server.preload_modules()
+
+    def test_missing_parent_package_does_not_crash(self, monkeypatch):
+        # find_spec raises ModuleNotFoundError when a parent package is absent;
+        # a stale entry like this must be skipped, not take down the server.
+        self._run_with_modules(monkeypatch, ["definitely_missing_pkg._private.types"])
+
+    def test_missing_leaf_module_is_skipped(self, monkeypatch):
+        # parent imports fine, leaf is absent -> find_spec returns None
+        self._run_with_modules(monkeypatch, ["json.does_not_exist"])
+
+    def test_existing_module_is_imported(self, monkeypatch):
+        import sys
+
+        sys.modules.pop("difflib", None)
+        self._run_with_modules(monkeypatch, ["difflib"])
+        assert "difflib" in sys.modules
+
+    def test_already_loaded_module_is_skipped(self, monkeypatch):
+        import sys
+
+        assert "json" in sys.modules
+        self._run_with_modules(monkeypatch, ["json"])
+
+    def test_failing_entry_point_does_not_crash(self, monkeypatch):
+        from uipath._cli import cli_server
+
+        class _BrokenEntryPoint:
+            name = "broken"
+
+            def load(self):
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(
+            cli_server, "entry_points", lambda group: [_BrokenEntryPoint()]
+        )
+        monkeypatch.setattr(cli_server, "DEFAULT_PRELOAD_MODULES", [])
+        cli_server.preload_modules()
