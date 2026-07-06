@@ -5,16 +5,17 @@ from typing import Any, Dict, List, Optional
 
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import (
+    ENV_TENANT_ID,
+    HEADER_TENANT_ID,
+)
+
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import (
-    ENV_TENANT_ID,
-    HEADER_TENANT_ID,
-)
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 
@@ -302,6 +303,34 @@ async def _assign_task_spec(
                         "taskId": task_key,
                         "assignmentCriteria": "SingleUser",
                         "userNameOrEmail": recipient_value,
+                    }
+                ]
+            }
+        elif task_recipient.type == TaskRecipientType.WORKLOAD:
+            # This branch covers BOTH agent-side Workload criteria (single
+            # group, distributed by workload) AND agent-side CustomAssignees
+            # criteria (explicit email list — already resolved into
+            # `task_recipient.values` upstream). Both submit to the Action
+            # Center API as a "Workload" assignment; the difference is whether
+            # `values` carries one group or N emails.
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "Workload",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
+                    }
+                ]
+            }
+        elif task_recipient.type == TaskRecipientType.ROUND_ROBIN:
+            request_spec.json = {
+                "taskAssignments": [
+                    {
+                        "taskId": task_key,
+                        "assignmentCriteria": "RoundRobin",
+                        "assigneeNamesOrEmails": task_recipient.values
+                        or [recipient_value],
                     }
                 ]
             }

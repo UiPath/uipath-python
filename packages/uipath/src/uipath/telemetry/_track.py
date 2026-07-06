@@ -9,12 +9,13 @@ from typing import Any, Callable, ClassVar, Dict, Mapping, Optional, Union
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import AnyValue
 
-from .._utils.constants import (
+from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
     ENV_TELEMETRY_ENABLED,
     ENV_TENANT_ID,
 )
+
 from ._constants import (
     _APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE,
     _APP_NAME,
@@ -105,18 +106,23 @@ def _get_connection_string() -> str | None:
 
 
 def _get_project_key() -> str:
-    """Get project key from telemetry file if present.
+    """Get the id used to attribute telemetry.
 
-    Returns:
-        Project key string if available, otherwise empty string.
+    Resolves ``uipath.json#id`` (then the runtime env var) via the shared
+    ``resolve_project_id`` helper, falling back to a legacy ``.uipath/.telemetry.json``
+    ``ProjectKey`` if present.
+    Returns ``_UNKNOWN`` when no id is available.
     """
+    from uipath.platform.common._span_utils import resolve_project_id
+
+    if project_id := resolve_project_id():
+        return project_id
+
     try:
         telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
         if os.path.exists(telemetry_file):
             with open(telemetry_file, "r") as f:
-                telemetry_data = json.load(f)
-                project_id = telemetry_data.get(_PROJECT_KEY)
-                if project_id:
+                if project_id := json.load(f).get(_PROJECT_KEY):
                     return project_id
     except (json.JSONDecodeError, IOError, KeyError):
         pass

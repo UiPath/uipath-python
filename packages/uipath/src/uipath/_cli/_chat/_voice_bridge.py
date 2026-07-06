@@ -17,6 +17,14 @@ from uipath.core.chat import (
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
 )
+from uipath.platform.constants import (
+    ENV_BASE_URL,
+    ENV_ORGANIZATION_ID,
+    ENV_TENANT_ID,
+    ENV_UIPATH_ACCESS_TOKEN,
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 from uipath.runtime.context import UiPathRuntimeContext
 
 logger = logging.getLogger(__name__)
@@ -229,7 +237,7 @@ def get_voice_bridge(
             f"CAS_WEBSOCKET_HOST is set. Using websocket_url '{url}{socketio_path}'."
         )
     else:
-        base_url = os.environ.get("UIPATH_URL")
+        base_url = os.environ.get(ENV_BASE_URL)
         if not base_url:
             raise RuntimeError(
                 "UIPATH_URL environment variable required for conversational mode"
@@ -241,13 +249,22 @@ def get_voice_bridge(
         socketio_path = "autopilotforeveryone_/websocket_/socket.io"
 
     headers = {
-        "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
-        "X-UiPath-Internal-TenantId": context.tenant_id
-        or os.environ.get("UIPATH_TENANT_ID", ""),
-        "X-UiPath-Internal-AccountId": context.org_id
-        or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
+        "Authorization": f"Bearer {os.environ.get(ENV_UIPATH_ACCESS_TOKEN, '')}",
+        HEADER_INTERNAL_TENANT_ID: context.tenant_id
+        or os.environ.get(ENV_TENANT_ID, ""),
+        HEADER_INTERNAL_ACCOUNT_ID: context.org_id
+        or os.environ.get(ENV_ORGANIZATION_ID, ""),
         "X-UiPath-ConversationId": context.conversation_id,
     }
+
+    # Conversation owner id (conversationalService.conversationalUserId) that CAS forwards via
+    # FpsProperties; always sent when present. It's there for RunAsMe=false, where the unattended
+    # robot's token subject is the robot account rather than the conversation owner, so CAS validates
+    # this presented id against conversation.user_id on the handshake instead of the token subject.
+    # Sent as a header (not a query param) to keep it out of access / load-balancer logs.
+    conversational_user_id = getattr(context, "conversational_user_id", None)
+    if conversational_user_id:
+        headers["X-UiPath-Internal-ConversationalUserId"] = conversational_user_id
 
     return VoiceToolCallSession(
         url=url,

@@ -5,7 +5,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_USER_AGENT
 from uipath.platform.orchestrator._folder_service import FolderService
 from uipath.platform.resource_catalog import ResourceType
 from uipath.platform.resource_catalog._resource_catalog_service import (

@@ -1,11 +1,20 @@
 """Tests for telemetry tracking functionality."""
 
+import json
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from uipath.platform.constants import (
+    ENV_PROJECT_KEY,
+    ENV_UIPATH_AGENT_ID,
+    ENV_UIPATH_PROJECT_ID,
+)
 from uipath.telemetry._track import (
     _AppInsightsEventClient,
     _DiagnosticSender,
+    _get_project_key,
     _parse_connection_string,
     _TelemetryClient,
     flush_events,
@@ -15,6 +24,43 @@ from uipath.telemetry._track import (
     track,
     track_event,
 )
+
+
+class TestGetProjectKey:
+    """`_get_project_key` resolution: uipath.json#id, then legacy telemetry file."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self, monkeypatch):
+        from uipath.platform.common._span_utils import _read_config_id
+
+        _read_config_id.cache_clear()
+        for var in (ENV_UIPATH_AGENT_ID, ENV_UIPATH_PROJECT_ID, ENV_PROJECT_KEY):
+            monkeypatch.delenv(var, raising=False)
+        yield
+        _read_config_id.cache_clear()
+
+    def test_prefers_uipath_json_id(self, monkeypatch, tmp_path):
+        config_id = "00000000-0000-0000-0000-000000000001"
+        (tmp_path / "uipath.json").write_text(json.dumps({"id": config_id}))
+        os.makedirs(tmp_path / ".uipath", exist_ok=True)
+        (tmp_path / ".uipath" / ".telemetry.json").write_text(
+            json.dumps({"ProjectKey": "from-telemetry"})
+        )
+        monkeypatch.chdir(tmp_path)
+        assert _get_project_key() == config_id
+
+    def test_falls_back_to_legacy_telemetry_file(self, monkeypatch, tmp_path):
+        # No uipath.json#id and no env var; honor an existing .telemetry.json.
+        os.makedirs(tmp_path / ".uipath", exist_ok=True)
+        (tmp_path / ".uipath" / ".telemetry.json").write_text(
+            json.dumps({"ProjectKey": "from-telemetry"})
+        )
+        monkeypatch.chdir(tmp_path)
+        assert _get_project_key() == "from-telemetry"
+
+    def test_unknown_when_no_source(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        assert _get_project_key() == ""
 
 
 class TestParseConnectionString:

@@ -28,6 +28,7 @@ from ._mocker import (
     UiPathMockResponseGenerationError,
     UiPathNoMockFoundError,
 )
+from ._structured_output import generate_structured_output
 from ._types import (
     ExampleCall,
     LLMMockingStrategy,
@@ -125,14 +126,7 @@ class LLMMocker(Mocker):
                 "output_schema", TypeAdapter(return_type).json_schema()
             )
 
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "OutputSchema",
-                    "strict": False,
-                    "schema": _cleanup_schema(output_schema),
-                },
-            }
+            cleaned_schema = _cleanup_schema(output_schema)
             try:
                 # Safely pull examples from params.
                 example_calls = params.get("example_calls", [])
@@ -197,7 +191,7 @@ class LLMMocker(Mocker):
                 formatted_prompt = PROMPT.format(**prompt_generation_args)
 
                 cache_key_data = {
-                    "response_format": response_format,
+                    "output_schema": cleaned_schema,
                     "completion_kwargs": completion_kwargs,
                     "prompt_generation_args": prompt_generation_args,
                 }
@@ -213,17 +207,17 @@ class LLMMocker(Mocker):
                     if cached_response is not None:
                         return cached_response
 
-                response = await llm.chat_completions(
-                    [
-                        {
-                            "role": "user",
-                            "content": formatted_prompt,
-                        },
-                    ],
-                    response_format=response_format,
-                    **completion_kwargs,
+                result = await generate_structured_output(
+                    llm,
+                    [{"role": "user", "content": formatted_prompt}],
+                    schema=cleaned_schema,
+                    response_format_name="OutputSchema",
+                    description=(
+                        "Return the simulated response for tool "
+                        f"'{function_name}' matching the required schema."
+                    ),
+                    completion_kwargs=completion_kwargs,
                 )
-                result = json.loads(response.choices[0].message.content)
 
                 if cache_manager is not None:
                     cache_manager.set(
@@ -235,7 +229,7 @@ class LLMMocker(Mocker):
 
                 return result
             except Exception as e:
-                raise UiPathMockResponseGenerationError() from e
+                raise UiPathMockResponseGenerationError(str(e)) from e
         else:
             raise UiPathNoMockFoundError(f"Method '{function_name}' is not simulated.")
 

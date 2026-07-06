@@ -1,10 +1,10 @@
-"""Contains evaluator for agent outputs."""
+"""Contains evaluator for workload outputs."""
 
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from .base_evaluator import BaseEvaluationCriteria, BaseEvaluatorJustification
 from .output_evaluator import (
@@ -45,22 +45,22 @@ class ContainsEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: ContainsEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate whether actual output contains the expected output.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
-                - agent_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
+                - workload_output: The actual output from the agent
+                - workload_trace: The execution spans to use for the evaluation
             evaluation_criteria: The criteria to evaluate
 
         Returns:
             EvaluationResult: Boolean result indicating if output contains expected value (True/False)
         """
-        actual_output = str(self._get_actual_output(agent_execution))
+        actual_output = str(self._get_actual_output(workload_execution))
         expected_output = str(self._get_expected_output(evaluation_criteria))
 
         if not self.evaluator_config.case_sensitive:

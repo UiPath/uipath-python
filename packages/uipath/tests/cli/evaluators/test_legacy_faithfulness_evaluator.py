@@ -13,9 +13,9 @@ import pytest
 from uipath.eval.evaluators import LegacyFaithfulnessEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
 from uipath.eval.models.models import (
-    AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 
 
@@ -142,7 +142,7 @@ class TestLegacyFaithfulnessEvaluator:
         """Test Stage 1: Selection of verifiable sentences."""
         evaluator = evaluator_with_mocked_llm
 
-        agent_output = (
+        workload_output = (
             "The capital of France is Paris. Do you agree? This is important."
         )
 
@@ -153,7 +153,7 @@ class TestLegacyFaithfulnessEvaluator:
         ) as mock_llm:
             mock_llm.return_value = mock_response
 
-            sentences = await evaluator._select_verifiable_sentences(agent_output)
+            sentences = await evaluator._select_verifiable_sentences(workload_output)
 
             assert len(sentences) == 1
             assert "capital of France" in sentences[0]
@@ -355,14 +355,14 @@ class TestLegacyFaithfulnessEvaluator:
         """Test evaluation when no agent output is provided."""
         evaluator = evaluator_with_mocked_llm
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="",
+            workload_trace=[],
+            workload_output="",
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="",
                 expected_agent_behavior="",
@@ -370,7 +370,7 @@ class TestLegacyFaithfulnessEvaluator:
         )
 
         assert result.score == 0.0
-        assert "no agent output" in result.details.lower()
+        assert "no workload output" in result.details.lower()
 
     @pytest.mark.asyncio
     async def test_full_evaluation_with_no_context_sources(
@@ -388,15 +388,15 @@ class TestLegacyFaithfulnessEvaluator:
                 }
             )
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="The sky is blue.",
+            workload_trace=[],
+            workload_output="The sky is blue.",
         )
 
         with patch.object(evaluator, "_extract_context_sources", return_value=[]):
             result = await evaluator.evaluate(
-                agent_execution,
+                workload_execution,
                 evaluation_criteria=LegacyEvaluationCriteria(
                     expected_output="The sky is blue.",
                     expected_agent_behavior="",
@@ -413,10 +413,10 @@ class TestLegacyFaithfulnessEvaluator:
         """Test evaluation when no verifiable claims are found."""
         evaluator = evaluator_with_mocked_llm
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Just a greeting.",
+            workload_trace=[],
+            workload_output="Just a greeting.",
         )
 
         with (
@@ -432,7 +432,7 @@ class TestLegacyFaithfulnessEvaluator:
             mock_claims.return_value = []
 
             result = await evaluator.evaluate(
-                agent_execution,
+                workload_execution,
                 evaluation_criteria=LegacyEvaluationCriteria(
                     expected_output="Just a greeting.",
                     expected_agent_behavior="",
@@ -449,10 +449,10 @@ class TestLegacyFaithfulnessEvaluator:
         """Test full evaluation flow with grounded claims."""
         evaluator = evaluator_with_mocked_llm
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Paris is in France.",
+            workload_trace=[],
+            workload_output="Paris is in France.",
         )
 
         # Mock the extraction and evaluation steps
@@ -488,7 +488,7 @@ class TestLegacyFaithfulnessEvaluator:
             ]
 
             result = await evaluator.evaluate(
-                agent_execution,
+                workload_execution,
                 evaluation_criteria=LegacyEvaluationCriteria(
                     expected_output="Paris is in France.",
                     expected_agent_behavior="",
@@ -506,10 +506,10 @@ class TestLegacyFaithfulnessEvaluator:
         """Test full evaluation with both grounded and ungrounded claims."""
         evaluator = evaluator_with_mocked_llm
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="Paris is in France. The sky is green.",
+            workload_trace=[],
+            workload_output="Paris is in France. The sky is green.",
         )
 
         # Mock the extraction and evaluation steps
@@ -553,7 +553,7 @@ class TestLegacyFaithfulnessEvaluator:
             ]
 
             result = await evaluator.evaluate(
-                agent_execution,
+                workload_execution,
                 evaluation_criteria=LegacyEvaluationCriteria(
                     expected_output="Paris is in France. The sky is green.",
                     expected_agent_behavior="",

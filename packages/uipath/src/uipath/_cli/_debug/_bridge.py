@@ -13,6 +13,13 @@ from rich.tree import Tree
 
 from uipath.core.serialization import serialize_object
 from uipath.core.triggers import UiPathResumeTriggerType
+from uipath.platform.constants import (
+    ENV_BASE_URL,
+    ENV_UIPATH_ACCESS_TOKEN,
+    HEADER_FOLDER_KEY,
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 from uipath.runtime import (
     UiPathBreakpointResult,
     UiPathRuntimeContext,
@@ -860,7 +867,7 @@ class SignalRDebugBridge:
 
 def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugProtocol:
     """Factory to get SignalR debug bridge for remote debugging."""
-    uipath_url = os.environ.get("UIPATH_URL")
+    uipath_url = os.environ.get(ENV_BASE_URL)
     if not uipath_url or not context.job_id:
         raise ValueError(
             "UIPATH_URL and UIPATH_JOB_KEY are required for remote debugging"
@@ -870,11 +877,11 @@ def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugProtoco
 
     return SignalRDebugBridge(
         hub_url=signalr_url,
-        access_token=os.environ.get("UIPATH_ACCESS_TOKEN"),
+        access_token=os.environ.get(ENV_UIPATH_ACCESS_TOKEN),
         headers={
-            "X-UiPath-Internal-TenantId": context.tenant_id or "",
-            "X-UiPath-Internal-AccountId": context.org_id or "",
-            "X-UiPath-FolderKey": context.folder_key or "",
+            HEADER_INTERNAL_TENANT_ID: context.tenant_id or "",
+            HEADER_INTERNAL_ACCOUNT_ID: context.org_id or "",
+            HEADER_FOLDER_KEY: context.folder_key or "",
         },
     )
 

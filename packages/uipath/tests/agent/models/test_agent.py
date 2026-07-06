@@ -36,6 +36,7 @@ from uipath.agent.models.agent import (
     AgentNumberOperator,
     AgentNumberRule,
     AgentProcessToolResourceConfig,
+    AgentQuickFormChannelProperties,
     AgentResourceType,
     AgentToolArgumentPropertiesVariant,
     AgentToolType,
@@ -49,13 +50,18 @@ from uipath.agent.models.agent import (
     AssetRecipient,
     BatchTransformFileExtension,
     BatchTransformWebSearchGrounding,
+    CachedToolsConfig,
     CitationMode,
+    CustomAssigneesRecipient,
     DeepRagFileExtension,
+    RoundRobinRecipient,
     StandardRecipient,
     TaskTitleType,
     TextBuilderTaskTitle,
     TextToken,
     TextTokenType,
+    ToolOutputRecipient,
+    WorkloadRecipient,
 )
 from uipath.platform.guardrails import (
     EnumListParameterValue,
@@ -2033,6 +2039,53 @@ class TestAgentBuilderConfig:
         assert tool2.output_schema is not None
         assert "content" in tool2.output_schema["properties"]
 
+    def test_cached_tools_config_refresh_schema_default(self):
+        """CachedToolsConfig defaults refresh_schema_before_call to True."""
+
+        config = CachedToolsConfig()
+        assert config.type == "cached"
+        assert config.refresh_schema_before_call is True
+
+    def test_cached_tools_config_refresh_schema_alias_roundtrip(self):
+        """refresh_schema_before_call parses from and serializes to refreshSchemaBeforeCall."""
+
+        config = TypeAdapter(CachedToolsConfig).validate_python(
+            {"type": "cached", "refreshSchemaBeforeCall": False}
+        )
+        assert config.refresh_schema_before_call is False
+        assert config.model_dump(by_alias=True)["refreshSchemaBeforeCall"] is False
+
+    def test_mcp_resource_with_cached_tools_configuration(self):
+        """AgentMcpResourceConfig parses a cached toolsConfiguration with the refresh flag."""
+
+        json_data = {
+            "$resourceType": "mcp",
+            "folderPath": "solution_folder",
+            "slug": "tavily-mcp",
+            "name": "tavily",
+            "description": "Tavily search tools",
+            "isEnabled": True,
+            "availableTools": [
+                {
+                    "name": "tavily-search",
+                    "description": "Search the web",
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+            ],
+            "toolsConfiguration": {
+                "discoveryMode": {
+                    "type": "cached",
+                    "refreshSchemaBeforeCall": False,
+                }
+            },
+        }
+
+        mcp_resource = TypeAdapter(AgentMcpResourceConfig).validate_python(json_data)
+        assert mcp_resource.tools_configuration is not None
+        discovery_mode = mcp_resource.tools_configuration.discovery_mode
+        assert isinstance(discovery_mode, CachedToolsConfig)
+        assert discovery_mode.refresh_schema_before_call is False
+
     @pytest.mark.parametrize(
         "recipient_type_int,value,expected_type",
         [
@@ -2607,10 +2660,83 @@ class TestAgentBuilderConfig:
         assert len(channel.recipients) == 0
 
         # Validate channel properties
+        assert isinstance(channel, AgentEscalationChannel)
         assert channel.properties.app_name is None
         assert channel.properties.app_version == 1
         assert channel.properties.folder_name is None
         assert channel.properties.resource_key is None
+
+    def test_quick_form_channel_properties_derive_schema_id_from_body(self):
+        """schema_id reads the schemaId nested inside the schema body."""
+
+        props = AgentQuickFormChannelProperties.model_validate(
+            {
+                "schema": {
+                    "schemaId": "e74ebb74-80ba-47b9-a370-532a1ba4c41e",
+                    "fields": [],
+                    "outcomes": [],
+                },
+            }
+        )
+        assert props.schema_id == "e74ebb74-80ba-47b9-a370-532a1ba4c41e"
+
+    def test_quick_form_channel_properties_schema_id_none_when_absent(self):
+        """schema_id is None when the schema body carries no schemaId."""
+
+        props = AgentQuickFormChannelProperties.model_validate(
+            {"schema": {"fields": [], "outcomes": []}}
+        )
+        assert props.schema_id is None
+
+    def test_quick_form_channel_properties_require_schema(self):
+        with pytest.raises(ValidationError):
+            AgentQuickFormChannelProperties.model_validate(
+                {"isActionableMessageEnabled": False}
+            )
+
+    def test_quick_form_channel_requires_schema(self):
+        """A quick-form channel without a schema fails to parse."""
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationResourceConfig).validate_python(
+                {
+                    "$resourceType": "escalation",
+                    "name": "Escalation",
+                    "description": "",
+                    "channels": [
+                        {
+                            "name": "c",
+                            "description": "",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "type": "actionCenterQuickForm",
+                            "recipients": [],
+                            "properties": {"isActionableMessageEnabled": False},
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                }
+            )
+
+    def test_unknown_escalation_channel_type_is_rejected(self):
+        """An unrecognized channel type fails to parse; the runtime cannot handle it."""
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationResourceConfig).validate_python(
+                {
+                    "$resourceType": "escalation",
+                    "name": "Escalation",
+                    "description": "",
+                    "channels": [
+                        {
+                            "name": "c",
+                            "description": "",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "type": "someFutureChannel",
+                            "recipients": [],
+                            "properties": {},
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                }
+            )
 
     def test_task_title_text_builder_type(self):
         """Test TextBuilderTaskTitle with tokens."""
@@ -4294,3 +4420,184 @@ class TestArgumentRecipientDeserialization:
         assert tool.output_schema["type"] == "object"
         assert "imageBase64" in tool.output_schema["properties"]
         assert tool.output_schema["required"] == ["imageBase64"]
+
+
+class TestCustomAssignmentRecipientDeserialization:
+    def test_workload_recipient_by_type_int(self):
+        payload = {"type": 9, "value": "group-1", "displayName": "Support Team"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, WorkloadRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+        assert recipient.type == AgentEscalationRecipientType.WORKLOAD
+
+    def test_workload_recipient_by_type_string(self):
+        payload = {
+            "type": "Workload",
+            "value": "group-1",
+            "displayName": "Support Team",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, WorkloadRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+
+    def test_round_robin_recipient_by_type_int(self):
+        payload = {"type": 10, "value": "group-1", "displayName": "Support Team"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, RoundRobinRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+        assert recipient.type == AgentEscalationRecipientType.ROUND_ROBIN
+
+    def test_round_robin_recipient_by_type_string(self):
+        payload = {
+            "type": "RoundRobin",
+            "value": "group-1",
+            "displayName": "Support Team",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, RoundRobinRecipient)
+
+    def test_custom_assignees_recipient_by_type_int(self):
+        payload = {
+            "type": 11,
+            "value": "alice@example.com",
+            "displayName": "Alice",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == "alice@example.com"
+        assert recipient.display_name == "Alice"
+        assert recipient.type == AgentEscalationRecipientType.CUSTOM_ASSIGNEES
+
+    def test_custom_assignees_recipient_by_type_string(self):
+        payload = {"type": "CustomAssignees", "value": "alice@example.com"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == "alice@example.com"
+        assert recipient.display_name is None
+
+    def test_custom_assignees_recipient_accepts_empty_value_sentinel(self):
+        payload = {"type": 11, "value": ""}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == ""
+
+    def test_workload_recipient_missing_value_raises(self):
+        payload = {"type": 9, "displayName": "Support Team"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_workload_recipient_missing_display_name_raises(self):
+        payload = {"type": 9, "value": "group-1"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_round_robin_recipient_missing_value_raises(self):
+        payload = {"type": 10, "displayName": "Support Team"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_custom_assignees_recipient_missing_value_raises(self):
+        payload = {"type": 11}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+
+class TestToolOutputRecipientDeserialization:
+    @pytest.mark.parametrize(
+        "recipient_type",
+        [1, 2, 9, 10, 11],
+    )
+    def test_tool_output_recipient_by_type_int_for_supported_types(
+        self, recipient_type
+    ):
+        payload = {
+            "type": recipient_type,
+            "source": "toolOutput",
+            "toolName": "API workflow A",
+            "outputPath": "includeEmails",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ToolOutputRecipient)
+        assert recipient.tool_name == "API workflow A"
+        assert recipient.output_path == "includeEmails"
+        assert recipient.source == "toolOutput"
+
+    def test_tool_output_recipient_for_custom_assignees_by_type_string(self):
+        payload = {
+            "type": "CustomAssignees",
+            "source": "toolOutput",
+            "toolName": "API workflow A",
+            "outputPath": "includeEmails",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ToolOutputRecipient)
+        assert recipient.type == AgentEscalationRecipientType.CUSTOM_ASSIGNEES
+
+    def test_tool_output_recipient_missing_tool_name_raises(self):
+        payload = {"type": 11, "source": "toolOutput", "outputPath": "emails"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_tool_output_recipient_missing_output_path_raises(self):
+        payload = {"type": 11, "source": "toolOutput", "toolName": "A"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_tool_output_recipient_unknown_source_raises(self):
+        payload = {
+            "type": 11,
+            "source": "magicBox",
+            "toolName": "A",
+            "outputPath": "emails",
+        }
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    @pytest.mark.parametrize(
+        "recipient_type",
+        [3, 4, 5, 6, 7, 8],
+    )
+    def test_tool_output_recipient_not_allowed_for_static_asset_argument_types(
+        self, recipient_type
+    ):
+        # Static/asset/argument types (3, 4, 5, 6, 7, 8) are not supported
+        # for tool-output binding because they have their own design-time
+        # resolution rules.
+        payload = {
+            "type": recipient_type,
+            "source": "toolOutput",
+            "toolName": "A",
+            "outputPath": "emails",
+        }
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_literal_recipient_without_source_still_parses_to_literal_class(self):
+        # Backward compat: a payload without `source` still matches the literal class.
+        payload = {"type": 11, "value": "alice@example.com", "displayName": "Alice"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert not isinstance(recipient, ToolOutputRecipient)

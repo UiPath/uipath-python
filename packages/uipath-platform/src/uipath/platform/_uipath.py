@@ -12,7 +12,6 @@ from .automation_ops import AutomationOpsService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
-    ExternalApplicationService,
     UiPathApiConfig,
     UiPathExecutionContext,
 )
@@ -22,6 +21,8 @@ from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
+from .external_applications import ExternalApplicationService
+from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService
 from .orchestrator import (
@@ -168,6 +169,10 @@ class UiPath:
     @property
     def guardrails(self) -> GuardrailsService:
         return GuardrailsService(self._config, self._execution_context)
+
+    @cached_property
+    def governance(self) -> GovernanceService:
+        return GovernanceService(self._config, self._execution_context)
 
     @property
     def agenthub(self) -> AgentHubService:

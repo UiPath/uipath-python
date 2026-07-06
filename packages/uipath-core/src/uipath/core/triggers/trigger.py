@@ -1,9 +1,13 @@
 """Module defining resume trigger types and data models."""
 
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+# Reserved key for UiPath-owned metadata embedded in user-visible payloads.
+UIPATH_METADATA_KEY = "__uipath"
 
 
 class UiPathResumeTriggerType(str, Enum):
@@ -87,6 +91,7 @@ class UiPathResumeTrigger(BaseModel):
     integration_resume: UiPathIntegrationTrigger | None = Field(
         default=None, alias="integrationResume"
     )
+    resume_time: datetime | None = Field(default=None, alias="resumeTime")
     folder_path: str | None = Field(default=None, alias="folderPath")
     folder_key: str | None = Field(default=None, alias="folderKey")
     payload: Any | None = Field(default=None, alias="interruptObject", exclude=True)

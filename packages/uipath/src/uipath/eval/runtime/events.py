@@ -29,6 +29,11 @@ class EvalSetRunCreatedEvent(BaseModel):
     eval_set_id: str
     eval_set_run_id: str | None = None
     no_of_evals: int
+    # Coarse agent-type label the runtime factory declared via
+    # ``UiPathRuntimeFactorySettings.agent_type``. Consumers stamp this
+    # onto telemetry verbatim -- the CLI does not classify entrypoints.
+    # ``None`` when the factory has no opinion.
+    agent_type: str | None = None
     # skip validation to avoid abstract class instantiation
     evaluators: SkipValidation[list[GenericBaseEvaluator[Any, Any, Any]]]
 

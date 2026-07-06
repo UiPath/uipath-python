@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, Union
 from pydantic import BaseModel, Field
 
 from .._helpers.output_path import resolve_output_path
-from ..models import AgentExecution
+from ..models import WorkloadExecution
 from ..models.models import UiPathEvaluationError, UiPathEvaluationErrorCategory
 from .attachment_utils import (
     download_attachment_as_string,
@@ -88,7 +88,7 @@ class OutputEvaluatorConfig(BaseEvaluatorConfig[T]):
 
     target_output_key: str | list[str] = Field(
         default="*",
-        description="Key or list of keys to extract output from agent execution",
+        description="Key or list of keys to extract output from workload execution",
     )
     line_by_line_evaluator: bool = Field(
         default=False,
@@ -128,8 +128,8 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             return float(obj)
         return obj
 
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
-        """Get the actual output from the agent execution.
+    def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
+        """Get the actual output from the workload execution.
 
         If the output is a job attachment URI, downloads the attachment
         and returns its content as a string.
@@ -137,16 +137,17 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
         key = self.evaluator_config.target_output_key
 
         if isinstance(key, list):
-            if not isinstance(agent_execution.agent_output, dict):
+            if not isinstance(workload_execution.workload_output, dict):
                 raise UiPathEvaluationError(
                     code="INVALID_ACTUAL_OUTPUT",
                     title="When target output keys are specified, actual output must be a dictionary",
-                    detail=f"Got {type(agent_execution.agent_output).__name__}",
+                    detail=f"Got {type(workload_execution.workload_output).__name__}",
                     category=UiPathEvaluationErrorCategory.USER,
                 )
             try:
                 list_result: dict[str, Any] = {
-                    k: resolve_output_path(agent_execution.agent_output, k) for k in key
+                    k: resolve_output_path(workload_execution.workload_output, k)
+                    for k in key
                 }
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
@@ -162,7 +163,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             return self._normalize_numbers(list_result)
         elif key != "*":
             try:
-                result = resolve_output_path(agent_execution.agent_output, key)
+                result = resolve_output_path(workload_execution.workload_output, key)
             except (KeyError, IndexError, TypeError) as e:
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
@@ -171,7 +172,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
         else:
-            result = agent_execution.agent_output
+            result = workload_execution.workload_output
 
         if is_job_attachment_uri(result):
             attachment_id = extract_attachment_id(result)
@@ -253,16 +254,16 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
 
     async def validate_and_evaluate_criteria(
         self,
-        agent_execution: "AgentExecution",
+        workload_execution: "WorkloadExecution",
         evaluation_criteria: Any,
     ) -> "EvaluationResult":
-        """Validate evaluation criteria and evaluate the agent execution.
+        """Validate evaluation criteria and evaluate the workload execution.
 
         If line_by_line_evaluator is enabled, splits the output by delimiter
         and evaluates each line separately, then aggregates the scores.
 
         Args:
-            agent_execution: The agent execution to evaluate
+            workload_execution: The workload execution to evaluate
             evaluation_criteria: The evaluation criteria (dict or typed object)
 
         Returns:
@@ -287,20 +288,20 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             self.evaluator_config.target_output_key, list
         ):
             # Standard evaluation
-            return await self.evaluate(agent_execution, validated_criteria)
+            return await self.evaluate(workload_execution, validated_criteria)
 
         # Line-by-line evaluation
-        return await self._evaluate_line_by_line(agent_execution, validated_criteria)
+        return await self._evaluate_line_by_line(workload_execution, validated_criteria)
 
     async def _evaluate_line_by_line(
         self,
-        agent_execution: "AgentExecution",
+        workload_execution: "WorkloadExecution",
         evaluation_criteria: T,
     ) -> "EvaluationResult":
         """Evaluate output line by line and aggregate scores.
 
         Args:
-            agent_execution: The agent execution to evaluate
+            workload_execution: The workload execution to evaluate
             evaluation_criteria: Validated evaluation criteria
 
         Returns:
@@ -314,7 +315,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             else "*"
         )
 
-        actual_output = self._get_actual_output(agent_execution)
+        actual_output = self._get_actual_output(workload_execution)
         expected_output = self._get_expected_output(evaluation_criteria)
 
         actual_lines = split_into_lines(
@@ -324,7 +325,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             expected_output, self.evaluator_config.line_delimiter, key_str
         )
 
-        original_agent_output = agent_execution.agent_output
+        original_agent_output = workload_execution.workload_output
 
         def create_line_criteria(expected_line: str) -> Any:
             from .line_by_line_utils import wrap_line_in_structure
@@ -339,12 +340,12 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             actual_lines=actual_lines,
             expected_lines=expected_lines,
             target_output_key=key_str,
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluate_fn=self.evaluate,
             create_line_criteria_fn=create_line_criteria,
         )
 
-        agent_execution.agent_output = original_agent_output
+        workload_execution.workload_output = original_agent_output
 
         return build_line_by_line_result(
             line_details=line_details,

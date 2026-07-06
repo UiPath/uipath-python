@@ -14,6 +14,10 @@ from uipath.core.chat import (
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
 )
+from uipath.platform.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 
 def _make_session(tool_handler: Any = None) -> VoiceToolCallSession:
@@ -133,5 +137,37 @@ class TestGetVoiceBridge:
 
         bridge = get_voice_bridge(ctx, AsyncMock())
 
-        assert bridge._headers["X-UiPath-Internal-TenantId"] == "env-tenant"
-        assert bridge._headers["X-UiPath-Internal-AccountId"] == "env-org"
+        assert bridge._headers[HEADER_INTERNAL_TENANT_ID] == "env-tenant"
+        assert bridge._headers[HEADER_INTERNAL_ACCOUNT_ID] == "env-org"
+
+    def test_includes_conversational_user_id_header_when_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Conversation owner id (from FpsProperties) is sent on the handshake for CAS to validate."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        ctx = MagicMock(
+            conversation_id="conv-1",
+            tenant_id="t",
+            org_id="o",
+            conversational_user_id="owner-guid",
+        )
+
+        bridge = get_voice_bridge(ctx, AsyncMock())
+
+        assert bridge._headers["X-UiPath-Internal-ConversationalUserId"] == "owner-guid"
+
+    def test_omits_conversational_user_id_header_when_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No header is sent when the runtime has no owner id (backward compatible)."""
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        ctx = MagicMock(
+            conversation_id="conv-1",
+            tenant_id="t",
+            org_id="o",
+            conversational_user_id=None,
+        )
+
+        bridge = get_voice_bridge(ctx, AsyncMock())
+
+        assert "X-UiPath-Internal-ConversationalUserId" not in bridge._headers

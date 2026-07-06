@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Optional
 
 from uipath._cli._utils._common import get_claim_from_token
 from uipath.platform.common import UiPathConfig
+from uipath.platform.constants import ENV_UIPATH_AGENT_ID
 from uipath.telemetry._track import (
     _get_project_key,
     is_telemetry_enabled,
@@ -41,7 +42,7 @@ class CliTelemetryTracker:
         Args:
             properties: The properties dictionary to enrich.
         """
-        agent_id = os.getenv("UIPATH_AGENT_ID") or _get_project_key()
+        agent_id = os.getenv(ENV_UIPATH_AGENT_ID) or _get_project_key()
         if agent_id:
             properties["AgentId"] = agent_id
 

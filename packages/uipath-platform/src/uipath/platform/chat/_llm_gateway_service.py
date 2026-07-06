@@ -22,6 +22,8 @@ from opentelemetry import trace
 from pydantic import BaseModel
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import HEADER_AGENTHUB_CONFIG
+
 from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._endpoints_manager import EndpointManager
@@ -59,7 +61,7 @@ def _build_llm_headers(
         "X-UiPath-LlmGateway-RequestingFeature": requesting_feature,
     }
     if agenthub_config:
-        headers["X-UiPath-AgentHub-Config"] = agenthub_config
+        headers[HEADER_AGENTHUB_CONFIG] = agenthub_config
     if action_id:
         headers["X-UiPath-LlmGateway-ActionId"] = action_id
     return headers
@@ -401,7 +403,7 @@ class UiPathLlmChatService(BaseService):
         presence_penalty: float = 0,
         top_p: float | None = 1,
         top_k: int | None = None,
-        tools: list[ToolDefinition] | None = None,
+        tools: list[ToolDefinition | dict[str, Any]] | None = None,
         tool_choice: ToolChoice | None = None,
         response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = NORMALIZED_API_VERSION,
@@ -436,9 +438,11 @@ class UiPathLlmChatService(BaseService):
                 Controls diversity by considering only the top p probability mass. Defaults to 1.
             top_k (int, optional): Nucleus sampling parameter.
                 Controls diversity by considering only the top k most probable tokens. Defaults to None.
-            tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
-                model can call. Tools enable the model to perform actions or retrieve information
-                beyond text generation. Defaults to None.
+            tools (Optional[List[ToolDefinition | dict]], optional): List of tool definitions
+                that the model can call. Tools enable the model to perform actions or retrieve
+                information beyond text generation. A tool given as a dict must already be in
+                UiPath wire format and is forwarded unchanged, which allows arbitrary nested
+                JSON schemas in its parameters. Defaults to None.
             tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
                 Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
                 Defaults to None.
@@ -583,10 +587,15 @@ class UiPathLlmChatService(BaseService):
                 # Use provided dictionary format directly
                 request_body["response_format"] = response_format
 
-        # Add tools if provided - convert to UiPath format
+        # Add tools if provided. A tool already in UiPath wire format (a dict) is
+        # passed through unchanged so callers can supply an arbitrary JSON schema
+        # for the parameters; ToolDefinition objects are converted as before.
         if tools:
             request_body["tools"] = [
-                self._convert_tool_to_uipath_format(tool) for tool in tools
+                tool
+                if isinstance(tool, dict)
+                else self._convert_tool_to_uipath_format(tool)
+                for tool in tools
             ]
 
         # Handle tool_choice

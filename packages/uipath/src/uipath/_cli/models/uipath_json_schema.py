@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from uipath.platform.constants import UIPATH_CONFIG_FILE
+
 
 class BaseModelWithDefaultConfig(BaseModel):
     model_config = ConfigDict(
@@ -68,6 +70,12 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
         alias="$schema",
         description="Reference to the JSON schema for editor support",
     )
+    id: str | None = Field(
+        default=None,
+        description="Stable unique identifier for the agent. Minted once at "
+        "project creation (by 'uipath init' or Studio Web) and preserved for the "
+        "lifetime of the project. Used as the package 'projectId' at pack time.",
+    )
     runtime_options: RuntimeOptions = Field(
         default_factory=RuntimeOptions,
         alias="runtimeOptions",
@@ -120,7 +128,7 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
         )
 
     @classmethod
-    def load_from_file(cls, file_path: str = "uipath.json") -> "UiPathJsonConfig":
+    def load_from_file(cls, file_path: str = UIPATH_CONFIG_FILE) -> "UiPathJsonConfig":
         """Load configuration from a JSON file."""
         import json
         from pathlib import Path

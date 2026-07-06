@@ -10,6 +10,7 @@ from uipath.platform.common._span_utils import (
     AttachmentDirection,
     AttachmentProvider,
     SpanAttachment,
+    SpanStatus,
     VerbosityLevel,
 )
 
@@ -17,7 +18,6 @@ from ._live_tracking_processor import LiveTrackingSpanProcessor
 from ._otel_exporters import (  # noqa: D104
     JsonLinesFileExporter,
     LlmOpsHttpExporter,
-    SpanStatus,
 )
 
 __all__ = [

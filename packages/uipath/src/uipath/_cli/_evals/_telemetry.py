@@ -19,6 +19,7 @@ from uipath.eval.runtime.events import (
     EvaluationEvents,
 )
 from uipath.platform.common import UiPathConfig
+from uipath.platform.constants import ENV_TENANT_ID
 from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)
@@ -56,17 +57,23 @@ class EvalTelemetrySubscriber:
         self._eval_run_info: dict[str, dict[str, Any]] = {}
         self._current_eval_set_run_id: str | None = None
         self._current_entrypoint: str | None = None
+        self._current_agent_type: str | None = None
 
     @staticmethod
-    def _get_agent_type(entrypoint: str) -> str:
-        """Determine agent type from entrypoint.
+    def _resolve_agent_type(agent_type: str | None, entrypoint: str | None) -> str:
+        """Emit the historical ``"LowCode"`` / ``"Coded"`` wire values.
 
-        Args:
-            entrypoint: The entrypoint path.
-
-        Returns:
-            "LowCode" if entrypoint is "agent.json", "Coded" otherwise.
+        Application Insights dashboards filter on those two exact strings.
+        When the factory supplies a modern label (e.g. ``"uipath_lowcode"``,
+        ``"uipath_coded"``) we normalize; when it supplies nothing we fall
+        back to the pre-refactor entrypoint check (``agent.json`` ⇒
+        low-code) so no in-flight consumer breaks.
         """
+        if agent_type is not None:
+            if "lowcode" in agent_type.lower() or "low_code" in agent_type.lower():
+                return "LowCode"
+            return "Coded"
+        # Fallback: pre-refactor entrypoint-based derivation.
         if entrypoint == "agent.json":
             return "LowCode"
         return "Coded"
@@ -104,6 +111,7 @@ class EvalTelemetrySubscriber:
                 "eval_set_id": event.eval_set_id,
                 "eval_set_run_id": eval_set_run_id,
                 "entrypoint": event.entrypoint,
+                "agent_type": event.agent_type,
                 "no_of_evals": event.no_of_evals,
                 "evaluator_count": len(event.evaluators),
             }
@@ -111,6 +119,7 @@ class EvalTelemetrySubscriber:
             # Store for child events
             self._current_eval_set_run_id = eval_set_run_id
             self._current_entrypoint = event.entrypoint
+            self._current_agent_type = event.agent_type
 
             properties: dict[str, Any] = {
                 "EvalSetId": event.eval_set_id,
@@ -118,7 +127,9 @@ class EvalTelemetrySubscriber:
                 "Entrypoint": event.entrypoint,
                 "EvalCount": event.no_of_evals,
                 "EvaluatorCount": len(event.evaluators),
-                "AgentType": self._get_agent_type(event.entrypoint),
+                "AgentType": self._resolve_agent_type(
+                    event.agent_type, event.entrypoint
+                ),
                 "Runtime": "URT",
             }
 
@@ -155,7 +166,9 @@ class EvalTelemetrySubscriber:
             # Add entrypoint and agent type
             if self._current_entrypoint:
                 properties["Entrypoint"] = self._current_entrypoint
-                properties["AgentType"] = self._get_agent_type(self._current_entrypoint)
+                properties["AgentType"] = self._resolve_agent_type(
+                    self._current_agent_type, self._current_entrypoint
+                )
 
             self._enrich_properties(properties)
 
@@ -206,7 +219,9 @@ class EvalTelemetrySubscriber:
 
             if self._current_entrypoint:
                 properties["Entrypoint"] = self._current_entrypoint
-                properties["AgentType"] = self._get_agent_type(self._current_entrypoint)
+                properties["AgentType"] = self._resolve_agent_type(
+                    self._current_agent_type, self._current_entrypoint
+                )
 
             if trace_id:
                 properties["TraceId"] = trace_id
@@ -270,7 +285,9 @@ class EvalTelemetrySubscriber:
 
             if set_info.get("entrypoint"):
                 properties["Entrypoint"] = set_info["entrypoint"]
-                properties["AgentType"] = self._get_agent_type(set_info["entrypoint"])
+                properties["AgentType"] = self._resolve_agent_type(
+                    set_info.get("agent_type"), set_info["entrypoint"]
+                )
 
             properties["Runtime"] = "URT"
 
@@ -298,6 +315,7 @@ class EvalTelemetrySubscriber:
 
             self._current_eval_set_run_id = None
             self._current_entrypoint = None
+            self._current_agent_type = None
 
         except Exception as e:
             logger.debug(f"Error tracking eval set run updated: {e}")
@@ -308,10 +326,12 @@ class EvalTelemetrySubscriber:
         Args:
             properties: The properties dictionary to enrich.
         """
+        from uipath.platform.common._span_utils import resolve_project_id
+
         if UiPathConfig.project_id:
             properties["ProjectId"] = UiPathConfig.project_id
-        if UiPathConfig.agent_id:
-            properties["AgentId"] = UiPathConfig.agent_id
+        if agent_id := resolve_project_id():
+            properties["AgentId"] = agent_id
 
         if UiPathConfig.organization_id:
             properties["CloudOrganizationId"] = UiPathConfig.organization_id
@@ -325,7 +345,7 @@ class EvalTelemetrySubscriber:
         if cloud_user_id:
             properties["CloudUserId"] = cloud_user_id
 
-        tenant_id = os.getenv("UIPATH_TENANT_ID")
+        tenant_id = os.getenv(ENV_TENANT_ID)
         if tenant_id:
             properties["TenantId"] = tenant_id
 

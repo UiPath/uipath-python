@@ -1,7 +1,7 @@
 import pytest
 
 from uipath.platform.common._job_context import header_job_key
-from uipath.platform.common.constants import ENV_JOB_KEY, HEADER_JOB_KEY
+from uipath.platform.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 
 
 def test_returns_header_when_env_var_set(monkeypatch: pytest.MonkeyPatch) -> None:

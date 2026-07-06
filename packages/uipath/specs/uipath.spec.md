@@ -9,6 +9,7 @@ The `uipath.json` file is a configuration file for UiPath projects that defines 
 ```json
 {
   "$schema": "https://cloud.uipath.com/draft/2024-12/uipath",
+  "id": "00000000-0000-0000-0000-000000000000",
   "runtimeOptions": { ... },
   "designOptions": { ... },
   "packOptions": { ... },
@@ -20,7 +21,29 @@ The `uipath.json` file is a configuration file for UiPath projects that defines 
 
 ## Configuration Sections
 
-### 1. `runtimeOptions`
+### 1. `id`
+
+Stable unique identifier (GUID) for the project, minted once on the first `uipath init` and preserved for its lifetime. Used as the package `projectId` at pack time.
+
+**Properties:**
+
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `id` | `string` (uuid) | No | minted on first `uipath init` | Stable identifier for the project. Do not change it. |
+
+> Do not change or remove `id`. It identifies your project consistently wherever it is deployed and run. Changing it makes the project look like a brand-new, unrelated one, so you lose the link to everything previously published and tracked under the old id. `uipath pack` rejects an `id` that is not a valid GUID.
+
+**Example:**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000001"
+}
+```
+
+---
+
+### 2. `runtimeOptions`
 
 Controls runtime behavior of your UiPath project.
 
@@ -42,7 +65,7 @@ Controls runtime behavior of your UiPath project.
 
 ---
 
-### 2. `designOptions`
+### 3. `designOptions`
 
 Design-time configuration and preferences.
 
@@ -57,7 +80,7 @@ Design-time configuration and preferences.
 
 ---
 
-### 3. `packOptions`
+### 4. `packOptions`
 
 Controls which files and directories are included or excluded when packaging your project.
 
@@ -87,7 +110,7 @@ Controls which files and directories are included or excluded when packaging you
 
 ---
 
-### 4. `functions`
+### 5. `functions`
 
 Defines entrypoints for pure Python scripts. Each key is a friendly name for the entrypoint, and each value specifies the file path and function name.
 
@@ -128,6 +151,7 @@ Defines entrypoints for pure Python scripts. Each key is a friendly name for the
 ```json
 {
   "$schema": "https://cloud.uipath.com/draft/2024-12/uipath",
+  "id": "00000000-0000-0000-0000-000000000001",
   "runtimeOptions": {
     "isConversational": false
   },
@@ -217,6 +241,11 @@ The complete JSON Schema is available in `uipath.schema.json`:
     "$schema": {
       "type": "string",
       "description": "Reference to this JSON schema for editor support"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Stable unique identifier for the project, minted once on the first 'uipath init' and preserved for its lifetime. Used as the package 'projectId' at pack time. Do not change it."
     },
     "runtimeOptions": {
       "type": "object",

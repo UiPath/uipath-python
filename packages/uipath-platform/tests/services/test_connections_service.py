@@ -8,7 +8,6 @@ from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common import jsonschema_to_pydantic
-from uipath.platform.common.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.connections import (
     ActivityMetadata,
     ActivityParameterLocationInfo,
@@ -21,6 +20,7 @@ from uipath.platform.connections._connections_service import (
     HEADER_ACTIVITY_JOB_ID,
     ConnectionsService,
 )
+from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.orchestrator._folder_service import FolderService
 
 

@@ -9,6 +9,11 @@
       "type": "string",
       "description": "Reference to this JSON schema for editor support"
     },
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Stable unique identifier for the project, minted once on the first 'uipath init' and preserved for its lifetime. Used as the package 'projectId' at pack time. Do not change it."
+    },
     "runtimeOptions": {
       "type": "object",
       "description": "Runtime behavior configuration",

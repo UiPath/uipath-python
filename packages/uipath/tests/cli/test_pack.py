@@ -1,4 +1,5 @@
 # type: ignore
+import io
 import json
 import os
 import zipfile
@@ -10,17 +11,17 @@ from utils.project_details import ProjectDetails
 import uipath._cli.cli_pack as cli_pack
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
-from uipath._cli.models.uipath_json_schema import RuntimeOptions
+from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
 
 
-def create_bindings_file():
+def create_bindings_file(directory: str = "."):
     """Helper to create a default bindings.json file for tests."""
     bindings_content = {"version": "2.0", "resources": []}
-    with open("bindings.json", "w") as f:
+    with open(os.path.join(directory, "bindings.json"), "w") as f:
         json.dump(bindings_content, f, indent=4)
 
 
-def create_entry_points_file(entrypoint_type: str = "function"):
+def create_entry_points_file(entrypoint_type: str = "function", directory: str = "."):
     """Helper to create a default entry-points.json file for tests."""
     entry_points_content = {
         "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
@@ -38,7 +39,7 @@ def create_entry_points_file(entrypoint_type: str = "function"):
             }
         ],
     }
-    with open("entry-points.json", "w") as f:
+    with open(os.path.join(directory, "entry-points.json"), "w") as f:
         json.dump(entry_points_content, f, indent=4)
 
 
@@ -326,6 +327,57 @@ class TestPack:
                 extracted_binary_content = z.read(f"content/{binary_file_name}")
                 assert extracted_binary_content == binary_content, (
                     "Binary file content was corrupted during packing"
+                )
+
+    def test_include_wheel_file_not_corrupted(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that .whl files included via packOptions are packed byte-for-byte.
+
+        A .whl file is itself a zip archive full of arbitrary binary bytes. If it
+        is not recognized as binary by the packager, it gets round-tripped through
+        a text decode/encode (latin-1 -> UTF-8), which corrupts any byte >= 0x80
+        and produces an invalid zip file at runtime.
+        """
+        wheel_file_name = "example_pkg-1.0.0-py3-none-any.whl"
+
+        # Minimal valid zip (wheel) content, deliberately containing high bytes
+        # (0x80-0xff) that would be mangled by a latin-1 -> UTF-8 round trip.
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as wheel_zip:
+            wheel_zip.writestr("example_pkg/__init__.py", bytes(range(256)) * 4)
+        wheel_bytes = buf.getvalue()
+
+        pack_options = {"fileExtensionsIncluded": [".whl"]}
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump(create_uipath_json(pack_options=pack_options), f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            with open(wheel_file_name, "wb") as f:
+                f.write(wheel_bytes)
+
+            with patch("uipath._cli.cli_init.Middlewares.next") as mock_middleware:
+                mock_middleware.return_value = MiddlewareResult(should_continue=True)
+                init_result = runner.invoke(cli, ["init"], env={})
+                assert init_result.exit_code == 0
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 0
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                assert f"content/{wheel_file_name}" in z.namelist()
+                extracted_wheel_bytes = z.read(f"content/{wheel_file_name}")
+                assert extracted_wheel_bytes == wheel_bytes, (
+                    ".whl file content was corrupted during packing"
                 )
 
     def test_include_files(
@@ -1096,14 +1148,17 @@ class TestPack:
                 )
             ]
 
-            operate_data = cli_pack.generate_operate_file(
-                entrypoints, RuntimeOptions(is_conversational=False)
+            config = UiPathJsonConfig(
+                runtimeOptions=RuntimeOptions(is_conversational=False),
+                id="00000000-0000-0000-0000-000000000001",
             )
+            operate_data = cli_pack.generate_operate_file(entrypoints, config)
 
             assert (
                 operate_data["$schema"]
                 == "https://cloud.uipath.com/draft/2024-12/entry-point"
             )
+            assert operate_data["projectId"] == "00000000-0000-0000-0000-000000000001"
             assert operate_data["main"] == "agent1.py"
             assert operate_data["contentType"] == "agent"
             assert operate_data["targetFramework"] == "Portable"
@@ -1113,6 +1168,119 @@ class TestPack:
                 "isAttended": False,
                 "isConversational": False,
             }
+
+    def test_pack_uses_agent_id_as_project_id(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """operate.json projectId is sourced from uipath.json#id."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            config = create_uipath_json()
+            config["id"] = "00000000-0000-0000-0000-000000000001"
+            with open("uipath.json", "w") as f:
+                json.dump(config, f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            create_bindings_file()
+            create_entry_points_file()
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                operate_data = json.loads(z.read("content/operate.json"))
+            assert operate_data["projectId"] == "00000000-0000-0000-0000-000000000001"
+
+    def test_pack_fails_when_id_is_not_a_guid(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """pack fails when uipath.json#id is set but is not a valid GUID."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            config = create_uipath_json()
+            config["id"] = "not-a-guid"
+            with open("uipath.json", "w") as f:
+                json.dump(config, f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            create_bindings_file()
+            create_entry_points_file()
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code != 0
+            assert "must be a valid GUID" in result.output
+
+    def test_pack_falls_back_to_telemetry_project_key(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Without id, operate.json projectId falls back to the telemetry key."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            # uipath.json deliberately has no id (legacy project).
+            with open("uipath.json", "w") as f:
+                json.dump(create_uipath_json(), f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            create_bindings_file()
+            create_entry_points_file()
+            os.makedirs(".uipath", exist_ok=True)
+            with open(os.path.join(".uipath", ".telemetry.json"), "w") as f:
+                json.dump({"ProjectKey": "telemetry-fallback-key"}, f)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code == 0
+
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg", "r"
+            ) as z:
+                operate_data = json.loads(z.read("content/operate.json"))
+            assert operate_data["projectId"] == "telemetry-fallback-key"
+
+    def test_pack_telemetry_fallback_from_outside_project_dir(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """The legacy telemetry fallback resolves against the packed directory, not CWD."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            os.makedirs("project")
+            with open(os.path.join("project", "uipath.json"), "w") as f:
+                json.dump(create_uipath_json(), f)
+            with open(os.path.join("project", "pyproject.toml"), "w") as f:
+                f.write(project_details.to_toml())
+            with open(os.path.join("project", "main.py"), "w") as f:
+                f.write("def main(input): return input")
+            create_bindings_file(directory="project")
+            create_entry_points_file(directory="project")
+            os.makedirs(os.path.join("project", ".uipath"), exist_ok=True)
+            with open(os.path.join("project", ".uipath", ".telemetry.json"), "w") as f:
+                json.dump({"ProjectKey": "telemetry-fallback-key"}, f)
+
+            result = runner.invoke(cli, ["pack", "./project"], env={})
+            assert result.exit_code == 0
+
+            # the package itself is written under the caller's CWD
+            with zipfile.ZipFile(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg",
+                "r",
+            ) as z:
+                operate_data = json.loads(z.read("content/operate.json"))
+            assert operate_data["projectId"] == "telemetry-fallback-key"
 
     def test_generate_bindings_content(self, runner: CliRunner, temp_dir: str) -> None:
         """Test generating bindings content."""

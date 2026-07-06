@@ -13,8 +13,8 @@ from uipath.platform.common import (
     ResourceOverwriteParser,
     UiPathConfig,
 )
+from uipath.platform.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
 
-from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
 from ..models.runtime_schema import EntryPoint
 from ..spinner import Spinner
 from ._console import ConsoleLogger
@@ -60,8 +60,8 @@ def environment_options(function):
 
 
 def get_env_vars(spinner: Spinner | None = None) -> list[str]:
-    base_url = os.environ.get("UIPATH_URL")
-    token = os.environ.get("UIPATH_ACCESS_TOKEN")
+    base_url = os.environ.get(ENV_BASE_URL)
+    token = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
 
     if not all([base_url, token]):
         if spinner:
