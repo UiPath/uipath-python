@@ -46,6 +46,47 @@ class TestEndSession:
         await session._handle_session_ended(None)
         assert session._end_reason == VoiceSessionEndReason.COMPLETED
 
+    async def test_session_ended_preserves_payload_opaquely(self) -> None:
+        session = _make_session()
+        payload = {
+            "callContext": {
+                "type": "phone",
+                "id": "CA123",
+                "conversationId": "conv-1",
+            },
+            "endedBy": "agent",
+            "callEnded": False,
+            "reason": "agent_completed",
+            "someFutureKey": {"nested": True},
+        }
+
+        await session._handle_session_ended(payload)
+
+        assert session.end_detail == payload
+        assert session._end_reason == VoiceSessionEndReason.COMPLETED
+        returned_detail = session.end_detail
+        returned_detail["reason"] = "mutated"
+        returned_detail["callContext"]["id"] = "CA999"
+        payload["endedBy"] = "system"
+        assert session.end_detail["reason"] == "agent_completed"
+        assert session.end_detail["callContext"]["id"] == "CA123"
+        assert session.end_detail["endedBy"] == "agent"
+
+    async def test_session_ended_non_dict_payload_is_empty_detail(self) -> None:
+        session = _make_session()
+        await session._handle_session_ended("not-a-dict")
+        assert session.end_detail == {}
+        assert session._end_reason == VoiceSessionEndReason.COMPLETED
+
+    async def test_late_session_ended_does_not_overwrite_terminal_state(self) -> None:
+        session = _make_session()
+        await session._handle_session_ended({"endedBy": "agent", "callEnded": False})
+
+        await session._handle_session_ended({"endedBy": "system", "callEnded": True})
+
+        assert session.end_detail == {"endedBy": "agent", "callEnded": False}
+        assert session._end_reason == VoiceSessionEndReason.COMPLETED
+
     async def test_disconnect_sets_disconnected(self) -> None:
         session = _make_session()
         await session._handle_disconnect()

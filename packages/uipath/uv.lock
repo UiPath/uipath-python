@@ -2598,7 +2598,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.12.7"
+version = "2.12.8"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2674,7 +2674,7 @@ requires-dist = [
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
     { name = "uipath-platform", editable = "../uipath-platform" },
-    { name = "uipath-runtime", specifier = ">=0.11.7,<0.12.0" },
+    { name = "uipath-runtime", specifier = ">=0.12.1,<0.13.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2779,16 +2779,16 @@ dev = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.11.7"
+version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chardet" },
     { name = "uipath-core" },
     { name = "vadersentiment" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/59/a491091f7e9ee3de8741b7658745214706e2adb01b89bf114f0f2dabff53/uipath_runtime-0.11.7.tar.gz", hash = "sha256:8f4b58c444aef31465e66a470cd58300eb9d440bd67e6f6f1ba204bee704680f", size = 231824, upload-time = "2026-07-02T12:53:29.28Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/0b/6d6bfd912c2ad6978f58646becf3647430ccb087008a8c78dbc33b0b101e/uipath_runtime-0.12.1.tar.gz", hash = "sha256:a63ce739ea53da8479bb0314477f89d42724045ecbd7db3f2a3f0a09ab17a755", size = 235372, upload-time = "2026-07-06T11:14:51.947Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/e5/4bcb8902fc945e1abd560b2adae06d3ac336c58dd036a0ca23bf9cb67ea4/uipath_runtime-0.11.7-py3-none-any.whl", hash = "sha256:18a4632a481eef101cd6f026f2938854c80a8fb24fd749dfe02fe62015eb84e2", size = 91126, upload-time = "2026-07-02T12:53:27.549Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/4c/433de72c4c5869ee26a63f68361b5c62d04bb03e9c7db9a69c0d3db7b458/uipath_runtime-0.12.1-py3-none-any.whl", hash = "sha256:88b014e0c5a50a5b41b2e532bd628eebc91d70ad42b6d3389fdc61b7ae78e0a6", size = 92004, upload-time = "2026-07-06T11:14:50.363Z" },
 ]
 
 [[package]]
