@@ -17,7 +17,6 @@ from ._bindings import (
 from ._config import UiPathApiConfig, UiPathConfig
 from ._endpoints_manager import EndpointManager
 from ._execution_context import ExecutionSourceContext, UiPathExecutionContext
-from ._external_application_service import ExternalApplicationService
 from ._folder_context import FolderContext, header_folder
 from ._http_config import get_ca_bundle_path, get_httpx_client_kwargs
 from ._models import Endpoint, RequestSpec
@@ -70,7 +69,6 @@ __all__ = [
     "UiPathApiConfig",
     "UiPathExecutionContext",
     "ExecutionSourceContext",
-    "ExternalApplicationService",
     "FolderContext",
     "TokenData",
     "UiPathConfig",
