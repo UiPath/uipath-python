@@ -17,17 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 from ._reference_context import ReferenceContextAccessor
 
-
-def _inject_reference_hierarchy(span: Span) -> None:
-    ref_ctx = ReferenceContextAccessor.get()
-    if ref_ctx:
-        wire = ref_ctx.to_wire_list()
-        if wire:
-            span.set_attribute("uipath.reference_hierarchy", json.dumps(wire))
-
-
-register_span_start_hook(_inject_reference_hierarchy)
-
 from uipath.platform.constants import (
     ENV_FOLDER_KEY,
     ENV_JOB_KEY,
@@ -38,6 +27,7 @@ from uipath.platform.constants import (
     ENV_UIPATH_PROCESS_VERSION,
     ENV_UIPATH_TRACE_ID,
 )
+
 
 def _inject_reference_hierarchy(span: Span) -> None:
     ref_ctx = ReferenceContextAccessor.get()
