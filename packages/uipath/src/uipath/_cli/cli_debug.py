@@ -13,6 +13,7 @@ from uipath.eval.mocks import UiPathMockRuntime
 from uipath.eval.mocks._mock_runtime import load_simulation_config
 from uipath.platform.common import (
     ExecutionSourceContext,
+    ReferenceHierarchySpanProcessor,
     ResourceOverwritesContext,
     UiPathConfig,
 )
@@ -126,6 +127,7 @@ def debug(
 
             async def execute_debug_runtime():
                 trace_manager = UiPathTraceManager()
+                trace_manager.add_span_processor(ReferenceHierarchySpanProcessor())
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     input=input,

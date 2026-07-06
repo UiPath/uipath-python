@@ -10,11 +10,11 @@ from functools import lru_cache
 from os import environ as env
 from typing import Any, Dict, List, Optional, TypeVar
 
-from opentelemetry.sdk.trace import ReadableSpan, Span
+from opentelemetry import context as context_api
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
-from uipath.core.tracing.processors import register_span_start_hook
 from ._reference_context import ReferenceContextAccessor
 
 
@@ -47,7 +47,18 @@ def _inject_reference_hierarchy(span: Span) -> None:
             span.set_attribute("uipath.reference_hierarchy", json.dumps(wire))
 
 
-register_span_start_hook(_inject_reference_hierarchy)
+class ReferenceHierarchySpanProcessor(SpanProcessor):
+    """Stamps uipath.reference_hierarchy on every span at creation time.
+
+    Runs on_start in the span-creating thread so ContextVar values are live.
+    Register this before any processor that reads the attribute on on_start
+    (e.g. LiveTrackingSpanProcessor).
+    """
+
+    def on_start(
+        self, span: Span, parent_context: context_api.Context | None = None
+    ) -> None:
+        _inject_reference_hierarchy(span)
 
 logger = logging.getLogger(__name__)
 

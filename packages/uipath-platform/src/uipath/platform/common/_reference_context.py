@@ -14,7 +14,7 @@ from __future__ import annotations
 import contextvars
 import uuid
 from dataclasses import dataclass
-from typing import Iterator, List, Optional, Tuple
+from typing import ClassVar, Dict, Iterator, List, Optional, Tuple
 
 
 __all__ = [
@@ -63,6 +63,7 @@ class ReferenceContext:
             ReferenceContextAccessor.reset(token)
     """
 
+    Empty: ClassVar["ReferenceContext"]
     __slots__ = ("_entries",)
 
     def __init__(self, entries: Tuple[ReferenceEntry, ...] = ()) -> None:
@@ -111,7 +112,12 @@ class ReferenceContext:
         if isinstance(reference_id, uuid.UUID):
             id_str = str(reference_id)
         elif isinstance(reference_id, str):
-            id_str = reference_id
+            try:
+                id_str = str(uuid.UUID(reference_id))
+            except ValueError:
+                raise ValueError(
+                    f"reference_id {reference_id!r} is not a valid UUID."
+                )
         else:
             raise TypeError("reference_id must be a UUID or string.")
         entry = ReferenceEntry(
@@ -121,16 +127,16 @@ class ReferenceContext:
         )
         return ReferenceContext(self._entries + (entry,))
 
-    def to_wire_list(self) -> List[dict]:
+    def to_wire_list(self) -> List[Dict[str, str]]:
         """Serialize to the ``referenceHierarchy`` wire format.
 
         Returns:
             A list of dicts suitable for JSON serialization as
             ``Context.referenceHierarchy`` in the span payload.
         """
-        result = []
+        result: List[Dict[str, str]] = []
         for e in self._entries:
-            item: dict = {
+            item: Dict[str, str] = {
                 "serviceType": e.service_type,
                 "referenceId": e.reference_id,
             }
@@ -213,7 +219,7 @@ class ReferenceContext:
 
 
 # Assigned after class body so ReferenceContext is fully bound.
-ReferenceContext.Empty = ReferenceContext()  # type: ignore[attr-defined]
+ReferenceContext.Empty = ReferenceContext()
 
 
 class ReferenceContextAccessor:
@@ -241,7 +247,7 @@ class ReferenceContextAccessor:
         return cls._current.get()
 
     @classmethod
-    def set(cls, value: Optional[ReferenceContext]) -> contextvars.Token:
+    def set(cls, value: Optional[ReferenceContext]) -> contextvars.Token[Optional[ReferenceContext]]:
         """Set the ambient context. Returns a token for restoration.
 
         Pass the token to :meth:`reset` in a ``finally`` block.
@@ -249,6 +255,6 @@ class ReferenceContextAccessor:
         return cls._current.set(value)
 
     @classmethod
-    def reset(cls, token: contextvars.Token) -> None:
+    def reset(cls, token: contextvars.Token[Optional[ReferenceContext]]) -> None:
         """Restore the ambient context to its prior value."""
         cls._current.reset(token)

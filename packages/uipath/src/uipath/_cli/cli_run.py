@@ -12,6 +12,7 @@ from uipath.core.tracing import UiPathTraceManager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.platform.common import (
     ExecutionSourceContext,
+    ReferenceHierarchySpanProcessor,
     ResourceOverwritesContext,
     UiPathConfig,
 )
@@ -193,6 +194,7 @@ def run(
 
             async def execute() -> None:
                 trace_manager = UiPathTraceManager()
+                trace_manager.add_span_processor(ReferenceHierarchySpanProcessor())
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     entrypoint=entrypoint,

@@ -1,6 +1,6 @@
 """Custom span processors for UiPath execution tracing."""
 
-from typing import Callable, cast
+from typing import cast
 
 from opentelemetry import context as context_api
 from opentelemetry import trace
@@ -12,21 +12,6 @@ from opentelemetry.sdk.trace.export import (
 )
 
 from uipath.core.tracing.types import UiPathTraceSettings
-
-# Hooks called synchronously in on_start (same thread as span creation, where
-# ContextVar values are still live). Use register_span_start_hook to stamp
-# span attributes that must survive the BatchSpanProcessor thread boundary.
-_span_start_hooks: list[Callable[[Span], None]] = []
-
-
-def register_span_start_hook(hook: Callable[[Span], None]) -> None:
-    """Register a callable invoked for every span at creation time.
-
-    The hook receives the live, writable Span so it can call set_attribute.
-    Runs in the same thread/context as the span creator — ContextVar values
-    are available here but NOT in the BatchSpanProcessor export thread.
-    """
-    _span_start_hooks.append(hook)
 
 
 class UiPathExecutionTraceProcessorMixin:
@@ -46,9 +31,6 @@ class UiPathExecutionTraceProcessorMixin:
             execution_id = parent_span.attributes.get("execution.id")
             if execution_id:
                 span.set_attribute("execution.id", execution_id)
-
-        for hook in _span_start_hooks:
-            hook(span)
 
     def on_end(self, span: ReadableSpan):
         """Called when a span ends. Filters before delegating to parent."""
@@ -91,5 +73,4 @@ class UiPathExecutionSimpleTraceProcessor(
 __all__ = [
     "UiPathExecutionBatchTraceProcessor",
     "UiPathExecutionSimpleTraceProcessor",
-    "register_span_start_hook",
 ]

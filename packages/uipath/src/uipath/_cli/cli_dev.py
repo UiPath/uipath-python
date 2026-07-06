@@ -7,7 +7,7 @@ from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli.middlewares import Middlewares
 from uipath.core.tracing import UiPathTraceManager
-from uipath.platform.common import ExecutionSourceContext
+from uipath.platform.common import ExecutionSourceContext, ReferenceHierarchySpanProcessor
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from ._telemetry import track_command
@@ -87,6 +87,7 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
             factory = None
             try:
                 trace_manager = UiPathTraceManager()
+                trace_manager.add_span_processor(ReferenceHierarchySpanProcessor())
                 context, factory = _create_dev_context_and_factory(trace_manager)
 
                 app = UiPathDeveloperConsole(
@@ -128,6 +129,7 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
 
             try:
                 trace_manager = UiPathTraceManager()
+                trace_manager.add_span_processor(ReferenceHierarchySpanProcessor())
                 context, factory = _create_dev_context_and_factory(trace_manager)
 
                 app = UiPathDeveloperServer(

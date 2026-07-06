@@ -23,6 +23,7 @@ from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
 from uipath.platform.common import (
     ExecutionSourceContext,
+    ReferenceHierarchySpanProcessor,
     ResourceOverwritesContext,
     UiPathConfig,
 )
@@ -313,6 +314,7 @@ def eval(
                 await telemetry_subscriber.subscribe_to_eval_runtime_events(event_bus)
 
                 trace_manager = UiPathTraceManager()
+                trace_manager.add_span_processor(ReferenceHierarchySpanProcessor())
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     output_file=output_file,

@@ -28,6 +28,7 @@ from ._reference_context import (
 )
 from ._span_utils import (
     ExecutionType,
+    ReferenceHierarchySpanProcessor,
     SpanSource,
     SpanStatus,
     UiPathSpan,
@@ -130,6 +131,7 @@ __all__ = [
     "ReferenceEntry",
     "ReferenceContext",
     "ReferenceContextAccessor",
+    "ReferenceHierarchySpanProcessor",
     "UiPathSpan",
     "VerbosityLevel",
     "_SpanUtils",

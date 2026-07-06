@@ -1,7 +1,6 @@
 """Tests for ReferenceContext, ReferenceContextAccessor, and span Context wiring."""
 
 import json
-import os
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -13,7 +12,6 @@ from uipath.platform.common import _SpanUtils
 from uipath.platform.common._reference_context import (
     ReferenceContext,
     ReferenceContextAccessor,
-    ReferenceEntry,
 )
 
 
@@ -21,7 +19,7 @@ from uipath.platform.common._reference_context import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_mock_span(attributes: dict | None = None) -> Mock:
+def _make_mock_span(attributes: dict[str, str] | None = None) -> Mock:
     mock = Mock(spec=OTelSpan)
     mock.get_span_context.return_value = SpanContext(
         trace_id=0x123456789ABCDEF0123456789ABCDEF0,
