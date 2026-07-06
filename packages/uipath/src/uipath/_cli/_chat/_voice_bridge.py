@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from enum import Enum
 from typing import Any
 from urllib.parse import urlparse
@@ -82,6 +83,12 @@ class VoiceToolCallSession:
         self._done = asyncio.Event()
         self._in_flight: set[asyncio.Task[None]] = set()
         self._end_reason: VoiceSessionEndReason | None = None
+        self._end_detail: dict[str, Any] = {}
+
+    @property
+    def end_detail(self) -> dict[str, Any]:
+        """CAS payload from voice_session_ended, preserved for the job runtime."""
+        return deepcopy(self._end_detail)
 
     async def run(self) -> VoiceSessionEndReason:
         """Connect, dispatch tool calls until session ends, then disconnect.
@@ -214,8 +221,19 @@ class VoiceToolCallSession:
             tool_result.is_error,
         )
 
-    async def _handle_session_ended(self, _data: Any, *_: Any) -> None:
-        logger.info("[Voice] voice_session_ended received")
+    async def _handle_session_ended(self, data: Any = None, *_: Any) -> None:
+        if self._done.is_set():
+            return
+
+        detail = deepcopy(data) if isinstance(data, dict) else {}
+        self._end_detail = detail
+        logger.info(
+            "[Voice] voice_session_ended received "
+            "(endedBy=%s, callEnded=%s, reason=%s)",
+            detail.get("endedBy"),
+            detail.get("callEnded"),
+            detail.get("reason"),
+        )
         self._end_session(VoiceSessionEndReason.COMPLETED)
 
 
