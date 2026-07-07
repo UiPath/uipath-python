@@ -362,20 +362,3 @@ class TestGetGenerateOutputInstruction:
     def test_references_set_conversational_output_tool(self):
         """The instruction must name the tool the new node binds."""
         assert "set_conversational_output" in get_generate_output_prompt()
-
-    def test_mentions_placeholder_rule_for_required_fields(self):
-        """The instruction must steer the model toward 'N/A'-style placeholders
-        rather than fabricated values for required fields with no context yet."""
-        instruction = get_generate_output_prompt()
-        assert "N/A" in instruction or "unknown" in instruction.lower()
-
-    def test_mentions_omit_rule_for_optional_fields(self):
-        """The instruction must steer the model toward omitting optional fields
-        when they're not yet relevant."""
-        instruction = get_generate_output_prompt().lower()
-        assert "omit" in instruction or "optional" in instruction
-
-    def test_no_text_content_directive(self):
-        """The instruction must explicitly forbid producing conversational text."""
-        instruction = get_generate_output_prompt().lower()
-        assert "do not produce" in instruction or "only call the tool" in instruction

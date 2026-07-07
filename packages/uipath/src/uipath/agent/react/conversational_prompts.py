@@ -239,9 +239,9 @@ _GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has 
 
 Rules:
 - For each field, use values inferred from the conversation's recent turn.
-- For optional fields that are not yet relevant or determinable from the conversation so far, omit them entirely.
-- For required fields that cannot yet be determined (e.g., the conversation is still gathering context, or the topic hasn't surfaced yet), use a clear placeholder value (e.g. "N/A" or "unknown" for string fields). DO NOT fabricate, guess, or hallucinate values.
-- Do not produce any text content — only call the tool."""
+- For optional fields that are not yet relevant or determinable (e.g. the conversation is still gathering context, or the topic hasn't surfaced yet), omit them entirely.
+- For required fields that cannot yet be determined, provide a default placeholder. DO NOT fabricate, guess, or hallucinate meaningful values.
+- Do not produce any text response, as this will not be seen by the user. Only call the tool."""
 
 
 def get_generate_output_prompt() -> str:
