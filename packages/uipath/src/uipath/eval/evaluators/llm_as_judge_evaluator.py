@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field, model_validator
 
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
-from uipath.platform.constants import COMMUNITY_agents_SUFFIX
 
 from .._execution_context import eval_set_run_id_context
 from ..models import (
@@ -211,10 +210,10 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
             ToolPropertyDefinition,
         )
 
-        # Remove community-agents suffix from llm model name
+        # Send the model id exactly as configured -- AgentHub routes the
+        # same "-community-agents"-suffixed id for the agent's own LLM
+        # calls, and Community/EU Gateway routing rules are keyed on it.
         model = self.evaluator_config.model
-        if model.endswith(COMMUNITY_agents_SUFFIX):
-            model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
         # Define function/tool for structured output (works for ALL models via Normalized API)
         evaluation_tool = ToolDefinition(

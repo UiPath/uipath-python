@@ -8,7 +8,6 @@ from pydantic import Field, field_validator
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat.llm_gateway import RequiredToolChoice
-from uipath.platform.constants import COMMUNITY_agents_SUFFIX
 
 from .._execution_context import eval_set_run_id_context
 from .._helpers.helpers import is_empty_value
@@ -193,10 +192,10 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         Returns:
             LLMResponse with score and justification
         """
-        # remove community-agents suffix from llm model name
+        # Send the model id exactly as configured -- AgentHub routes the
+        # same "-community-agents"-suffixed id for the agent's own LLM
+        # calls, and Community/EU Gateway routing rules are keyed on it.
         model = self.model
-        if model.endswith(COMMUNITY_agents_SUFFIX):
-            model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
         # Create evaluation tool for function calling (works across all models)
         evaluation_tool = create_evaluation_tool()
