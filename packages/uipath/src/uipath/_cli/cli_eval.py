@@ -16,14 +16,13 @@ from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli.middlewares import Middlewares
 from uipath.core.events import EventBus
-from uipath.core.tracing import UiPathTraceManager
+from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers, get_agent_model
 from uipath.eval.models.evaluation_set import EvaluationSet
 from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
 from uipath.platform.common import (
     ExecutionSourceContext,
-    ReferenceHierarchySpanProcessor,
     ResourceOverwritesContext,
     UiPathConfig,
 )
@@ -313,8 +312,7 @@ def eval(
                 telemetry_subscriber = EvalTelemetrySubscriber()
                 await telemetry_subscriber.subscribe_to_eval_runtime_events(event_bus)
 
-                trace_manager = UiPathTraceManager()
-                trace_manager.add_span_processor(ReferenceHierarchySpanProcessor())
+                trace_manager = create_trace_manager()
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     output_file=output_file,
