@@ -1,14 +1,36 @@
 import asyncio
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from typing import Any
+from urllib.request import urlopen
 
 import aiohttp
 import pytest
 
 from uipath._cli.cli_server import start_tcp_server
+
+SERVER_START_TIMEOUT_SECONDS = 20
+SERVER_STOP_TIMEOUT_SECONDS = 5
+JOB_START_TIMEOUT_SECONDS = 30
+
+
+@pytest.fixture
+def simple_script() -> str:
+    return """
+from dataclasses import dataclass
+
+@dataclass
+class Input:
+    message: str
+    repeat: int = 1
+
+def main(input: Input) -> str:
+    return (input.message + " ") * input.repeat
+"""
 
 
 def create_uipath_json(script_path: str, entrypoint_name: str = "main"):
@@ -48,6 +70,60 @@ async def start_job_with_env(
             return await response.json()
 
 
+def get_free_port() -> int:
+    """Use a random available port for testing."""
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def read_process_output(process: subprocess.Popen[str]) -> str:
+    if process.stdout is None:
+        return ""
+    return process.stdout.read()
+
+
+def stop_process(process: subprocess.Popen[str]) -> str:
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+    return read_process_output(process)
+
+
+def wait_for_server_health(port: int, process: subprocess.Popen[str]) -> None:
+    deadline = time.monotonic() + SERVER_START_TIMEOUT_SECONDS
+    last_error: Exception | None = None
+
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            output = read_process_output(process)
+            raise AssertionError(
+                f"uipath server exited before becoming healthy with code "
+                f"{process.returncode}\n\n{output}"
+            )
+
+        try:
+            with urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                if response.status == 200 and response.read().decode() == "OK":
+                    return
+        except Exception as e:
+            last_error = e
+
+        time.sleep(0.1)
+
+    output = stop_process(process)
+    raise AssertionError(
+        f"uipath server did not become healthy within "
+        f"{SERVER_START_TIMEOUT_SECONDS}s. Last error: {last_error}\n\n{output}"
+    )
+
+
 class TestServer:
     @pytest.fixture
     def server_port(self):
@@ -77,20 +153,6 @@ class TestServer:
         time.sleep(0.5)
 
         yield server_port
-
-    @pytest.fixture
-    def simple_script(self) -> str:
-        return """
-from dataclasses import dataclass
-
-@dataclass
-class Input:
-    message: str
-    repeat: int = 1
-
-def main(input: Input) -> str:
-    return (input.message + " ") * input.repeat
-"""
 
     def test_start_job_success(self, server, temp_dir, simple_script):
         """Test starting a job through the server."""
@@ -226,6 +288,92 @@ def main(input: Input) -> str:
             status, body = asyncio.run(send_with_host(host))
             assert status == 200, f"Host '{host}' should be allowed but got {status}"
             assert body == "OK"
+
+
+class TestServerProcess:
+    """Tests for the real `uipath server` command startup path."""
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows GitHub runners fail before server startup while loading asyncio.",
+    )
+    def test_uipath_server_process_starts_and_runs_job(
+        self, temp_dir: str, simple_script: str
+    ):
+        """The CLI command must preload modules, start the server, and run jobs."""
+        port = get_free_port()
+        script_file = "entrypoint.py"
+        script_path = os.path.join(temp_dir, script_file)
+        input_file = os.path.join(temp_dir, "input.json")
+        output_file = os.path.join(temp_dir, "output.json")
+
+        with open(script_path, "w") as f:
+            f.write(simple_script)
+
+        with open(os.path.join(temp_dir, "uipath.json"), "w") as f:
+            json.dump(create_uipath_json(script_file), f)
+
+        with open(input_file, "w") as f:
+            json.dump({"message": "Hello", "repeat": 2}, f)
+
+        src_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "src")
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(
+            part for part in [src_path, env.get("PYTHONPATH")] if part
+        )
+
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "from uipath._cli import cli; cli()",
+                "server",
+                "--tcp",
+                "--port",
+                str(port),
+            ],
+            cwd=temp_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        try:
+            wait_for_server_health(port, process)
+
+            response = asyncio.run(
+                asyncio.wait_for(
+                    start_job(
+                        port,
+                        "process-job-123",
+                        "run",
+                        [
+                            "main",
+                            "--input-file",
+                            input_file,
+                            "--output-file",
+                            output_file,
+                        ],
+                    ),
+                    timeout=JOB_START_TIMEOUT_SECONDS,
+                )
+            )
+
+            assert response["success"] is True
+            assert response["job_key"] == "process-job-123"
+            assert process.poll() is None
+            assert os.path.exists(output_file)
+
+            with open(output_file, "r") as f:
+                output = f.read()
+            assert "Hello" in output
+        finally:
+            output = stop_process(process)
+
+        assert "Traceback" not in output
 
 
 class TestServerEnvIsolation:
