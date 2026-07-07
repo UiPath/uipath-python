@@ -9,6 +9,7 @@ Follows the same design as service-common BaggageContext:
   so context parsed by service-common middleware is understood here and
   vice-versa.
 """
+
 from __future__ import annotations
 
 import contextvars
@@ -114,10 +115,10 @@ class ReferenceContext:
         elif isinstance(reference_id, str):
             try:
                 id_str = str(uuid.UUID(reference_id))
-            except ValueError:
+            except ValueError as exc:
                 raise ValueError(
                     f"reference_id {reference_id!r} is not a valid UUID."
-                )
+                ) from exc
         else:
             raise TypeError("reference_id must be a UUID or string.")
         entry = ReferenceEntry(
