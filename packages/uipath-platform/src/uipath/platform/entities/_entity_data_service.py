@@ -62,6 +62,66 @@ _DISALLOWED_KEYWORDS = [
 _AGGREGATE_FUNCTIONS = ("COUNT", "SUM", "AVG", "MIN", "MAX")
 
 
+def build_query_body(
+    filter_group: Optional[EntityQueryFilterGroup] = None,
+    sort_options: Optional[List[EntityQuerySortOption]] = None,
+    selected_fields: Optional[List[str]] = None,
+    expansions: Optional[List[Any]] = None,
+    aggregates: Optional[List[Any]] = None,
+    group_by: Optional[List[str]] = None,
+    joins: Optional[List[EntityJoin]] = None,
+    binnings: Optional[List[EntityBinning]] = None,
+    start: Optional[int] = None,
+    limit: Optional[int] = None,
+    child_limit: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Assemble the JSON body for a structured entity query.
+
+    Shared by the v1/v2 (:class:`EntityDataService`) and v3
+    (``EntityDataServiceV3``) query endpoints, which take the same
+    ``EntityDataQueryRequest`` body. ``child_limit`` applies only to v3
+    composite queries and is omitted when ``None``.
+    """
+    body: Dict[str, Any] = {}
+    if filter_group is not None:
+        body["filterGroup"] = filter_group.model_dump(by_alias=True, exclude_none=True)
+    if sort_options:
+        body["sortOptions"] = [
+            opt.model_dump(by_alias=True, exclude_none=True) for opt in sort_options
+        ]
+    if selected_fields:
+        body["selectedFields"] = list(selected_fields)
+    if expansions:
+        body["expansions"] = [
+            e.model_dump(by_alias=True, exclude_none=True)
+            if isinstance(e, BaseModel)
+            else e
+            for e in expansions
+        ]
+    if aggregates:
+        body["aggregates"] = [
+            a.model_dump(by_alias=True, exclude_none=True)
+            if isinstance(a, BaseModel)
+            else a
+            for a in aggregates
+        ]
+    if group_by:
+        body["groupBy"] = list(group_by)
+    if joins:
+        body["joins"] = [j.model_dump(by_alias=True, exclude_none=True) for j in joins]
+    if binnings:
+        body["binnings"] = [
+            b.model_dump(by_alias=True, exclude_none=True) for b in binnings
+        ]
+    if start is not None:
+        body["start"] = start
+    if limit is not None:
+        body["limit"] = limit
+    if child_limit is not None:
+        body["childLimit"] = child_limit
+    return body
+
+
 class EntityDataService(BaseService):
     """HTTP service for entity-record and attachment operations.
 
@@ -892,45 +952,18 @@ class EntityDataService(BaseService):
         ``expansionLevel`` is a URL query parameter. The V2 endpoint is used
         only when ``binnings`` are supplied.
         """
-        body: Dict[str, Any] = {}
-        if filter_group is not None:
-            body["filterGroup"] = filter_group.model_dump(
-                by_alias=True, exclude_none=True
-            )
-        if sort_options:
-            body["sortOptions"] = [
-                opt.model_dump(by_alias=True, exclude_none=True) for opt in sort_options
-            ]
-        if selected_fields:
-            body["selectedFields"] = list(selected_fields)
-        if expansions:
-            body["expansions"] = [
-                e.model_dump(by_alias=True, exclude_none=True)
-                if isinstance(e, BaseModel)
-                else e
-                for e in expansions
-            ]
-        if aggregates:
-            body["aggregates"] = [
-                a.model_dump(by_alias=True, exclude_none=True)
-                if isinstance(a, BaseModel)
-                else a
-                for a in aggregates
-            ]
-        if group_by:
-            body["groupBy"] = list(group_by)
-        if joins:
-            body["joins"] = [
-                j.model_dump(by_alias=True, exclude_none=True) for j in joins
-            ]
-        if binnings:
-            body["binnings"] = [
-                b.model_dump(by_alias=True, exclude_none=True) for b in binnings
-            ]
-        if start is not None:
-            body["start"] = start
-        if limit is not None:
-            body["limit"] = limit
+        body = build_query_body(
+            filter_group=filter_group,
+            sort_options=sort_options,
+            selected_fields=selected_fields,
+            expansions=expansions,
+            aggregates=aggregates,
+            group_by=group_by,
+            joins=joins,
+            binnings=binnings,
+            start=start,
+            limit=limit,
+        )
 
         params: Dict[str, Any] = {}
         if expansion_level is not None:

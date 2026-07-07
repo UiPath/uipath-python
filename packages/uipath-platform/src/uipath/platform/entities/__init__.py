@@ -4,6 +4,8 @@ This module contains models related to UiPath Entities service.
 """
 
 from ._entities_service import EntitiesService
+from ._entities_service_v2 import EntitiesServiceV2
+from ._entities_service_v3 import EntitiesServiceV3
 from .entities import (
     AggregateRow,
     ChoiceSetValue,
@@ -41,12 +43,34 @@ from .entities import (
     RetrieveEntityRecordsResponse,
     SourceJoinCriteria,
 )
+from .entities_v3 import (
+    BatchOperationFailureRecord,
+    BatchOperationResponse,
+    ChildArrayBlock,
+    ChildArrayPaginationRef,
+    CompositeEntityMetadataResponse,
+    CompositeInfo,
+    CompositeMemberMetadata,
+    EntityRecordV3,
+    EntityWriteResponseV3,
+    GetAllResponseV3,
+    QueryResponseV3,
+)
 
 __all__ = [
     "AggregateRow",
+    "BatchOperationFailureRecord",
+    "BatchOperationResponse",
+    "ChildArrayBlock",
+    "ChildArrayPaginationRef",
     "ChoiceSetValue",
+    "CompositeEntityMetadataResponse",
+    "CompositeInfo",
+    "CompositeMemberMetadata",
     "DataFabricEntityItem",
     "EntitiesService",
+    "EntitiesServiceV2",
+    "EntitiesServiceV3",
     "Entity",
     "EntityAggregate",
     "EntityAggregateFunction",
@@ -63,8 +87,10 @@ __all__ = [
     "EntityQueryFilterGroup",
     "EntityQuerySortOption",
     "EntityRecord",
+    "EntityRecordV3",
     "EntityRecordsBatchResponse",
     "EntityRecordsListResponse",
+    "EntityWriteResponseV3",
     "EntityRouting",
     "EntitySetResolution",
     "ExternalField",
@@ -73,8 +99,10 @@ __all__ = [
     "FailureRecord",
     "FieldDataType",
     "FieldMetadata",
+    "GetAllResponseV3",
     "LogicalOperator",
     "QueryFilterOperator",
+    "QueryResponseV3",
     "QueryRoutingOverrideContext",
     "ReferenceType",
     "RetrieveEntityRecordsResponse",

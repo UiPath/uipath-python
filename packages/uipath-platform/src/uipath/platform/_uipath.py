@@ -19,7 +19,7 @@ from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
-from .entities import EntitiesService
+from .entities import EntitiesService, EntitiesServiceV2, EntitiesServiceV3
 from .errors import BaseUrlMissingError, SecretMissingError
 from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
@@ -149,6 +149,20 @@ class UiPath:
     @property
     def entities(self) -> EntitiesService:
         return EntitiesService(
+            self._config, self._execution_context, folders_service=self.folders
+        )
+
+    @property
+    def entities_v2(self) -> EntitiesServiceV2:
+        """Entities service targeting the v2 API (preview, limited surface)."""
+        return EntitiesServiceV2(
+            self._config, self._execution_context, folders_service=self.folders
+        )
+
+    @property
+    def entities_v3(self) -> EntitiesServiceV3:
+        """Entities service targeting the v3 API (preview)."""
+        return EntitiesServiceV3(
             self._config, self._execution_context, folders_service=self.folders
         )
 
