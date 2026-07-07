@@ -2598,7 +2598,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.13.1"
+version = "2.13.2"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2674,7 +2674,7 @@ requires-dist = [
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
     { name = "uipath-platform", editable = "../uipath-platform" },
-    { name = "uipath-runtime", specifier = ">=0.12.1,<0.13.0" },
+    { name = "uipath-runtime", specifier = ">=0.11.7,<0.13.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2741,7 +2741,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "httpx" },
