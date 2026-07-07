@@ -233,3 +233,21 @@ def get_conversation_id_template(conversation_id: str | None) -> str:
     if not conversation_id:
         return ""
     return _CONVERSATION_ID_TEMPLATE.format(conversation_id=conversation_id)
+
+
+_GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for this turn.
+
+Rules:
+- For each field, use values inferred from the conversation's recent turn.
+- For optional fields that are not yet relevant or determinable (e.g. the conversation is still gathering context, or the topic hasn't surfaced yet), omit them entirely.
+- For required fields that cannot yet be determined, provide a default placeholder. DO NOT fabricate, guess, or hallucinate meaningful values.
+- Do not produce any text response, as this will not be seen by the user. Only call the tool."""
+
+
+def get_generate_output_prompt() -> str:
+    """Return the framework-internal generate-output instruction.
+
+    Appended as a final user-message to the conversational structured-output
+    node's LLM call.
+    """
+    return _GENERATE_OUTPUT_INSTRUCTION
