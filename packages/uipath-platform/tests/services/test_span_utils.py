@@ -6,11 +6,19 @@ from unittest.mock import Mock, patch
 
 import pytest
 from opentelemetry import context as context_api
-from opentelemetry.sdk.trace import Span as OTelSpan, SpanProcessor
+from opentelemetry.sdk.trace import Span as OTelSpan
+from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.trace import SpanContext, StatusCode
 
-from uipath.platform.common import ReferenceHierarchySpanProcessor, UiPathSpan, _SpanUtils
-from uipath.platform.common._reference_context import ReferenceContext, ReferenceContextAccessor
+from uipath.platform.common import (
+    ReferenceHierarchySpanProcessor,
+    UiPathSpan,
+    _SpanUtils,
+)
+from uipath.platform.common._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+)
 from uipath.platform.common._span_utils import (
     _SOURCE_BY_INT,
     ExecutionType,
