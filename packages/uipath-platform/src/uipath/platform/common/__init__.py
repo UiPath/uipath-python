@@ -22,9 +22,15 @@ from ._execution_context import ExecutionSourceContext, UiPathExecutionContext
 from ._folder_context import FolderContext, header_folder
 from ._http_config import get_ca_bundle_path, get_httpx_client_kwargs
 from ._models import Endpoint, RequestSpec
+from ._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+    ReferenceEntry,
+)
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
 from ._span_utils import (
     ExecutionType,
+    ReferenceHierarchySpanProcessor,
     SpanSource,
     SpanStatus,
     UiPathSpan,
@@ -125,6 +131,10 @@ __all__ = [
     "ResourceOverwrite",
     "ResourceOverwriteParser",
     "ResourceOverwritesContext",
+    "ReferenceEntry",
+    "ReferenceContext",
+    "ReferenceContextAccessor",
+    "ReferenceHierarchySpanProcessor",
     "SpanSource",
     "SpanStatus",
     "UiPathSpan",
