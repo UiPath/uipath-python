@@ -351,7 +351,7 @@ class TestGetUserSettingsTemplate:
         assert json_data["timezone"] == "Europe/London"
 
 
-class TestGetGenerateOutputInstruction:
+class TestGetGenerateOutputPrompt:
     """Tests for get_generate_output_prompt function."""
 
     def test_returns_non_empty_string(self):
