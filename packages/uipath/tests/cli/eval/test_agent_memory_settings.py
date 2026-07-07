@@ -163,6 +163,31 @@ class TestResolveAgentMemorySettingsOverride:
             "threshold": "0.5",
         }
 
+    def test_default_id_matches_persisted_default_entry(self):
+        # The eval-set editor persists a "default" entry (all same-as-agent)
+        # alongside user-defined settings; it may not be first in the list.
+        eval_set = make_eval_set(
+            agentMemoryEnabled=True,
+            agentMemorySettings=[
+                {
+                    "id": "s1",
+                    "resultCount": "10",
+                    "searchMode": "semantic",
+                    "threshold": "0.5",
+                },
+                {"id": "default"},
+            ],
+        )
+
+        override = _resolve_agent_memory_settings_override("default", eval_set)
+
+        assert override == {
+            "enabled": True,
+            "resultCount": "same-as-agent",
+            "searchMode": "same-as-agent",
+            "threshold": "same-as-agent",
+        }
+
     def test_unknown_id_falls_back_to_first_setting(self):
         eval_set = make_eval_set(
             agentMemoryEnabled=True,

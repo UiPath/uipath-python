@@ -140,12 +140,14 @@ def _resolve_agent_memory_settings_override(
 
     memory_settings = evaluation_set.agent_memory_settings
     target = None
-    if agent_memory_settings_id and agent_memory_settings_id != "default":
+    if agent_memory_settings_id:
+        # "default" is looked up like any other id: the eval-set editor persists a
+        # "default" entry (all fields "same-as-agent") alongside user-defined ones.
         target = next(
             (ms for ms in memory_settings if ms.id == agent_memory_settings_id),
             None,
         )
-        if not target:
+        if not target and agent_memory_settings_id != "default":
             logger.warning(
                 f"Agent memory settings ID '{agent_memory_settings_id}' not found in evaluation set"
             )
