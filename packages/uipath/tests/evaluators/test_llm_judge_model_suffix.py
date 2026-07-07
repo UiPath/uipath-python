@@ -15,11 +15,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from uipath.eval.evaluators import (
-    LegacyContextPrecisionEvaluator,
-    LegacyFaithfulnessEvaluator,
-)
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
+from uipath.eval.evaluators.legacy_context_precision_evaluator import (
+    LegacyContextPrecisionEvaluator,
+    LegacyContextPrecisionEvaluatorConfig,
+)
+from uipath.eval.evaluators.legacy_faithfulness_evaluator import (
+    LegacyFaithfulnessEvaluator,
+    LegacyFaithfulnessEvaluatorConfig,
+)
 from uipath.eval.evaluators.legacy_llm_as_judge_evaluator import (
     LegacyLlmAsAJudgeEvaluator,
     LegacyLlmAsAJudgeEvaluatorConfig,
@@ -49,6 +53,9 @@ def _fake_tool_call_response(score: float = 90, justification: str = "ok"):
 def _legacy_context_precision_evaluator() -> LegacyContextPrecisionEvaluator:
     return LegacyContextPrecisionEvaluator(
         id="context-precision",
+        config_type=LegacyContextPrecisionEvaluatorConfig,
+        evaluation_criteria_type=LegacyEvaluationCriteria,
+        justification_type=str,
         category=LegacyEvaluatorCategory.LlmAsAJudge,
         type=LegacyEvaluatorType.ContextPrecision,
         name="Context Precision",
@@ -65,7 +72,7 @@ class TestLegacyContextPrecisionEvaluatorSendsConfiguredModel:
     async def test_get_structured_llm_response_sends_full_model_name(self):
         evaluator = _legacy_context_precision_evaluator()
         mock_chat_completions = AsyncMock(return_value=_fake_tool_call_response())
-        evaluator.llm = SimpleNamespace(chat_completions=mock_chat_completions)
+        evaluator.llm = AsyncMock(chat_completions=mock_chat_completions)
 
         await evaluator._get_structured_llm_response("some evaluation prompt")
 
@@ -76,6 +83,9 @@ class TestLegacyContextPrecisionEvaluatorSendsConfiguredModel:
 def _legacy_faithfulness_evaluator() -> LegacyFaithfulnessEvaluator:
     return LegacyFaithfulnessEvaluator(
         id="faithfulness",
+        config_type=LegacyFaithfulnessEvaluatorConfig,
+        evaluation_criteria_type=LegacyEvaluationCriteria,
+        justification_type=str,
         category=LegacyEvaluatorCategory.LlmAsAJudge,
         type=LegacyEvaluatorType.Faithfulness,
         name="Faithfulness",
@@ -92,7 +102,7 @@ class TestLegacyFaithfulnessEvaluatorSendsConfiguredModel:
     async def test_get_structured_llm_response_sends_full_model_name(self):
         evaluator = _legacy_faithfulness_evaluator()
         mock_chat_completions = AsyncMock(return_value=_fake_tool_call_response())
-        evaluator.llm = SimpleNamespace(chat_completions=mock_chat_completions)
+        evaluator.llm = AsyncMock(chat_completions=mock_chat_completions)
 
         await evaluator._get_structured_llm_response(
             "some evaluation prompt", "submit_result", {"type": "object"}
@@ -172,7 +182,7 @@ class TestLegacyTrajectoryEvaluatorSendsConfiguredModel:
     async def test_get_llm_response_sends_full_model_name_to_gateway(self):
         evaluator = _legacy_trajectory_evaluator()
         mock_chat_completions = AsyncMock(return_value=_fake_tool_call_response())
-        evaluator.llm = SimpleNamespace(chat_completions=mock_chat_completions)
+        evaluator.llm = AsyncMock(chat_completions=mock_chat_completions)
 
         await evaluator._get_llm_response("some evaluation prompt")
 
@@ -201,7 +211,7 @@ class TestLegacyLlmAsAJudgeEvaluatorSendsConfiguredModel:
     async def test_get_llm_response_sends_full_model_name_to_gateway(self):
         evaluator = _legacy_llm_as_judge_evaluator()
         mock_chat_completions = AsyncMock(return_value=_fake_tool_call_response())
-        evaluator.llm = SimpleNamespace(chat_completions=mock_chat_completions)
+        evaluator.llm = AsyncMock(chat_completions=mock_chat_completions)
 
         await evaluator._get_llm_response("some evaluation prompt")
 

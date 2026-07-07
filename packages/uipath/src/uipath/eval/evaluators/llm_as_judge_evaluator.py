@@ -210,9 +210,6 @@ class LLMJudgeMixin(BaseEvaluator[T, C, LLMJudgeJustification]):
             ToolPropertyDefinition,
         )
 
-        # Send the model id exactly as configured -- AgentHub routes the
-        # same "-community-agents"-suffixed id for the agent's own LLM
-        # calls, and Community/EU Gateway routing rules are keyed on it.
         model = self.evaluator_config.model
 
         # Define function/tool for structured output (works for ALL models via Normalized API)

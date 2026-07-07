@@ -192,9 +192,6 @@ class LegacyLlmAsAJudgeEvaluator(BaseLegacyEvaluator[LegacyLlmAsAJudgeEvaluatorC
         Returns:
             LLMResponse with score and justification
         """
-        # Send the model id exactly as configured -- AgentHub routes the
-        # same "-community-agents"-suffixed id for the agent's own LLM
-        # calls, and Community/EU Gateway routing rules are keyed on it.
         model = self.model
 
         # Create evaluation tool for function calling (works across all models)
