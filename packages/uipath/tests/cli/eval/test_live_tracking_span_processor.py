@@ -348,6 +348,25 @@ class TestLiveTrackingSpanProcessor:
         # Verify executor is shutdown (calling shutdown multiple times should be safe)
         processor.shutdown()  # Should not raise
 
+    def test_shutdown_closes_exporter_after_pending_tasks(self, mock_exporter):
+        calls = []
+
+        def upsert(*args, **kwargs):
+            calls.append("upsert")
+
+        def shutdown():
+            calls.append("shutdown")
+
+        mock_exporter.upsert_span = Mock(side_effect=upsert)
+        mock_exporter.shutdown = Mock(side_effect=shutdown)
+        processor = LiveTrackingSpanProcessor(mock_exporter, max_workers=1)
+        span = self.create_mock_span({"span_type": "eval"})
+
+        processor.on_start(span, None)
+        processor.shutdown()
+
+        assert calls == ["upsert", "shutdown"]
+
     def test_multiple_processors_independent_thread_pools(self, mock_exporter):
         """Test that multiple processors have independent thread pools."""
         processor1 = LiveTrackingSpanProcessor(mock_exporter, max_workers=5)
