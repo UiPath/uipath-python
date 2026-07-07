@@ -176,7 +176,7 @@ class ReferenceContext:
                 if eq <= 0 or eq >= len(pair_text) - 1:
                     continue
                 key = pair_text[:eq].strip()
-                value = pair_text[eq + 1:].strip()
+                value = pair_text[eq + 1 :].strip()
                 if key and value:
                     props[key] = value
 
@@ -211,7 +211,9 @@ class ReferenceContext:
             return ""
         parts: List[str] = []
         for e in self._entries:
-            kv = f"{BAGGAGE_KEY_TYPE}={e.service_type};{BAGGAGE_KEY_ID}={e.reference_id}"
+            kv = (
+                f"{BAGGAGE_KEY_TYPE}={e.service_type};{BAGGAGE_KEY_ID}={e.reference_id}"
+            )
             if e.version:
                 kv += f";{BAGGAGE_KEY_VERSION}={e.version}"
             parts.append(kv)
@@ -247,7 +249,9 @@ class ReferenceContextAccessor:
         return cls._current.get()
 
     @classmethod
-    def set(cls, value: Optional[ReferenceContext]) -> contextvars.Token[Optional[ReferenceContext]]:
+    def set(
+        cls, value: Optional[ReferenceContext]
+    ) -> contextvars.Token[Optional[ReferenceContext]]:
         """Set the ambient context. Returns a token for restoration.
 
         Pass the token to :meth:`reset` in a ``finally`` block.

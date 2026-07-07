@@ -1124,6 +1124,7 @@ class TestOtelSpanConversionUsesStrEnums:
 # ReferenceHierarchySpanProcessor
 # ---------------------------------------------------------------------------
 
+
 class TestReferenceHierarchySpanProcessor:
     """Tests for ReferenceHierarchySpanProcessor.on_start.
 
@@ -1146,7 +1147,9 @@ class TestReferenceHierarchySpanProcessor:
         assert issubclass(ReferenceHierarchySpanProcessor, SpanProcessor)
 
     def test_on_start_with_default_parent_context(self) -> None:
-        ref_ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
         token = ReferenceContextAccessor.set(ref_ctx)
         try:
             processor = ReferenceHierarchySpanProcessor()
@@ -1160,7 +1163,9 @@ class TestReferenceHierarchySpanProcessor:
             ReferenceContextAccessor.reset(token)
 
     def test_on_start_with_explicit_none_parent_context(self) -> None:
-        ref_ctx = ReferenceContext.Empty.add("maestro", "550e8400-e29b-41d4-a716-446655440010")
+        ref_ctx = ReferenceContext.Empty.add(
+            "maestro", "550e8400-e29b-41d4-a716-446655440010"
+        )
         token = ReferenceContextAccessor.set(ref_ctx)
         try:
             processor = ReferenceHierarchySpanProcessor()
@@ -1171,7 +1176,9 @@ class TestReferenceHierarchySpanProcessor:
             ReferenceContextAccessor.reset(token)
 
     def test_on_start_with_real_context_object(self) -> None:
-        ref_ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
         token = ReferenceContextAccessor.set(ref_ctx)
         try:
             processor = ReferenceHierarchySpanProcessor()
@@ -1190,11 +1197,9 @@ class TestReferenceHierarchySpanProcessor:
         mock_span.set_attribute.assert_not_called()
 
     def test_on_start_stamps_full_hierarchy(self) -> None:
-        ref_ctx = (
-            ReferenceContext.Empty
-            .add("maestro", "550e8400-e29b-41d4-a716-446655440010", "2.0")
-            .add("agent", "550e8400-e29b-41d4-a716-446655440011")
-        )
+        ref_ctx = ReferenceContext.Empty.add(
+            "maestro", "550e8400-e29b-41d4-a716-446655440010", "2.0"
+        ).add("agent", "550e8400-e29b-41d4-a716-446655440011")
         token = ReferenceContextAccessor.set(ref_ctx)
         try:
             processor = ReferenceHierarchySpanProcessor()

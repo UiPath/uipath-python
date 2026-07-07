@@ -51,6 +51,7 @@ class ReferenceHierarchySpanProcessor(SpanProcessor):
     ) -> None:
         _inject_reference_hierarchy(span)
 
+
 logger = logging.getLogger(__name__)
 
 
