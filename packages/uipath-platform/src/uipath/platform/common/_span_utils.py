@@ -25,7 +25,6 @@ from uipath.platform.constants import (
     ENV_UIPATH_PROCESS_VERSION,
     ENV_UIPATH_TRACE_ID,
 )
-
 from ._reference_context import ReferenceContextAccessor
 
 
@@ -46,7 +45,7 @@ class ReferenceHierarchySpanProcessor(SpanProcessor):
     """
 
     def on_start(
-        self, span: Span, parent_context: context_api.Context | None = None
+        self, span: Span, parent_context: Optional[context_api.Context] = None
     ) -> None:
         _inject_reference_hierarchy(span)
 

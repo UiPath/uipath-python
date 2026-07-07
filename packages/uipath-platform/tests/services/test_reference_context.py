@@ -9,7 +9,7 @@ from opentelemetry.sdk.trace import Span as OTelSpan
 from opentelemetry.trace import SpanContext, StatusCode
 
 from uipath.platform.common import _SpanUtils
-from uipath.platform.common._reference_context import ReferenceContext, ReferenceContextAccessor
+from uipath.platform.common._reference_context import ReferenceContext, ReferenceContextAccessor, ReferenceEntry
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +302,174 @@ class TestContextWiring:
         wire = _SpanUtils.otel_span_to_uipath_span(mock).to_dict()
         attributes = json.loads(wire["Attributes"])
         assert "uipath.reference_hierarchy" not in attributes
+
+
+# ---------------------------------------------------------------------------
+# ReferenceEntry — frozen dataclass
+# ---------------------------------------------------------------------------
+
+class TestReferenceEntry:
+    def test_frozen_raises_on_mutation(self) -> None:
+        entry = ReferenceEntry(service_type="agent", reference_id="550e8400-e29b-41d4-a716-446655440001")
+        with pytest.raises((AttributeError, TypeError)):
+            entry.service_type = "other"  # type: ignore[misc]
+
+    def test_equality_by_value(self) -> None:
+        a = ReferenceEntry(service_type="agent", reference_id="550e8400-e29b-41d4-a716-446655440001", version="1.0")
+        b = ReferenceEntry(service_type="agent", reference_id="550e8400-e29b-41d4-a716-446655440001", version="1.0")
+        assert a == b
+
+    def test_version_defaults_to_none(self) -> None:
+        entry = ReferenceEntry(service_type="agent", reference_id="550e8400-e29b-41d4-a716-446655440001")
+        assert entry.version is None
+
+
+# ---------------------------------------------------------------------------
+# ReferenceContext — bool, iter, len
+# ---------------------------------------------------------------------------
+
+class TestReferenceContextProtocol:
+    def test_non_empty_context_is_truthy(self) -> None:
+        ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        assert bool(ctx)
+
+    def test_iter_yields_entries_in_order(self) -> None:
+        ctx = (
+            ReferenceContext.Empty
+            .add("maestro", "550e8400-e29b-41d4-a716-446655440010")
+            .add("agent", "550e8400-e29b-41d4-a716-446655440011")
+        )
+        types = [e.service_type for e in ctx]
+        assert types == ["maestro", "agent"]
+
+    def test_len_matches_entry_count(self) -> None:
+        ctx = (
+            ReferenceContext.Empty
+            .add("maestro", "550e8400-e29b-41d4-a716-446655440010")
+            .add("agent", "550e8400-e29b-41d4-a716-446655440011")
+            .add("langgraph", "550e8400-e29b-41d4-a716-446655440012")
+        )
+        assert len(ctx) == 3
+
+
+# ---------------------------------------------------------------------------
+# ReferenceContext.add — additional validation cases
+# ---------------------------------------------------------------------------
+
+class TestReferenceContextAddValidation:
+    def test_whitespace_only_service_type_raises(self) -> None:
+        with pytest.raises(ValueError, match="service_type"):
+            ReferenceContext.Empty.add("   ", "550e8400-e29b-41d4-a716-446655440001")
+
+    def test_invalid_uuid_string_raises_value_error(self) -> None:
+        with pytest.raises(ValueError, match="reference_id"):
+            ReferenceContext.Empty.add("agent", "not-a-valid-uuid")
+
+
+# ---------------------------------------------------------------------------
+# ReferenceContext.from_baggage_header — additional parsing cases
+# ---------------------------------------------------------------------------
+
+class TestFromBaggageHeaderParsing:
+    def test_whitespace_only_header_returns_empty(self) -> None:
+        assert ReferenceContext.from_baggage_header("   ") == ReferenceContext.Empty
+
+    def test_entry_missing_ref_id_skipped(self) -> None:
+        header = "ref.type=agent"
+        ctx = ReferenceContext.from_baggage_header(header)
+        assert ctx == ReferenceContext.Empty
+
+    def test_version_key_parsed_correctly(self) -> None:
+        header = "ref.type=maestro;ref.id=550e8400-e29b-41d4-a716-446655440010;ref.v=2.1.0"
+        ctx = ReferenceContext.from_baggage_header(header)
+        assert len(ctx) == 1
+        assert ctx.entries[0].version == "2.1.0"
+
+    def test_whitespace_only_entries_between_commas_skipped(self) -> None:
+        # ",, ," should not produce entries
+        header = "ref.type=agent;ref.id=550e8400-e29b-41d4-a716-446655440001,  ,  "
+        ctx = ReferenceContext.from_baggage_header(header)
+        assert len(ctx) == 1
+
+    def test_mixed_valid_and_invalid_keeps_valid(self) -> None:
+        header = (
+            "ref.type=agent;ref.id=not-a-uuid,"
+            "ref.type=maestro;ref.id=550e8400-e29b-41d4-a716-446655440010"
+        )
+        ctx = ReferenceContext.from_baggage_header(header)
+        assert len(ctx) == 1
+        assert ctx.entries[0].service_type == "maestro"
+
+
+# ---------------------------------------------------------------------------
+# ReferenceContext.to_baggage_header_value — format checks
+# ---------------------------------------------------------------------------
+
+class TestToBaggageHeaderValue:
+    def test_single_entry_with_version_format(self) -> None:
+        ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001", "1.0")
+        value = ctx.to_baggage_header_value()
+        assert value == "ref.type=agent;ref.id=550e8400-e29b-41d4-a716-446655440001;ref.v=1.0"
+
+    def test_single_entry_without_version_format(self) -> None:
+        ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        value = ctx.to_baggage_header_value()
+        assert value == "ref.type=agent;ref.id=550e8400-e29b-41d4-a716-446655440001"
+        assert "ref.v" not in value
+
+    def test_multiple_entries_comma_separated(self) -> None:
+        ctx = (
+            ReferenceContext.Empty
+            .add("maestro", "550e8400-e29b-41d4-a716-446655440010", "2.0")
+            .add("agent", "550e8400-e29b-41d4-a716-446655440011")
+        )
+        value = ctx.to_baggage_header_value()
+        parts = value.split(",")
+        assert len(parts) == 2
+        assert parts[0].startswith("ref.type=maestro")
+        assert parts[1].startswith("ref.type=agent")
+
+
+# ---------------------------------------------------------------------------
+# ReferenceContextAccessor — async propagation
+# ---------------------------------------------------------------------------
+
+class TestReferenceContextAccessorAsync:
+    @pytest.mark.asyncio
+    async def test_context_propagates_across_await(self) -> None:
+        import asyncio
+
+        ctx = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        token = ReferenceContextAccessor.set(ctx)
+        try:
+            await asyncio.sleep(0)
+            assert ReferenceContextAccessor.get() == ctx
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_context_isolated_between_concurrent_tasks(self) -> None:
+        import asyncio
+
+        ctx_a = ReferenceContext.Empty.add("agent", "550e8400-e29b-41d4-a716-446655440001")
+        ctx_b = ReferenceContext.Empty.add("maestro", "550e8400-e29b-41d4-a716-446655440002")
+        seen: dict[str, object] = {}
+
+        async def task_a() -> None:
+            token = ReferenceContextAccessor.set(ctx_a)
+            await asyncio.sleep(0)
+            seen["a"] = ReferenceContextAccessor.get()
+            ReferenceContextAccessor.reset(token)
+
+        async def task_b() -> None:
+            token = ReferenceContextAccessor.set(ctx_b)
+            await asyncio.sleep(0)
+            seen["b"] = ReferenceContextAccessor.get()
+            ReferenceContextAccessor.reset(token)
+
+        await asyncio.gather(task_a(), task_b())
+        assert seen["a"] == ctx_a
+        assert seen["b"] == ctx_b
 
 
 # ---------------------------------------------------------------------------
