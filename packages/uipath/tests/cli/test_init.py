@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -713,6 +714,94 @@ def main(input: InputModel) -> InputModel: return input""")
             assert (
                 "We recommend using a single type for all entrypoints" in result.output
             )
+
+    @pytest.mark.parametrize("entrypoint_kind", ["functions", "agents"])
+    def test_init_vertical_solution_stamps_transaction_root(
+        self, runner: CliRunner, temp_dir: str, entrypoint_kind: str
+    ) -> None:
+        """'_uipathVerticalSolution: true' stamps isTransactionRoot on entrypoints."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+            with open("uipath.json", "w") as f:
+                json.dump(
+                    {
+                        "runtimeOptions": {"_uipathVerticalSolution": True},
+                        entrypoint_kind: {"main": "main.py:main"},
+                    },
+                    f,
+                )
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+
+            with open("entry-points.json", "r") as f:
+                entry_points = json.load(f)["entryPoints"]
+            assert len(entry_points) == 1
+            assert entry_points[0]["isTransactionRoot"] is True
+
+    @pytest.mark.parametrize(
+        "runtime_options",
+        [None, {}, {"_uipathVerticalSolution": False}],
+    )
+    def test_init_without_vertical_solution_omits_transaction_root(
+        self, runner: CliRunner, temp_dir: str, runtime_options: dict[str, Any] | None
+    ) -> None:
+        """Entrypoints are not stamped when the flag is absent or false."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+            uipath_config: dict[str, Any] = {"functions": {"main": "main.py:main"}}
+            if runtime_options is not None:
+                uipath_config["runtimeOptions"] = runtime_options
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+            self._generate_pyproject()
+
+            result = runner.invoke(cli, ["init"], env={})
+            assert result.exit_code == 0
+
+            with open("entry-points.json", "r") as f:
+                entry_points = json.load(f)["entryPoints"]
+            assert "isTransactionRoot" not in entry_points[0]
+
+    def test_init_rerun_syncs_transaction_root_with_vertical_solution_flag(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Rerunning init keeps or removes isTransactionRoot to match the flag."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("main.py", "w") as f:
+                f.write("def main(input: str) -> str: return input")
+            with open("uipath.json", "w") as f:
+                json.dump(
+                    {
+                        "runtimeOptions": {"_uipathVerticalSolution": True},
+                        "functions": {"main": "main.py:main"},
+                    },
+                    f,
+                )
+            self._generate_pyproject()
+
+            assert runner.invoke(cli, ["init"], env={}).exit_code == 0
+            with open("entry-points.json", "r") as f:
+                assert json.load(f)["entryPoints"][0]["isTransactionRoot"] is True
+
+            # Rerun with the flag still present: the stamp is kept.
+            assert runner.invoke(cli, ["init"], env={}).exit_code == 0
+            with open("entry-points.json", "r") as f:
+                assert json.load(f)["entryPoints"][0]["isTransactionRoot"] is True
+
+            # Remove the flag (keep the backfilled id and functions untouched).
+            with open("uipath.json", "r") as f:
+                uipath_config = json.load(f)
+            del uipath_config["runtimeOptions"]["_uipathVerticalSolution"]
+            with open("uipath.json", "w") as f:
+                json.dump(uipath_config, f)
+
+            assert runner.invoke(cli, ["init"], env={}).exit_code == 0
+            with open("entry-points.json", "r") as f:
+                assert "isTransactionRoot" not in json.load(f)["entryPoints"][0]
 
     def test_init_creates_studio_metadata_file(
         self, runner: CliRunner, temp_dir: str
