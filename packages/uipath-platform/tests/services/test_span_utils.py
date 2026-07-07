@@ -5,10 +5,20 @@ from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
+from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import Span as OTelSpan
+from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.trace import SpanContext, StatusCode
 
-from uipath.platform.common import UiPathSpan, _SpanUtils
+from uipath.platform.common import (
+    ReferenceHierarchySpanProcessor,
+    UiPathSpan,
+    _SpanUtils,
+)
+from uipath.platform.common._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+)
 from uipath.platform.common._span_utils import (
     _SOURCE_BY_INT,
     ExecutionType,
@@ -1108,3 +1118,99 @@ class TestOtelSpanConversionUsesStrEnums:
         span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         assert span.verbosity_level == VerbosityLevel.OFF
         assert span.to_dict()["VerbosityLevel"] == "Off"
+
+
+# ---------------------------------------------------------------------------
+# ReferenceHierarchySpanProcessor
+# ---------------------------------------------------------------------------
+
+
+class TestReferenceHierarchySpanProcessor:
+    """Tests for ReferenceHierarchySpanProcessor.on_start.
+
+    The only change made to this class was aligning the parent_context
+    parameter type annotation with the SpanProcessor base class
+    (Optional[context_api.Context] instead of context_api.Context | None).
+    These tests verify the processor is a proper SpanProcessor subclass and
+    that on_start behaves correctly under all valid call forms.
+    """
+
+    def setup_method(self) -> None:
+        token = ReferenceContextAccessor.set(None)
+        ReferenceContextAccessor.reset(token)
+
+    def _make_mock_span(self) -> Mock:
+        mock = Mock(spec=OTelSpan)
+        return mock
+
+    def test_is_span_processor_subclass(self) -> None:
+        assert issubclass(ReferenceHierarchySpanProcessor, SpanProcessor)
+
+    def test_on_start_with_default_parent_context(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            processor.on_start(mock_span)  # parent_context omitted — uses default None
+            mock_span.set_attribute.assert_called_once()
+            key, value = mock_span.set_attribute.call_args[0]
+            assert key == "uipath.reference_hierarchy"
+            assert json.loads(value)[0]["serviceType"] == "agent"
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_on_start_with_explicit_none_parent_context(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "maestro", "550e8400-e29b-41d4-a716-446655440010"
+        )
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            processor.on_start(mock_span, parent_context=None)
+            mock_span.set_attribute.assert_called_once()
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_on_start_with_real_context_object(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            otel_ctx = context_api.create_key("test")
+            real_ctx = context_api.set_value(otel_ctx, "val")
+            processor.on_start(mock_span, parent_context=real_ctx)
+            mock_span.set_attribute.assert_called_once()
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_on_start_noop_when_no_reference_context(self) -> None:
+        processor = ReferenceHierarchySpanProcessor()
+        mock_span = self._make_mock_span()
+        processor.on_start(mock_span)
+        mock_span.set_attribute.assert_not_called()
+
+    def test_on_start_stamps_full_hierarchy(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "maestro", "550e8400-e29b-41d4-a716-446655440010", "2.0"
+        ).add("agent", "550e8400-e29b-41d4-a716-446655440011")
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            processor.on_start(mock_span)
+            key, value = mock_span.set_attribute.call_args[0]
+            hierarchy = json.loads(value)
+            assert len(hierarchy) == 2
+            assert hierarchy[0]["serviceType"] == "maestro"
+            assert hierarchy[0]["version"] == "2.0"
+            assert hierarchy[1]["serviceType"] == "agent"
+            assert "version" not in hierarchy[1]
+        finally:
+            ReferenceContextAccessor.reset(token)

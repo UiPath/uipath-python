@@ -8,7 +8,7 @@ from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
-from uipath.core.tracing import UiPathTraceManager
+from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.platform.common import (
     ExecutionSourceContext,
@@ -192,7 +192,7 @@ def run(
                 return ctx.result
 
             async def execute() -> None:
-                trace_manager = UiPathTraceManager()
+                trace_manager = create_trace_manager()
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     entrypoint=entrypoint,

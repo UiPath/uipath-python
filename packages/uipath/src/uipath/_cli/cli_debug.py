@@ -8,7 +8,7 @@ from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import DebugAttachMode, get_debug_bridge
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
-from uipath.core.tracing import UiPathTraceManager
+from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.mocks import UiPathMockRuntime
 from uipath.eval.mocks._mock_runtime import load_simulation_config
 from uipath.platform.common import (
@@ -125,7 +125,7 @@ def debug(
         try:
 
             async def execute_debug_runtime():
-                trace_manager = UiPathTraceManager()
+                trace_manager = create_trace_manager()
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     input=input,
