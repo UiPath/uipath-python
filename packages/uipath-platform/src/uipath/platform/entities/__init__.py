@@ -4,6 +4,7 @@ This module contains models related to UiPath Entities service.
 """
 
 from ._entities_service import EntitiesService
+from ._entity_ontology_service import DataFabricOntologyItem
 from .entities import (
     AggregateRow,
     ChoiceSetValue,
@@ -46,6 +47,7 @@ __all__ = [
     "AggregateRow",
     "ChoiceSetValue",
     "DataFabricEntityItem",
+    "DataFabricOntologyItem",
     "EntitiesService",
     "Entity",
     "EntityAggregate",

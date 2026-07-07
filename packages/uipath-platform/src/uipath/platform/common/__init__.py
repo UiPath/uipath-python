@@ -3,6 +3,8 @@
 This module contains common models used across multiple services.
 """
 
+from uipath.core.triggers import UiPathResumeMetadata
+
 from ._api_client import ApiClient
 from ._base_service import BaseService, resolve_trace_id
 from ._bindings import (
@@ -68,6 +70,12 @@ from .interrupt_models import (
     WaitUntil,
 )
 from .paging import PagedResult
+from .timeout import (
+    UiPathTimeoutError,
+    assert_no_timeout,
+    get_resume_metadata,
+    is_timeout,
+)
 
 __all__ = [
     "ApiClient",
@@ -135,6 +143,11 @@ __all__ = [
     "resolve_service_url",
     "inject_routing_headers",
     "resolve_trace_id",
+    "UiPathTimeoutError",
+    "UiPathResumeMetadata",
+    "assert_no_timeout",
+    "get_resume_metadata",
+    "is_timeout",
 ]
 
 from .validation import validate_pagination_params

@@ -26,6 +26,13 @@ class RuntimeOptions(BaseModelWithDefaultConfig):
         alias="isConversational",
         description="Enable conversational mode for the runtime",
     )
+    uipath_vertical_solution: bool | None = Field(
+        default=None,
+        alias="_uipathVerticalSolution",
+        description="Marks the project as part of a UiPath vertical solution. "
+        "When true, 'uipath init' stamps 'isTransactionRoot: true' on every "
+        "entrypoint in entry-points.json.",
+    )
 
 
 class DesignOptions(BaseModelWithDefaultConfig):
