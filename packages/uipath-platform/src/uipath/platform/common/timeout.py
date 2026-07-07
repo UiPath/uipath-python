@@ -7,11 +7,10 @@ from pydantic import ValidationError
 from uipath.core.triggers import (
     UIPATH_METADATA_KEY,
     UiPathResumeMetadata,
+    UiPathResumeTriggerType,
 )
 
 T = TypeVar("T")
-
-_TIMEOUT_KIND = "timeout"
 
 
 class UiPathTimeoutError(TimeoutError):
@@ -26,7 +25,9 @@ class UiPathTimeoutError(TimeoutError):
 def is_timeout(value: Any) -> bool:
     """Return True when a resume value came from a UiPath timeout trigger."""
     metadata = get_resume_metadata(value)
-    return metadata is not None and metadata.kind == _TIMEOUT_KIND
+    return (
+        metadata is not None and metadata.trigger_type == UiPathResumeTriggerType.TIMER
+    )
 
 
 def assert_no_timeout(value: T) -> T:

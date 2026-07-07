@@ -51,7 +51,6 @@ class UiPathResumeTriggerName(str, Enum):
 class UiPathResumeMetadata(BaseModel):
     """UiPath metadata attached to resume values from multi-trigger interrupts."""
 
-    kind: str | None = None
     trigger_type: UiPathResumeTriggerType | None = Field(
         default=None, alias="triggerType"
     )
