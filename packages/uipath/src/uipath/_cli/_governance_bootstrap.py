@@ -13,7 +13,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from uipath.core.governance import EnforcementMode, PolicyContext
-from uipath.core.governance.config import is_governance_enabled
 from uipath.platform import UiPath
 from uipath.platform.governance import UiPathPlatformGovernanceProvider
 from uipath.platform.governance._live_track_event_dispatcher import (
@@ -91,9 +90,6 @@ async def resolve_governance(
     to :class:`PolicyContext` so the backend can select the
     conversational or autonomous policy view.
     """
-    if not is_governance_enabled():
-        return None
-
     context = PolicyContext(is_conversational=is_conversational)
 
     try:

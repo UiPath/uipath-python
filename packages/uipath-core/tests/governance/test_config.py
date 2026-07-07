@@ -24,6 +24,17 @@ def test_governance_flag_name_is_stable():
     assert GOVERNANCE_FEATURE_FLAG == "EnablePythonGovernanceChecker"
 
 
+def test_is_governance_enabled_is_deprecated():
+    """The helper is retained for external callers but warns on use.
+
+    The CLI bootstrap no longer gates on it; direct callers (agents
+    wiring their own evaluator) may still use it, but should migrate
+    off before it is removed in a future major release.
+    """
+    with pytest.warns(DeprecationWarning):
+        is_governance_enabled()
+
+
 def test_is_governance_enabled_defaults_to_false():
     """With nothing configured, the gate defaults to disabled.
 
@@ -33,22 +44,26 @@ def test_is_governance_enabled_defaults_to_false():
     keeps the SDK safe-by-default for callers that haven't yet
     integrated with the governance backend.
     """
-    assert is_governance_enabled() is False
+    with pytest.warns(DeprecationWarning):
+        assert is_governance_enabled() is False
 
 
 def test_is_governance_enabled_respects_programmatic_disable():
     """Programmatic ``False`` flips the gate off."""
     FeatureFlags.configure_flags({GOVERNANCE_FEATURE_FLAG: False})
-    assert is_governance_enabled() is False
+    with pytest.warns(DeprecationWarning):
+        assert is_governance_enabled() is False
 
 
 def test_is_governance_enabled_respects_programmatic_enable():
     """Programmatic ``True`` keeps the gate on."""
     FeatureFlags.configure_flags({GOVERNANCE_FEATURE_FLAG: True})
-    assert is_governance_enabled() is True
+    with pytest.warns(DeprecationWarning):
+        assert is_governance_enabled() is True
 
 
 def test_is_governance_enabled_reads_env_var_fallback(monkeypatch):
     """When nothing is configured programmatically, the env-var fallback wins."""
     monkeypatch.setenv(f"UIPATH_FEATURE_{GOVERNANCE_FEATURE_FLAG}", "false")
-    assert is_governance_enabled() is False
+    with pytest.warns(DeprecationWarning):
+        assert is_governance_enabled() is False

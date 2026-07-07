@@ -127,22 +127,6 @@ def _stub_provider(
 
 
 class TestResolveGovernance:
-    async def test_returns_none_when_feature_flag_disabled(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: False,
-        )
-        assert (
-            await resolve_governance(
-                agent_framework="langgraph",
-                agent_type="uipath_coded",
-                is_conversational=False,
-            )
-            is None
-        )
-
     @pytest.mark.parametrize("is_conversational", [True, False])
     async def test_is_conversational_forwarded_verbatim_to_policy_context(
         self,
@@ -155,10 +139,6 @@ class TestResolveGovernance:
         bootstrap must forward the exact value to :class:`PolicyContext`
         so the backend can select the conversational or autonomous
         policy view."""
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -192,10 +172,6 @@ class TestResolveGovernance:
         monkeypatch: pytest.MonkeyPatch,
         cwd: Path,
     ) -> None:
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -218,10 +194,6 @@ class TestResolveGovernance:
         monkeypatch: pytest.MonkeyPatch,
         cwd: Path,
     ) -> None:
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -249,10 +221,6 @@ class TestResolveGovernance:
         monkeypatch: pytest.MonkeyPatch,
         cwd: Path,
     ) -> None:
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -278,10 +246,6 @@ class TestResolveGovernance:
         monkeypatch: pytest.MonkeyPatch,
         cwd: Path,
     ) -> None:
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -313,10 +277,6 @@ class TestResolveGovernance:
         governance skips cleanly rather than propagating a ``YAMLError``
         out of ``resolve_governance``.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -352,10 +312,6 @@ class TestResolveGovernance:
         """Happy path -- named fields populated and dispose unregisters
         atexit + shuts the dispatcher down.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -427,10 +383,6 @@ class TestResolveGovernance:
         the project; the factory does via
         :attr:`UiPathRuntimeFactorySettings.agent_type`.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -471,10 +423,6 @@ class TestResolveGovernance:
     ) -> None:
         """A factory with no ``agent_framework`` opinion emits
         ``"unknown"`` -- symmetric with the ``agent_type`` fallback."""
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -511,10 +459,6 @@ class TestResolveGovernance:
     ) -> None:
         """A factory with no ``agent_type`` opinion yields ``None`` on
         the metadata -- the backend decides how to interpret the gap."""
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -557,10 +501,6 @@ class TestResolveGovernance:
         the caller's ``agent_name`` / ``runtime_id``. This is the code
         path CLI callers replaced their manual construction with.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -607,10 +547,6 @@ class TestResolveGovernance:
         is optional and a failing bootstrap must not crash the CLI. No
         ``atexit`` hook should leak.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -667,10 +603,6 @@ class TestResolveGovernance:
         raises, ``resolve_governance`` must unregister the ``atexit`` hook
         AND shut the dispatcher down before returning ``None``.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
 
         class _ExplodingEvaluator:
             def __init__(self, *_a: Any, **_kw: Any) -> None:
@@ -739,10 +671,6 @@ class TestResolveGovernance:
         raise, or it will mask the primary exception. A shutdown that
         blows up should be logged at debug and swallowed.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
@@ -807,10 +735,6 @@ class TestResolveGovernance:
         callable that ``atexit.register`` received — otherwise unregister
         is a silent no-op and the dispatcher lingers.
         """
-        monkeypatch.setattr(
-            "uipath._cli._governance_bootstrap.is_governance_enabled",
-            lambda: True,
-        )
         _install_fake_runtime_governance(
             monkeypatch,
             audit_manager_cls=_FakeAuditManager,
