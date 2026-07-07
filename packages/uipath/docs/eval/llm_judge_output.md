@@ -109,12 +109,12 @@ The prompt template supports these placeholders:
 
 ```python
 from uipath.eval.evaluators import LLMJudgeOutputEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"query": "What is the capital of France?"},
-    agent_output={"answer": "Paris is the capital city of France."},
-    agent_trace=[]
+    workload_output={"answer": "Paris is the capital city of France."},
+    workload_trace=[]
 )
 
 evaluator = LLMJudgeOutputEvaluator(
@@ -129,7 +129,7 @@ evaluator = LLMJudgeOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"answer": "The capital of France is Paris."}
     }
@@ -152,10 +152,10 @@ Expected Output: {{ExpectedOutput}}
 Provide a score from 0-100 based on semantic similarity.
 """
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={"message": "The product has been successfully added to your cart."},
-    agent_trace=[]
+    workload_output={"message": "The product has been successfully added to your cart."},
+    workload_trace=[]
 )
 
 evaluator = LLMJudgeOutputEvaluator(
@@ -170,7 +170,7 @@ evaluator = LLMJudgeOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"message": "Item added to shopping cart."}
     }
@@ -183,9 +183,9 @@ print(f"Justification: {result.details}")
 #### Evaluating Natural Language Quality
 
 ```python
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Write a professional email"},
-    agent_output={"email": """Dear Customer,
+    workload_output={"email": """Dear Customer,
 
 Thank you for your inquiry. We have reviewed your request
 and are pleased to inform you that we can accommodate your
@@ -193,7 +193,7 @@ needs. Please let us know if you have any questions.
 
 Best regards,
 Support Team"""},
-    agent_trace=[]
+    workload_trace=[]
 )
 
 evaluator = LLMJudgeOutputEvaluator(
@@ -207,7 +207,7 @@ evaluator = LLMJudgeOutputEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {"email": "A professional, courteous response addressing the customer's inquiry"}
     }
@@ -271,19 +271,19 @@ evaluator = LLMJudgeStrictJSONSimilarityOutputEvaluator(
     }
 )
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={},
-    agent_output={
+    workload_output={
         "status": "success",
         "user_id": 12345,
         "name": "John Doe",
         "email": "john@example.com"
     },
-    agent_trace=[]
+    workload_trace=[]
 )
 
 result = await evaluator.evaluate(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "expected_output": {
             "status": "success",

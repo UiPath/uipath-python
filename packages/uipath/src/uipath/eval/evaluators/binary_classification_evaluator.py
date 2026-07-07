@@ -1,4 +1,4 @@
-"""Binary classification evaluator for agent outputs.
+"""Binary classification evaluator for workload outputs.
 
 Evaluates binary classification by comparing predicted vs expected class.
 Per-datapoint score is 1.0 (correct) or 0.0 (incorrect). The reduce_scores
@@ -11,10 +11,10 @@ from typing import Literal
 from pydantic import model_validator
 
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from ..models.models import (
     EvaluationResultDto,
@@ -127,11 +127,11 @@ class BinaryClassificationEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: BinaryClassificationEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate binary classification by comparing predicted vs expected class."""
-        predicted_class = str(self._get_actual_output(agent_execution)).lower()
+        predicted_class = str(self._get_actual_output(workload_execution)).lower()
         expected_class = evaluation_criteria.expected_class.lower()
         positive_class = self.evaluator_config.positive_class.lower()
 

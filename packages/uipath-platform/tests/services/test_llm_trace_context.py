@@ -8,7 +8,7 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform.chat.llm_trace_context import build_trace_context_headers
-from uipath.platform.common.constants import ENV_PROJECT_KEY
+from uipath.platform.constants import ENV_PROJECT_KEY
 
 FEATURE_FLAG = "EnableTraceContextHeaders"
 
@@ -121,7 +121,7 @@ class TestBaggageHeader:
         env = {
             "UIPATH_FOLDER_KEY": "folder-abc",
             ENV_PROJECT_KEY: "agent-123",
-            "UIPATH_PROCESS_KEY": "process-789",
+            "UIPATH_PROCESS_UUID": "process-789",
         }
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()

@@ -11,6 +11,10 @@ import pytest
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
 from uipath._cli._debug._bridge import SignalRDebugBridge
 from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
+from uipath.platform.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 
 class MockRuntimeContext:
@@ -203,8 +207,8 @@ class TestGetChatBridge:
 
         assert "Authorization" in bridge.headers
         assert "Bearer my-access-token" in bridge.headers["Authorization"]
-        assert "X-UiPath-Internal-TenantId" in bridge.headers
-        assert "X-UiPath-Internal-AccountId" in bridge.headers
+        assert HEADER_INTERNAL_TENANT_ID in bridge.headers
+        assert HEADER_INTERNAL_ACCOUNT_ID in bridge.headers
         assert "X-UiPath-ConversationId" in bridge.headers
         assert bridge.headers["X-UiPath-ConversationId"] == "conv-789"
 
@@ -225,8 +229,8 @@ class TestGetChatBridge:
 
         bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
 
-        assert bridge.headers["X-UiPath-Internal-TenantId"] == "env-tenant"
-        assert bridge.headers["X-UiPath-Internal-AccountId"] == "env-org"
+        assert bridge.headers[HEADER_INTERNAL_TENANT_ID] == "env-tenant"
+        assert bridge.headers[HEADER_INTERNAL_ACCOUNT_ID] == "env-org"
 
     def test_get_chat_bridge_includes_conversational_user_id_header_when_set(
         self, monkeypatch: pytest.MonkeyPatch
@@ -488,7 +492,7 @@ class TestSignalRDebugBridgeSendMethod:
 
 
 class TestEmitInterruptEvent:
-    """Tests for emit_interrupt_event (now a no-op for executingToolCall)."""
+    """Tests for emit_interrupt_event — registers expected tool_call_ids."""
 
     def _make_bridge(self) -> SocketIOChatBridge:
         bridge = SocketIOChatBridge(
@@ -502,8 +506,8 @@ class TestEmitInterruptEvent:
         return bridge
 
     @pytest.mark.anyio
-    async def test_emit_interrupt_event_is_noop(self) -> None:
-        """emit_interrupt_event no longer emits executingToolCall."""
+    async def test_emit_interrupt_event_does_not_emit_websocket_event(self) -> None:
+        """emit_interrupt_event does not emit any websocket event."""
         bridge = self._make_bridge()
 
         emitted_events: list[Any] = []
@@ -526,6 +530,47 @@ class TestEmitInterruptEvent:
         await bridge.emit_interrupt_event(trigger)
 
         assert len(emitted_events) == 0
+
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_registers_tool_call_id(self) -> None:
+        """emit_interrupt_event adds the tool_call_id to the expected queue."""
+        bridge = self._make_bridge()
+
+        trigger = UiPathResumeTrigger(
+            api_resume=UiPathApiTrigger(
+                request={"tool_call_id": "tc-42", "tool_name": "my_tool"}
+            )
+        )
+
+        await bridge.emit_interrupt_event(trigger)
+
+        assert list(bridge._expected_tool_call_ids) == ["tc-42"]
+
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_skips_without_tool_call_id(self) -> None:
+        """emit_interrupt_event does not register if tool_call_id is missing."""
+        bridge = self._make_bridge()
+
+        trigger = UiPathResumeTrigger(
+            api_resume=UiPathApiTrigger(request={"tool_name": "my_tool"})
+        )
+
+        await bridge.emit_interrupt_event(trigger)
+
+        assert len(bridge._expected_tool_call_ids) == 0
+
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_registers_multiple_in_order(self) -> None:
+        """Multiple emit_interrupt_event calls register IDs in FIFO order."""
+        bridge = self._make_bridge()
+
+        for tc_id in ["tc-1", "tc-2", "tc-3"]:
+            trigger = UiPathResumeTrigger(
+                api_resume=UiPathApiTrigger(request={"tool_call_id": tc_id})
+            )
+            await bridge.emit_interrupt_event(trigger)
+
+        assert list(bridge._expected_tool_call_ids) == ["tc-1", "tc-2", "tc-3"]
 
 
 class TestEmitExecutingToolCall:
@@ -623,10 +668,8 @@ class TestEmitExecutingToolCall:
 class TestWaitForResumeEndToolCall:
     """Tests for wait_for_resume unblocking on endToolCall events."""
 
-    @pytest.mark.anyio
-    async def test_end_tool_call_unblocks_wait_for_resume(self) -> None:
-        """Receiving an endToolCall event unblocks wait_for_resume and returns parsed payload."""
-        bridge = SocketIOChatBridge(
+    def _make_bridge(self) -> SocketIOChatBridge:
+        return SocketIOChatBridge(
             websocket_url="wss://test.example.com",
             websocket_path="/socket.io",
             conversation_id="conv-123",
@@ -634,16 +677,19 @@ class TestWaitForResumeEndToolCall:
             headers={},
         )
 
-        end_event = {
+    def _make_end_event(self, tool_call_id: str, output: Any = None) -> dict[str, Any]:
+        return {
             "conversationId": "conv-123",
             "exchange": {
                 "exchangeId": "exch-456",
                 "message": {
                     "messageId": "msg-200",
                     "toolCall": {
-                        "toolCallId": "tc-99",
+                        "toolCallId": tool_call_id,
                         "endToolCall": {
-                            "output": {"result": "ok"},
+                            "output": output
+                            if output is not None
+                            else {"result": "ok"},
                             "isError": False,
                         },
                     },
@@ -651,36 +697,15 @@ class TestWaitForResumeEndToolCall:
             },
         }
 
-        async def simulate_end_event() -> None:
-            await asyncio.sleep(0.05)
-            await bridge._handle_conversation_event(end_event, "sid-1")
-
-        task = asyncio.create_task(simulate_end_event())
-        result = await bridge.wait_for_resume()
-        await task
-
-        assert result["output"] == {"result": "ok"}
-        assert result["is_error"] is False
-
-    @pytest.mark.anyio
-    async def test_confirm_tool_call_unblocks_wait_for_resume(self) -> None:
-        """Receiving a confirmToolCall event also unblocks wait_for_resume."""
-        bridge = SocketIOChatBridge(
-            websocket_url="wss://test.example.com",
-            websocket_path="/socket.io",
-            conversation_id="conv-123",
-            exchange_id="exch-456",
-            headers={},
-        )
-
-        confirm_event = {
+    def _make_confirm_event(self, tool_call_id: str) -> dict[str, Any]:
+        return {
             "conversationId": "conv-123",
             "exchange": {
                 "exchangeId": "exch-456",
                 "message": {
                     "messageId": "msg-200",
                     "toolCall": {
-                        "toolCallId": "tc-99",
+                        "toolCallId": tool_call_id,
                         "confirmToolCall": {
                             "approved": True,
                             "input": {"edited": "data"},
@@ -690,9 +715,44 @@ class TestWaitForResumeEndToolCall:
             },
         }
 
+    async def _register(self, bridge: SocketIOChatBridge, tool_call_id: str) -> None:
+        """Register an expected tool_call_id via emit_interrupt_event."""
+        trigger = UiPathResumeTrigger(
+            api_resume=UiPathApiTrigger(request={"tool_call_id": tool_call_id})
+        )
+        await bridge.emit_interrupt_event(trigger)
+
+    @pytest.mark.anyio
+    async def test_end_tool_call_unblocks_wait_for_resume(self) -> None:
+        """Receiving an endToolCall event unblocks wait_for_resume and returns parsed payload."""
+        bridge = self._make_bridge()
+        await self._register(bridge, "tc-99")
+
+        async def simulate_end_event() -> None:
+            await asyncio.sleep(0.05)
+            await bridge._handle_conversation_event(
+                self._make_end_event("tc-99"), "sid-1"
+            )
+
+        task = asyncio.create_task(simulate_end_event())
+        result = await bridge.wait_for_resume()
+        await task
+
+        assert result["output"] == {"result": "ok"}
+        assert result["is_error"] is False
+        assert result["tool_call_id"] == "tc-99"
+
+    @pytest.mark.anyio
+    async def test_confirm_tool_call_unblocks_wait_for_resume(self) -> None:
+        """Receiving a confirmToolCall event also unblocks wait_for_resume."""
+        bridge = self._make_bridge()
+        await self._register(bridge, "tc-99")
+
         async def simulate_confirm_event() -> None:
             await asyncio.sleep(0.05)
-            await bridge._handle_conversation_event(confirm_event, "sid-1")
+            await bridge._handle_conversation_event(
+                self._make_confirm_event("tc-99"), "sid-1"
+            )
 
         task = asyncio.create_task(simulate_confirm_event())
         result = await bridge.wait_for_resume()
@@ -700,11 +760,150 @@ class TestWaitForResumeEndToolCall:
 
         assert result["approved"] is True
         assert result["input"] == {"edited": "data"}
+        assert result["tool_call_id"] == "tc-99"
 
     @pytest.mark.anyio
     async def test_early_end_tool_call_is_not_lost(self) -> None:
         """An endToolCall that arrives before wait_for_resume is called must not be lost."""
-        bridge = SocketIOChatBridge(
+        bridge = self._make_bridge()
+        await self._register(bridge, "tc-100")
+
+        # Response arrives BEFORE wait_for_resume is called
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-100", output={"early": True}), "sid-1"
+        )
+
+        result = await bridge.wait_for_resume()
+
+        assert result["output"] == {"early": True}
+        assert result["is_error"] is False
+        assert result["tool_call_id"] == "tc-100"
+
+    @pytest.mark.anyio
+    async def test_concurrent_tool_calls_all_early(self) -> None:
+        """Multiple endToolCall responses arriving before any wait_for_resume are all preserved."""
+        bridge = self._make_bridge()
+
+        # Runtime registers 3 expected tool calls
+        for tc_id in ["tc-1", "tc-2", "tc-3"]:
+            await self._register(bridge, tc_id)
+
+        # All 3 responses arrive before any wait_for_resume call
+        for tc_id in ["tc-1", "tc-2", "tc-3"]:
+            await bridge._handle_conversation_event(
+                self._make_end_event(tc_id, output={"id": tc_id}), "sid-1"
+            )
+
+        # Each wait_for_resume returns the correct result matched by tool_call_id
+        for tc_id in ["tc-1", "tc-2", "tc-3"]:
+            result = await bridge.wait_for_resume()
+            assert result["tool_call_id"] == tc_id
+            assert result["output"] == {"id": tc_id}
+
+        # All storage is empty after consumption
+        assert len(bridge._tool_resume_results) == 0
+        assert len(bridge._tool_resume_pending) == 0
+
+    @pytest.mark.anyio
+    async def test_concurrent_tool_calls_out_of_order(self) -> None:
+        """Responses arriving in reverse order are matched to the correct wait_for_resume call."""
+        bridge = self._make_bridge()
+
+        # Runtime registers in order: tc-A, tc-B, tc-C
+        for tc_id in ["tc-A", "tc-B", "tc-C"]:
+            await self._register(bridge, tc_id)
+
+        # Responses arrive in reverse order: tc-C, tc-B, tc-A
+        for tc_id in ["tc-C", "tc-B", "tc-A"]:
+            await bridge._handle_conversation_event(
+                self._make_end_event(tc_id, output={"id": tc_id}), "sid-1"
+            )
+
+        # wait_for_resume consumes in registration order, each gets correct result
+        result_a = await bridge.wait_for_resume()
+        assert result_a["tool_call_id"] == "tc-A"
+
+        result_b = await bridge.wait_for_resume()
+        assert result_b["tool_call_id"] == "tc-B"
+
+        result_c = await bridge.wait_for_resume()
+        assert result_c["tool_call_id"] == "tc-C"
+
+    @pytest.mark.anyio
+    async def test_concurrent_mixed_early_and_late(self) -> None:
+        """Mix of early arrivals and late arrivals are all matched correctly."""
+        bridge = self._make_bridge()
+
+        # Register 3 expected tool calls
+        for tc_id in ["tc-1", "tc-2", "tc-3"]:
+            await self._register(bridge, tc_id)
+
+        # tc-1 arrives early (before any wait_for_resume)
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-1", output={"id": "tc-1"}), "sid-1"
+        )
+
+        # First wait_for_resume finds tc-1 already in results
+        result_1 = await bridge.wait_for_resume()
+        assert result_1["tool_call_id"] == "tc-1"
+
+        # Second wait_for_resume blocks — tc-2 arrives while waiting
+        async def send_tc2() -> None:
+            await asyncio.sleep(0.05)
+            await bridge._handle_conversation_event(
+                self._make_end_event("tc-2", output={"id": "tc-2"}), "sid-1"
+            )
+
+        task = asyncio.create_task(send_tc2())
+        result_2 = await bridge.wait_for_resume()
+        await task
+        assert result_2["tool_call_id"] == "tc-2"
+
+        # tc-3 arrives early before third wait_for_resume
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-3", output={"id": "tc-3"}), "sid-1"
+        )
+        result_3 = await bridge.wait_for_resume()
+        assert result_3["tool_call_id"] == "tc-3"
+
+    @pytest.mark.anyio
+    async def test_confirm_then_end_same_tool_call(self) -> None:
+        """Tool with requireConversationalConfirmation: confirm and end are handled sequentially."""
+        bridge = self._make_bridge()
+
+        # Runtime registers the same tool_call_id twice (once for confirm, once for end)
+        await self._register(bridge, "tc-42")
+        await self._register(bridge, "tc-42")
+
+        # Confirm arrives
+        await bridge._handle_conversation_event(
+            self._make_confirm_event("tc-42"), "sid-1"
+        )
+
+        # First wait_for_resume gets the confirm
+        result_confirm = await bridge.wait_for_resume()
+        assert result_confirm["approved"] is True
+        assert result_confirm["tool_call_id"] == "tc-42"
+
+        # End arrives after confirm was consumed
+        async def send_end() -> None:
+            await asyncio.sleep(0.05)
+            await bridge._handle_conversation_event(
+                self._make_end_event("tc-42", output={"done": True}), "sid-1"
+            )
+
+        task = asyncio.create_task(send_end())
+        result_end = await bridge.wait_for_resume()
+        await task
+        assert result_end["output"] == {"done": True}
+        assert result_end["tool_call_id"] == "tc-42"
+
+
+class TestWaitForResumeEdgeCases:
+    """Edge case tests to ensure the resume mechanism doesn't crash."""
+
+    def _make_bridge(self) -> SocketIOChatBridge:
+        return SocketIOChatBridge(
             websocket_url="wss://test.example.com",
             websocket_path="/socket.io",
             conversation_id="conv-123",
@@ -712,16 +911,19 @@ class TestWaitForResumeEndToolCall:
             headers={},
         )
 
-        end_event = {
+    def _make_end_event(self, tool_call_id: str, output: Any = None) -> dict[str, Any]:
+        return {
             "conversationId": "conv-123",
             "exchange": {
                 "exchangeId": "exch-456",
                 "message": {
-                    "messageId": "msg-300",
+                    "messageId": "msg-200",
                     "toolCall": {
-                        "toolCallId": "tc-100",
+                        "toolCallId": tool_call_id,
                         "endToolCall": {
-                            "output": {"early": True},
+                            "output": output
+                            if output is not None
+                            else {"result": "ok"},
                             "isError": False,
                         },
                     },
@@ -729,10 +931,147 @@ class TestWaitForResumeEndToolCall:
             },
         }
 
-        # Simulate the event arriving BEFORE wait_for_resume is called
-        await bridge._handle_conversation_event(end_event, "sid-1")
+    async def _register(self, bridge: SocketIOChatBridge, tool_call_id: str) -> None:
+        trigger = UiPathResumeTrigger(
+            api_resume=UiPathApiTrigger(request={"tool_call_id": tool_call_id})
+        )
+        await bridge.emit_interrupt_event(trigger)
+
+    @pytest.mark.anyio
+    async def test_wait_for_resume_without_registration_raises(self) -> None:
+        """wait_for_resume with empty deque raises RuntimeError, not IndexError."""
+        bridge = self._make_bridge()
+
+        with pytest.raises(RuntimeError, match="no tool_call_id was registered"):
+            await bridge.wait_for_resume()
+
+    @pytest.mark.anyio
+    async def test_duplicate_response_stored_does_not_crash(self) -> None:
+        """Two responses for the same tool_call_id before consumption logs warning, doesn't crash."""
+        bridge = self._make_bridge()
+        await self._register(bridge, "tc-dup")
+
+        # First response stored
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-dup", output={"first": True}), "sid-1"
+        )
+        # Second response overwrites (with warning), but no crash
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-dup", output={"second": True}), "sid-1"
+        )
 
         result = await bridge.wait_for_resume()
+        # Second overwrote first
+        assert result["output"] == {"second": True}
 
-        assert result["output"] == {"early": True}
-        assert result["is_error"] is False
+    @pytest.mark.anyio
+    async def test_duplicate_response_pending_does_not_crash(self) -> None:
+        """Two responses while a Future is pending — first resolves it, second is stored as fallback."""
+        bridge = self._make_bridge()
+        await self._register(bridge, "tc-dup")
+
+        # Start waiting (creates a pending Future)
+        async def wait() -> dict[str, Any]:
+            return await bridge.wait_for_resume()
+
+        wait_task = asyncio.create_task(wait())
+        await asyncio.sleep(0.02)
+
+        # First response resolves the Future
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-dup", output={"first": True}), "sid-1"
+        )
+        # Second response — Future already resolved, should not crash
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-dup", output={"second": True}), "sid-1"
+        )
+
+        result = await wait_task
+        assert result["output"] == {"first": True}
+
+    @pytest.mark.anyio
+    async def test_malformed_event_does_not_crash(self) -> None:
+        """Malformed conversation events are caught and don't crash the bridge."""
+        bridge = self._make_bridge()
+
+        # Completely wrong structure
+        await bridge._handle_conversation_event({"garbage": True}, "sid-1")
+
+        # Missing toolCall
+        await bridge._handle_conversation_event(
+            {
+                "conversationId": "conv-123",
+                "exchange": {"exchangeId": "exch-456", "message": {"messageId": "m-1"}},
+            },
+            "sid-1",
+        )
+
+        # Missing endToolCall and confirmToolCall
+        await bridge._handle_conversation_event(
+            {
+                "conversationId": "conv-123",
+                "exchange": {
+                    "exchangeId": "exch-456",
+                    "message": {
+                        "messageId": "m-1",
+                        "toolCall": {"toolCallId": "tc-1"},
+                    },
+                },
+            },
+            "sid-1",
+        )
+
+        # No crash — bridge is still functional
+        assert len(bridge._tool_resume_results) == 0
+        assert len(bridge._tool_resume_pending) == 0
+
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_no_api_resume(self) -> None:
+        """emit_interrupt_event with no api_resume does not crash or register."""
+        bridge = self._make_bridge()
+
+        trigger = UiPathResumeTrigger()
+        await bridge.emit_interrupt_event(trigger)
+
+        assert len(bridge._expected_tool_call_ids) == 0
+
+    @pytest.mark.anyio
+    async def test_emit_interrupt_event_non_dict_request(self) -> None:
+        """emit_interrupt_event with non-dict request does not crash or register."""
+        bridge = self._make_bridge()
+
+        trigger = UiPathResumeTrigger(api_resume=UiPathApiTrigger(request="not-a-dict"))
+        await bridge.emit_interrupt_event(trigger)
+
+        assert len(bridge._expected_tool_call_ids) == 0
+
+    @pytest.mark.anyio
+    async def test_unrequested_response_stored_harmlessly(self) -> None:
+        """A response for an unregistered tool_call_id is stored without crashing."""
+        bridge = self._make_bridge()
+
+        # No registration, but a response arrives
+        await bridge._handle_conversation_event(
+            self._make_end_event("tc-unknown", output={"surprise": True}), "sid-1"
+        )
+
+        # Stored in results — won't be consumed but doesn't crash
+        assert "tc-unknown" in bridge._tool_resume_results
+
+    @pytest.mark.anyio
+    async def test_storage_cleaned_up_after_consumption(self) -> None:
+        """After all wait_for_resume calls complete, no state is left behind."""
+        bridge = self._make_bridge()
+
+        for tc_id in ["tc-1", "tc-2", "tc-3"]:
+            await self._register(bridge, tc_id)
+            await bridge._handle_conversation_event(
+                self._make_end_event(tc_id), "sid-1"
+            )
+
+        for _ in range(3):
+            await bridge.wait_for_resume()
+
+        assert len(bridge._tool_resume_results) == 0
+        assert len(bridge._tool_resume_pending) == 0
+        assert len(bridge._expected_tool_call_ids) == 0

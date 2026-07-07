@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Protocol, overload, runtime_checkable
 from uuid import UUID
 
 
@@ -19,6 +19,28 @@ class AttachmentsProtocol(Protocol):
         folder_path: str | None = None,
     ) -> str:
         """Download an attachment to a local path."""
+
+    # Overloads mirror the concrete AttachmentsService: content XOR source_path,
+    # so the real service is a structural subtype of this protocol.
+    @overload
+    async def upload_async(
+        self,
+        *,
+        name: str,
+        content: str | bytes,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> UUID: ...
+
+    @overload
+    async def upload_async(
+        self,
+        *,
+        name: str,
+        source_path: str,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> UUID: ...
 
     async def upload_async(
         self,

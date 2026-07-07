@@ -106,6 +106,11 @@ class GovernRequest(BaseModel):
     them by leaving them ``None``. How unset fields are resolved (e.g.
     auto-filled from environment) is the concrete provider's concern,
     not part of this wire contract.
+
+    ``trace_id`` is optional. When ``None`` the field is omitted from
+    the wire JSON (via ``exclude_none=True`` at serialisation). Whether
+    a concrete provider chooses to populate a missing value before
+    sending is the provider's concern, not part of this contract.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -114,7 +119,7 @@ class GovernRequest(BaseModel):
     rules: list[FiredRule]
     data: dict[str, Any]
     hook: str
-    trace_id: str = Field(alias="traceId")
+    trace_id: str | None = Field(default=None, alias="traceId")
     src_timestamp: str  # wire key is intentionally snake_case
     agent_name: str = Field(alias="agentName")
     runtime_id: str = Field(alias="runtimeId")
@@ -124,6 +129,12 @@ class GovernRequest(BaseModel):
     process_key: str | None = Field(default=None, alias="processKey")
     reference_id: str | None = Field(default=None, alias="referenceId")
     agent_version: str | None = Field(default=None, alias="agentVersion")
+
+    # Runtime identity for governance telemetry; the server stamps these on the
+    # rule-denied events it emits. Optional — omitted from the wire when None.
+    agent_framework: str | None = Field(default=None, alias="agentFramework")
+    agent_type: str | None = Field(default=None, alias="agentType")
+    runtime_version: str | None = Field(default=None, alias="runtimeVersion")
 
 
 # ----------------------------------------------------------------------
@@ -135,12 +146,30 @@ class GovernRequest(BaseModel):
 class GovernancePolicyProvider(Protocol):
     """Contract for fetching the governance policy pack.
 
-    Any object exposing a ``get_policy(context) -> PolicyResponse``
-    method satisfies this protocol.
+    Implementations expose both a sync and an async fetch. The async
+    variant is the preferred entry point for hosts running on an event
+    loop (the host can overlap policy fetch with the rest of agent
+    setup via ``asyncio.create_task`` and ``await`` the resolved
+    :class:`PolicyResponse` before constructing the governance
+    wrapper). The sync variant is kept for callers outside an event
+    loop (CLI tools, integration tests).
+
+    Any object exposing both ``get_policy(context) -> PolicyResponse``
+    and ``async def get_policy_async(context) -> PolicyResponse``
+    satisfies this protocol.
     """
 
     def get_policy(self, context: PolicyContext) -> PolicyResponse:
         """Fetch the policy pack for the active org/tenant."""
+        ...
+
+    async def get_policy_async(self, context: PolicyContext) -> PolicyResponse:
+        """Async variant of :meth:`get_policy`.
+
+        Hosts running on an event loop should use this so the fetch
+        doesn't block the loop and can overlap with other startup
+        work.
+        """
         ...
 
 

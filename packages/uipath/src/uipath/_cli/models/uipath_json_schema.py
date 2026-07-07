@@ -4,6 +4,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from uipath.platform.constants import UIPATH_CONFIG_FILE
+
 
 class BaseModelWithDefaultConfig(BaseModel):
     model_config = ConfigDict(
@@ -23,6 +25,13 @@ class RuntimeOptions(BaseModelWithDefaultConfig):
         default=False,
         alias="isConversational",
         description="Enable conversational mode for the runtime",
+    )
+    uipath_vertical_solution: bool | None = Field(
+        default=None,
+        alias="_uipathVerticalSolution",
+        description="Marks the project as part of a UiPath vertical solution. "
+        "When true, 'uipath init' stamps 'isTransactionRoot: true' on every "
+        "entrypoint in entry-points.json.",
     )
 
 
@@ -126,7 +135,7 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
         )
 
     @classmethod
-    def load_from_file(cls, file_path: str = "uipath.json") -> "UiPathJsonConfig":
+    def load_from_file(cls, file_path: str = UIPATH_CONFIG_FILE) -> "UiPathJsonConfig":
         """Load configuration from a JSON file."""
         import json
         from pathlib import Path

@@ -1,4 +1,4 @@
-"""Legacy Faithfulness evaluator for assessing whether agent output claims are grounded in context."""
+"""Legacy Faithfulness evaluator for assessing whether workload output claims are grounded in context."""
 
 import json
 from typing import Any, Optional
@@ -10,7 +10,7 @@ from uipath.platform.chat import UiPathLlmChatService
 
 from .._execution_context import eval_set_run_id_context
 from ..models import NumericEvaluationResult
-from ..models.models import AgentExecution, EvaluationResult
+from ..models.models import EvaluationResult, WorkloadExecution
 from .base_legacy_evaluator import (
     BaseLegacyEvaluator,
     LegacyEvaluationCriteria,
@@ -35,9 +35,9 @@ class LegacyFaithfulnessEvaluator(
 ):
     """Legacy evaluator that assesses faithfulness using an LLM.
 
-    This evaluator extracts claims from agent output using a 3-stage pipeline
+    This evaluator extracts claims from workload output using a 3-stage pipeline
     (selection, disambiguation, decomposition) and evaluates whether each claim
-    is grounded in the available context sources extracted from agent traces.
+    is grounded in the available context sources extracted from workload traces.
     The final score is the percentage of claims that are grounded.
     """
 
@@ -63,13 +63,13 @@ class LegacyFaithfulnessEvaluator(
     @track_evaluation_metrics
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
-        """Evaluate faithfulness of agent output against available context.
+        """Evaluate faithfulness of workload output against available context.
 
         Args:
-            agent_execution: The execution details containing agent_trace with spans
+            workload_execution: The execution details containing workload_trace with spans
             evaluation_criteria: Legacy evaluation criteria containing expected_output
 
         Returns:
@@ -79,30 +79,32 @@ class LegacyFaithfulnessEvaluator(
         if self.llm is None:
             self._initialize_llm()
 
-        # Extract agent output
-        agent_output = str(evaluation_criteria.expected_output or "")
-        if not agent_output or not agent_output.strip():
+        # Extract workload output
+        workload_output = str(evaluation_criteria.expected_output or "")
+        if not workload_output or not workload_output.strip():
             return NumericEvaluationResult(
                 score=0.0,
-                details="No agent output provided for faithfulness evaluation.",
+                details="No workload output provided for faithfulness evaluation.",
             )
 
         # Extract context sources from traces
-        context_sources = self._extract_context_sources(agent_execution.agent_trace)
+        context_sources = self._extract_context_sources(
+            workload_execution.workload_trace
+        )
 
         if not context_sources:
             return NumericEvaluationResult(
                 score=0.0,
-                details="No context sources found in the agent execution trace.",
+                details="No context sources found in the workload execution trace.",
             )
 
-        # Stage 1: Extract verifiable claims from agent output
-        claims = await self._extract_claims(agent_output)
+        # Stage 1: Extract verifiable claims from workload output
+        claims = await self._extract_claims(workload_output)
 
         if not claims:
             return NumericEvaluationResult(
                 score=100.0,
-                details="No verifiable claims found in agent output.",
+                details="No verifiable claims found in workload output.",
             )
 
         # Stage 2: Evaluate each claim against context sources
@@ -127,8 +129,10 @@ class LegacyFaithfulnessEvaluator(
             details=justification,
         )
 
-    def _extract_context_sources(self, agent_trace: list[Any]) -> list[dict[str, str]]:
-        """Extract context sources from agent execution trace.
+    def _extract_context_sources(
+        self, workload_trace: list[Any]
+    ) -> list[dict[str, str]]:
+        """Extract context sources from workload execution trace.
 
         Looks for tool call outputs and context grounding spans that provide context.
 
@@ -137,7 +141,7 @@ class LegacyFaithfulnessEvaluator(
         """
         context_sources = []
 
-        for span in agent_trace:
+        for span in workload_trace:
             if not hasattr(span, "attributes") or span.attributes is None:
                 continue
 
@@ -180,8 +184,8 @@ class LegacyFaithfulnessEvaluator(
         """Serialize content to string format."""
         return serialize_object(content, sort_keys=False)
 
-    async def _extract_claims(self, agent_output: str) -> list[dict[str, str]]:
-        """Extract verifiable claims from agent output using 3-stage pipeline.
+    async def _extract_claims(self, workload_output: str) -> list[dict[str, str]]:
+        """Extract verifiable claims from workload output using 3-stage pipeline.
 
         Stages:
         1. Selection: Filter to verifiable sentences
@@ -192,23 +196,25 @@ class LegacyFaithfulnessEvaluator(
             List of claim dicts with 'text' and 'original_sentence' keys
         """
         # Stage 1: Selection
-        verifiable_sentences = await self._select_verifiable_sentences(agent_output)
+        verifiable_sentences = await self._select_verifiable_sentences(workload_output)
         if not verifiable_sentences:
             return []
 
         # Stage 2: Disambiguation
         disambiguated_sentences = await self._disambiguate_sentences(
-            verifiable_sentences, agent_output
+            verifiable_sentences, workload_output
         )
         if not disambiguated_sentences:
             return []
 
         # Stage 3: Decomposition
-        claims = await self._decompose_to_claims(disambiguated_sentences, agent_output)
+        claims = await self._decompose_to_claims(
+            disambiguated_sentences, workload_output
+        )
         return claims
 
-    async def _select_verifiable_sentences(self, agent_output: str) -> list[str]:
-        """Stage 1: Filter agent output to verifiable sentences."""
+    async def _select_verifiable_sentences(self, workload_output: str) -> list[str]:
+        """Stage 1: Filter workload output to verifiable sentences."""
         prompt = f"""You are an expert evaluator identifying verifiable claims.
 
 TASK: Identify sentences in the agent output that contain verifiable, factual claims.
@@ -217,9 +223,9 @@ Filter out subjective opinions, instructions, questions, and meta-commentary.
 OUTPUT FORMAT: Return a JSON object with a "sentences" field containing an array of strings.
 Each string should be a complete sentence from the original output.
 
-<agent_output>
-{agent_output}
-</agent_output>
+<workload_output>
+{workload_output}
+</workload_output>
 
 Identify and return only the verifiable sentences."""
 

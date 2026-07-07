@@ -10,10 +10,10 @@ from pydantic import ConfigDict, Field
 
 from ..models import EvaluationResult
 from ..models.models import (
-    AgentExecution,
     ErrorEvaluationResult,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 from .attachment_utils import (
     download_attachment_as_string,
@@ -111,7 +111,7 @@ class BaseLegacyEvaluator(
 
     async def validate_and_evaluate_criteria(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate the given data and return a result from a raw evaluation criteria."""
@@ -119,19 +119,19 @@ class BaseLegacyEvaluator(
 
         # Check if line-by-line evaluation is enabled
         if self.line_by_line_evaluation:
-            return await self._evaluate_line_by_line(agent_execution, criteria)
+            return await self._evaluate_line_by_line(workload_execution, criteria)
 
-        return await self.evaluate(agent_execution, criteria)
+        return await self.evaluate(workload_execution, criteria)
 
     async def _evaluate_line_by_line(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate output line-by-line and aggregate results.
 
         Args:
-            agent_execution: The execution details
+            workload_execution: The execution details
             evaluation_criteria: The evaluation criteria
 
         Returns:
@@ -140,7 +140,7 @@ class BaseLegacyEvaluator(
         from .line_by_line_utils import build_line_by_line_result, evaluate_lines
 
         # Extract actual and expected outputs
-        actual_output = self._get_actual_output(agent_execution)
+        actual_output = self._get_actual_output(workload_execution)
         expected_output = evaluation_criteria.expected_output
 
         # Split into lines using utility function
@@ -168,7 +168,7 @@ class BaseLegacyEvaluator(
             actual_lines=actual_lines,
             expected_lines=expected_lines,
             target_output_key=self.target_output_key,
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluate_fn=self.evaluate,
             create_line_criteria_fn=create_line_criteria,
         )
@@ -181,29 +181,32 @@ class BaseLegacyEvaluator(
             expected_lines=expected_lines,
         )
 
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
-        """Extract actual output from agent execution.
+    def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
+        """Extract actual output from workload execution.
 
         If the output is a job attachment URI, downloads the attachment
         and returns its content as a string.
 
         Args:
-            agent_execution: The agent execution
+            workload_execution: The workload execution
 
         Returns:
-            The actual output (either the full agent_output or a specific key)
+            The actual output (either the full workload_output or a specific key)
         """
-        agent_output = agent_execution.agent_output
+        workload_output = workload_execution.workload_output
 
         # If target_output_key is "*", return full output
         if self.target_output_key == "*":
-            result = agent_output
+            result = workload_output
         # Otherwise, extract specific key
-        elif isinstance(agent_output, dict) and self.target_output_key in agent_output:
-            result = agent_output[self.target_output_key]
+        elif (
+            isinstance(workload_output, dict)
+            and self.target_output_key in workload_output
+        ):
+            result = workload_output[self.target_output_key]
         else:
             # Fallback to full output
-            result = agent_output
+            result = workload_output
 
         # Check if result is a job attachment URI and download if so
         if is_job_attachment_uri(result):
@@ -217,13 +220,13 @@ class BaseLegacyEvaluator(
     @abstractmethod
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate the given data and return a result.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
                 - spans: The execution spans to use for the evaluation

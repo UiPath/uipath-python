@@ -10,7 +10,7 @@ from pytest_httpx import HTTPXMock
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.attachments import Attachment
 from uipath.platform.attachments.attachments import AttachmentMode
-from uipath.platform.common.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 from uipath.platform.orchestrator._attachments_service import AttachmentsService
 
 if TYPE_CHECKING:
@@ -1193,3 +1193,17 @@ class TestAttachmentsService:
         assert upload_request is not None
         assert upload_request.method == "PUT"
         assert upload_request.url == blob_uri_response["BlobFileAccess"]["Uri"]
+
+
+def test_attachments_service_conforms_to_attachments_protocol(
+    service: AttachmentsService,
+) -> None:
+    """AttachmentsService must satisfy AttachmentsProtocol (workspace hydration).
+
+    The static annotation makes mypy verify the upload_async overloads line up;
+    the isinstance check covers the runtime_checkable contract.
+    """
+    from uipath.core.workspace import AttachmentsProtocol
+
+    conforming: AttachmentsProtocol = service
+    assert isinstance(conforming, AttachmentsProtocol)

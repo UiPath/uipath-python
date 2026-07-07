@@ -4,6 +4,10 @@ from typing import Any
 
 from uipath._utils import Endpoint
 from uipath.platform.common import BaseService
+from uipath.platform.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 
 class SimulateComponentService(BaseService):
@@ -12,9 +16,9 @@ class SimulateComponentService(BaseService):
 
         headers: dict[str, str] = {}
         if UiPathConfig.tenant_id:
-            headers["X-UiPath-Internal-TenantId"] = UiPathConfig.tenant_id
+            headers[HEADER_INTERNAL_TENANT_ID] = UiPathConfig.tenant_id
         if UiPathConfig.organization_id:
-            headers["X-UiPath-Internal-AccountId"] = UiPathConfig.organization_id
+            headers[HEADER_INTERNAL_ACCOUNT_ID] = UiPathConfig.organization_id
 
         response = await self.request_async(
             "POST",

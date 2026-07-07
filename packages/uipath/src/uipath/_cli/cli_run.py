@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import click
 from pydantic import ValidationError
@@ -7,9 +8,13 @@ from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
-from uipath.core.tracing import UiPathTraceManager
+from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
-from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.platform.common import (
+    ExecutionSourceContext,
+    ResourceOverwritesContext,
+    UiPathConfig,
+)
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeFactoryProtocol,
@@ -30,6 +35,7 @@ from uipath.tracing import (
 )
 
 from ._errors import EntrypointDiscoveryException
+from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -186,7 +192,7 @@ def run(
                 return ctx.result
 
             async def execute() -> None:
-                trace_manager = UiPathTraceManager()
+                trace_manager = create_trace_manager()
 
                 ctx = UiPathRuntimeContext.with_defaults(
                     entrypoint=entrypoint,
@@ -209,11 +215,13 @@ def run(
                 async with ResourceOverwritesContext(
                     lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                 ):
-                    with ctx:
+                    with ExecutionSourceContext(ctx.execution_source), ctx:
                         base_runtime: UiPathRuntimeProtocol | None = None
                         runtime: UiPathRuntimeProtocol | None = None
                         chat_runtime: UiPathRuntimeProtocol | None = None
                         factory: UiPathRuntimeFactoryProtocol | None = None
+                        governance_bootstrap: GovernanceBootstrap | None = None
+                        live_tracking_processor: LiveTrackingSpanProcessor | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
@@ -231,10 +239,43 @@ def run(
                                 if factory_settings
                                 else None
                             )
+                            agent_type = (
+                                factory_settings.agent_type
+                                if factory_settings
+                                else None
+                            )
+                            agent_framework = (
+                                factory_settings.agent_framework
+                                if factory_settings
+                                else None
+                            )
+                            governance_bootstrap = await resolve_governance(
+                                agent_framework=agent_framework,
+                                agent_type=agent_type,
+                                is_conversational=ctx.conversation_id is not None,
+                            )
+                            governance_runtime_id = (
+                                ctx.conversation_id or ctx.job_id or "default"
+                            )
+                            new_runtime_kwargs: dict[str, Any] = {}
+                            if governance_bootstrap is not None:
+                                new_runtime_kwargs["evaluator"] = (
+                                    governance_bootstrap.evaluator
+                                )
+
                             base_runtime = await factory.new_runtime(
                                 resolved_entrypoint,
-                                ctx.conversation_id or ctx.job_id or "default",
+                                governance_runtime_id,
+                                **new_runtime_kwargs,
                             )
+
+                            if governance_bootstrap is not None:
+                                base_runtime = governance_bootstrap.wrap_runtime(
+                                    base_runtime,
+                                    agent_name=resolved_entrypoint,
+                                    runtime_id=governance_runtime_id,
+                                )
+
                             runtime = base_runtime
 
                             if simulation_config:
@@ -255,11 +296,12 @@ def run(
 
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:
+                                    live_tracking_processor = LiveTrackingSpanProcessor(
+                                        LlmOpsHttpExporter(),
+                                        settings=trace_settings,
+                                    )
                                     trace_manager.add_span_processor(
-                                        LiveTrackingSpanProcessor(
-                                            LlmOpsHttpExporter(),
-                                            settings=trace_settings,
-                                        )
+                                        live_tracking_processor
                                     )
 
                                 if ctx.conversation_id and ctx.exchange_id:
@@ -282,6 +324,10 @@ def run(
                                 await runtime.dispose()
                             if base_runtime is not None:
                                 await base_runtime.dispose()
+                            if live_tracking_processor is not None:
+                                live_tracking_processor.shutdown()
+                            if governance_bootstrap is not None:
+                                governance_bootstrap.dispose()
                             if factory:
                                 await factory.dispose()
 

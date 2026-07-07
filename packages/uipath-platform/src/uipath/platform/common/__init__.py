@@ -3,6 +3,8 @@
 This module contains common models used across multiple services.
 """
 
+from uipath.core.triggers import UiPathResumeMetadata
+
 from ._api_client import ApiClient
 from ._base_service import BaseService, resolve_trace_id
 from ._bindings import (
@@ -16,13 +18,25 @@ from ._bindings import (
 )
 from ._config import UiPathApiConfig, UiPathConfig
 from ._endpoints_manager import EndpointManager
-from ._execution_context import UiPathExecutionContext
-from ._external_application_service import ExternalApplicationService
+from ._execution_context import ExecutionSourceContext, UiPathExecutionContext
 from ._folder_context import FolderContext, header_folder
 from ._http_config import get_ca_bundle_path, get_httpx_client_kwargs
 from ._models import Endpoint, RequestSpec
+from ._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+    ReferenceEntry,
+)
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
-from ._span_utils import UiPathSpan, _SpanUtils
+from ._span_utils import (
+    ExecutionType,
+    ReferenceHierarchySpanProcessor,
+    SpanSource,
+    SpanStatus,
+    UiPathSpan,
+    VerbosityLevel,
+    _SpanUtils,
+)
 from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .auth import TokenData
@@ -53,15 +67,22 @@ from .interrupt_models import (
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
+    WaitUntil,
 )
 from .paging import PagedResult
+from .timeout import (
+    UiPathTimeoutError,
+    assert_no_timeout,
+    get_resume_metadata,
+    is_timeout,
+)
 
 __all__ = [
     "ApiClient",
     "BaseService",
     "UiPathApiConfig",
     "UiPathExecutionContext",
-    "ExternalApplicationService",
+    "ExecutionSourceContext",
     "FolderContext",
     "TokenData",
     "UiPathConfig",
@@ -91,6 +112,7 @@ __all__ = [
     "DocumentExtractionValidation",
     "WaitDocumentExtractionValidation",
     "WaitIntegrationEvent",
+    "WaitUntil",
     "RequestSpec",
     "Endpoint",
     "UiPathUrl",
@@ -104,15 +126,28 @@ __all__ = [
     "jsonschema_to_pydantic",
     "ConnectionResourceOverwrite",
     "EntityResourceOverwrite",
+    "ExecutionType",
     "GenericResourceOverwrite",
     "ResourceOverwrite",
     "ResourceOverwriteParser",
     "ResourceOverwritesContext",
+    "ReferenceEntry",
+    "ReferenceContext",
+    "ReferenceContextAccessor",
+    "ReferenceHierarchySpanProcessor",
+    "SpanSource",
+    "SpanStatus",
     "UiPathSpan",
+    "VerbosityLevel",
     "_SpanUtils",
     "resolve_service_url",
     "inject_routing_headers",
     "resolve_trace_id",
+    "UiPathTimeoutError",
+    "UiPathResumeMetadata",
+    "assert_no_timeout",
+    "get_resume_metadata",
+    "is_timeout",
 ]
 
 from .validation import validate_pagination_params

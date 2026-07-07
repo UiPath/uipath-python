@@ -11,6 +11,12 @@ from uipath._cli.models.runtime_schema import Bindings, EntryPoint, EntryPoints
 from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 from uipath.platform.common import UiPathConfig
+from uipath.platform.constants import (
+    ENTRY_POINTS_FILE,
+    PYTHON_CONFIGURATION_FILE,
+    UIPATH_BINDINGS_FILE,
+    UIPATH_CONFIG_FILE,
+)
 
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
@@ -31,7 +37,7 @@ schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
 
 def get_project_version(directory):
-    toml_path = os.path.join(directory, "pyproject.toml")
+    toml_path = os.path.join(directory, PYTHON_CONFIGURATION_FILE)
     if not os.path.exists(toml_path):
         console.warning("pyproject.toml not found. Using default version 0.0.1")
         return "0.0.1"
@@ -95,7 +101,7 @@ def generate_operate_file(
 def generate_entrypoints_file(entrypoints: list[EntryPoint]):
     entrypoint_json_data = {
         "$schema": schema,
-        "$id": "entry-points.json",
+        "$id": ENTRY_POINTS_FILE,
         "entryPoints": [
             ep.model_dump(by_alias=True, exclude_none=True) for ep in entrypoints
         ],
@@ -176,8 +182,8 @@ def generate_psmdcp_content(projectName, version, description, authors):
 def generate_package_descriptor_content(entrypoints: list[EntryPoint]):
     files = {
         "operate.json": "content/operate.json",
-        "entry-points.json": "content/entry-points.json",
-        "bindings.json": "content/bindings_v2.json",
+        ENTRY_POINTS_FILE: "content/entry-points.json",
+        UIPATH_BINDINGS_FILE: "content/bindings_v2.json",
     }
 
     for entry in entrypoints:
@@ -212,14 +218,16 @@ def pack_fn(
         directory, str(UiPathConfig.entry_points_file_path)
     )
     if not os.path.exists(entry_points_file_path):
-        raise Exception("'entry-points.json' file not found. Please run 'uipath init'.")
+        raise Exception(
+            f"'{ENTRY_POINTS_FILE}' file not found. Please run 'uipath init'."
+        )
 
     with open(entry_points_file_path, "r") as f:
         entry_points_data = EntryPoints.model_validate(json.load(f))
 
     entrypoints = entry_points_data.entrypoints
 
-    config_path = os.path.join(directory, "uipath.json")
+    config_path = os.path.join(directory, UIPATH_CONFIG_FILE)
     if not os.path.exists(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
 

@@ -5,7 +5,7 @@ governance checker runs at all. The
 :class:`uipath.core.governance.EnforcementMode` value type is defined
 in :mod:`uipath.core.governance.models`; the per-policy runtime state
 that selects a mode (backend-supplied via the ``/runtime/policy``
-client) lives in the ``uipath-runtime`` package.
+client) lives outside this package.
 """
 
 from __future__ import annotations
@@ -13,9 +13,9 @@ from __future__ import annotations
 from uipath.core.feature_flags import FeatureFlags
 
 # Feature flag name controlling whether governance runs.
-# Mirrors the gate in ``uipath-runtime`` so the platform-injection path
-# and direct callers (agents constructing an evaluator themselves)
-# honour the same toggle.
+# A single shared gate so the host-driven injection path and direct
+# callers (agents constructing an evaluator themselves) honour the
+# same toggle.
 GOVERNANCE_FEATURE_FLAG = "EnablePythonGovernanceChecker"
 
 

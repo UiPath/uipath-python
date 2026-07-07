@@ -9,7 +9,7 @@ from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 from uipath.platform.orchestrator import Job
 from uipath.platform.orchestrator._jobs_service import JobsService
 
