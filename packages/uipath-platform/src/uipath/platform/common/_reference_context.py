@@ -17,7 +17,6 @@ import uuid
 from dataclasses import dataclass
 from typing import ClassVar, Dict, Iterator, List, Optional, Tuple
 
-
 __all__ = [
     "ReferenceEntry",
     "ReferenceContext",
