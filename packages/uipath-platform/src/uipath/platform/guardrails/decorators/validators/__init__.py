@@ -8,6 +8,7 @@ from ._base import (
 from .custom import CustomValidator, RuleFunction
 from .harmful_content import HarmfulContentValidator
 from .intellectual_property import IntellectualPropertyValidator
+from .llm_as_judge import LLMAsJudgeValidator
 from .pii import PIIValidator
 from .prompt_injection import PromptInjectionValidator
 from .user_prompt_attacks import UserPromptAttacksValidator
@@ -18,6 +19,7 @@ __all__ = [
     "CustomGuardrailValidator",
     "HarmfulContentValidator",
     "IntellectualPropertyValidator",
+    "LLMAsJudgeValidator",
     "PIIValidator",
     "PromptInjectionValidator",
     "UserPromptAttacksValidator",
