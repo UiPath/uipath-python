@@ -38,6 +38,7 @@ from uipath.runtime import (
     UiPathRuntimeStorageProtocol,
 )
 from uipath.runtime.errors import (
+    UiPathBaseRuntimeError,
     UiPathErrorCategory,
     UiPathErrorContract,
 )
@@ -94,6 +95,19 @@ from .events import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_user_facing_error(exception: BaseException) -> bool:
+    """Whether an exception is a correctly-reported workload failure.
+
+    User-category errors (e.g. invalid input, business logic failures) are
+    failures of the agent under evaluation, not eval infrastructure crashes,
+    so they must not be flagged as runtime exceptions.
+    """
+    return (
+        isinstance(exception, UiPathBaseRuntimeError)
+        and exception.error_info.category == UiPathErrorCategory.USER
+    )
 
 
 def compute_evaluator_scores(
@@ -798,7 +812,7 @@ class UiPathEvalRuntime:
                             e.root_exception
                         )
                         eval_run_updated_event.exception_details.runtime_exception = (
-                            True
+                            not _is_user_facing_error(e.root_exception)
                         )
 
                 await self.event_bus.publish(

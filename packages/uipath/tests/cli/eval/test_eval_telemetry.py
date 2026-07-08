@@ -339,6 +339,45 @@ class TestEvalRunUpdated:
 
     @pytest.mark.asyncio
     @patch("uipath._cli._evals._telemetry.track_event")
+    async def test_on_eval_run_updated_user_error_includes_classification(
+        self, mock_track_event
+    ):
+        """User-category runtime errors emit ErrorCode/ErrorCategory and are not runtime exceptions."""
+        from uipath.runtime.errors import (
+            UiPathErrorCategory,
+            UiPathErrorCode,
+            UiPathRuntimeError,
+        )
+
+        subscriber = EvalTelemetrySubscriber()
+        error = UiPathRuntimeError(
+            UiPathErrorCode.INPUT_INVALID_JSON,
+            "Invalid input",
+            "Input does not match the expected schema",
+            UiPathErrorCategory.USER,
+            include_traceback=False,
+        )
+        exception_details = EvalItemExceptionDetails(
+            exception=error,
+            runtime_exception=False,
+        )
+        event = self._create_eval_run_updated_event(
+            success=False,
+            exception_details=exception_details,
+        )
+
+        await subscriber._on_eval_run_updated(event)
+
+        call_args = mock_track_event.call_args
+        assert call_args[0][0] == EVAL_RUN_FAILED
+        properties = call_args[0][1]
+        assert properties["ErrorType"] == "UiPathRuntimeError"
+        assert properties["ErrorCode"] == "Python.INPUT_INVALID_JSON"
+        assert properties["ErrorCategory"] == "User"
+        assert properties["IsRuntimeException"] is False
+
+    @pytest.mark.asyncio
+    @patch("uipath._cli._evals._telemetry.track_event")
     async def test_on_eval_run_updated_with_scores(self, mock_track_event):
         """Test that average score is calculated and tracked."""
         subscriber = EvalTelemetrySubscriber()
