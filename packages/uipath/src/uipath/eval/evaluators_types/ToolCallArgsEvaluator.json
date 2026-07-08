@@ -3,7 +3,7 @@
   "evaluatorConfigSchema": {
     "$defs": {
       "ToolCall": {
-        "description": "Represents a tool call with its arguments.\n\n`id` is the stable identifier from the tool's resource definition (e.g. a\nUUID from `bindings.json`). When present on both the actual call and the\nexpected criterion, scorers match by `id` so a rename of `name` does not\nbreak eval sets. When `id` is absent on either side, scorers fall back to\nmatching by `name` (the legacy behavior).",
+        "description": "Represents a tool call with its arguments.",
         "properties": {
           "name": {
             "title": "Name",
@@ -13,18 +13,6 @@
             "additionalProperties": true,
             "title": "Args",
             "type": "object"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Id"
           }
         },
         "required": [
@@ -93,7 +81,7 @@
   "evaluationCriteriaSchema": {
     "$defs": {
       "ToolCall": {
-        "description": "Represents a tool call with its arguments.\n\n`id` is the stable identifier from the tool's resource definition (e.g. a\nUUID from `bindings.json`). When present on both the actual call and the\nexpected criterion, scorers match by `id` so a rename of `name` does not\nbreak eval sets. When `id` is absent on either side, scorers fall back to\nmatching by `name` (the legacy behavior).",
+        "description": "Represents a tool call with its arguments.",
         "properties": {
           "name": {
             "title": "Name",
@@ -103,18 +91,6 @@
             "additionalProperties": true,
             "title": "Args",
             "type": "object"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Id"
           }
         },
         "required": [
@@ -144,14 +120,6 @@
   "justificationSchema": {
     "description": "Justification for the tool call args evaluator.",
     "properties": {
-      "expected": {
-        "title": "Expected",
-        "type": "string"
-      },
-      "actual": {
-        "title": "Actual",
-        "type": "string"
-      },
       "explained_tool_calls_args": {
         "additionalProperties": {
           "type": "string"
@@ -161,8 +129,6 @@
       }
     },
     "required": [
-      "expected",
-      "actual",
       "explained_tool_calls_args"
     ],
     "title": "ToolCallArgsEvaluatorJustification",

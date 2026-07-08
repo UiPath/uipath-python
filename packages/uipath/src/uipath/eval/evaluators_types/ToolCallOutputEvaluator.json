@@ -20,7 +20,7 @@
         "type": "object"
       },
       "ToolOutput": {
-        "description": "Represents a tool output with its output.\n\nSee `ToolCall.id` for the id semantics.",
+        "description": "Represents a tool output with its output.",
         "properties": {
           "name": {
             "title": "Name",
@@ -29,18 +29,6 @@
           "output": {
             "title": "Output",
             "type": "string"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Id"
           }
         },
         "required": [
@@ -87,7 +75,7 @@
   "evaluationCriteriaSchema": {
     "$defs": {
       "ToolOutput": {
-        "description": "Represents a tool output with its output.\n\nSee `ToolCall.id` for the id semantics.",
+        "description": "Represents a tool output with its output.",
         "properties": {
           "name": {
             "title": "Name",
@@ -96,18 +84,6 @@
           "output": {
             "title": "Output",
             "type": "string"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Id"
           }
         },
         "required": [
@@ -137,14 +113,6 @@
   "justificationSchema": {
     "description": "Justification for the tool call output evaluator.",
     "properties": {
-      "expected": {
-        "title": "Expected",
-        "type": "string"
-      },
-      "actual": {
-        "title": "Actual",
-        "type": "string"
-      },
       "explained_tool_calls_outputs": {
         "additionalProperties": {
           "type": "string"
@@ -154,8 +122,6 @@
       }
     },
     "required": [
-      "expected",
-      "actual",
       "explained_tool_calls_outputs"
     ],
     "title": "ToolCallOutputEvaluatorJustification",

@@ -1,9 +1,0 @@
-[project]
-name = "multiclass-classification-simple"
-version = "0.0.1"
-description = "Rule-based 3-class email router demonstrating the multiclass classification evaluator with macro-averaged F1"
-requires-python = ">=3.11"
-dependencies = ["uipath"]
-
-[dependency-groups]
-dev = ["uipath-dev"]

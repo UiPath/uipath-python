@@ -87,27 +87,6 @@
     "type": "object"
   },
   "justificationSchema": {
-    "description": "Justification for LLM judge evaluators.",
-    "properties": {
-      "expected": {
-        "title": "Expected",
-        "type": "string"
-      },
-      "actual": {
-        "title": "Actual",
-        "type": "string"
-      },
-      "justification": {
-        "title": "Justification",
-        "type": "string"
-      }
-    },
-    "required": [
-      "expected",
-      "actual",
-      "justification"
-    ],
-    "title": "LLMJudgeJustification",
-    "type": "object"
+    "type": "string"
   }
 }

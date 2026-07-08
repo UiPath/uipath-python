@@ -2605,3 +2605,30 @@ class TestMulticlassClassificationEvaluator:
         result = await evaluator.evaluate(execution, criteria)
         assert isinstance(result, ErrorEvaluationResult)
         assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_multiclass_classification_invalid_predicted_class(self) -> None:
+        """Test that an invalid predicted class returns an error result."""
+        from uipath.eval.evaluators.multiclass_classification_evaluator import (
+            MulticlassClassificationEvaluationCriteria,
+            MulticlassClassificationEvaluator,
+        )
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"class": "fish"},
+            workload_trace=[],
+        )
+        config = {
+            "name": "MulticlassClassificationTest",
+            "target_output_key": "class",
+            "classes": ["cat", "dog"],
+        }
+        evaluator = MulticlassClassificationEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = MulticlassClassificationEvaluationCriteria(expected_class="cat")
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0

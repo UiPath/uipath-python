@@ -50,31 +50,9 @@
         "default": null
       },
       "target_output_key": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        ],
         "default": "*",
-        "description": "Key or list of keys to extract output from workload execution",
-        "title": "Target Output Key"
-      },
-      "line_by_line_evaluator": {
-        "default": false,
-        "description": "If True, split output by delimiter and evaluate each line separately",
-        "title": "Line By Line Evaluator",
-        "type": "boolean"
-      },
-      "line_delimiter": {
-        "default": "\n",
-        "description": "Delimiter to split output when line_by_line_evaluator is True",
-        "title": "Line Delimiter",
+        "description": "Key to extract output from agent execution",
+        "title": "Target Output Key",
         "type": "string"
       }
     },
@@ -104,32 +82,6 @@
     "type": "object"
   },
   "justificationSchema": {
-    "description": "Justification for the JSON similarity evaluator.",
-    "properties": {
-      "expected": {
-        "title": "Expected",
-        "type": "string"
-      },
-      "actual": {
-        "title": "Actual",
-        "type": "string"
-      },
-      "matched_leaves": {
-        "title": "Matched Leaves",
-        "type": "number"
-      },
-      "total_leaves": {
-        "title": "Total Leaves",
-        "type": "number"
-      }
-    },
-    "required": [
-      "expected",
-      "actual",
-      "matched_leaves",
-      "total_leaves"
-    ],
-    "title": "JsonSimilarityJustification",
-    "type": "object"
+    "type": "string"
   }
 }

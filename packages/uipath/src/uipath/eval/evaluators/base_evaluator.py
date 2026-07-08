@@ -47,25 +47,6 @@ class BaseEvaluatorJustification(BaseModel):
     expected: str
     actual: str
 
-    @classmethod
-    def try_from(cls, details: object) -> "BaseEvaluatorJustification | None":
-        """Coerce a free-form details payload into a justification, or return None.
-
-        Accepts either an existing instance or a dict that ``model_validate`` can
-        parse. Anything else (str, None, malformed dict) yields ``None``. Used by
-        the classification evaluators + dataset evaluator framework to walk
-        per-datapoint results without each site re-implementing the same
-        isinstance/try/except dance.
-        """
-        if isinstance(details, cls):
-            return details
-        if isinstance(details, dict):
-            try:
-                return cls.model_validate(details)
-            except Exception:
-                return None
-        return None
-
 
 # Additional type variables for Config and Justification
 # Note: C must be BaseEvaluatorConfig[T] to ensure type consistency

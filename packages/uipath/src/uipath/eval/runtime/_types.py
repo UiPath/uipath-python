@@ -1,7 +1,7 @@
 import logging
 
 from opentelemetry.sdk.trace import ReadableSpan
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from uipath.runtime import UiPathRuntimeResult
@@ -78,9 +78,6 @@ class UiPathEvalOutput(BaseModel):
 
     evaluation_set_name: str
     evaluation_set_results: list[UiPathEvalRunResult]
-    dataset_evaluator_results: dict[str, EvaluationResultDto] = Field(
-        default_factory=dict
-    )
 
     @property
     def score(self) -> float:
