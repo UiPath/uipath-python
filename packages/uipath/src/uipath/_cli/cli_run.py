@@ -221,7 +221,6 @@ def run(
                         chat_runtime: UiPathRuntimeProtocol | None = None
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         governance_bootstrap: GovernanceBootstrap | None = None
-                        live_tracking_processor: LiveTrackingSpanProcessor | None = None
                         try:
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
@@ -296,12 +295,11 @@ def run(
 
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:
-                                    live_tracking_processor = LiveTrackingSpanProcessor(
-                                        LlmOpsHttpExporter(),
-                                        settings=trace_settings,
-                                    )
                                     trace_manager.add_span_processor(
-                                        live_tracking_processor
+                                        LiveTrackingSpanProcessor(
+                                            LlmOpsHttpExporter(),
+                                            settings=trace_settings,
+                                        )
                                     )
 
                                 if ctx.conversation_id and ctx.exchange_id:
@@ -318,18 +316,19 @@ def run(
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
-                            if chat_runtime:
-                                await chat_runtime.dispose()
-                            if runtime is not None and runtime is not base_runtime:
-                                await runtime.dispose()
-                            if base_runtime is not None:
-                                await base_runtime.dispose()
-                            if live_tracking_processor is not None:
-                                live_tracking_processor.shutdown()
-                            if governance_bootstrap is not None:
-                                governance_bootstrap.dispose()
-                            if factory:
-                                await factory.dispose()
+                            try:
+                                if chat_runtime:
+                                    await chat_runtime.dispose()
+                                if runtime is not None and runtime is not base_runtime:
+                                    await runtime.dispose()
+                                if base_runtime is not None:
+                                    await base_runtime.dispose()
+                                if governance_bootstrap is not None:
+                                    governance_bootstrap.dispose()
+                                if factory:
+                                    await factory.dispose()
+                            finally:
+                                trace_manager.shutdown()
 
             asyncio.run(execute())
 
