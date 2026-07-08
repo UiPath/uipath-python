@@ -3,7 +3,7 @@
 import threading
 import time
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from opentelemetry import context as context_api
@@ -366,6 +366,16 @@ class TestLiveTrackingSpanProcessor:
         processor.shutdown()
 
         assert calls == ["upsert", "shutdown"]
+
+    def test_shutdown_logs_exporter_shutdown_failure(self, mock_exporter):
+        mock_exporter.shutdown = Mock(side_effect=RuntimeError("close failed"))
+        processor = LiveTrackingSpanProcessor(mock_exporter)
+
+        with patch("uipath.tracing._live_tracking_processor.logger.debug") as debug:
+            processor.shutdown()
+
+        mock_exporter.shutdown.assert_called_once_with()
+        debug.assert_called_once_with("Exporter shutdown failed: close failed")
 
     def test_multiple_processors_independent_thread_pools(self, mock_exporter):
         """Test that multiple processors have independent thread pools."""
