@@ -1169,3 +1169,70 @@ class TestJokeAgentScenarios:
 
         # Short joke passes through
         assert submit_joke(joke="short") == "short"
+
+
+# ---------------------------------------------------------------------------
+# LLMAsJudgeValidator via @guardrail
+# ---------------------------------------------------------------------------
+
+
+class TestLLMAsJudgeDecorator:
+    """@guardrail(validator=LLMAsJudgeValidator(...)) behavior on a mocked verdict."""
+
+    def test_block_action_raises_on_failed_verdict(self):
+        mock_validator = MagicMock()
+        mock_validator.supported_stages = []
+        mock_validator.validate_stage = MagicMock()
+        mock_validator.run.return_value = _FAILED
+
+        @guardrail(
+            validator=mock_validator,
+            action=BlockAction(title="Blocked", detail="off-topic"),
+            stage=GuardrailExecutionStage.POST,
+        )
+        def joke(topic: str) -> str:
+            return f"joke about {topic}"
+
+        with pytest.raises(GuardrailBlockException, match="Blocked"):
+            joke("cats")
+
+    def test_log_action_continues_on_failed_verdict(self, caplog):
+        mock_validator = MagicMock()
+        mock_validator.supported_stages = []
+        mock_validator.validate_stage = MagicMock()
+        mock_validator.run.return_value = _FAILED
+
+        @guardrail(
+            validator=mock_validator,
+            action=LogAction(),
+            stage=GuardrailExecutionStage.PRE,
+            name="Judge",
+        )
+        def joke(topic: str) -> str:
+            return f"joke about {topic}"
+
+        with caplog.at_level(logging.WARNING):
+            assert joke("cats") == "joke about cats"  # log does not block
+        assert any("Judge" in r.message for r in caplog.records)
+
+    def test_real_validator_block_end_to_end_mocked_backend(self):
+        """Real LLMAsJudgeValidator.run() path with the UiPath API mocked."""
+        from uipath.platform.guardrails.decorators import LLMAsJudgeValidator
+
+        mock_uipath = MagicMock()
+        mock_uipath.guardrails.evaluate_guardrail.return_value = _FAILED
+
+        @guardrail(
+            validator=LLMAsJudgeValidator(
+                guardrail_text="Must be on-topic.", model="gpt-4o-2024-08-06"
+            ),
+            action=BlockAction(title="Off-topic", detail="blocked"),
+            stage=GuardrailExecutionStage.POST,
+        )
+        def joke(topic: str) -> str:
+            return f"joke about {topic}"
+
+        with patch("uipath.platform.UiPath", return_value=mock_uipath):
+            with pytest.raises(GuardrailBlockException):
+                joke("cats")
+        mock_uipath.guardrails.evaluate_guardrail.assert_called_once()
