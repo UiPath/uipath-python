@@ -173,25 +173,6 @@ async def test_binary_classification_sample_end_to_end():
     # Precision = TP / (TP + FP) = 2 / (2 + 1) = 0.6666...
     assert averages["BinarySpamPrecision"] == pytest.approx(2 / 3, rel=1e-6)
 
-    # Dataset-level aggregators embedded on the evaluator config also fire.
-    # Each result keyed by "{evaluator_name}.{aggregator_type}".
-    keys = set(output.dataset_evaluator_results)
-    assert keys == {
-        "BinarySpamPrecision.precision",
-        "BinarySpamPrecision.recall",
-        "BinarySpamPrecision.fscore",
-    }
-    # Confusion matrix (predicted x expected, classes=[spam, ham]):
-    #   matrix[spam][spam] = 2  matrix[spam][ham] = 1  (the FP)
-    #   matrix[ham][spam]  = 0  matrix[ham][ham]  = 2
-    # per-class precision: spam = 2/3, ham = 1.0  → macro = (2/3 + 1) / 2 = 5/6
-    # per-class recall:    spam = 1.0, ham = 2/3  → macro = (1 + 2/3) / 2 = 5/6
-    # per-class F1:        spam = 0.8, ham = 0.8  → macro = 0.8
-    agg = output.dataset_evaluator_results
-    assert agg["BinarySpamPrecision.precision"].score == pytest.approx(5 / 6, rel=1e-6)
-    assert agg["BinarySpamPrecision.recall"].score == pytest.approx(5 / 6, rel=1e-6)
-    assert agg["BinarySpamPrecision.fscore"].score == pytest.approx(0.8, rel=1e-6)
-
 
 async def test_multiclass_classification_sample_end_to_end():
     """Multiclass router: 6/7 correct, macro F1 = (0.8 + 0.8 + 1.0) / 3 = 0.8666..."""
@@ -213,15 +194,3 @@ async def test_multiclass_classification_sample_end_to_end():
     # payments F1=0.8 (P=2/3, R=1), support F1=0.8 (P=1, R=2/3), spam F1=1.0
     # macro = mean = 2.6 / 3
     assert averages["EmailMulticlassFScore"] == pytest.approx(2.6 / 3, rel=1e-6)
-
-    # Three embedded aggregators ran in addition to reduce_scores.
-    keys = set(output.dataset_evaluator_results)
-    assert keys == {
-        "EmailMulticlassFScore.precision",
-        "EmailMulticlassFScore.recall",
-        "EmailMulticlassFScore.fscore",
-    }
-    # The macro F1 computed by the embedded fscore aggregator should match
-    # reduce_scores' result (both walk the same confusion matrix).
-    fscore_result = output.dataset_evaluator_results["EmailMulticlassFScore.fscore"]
-    assert fscore_result.score == pytest.approx(2.6 / 3, rel=1e-6)

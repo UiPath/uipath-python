@@ -1,11 +1,10 @@
 """Aggregator specs embedded in per-datapoint classification evaluator configs.
 
-Each aggregator is a self-contained run-level metric (precision / recall /
-f-score) attached to a classification evaluator. Specs do not share any
-properties — each variant declares its own ``classes``, ``averaging``, and
-(for fscore) ``f_value`` independently. This keeps each aggregator's contract
-explicit at the JSON level: nothing is hoisted up to the evaluator and silently
-applied to siblings.
+Each aggregator is a run-level metric (precision / recall / f-score) attached
+to a classification evaluator. Classes are declared once on the parent evaluator
+config — every aggregator on the same evaluator operates on the same class
+vocabulary, so the field is not repeated per spec. Only the metric-shape fields
+(``averaging`` and, for fscore, ``f_value``) live on the spec itself.
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ class PrecisionAggregatorSpec(_AggregatorSpecBase):
     """Run-level precision aggregator (multiclass, micro or macro averaged)."""
 
     type: Literal["precision"] = "precision"
-    classes: list[str] = Field(..., min_length=1)
     averaging: Literal["macro", "micro"]
 
 
@@ -34,7 +32,6 @@ class RecallAggregatorSpec(_AggregatorSpecBase):
     """Run-level recall aggregator (multiclass, micro or macro averaged)."""
 
     type: Literal["recall"] = "recall"
-    classes: list[str] = Field(..., min_length=1)
     averaging: Literal["macro", "micro"]
 
 
@@ -42,7 +39,6 @@ class FScoreAggregatorSpec(_AggregatorSpecBase):
     """Run-level F-beta aggregator (multiclass, micro or macro averaged)."""
 
     type: Literal["fscore"] = "fscore"
-    classes: list[str] = Field(..., min_length=1)
     averaging: Literal["macro", "micro"]
     f_value: float = Field(default=1.0, gt=0)
 

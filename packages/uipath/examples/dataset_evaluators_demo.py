@@ -91,9 +91,9 @@ def scenario_1_balanced_three_class() -> None:
         ("reschedule", "book"),
     ]
     spec = PrecisionAggregatorSpec(
-        classes=["book", "cancel", "reschedule"], averaging="macro"
+        averaging="macro"
     )
-    evaluator = build_dataset_evaluator(spec, source_evaluator="intent_match")
+    evaluator = build_dataset_evaluator(spec, classes=["book","cancel","reschedule"], source_evaluator="intent_match")
     report(
         "Scenario 1 — Balanced 3-class (intent recognition)\n"
         "  Each class: 2 TP, 1 FP, 1 FN. Symmetric setup → macro = micro = 2/3.",
@@ -114,11 +114,13 @@ def scenario_2_imbalanced_two_class() -> None:
     classes = ["positive", "negative"]
 
     macro = build_dataset_evaluator(
-        PrecisionAggregatorSpec(classes=classes, averaging="macro"),
+        PrecisionAggregatorSpec(averaging="macro"),
+        classes=classes,
         source_evaluator="positive_match",
     )
     micro = build_dataset_evaluator(
-        PrecisionAggregatorSpec(classes=classes, averaging="micro"),
+        PrecisionAggregatorSpec(averaging="micro"),
+        classes=classes,
         source_evaluator="positive_match",
     )
     report(
@@ -150,19 +152,23 @@ def scenario_3_precision_vs_recall_vs_f() -> None:
 
     evaluators = {
         "Scenario 3a — Precision on a recall-favourable dataset": build_dataset_evaluator(
-            PrecisionAggregatorSpec(classes=classes, averaging="macro"),
+            PrecisionAggregatorSpec(averaging="macro"),
+            classes=classes,
             source_evaluator="yes_match",
         ),
         "Scenario 3b — Recall (same data — note 'yes' recall is 1.0)": build_dataset_evaluator(
-            RecallAggregatorSpec(classes=classes, averaging="macro"),
+            RecallAggregatorSpec(averaging="macro"),
+            classes=classes,
             source_evaluator="yes_match",
         ),
         "Scenario 3c — F1 (harmonic mean of P and R)": build_dataset_evaluator(
-            FScoreAggregatorSpec(classes=classes, averaging="macro", f_value=1.0),
+            FScoreAggregatorSpec(averaging="macro", f_value=1.0),
+            classes=classes,
             source_evaluator="yes_match",
         ),
         "Scenario 3d — F2 (β=2 weighs recall higher — score moves toward recall)": build_dataset_evaluator(
-            FScoreAggregatorSpec(classes=classes, averaging="macro", f_value=2.0),
+            FScoreAggregatorSpec(averaging="macro", f_value=2.0),
+            classes=classes,
             source_evaluator="yes_match",
         ),
     }
@@ -181,7 +187,8 @@ def scenario_4_skipped_datapoints() -> None:
         EvaluationResultDto(score=0.0, details={"unrelated": "shape"}),
     ]
     evaluator = build_dataset_evaluator(
-        PrecisionAggregatorSpec(classes=["cat", "dog"], averaging="macro"),
+        PrecisionAggregatorSpec(averaging="macro"),
+        classes=["cat", "dog"],
         source_evaluator="any_match",
     )
     report(
@@ -211,7 +218,8 @@ def scenario_5_realistic_intent_classifier() -> None:
     results = materialize_pairs(pairs)
     classes = ["book", "cancel", "reschedule", "modify"]
     macro_f1 = build_dataset_evaluator(
-        FScoreAggregatorSpec(classes=classes, averaging="macro", f_value=1.0),
+        FScoreAggregatorSpec(averaging="macro", f_value=1.0),
+        classes=classes,
         source_evaluator="intent_match",
     )
     report(

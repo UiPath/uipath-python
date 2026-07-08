@@ -22,9 +22,7 @@ from uipath.eval.evaluators.classification_dataset_evaluators import (
     ClassificationDetails,
 )
 from uipath.eval.evaluators.dataset_evaluator_factory import build_dataset_evaluator
-from uipath.eval.evaluators.multiclass_classification_evaluator import (
-    MulticlassClassificationEvaluator,
-)
+from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
 from uipath.eval.models.models import (
     EvaluationResultDto,
     NumericEvaluationResult,
@@ -52,26 +50,25 @@ def _result(
 def _precision(
     classes: list[str], averaging: str = "macro"
 ) -> ClassificationDatasetEvaluator:
-    spec = PrecisionAggregatorSpec(classes=classes, averaging=averaging)  # type: ignore[arg-type]
-    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match")
+    spec = PrecisionAggregatorSpec(averaging=averaging)  # type: ignore[arg-type]
+    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match", classes=classes)
 
 
 def _recall(
     classes: list[str], averaging: str = "macro"
 ) -> ClassificationDatasetEvaluator:
-    spec = RecallAggregatorSpec(classes=classes, averaging=averaging)  # type: ignore[arg-type]
-    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match")
+    spec = RecallAggregatorSpec(averaging=averaging)  # type: ignore[arg-type]
+    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match", classes=classes)
 
 
 def _fscore(
     classes: list[str], averaging: str = "macro", f_value: float = 1.0
 ) -> ClassificationDatasetEvaluator:
     spec = FScoreAggregatorSpec(
-        classes=classes,
         averaging=averaging,  # type: ignore[arg-type]
         f_value=f_value,
     )
-    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match")
+    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match", classes=classes)
 
 
 def _details(result: object) -> ClassificationDetails:
@@ -81,13 +78,17 @@ def _details(result: object) -> ClassificationDetails:
     return result.details
 
 
-def _multiclass_evaluator(
+def _exact_match_evaluator(
     name: str,
     classes: list[str],
     aggregators: list[BaseModel],
-) -> MulticlassClassificationEvaluator:
-    """Build a per-datapoint multiclass evaluator with embedded aggregators."""
-    return MulticlassClassificationEvaluator.model_validate(
+) -> ExactMatchEvaluator:
+    """Build a per-datapoint ExactMatch evaluator with attached aggregators.
+
+    Aggregators + classes live on the evaluator config — every aggregator on
+    the same ExactMatch config shares the ``classes`` vocabulary declared here.
+    """
+    return ExactMatchEvaluator.model_validate(
         {
             "id": str(uuid.uuid4()),
             "evaluatorConfig": {
@@ -294,25 +295,23 @@ class TestFactory:
     """The factory now takes an AggregatorSpec instance + source name, not a dict."""
 
     def test_builds_precision_from_spec(self) -> None:
-        spec = PrecisionAggregatorSpec(classes=["yes", "no"], averaging="macro")
-        evaluator = build_dataset_evaluator(spec, "intent_match")
+        spec = PrecisionAggregatorSpec(averaging="macro")
+        evaluator = build_dataset_evaluator(spec, "intent_match", classes=["yes", "no"])
         assert isinstance(evaluator, ClassificationDatasetEvaluator)
         assert evaluator.spec.type == "precision"
         assert evaluator.source_evaluator == "intent_match"
         assert evaluator.name == "intent_match.precision"
 
     def test_builds_recall_from_spec(self) -> None:
-        spec = RecallAggregatorSpec(classes=["yes", "no"], averaging="micro")
-        evaluator = build_dataset_evaluator(spec, "intent_match")
+        spec = RecallAggregatorSpec(averaging="micro")
+        evaluator = build_dataset_evaluator(spec, "intent_match", classes=["yes", "no"])
         assert isinstance(evaluator, ClassificationDatasetEvaluator)
         assert evaluator.spec.type == "recall"
         assert evaluator.name == "intent_match.recall"
 
     def test_builds_fscore_from_spec(self) -> None:
-        spec = FScoreAggregatorSpec(
-            classes=["yes", "no"], averaging="macro", f_value=2.0
-        )
-        evaluator = build_dataset_evaluator(spec, "intent_match")
+        spec = FScoreAggregatorSpec(averaging="macro", f_value=2.0)
+        evaluator = build_dataset_evaluator(spec, "intent_match", classes=["yes", "no"])
         assert isinstance(evaluator, ClassificationDatasetEvaluator)
         assert isinstance(evaluator.spec, FScoreAggregatorSpec)
         assert evaluator.spec.f_value == 2.0
@@ -321,18 +320,19 @@ class TestFactory:
 class TestAggregatorSpecJsonRoundTrip:
     """Pin the wire shape sent to the C# side."""
 
-    def test_precision_uses_self_contained_fields(self) -> None:
+    def test_precision_spec_wire_shape(self) -> None:
+        """Aggregator specs no longer carry ``classes`` — that field lives on the
+        parent evaluator config. Round-trip preserves only the spec-shape fields.
+        """
         spec = PrecisionAggregatorSpec.model_validate(
             {
                 "type": "precision",
-                "classes": ["book", "cancel", "reschedule"],
                 "averaging": "macro",
             }
         )
         dumped = spec.model_dump(by_alias=True)
         assert dumped == {
             "type": "precision",
-            "classes": ["book", "cancel", "reschedule"],
             "averaging": "macro",
         }
 
@@ -340,7 +340,6 @@ class TestAggregatorSpecJsonRoundTrip:
         spec = FScoreAggregatorSpec.model_validate(
             {
                 "type": "fscore",
-                "classes": ["yes", "no"],
                 "averaging": "macro",
                 "fValue": 1.5,
             }
@@ -350,20 +349,14 @@ class TestAggregatorSpecJsonRoundTrip:
         assert dumped["fValue"] == 1.5
         assert "f_value" not in dumped
 
-    def test_multiclass_evaluator_round_trips_aggregators(self) -> None:
+    def test_exact_match_evaluator_round_trips_aggregators(self) -> None:
         """Per-datapoint evaluator config carries aggregators[]; survives dump+load."""
-        ev = _multiclass_evaluator(
+        ev = _exact_match_evaluator(
             "intent_classifier",
             classes=["book", "cancel", "reschedule"],
             aggregators=[
-                PrecisionAggregatorSpec(
-                    classes=["book", "cancel", "reschedule"], averaging="macro"
-                ),
-                FScoreAggregatorSpec(
-                    classes=["book", "cancel", "reschedule"],
-                    averaging="macro",
-                    f_value=1.0,
-                ),
+                PrecisionAggregatorSpec(averaging="macro"),
+                FScoreAggregatorSpec(averaging="macro", f_value=1.0),
             ],
         )
         assert ev.evaluator_config.aggregators is not None
@@ -376,12 +369,12 @@ class TestComputeDatasetEvaluatorResults:
     """End-to-end: runtime walks evaluator configs' aggregators[]."""
 
     def test_walks_aggregators_on_classification_evaluator(self) -> None:
-        evaluator = _multiclass_evaluator(
+        evaluator = _exact_match_evaluator(
             "intent_match",
             classes=["yes", "no"],
             aggregators=[
-                PrecisionAggregatorSpec(classes=["yes", "no"], averaging="macro"),
-                RecallAggregatorSpec(classes=["yes", "no"], averaging="macro"),
+                PrecisionAggregatorSpec(averaging="macro"),
+                RecallAggregatorSpec(averaging="macro"),
             ],
         )
 
@@ -423,7 +416,7 @@ class TestComputeDatasetEvaluatorResults:
         assert precision_dto.details["n_scored"] == 2
 
     def test_evaluator_without_aggregators_is_skipped(self) -> None:
-        evaluator = _multiclass_evaluator(
+        evaluator = _exact_match_evaluator(
             "intent_match", classes=["yes", "no"], aggregators=[]
         )
         eval_results = [
@@ -442,11 +435,11 @@ class TestComputeDatasetEvaluatorResults:
         assert out == {}
 
     def test_line_by_line_subresults_are_excluded(self) -> None:
-        evaluator = _multiclass_evaluator(
+        evaluator = _exact_match_evaluator(
             "intent_match",
             classes=["yes", "no"],
             aggregators=[
-                PrecisionAggregatorSpec(classes=["yes", "no"], averaging="macro"),
+                PrecisionAggregatorSpec(averaging="macro"),
             ],
         )
         eval_results = [
@@ -472,11 +465,11 @@ class TestComputeDatasetEvaluatorResults:
         assert out["intent_match.precision"].details["n_scored"] == 1
 
     def test_source_with_no_results_produces_zeroed_report(self) -> None:
-        evaluator = _multiclass_evaluator(
+        evaluator = _exact_match_evaluator(
             "intent_match",
             classes=["yes", "no"],
             aggregators=[
-                PrecisionAggregatorSpec(classes=["yes", "no"], averaging="macro"),
+                PrecisionAggregatorSpec(averaging="macro"),
             ],
         )
         eval_results = [
@@ -499,12 +492,12 @@ class TestComputeDatasetEvaluatorResults:
 
     def test_duplicate_aggregator_type_disambiguates_by_averaging(self) -> None:
         """Two aggregators of the same type get distinct keys (no overwrite)."""
-        evaluator = _multiclass_evaluator(
+        evaluator = _exact_match_evaluator(
             "intent_match",
             classes=["yes", "no"],
             aggregators=[
-                PrecisionAggregatorSpec(classes=["yes", "no"], averaging="macro"),
-                PrecisionAggregatorSpec(classes=["yes", "no"], averaging="micro"),
+                PrecisionAggregatorSpec(averaging="macro"),
+                PrecisionAggregatorSpec(averaging="micro"),
             ],
         )
         eval_results = [

@@ -47,13 +47,8 @@ from uipath.runtime.schema import UiPathRuntimeSchema
 from .._execution_context import ExecutionSpanCollector
 from ..evaluators._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
 from ..evaluators.base_evaluator import GenericBaseEvaluator
-from ..evaluators.binary_classification_evaluator import (
-    BinaryClassificationEvaluatorConfig,
-)
 from ..evaluators.dataset_evaluator_factory import build_dataset_evaluator
-from ..evaluators.multiclass_classification_evaluator import (
-    MulticlassClassificationEvaluatorConfig,
-)
+from ..evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
 from ..mocks._cache_manager import CacheManager
@@ -249,21 +244,15 @@ def compute_dataset_evaluator_results(
 
     dataset_results: dict[str, EvaluationResultDto] = {}
     for evaluator in evaluators:
-        # Aggregators currently only live on classification evaluator configs.
-        # ``GenericBaseEvaluator`` doesn't declare ``evaluator_config``, so we
-        # retrieve it via ``getattr`` and narrow with ``isinstance`` to a
-        # classification config type before reading ``aggregators``. Widen the
-        # tuple if a future evaluator type grows an ``aggregators`` field.
+        # Aggregators currently only live on ExactMatch evaluator configs — the
+        # per-datapoint match outcome (with expected/actual labels in the
+        # justification) is exactly what the confusion matrix needs. Widen the
+        # isinstance tuple if a future evaluator type grows an ``aggregators``
+        # field.
         config = getattr(evaluator, "evaluator_config", None)
-        if not isinstance(
-            config,
-            (
-                BinaryClassificationEvaluatorConfig,
-                MulticlassClassificationEvaluatorConfig,
-            ),
-        ):
+        if not isinstance(config, ExactMatchEvaluatorConfig):
             continue
-        if not config.aggregators:
+        if not config.aggregators or not config.classes:
             continue
         source_name = config.name
         source_results = results_by_evaluator.get(source_name, [])
@@ -277,7 +266,7 @@ def compute_dataset_evaluator_results(
         for spec in config.aggregators:
             type_counts[spec.type] += 1
         for spec in config.aggregators:
-            dataset_evaluator = build_dataset_evaluator(spec, source_name)
+            dataset_evaluator = build_dataset_evaluator(spec, source_name, config.classes)
             key = _dataset_result_key(source_name, spec, type_counts[spec.type] > 1)
             dataset_results[key] = EvaluationResultDto.from_evaluation_result(
                 dataset_evaluator.evaluate(source_results)

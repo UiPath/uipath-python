@@ -130,7 +130,7 @@ class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
 
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
         """Compute the configured metric report and return the headline as score."""
-        confusion = _build_confusion(results, self.spec.classes)
+        confusion = _build_confusion(results, self.classes)
         beta_sq = (
             self.spec.f_value * self.spec.f_value
             if isinstance(self.spec, FScoreAggregatorSpec)

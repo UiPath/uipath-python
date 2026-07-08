@@ -2,45 +2,6 @@
   "evaluatorTypeId": "uipath-multiclass-classification",
   "evaluatorConfigSchema": {
     "$defs": {
-      "FScoreAggregatorSpec": {
-        "description": "Run-level F-beta aggregator (multiclass, micro or macro averaged).",
-        "properties": {
-          "type": {
-            "const": "fscore",
-            "default": "fscore",
-            "title": "Type",
-            "type": "string"
-          },
-          "classes": {
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1,
-            "title": "Classes",
-            "type": "array"
-          },
-          "averaging": {
-            "enum": [
-              "macro",
-              "micro"
-            ],
-            "title": "Averaging",
-            "type": "string"
-          },
-          "f_value": {
-            "default": 1.0,
-            "exclusiveMinimum": 0,
-            "title": "F Value",
-            "type": "number"
-          }
-        },
-        "required": [
-          "classes",
-          "averaging"
-        ],
-        "title": "FScoreAggregatorSpec",
-        "type": "object"
-      },
       "MulticlassClassificationEvaluationCriteria": {
         "description": "Per-datapoint criteria: which class this sample should belong to.",
         "properties": {
@@ -53,72 +14,6 @@
           "expected_class"
         ],
         "title": "MulticlassClassificationEvaluationCriteria",
-        "type": "object"
-      },
-      "PrecisionAggregatorSpec": {
-        "description": "Run-level precision aggregator (multiclass, micro or macro averaged).",
-        "properties": {
-          "type": {
-            "const": "precision",
-            "default": "precision",
-            "title": "Type",
-            "type": "string"
-          },
-          "classes": {
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1,
-            "title": "Classes",
-            "type": "array"
-          },
-          "averaging": {
-            "enum": [
-              "macro",
-              "micro"
-            ],
-            "title": "Averaging",
-            "type": "string"
-          }
-        },
-        "required": [
-          "classes",
-          "averaging"
-        ],
-        "title": "PrecisionAggregatorSpec",
-        "type": "object"
-      },
-      "RecallAggregatorSpec": {
-        "description": "Run-level recall aggregator (multiclass, micro or macro averaged).",
-        "properties": {
-          "type": {
-            "const": "recall",
-            "default": "recall",
-            "title": "Type",
-            "type": "string"
-          },
-          "classes": {
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1,
-            "title": "Classes",
-            "type": "array"
-          },
-          "averaging": {
-            "enum": [
-              "macro",
-              "micro"
-            ],
-            "title": "Averaging",
-            "type": "string"
-          }
-        },
-        "required": [
-          "classes",
-          "averaging"
-        ],
-        "title": "RecallAggregatorSpec",
         "type": "object"
       }
     },
@@ -159,7 +54,7 @@
           }
         ],
         "default": "*",
-        "description": "Key or list of keys to extract output from agent execution",
+        "description": "Key or list of keys to extract output from workload execution",
         "title": "Target Output Key"
       },
       "line_by_line_evaluator": {
@@ -204,39 +99,6 @@
         "default": 1.0,
         "title": "F Value",
         "type": "number"
-      },
-      "aggregators": {
-        "anyOf": [
-          {
-            "items": {
-              "discriminator": {
-                "mapping": {
-                  "fscore": "#/$defs/FScoreAggregatorSpec",
-                  "precision": "#/$defs/PrecisionAggregatorSpec",
-                  "recall": "#/$defs/RecallAggregatorSpec"
-                },
-                "propertyName": "type"
-              },
-              "oneOf": [
-                {
-                  "$ref": "#/$defs/PrecisionAggregatorSpec"
-                },
-                {
-                  "$ref": "#/$defs/RecallAggregatorSpec"
-                },
-                {
-                  "$ref": "#/$defs/FScoreAggregatorSpec"
-                }
-              ]
-            },
-            "type": "array"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Aggregators"
       }
     },
     "required": [

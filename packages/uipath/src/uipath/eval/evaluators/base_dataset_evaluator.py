@@ -31,20 +31,23 @@ SpecT = TypeVar("SpecT", bound="AggregatorSpec")
 class BaseDatasetEvaluator(ABC, Generic[SpecT]):
     """Abstract base for dataset-level evaluators.
 
-    Constructed from an :class:`AggregatorSpec` and the name of the source
-    per-datapoint evaluator whose results this aggregator consumes. The
-    dataset evaluator's "name" used for result keying is derived from
-    ``"{source_evaluator}.{spec.type}"`` so two aggregators on the same source
-    don't collide.
+    Constructed from an :class:`AggregatorSpec`, the class vocabulary of the
+    parent per-datapoint evaluator, and the source evaluator's name. Classes
+    live on the evaluator config (not the spec) — every aggregator on the same
+    evaluator operates on the same vocabulary. The dataset evaluator's "name"
+    used for result keying is derived from ``"{source_evaluator}.{spec.type}"``
+    so two aggregators on the same source don't collide.
     """
 
     spec: SpecT
     source_evaluator: str
+    classes: list[str]
 
-    def __init__(self, spec: SpecT, source_evaluator: str) -> None:
-        """Store the aggregator spec and the source evaluator name."""
+    def __init__(self, spec: SpecT, source_evaluator: str, classes: list[str]) -> None:
+        """Store the aggregator spec, source evaluator name, and shared classes."""
         self.spec = spec
         self.source_evaluator = source_evaluator
+        self.classes = classes
 
     @property
     def name(self) -> str:

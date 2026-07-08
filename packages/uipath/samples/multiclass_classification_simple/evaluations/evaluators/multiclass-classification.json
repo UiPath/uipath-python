@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "id": "EmailMulticlassFScore",
-  "description": "Macro-averaged F1 across payments / support / spam, plus run-level aggregators",
+  "description": "Macro-averaged F1 across payments / support / spam",
   "evaluatorTypeId": "uipath-multiclass-classification",
   "evaluatorConfig": {
     "name": "EmailMulticlassFScore",
@@ -12,24 +12,6 @@
     "fValue": 1.0,
     "defaultEvaluationCriteria": {
       "expectedClass": "support"
-    },
-    "aggregators": [
-      {
-        "type": "precision",
-        "classes": ["payments", "support", "spam"],
-        "averaging": "macro"
-      },
-      {
-        "type": "recall",
-        "classes": ["payments", "support", "spam"],
-        "averaging": "macro"
-      },
-      {
-        "type": "fscore",
-        "classes": ["payments", "support", "spam"],
-        "averaging": "macro",
-        "fValue": 1.0
-      }
-    ]
+    }
   }
 }

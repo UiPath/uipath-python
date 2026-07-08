@@ -1,11 +1,14 @@
 """Exact match evaluator for workload outputs."""
 
+from pydantic import model_validator
+
 from ..models import (
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
     WorkloadExecution,
 )
+from ._aggregator_specs import AggregatorSpec
 from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
     OutputEvaluationCriteria,
@@ -20,6 +23,24 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
     name: str = "ExactMatchEvaluator"
     case_sensitive: bool = False
     negated: bool = False
+    # Optional dataset-level aggregators (Precision / Recall / F-score) computed
+    # over the per-datapoint match outcomes. When set, ``classes`` must declare
+    # the label vocabulary the aggregators will bucket predictions and expected
+    # outputs into — the same vocabulary is shared across every aggregator on
+    # this evaluator.
+    classes: list[str] | None = None
+    aggregators: list[AggregatorSpec] | None = None
+
+    @model_validator(mode="after")
+    def _validate_aggregators_have_classes(self) -> "ExactMatchEvaluatorConfig":
+        """Aggregators need a class vocabulary to build a confusion matrix from."""
+        if self.aggregators and not self.classes:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}' declares aggregators but no "
+                "``classes`` list. Set ``classes`` to the label vocabulary the "
+                "aggregators should compute Precision/Recall/F-score over."
+            )
+        return self
 
 
 class ExactMatchEvaluator(

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "id": "BinarySpamPrecision",
-  "description": "Precision on the 'spam' positive class, plus run-level aggregators",
+  "description": "Precision on the 'spam' positive class",
   "evaluatorTypeId": "uipath-binary-classification",
   "evaluatorConfig": {
     "name": "BinarySpamPrecision",
@@ -11,24 +11,6 @@
     "fValue": 1.0,
     "defaultEvaluationCriteria": {
       "expectedClass": "ham"
-    },
-    "aggregators": [
-      {
-        "type": "precision",
-        "classes": ["spam", "ham"],
-        "averaging": "macro"
-      },
-      {
-        "type": "recall",
-        "classes": ["spam", "ham"],
-        "averaging": "macro"
-      },
-      {
-        "type": "fscore",
-        "classes": ["spam", "ham"],
-        "averaging": "macro",
-        "fValue": 1.0
-      }
-    ]
+    }
   }
 }

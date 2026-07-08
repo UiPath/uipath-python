@@ -16,6 +16,7 @@ from .classification_dataset_evaluators import ClassificationDatasetEvaluator
 def build_dataset_evaluator(
     spec: AggregatorSpec,
     source_evaluator: str,
+    classes: list[str],
 ) -> ClassificationDatasetEvaluator:
     """Build a dataset evaluator instance from an aggregator spec.
 
@@ -23,5 +24,8 @@ def build_dataset_evaluator(
         spec: A validated :class:`AggregatorSpec` (precision / recall / fscore).
         source_evaluator: Name of the per-datapoint evaluator whose results
             this aggregator consumes.
+        classes: The class vocabulary from the parent evaluator's config. Shared
+            across all aggregators attached to that evaluator — a spec no longer
+            carries classes of its own.
     """
-    return ClassificationDatasetEvaluator(spec, source_evaluator)
+    return ClassificationDatasetEvaluator(spec, source_evaluator, classes)
