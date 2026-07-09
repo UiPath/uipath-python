@@ -1214,3 +1214,34 @@ class TestReferenceHierarchySpanProcessor:
             assert "version" not in hierarchy[1]
         finally:
             ReferenceContextAccessor.reset(token)
+
+
+class TestLiveSpanEndTime:
+    """A live (not-yet-ended) OTEL span must convert with end_time=None.
+
+    Fabricating EndTime=now() for in-progress upserts (the RUNNING -> OK
+    lifecycle used by upsert_span) makes open snapshots indistinguishable
+    from ended spans downstream: the traceview UI shows phantom sub-ms
+    durations and the Insights OTLP export's unclosed-span filter never
+    fires, so every span exports twice.
+    """
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_live_span_converts_with_none_end_time(self) -> None:
+        mock_span = _make_otel_span({})
+        mock_span.end_time = None
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        assert uipath_span.end_time is None
+        assert span_dict["EndTime"] is None
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_ended_span_keeps_real_end_time(self) -> None:
+        mock_span = _make_otel_span({})
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.end_time is not None
+        assert uipath_span.to_dict()["EndTime"] == uipath_span.end_time
