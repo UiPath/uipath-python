@@ -143,10 +143,10 @@ class TestPrecisionEvaluator:
         # precision_yes = 2 / (2 + 1) = 2/3
         # precision_no  = 0 / (0 + 1) = 0
         # macro = (2/3 + 0) / 2 = 1/3
-        assert d.per_class["yes"].value == pytest.approx(2 / 3)
-        assert d.per_class["no"].value == pytest.approx(0.0)
-        assert d.macro == pytest.approx((2 / 3 + 0.0) / 2)
-        assert result.score == pytest.approx(d.macro)
+        assert d.per_class["yes"].precision == pytest.approx(2 / 3)
+        assert d.per_class["no"].precision == pytest.approx(0.0)
+        assert d.macro.precision == pytest.approx((2 / 3 + 0.0) / 2)
+        assert result.score == pytest.approx(d.macro.precision)
 
     def test_two_class_micro_equals_accuracy(self) -> None:
         results = [
@@ -157,7 +157,7 @@ class TestPrecisionEvaluator:
         ]
         result = _precision(["yes", "no"], averaging="micro").evaluate(results)
         d = _details(result)
-        assert d.micro == pytest.approx(0.5)
+        assert d.micro.precision == pytest.approx(0.5)
         assert result.score == pytest.approx(0.5)
 
     def test_three_class_macro(self) -> None:
@@ -179,8 +179,8 @@ class TestPrecisionEvaluator:
         for label in ("cat", "dog", "bird"):
             m = d.per_class[label]
             assert m.tp == 2 and m.fp == 1 and m.fn == 1 and m.tn == 5
-            assert m.value == pytest.approx(2 / 3)
-        assert d.macro == pytest.approx(2 / 3)
+            assert m.precision == pytest.approx(2 / 3)
+        assert d.macro.precision == pytest.approx(2 / 3)
         assert result.score == pytest.approx(2 / 3)
 
 
@@ -194,8 +194,8 @@ class TestRecallEvaluator:
         ]
         result = _recall(["yes", "no"], averaging="macro").evaluate(results)
         d = _details(result)
-        assert d.per_class["yes"].value == pytest.approx(2 / 3)
-        assert d.per_class["no"].value == pytest.approx(0.0)
+        assert d.per_class["yes"].recall == pytest.approx(2 / 3)
+        assert d.per_class["no"].recall == pytest.approx(0.0)
         assert result.score == pytest.approx(1 / 3)
 
     def test_recall_differs_from_precision(self) -> None:
@@ -208,10 +208,10 @@ class TestRecallEvaluator:
         ]
         p = _details(_precision(["yes", "no"], averaging="macro").evaluate(results))
         r = _details(_recall(["yes", "no"], averaging="macro").evaluate(results))
-        assert p.per_class["yes"].value == pytest.approx(0.5)
-        assert p.per_class["no"].value == pytest.approx(1.0)
-        assert r.per_class["yes"].value == pytest.approx(1.0)
-        assert r.per_class["no"].value == pytest.approx(1 / 3)
+        assert p.per_class["yes"].precision == pytest.approx(0.5)
+        assert p.per_class["no"].precision == pytest.approx(1.0)
+        assert r.per_class["yes"].recall == pytest.approx(1.0)
+        assert r.per_class["no"].recall == pytest.approx(1 / 3)
 
 
 class TestFScoreEvaluator:
@@ -225,9 +225,9 @@ class TestFScoreEvaluator:
         f = _details(
             _fscore(["yes", "no"], averaging="macro", f_value=1.0).evaluate(results)
         )
-        assert f.per_class["yes"].value == pytest.approx(2 / 3)
-        assert f.per_class["no"].value == pytest.approx(0.0)
-        assert f.macro == pytest.approx((2 / 3 + 0.0) / 2)
+        assert f.per_class["yes"].f_score == pytest.approx(2 / 3)
+        assert f.per_class["no"].f_score == pytest.approx(0.0)
+        assert f.macro.f_score == pytest.approx((2 / 3 + 0.0) / 2)
 
     def test_f_beta_emphasizes_recall_when_beta_above_one(self) -> None:
         results = [
@@ -243,7 +243,7 @@ class TestFScoreEvaluator:
         f2 = _details(
             _fscore(["yes", "no"], averaging="macro", f_value=2.0).evaluate(results)
         )
-        assert f2.per_class["yes"].value > f1.per_class["yes"].value
+        assert f2.per_class["yes"].f_score > f1.per_class["yes"].f_score
 
     def test_three_class_micro_pools_across_classes(self) -> None:
         pairs = [
@@ -262,7 +262,7 @@ class TestFScoreEvaluator:
                 [_result(e, a) for e, a in pairs]
             )
         )
-        assert d.micro == pytest.approx(6 / 9)
+        assert d.micro.f_score == pytest.approx(6 / 9)
 
 
 class TestSkippingAndEdgeCases:

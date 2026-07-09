@@ -14,6 +14,7 @@ from pydantic import TypeAdapter
 
 from uipath.eval.evaluators._aggregator_specs import (
     AggregatorSpec,
+    ConfusionMatrixAggregatorSpec,
     FScoreAggregatorSpec,
     PrecisionAggregatorSpec,
     RecallAggregatorSpec,
@@ -45,6 +46,10 @@ class TestAggregatorSpecUnion:
         )
         assert isinstance(fscore, FScoreAggregatorSpec)
         assert fscore.f_value == 2.0
+        assert isinstance(
+            adapter.validate_python({"type": "confusion_matrix"}),
+            ConfusionMatrixAggregatorSpec,
+        )
 
     def test_specs_do_not_carry_classes(self) -> None:
         # Classes live once on the evaluator config, shared by all aggregators.

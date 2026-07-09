@@ -1,11 +1,18 @@
-"""Dataset-level classification evaluators: Precision, Recall, F-score.
+"""Dataset-level classification evaluators: Precision, Recall, F-score, Confusion Matrix.
 
-All three share the same internal machinery — a k x k confusion matrix built
+All variants share the same internal machinery — a k x k confusion matrix built
 from each per-datapoint result's BaseEvaluatorJustification (expected, actual)
-strings. They differ only in the final formula and (for F-score) the beta
-parameter. The headline ``score`` is the micro or macro average per the
-embedded :class:`AggregatorSpec`; ``details`` carries the full per-class
-breakdown plus the confusion matrix.
+strings. The scalar variants (precision / recall / fscore) emit per-class
+metrics plus micro/macro averages and pick the headline ``score`` per the
+spec's ``averaging``; the ``confusion_matrix`` variant emits only the raw grid
+with a 0.0 placeholder score.
+
+The ``details`` payload is the platform wire contract: the Agents reducer
+worker (python-dataset-eval-worker) calls this evaluator and ships
+``details.model_dump(by_alias=True, exclude_none=True)`` verbatim to the C#
+backend, where the frontend's zod schema
+(frontend-sw/src/schemas/evaluations/evals.ts) validates it. Changing field
+names or shapes here is a cross-repo breaking change.
 """
 
 from __future__ import annotations
@@ -20,13 +27,17 @@ from ..models.models import (
     EvaluationResultDto,
     NumericEvaluationResult,
 )
-from ._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
+from ._aggregator_specs import (
+    AggregatorSpec,
+    ConfusionMatrixAggregatorSpec,
+    FScoreAggregatorSpec,
+)
 from .base_dataset_evaluator import BaseDatasetEvaluator
 from .base_evaluator import BaseEvaluatorJustification
 
 
 class PerClassMetrics(BaseModel):
-    """Per-class confusion counts plus the metric the evaluator computed."""
+    """Per-class confusion counts plus all three scalar metrics for that class."""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -35,16 +46,33 @@ class PerClassMetrics(BaseModel):
     fp: int
     fn: int
     support: int
-    value: float
+    precision: float
+    recall: float
+    f_score: float
+
+
+class AveragedMetrics(BaseModel):
+    """Micro- or macro-averaged precision / recall / F-score triple."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    precision: float
+    recall: float
+    f_score: float
 
 
 class ClassificationDetails(BaseModel):
-    """Structured details payload emitted by every classification evaluator."""
+    """Structured details payload emitted by every classification aggregator.
+
+    The scalar metrics (precision / recall / fscore) populate every field;
+    the ``confusion_matrix`` variant emits only the grid + counts, leaving
+    ``averaging`` / ``f_value`` / ``per_class`` / ``macro`` / ``micro`` as
+    None (excluded from the wire dump).
+    """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     metric: str
-    average: str
     classes: list[str]
     confusion_matrix: list[list[int]] = Field(
         ...,
@@ -57,12 +85,14 @@ class ClassificationDetails(BaseModel):
             "orientation documented here."
         ),
     )
-    per_class: dict[str, PerClassMetrics]
-    micro: float
-    macro: float
     n_total: int
     n_scored: int
     n_skipped: int
+    averaging: str | None = None
+    f_value: float | None = None
+    per_class: dict[str, PerClassMetrics] | None = None
+    macro: AveragedMetrics | None = None
+    micro: AveragedMetrics | None = None
 
 
 @dataclass(slots=True)
@@ -120,80 +150,113 @@ def _build_confusion(
     )
 
 
-class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
-    """One implementation for all three classification aggregators.
+def _f_beta(precision: float, recall: float, beta: float) -> float:
+    if precision == 0.0 and recall == 0.0:
+        return 0.0
+    b2 = beta * beta
+    denom = b2 * precision + recall
+    if denom == 0:
+        return 0.0
+    return (1 + b2) * precision * recall / denom
 
-    Dispatches on ``self.spec.type`` to pick the per-class metric formula:
-    precision, recall, or F-beta. The math (confusion-matrix build, per-class
-    counts, micro/macro averaging) is identical across the three.
+
+class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
+    """One implementation for all classification aggregators.
+
+    Scalar variants (precision / recall / fscore) compute the full per-class
+    P/R/F report and pick the headline by the spec's ``averaging``; the
+    ``confusion_matrix`` variant returns only the raw grid.
     """
 
     def evaluate(self, results: list[EvaluationResultDto]) -> EvaluationResult:
         """Compute the configured metric report and return the headline as score."""
         confusion = _build_confusion(results, self.classes)
-        beta_sq = (
-            self.spec.f_value * self.spec.f_value
-            if isinstance(self.spec, FScoreAggregatorSpec)
-            else 0.0
+
+        if isinstance(self.spec, ConfusionMatrixAggregatorSpec):
+            # No scalar headline — emit the raw grid and let the UI render it.
+            details = ClassificationDetails(
+                metric=self.spec.type,
+                classes=confusion.classes,
+                confusion_matrix=confusion.matrix,
+                n_total=confusion.n_total,
+                n_scored=confusion.n_scored,
+                n_skipped=confusion.n_skipped,
+            )
+            return NumericEvaluationResult(score=0.0, details=details)
+
+        f_value = (
+            self.spec.f_value if isinstance(self.spec, FScoreAggregatorSpec) else 1.0
         )
-        metric_type = self.spec.type
+        k = len(confusion.classes)
 
         per_class: dict[str, PerClassMetrics] = {}
-        total_tp = 0
-        total_fp = 0
-        total_fn = 0
-        k = len(confusion.classes)
+        precisions: list[float] = []
+        recalls: list[float] = []
+        f_scores: list[float] = []
+        total_tp = total_fp = total_fn = 0
 
         for c, label in enumerate(confusion.classes):
             tp = confusion.matrix[c][c]
-            fp = sum(confusion.matrix[c][j] for j in range(k)) - tp
-            fn = sum(confusion.matrix[j][c] for j in range(k)) - tp
+            row_sum = sum(confusion.matrix[c])  # predicted as `label`
+            col_sum = sum(confusion.matrix[j][c] for j in range(k))  # true `label`
+            fp = row_sum - tp
+            fn = col_sum - tp
             tn = confusion.n_scored - tp - fp - fn
-            total_tp += tp
-            total_fp += fp
-            total_fn += fn
+
+            precision = tp / row_sum if row_sum > 0 else 0.0
+            recall = tp / col_sum if col_sum > 0 else 0.0
+            f_score = _f_beta(precision, recall, f_value)
+
             per_class[label] = PerClassMetrics(
                 tp=tp,
                 tn=tn,
                 fp=fp,
                 fn=fn,
                 support=tp + fn,
-                value=_metric(metric_type, tp, fp, fn, beta_sq),
+                precision=precision,
+                recall=recall,
+                f_score=f_score,
             )
+            precisions.append(precision)
+            recalls.append(recall)
+            f_scores.append(f_score)
+            total_tp += tp
+            total_fp += fp
+            total_fn += fn
 
-        micro = _metric(metric_type, total_tp, total_fp, total_fn, beta_sq)
-        # AggregatorSpec.classes has min_length=1, so k >= 1 always.
-        macro = sum(per_class[c].value for c in confusion.classes) / k
+        # AggregatorSpec classes come from the ExactMatch config which requires
+        # a non-empty list, so k >= 1 always.
+        macro = AveragedMetrics(
+            precision=sum(precisions) / k,
+            recall=sum(recalls) / k,
+            f_score=sum(f_scores) / k,
+        )
+        micro_p = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+        micro_r = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+        micro = AveragedMetrics(
+            precision=micro_p,
+            recall=micro_r,
+            f_score=_f_beta(micro_p, micro_r, f_value),
+        )
+
+        averaged = micro if self.spec.averaging == "micro" else macro
+        headline = {
+            "precision": averaged.precision,
+            "recall": averaged.recall,
+            "fscore": averaged.f_score,
+        }[self.spec.type]
 
         details = ClassificationDetails(
-            metric=metric_type,
-            average=self.spec.averaging,
+            metric=self.spec.type,
+            averaging=self.spec.averaging,
+            f_value=f_value,
             classes=confusion.classes,
             confusion_matrix=confusion.matrix,
             per_class=per_class,
-            micro=micro,
             macro=macro,
+            micro=micro,
             n_total=confusion.n_total,
             n_scored=confusion.n_scored,
             n_skipped=confusion.n_skipped,
         )
-
-        headline = micro if self.spec.averaging == "micro" else macro
         return NumericEvaluationResult(score=headline, details=details)
-
-
-def _metric(metric_type: str, tp: int, fp: int, fn: int, beta_sq: float) -> float:
-    """One formula switch covering precision / recall / F-beta."""
-    if metric_type == "precision":
-        return tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    if metric_type == "recall":
-        return tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    if metric_type == "fscore":
-        p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        denom = beta_sq * p + r
-        return (1 + beta_sq) * p * r / denom if denom > 0 else 0.0
-    raise ValueError(
-        f"Unknown metric_type: {metric_type!r}. "
-        "Expected one of: precision, recall, fscore."
-    )

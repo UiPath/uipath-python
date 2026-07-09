@@ -2,6 +2,19 @@
   "evaluatorTypeId": "uipath-exact-match",
   "evaluatorConfigSchema": {
     "$defs": {
+      "ConfusionMatrixAggregatorSpec": {
+        "description": "Run-level raw k\u00d7k confusion matrix \u2014 no scalar headline, no averaging.",
+        "properties": {
+          "type": {
+            "const": "confusion_matrix",
+            "default": "confusion_matrix",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "ConfusionMatrixAggregatorSpec",
+        "type": "object"
+      },
       "FScoreAggregatorSpec": {
         "description": "Run-level F-beta aggregator (multiclass, micro or macro averaged).",
         "properties": {
@@ -186,6 +199,7 @@
             "items": {
               "discriminator": {
                 "mapping": {
+                  "confusion_matrix": "#/$defs/ConfusionMatrixAggregatorSpec",
                   "fscore": "#/$defs/FScoreAggregatorSpec",
                   "precision": "#/$defs/PrecisionAggregatorSpec",
                   "recall": "#/$defs/RecallAggregatorSpec"
@@ -201,6 +215,9 @@
                 },
                 {
                   "$ref": "#/$defs/FScoreAggregatorSpec"
+                },
+                {
+                  "$ref": "#/$defs/ConfusionMatrixAggregatorSpec"
                 }
               ]
             },

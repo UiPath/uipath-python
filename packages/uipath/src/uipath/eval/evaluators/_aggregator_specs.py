@@ -43,7 +43,18 @@ class FScoreAggregatorSpec(_AggregatorSpecBase):
     f_value: float = Field(default=1.0, gt=0)
 
 
+class ConfusionMatrixAggregatorSpec(_AggregatorSpecBase):
+    """Run-level raw k×k confusion matrix — no scalar headline, no averaging."""
+
+    type: Literal["confusion_matrix"] = "confusion_matrix"
+
+
 AggregatorSpec = Annotated[
-    Union[PrecisionAggregatorSpec, RecallAggregatorSpec, FScoreAggregatorSpec],
+    Union[
+        PrecisionAggregatorSpec,
+        RecallAggregatorSpec,
+        FScoreAggregatorSpec,
+        ConfusionMatrixAggregatorSpec,
+    ],
     Field(discriminator="type"),
 ]
