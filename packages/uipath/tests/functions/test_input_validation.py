@@ -66,6 +66,35 @@ async def test_invalid_input_raises_user_error(calculator_module, bad_input):
 
 
 @pytest.mark.asyncio
+async def test_missing_dataclass_field_raises_user_error(tmp_path):
+    """Non-Pydantic conversion failures (TypeError) are classified the same way."""
+    (tmp_path / "shipping.py").write_text(
+        textwrap.dedent("""\
+        from dataclasses import dataclass
+
+
+        @dataclass
+        class ShippingInput:
+            address: str
+            zip_code: str
+
+
+        async def main(input: ShippingInput) -> dict:
+            return {"ok": True}
+        """)
+    )
+    runtime = UiPathFunctionsRuntime(str(tmp_path / "shipping.py"), "main", "shipping")
+    with pytest.raises(UiPathRuntimeError) as exc_info:
+        await runtime.execute({"address": "1 Main St"})
+
+    error_info = exc_info.value.error_info
+    assert error_info.category == UiPathErrorCategory.USER
+    assert error_info.title == "Invalid input"
+    assert "ShippingInput" in error_info.detail
+    assert "zip_code" in error_info.detail
+
+
+@pytest.mark.asyncio
 async def test_invalid_input_error_lists_offending_fields(calculator_module):
     """The error detail names each invalid field with the validation message."""
     runtime = UiPathFunctionsRuntime(str(calculator_module), "main", "calculator")
