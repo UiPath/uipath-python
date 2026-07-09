@@ -782,7 +782,13 @@ class UiPathEvalRuntime:
                 )
 
             except Exception as e:
-                exception_details = EvalItemExceptionDetails(exception=e)
+                root_exception: Exception = (
+                    e.root_exception if isinstance(e, EvaluationRuntimeException) else e
+                )
+                exception_details = EvalItemExceptionDetails(
+                    exception=root_exception,
+                    runtime_exception=not _is_user_facing_error(root_exception),
+                )
 
                 for evaluator in evaluators:
                     evaluation_run_results.evaluation_run_results.append(
@@ -807,13 +813,6 @@ class UiPathEvalRuntime:
                 if isinstance(e, EvaluationRuntimeException):
                     eval_run_updated_event.spans = e.spans
                     eval_run_updated_event.logs = e.logs
-                    if eval_run_updated_event.exception_details:
-                        eval_run_updated_event.exception_details.exception = (
-                            e.root_exception
-                        )
-                        eval_run_updated_event.exception_details.runtime_exception = (
-                            not _is_user_facing_error(e.root_exception)
-                        )
 
                 await self.event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
