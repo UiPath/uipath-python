@@ -35,15 +35,11 @@ from uipath.eval.runtime._types import (
 from uipath.eval.runtime.runtime import compute_dataset_evaluator_results
 
 
-def _result(
-    expected: str, actual: str, score: float | None = None
-) -> EvaluationResultDto:
+def _result(expected: str, actual: str) -> EvaluationResultDto:
     """Build an EvaluationResultDto carrying an expected/actual justification."""
-    if score is None:
-        score = 1.0 if expected.lower() == actual.lower() else 0.0
     justification = BaseEvaluatorJustification(expected=expected, actual=actual)
     return EvaluationResultDto(
-        score=score,
+        score=1.0 if expected.lower() == actual.lower() else 0.0,
         details=justification.model_dump(),
     )
 

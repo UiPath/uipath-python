@@ -57,15 +57,23 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
                 "supported with line_by_line_evaluator — per-line results carry "
                 "no expected/actual labels, so every datapoint would be skipped."
             )
+        if self.case_sensitive:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}': aggregators are not "
+                "supported with case_sensitive — the confusion matrix buckets "
+                "labels case-insensitively, so a datapoint could score 0.0 yet "
+                "land on the true-positive diagonal."
+            )
         lowered = [c.lower() for c in self.classes]
-        if any(not c.strip() for c in self.classes) or len(set(lowered)) != len(
-            lowered
-        ):
+        if any(not c.strip() or c != c.strip() for c in self.classes) or len(
+            set(lowered)
+        ) != len(lowered):
             raise ValueError(
                 f"ExactMatch evaluator '{self.name}': ``classes`` must be "
-                "non-blank and unique case-insensitively — labels are matched "
-                "case-insensitively, so duplicates would collapse onto one "
-                "matrix index and silently skew every metric."
+                "non-blank, have no leading/trailing whitespace, and be unique "
+                "case-insensitively — labels are matched case-insensitively, so "
+                "duplicates would collapse onto one matrix index, and padded "
+                "labels would never match anything."
             )
         return self
 

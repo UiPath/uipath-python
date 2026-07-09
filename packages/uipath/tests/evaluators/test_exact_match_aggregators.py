@@ -125,6 +125,32 @@ class TestExactMatchAggregatorConfig:
                 }
             )
 
+    def test_rejects_aggregators_with_case_sensitive(self) -> None:
+        # Per-datapoint scoring would be case-sensitive while the matrix
+        # buckets case-insensitively — a 0.0-scored datapoint could land on
+        # the true-positive diagonal.
+        with pytest.raises(Exception, match="case_sensitive"):
+            _evaluator(
+                {
+                    "name": "IntentClassifier",
+                    "classes": ["yes", "no"],
+                    "caseSensitive": True,
+                    "aggregators": [{"type": "precision", "averaging": "macro"}],
+                }
+            )
+
+    def test_rejects_padded_class_labels(self) -> None:
+        # Padded labels pass a blank check but never match at lookup time —
+        # every datapoint would silently land in nSkipped.
+        with pytest.raises(Exception, match="whitespace"):
+            _evaluator(
+                {
+                    "name": "IntentClassifier",
+                    "classes": ["yes", "no "],
+                    "aggregators": [{"type": "precision", "averaging": "macro"}],
+                }
+            )
+
     def test_rejects_aggregators_with_line_by_line(self) -> None:
         # Per-line results carry no expected/actual labels — every datapoint
         # would land in n_skipped and all metrics would silently read 0.
