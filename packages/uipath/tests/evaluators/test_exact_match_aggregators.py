@@ -3,14 +3,15 @@
 The platform's dataset-evaluator pass (Agents repo) reads ``classes`` and
 ``aggregators`` off the ExactMatch evaluator config. These tests pin the SDK
 side of that wire contract: the discriminated spec union, the config fields,
-and the classes-required-with-aggregators validator. The aggregation math
-itself lives in the platform's python-dataset-eval-worker.
+and the config validator. The aggregation math lives in
+``classification_dataset_evaluators.py`` (tested separately) and is consumed
+by both `uipath eval` and the platform's python-dataset-eval-worker.
 """
 
 import uuid
 
 import pytest
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from uipath.eval.evaluators._aggregator_specs import (
     AggregatorSpec,
@@ -63,6 +64,15 @@ class TestAggregatorSpecUnion:
         assert dumped["fValue"] == 1.5
         assert "f_value" not in dumped
 
+    def test_fscore_fvalue_is_bounded(self) -> None:
+        # A huge beta overflows beta² to inf → NaN score → unrepresentable JSON.
+        adapter = TypeAdapter(AggregatorSpec)
+        for bad in (0, -1, 1e200, float("inf"), float("nan")):
+            with pytest.raises(ValidationError):
+                adapter.validate_python(
+                    {"type": "fscore", "averaging": "macro", "fValue": bad}
+                )
+
 
 class TestExactMatchAggregatorConfig:
     def test_accepts_aggregators_with_classes(self) -> None:
@@ -89,6 +99,41 @@ class TestExactMatchAggregatorConfig:
             _evaluator(
                 {
                     "name": "IntentClassifier",
+                    "aggregators": [{"type": "precision", "averaging": "macro"}],
+                }
+            )
+
+    def test_rejects_case_duplicate_classes(self) -> None:
+        # Labels match case-insensitively, so "Yes"/"yes" would collapse onto
+        # one matrix index and silently skew every metric.
+        with pytest.raises(Exception, match="unique"):
+            _evaluator(
+                {
+                    "name": "IntentClassifier",
+                    "classes": ["Yes", "yes"],
+                    "aggregators": [{"type": "precision", "averaging": "macro"}],
+                }
+            )
+
+    def test_rejects_blank_class_labels(self) -> None:
+        with pytest.raises(Exception, match="non-blank"):
+            _evaluator(
+                {
+                    "name": "IntentClassifier",
+                    "classes": ["yes", "  "],
+                    "aggregators": [{"type": "precision", "averaging": "macro"}],
+                }
+            )
+
+    def test_rejects_aggregators_with_line_by_line(self) -> None:
+        # Per-line results carry no expected/actual labels — every datapoint
+        # would land in n_skipped and all metrics would silently read 0.
+        with pytest.raises(Exception, match="line_by_line"):
+            _evaluator(
+                {
+                    "name": "IntentClassifier",
+                    "classes": ["yes", "no"],
+                    "lineByLineEvaluator": True,
                     "aggregators": [{"type": "precision", "averaging": "macro"}],
                 }
             )

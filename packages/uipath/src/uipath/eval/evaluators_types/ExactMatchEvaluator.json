@@ -35,6 +35,7 @@
           "f_value": {
             "default": 1.0,
             "exclusiveMinimum": 0,
+            "maximum": 1000,
             "title": "F Value",
             "type": "number"
           }
@@ -191,6 +192,7 @@
           }
         ],
         "default": null,
+        "description": "Label vocabulary shared by every aggregator on this evaluator. Labels are matched case-insensitively against the per-datapoint expected/actual outputs.",
         "title": "Classes"
       },
       "aggregators": {
@@ -228,6 +230,7 @@
           }
         ],
         "default": null,
+        "description": "Dataset-level metrics (precision / recall / F-score / confusion matrix) computed over the per-datapoint match outcomes. Requires ``classes``.",
         "title": "Aggregators"
       }
     },

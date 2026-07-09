@@ -28,7 +28,6 @@ from ..models.models import (
     NumericEvaluationResult,
 )
 from ._aggregator_specs import (
-    AggregatorSpec,
     ConfusionMatrixAggregatorSpec,
     FScoreAggregatorSpec,
 )
@@ -160,7 +159,7 @@ def _f_beta(precision: float, recall: float, beta: float) -> float:
     return (1 + b2) * precision * recall / denom
 
 
-class ClassificationDatasetEvaluator(BaseDatasetEvaluator[AggregatorSpec]):
+class ClassificationDatasetEvaluator(BaseDatasetEvaluator):
     """One implementation for all classification aggregators.
 
     Scalar variants (precision / recall / fscore) compute the full per-class

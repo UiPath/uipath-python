@@ -40,7 +40,9 @@ class FScoreAggregatorSpec(_AggregatorSpecBase):
 
     type: Literal["fscore"] = "fscore"
     averaging: Literal["macro", "micro"]
-    f_value: float = Field(default=1.0, gt=0)
+    # Upper bound keeps beta² finite — a huge beta overflows to inf and the
+    # F-score becomes NaN, which is not representable in JSON.
+    f_value: float = Field(default=1.0, gt=0, le=1000)
 
 
 class ConfusionMatrixAggregatorSpec(_AggregatorSpecBase):

@@ -45,9 +45,12 @@ from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
-from ..evaluators._aggregator_specs import AggregatorSpec, FScoreAggregatorSpec
 from ..evaluators.base_evaluator import GenericBaseEvaluator
-from ..evaluators.dataset_evaluator_factory import build_dataset_evaluator
+from ..evaluators.dataset_evaluator_factory import (
+    build_dataset_evaluator,
+    dataset_result_key,
+    unique_aggregator_specs,
+)
 from ..evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
@@ -212,9 +215,9 @@ def compute_dataset_evaluator_results(
     """Run any dataset-level aggregators embedded in per-datapoint evaluator configs.
 
     Walks ``evaluators`` looking for any whose config carries an ``aggregators``
-    list (currently only Binary/Multiclass classification). For each aggregator
-    spec, builds the corresponding dataset evaluator via the factory and runs it
-    over the per-datapoint results that came from that source evaluator.
+    list (currently only ExactMatch). For each aggregator spec, builds the
+    corresponding dataset evaluator via the factory and runs it over the
+    per-datapoint results that came from that source evaluator.
 
     Args:
         evaluation_set_results: Per-datapoint results from the run.
@@ -222,14 +225,10 @@ def compute_dataset_evaluator_results(
             set. Their configs may carry ``aggregators`` lists.
 
     Returns:
-        Dict mapping ``"{evaluator_name}.{aggregator_type}"`` to the run-level
-        EvaluationResultDto. When the same aggregator ``type`` appears more
-        than once on a source (e.g. macro+micro precision), each variant is
-        disambiguated as ``"{evaluator_name}.{type}.{averaging}"`` and, for
-        fscore, with the ``f_value`` suffix (``"...fbN"``), so a duplicate
-        type never overwrites a previous result. Aggregators whose source
-        produced no results are still invoked with an empty list so they emit
-        a zeroed result.
+        Dict keyed by :func:`dataset_result_key` (same scheme as the platform
+        worker), with each value's ``details`` dumped to the camelCase wire
+        shape. Exact-duplicate specs are deduped; aggregators whose source
+        produced no results still emit a zeroed result.
     """
     results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
         list
@@ -256,38 +255,26 @@ def compute_dataset_evaluator_results(
             continue
         source_name = config.name
         source_results = results_by_evaluator.get(source_name, [])
-        # Count occurrences of each aggregator type to detect duplicates
-        # (e.g. macro+micro precision on the same source). The default key
-        # shape ``{source}.{type}`` collides on duplicates; disambiguate with
-        # ``.{averaging}`` (and ``.fb{f_value}`` for fscore variants) only
-        # when more than one aggregator of that type exists, to preserve the
-        # simple key shape in the common case.
+        specs = unique_aggregator_specs(config.aggregators)
         type_counts: dict[str, int] = defaultdict(int)
-        for spec in config.aggregators:
+        for spec in specs:
             type_counts[spec.type] += 1
-        for spec in config.aggregators:
-            dataset_evaluator = build_dataset_evaluator(spec, source_name, config.classes)
-            key = _dataset_result_key(source_name, spec, type_counts[spec.type] > 1)
-            dataset_results[key] = EvaluationResultDto.from_evaluation_result(
-                dataset_evaluator.evaluate(source_results)
+        for spec in specs:
+            dataset_evaluator = build_dataset_evaluator(
+                spec, source_name, config.classes
+            )
+            key = dataset_result_key(source_name, spec, type_counts[spec.type] > 1)
+            result = dataset_evaluator.evaluate(source_results)
+            details: str | dict[str, Any] | None
+            if isinstance(result.details, BaseModel):
+                # Same camelCase wire shape the platform worker ships.
+                details = result.details.model_dump(by_alias=True, exclude_none=True)
+            else:
+                details = result.details
+            dataset_results[key] = EvaluationResultDto(
+                score=result.score, details=details
             )
     return dataset_results
-
-
-def _dataset_result_key(
-    source_name: str, spec: AggregatorSpec, disambiguate: bool
-) -> str:
-    """Build the result-dict key for a dataset evaluator.
-
-    Uses ``{source}.{type}`` for unique-type aggregators, and appends
-    ``.{averaging}`` (plus ``.fb{f_value}`` for fscore) when the same type
-    appears more than once on the same source.
-    """
-    if not disambiguate:
-        return f"{source_name}.{spec.type}"
-    if isinstance(spec, FScoreAggregatorSpec):
-        return f"{source_name}.{spec.type}.{spec.averaging}.fb{spec.f_value}"
-    return f"{source_name}.{spec.type}.{spec.averaging}"
 
 
 class UiPathEvalRuntime:
@@ -473,12 +460,7 @@ class UiPathEvalRuntime:
                         evaluators,
                     )
 
-                    # Run any dataset-level aggregators embedded in per-datapoint
-                    # classification evaluator configs (the ``aggregators`` list).
-                    # Each aggregator consumes per-datapoint results from its
-                    # parent evaluator and emits one run-level EvaluationResultDto
-                    # keyed ``{evaluator_name}.{aggregator_type}`` on
-                    # UiPathEvalOutput.dataset_evaluator_results.
+                    # Run dataset-level aggregators over the per-datapoint results.
                     results.dataset_evaluator_results = (
                         compute_dataset_evaluator_results(
                             results.evaluation_set_results,

@@ -12,6 +12,7 @@ import pytest
 from pydantic import BaseModel
 
 from uipath.eval.evaluators._aggregator_specs import (
+    ConfusionMatrixAggregatorSpec,
     FScoreAggregatorSpec,
     PrecisionAggregatorSpec,
     RecallAggregatorSpec,
@@ -51,14 +52,18 @@ def _precision(
     classes: list[str], averaging: str = "macro"
 ) -> ClassificationDatasetEvaluator:
     spec = PrecisionAggregatorSpec(averaging=averaging)  # type: ignore[arg-type]
-    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match", classes=classes)
+    return ClassificationDatasetEvaluator(
+        spec, source_evaluator="intent_match", classes=classes
+    )
 
 
 def _recall(
     classes: list[str], averaging: str = "macro"
 ) -> ClassificationDatasetEvaluator:
     spec = RecallAggregatorSpec(averaging=averaging)  # type: ignore[arg-type]
-    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match", classes=classes)
+    return ClassificationDatasetEvaluator(
+        spec, source_evaluator="intent_match", classes=classes
+    )
 
 
 def _fscore(
@@ -68,7 +73,9 @@ def _fscore(
         averaging=averaging,  # type: ignore[arg-type]
         f_value=f_value,
     )
-    return ClassificationDatasetEvaluator(spec, source_evaluator="intent_match", classes=classes)
+    return ClassificationDatasetEvaluator(
+        spec, source_evaluator="intent_match", classes=classes
+    )
 
 
 def _details(result: object) -> ClassificationDetails:
@@ -292,7 +299,7 @@ class TestSkippingAndEdgeCases:
 
 
 class TestFactory:
-    """The factory now takes an AggregatorSpec instance + source name, not a dict."""
+    """The factory builds from an AggregatorSpec instance + source name."""
 
     def test_builds_precision_from_spec(self) -> None:
         spec = PrecisionAggregatorSpec(averaging="macro")
@@ -300,14 +307,12 @@ class TestFactory:
         assert isinstance(evaluator, ClassificationDatasetEvaluator)
         assert evaluator.spec.type == "precision"
         assert evaluator.source_evaluator == "intent_match"
-        assert evaluator.name == "intent_match.precision"
 
     def test_builds_recall_from_spec(self) -> None:
         spec = RecallAggregatorSpec(averaging="micro")
         evaluator = build_dataset_evaluator(spec, "intent_match", classes=["yes", "no"])
         assert isinstance(evaluator, ClassificationDatasetEvaluator)
         assert evaluator.spec.type == "recall"
-        assert evaluator.name == "intent_match.recall"
 
     def test_builds_fscore_from_spec(self) -> None:
         spec = FScoreAggregatorSpec(averaging="macro", f_value=2.0)
@@ -321,8 +326,8 @@ class TestAggregatorSpecJsonRoundTrip:
     """Pin the wire shape sent to the C# side."""
 
     def test_precision_spec_wire_shape(self) -> None:
-        """Aggregator specs no longer carry ``classes`` — that field lives on the
-        parent evaluator config. Round-trip preserves only the spec-shape fields.
+        """Specs carry only metric-shape fields; ``classes`` lives on the
+        parent evaluator config.
         """
         spec = PrecisionAggregatorSpec.model_validate(
             {
@@ -408,12 +413,12 @@ class TestComputeDatasetEvaluatorResults:
 
         out = compute_dataset_evaluator_results(eval_results, [evaluator])
         # Two aggregators on intent_match → two keys, prefixed by source name.
-        assert set(out) == {"intent_match.precision", "intent_match.recall"}
-        precision_dto = out["intent_match.precision"]
+        assert set(out) == {"intent_match::precision", "intent_match::recall"}
+        precision_dto = out["intent_match::precision"]
         assert isinstance(precision_dto, EvaluationResultDto)
         assert isinstance(precision_dto.details, dict)
         # The unrelated 0.5 score from some_other_evaluator must NOT be in the matrix.
-        assert precision_dto.details["n_scored"] == 2
+        assert precision_dto.details["nScored"] == 2
 
     def test_evaluator_without_aggregators_is_skipped(self) -> None:
         evaluator = _exact_match_evaluator(
@@ -461,8 +466,8 @@ class TestComputeDatasetEvaluatorResults:
             ),
         ]
         out = compute_dataset_evaluator_results(eval_results, [evaluator])
-        assert isinstance(out["intent_match.precision"].details, dict)
-        assert out["intent_match.precision"].details["n_scored"] == 1
+        assert isinstance(out["intent_match::precision"].details, dict)
+        assert out["intent_match::precision"].details["nScored"] == 1
 
     def test_source_with_no_results_produces_zeroed_report(self) -> None:
         evaluator = _exact_match_evaluator(
@@ -485,10 +490,10 @@ class TestComputeDatasetEvaluatorResults:
             ),
         ]
         out = compute_dataset_evaluator_results(eval_results, [evaluator])
-        dto = out["intent_match.precision"]
+        dto = out["intent_match::precision"]
         assert dto.score == 0.0
         assert isinstance(dto.details, dict)
-        assert dto.details["n_scored"] == 0
+        assert dto.details["nScored"] == 0
 
     def test_duplicate_aggregator_type_disambiguates_by_averaging(self) -> None:
         """Two aggregators of the same type get distinct keys (no overwrite)."""
@@ -516,6 +521,65 @@ class TestComputeDatasetEvaluatorResults:
         # Same type appears twice → averaging suffix disambiguates so neither
         # is silently overwritten.
         assert set(out) == {
-            "intent_match.precision.macro",
-            "intent_match.precision.micro",
+            "intent_match::precision.macro",
+            "intent_match::precision.micro",
         }
+
+    def test_exact_duplicate_specs_are_deduped(self) -> None:
+        """Identical specs collapse to one result; duplicate confusion_matrix
+        (no averaging field) must not crash key disambiguation."""
+        evaluator = _exact_match_evaluator(
+            "intent_match",
+            classes=["yes", "no"],
+            aggregators=[
+                PrecisionAggregatorSpec(averaging="macro"),
+                PrecisionAggregatorSpec(averaging="macro"),
+                ConfusionMatrixAggregatorSpec(),
+                ConfusionMatrixAggregatorSpec(),
+            ],
+        )
+        eval_results = [
+            UiPathEvalRunResult(
+                evaluation_name="dp1",
+                evaluation_run_results=[
+                    UiPathEvalRunResultDto(
+                        evaluator_name="intent_match",
+                        evaluator_id=str(uuid.uuid4()),
+                        result=_result("yes", "yes"),
+                    ),
+                ],
+            ),
+        ]
+        out = compute_dataset_evaluator_results(eval_results, [evaluator])
+        assert set(out) == {
+            "intent_match::precision",
+            "intent_match::confusion_matrix",
+        }
+
+    def test_details_are_dumped_to_camelcase_wire_shape(self) -> None:
+        """The local path ships the same JSON shape as the platform worker:
+        camelCase keys, absent (not null) optional fields."""
+        evaluator = _exact_match_evaluator(
+            "intent_match",
+            classes=["yes", "no"],
+            aggregators=[ConfusionMatrixAggregatorSpec()],
+        )
+        eval_results = [
+            UiPathEvalRunResult(
+                evaluation_name="dp1",
+                evaluation_run_results=[
+                    UiPathEvalRunResultDto(
+                        evaluator_name="intent_match",
+                        evaluator_id=str(uuid.uuid4()),
+                        result=_result("yes", "yes"),
+                    ),
+                ],
+            ),
+        ]
+        out = compute_dataset_evaluator_results(eval_results, [evaluator])
+        details = out["intent_match::confusion_matrix"].details
+        assert isinstance(details, dict)
+        assert details["confusionMatrix"] == [[1, 0], [0, 0]]
+        assert details["nScored"] == 1
+        # confusion_matrix variant: scalar fields are absent, not null.
+        assert "perClass" not in details and "macro" not in details

@@ -52,10 +52,7 @@ class BaseEvaluatorJustification(BaseModel):
         """Coerce a free-form details payload into a justification, or return None.
 
         Accepts either an existing instance or a dict that ``model_validate`` can
-        parse. Anything else (str, None, malformed dict) yields ``None``. Used by
-        the classification evaluators + dataset evaluator framework to walk
-        per-datapoint results without each site re-implementing the same
-        isinstance/try/except dance.
+        parse. Anything else (str, None, malformed dict) yields ``None``.
         """
         if isinstance(details, cls):
             return details
