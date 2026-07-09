@@ -237,7 +237,11 @@ class UiPathSpan:
     attributes: str | Dict[str, Any]  # Support both str (legacy) and dict (optimized)
     parent_id: Optional[str] = None  # 16-char hex (OTEL span ID format)
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
-    end_time: str = field(default_factory=lambda: datetime.now().isoformat())
+    # None means the span has not ended yet. Serialized as null — the LLMOps v3
+    # ingest contract (SpanV3Req.EndTime) is nullable, and downstream consumers
+    # (traceview UI, Insights OTLP export) rely on "EndTime set" meaning "span
+    # ended": fabricating a value here makes in-progress snapshots look terminal.
+    end_time: Optional[str] = None
     status: SpanStatus = SpanStatus.OK
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
@@ -542,13 +546,14 @@ class _SpanUtils:
             (otel_span.start_time or 0) / 1e9
         ).isoformat()
 
+        # A live (not-yet-ended) OTel span has end_time None — preserve that rather
+        # than stamping now(): a fabricated EndTime makes in-progress upserts
+        # (upsert_span RUNNING → OK lifecycle) indistinguishable from ended spans.
         end_time_str = None
         if otel_span.end_time is not None:
             end_time_str = datetime.fromtimestamp(
                 (otel_span.end_time or 0) / 1e9
             ).isoformat()
-        else:
-            end_time_str = datetime.now().isoformat()
 
         return UiPathSpan(
             id=span_id,

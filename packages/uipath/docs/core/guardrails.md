@@ -95,7 +95,7 @@ The `stage` parameter controls when the guardrail evaluates. Not all validators 
 |-------|---------------|--------------|
 | `PRE` | Before the function runs | All validators |
 | `POST` | After the function runs | All except `UserPromptAttacksValidator` |
-| `PRE_AND_POST` | Both before and after | `PIIValidator`, `HarmfulContentValidator`, `CustomValidator` |
+| `PRE_AND_POST` | Both before and after | `PIIValidator`, `HarmfulContentValidator`, `LLMAsJudgeValidator`, `CustomValidator` |
 
 ## Built-in Validators
 
@@ -207,6 +207,40 @@ from uipath.platform.guardrails import (
 def generate_code(spec: str) -> str:
     ...
 ```
+
+### LLM-as-judge
+
+Evaluates content against a rule written in plain language, using a judge LLM to decide whether the payload complies. Use it for policy checks that are hard to express as fixed entities or rules — tone, topicality, disclaimers, domain-specific policies.
+
+```python
+from uipath.platform.guardrails import (
+    BlockAction,
+    GuardrailExecutionStage,
+    LLMAsJudgeValidator,
+    guardrail,
+)
+
+@guardrail(
+    validator=LLMAsJudgeValidator(
+        guardrail_text=(
+            "The response must remain professional and must not contain "
+            "financial or investment advice."
+        ),
+        model="gpt-4o-2024-08-06",
+        threshold=2,
+    ),
+    action=BlockAction(),
+    name="No financial advice",
+    stage=GuardrailExecutionStage.POST,
+)
+def answer_question(question: str) -> str:
+    ...
+```
+
+- `guardrail_text` (required) — the rule the judge evaluates against, at most 4000 characters.
+- `model` (required) — the judge model id, e.g. `"gpt-4o-2024-08-06"`. It must be a model your organization's governance policy allows for the LLM-as-judge guardrail — LLM Gateway enforces the permitted list, so a model that isn't authorized for judging is rejected.
+- `threshold` — strictness from `0` (strictest) to `6` (most lenient), defaulting to `2`. Higher values flag only clear violations.
+- `positive_examples` / `negative_examples` — optional example payloads (not descriptions) that comply with / violate the rule, used to calibrate the judge. At most 2 entries per list, each at most 1000 characters.
 
 ## Actions
 
@@ -432,6 +466,11 @@ print(result.result, result.reason)
     options:
       members:
         - IntellectualPropertyValidator
+
+::: uipath.platform.guardrails.decorators.validators.llm_as_judge
+    options:
+      members:
+        - LLMAsJudgeValidator
 
 ::: uipath.platform.guardrails.decorators.validators.user_prompt_attacks
     options:
