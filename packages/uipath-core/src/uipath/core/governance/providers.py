@@ -78,6 +78,54 @@ class PolicyResponse(BaseModel):
             return None
 
 
+class HookBundle(BaseModel):
+    """Metadata for one hook's WASM policy bundle.
+
+    Returned as an element of :class:`AllPoliciesResponse` from the
+    ``/all-policies/{tenant_id}`` endpoint.
+
+    Attributes:
+        hook_type: Lifecycle hook identifier (e.g. ``"before_agent"``).
+        bundle_url: Pre-signed URL for the WASM ``.tar.gz`` bundle.
+            No platform auth required — the URL carries its own credentials.
+        etag: Server-assigned ETag for the bundle. Used by the Rego loader
+            to skip unchanged bundles on background refresh. ``None`` when
+            the server does not provide one.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    hook_type: str = Field(alias="hookType")
+    bundle_url: str = Field(alias="bundleUrl")
+    etag: str | None = Field(default=None)
+
+
+class AllPoliciesResponse(BaseModel):
+    """Parsed response from the ``/all-policies/{tenant_id}`` endpoint.
+
+    Wire envelope::
+
+        {
+            "hookBundles": [
+                {
+                    "hookType": "before_agent",
+                    "bundleUrl": "https://url.example.com/...",
+                    "etag": "abc123"
+                }
+            ]
+        }
+
+    Attributes:
+        hook_bundles: One entry per lifecycle hook that has a compiled
+            WASM bundle. Empty when no policies are configured for the
+            tenant.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    hook_bundles: list[HookBundle] = Field(default_factory=list, alias="hookBundles")
+
+
 class FiredRule(BaseModel):
     """Per-rule metadata carried in the ``/runtime/govern`` payload.
 
