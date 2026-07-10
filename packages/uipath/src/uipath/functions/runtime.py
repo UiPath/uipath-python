@@ -10,6 +10,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, AsyncGenerator, Callable, Type, cast, get_type_hints
 
+from pydantic import ValidationError
+
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathRuntimeEvent,
@@ -33,6 +35,24 @@ from .type_conversion import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _format_input_validation_error(
+    function_name: str, input_type: Type[Any], error: Exception
+) -> str:
+    """Build a concise, human-readable message for an input conversion failure."""
+    type_name = getattr(input_type, "__name__", str(input_type))
+    if isinstance(error, ValidationError):
+        issues = "; ".join(
+            f"{'.'.join(str(loc) for loc in err['loc']) or type_name}: {err['msg']}"
+            for err in error.errors()
+        )
+    else:
+        issues = str(error)
+    return (
+        f"Input does not match the expected schema for "
+        f"'{function_name}' ({type_name}): {issues}"
+    )
 
 
 class UiPathFunctionsRuntime:
@@ -141,7 +161,18 @@ class UiPathFunctionsRuntime:
             or is_pydantic_model(input_type)
             or (inspect.isclass(input_type) and hasattr(input_type, "__annotations__"))
         ):
-            typed_input = convert_to_class(input_data, cast(Type[Any], input_type))
+            try:
+                typed_input = convert_to_class(input_data, cast(Type[Any], input_type))
+            except (ValidationError, TypeError, ValueError) as e:
+                raise UiPathRuntimeError(
+                    # Closest available code; uipath-runtime 0.12.x has no
+                    # dedicated input-validation error code yet.
+                    UiPathErrorCode.INPUT_INVALID_JSON,
+                    "Invalid input",
+                    _format_input_validation_error(self.function_name, input_type, e),
+                    UiPathErrorCategory.USER,
+                    include_traceback=False,
+                ) from e
             result = await func(typed_input) if is_async else func(typed_input)
         else:
             # Dict/untyped parameter

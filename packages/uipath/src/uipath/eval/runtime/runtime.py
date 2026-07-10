@@ -38,6 +38,7 @@ from uipath.runtime import (
     UiPathRuntimeStorageProtocol,
 )
 from uipath.runtime.errors import (
+    UiPathBaseRuntimeError,
     UiPathErrorCategory,
     UiPathErrorContract,
 )
@@ -94,6 +95,19 @@ from .events import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_user_facing_error(exception: BaseException) -> bool:
+    """Whether an exception is a correctly-reported workload failure.
+
+    User-category errors (e.g. invalid input, business logic failures) are
+    failures of the agent under evaluation, not eval infrastructure crashes,
+    so they must not be flagged as runtime exceptions.
+    """
+    return (
+        isinstance(exception, UiPathBaseRuntimeError)
+        and exception.error_info.category == UiPathErrorCategory.USER
+    )
 
 
 def compute_evaluator_scores(
@@ -768,7 +782,13 @@ class UiPathEvalRuntime:
                 )
 
             except Exception as e:
-                exception_details = EvalItemExceptionDetails(exception=e)
+                root_exception: Exception = (
+                    e.root_exception if isinstance(e, EvaluationRuntimeException) else e
+                )
+                exception_details = EvalItemExceptionDetails(
+                    exception=root_exception,
+                    runtime_exception=not _is_user_facing_error(root_exception),
+                )
 
                 for evaluator in evaluators:
                     evaluation_run_results.evaluation_run_results.append(
@@ -793,13 +813,6 @@ class UiPathEvalRuntime:
                 if isinstance(e, EvaluationRuntimeException):
                     eval_run_updated_event.spans = e.spans
                     eval_run_updated_event.logs = e.logs
-                    if eval_run_updated_event.exception_details:
-                        eval_run_updated_event.exception_details.exception = (
-                            e.root_exception
-                        )
-                        eval_run_updated_event.exception_details.runtime_exception = (
-                            True
-                        )
 
                 await self.event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
