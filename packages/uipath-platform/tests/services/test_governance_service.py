@@ -13,8 +13,10 @@ from uipath.core.governance import GovernancePolicyProvider, PolicyContext
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common import resolve_trace_id
 from uipath.platform.governance import (
+    AllPoliciesResponse,
     FiredRule,
     GovernanceService,
+    HookBundle,
     PolicyResponse,
 )
 
@@ -932,3 +934,286 @@ class TestResolveTraceId:
 
         # No OTel context active → falls through to caller-supplied fallback.
         assert resolve_trace_id(fallback="recovered") == "recovered"
+
+
+_ALL_POLICIES_RESPONSE = {
+    "hookBundles": [
+        {
+            "hookType": "before_agent",
+            "bundleUrl": "https://url.example.com/before_agent.tar.gz",
+            "etag": "etag-abc123",
+        },
+        {
+            "hookType": "after_agent",
+            "bundleUrl": "https://url.example.com/after_agent.tar.gz",
+            "etag": None,
+        },
+    ]
+}
+
+
+class TestRetrieveAllPolicies:
+    """Test retrieve_all_policies (sync) and retrieve_all_policies_async."""
+
+    def test_returns_parsed_response(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+        base_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=(
+                f"{base_url}/{ORG_ID}/agenticgovernance_"
+                f"/api/v1/all-policies/{TENANT_ID}"
+            ),
+            status_code=200,
+            json=_ALL_POLICIES_RESPONSE,
+        )
+
+        result = service.retrieve_all_policies()
+
+        assert isinstance(result, AllPoliciesResponse)
+        assert len(result.hook_bundles) == 2
+        assert isinstance(result.hook_bundles[0], HookBundle)
+        assert result.hook_bundles[0].hook_type == "before_agent"
+        assert result.hook_bundles[0].bundle_url == (
+            "https://url.example.com/before_agent.tar.gz"
+        )
+        assert result.hook_bundles[0].etag == "etag-abc123"
+        assert result.hook_bundles[1].hook_type == "after_agent"
+        assert result.hook_bundles[1].etag is None
+
+    def test_returns_empty_list_when_no_bundles(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+        base_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=(
+                f"{base_url}/{ORG_ID}/agenticgovernance_"
+                f"/api/v1/all-policies/{TENANT_ID}"
+            ),
+            status_code=200,
+            json={"hookBundles": []},
+        )
+
+        result = service.retrieve_all_policies()
+
+        assert result.hook_bundles == []
+
+    def test_sends_tenant_header_and_bearer_token(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+        base_url: str,
+        secret: str,
+    ) -> None:
+        captured: dict[str, httpx.Request] = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            captured["request"] = request
+            return httpx.Response(200, json=_ALL_POLICIES_RESPONSE)
+
+        httpx_mock.add_callback(
+            capture,
+            url=(
+                f"{base_url}/{ORG_ID}/agenticgovernance_"
+                f"/api/v1/all-policies/{TENANT_ID}"
+            ),
+        )
+
+        service.retrieve_all_policies()
+
+        request = captured["request"]
+        assert request.method == "GET"
+        assert request.headers["x-uipath-internal-tenantid"] == TENANT_ID
+        assert request.headers["authorization"] == f"Bearer {secret}"
+
+    def test_raises_when_organization_id_missing(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_ORGANIZATION_ID", raising=False)
+        monkeypatch.setenv("UIPATH_TENANT_ID", TENANT_ID)
+        service = GovernanceService(config=config, execution_context=execution_context)
+
+        with pytest.raises(ValueError, match="UIPATH_ORGANIZATION_ID"):
+            service.retrieve_all_policies()
+
+    def test_raises_when_tenant_id_missing(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", ORG_ID)
+        monkeypatch.delenv("UIPATH_TENANT_ID", raising=False)
+        service = GovernanceService(config=config, execution_context=execution_context)
+
+        with pytest.raises(ValueError, match="UIPATH_TENANT_ID"):
+            service.retrieve_all_policies()
+
+    def test_raises_on_http_error(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+        base_url: str,
+    ) -> None:
+        from uipath.platform.errors import EnrichedException
+
+        httpx_mock.add_response(
+            url=(
+                f"{base_url}/{ORG_ID}/agenticgovernance_"
+                f"/api/v1/all-policies/{TENANT_ID}"
+            ),
+            status_code=500,
+            text="server error",
+        )
+
+        with pytest.raises(EnrichedException):
+            service.retrieve_all_policies()
+
+    def test_redirects_to_service_url_override(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "UIPATH_SERVICE_URL_AGENTICGOVERNANCE", "http://localhost:8123"
+        )
+        captured: dict[str, httpx.Request] = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            captured["request"] = request
+            return httpx.Response(200, json=_ALL_POLICIES_RESPONSE)
+
+        httpx_mock.add_callback(
+            capture,
+            url=f"http://localhost:8123/api/v1/all-policies/{TENANT_ID}",
+        )
+
+        service.retrieve_all_policies()
+
+        request = captured["request"]
+        assert request.headers["X-UiPath-Internal-AccountId"] == ORG_ID
+        assert ORG_ID not in str(request.url)
+
+    async def test_async_returns_parsed_response(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+        base_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=(
+                f"{base_url}/{ORG_ID}/agenticgovernance_"
+                f"/api/v1/all-policies/{TENANT_ID}"
+            ),
+            status_code=200,
+            json=_ALL_POLICIES_RESPONSE,
+        )
+
+        result = await service.retrieve_all_policies_async()
+
+        assert isinstance(result, AllPoliciesResponse)
+        assert len(result.hook_bundles) == 2
+        assert result.hook_bundles[0].hook_type == "before_agent"
+
+    async def test_async_raises_when_tenant_id_missing(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", ORG_ID)
+        monkeypatch.delenv("UIPATH_TENANT_ID", raising=False)
+        service = GovernanceService(config=config, execution_context=execution_context)
+
+        with pytest.raises(ValueError, match="UIPATH_TENANT_ID"):
+            await service.retrieve_all_policies_async()
+
+
+class TestDownloadBundle:
+    """Test download_bundle (sync) and download_bundle_async."""
+
+    BUNDLE_URL = "https://url.example.com/bundle.tar.gz"
+    BUNDLE_BYTES = b"fake-wasm-bundle-content"
+
+    def test_returns_raw_bytes(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=self.BUNDLE_URL,
+            status_code=200,
+            content=self.BUNDLE_BYTES,
+        )
+
+        result = service.download_bundle(self.BUNDLE_URL)
+
+        assert result == self.BUNDLE_BYTES
+
+    def test_does_not_send_bearer_token(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+    ) -> None:
+        captured: dict[str, httpx.Request] = {}
+
+        def capture(request: httpx.Request) -> httpx.Response:
+            captured["request"] = request
+            return httpx.Response(200, content=self.BUNDLE_BYTES)
+
+        httpx_mock.add_callback(capture, url=self.BUNDLE_URL)
+
+        service.download_bundle(self.BUNDLE_URL)
+
+        assert "authorization" not in captured["request"].headers
+
+    def test_raises_on_http_error(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=self.BUNDLE_URL,
+            status_code=403,
+            text="forbidden",
+        )
+
+        with pytest.raises(httpx.HTTPStatusError):
+            service.download_bundle(self.BUNDLE_URL)
+
+    async def test_async_returns_raw_bytes(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=self.BUNDLE_URL,
+            status_code=200,
+            content=self.BUNDLE_BYTES,
+        )
+
+        result = await service.download_bundle_async(self.BUNDLE_URL)
+
+        assert result == self.BUNDLE_BYTES
+
+    async def test_async_raises_on_http_error(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GovernanceService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=self.BUNDLE_URL,
+            status_code=404,
+            text="not found",
+        )
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await service.download_bundle_async(self.BUNDLE_URL)

@@ -7,6 +7,8 @@ Wraps the governance backend endpoints UiPath exposes:
 - ``POST /{org}/agenticgovernance_/api/v1/runtime/govern``  — compensating
   governance call fired when a ``guardrail_fallback`` rule matches
   (see :meth:`GovernanceService.compensate`).
+- ``GET  /{org}/agenticgovernance_/api/v1/all-policies/{tenant_id}``  — fetch
+  WASM bundle metadata for all hooks (see :meth:`GovernanceService.retrieve_all_policies`).
 
 A third backend endpoint —
 ``POST /{org}/agenticgovernance_/api/v1/runtime/log`` — emits custom
@@ -23,6 +25,7 @@ from typing import Any, Optional
 
 from uipath.core import traced
 from uipath.core.governance import (
+    AllPoliciesResponse,
     FiredRule,
     GovernRequest,
     PolicyContext,
@@ -44,6 +47,7 @@ GOVERNANCE_SERVICE_PREFIX = "agenticgovernance_"
 POLICY_API_PATH = "api/v1/runtime/policy"
 GOVERN_API_PATH = "api/v1/runtime/govern"
 LOG_API_PATH = "api/v1/runtime/log"
+ALL_POLICIES_API_PATH = "api/v1/all-policies"
 AGENT_TYPE_PARAM = "agentType"
 
 # Caller-set correlation id that becomes the App Insights ``operation_Id``
@@ -143,6 +147,104 @@ class GovernanceService(BaseService):
         return await self.retrieve_policy_async(
             is_conversational=context.is_conversational
         )
+
+    # ── Rego WASM bundle fetch ────────────────────────────────────────
+
+    @traced(name="governance_retrieve_all_policies", run_type="uipath")
+    def retrieve_all_policies(self) -> AllPoliciesResponse:
+        """Fetch WASM bundle metadata for all hooks for the active tenant.
+
+        Calls ``GET /{org}/agenticgovernance_/api/v1/all-policies/{tenant_id}``
+        and returns the list of :class:`HookBundle` objects — one per
+        lifecycle hook that has a compiled WASM policy bundle. Download
+        each bundle's bytes separately with :meth:`download_bundle`.
+
+        Returns:
+            AllPoliciesResponse: List of hook bundles with pre-signed
+                URLs and ETags for cache-conditional re-fetches. The list
+                is empty when no Rego policies are configured for the
+                tenant.
+
+        Raises:
+            ValueError: If ``UiPathConfig.organization_id`` or
+                ``UiPathConfig.tenant_id`` is not set.
+            EnrichedException: If the backend returns a non-2xx response.
+
+        Examples:
+            ```python
+            from uipath.platform import UiPath
+
+            client = UiPath()
+            resp = client.governance.retrieve_all_policies()
+            for bundle in resp.hook_bundles:
+                data = client.governance.download_bundle(bundle.bundle_url)
+            ```
+        """
+        url, headers = self._build_org_scoped_request(
+            f"{ALL_POLICIES_API_PATH}/{UiPathConfig.tenant_id}"
+        )
+        response = self.request("GET", url=url, headers=headers)
+        return AllPoliciesResponse.model_validate(response.json())
+
+    @traced(name="governance_retrieve_all_policies", run_type="uipath")
+    async def retrieve_all_policies_async(self) -> AllPoliciesResponse:
+        """Asynchronously fetch WASM bundle metadata for all hooks.
+
+        See :meth:`retrieve_all_policies` for parameter and return semantics.
+        """
+        url, headers = self._build_org_scoped_request(
+            f"{ALL_POLICIES_API_PATH}/{UiPathConfig.tenant_id}"
+        )
+        response = await self.request_async("GET", url=url, headers=headers)
+        return AllPoliciesResponse.model_validate(response.json())
+
+    def download_bundle(self, bundle_url: str) -> bytes:
+        """Download a WASM bundle from a pre-signed URL.
+
+        The URL returned by :meth:`retrieve_all_policies` is pre-signed
+        and carries its own credentials — no platform Bearer token is
+        sent. Callers should cache the result on disk; use the
+        :attr:`~HookBundle.etag` from :class:`AllPoliciesResponse` to
+        skip unchanged bundles on subsequent fetches.
+
+        Args:
+            bundle_url: Pre-signed URL for the WASM ``.tar.gz`` bundle,
+                as returned in :attr:`HookBundle.bundle_url`.
+
+        Returns:
+            Raw bytes of the ``.tar.gz`` bundle file.
+
+        Raises:
+            httpx.HTTPStatusError: If the returns a non-2xx response.
+
+        Examples:
+            ```python
+            from uipath.platform import UiPath
+
+            client = UiPath()
+            resp = client.governance.retrieve_all_policies()
+            for bundle in resp.hook_bundles:
+                data = client.governance.download_bundle(bundle.bundle_url)
+                # write data to disk ...
+            ```
+        """
+        import httpx
+
+        response = httpx.get(bundle_url, follow_redirects=True)
+        response.raise_for_status()
+        return response.content
+
+    async def download_bundle_async(self, bundle_url: str) -> bytes:
+        """Asynchronously download a WASM bundle from a pre-signed URL.
+
+        See :meth:`download_bundle` for parameter and return semantics.
+        """
+        import httpx
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(bundle_url, follow_redirects=True)
+            response.raise_for_status()
+            return response.content
 
     # ── Compensating governance call ─────────────────────────────────
 
