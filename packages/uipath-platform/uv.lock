@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-07-08T17:52:02.959384Z"
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
@@ -1095,7 +1095,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
