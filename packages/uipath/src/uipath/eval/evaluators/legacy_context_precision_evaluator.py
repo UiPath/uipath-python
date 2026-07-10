@@ -18,7 +18,7 @@ from .base_legacy_evaluator import (
     LegacyEvaluatorConfig,
     track_evaluation_metrics,
 )
-from .legacy_evaluator_utils import clean_model_name, serialize_object
+from .legacy_evaluator_utils import serialize_object
 
 
 class LegacyContextPrecisionEvaluatorConfig(LegacyEvaluatorConfig):
@@ -326,8 +326,7 @@ class LegacyContextPrecisionEvaluator(
             ToolParametersDefinition,
         )
 
-        # Remove community-agents suffix from llm model name
-        model = clean_model_name(self.model)
+        model = self.model
 
         # Create tool definition for context precision evaluation
         # Note: We pass the array schema as a raw dict because ToolPropertyDefinition
