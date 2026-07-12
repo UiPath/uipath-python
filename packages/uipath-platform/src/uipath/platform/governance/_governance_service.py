@@ -7,7 +7,7 @@ Wraps the governance backend endpoints UiPath exposes:
 - ``POST /{org}/agenticgovernance_/api/v1/runtime/govern``  — compensating
   governance call fired when a ``guardrail_fallback`` rule matches
   (see :meth:`GovernanceService.compensate`).
-- ``GET  /{org}/agenticgovernance_/api/v1/all-policies/{tenant_id}``  — fetch
+- ``GET  /{org}/agenticgovernance_/api/v1/all-policies``  — fetch
   WASM bundle metadata for all hooks (see :meth:`GovernanceService.retrieve_all_policies`).
 
 A third backend endpoint —
@@ -154,10 +154,12 @@ class GovernanceService(BaseService):
     def retrieve_all_policies(self) -> AllPoliciesResponse:
         """Fetch WASM bundle metadata for all hooks for the active tenant.
 
-        Calls ``GET /{org}/agenticgovernance_/api/v1/all-policies/{tenant_id}``
-        and returns the list of :class:`HookBundle` objects — one per
-        lifecycle hook that has a compiled WASM policy bundle. Download
-        each bundle's bytes separately with :meth:`download_bundle`.
+        Calls ``GET /{org}/agenticgovernance_/api/v1/all-policies`` and
+        returns the list of :class:`HookBundle` objects — one per
+        lifecycle hook that has a compiled WASM policy bundle. The target
+        tenant is resolved from the ``x-uipath-internal-tenantid`` header
+        injected by :meth:`_build_org_scoped_request`. Download each
+        bundle's bytes separately with :meth:`download_bundle`.
 
         Returns:
             AllPoliciesResponse: List of hook bundles with pre-signed
@@ -181,7 +183,7 @@ class GovernanceService(BaseService):
             ```
         """
         url, headers = self._build_org_scoped_request(
-            f"{ALL_POLICIES_API_PATH}/{UiPathConfig.tenant_id}"
+            ALL_POLICIES_API_PATH
         )
         response = self.request("GET", url=url, headers=headers)
         return AllPoliciesResponse.model_validate(response.json())
@@ -193,7 +195,7 @@ class GovernanceService(BaseService):
         See :meth:`retrieve_all_policies` for parameter and return semantics.
         """
         url, headers = self._build_org_scoped_request(
-            f"{ALL_POLICIES_API_PATH}/{UiPathConfig.tenant_id}"
+            ALL_POLICIES_API_PATH
         )
         response = await self.request_async("GET", url=url, headers=headers)
         return AllPoliciesResponse.model_validate(response.json())

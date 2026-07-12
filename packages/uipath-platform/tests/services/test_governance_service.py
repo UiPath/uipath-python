@@ -964,7 +964,7 @@ class TestRetrieveAllPolicies:
         httpx_mock.add_response(
             url=(
                 f"{base_url}/{ORG_ID}/agenticgovernance_"
-                f"/api/v1/all-policies/{TENANT_ID}"
+                f"/api/v1/all-policies"
             ),
             status_code=200,
             json=_ALL_POLICIES_RESPONSE,
@@ -992,7 +992,7 @@ class TestRetrieveAllPolicies:
         httpx_mock.add_response(
             url=(
                 f"{base_url}/{ORG_ID}/agenticgovernance_"
-                f"/api/v1/all-policies/{TENANT_ID}"
+                f"/api/v1/all-policies"
             ),
             status_code=200,
             json={"hookBundles": []},
@@ -1019,7 +1019,7 @@ class TestRetrieveAllPolicies:
             capture,
             url=(
                 f"{base_url}/{ORG_ID}/agenticgovernance_"
-                f"/api/v1/all-policies/{TENANT_ID}"
+                f"/api/v1/all-policies"
             ),
         )
 
@@ -1067,7 +1067,7 @@ class TestRetrieveAllPolicies:
         httpx_mock.add_response(
             url=(
                 f"{base_url}/{ORG_ID}/agenticgovernance_"
-                f"/api/v1/all-policies/{TENANT_ID}"
+                f"/api/v1/all-policies"
             ),
             status_code=500,
             text="server error",
@@ -1093,7 +1093,7 @@ class TestRetrieveAllPolicies:
 
         httpx_mock.add_callback(
             capture,
-            url=f"http://localhost:8123/api/v1/all-policies/{TENANT_ID}",
+            url=f"http://localhost:8123/api/v1/all-policies",
         )
 
         service.retrieve_all_policies()
@@ -1111,7 +1111,7 @@ class TestRetrieveAllPolicies:
         httpx_mock.add_response(
             url=(
                 f"{base_url}/{ORG_ID}/agenticgovernance_"
-                f"/api/v1/all-policies/{TENANT_ID}"
+                f"/api/v1/all-policies"
             ),
             status_code=200,
             json=_ALL_POLICIES_RESPONSE,
