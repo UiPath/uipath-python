@@ -11,6 +11,7 @@ import atexit
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from uipath.core.governance import EnforcementMode, PolicyContext
 from uipath.core.governance.config import is_governance_enabled, is_rego_enabled
@@ -27,8 +28,10 @@ from uipath.runtime.governance.native.guardrail_compensation import (
     GuardrailCompensator,
 )
 from uipath.runtime.governance.native.models import PolicyIndex
-from uipath.runtime.governance.rego import RegoEvaluator
 from uipath.runtime.governance.runtime import UiPathGovernedRuntime
+
+if TYPE_CHECKING:
+    from uipath.runtime.governance.rego import RegoEvaluator
 
 from ._governance import build_policy_index_from_yaml
 from ._utils._console import ConsoleLogger
