@@ -22,6 +22,7 @@ from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
+from ..common.constants import HEADER_SOURCE
 from ..errors._enriched_exception import EnrichedException
 from ..orchestrator._folder_service import FolderService
 from ._entity_resolution import RoutingStrategy, create_routing_strategy
@@ -518,16 +519,18 @@ class EntityDataService(BaseService):
     def query_entity_records(
         self,
         sql_query: str,
+        source: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Internal implementation; see :meth:`EntitiesService.query_entity_records`."""
-        return self._query_entities_for_records(sql_query)
+        return self._query_entities_for_records(sql_query, source)
 
     async def query_entity_records_async(
         self,
         sql_query: str,
+        source: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Async variant of :meth:`query_entity_records`."""
-        return await self._query_entities_for_records_async(sql_query)
+        return await self._query_entities_for_records_async(sql_query, source)
 
     # ------------------------------------------------------------------
     # Attachments
@@ -680,22 +683,28 @@ class EntityDataService(BaseService):
     # Internal helpers — request specs
     # ------------------------------------------------------------------
 
-    def _query_entities_for_records(self, sql_query: str) -> List[Dict[str, Any]]:
+    def _query_entities_for_records(
+        self, sql_query: str, source: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Synchronously run a validated SQL query through the federated query engine."""
         self._validate_sql_query(sql_query)
         routing_context = self._routing_strategy.resolve()
-        spec = self._query_entity_records_spec(sql_query, routing_context)
-        response = self.request(spec.method, spec.endpoint, json=spec.json)
+        spec = self._query_entity_records_spec(sql_query, routing_context, source)
+        response = self.request(
+            spec.method, spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json().get("results", [])
 
     async def _query_entities_for_records_async(
-        self, sql_query: str
+        self, sql_query: str, source: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Asynchronously run a validated SQL query through the federated query engine."""
         self._validate_sql_query(sql_query)
         routing_context = await self._routing_strategy.resolve_async()
-        spec = self._query_entity_records_spec(sql_query, routing_context)
-        response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
+        spec = self._query_entity_records_spec(sql_query, routing_context, source)
+        response = await self.request_async(
+            spec.method, spec.endpoint, json=spec.json, headers=spec.headers
+        )
         return response.json().get("results", [])
 
     @staticmethod
@@ -956,6 +965,7 @@ class EntityDataService(BaseService):
     def _query_entity_records_spec(
         sql_query: str,
         routing_context: Optional[QueryRoutingOverrideContext] = None,
+        source: Optional[str] = None,
     ) -> RequestSpec:
         """Build the POST spec for the federated SQL query endpoint."""
         body: Dict[str, Any] = {"query": sql_query}
@@ -963,10 +973,12 @@ class EntityDataService(BaseService):
             body["routingContext"] = routing_context.model_dump(
                 by_alias=True, exclude_none=True
             )
+        headers = {HEADER_SOURCE: source} if source else {}
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("datafabric_/api/v1/query/execute"),
             json=body,
+            headers=headers,
         )
 
     @staticmethod

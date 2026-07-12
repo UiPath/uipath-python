@@ -1789,7 +1789,9 @@ class EntitiesService(BaseService):
         )
 
     @traced(name="entity_query_records", run_type="uipath")
-    def query_entity_records(self, sql_query: str) -> List[Dict[str, Any]]:
+    def query_entity_records(
+        self, sql_query: str, source: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
         PREVIEW: This method is in preview and may change in future releases.
@@ -1798,6 +1800,9 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+            source (str, optional): Value for the ``x-uipath-source`` header on the
+                query/execute request, identifying the calling surface (e.g.
+                ``"LOW_CODE_AGENT"``). Omitted from the request when not set.
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -1810,10 +1815,12 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return self._data.query_entity_records(sql_query)
+        return self._data.query_entity_records(sql_query, source)
 
     @traced(name="entity_query_records", run_type="uipath")
-    async def query_entity_records_async(self, sql_query: str) -> List[Dict[str, Any]]:
+    async def query_entity_records_async(
+        self, sql_query: str, source: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
         PREVIEW: This method is in preview and may change in future releases.
@@ -1822,6 +1829,9 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+            source (str, optional): Value for the ``x-uipath-source`` header on the
+                query/execute request, identifying the calling surface (e.g.
+                ``"LOW_CODE_AGENT"``). Omitted from the request when not set.
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -1834,7 +1844,7 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return await self._data.query_entity_records_async(sql_query)
+        return await self._data.query_entity_records_async(sql_query, source)
 
     @traced(name="entity_upload_attachment", run_type="uipath")
     def upload_attachment(
