@@ -109,7 +109,6 @@ def _audit_record_with(*evaluations: RuleEvaluation) -> AuditRecord:
         timestamp=datetime.now(timezone.utc),
         agent_name="agent",
         runtime_id="run-1",
-        trace_id="trace-1",
         hook=LifecycleHook.BEFORE_AGENT,
         evaluations=list(evaluations),
         final_action=Action.DENY,

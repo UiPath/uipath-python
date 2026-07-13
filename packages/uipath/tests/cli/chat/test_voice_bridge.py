@@ -14,6 +14,10 @@ from uipath.core.chat import (
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
 )
+from uipath.platform.constants import (
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 
 def _make_session(tool_handler: Any = None) -> VoiceToolCallSession:
@@ -40,6 +44,47 @@ class TestEndSession:
     async def test_session_ended_sets_completed(self) -> None:
         session = _make_session()
         await session._handle_session_ended(None)
+        assert session._end_reason == VoiceSessionEndReason.COMPLETED
+
+    async def test_session_ended_preserves_payload_opaquely(self) -> None:
+        session = _make_session()
+        payload = {
+            "callContext": {
+                "type": "phone",
+                "id": "CA123",
+                "conversationId": "conv-1",
+            },
+            "endedBy": "agent",
+            "callEnded": False,
+            "reason": "agent_completed",
+            "someFutureKey": {"nested": True},
+        }
+
+        await session._handle_session_ended(payload)
+
+        assert session.end_detail == payload
+        assert session._end_reason == VoiceSessionEndReason.COMPLETED
+        returned_detail = session.end_detail
+        returned_detail["reason"] = "mutated"
+        returned_detail["callContext"]["id"] = "CA999"
+        payload["endedBy"] = "system"
+        assert session.end_detail["reason"] == "agent_completed"
+        assert session.end_detail["callContext"]["id"] == "CA123"
+        assert session.end_detail["endedBy"] == "agent"
+
+    async def test_session_ended_non_dict_payload_is_empty_detail(self) -> None:
+        session = _make_session()
+        await session._handle_session_ended("not-a-dict")
+        assert session.end_detail == {}
+        assert session._end_reason == VoiceSessionEndReason.COMPLETED
+
+    async def test_late_session_ended_does_not_overwrite_terminal_state(self) -> None:
+        session = _make_session()
+        await session._handle_session_ended({"endedBy": "agent", "callEnded": False})
+
+        await session._handle_session_ended({"endedBy": "system", "callEnded": True})
+
+        assert session.end_detail == {"endedBy": "agent", "callEnded": False}
         assert session._end_reason == VoiceSessionEndReason.COMPLETED
 
     async def test_disconnect_sets_disconnected(self) -> None:
@@ -133,8 +178,8 @@ class TestGetVoiceBridge:
 
         bridge = get_voice_bridge(ctx, AsyncMock())
 
-        assert bridge._headers["X-UiPath-Internal-TenantId"] == "env-tenant"
-        assert bridge._headers["X-UiPath-Internal-AccountId"] == "env-org"
+        assert bridge._headers[HEADER_INTERNAL_TENANT_ID] == "env-tenant"
+        assert bridge._headers[HEADER_INTERNAL_ACCOUNT_ID] == "env-org"
 
     def test_includes_conversational_user_id_header_when_set(
         self, monkeypatch: pytest.MonkeyPatch

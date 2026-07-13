@@ -83,9 +83,10 @@ def preload_modules() -> None:
     for module_name in modules_to_load:
         if module_name in sys.modules:
             continue
-        if find_spec(module_name) is None:
-            continue
         try:
+            # find_spec raises ModuleNotFoundError when a parent package is missing
+            if find_spec(module_name) is None:
+                continue
             importlib.import_module(module_name)
             console.success(f"Pre-loaded module: {module_name}")
         except ImportError as e:

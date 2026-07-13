@@ -11,11 +11,12 @@ from typing import Any, Dict, List, Optional
 
 from httpx import Response
 
+from uipath.platform.constants import HEADER_FOLDER_KEY
+
 from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import HEADER_FOLDER_KEY
 from ..orchestrator._folder_service import FolderService
 from .entities import (
     ENTITY_FIELD_CONSTRAINT_DEFAULTS,

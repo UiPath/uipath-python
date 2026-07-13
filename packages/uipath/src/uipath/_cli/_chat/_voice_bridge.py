@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from enum import Enum
 from typing import Any
 from urllib.parse import urlparse
@@ -16,6 +17,14 @@ from uipath.core.chat import (
     UiPathVoiceToolCallMessage,
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
+)
+from uipath.platform.constants import (
+    ENV_BASE_URL,
+    ENV_ORGANIZATION_ID,
+    ENV_TENANT_ID,
+    ENV_UIPATH_ACCESS_TOKEN,
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
 )
 from uipath.runtime.context import UiPathRuntimeContext
 
@@ -74,6 +83,12 @@ class VoiceToolCallSession:
         self._done = asyncio.Event()
         self._in_flight: set[asyncio.Task[None]] = set()
         self._end_reason: VoiceSessionEndReason | None = None
+        self._end_detail: dict[str, Any] = {}
+
+    @property
+    def end_detail(self) -> dict[str, Any]:
+        """CAS payload from voice_session_ended, preserved for the job runtime."""
+        return deepcopy(self._end_detail)
 
     async def run(self) -> VoiceSessionEndReason:
         """Connect, dispatch tool calls until session ends, then disconnect.
@@ -206,8 +221,19 @@ class VoiceToolCallSession:
             tool_result.is_error,
         )
 
-    async def _handle_session_ended(self, _data: Any, *_: Any) -> None:
-        logger.info("[Voice] voice_session_ended received")
+    async def _handle_session_ended(self, data: Any = None, *_: Any) -> None:
+        if self._done.is_set():
+            return
+
+        detail = deepcopy(data) if isinstance(data, dict) else {}
+        self._end_detail = detail
+        logger.info(
+            "[Voice] voice_session_ended received "
+            "(endedBy=%s, callEnded=%s, reason=%s)",
+            detail.get("endedBy"),
+            detail.get("callEnded"),
+            detail.get("reason"),
+        )
         self._end_session(VoiceSessionEndReason.COMPLETED)
 
 
@@ -229,7 +255,7 @@ def get_voice_bridge(
             f"CAS_WEBSOCKET_HOST is set. Using websocket_url '{url}{socketio_path}'."
         )
     else:
-        base_url = os.environ.get("UIPATH_URL")
+        base_url = os.environ.get(ENV_BASE_URL)
         if not base_url:
             raise RuntimeError(
                 "UIPATH_URL environment variable required for conversational mode"
@@ -241,11 +267,11 @@ def get_voice_bridge(
         socketio_path = "autopilotforeveryone_/websocket_/socket.io"
 
     headers = {
-        "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
-        "X-UiPath-Internal-TenantId": context.tenant_id
-        or os.environ.get("UIPATH_TENANT_ID", ""),
-        "X-UiPath-Internal-AccountId": context.org_id
-        or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
+        "Authorization": f"Bearer {os.environ.get(ENV_UIPATH_ACCESS_TOKEN, '')}",
+        HEADER_INTERNAL_TENANT_ID: context.tenant_id
+        or os.environ.get(ENV_TENANT_ID, ""),
+        HEADER_INTERNAL_ACCOUNT_ID: context.org_id
+        or os.environ.get(ENV_ORGANIZATION_ID, ""),
         "X-UiPath-ConversationId": context.conversation_id,
     }
 

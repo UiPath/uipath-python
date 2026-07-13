@@ -8,6 +8,7 @@ from unittest.mock import patch
 from uipath.agent.react.conversational_prompts import (
     PromptUserSettings,
     get_chat_system_prompt,
+    get_generate_output_prompt,
     get_user_settings_template,
 )
 
@@ -348,3 +349,16 @@ class TestGetUserSettingsTemplate:
         assert json_data["company"] == "Big Corp"
         assert json_data["country"] == "UK"
         assert json_data["timezone"] == "Europe/London"
+
+
+class TestGetGenerateOutputPrompt:
+    """Tests for get_generate_output_prompt function."""
+
+    def test_returns_non_empty_string(self):
+        instruction = get_generate_output_prompt()
+        assert isinstance(instruction, str)
+        assert instruction.strip()
+
+    def test_references_set_conversational_output_tool(self):
+        """The instruction must name the tool the new node binds."""
+        assert "set_conversational_output" in get_generate_output_prompt()

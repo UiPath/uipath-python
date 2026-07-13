@@ -22,7 +22,7 @@ from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import HEADER_SOURCE
+from ..constants import HEADER_SOURCE
 from ..errors._enriched_exception import EnrichedException
 from ..orchestrator._folder_service import FolderService
 from ._entity_resolution import RoutingStrategy, create_routing_strategy

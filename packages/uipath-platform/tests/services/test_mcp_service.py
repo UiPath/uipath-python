@@ -4,7 +4,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.orchestrator import McpService
 from uipath.platform.orchestrator._folder_service import FolderService
 from uipath.platform.orchestrator.mcp import McpServer
@@ -551,3 +551,21 @@ class TestMcpService:
                         call_kwargs.kwargs["headers"][HEADER_FOLDER_KEY]
                         == "test-folder-key"
                     )
+
+
+class TestMcpServerType:
+    """Tests for the McpServerType enum and McpServer validation."""
+
+    def test_swagger_type_value(self) -> None:
+        from uipath.platform.orchestrator.mcp import McpServerType
+
+        assert McpServerType.Swagger == 7
+
+    def test_validate_swagger_server(self) -> None:
+        """A Swagger (type=7) server must validate — regression for backend
+        server types newer than the SDK's enum."""
+        server = McpServer.model_validate(
+            {"slug": "contoso-directory", "name": "Employee Directory", "type": 7}
+        )
+        assert server.type == 7
+        assert server.slug == "contoso-directory"

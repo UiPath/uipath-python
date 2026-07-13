@@ -68,7 +68,7 @@ Where LCS is the Longest Common Subsequence between expected and actual tool cal
 ```python
 from opentelemetry.sdk.trace import ReadableSpan
 from uipath.eval.evaluators import ToolCallOrderEvaluator
-from uipath.eval.models import AgentExecution
+from uipath.eval.models import WorkloadExecution
 
 # Create mock spans representing tool calls in execution trace
 mock_spans = [
@@ -92,10 +92,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Process user order"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -107,7 +107,7 @@ evaluator = ToolCallOrderEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_order": [
             "validate_user",
@@ -149,10 +149,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Access secured resource"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -164,7 +164,7 @@ evaluator = ToolCallOrderEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_order": [
             "authenticate_user",
@@ -205,10 +205,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Search and display"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -223,7 +223,7 @@ evaluator = ToolCallOrderEvaluator(
 expected = ["search", "filter", "sort", "display"]
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_order": expected
     }
@@ -266,10 +266,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Update database"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -281,7 +281,7 @@ evaluator = ToolCallOrderEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_order": [
             "begin_transaction",
@@ -334,10 +334,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "API integration"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -349,7 +349,7 @@ evaluator = ToolCallOrderEvaluator(
 )
 
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria={
         "tool_calls_order": [
             "get_api_token",
@@ -390,10 +390,10 @@ mock_spans = [
     ),
 ]
 
-agent_execution = AgentExecution(
+workload_execution = WorkloadExecution(
     agent_input={"task": "Standard workflow"},
-    agent_output={"status": "completed"},
-    agent_trace=mock_spans,
+    workload_output={"status": "completed"},
+    workload_trace=mock_spans,
 )
 
 evaluator = ToolCallOrderEvaluator(
@@ -409,7 +409,7 @@ evaluator = ToolCallOrderEvaluator(
 
 # Use default criteria
 result = await evaluator.validate_and_evaluate_criteria(
-    agent_execution=agent_execution,
+    workload_execution=workload_execution,
     evaluation_criteria=None  # Uses default
 )
 

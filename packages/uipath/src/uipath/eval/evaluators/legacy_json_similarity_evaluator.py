@@ -5,7 +5,7 @@ from typing import Any, Tuple, TypeVar
 
 from .._helpers.output_path import resolve_output_path
 from ..models import EvaluationResult, NumericEvaluationResult
-from ..models.models import AgentExecution
+from ..models.models import WorkloadExecution
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
 
@@ -30,7 +30,7 @@ class LegacyJsonSimilarityEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
@@ -38,7 +38,7 @@ class LegacyJsonSimilarityEvaluator(
         Uses token-based comparison with tolerance for numeric differences
         and Levenshtein distance for string similarity.
 
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
                 - spans: The execution spans to use for the evaluation
@@ -47,7 +47,7 @@ class LegacyJsonSimilarityEvaluator(
         Returns:
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
-        actual_output = agent_execution.agent_output
+        actual_output = workload_execution.workload_output
         expected_output = evaluation_criteria.expected_output
 
         if self.target_output_key and self.target_output_key != "*":

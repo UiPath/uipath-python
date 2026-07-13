@@ -14,14 +14,19 @@ from uipath._cli._evals._progress_reporter import StudioWebProgressReporter
 from uipath._cli._evals._telemetry import EvalTelemetrySubscriber
 from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
+from uipath._cli._utils._tracing import create_trace_manager
 from uipath._cli.middlewares import Middlewares
 from uipath.core.events import EventBus
-from uipath.core.tracing import UiPathTraceManager
 from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers, get_agent_model
 from uipath.eval.models.evaluation_set import EvaluationSet
 from uipath.eval.runtime import UiPathEvalContext, evaluate
 from uipath.platform.chat import set_llm_concurrency
-from uipath.platform.common import ResourceOverwritesContext, UiPathConfig
+from uipath.platform.common import (
+    ExecutionSourceContext,
+    ResourceOverwritesContext,
+    UiPathConfig,
+)
+from uipath.platform.constants import ENV_FOLDER_KEY
 from uipath.runtime import (
     UiPathRuntimeContext,
     UiPathRuntimeFactoryRegistry,
@@ -60,7 +65,7 @@ def setup_reporting_prereq(no_report: bool) -> bool:
     if not UiPathConfig.folder_key:
         folder_key = asyncio.run(get_personal_workspace_key_async())
         if folder_key:
-            os.environ["UIPATH_FOLDER_KEY"] = folder_key
+            os.environ[ENV_FOLDER_KEY] = folder_key
     return True
 
 
@@ -112,6 +117,57 @@ def _resolve_model_settings_override(
         override["temperature"] = float(target_model_settings.temperature)
 
     return override if override else None
+
+
+def _resolve_agent_memory_settings_override(
+    agent_memory_settings_id: str, evaluation_set: EvaluationSet
+) -> dict[str, Any]:
+    """Resolve agent memory settings override from evaluation set.
+
+    Evaluation runs never consume agent memory unless the evaluation set
+    explicitly enables it (agentMemoryEnabled), mirroring the Agents
+    backend behavior for eval runs.
+
+    Returns:
+        Memory override dict passed to the factory via the
+        agent_memory_settings kwarg. ``{"enabled": False}`` disables agent
+        memory for the run; ``{"enabled": True, ...}`` force-enables it with
+        the selected settings ("same-as-agent" values preserve the agent's
+        own configuration).
+    """
+    if not evaluation_set.agent_memory_enabled:
+        return {"enabled": False}
+
+    memory_settings = evaluation_set.agent_memory_settings
+    target = None
+    if agent_memory_settings_id:
+        # "default" is looked up like any other id: the eval-set editor persists a
+        # "default" entry (all fields "same-as-agent") alongside user-defined ones.
+        target = next(
+            (ms for ms in memory_settings if ms.id == agent_memory_settings_id),
+            None,
+        )
+        if not target and agent_memory_settings_id != "default":
+            logger.warning(
+                f"Agent memory settings ID '{agent_memory_settings_id}' not found in evaluation set"
+            )
+    if target is None:
+        target = memory_settings[0] if memory_settings else None
+
+    if target is None:
+        # Memory enabled but no settings configured: keep the agent's own configuration
+        return {"enabled": True}
+
+    logger.info(
+        f"Applying agent memory settings override: searchMode={target.search_mode}, "
+        f"resultCount={target.result_count}, threshold={target.threshold}"
+    )
+    return {
+        "enabled": True,
+        "resultCount": target.result_count,
+        "searchMode": target.search_mode,
+        "threshold": target.threshold,
+    }
 
 
 class _EvalDiscoveryError(EntrypointDiscoveryException):
@@ -199,6 +255,12 @@ def _discover_eval_sets() -> list[Path]:
     help="Model settings ID from evaluation set to override agent settings (default: 'default')",
 )
 @click.option(
+    "--agent-memory-settings-id",
+    type=str,
+    default="default",
+    help="Agent memory settings ID from evaluation set to override agent memory settings (default: 'default')",
+)
+@click.option(
     "--trace-file",
     required=False,
     type=click.Path(exists=False),
@@ -226,7 +288,7 @@ def _discover_eval_sets() -> list[Path]:
     "--verbose",
     is_flag=True,
     default=False,
-    help="Include agent execution output (trace, result) in the output file",
+    help="Include workload execution output (trace, result) in the output file",
 )
 def eval(
     entrypoint: str | None,
@@ -239,6 +301,7 @@ def eval(
     enable_mocker_cache: bool,
     report_coverage: bool,
     model_settings_id: str,
+    agent_memory_settings_id: str,
     trace_file: str | None,
     max_llm_concurrency: int,
     input_overrides: dict[str, Any],
@@ -257,6 +320,7 @@ def eval(
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
+        agent_memory_settings_id: Agent memory settings ID to override agent memory settings
         trace_file: File path where traces will be written in JSONL format
         max_llm_concurrency: Maximum concurrent LLM requests
         input_overrides: Input field overrides mapping (direct field override with deep merge)
@@ -307,14 +371,15 @@ def eval(
                 telemetry_subscriber = EvalTelemetrySubscriber()
                 await telemetry_subscriber.subscribe_to_eval_runtime_events(event_bus)
 
-                trace_manager = UiPathTraceManager()
+                trace_manager = create_trace_manager()
 
-                with UiPathRuntimeContext.with_defaults(
+                ctx = UiPathRuntimeContext.with_defaults(
                     output_file=output_file,
                     trace_manager=trace_manager,
                     command="eval",
                     resume=resume,
-                ) as ctx:
+                )
+                with ExecutionSourceContext(ctx.execution_source), ctx:
                     # Set job_id in eval context for single runtime runs
                     eval_context.job_id = ctx.job_id
 
@@ -397,11 +462,17 @@ def eval(
                         settings_override = _resolve_model_settings_override(
                             model_settings_id, eval_context.evaluation_set
                         )
+                        agent_memory_settings_override = (
+                            _resolve_agent_memory_settings_override(
+                                agent_memory_settings_id, eval_context.evaluation_set
+                            )
+                        )
 
                         runtime = await runtime_factory.new_runtime(
                             entrypoint=eval_context.entrypoint or "",
                             runtime_id=eval_context.execution_id,
                             settings=settings_override,
+                            agent_memory_settings=agent_memory_settings_override,
                         )
 
                         eval_context.runtime_schema = await runtime.get_schema()

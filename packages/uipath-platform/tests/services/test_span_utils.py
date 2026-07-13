@@ -1,14 +1,32 @@
 import json
+import logging
 import os
 from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
+from opentelemetry import context as context_api
 from opentelemetry.sdk.trace import Span as OTelSpan
+from opentelemetry.sdk.trace import SpanProcessor
 from opentelemetry.trace import SpanContext, StatusCode
 
-from uipath.platform.common import UiPathSpan, _SpanUtils
-from uipath.platform.common.constants import (
+from uipath.platform.common import (
+    ReferenceHierarchySpanProcessor,
+    UiPathSpan,
+    _SpanUtils,
+)
+from uipath.platform.common._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+)
+from uipath.platform.common._span_utils import (
+    _SOURCE_BY_INT,
+    ExecutionType,
+    SpanSource,
+    SpanStatus,
+    VerbosityLevel,
+)
+from uipath.platform.constants import (
     ENV_PROJECT_KEY,
     ENV_UIPATH_AGENT_ID,
     ENV_UIPATH_PROJECT_ID,
@@ -25,6 +43,122 @@ def _clear_id_cache():
     _read_config_id.cache_clear()
 
 
+class TestStrEnums:
+    def test_span_status_string_values(self):
+        assert SpanStatus.UNSET == "Unset"
+        assert SpanStatus.OK == "Ok"
+        assert SpanStatus.ERROR == "Error"
+        assert SpanStatus.RUNNING == "Running"
+        assert SpanStatus.RESTRICTED == "Restricted"
+        assert SpanStatus.CANCELLED == "Cancelled"
+
+    def test_span_source_string_values(self):
+        assert SpanSource.CODED_AGENTS == "CodedAgents"
+        assert SpanSource.AGENTS == "Agents"
+        assert SpanSource.PROCESS_ORCHESTRATION == "ProcessOrchestration"
+        assert SpanSource.API_WORKFLOWS == "ApiWorkflows"
+        assert SpanSource.ROBOTS == "Robots"
+
+    def test_verbosity_level_string_values(self):
+        assert VerbosityLevel.VERBOSE == "Verbose"
+        assert VerbosityLevel.TRACE == "Trace"
+        assert VerbosityLevel.INFORMATION == "Information"
+        assert VerbosityLevel.WARNING == "Warning"
+        assert VerbosityLevel.ERROR == "Error"
+        assert VerbosityLevel.CRITICAL == "Critical"
+        assert VerbosityLevel.OFF == "Off"
+
+    def test_execution_type_string_values(self):
+        assert ExecutionType.DEBUG == "Debug"
+        assert ExecutionType.RUNTIME == "Runtime"
+
+    def test_enums_are_strings(self):
+        assert isinstance(SpanStatus.OK, str)
+        assert isinstance(SpanSource.CODED_AGENTS, str)
+        assert isinstance(VerbosityLevel.INFORMATION, str)
+        assert isinstance(ExecutionType.RUNTIME, str)
+
+
+class TestGuidFieldDefaults:
+    """Guid-typed env-derived fields must default to None, not "".
+
+    v3 ingest (SpanV3Req) binds OrganizationId/FolderKey/TenantId to Guid
+    fields; an empty string crashes the serializer (400). When the env vars
+    are unset the span must omit these (None) rather than send "".
+    """
+
+    def test_guid_fields_none_when_env_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for var in ("UIPATH_ORGANIZATION_ID", "UIPATH_TENANT_ID", "UIPATH_FOLDER_KEY"):
+            monkeypatch.delenv(var, raising=False)
+
+        span = UiPathSpan(id="s", trace_id="t", name="n", attributes={})
+
+        assert span.organization_id is None
+        assert span.tenant_id is None
+        assert span.folder_key is None
+
+    def test_empty_string_env_coerced_to_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for var in ("UIPATH_ORGANIZATION_ID", "UIPATH_TENANT_ID", "UIPATH_FOLDER_KEY"):
+            monkeypatch.setenv(var, "")
+
+        span = UiPathSpan(id="s", trace_id="t", name="n", attributes={})
+
+        assert span.organization_id is None
+        assert span.tenant_id is None
+        assert span.folder_key is None
+
+    def test_none_guid_fields_omitted_from_to_dict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unset Guid fields are omitted from the wire payload, not sent as null."""
+        for var in ("UIPATH_ORGANIZATION_ID", "UIPATH_TENANT_ID", "UIPATH_FOLDER_KEY"):
+            monkeypatch.delenv(var, raising=False)
+
+        d = UiPathSpan(id="s", trace_id="t", name="n", attributes={}).to_dict()
+
+        assert "OrganizationId" not in d
+        assert "TenantId" not in d
+        assert "FolderKey" not in d
+
+    def test_set_guid_fields_present_in_to_dict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guid fields that are set are still emitted."""
+        monkeypatch.setenv("UIPATH_ORGANIZATION_ID", "org-1")
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-1")
+        monkeypatch.delenv("UIPATH_TENANT_ID", raising=False)
+
+        d = UiPathSpan(id="s", trace_id="t", name="n", attributes={}).to_dict()
+
+        assert d["OrganizationId"] == "org-1"
+        assert d["FolderKey"] == "folder-1"
+        assert "TenantId" not in d
+
+
+def _make_otel_span(attributes: dict[str, object]) -> Mock:
+    """Build a minimal mocked OTEL span carrying the given attributes."""
+    mock_span = Mock(spec=OTelSpan)
+    mock_span.get_span_context.return_value = SpanContext(
+        trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+        span_id=0x0123456789ABCDEF,
+        is_remote=False,
+    )
+    mock_span.name = "test-span"
+    mock_span.parent = None
+    mock_span.status.status_code = StatusCode.OK
+    mock_span.attributes = attributes
+    mock_span.events = []
+    mock_span.links = []
+    now_ns = int(datetime.now().timestamp() * 1e9)
+    mock_span.start_time = now_ns
+    mock_span.end_time = now_ns + 1_000_000
+    return mock_span
+
+
 class TestOTelToUiPathSpan:
     """OTEL attribute -> top-level UiPathSpan field mapping.
 
@@ -36,16 +170,18 @@ class TestOTelToUiPathSpan:
     """
 
     ATTRIBUTE_FIELD_MAP = [
-        ("executionType", "execution_type", "ExecutionType", 1),
-        ("agentVersion", "agent_version", "AgentVersion", "1.2.3"),
-        ("agentId", "reference_id", "ReferenceId", "ref-abc"),
-        ("verbosityLevel", "verbosity_level", "VerbosityLevel", 6),
+        # (otel_attr, span_field, top_level_key, otel_input_int, expected_output)
+        ("executionType", "execution_type", "ExecutionType", 1, ExecutionType.RUNTIME),
+        ("agentVersion", "agent_version", "ReferenceVersion", "1.2.3", "1.2.3"),
+        ("agentId", "reference_id", "ReferenceId", "ref-abc", "ref-abc"),
+        ("verbosityLevel", "verbosity_level", "VerbosityLevel", 6, VerbosityLevel.OFF),
     ]
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_attributes_map_to_top_level_fields(self) -> None:
         attrs = {
-            otel_attr: value for otel_attr, _, _, value in self.ATTRIBUTE_FIELD_MAP
+            otel_attr: otel_input
+            for otel_attr, _, _, otel_input, _ in self.ATTRIBUTE_FIELD_MAP
         }
 
         mock_span = Mock(spec=OTelSpan)
@@ -68,9 +204,15 @@ class TestOTelToUiPathSpan:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        for _, span_field, top_level_key, value in self.ATTRIBUTE_FIELD_MAP:
-            assert getattr(uipath_span, span_field) == value, span_field
-            assert span_dict[top_level_key] == value, top_level_key
+        for (
+            _,
+            span_field,
+            top_level_key,
+            _,
+            expected_output,
+        ) in self.ATTRIBUTE_FIELD_MAP:
+            assert getattr(uipath_span, span_field) == expected_output, span_field
+            assert span_dict[top_level_key] == expected_output, top_level_key
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_verbosity_level_omitted_when_unset(self) -> None:
@@ -102,6 +244,78 @@ class TestOTelToUiPathSpan:
 
         assert uipath_span.verbosity_level is None
         assert "VerbosityLevel" not in span_dict
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_string_value_maps_to_top_level(self) -> None:
+        """v3 producers emit verbosityLevel as the StrEnum value "Off" (string).
+
+        The converter must promote it to the top-level VerbosityLevel field so
+        the LLMOps server can apply its verbosity-Off filter. Before the fix the
+        string was dropped, the field omitted, and the server defaulted the span
+        to Information (2) — leaking the AgentDefinition span into the trace.
+        """
+        mock_span = _make_otel_span({"verbosityLevel": "Off"})
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        assert uipath_span.verbosity_level == VerbosityLevel.OFF
+        assert span_dict["VerbosityLevel"] == VerbosityLevel.OFF
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            (6, VerbosityLevel.OFF),  # legacy int
+            ("Off", VerbosityLevel.OFF),  # v3 string value
+            (2, VerbosityLevel.INFORMATION),  # legacy int
+            ("Information", VerbosityLevel.INFORMATION),  # v3 string value
+            ("Nope", None),  # unknown string -> None (server default applies)
+        ],
+    )
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_accepts_int_and_string(self, raw, expected) -> None:
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            _make_otel_span({"verbosityLevel": raw})
+        )
+        assert uipath_span.verbosity_level == expected
+        if expected is None:
+            assert "VerbosityLevel" not in uipath_span.to_dict()
+        else:
+            assert uipath_span.to_dict()["VerbosityLevel"] == expected
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            (1, ExecutionType.RUNTIME),  # legacy int
+            ("Runtime", ExecutionType.RUNTIME),  # v3 string value
+            (0, ExecutionType.DEBUG),  # legacy int
+            ("Debug", ExecutionType.DEBUG),  # v3 string value
+        ],
+    )
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_execution_type_accepts_int_and_string(self, raw, expected) -> None:
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            _make_otel_span({"executionType": raw})
+        )
+        assert uipath_span.execution_type == expected
+        assert uipath_span.to_dict()["ExecutionType"] == expected
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            (1, SpanSource.AGENTS),  # legacy int
+            ("Agents", SpanSource.AGENTS),  # v3 string value
+            (10, SpanSource.CODED_AGENTS),  # legacy int
+            ("CodedAgents", SpanSource.CODED_AGENTS),  # v3 string value
+        ],
+    )
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_source_accepts_int_and_string(self, raw, expected) -> None:
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(
+            _make_otel_span({"uipath.source": raw})
+        )
+        assert uipath_span.source == expected
+        assert uipath_span.to_dict()["Source"] == expected
 
 
 class TestReferenceIdResolution:
@@ -390,7 +604,7 @@ class TestSpanUtils:
         # Verify the conversion
         assert isinstance(uipath_span, UiPathSpan)
         assert uipath_span.name == "test-span"
-        assert uipath_span.status == 1  # OK
+        assert uipath_span.status == SpanStatus.OK
         assert uipath_span.span_type == "CustomSpanType"
 
         # Verify IDs are in OTEL hex format
@@ -412,7 +626,7 @@ class TestSpanUtils:
         mock_span.status.description = "Test error description"
         mock_span.status.status_code = StatusCode.ERROR
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
-        assert uipath_span.status == 2  # Error
+        assert uipath_span.status == SpanStatus.ERROR
 
     @patch.dict(
         os.environ,
@@ -564,12 +778,12 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        assert span_dict["ExecutionType"] == 0
-        assert uipath_span.execution_type == 0
+        assert span_dict["ExecutionType"] == ExecutionType.DEBUG
+        assert uipath_span.execution_type == ExecutionType.DEBUG
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_includes_agent_version(self):
-        """Test that agentVersion from attributes becomes top-level AgentVersion."""
+        """Test that agentVersion from attributes becomes top-level ReferenceVersion."""
         mock_span = Mock(spec=OTelSpan)
 
         trace_id = 0x123456789ABCDEF0123456789ABCDEF0
@@ -591,7 +805,7 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        assert span_dict["AgentVersion"] == "2.0.0"
+        assert span_dict["ReferenceVersion"] == "2.0.0"
         assert uipath_span.agent_version == "2.0.0"
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
@@ -618,8 +832,8 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        assert span_dict["ExecutionType"] == 1
-        assert span_dict["AgentVersion"] == "1.0.0"
+        assert span_dict["ExecutionType"] == ExecutionType.RUNTIME
+        assert span_dict["ReferenceVersion"] == "1.0.0"
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_missing_execution_type_and_agent_version(self):
@@ -646,11 +860,11 @@ class TestSpanUtils:
         span_dict = uipath_span.to_dict()
 
         assert span_dict["ExecutionType"] is None
-        assert span_dict["AgentVersion"] is None
+        assert span_dict["ReferenceVersion"] is None
 
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_uipath_span_source_defaults_to_coded_agents(self):
-        """Test that Source defaults to 10 (CodedAgents) and ignores attributes.source."""
+        """Test that Source defaults to CodedAgents and ignores attributes.source."""
         mock_span = Mock(spec=OTelSpan)
 
         trace_id = 0x123456789ABCDEF0123456789ABCDEF0
@@ -673,9 +887,9 @@ class TestSpanUtils:
         uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
         span_dict = uipath_span.to_dict()
 
-        # Top-level Source should be 10 (CodedAgents), string "runtime" is ignored
-        assert uipath_span.source == 10
-        assert span_dict["Source"] == 10
+        # Top-level Source should be CodedAgents, string "runtime" is ignored
+        assert uipath_span.source == SpanSource.CODED_AGENTS
+        assert span_dict["Source"] == "CodedAgents"
 
         # attributes.source string should still be in Attributes JSON
         attrs = json.loads(span_dict["Attributes"])
@@ -707,9 +921,327 @@ class TestSpanUtils:
         span_dict = uipath_span.to_dict()
 
         # uipath.source overrides - low-code agents use 1 (Agents)
-        assert uipath_span.source == 1
-        assert span_dict["Source"] == 1
+        assert uipath_span.source == SpanSource.AGENTS
+        assert span_dict["Source"] == "Agents"
 
         # String source still in Attributes JSON
         attrs = json.loads(span_dict["Attributes"])
         assert attrs["source"] == "runtime"
+
+    @pytest.mark.parametrize(("source_int", "expected"), list(_SOURCE_BY_INT.items()))
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_uipath_source_int_maps_to_full_source_enum(
+        self, source_int: int, expected: SpanSource
+    ) -> None:
+        """Every server-known SourceEnum int round-trips (no silent relabeling)."""
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {"uipath.source": source_int}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.source == expected
+        assert uipath_span.to_dict()["Source"] == expected.value
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_unknown_uipath_source_int_warns_and_defaults(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unmapped uipath.source int is relabeled CodedAgents and logged."""
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {"uipath.source": 999}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        with caplog.at_level(logging.WARNING):
+            uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.source == SpanSource.CODED_AGENTS
+        assert any("999" in record.message for record in caplog.records)
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_bool_attributes_do_not_map_as_ints(self) -> None:
+        """bool is an int subclass; True must not map to the value-1 enum member."""
+        mock_span = Mock(spec=OTelSpan)
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {
+            "executionType": True,
+            "verbosityLevel": True,
+            "uipath.source": True,
+        }
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.execution_type is None
+        assert uipath_span.verbosity_level is None
+        assert uipath_span.source == SpanSource.CODED_AGENTS
+
+
+class TestUiPathSpanDictUsesStrings:
+    def test_default_status_is_ok_string(self):
+        span = UiPathSpan(
+            id="a" * 16,
+            trace_id="b" * 32,
+            name="test",
+            attributes={},
+        )
+        d = span.to_dict()
+        assert d["Status"] == "Ok"
+
+    def test_default_source_is_coded_agents_string(self):
+        span = UiPathSpan(
+            id="a" * 16,
+            trace_id="b" * 32,
+            name="test",
+            attributes={},
+        )
+        d = span.to_dict()
+        assert d["Source"] == "CodedAgents"
+
+    def test_verbosity_level_serializes_as_string(self):
+        span = UiPathSpan(
+            id="a" * 16,
+            trace_id="b" * 32,
+            name="test",
+            attributes={},
+            verbosity_level=VerbosityLevel.OFF,
+        )
+        d = span.to_dict()
+        assert d["VerbosityLevel"] == "Off"
+
+    def test_execution_type_serializes_as_string(self):
+        span = UiPathSpan(
+            id="a" * 16,
+            trace_id="b" * 32,
+            name="test",
+            attributes={},
+            execution_type=ExecutionType.RUNTIME,
+        )
+        d = span.to_dict()
+        assert d["ExecutionType"] == "Runtime"
+
+
+class TestOtelSpanConversionUsesStrEnums:
+    def _make_mock_span(self, status_code=StatusCode.OK, attributes=None):
+        from datetime import datetime
+        from unittest.mock import Mock
+
+        from opentelemetry.trace import SpanContext
+
+        mock_span = Mock()
+        mock_context = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.get_span_context.return_value = mock_context
+        mock_span.name = "test-span"
+        mock_span.parent = None
+        mock_span.status.status_code = status_code
+        mock_span.status.description = None
+        mock_span.attributes = attributes or {}
+        mock_span.events = []
+        mock_span.links = []
+        now_ns = int(datetime.now().timestamp() * 1e9)
+        mock_span.start_time = now_ns
+        mock_span.end_time = now_ns + 1_000_000
+        return mock_span
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_ok_status_maps_to_str_enum(self):
+        span = _SpanUtils.otel_span_to_uipath_span(self._make_mock_span())
+        assert span.status == SpanStatus.OK
+        assert span.to_dict()["Status"] == "Ok"
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_error_status_maps_to_str_enum(self):
+        mock_span = self._make_mock_span(status_code=StatusCode.ERROR)
+        mock_span.status.description = "something went wrong"
+        span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        assert span.status == SpanStatus.ERROR
+        assert span.to_dict()["Status"] == "Error"
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_default_source_is_coded_agents(self):
+        span = _SpanUtils.otel_span_to_uipath_span(self._make_mock_span())
+        assert span.source == SpanSource.CODED_AGENTS
+        assert span.to_dict()["Source"] == "CodedAgents"
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_execution_type_int_maps_to_str_enum(self):
+        mock_span = self._make_mock_span(attributes={"executionType": 1})
+        span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        assert span.execution_type == ExecutionType.RUNTIME
+        assert span.to_dict()["ExecutionType"] == "Runtime"
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_verbosity_level_int_maps_to_str_enum(self):
+        mock_span = self._make_mock_span(attributes={"verbosityLevel": 6})
+        span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        assert span.verbosity_level == VerbosityLevel.OFF
+        assert span.to_dict()["VerbosityLevel"] == "Off"
+
+
+# ---------------------------------------------------------------------------
+# ReferenceHierarchySpanProcessor
+# ---------------------------------------------------------------------------
+
+
+class TestReferenceHierarchySpanProcessor:
+    """Tests for ReferenceHierarchySpanProcessor.on_start.
+
+    The only change made to this class was aligning the parent_context
+    parameter type annotation with the SpanProcessor base class
+    (Optional[context_api.Context] instead of context_api.Context | None).
+    These tests verify the processor is a proper SpanProcessor subclass and
+    that on_start behaves correctly under all valid call forms.
+    """
+
+    def setup_method(self) -> None:
+        token = ReferenceContextAccessor.set(None)
+        ReferenceContextAccessor.reset(token)
+
+    def _make_mock_span(self) -> Mock:
+        mock = Mock(spec=OTelSpan)
+        return mock
+
+    def test_is_span_processor_subclass(self) -> None:
+        assert issubclass(ReferenceHierarchySpanProcessor, SpanProcessor)
+
+    def test_on_start_with_default_parent_context(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            processor.on_start(mock_span)  # parent_context omitted — uses default None
+            mock_span.set_attribute.assert_called_once()
+            key, value = mock_span.set_attribute.call_args[0]
+            assert key == "uipath.reference_hierarchy"
+            assert json.loads(value)[0]["serviceType"] == "agent"
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_on_start_with_explicit_none_parent_context(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "maestro", "550e8400-e29b-41d4-a716-446655440010"
+        )
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            processor.on_start(mock_span, parent_context=None)
+            mock_span.set_attribute.assert_called_once()
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_on_start_with_real_context_object(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "agent", "550e8400-e29b-41d4-a716-446655440001"
+        )
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            otel_ctx = context_api.create_key("test")
+            real_ctx = context_api.set_value(otel_ctx, "val")
+            processor.on_start(mock_span, parent_context=real_ctx)
+            mock_span.set_attribute.assert_called_once()
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+    def test_on_start_noop_when_no_reference_context(self) -> None:
+        processor = ReferenceHierarchySpanProcessor()
+        mock_span = self._make_mock_span()
+        processor.on_start(mock_span)
+        mock_span.set_attribute.assert_not_called()
+
+    def test_on_start_stamps_full_hierarchy(self) -> None:
+        ref_ctx = ReferenceContext.Empty.add(
+            "maestro", "550e8400-e29b-41d4-a716-446655440010", "2.0"
+        ).add("agent", "550e8400-e29b-41d4-a716-446655440011")
+        token = ReferenceContextAccessor.set(ref_ctx)
+        try:
+            processor = ReferenceHierarchySpanProcessor()
+            mock_span = self._make_mock_span()
+            processor.on_start(mock_span)
+            key, value = mock_span.set_attribute.call_args[0]
+            hierarchy = json.loads(value)
+            assert len(hierarchy) == 2
+            assert hierarchy[0]["serviceType"] == "maestro"
+            assert hierarchy[0]["version"] == "2.0"
+            assert hierarchy[1]["serviceType"] == "agent"
+            assert "version" not in hierarchy[1]
+        finally:
+            ReferenceContextAccessor.reset(token)
+
+
+class TestLiveSpanEndTime:
+    """A live (not-yet-ended) OTEL span must convert with end_time=None.
+
+    Fabricating EndTime=now() for in-progress upserts (the RUNNING -> OK
+    lifecycle used by upsert_span) makes open snapshots indistinguishable
+    from ended spans downstream: the traceview UI shows phantom sub-ms
+    durations and the Insights OTLP export's unclosed-span filter never
+    fires, so every span exports twice.
+    """
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_live_span_converts_with_none_end_time(self) -> None:
+        mock_span = _make_otel_span({})
+        mock_span.end_time = None
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+        span_dict = uipath_span.to_dict()
+
+        assert uipath_span.end_time is None
+        assert span_dict["EndTime"] is None
+
+    @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
+    def test_ended_span_keeps_real_end_time(self) -> None:
+        mock_span = _make_otel_span({})
+
+        uipath_span = _SpanUtils.otel_span_to_uipath_span(mock_span)
+
+        assert uipath_span.end_time is not None
+        assert uipath_span.to_dict()["EndTime"] == uipath_span.end_time

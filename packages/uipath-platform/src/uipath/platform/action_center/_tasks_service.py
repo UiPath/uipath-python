@@ -5,16 +5,17 @@ from typing import Any, Dict, List, Optional
 
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import (
+    ENV_TENANT_ID,
+    HEADER_TENANT_ID,
+)
+
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import (
-    ENV_TENANT_ID,
-    HEADER_TENANT_ID,
-)
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 

@@ -35,7 +35,7 @@ from uipath.core.guardrails import (
 )
 from uipath.eval.mocks import ExampleCall
 from uipath.platform.connections import Connection
-from uipath.platform.entities import DataFabricEntityItem
+from uipath.platform.entities import DataFabricEntityItem, DataFabricOntologyItem
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
@@ -169,6 +169,7 @@ class AgentContextType(str, CaseInsensitiveEnum):
     INDEX = "index"
     ATTACHMENTS = "attachments"
     DATA_FABRIC_ENTITY_SET = "datafabricentityset"
+    DATA_FABRIC_ONTOLOGY = "datafabricontology"
 
 
 class AgentMessageRole(str, CaseInsensitiveEnum):
@@ -440,6 +441,9 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
         None, description="Context settings"
     )
     entity_set: Optional[List[DataFabricEntityItem]] = Field(None, alias="entitySet")
+    ontology_set: Optional[List[DataFabricOntologyItem]] = Field(
+        None, alias="ontologySet"
+    )
     argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
         {}, alias="argumentProperties"
     )
@@ -448,6 +452,11 @@ class AgentContextResourceConfig(BaseAgentResourceConfig):
     def is_datafabric(self) -> bool:
         """Check if this context is a Data Fabric entity set resource."""
         return self.context_type == AgentContextType.DATA_FABRIC_ENTITY_SET
+
+    @property
+    def is_datafabric_ontology(self) -> bool:
+        """Check if this context is a Data Fabric ontology resource."""
+        return self.context_type == AgentContextType.DATA_FABRIC_ONTOLOGY
 
     @property
     def datafabric_entity_identifiers(self) -> list[str]:
@@ -483,9 +492,18 @@ class DynamicToolsMode(str, CaseInsensitiveEnum):
 
 
 class CachedToolsConfig(BaseCfg):
-    """Cached tools configuration: use the tools saved in the agent definition snapshot."""
+    """Cached tools configuration: use the tools saved in the agent definition snapshot.
+
+    When ``refresh_schema_before_call`` is true, the live tool schema is fetched
+    from the MCP server immediately before a tool is invoked. The agent still uses
+    the cached schema to decide which tool to call; the fresh schema is applied only
+    at invocation time.
+    """
 
     type: Literal["cached"] = Field(default="cached", frozen=True)
+    refresh_schema_before_call: bool = Field(
+        default=True, alias="refreshSchemaBeforeCall"
+    )
 
 
 class DynamicToolsConfig(BaseCfg):

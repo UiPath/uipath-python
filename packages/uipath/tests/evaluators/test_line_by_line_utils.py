@@ -13,7 +13,7 @@ from uipath.eval.evaluators.output_evaluator import (
     LineByLineEvaluationDetails,
     LineEvaluationDetail,
 )
-from uipath.eval.models.models import AgentExecution, NumericEvaluationResult
+from uipath.eval.models.models import NumericEvaluationResult, WorkloadExecution
 
 
 class TestSplitIntoLines:
@@ -154,10 +154,10 @@ class TestEvaluateLines:
         actual_lines = ["line1", "line2", "line3"]
         expected_lines = ["line1", "line2", "line3"]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"test": "input"},
-            agent_output="line1\nline2\nline3",
-            agent_trace=[],
+            workload_output="line1\nline2\nline3",
+            workload_trace=[],
         )
 
         async def mock_evaluate(execution, criteria):
@@ -170,7 +170,7 @@ class TestEvaluateLines:
             actual_lines=actual_lines,
             expected_lines=expected_lines,
             target_output_key="*",
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluate_fn=mock_evaluate,
             create_line_criteria_fn=mock_create_criteria,
         )
@@ -186,10 +186,10 @@ class TestEvaluateLines:
         actual_lines = ["line1", "line2"]
         expected_lines = ["line1", "line2", "line3", "line4"]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"test": "input"},
-            agent_output="line1\nline2",
-            agent_trace=[],
+            workload_output="line1\nline2",
+            workload_trace=[],
         )
 
         async def mock_evaluate(execution, criteria):
@@ -202,7 +202,7 @@ class TestEvaluateLines:
             actual_lines=actual_lines,
             expected_lines=expected_lines,
             target_output_key="*",
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluate_fn=mock_evaluate,
             create_line_criteria_fn=mock_create_criteria,
         )
@@ -229,15 +229,15 @@ class TestEvaluateLines:
         actual_lines = ["line1", "line2"]
         expected_lines = ["line1", "line2"]
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"test": "input"},
-            agent_output={"result": "line1\nline2"},
-            agent_trace=[],
+            workload_output={"result": "line1\nline2"},
+            workload_trace=[],
         )
 
         async def mock_evaluate(execution, criteria):
             # Verify the execution has the wrapped structure
-            assert "result" in execution.agent_output
+            assert "result" in execution.workload_output
             return NumericEvaluationResult(score=1.0, details="match")
 
         def mock_create_criteria(expected_line):
@@ -247,7 +247,7 @@ class TestEvaluateLines:
             actual_lines=actual_lines,
             expected_lines=expected_lines,
             target_output_key="result",
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluate_fn=mock_evaluate,
             create_line_criteria_fn=mock_create_criteria,
         )

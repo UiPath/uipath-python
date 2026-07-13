@@ -89,6 +89,22 @@ class EvaluationSetModelSettings(BaseModel):
     temperature: float | str | None = Field(default=None, alias="temperature")
 
 
+class EvaluationSetAgentMemorySettings(BaseModel):
+    """Agent memory setting overrides within evaluation sets with ID.
+
+    Values are stored as strings; the literal "same-as-agent" preserves the
+    agent's own memory configuration for that field. Matches the Agents
+    eval-set storage schema (agentMemorySettings).
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(..., alias="id")
+    result_count: str = Field(default="same-as-agent", alias="resultCount")
+    search_mode: str = Field(default="same-as-agent", alias="searchMode")
+    threshold: str = Field(default="same-as-agent", alias="threshold")
+
+
 class EvaluationItem(BaseModel):
     """Individual evaluation item within an evaluation set."""
 
@@ -177,6 +193,10 @@ class EvaluationSet(BaseModel):
     model_settings: list[EvaluationSetModelSettings] = Field(
         default_factory=list, alias="modelSettings"
     )
+    agent_memory_enabled: bool = Field(default=False, alias="agentMemoryEnabled")
+    agent_memory_settings: list[EvaluationSetAgentMemorySettings] = Field(
+        default_factory=list, alias="agentMemorySettings"
+    )
 
     def extract_selected_evals(self, eval_ids) -> None:
         """Filter evaluations to only include those with specified IDs."""
@@ -208,6 +228,10 @@ class LegacyEvaluationSet(BaseModel):
     timeout_minutes: int = Field(default=20, alias="timeoutMinutes")
     model_settings: list[EvaluationSetModelSettings] = Field(
         default_factory=list, alias="modelSettings"
+    )
+    agent_memory_enabled: bool = Field(default=False, alias="agentMemoryEnabled")
+    agent_memory_settings: list[EvaluationSetAgentMemorySettings] = Field(
+        default_factory=list, alias="agentMemorySettings"
     )
     created_at: str = Field(alias="createdAt")
     updated_at: str = Field(alias="updatedAt")

@@ -76,7 +76,7 @@ Plugin-based evaluator registration system with deterministic and LLM-based eval
 - **`evaluators/`** — 11 active evaluators: ExactMatch, Contains, JsonSimilarity, BinaryClassification, MulticlassClassification, LLMJudgeOutput, LLMJudgeTrajectory, ToolCallOrder/Args/Count/Output. Plus ~7 legacy evaluators.
 - **`mocks/`** — LLM mocking, input mocking, cache management, mockito integration. Key exports: `mockable`, `UiPathMockRuntime`, `MockingContext`.
 - **`runtime/`** — `UiPathEvalRuntime`, `UiPathEvalContext`, `evaluate()` entry point, parallelization, exporters.
-- **`models/`** — `AgentExecution`, `EvaluationResult`, `ToolCall`, `LLMResponse`, evaluator type enums.
+- **`models/`** — `WorkloadExecution`, `EvaluationResult`, `ToolCall`, `LLMResponse`, evaluator type enums.
 
 ## Functions Module (`src/uipath/functions/`)
 

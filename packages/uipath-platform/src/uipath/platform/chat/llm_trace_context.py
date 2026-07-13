@@ -34,16 +34,24 @@ def build_trace_context_headers(
     ctx = span.get_span_context()
     if config_trace_id and ctx and ctx.span_id:
         trace_id = _SpanUtils.normalize_trace_id(config_trace_id)
-        span_id = format(ctx.span_id, "032x")
-        headers["x-uipath-traceparent-id"] = f"00-{trace_id}-{span_id}"
+        # An OTEL span id is 64-bit => 16 lowercase hex chars, and the W3C traceparent
+        # requires the trailing trace-flags segment. The LLM Gateway's strict parser
+        # (UiPath.Tracing.TraceParent.TryParse) rejects the header unless it is exactly
+        # {version}-{32-hex trace}-{16-hex span}-{2-hex flags}; on rejection the gateway
+        # synthesizes a fresh root trace and drops inbound baggage, orphaning the audit
+        # span from the caller's trace. Emitting 32-hex span / no flags was the bug.
+        span_id = format(ctx.span_id, "016x")
+        headers["x-uipath-traceparent-id"] = f"00-{trace_id}-{span_id}-01"
 
     baggage_parts: list[str] = list(extra_baggage) if extra_baggage else []
     if folder_key := UiPathConfig.folder_key:
         baggage_parts.append(f"folderKey={folder_key}")
     if agent_id := resolve_project_id():
         baggage_parts.append(f"agentId={agent_id}")
-    if process_key := UiPathConfig.process_key:
-        baggage_parts.append(f"processKey={process_key}")
+    if process_uuid := UiPathConfig.process_uuid:
+        baggage_parts.append(f"processKey={process_uuid}")
+    if job_key := UiPathConfig.job_key:
+        baggage_parts.append(f"jobKey={job_key}")
     if baggage_parts:
         headers["x-uipath-tracebaggage"] = ",".join(baggage_parts)
 

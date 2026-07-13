@@ -24,6 +24,15 @@ class IgnoreSpecificUrl(logging.Filter):
             return False
 
 
+def create_trace_manager():
+    from uipath.core.tracing import UiPathTraceManager
+    from uipath.platform.common import ReferenceHierarchySpanProcessor
+
+    tm = UiPathTraceManager()
+    tm.add_span_processor(ReferenceHierarchySpanProcessor())
+    return tm
+
+
 def setup_tracer_httpx_logging(url: str):
     # Create a custom logger for httpx
     # Add the custom filter to the root logger

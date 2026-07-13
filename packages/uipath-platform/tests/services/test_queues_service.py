@@ -5,7 +5,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
     HEADER_USER_AGENT,

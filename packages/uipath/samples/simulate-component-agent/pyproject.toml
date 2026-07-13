@@ -1,0 +1,17 @@
+[project]
+name = "simulate-component-agent"
+version = "0.0.1"
+description = "Weather forecast agent demonstrating per-component simulation"
+authors = [{ name = "UiPath", email = "python-sdk@uipath.com" }]
+dependencies = [
+    "uipath",
+]
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "uipath-dev",
+]
+
+[tool.uv.sources]
+uipath = { path = "../..", editable = true }

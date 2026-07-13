@@ -10,17 +10,16 @@ from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
-from ..._utils.constants import COMMUNITY_agents_SUFFIX
 from .._execution_context import eval_set_run_id_context
 from .._helpers.evaluators_helpers import trace_to_str
 from .._helpers.helpers import is_empty_value
 from ..models import EvaluationResult
 from ..models.models import (
-    AgentExecution,
     LLMResponse,
     NumericEvaluationResult,
     UiPathEvaluationError,
     UiPathEvaluationErrorCategory,
+    WorkloadExecution,
 )
 from .base_legacy_evaluator import (
     BaseLegacyEvaluator,
@@ -75,7 +74,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate using trajectory analysis.
@@ -83,10 +82,10 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         Analyzes the execution path and decision sequence taken by the agent.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
-                - agent_trace: The execution spans to use for the evaluation
+                - workload_trace: The execution spans to use for the evaluation
                 - expected_agent_behavior: The expected agent behavior
             evaluation_criteria: The criteria to evaluate
         Returns:
@@ -100,8 +99,8 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
             self._initialize_llm()
 
         evaluation_prompt = self._create_evaluation_prompt(
-            expected_agent_behavior=agent_execution.expected_agent_behavior,
-            agent_run_history=agent_execution.agent_trace,
+            expected_agent_behavior=workload_execution.expected_agent_behavior,
+            agent_run_history=workload_execution.workload_trace,
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 
@@ -163,8 +162,6 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         assert self.llm, "LLM should be initialized before calling this method."
 
         model = self.model
-        if model.endswith(COMMUNITY_agents_SUFFIX):
-            model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
         # Create evaluation tool for function calling (works across all models)
         evaluation_tool = create_evaluation_tool()

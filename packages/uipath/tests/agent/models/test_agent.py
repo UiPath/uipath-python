@@ -50,6 +50,7 @@ from uipath.agent.models.agent import (
     AssetRecipient,
     BatchTransformFileExtension,
     BatchTransformWebSearchGrounding,
+    CachedToolsConfig,
     CitationMode,
     CustomAssigneesRecipient,
     DeepRagFileExtension,
@@ -2038,6 +2039,53 @@ class TestAgentBuilderConfig:
         assert tool2.output_schema is not None
         assert "content" in tool2.output_schema["properties"]
 
+    def test_cached_tools_config_refresh_schema_default(self):
+        """CachedToolsConfig defaults refresh_schema_before_call to True."""
+
+        config = CachedToolsConfig()
+        assert config.type == "cached"
+        assert config.refresh_schema_before_call is True
+
+    def test_cached_tools_config_refresh_schema_alias_roundtrip(self):
+        """refresh_schema_before_call parses from and serializes to refreshSchemaBeforeCall."""
+
+        config = TypeAdapter(CachedToolsConfig).validate_python(
+            {"type": "cached", "refreshSchemaBeforeCall": False}
+        )
+        assert config.refresh_schema_before_call is False
+        assert config.model_dump(by_alias=True)["refreshSchemaBeforeCall"] is False
+
+    def test_mcp_resource_with_cached_tools_configuration(self):
+        """AgentMcpResourceConfig parses a cached toolsConfiguration with the refresh flag."""
+
+        json_data = {
+            "$resourceType": "mcp",
+            "folderPath": "solution_folder",
+            "slug": "tavily-mcp",
+            "name": "tavily",
+            "description": "Tavily search tools",
+            "isEnabled": True,
+            "availableTools": [
+                {
+                    "name": "tavily-search",
+                    "description": "Search the web",
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+            ],
+            "toolsConfiguration": {
+                "discoveryMode": {
+                    "type": "cached",
+                    "refreshSchemaBeforeCall": False,
+                }
+            },
+        }
+
+        mcp_resource = TypeAdapter(AgentMcpResourceConfig).validate_python(json_data)
+        assert mcp_resource.tools_configuration is not None
+        discovery_mode = mcp_resource.tools_configuration.discovery_mode
+        assert isinstance(discovery_mode, CachedToolsConfig)
+        assert discovery_mode.refresh_schema_before_call is False
+
     @pytest.mark.parametrize(
         "recipient_type_int,value,expected_type",
         [
@@ -3866,6 +3914,127 @@ class TestDataFabricContextConfig:
         assert parsed.entity_set[0].entity_key is None
         assert parsed.entity_set[1].entity_key == "orders-ref"
         assert parsed.entity_set[1].description is None
+
+    def test_ontology_context_parses(self):
+        """The ontology context (datafabricontology) holds an ontologySet array."""
+        config = {
+            "$resourceType": "context",
+            "name": "Ontologies",
+            "description": "",
+            "contextType": "datafabricontology",
+            "ontologySet": [
+                {"name": "library", "folderId": "f1"},
+                {"name": "finance", "folderId": "f2"},
+            ],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.is_datafabric_ontology
+        assert not parsed.is_datafabric
+        assert parsed.ontology_set is not None
+        assert len(parsed.ontology_set) == 2
+        assert parsed.ontology_set[0].name == "library"
+        assert parsed.ontology_set[0].folder_key == "f1"
+        assert parsed.ontology_set[1].name == "finance"
+
+    def test_ontology_item_requires_folder_id(self):
+        """folderId is required on each ontology item."""
+        config = {
+            "$resourceType": "context",
+            "name": "Ontologies",
+            "description": "",
+            "contextType": "datafabricontology",
+            "ontologySet": [{"name": "library"}],  # missing folderId
+        }
+
+        with pytest.raises(ValidationError):
+            AgentContextResourceConfig.model_validate(config)
+
+    def test_ontology_context_dumps_by_alias(self):
+        """The ontology context round-trips back to aliased JSON keys."""
+        parsed = AgentContextResourceConfig.model_validate(
+            {
+                "$resourceType": "context",
+                "name": "Ontologies",
+                "description": "",
+                "contextType": "datafabricontology",
+                "ontologySet": [{"name": "library", "folderId": "f1"}],
+            }
+        )
+        dumped = parsed.model_dump(by_alias=True, exclude_none=True)
+
+        assert dumped["contextType"] == "datafabricontology"
+        assert dumped["ontologySet"][0]["name"] == "library"
+        assert dumped["ontologySet"][0]["folderId"] == "f1"
+
+    def test_entity_context_has_no_ontology_set(self):
+        """A plain entity context has no ontologySet and is not an ontology context."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [{"id": "e1", "name": "Customers", "folderId": "f1"}],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.is_datafabric
+        assert not parsed.is_datafabric_ontology
+        assert parsed.ontology_set is None
+
+    def test_ontology_context_survives_full_definition_normalization(self):
+        """Regression: the datafabricontology context (with its ontologySet)
+        survives the full AgentDefinition normalizer and sits beside the entity
+        context, so the runtime can gather its ontologies to ground the DF query.
+        """
+        json_data = {
+            "id": "test-ontology-def",
+            "name": "Agent with ontology context",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "context",
+                    "contextType": "datafabricentityset",
+                    "name": "Entities",
+                    "description": "DF context",
+                    "entitySet": [
+                        {"id": "e1", "name": "LibraryLoan", "folderId": "f1"}
+                    ],
+                },
+                {
+                    "$resourceType": "context",
+                    "contextType": "datafabricontology",
+                    "name": "Ontologies",
+                    "description": "",
+                    "ontologySet": [{"name": "library", "folderId": "f1"}],
+                },
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        ontology_ctxs = [
+            r
+            for r in config.resources
+            if isinstance(r, AgentContextResourceConfig) and r.is_datafabric_ontology
+        ]
+        assert len(ontology_ctxs) == 1
+        assert ontology_ctxs[0].ontology_set is not None
+        assert ontology_ctxs[0].ontology_set[0].name == "library"
+        assert ontology_ctxs[0].ontology_set[0].folder_key == "f1"
 
     def test_is_datafabric(self):
         """Test is_datafabric property with datafabricentityset contextType."""
