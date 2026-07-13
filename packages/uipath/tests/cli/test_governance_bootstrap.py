@@ -575,6 +575,19 @@ class TestResolveGovernance:
             ),
         )
 
+        # The installed uipath-runtime may not yet accept rego_evaluator —
+        # patch in a forward-compatible subclass so this test isn't gated on
+        # the dependency version.
+        class _UiPathGovernedRuntimeWithRego(UiPathGovernedRuntime):
+            def __init__(self, delegate: Any, *, rego_evaluator: Any = None, **kwargs: Any) -> None:
+                super().__init__(delegate, **kwargs)
+                self._rego_evaluator = rego_evaluator
+
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.UiPathGovernedRuntime",
+            _UiPathGovernedRuntimeWithRego,
+        )
+
         result = await resolve_governance(
             agent_framework="langgraph",
             agent_type="uipath_coded",
@@ -856,3 +869,134 @@ class TestResolveGovernance:
         assert len(unregistered_arg) == 1
         # Same bound method → same underlying dispatcher shutdown.
         assert registered_arg[0] == unregistered_arg[0]
+
+    # ------------------------------------------------------------------
+    # Rego evaluator bootstrap path
+    # ------------------------------------------------------------------
+
+    def _setup_successful_governance(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Common setup for a successful governance bootstrap (no Rego)."""
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.is_governance_enabled",
+            lambda: True,
+        )
+        _install_fake_runtime_governance(
+            monkeypatch,
+            audit_manager_cls=_FakeAuditManager,
+            metadata_cls=_FakeMetadata,
+            evaluator_cls=_FakeEvaluator,
+            compensator_cls=_FakeCompensator,
+        )
+        _stub_provider(
+            monkeypatch,
+            response_or_exc=_fake_policy_response(
+                mode=EnforcementMode.ENFORCE, policies="rules: []"
+            ),
+        )
+
+    def _stub_rego_module(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        return_value: Any = None,
+        side_effect: Any = None,
+    ) -> None:
+        """Inject a fake ``uipath.runtime.governance.rego`` into sys.modules
+        so the lazy import inside ``resolve_governance`` succeeds.
+        """
+        import sys
+
+        fake_rego = MagicMock()
+        if side_effect is not None:
+            fake_rego.build_rego_evaluator_async = AsyncMock(side_effect=side_effect)
+        else:
+            fake_rego.build_rego_evaluator_async = AsyncMock(return_value=return_value)
+        monkeypatch.setitem(sys.modules, "uipath.runtime.governance.rego", fake_rego)
+
+    async def test_rego_evaluator_populated_when_rego_enabled_and_build_succeeds(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        cwd: Path,
+    ) -> None:
+        """When ``is_rego_enabled()`` is ``True`` and
+        ``build_rego_evaluator_async`` returns a non-None evaluator, the
+        bootstrap's ``rego_evaluator`` field must be set to that object.
+        """
+        self._setup_successful_governance(monkeypatch)
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.is_rego_enabled",
+            lambda: True,
+        )
+        mock_rego_evaluator = MagicMock()
+        mock_rego_evaluator.loaded_hooks = []
+        self._stub_rego_module(monkeypatch, return_value=mock_rego_evaluator)
+
+        result = await resolve_governance(
+            agent_framework="langgraph",
+            agent_type="uipath_coded",
+            is_conversational=False,
+        )
+        assert result is not None
+        try:
+            assert result.rego_evaluator is mock_rego_evaluator
+        finally:
+            result.dispose()
+
+    async def test_rego_evaluator_none_when_rego_enabled_but_build_returns_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        cwd: Path,
+    ) -> None:
+        """When ``build_rego_evaluator_async`` returns ``None`` (e.g. no
+        bundles available), ``rego_evaluator`` must stay ``None`` and
+        governance still succeeds.
+        """
+        self._setup_successful_governance(monkeypatch)
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.is_rego_enabled",
+            lambda: True,
+        )
+        self._stub_rego_module(monkeypatch, return_value=None)
+
+        result = await resolve_governance(
+            agent_framework="langgraph",
+            agent_type="uipath_coded",
+            is_conversational=False,
+        )
+        assert result is not None
+        try:
+            assert result.rego_evaluator is None
+        finally:
+            result.dispose()
+
+    async def test_rego_evaluator_none_when_build_raises(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        cwd: Path,
+    ) -> None:
+        """Exceptions in ``build_rego_evaluator_async`` must be swallowed —
+        a Rego failure must not crash the bootstrap.  ``rego_evaluator``
+        stays ``None`` and governance returns a valid (non-Rego) bootstrap.
+        """
+        self._setup_successful_governance(monkeypatch)
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.is_rego_enabled",
+            lambda: True,
+        )
+        self._stub_rego_module(
+            monkeypatch, side_effect=RuntimeError("Rego bundle unavailable")
+        )
+
+        result = await resolve_governance(
+            agent_framework="langgraph",
+            agent_type="uipath_coded",
+            is_conversational=False,
+        )
+        assert result is not None
+        try:
+            assert result.rego_evaluator is None
+        finally:
+            result.dispose()

@@ -8,7 +8,7 @@ agents.
 from ._governance_provider import UiPathPlatformGovernanceProvider
 from ._governance_service import GovernanceService
 from .compensate import FiredRule, GovernRequest
-from .policy import PolicyContext, PolicyResponse
+from .policy import AllPoliciesResponse, HookBundle, PolicyContext, PolicyResponse
 
 # ``_live_track_event_dispatcher.LiveTrackEventDispatcher`` is intentionally
 # **not** re-exported. It is host-wiring glue (the runtime sink's
@@ -20,9 +20,11 @@ from .policy import PolicyContext, PolicyResponse
 #     )
 
 __all__ = [
+    "AllPoliciesResponse",
     "FiredRule",
     "GovernRequest",
     "GovernanceService",
+    "HookBundle",
     "PolicyContext",
     "PolicyResponse",
     "UiPathPlatformGovernanceProvider",

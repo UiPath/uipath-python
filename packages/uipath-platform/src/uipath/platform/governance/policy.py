@@ -5,6 +5,11 @@ the protocol contract without importing ``uipath-platform``. This module
 keeps the existing ``uipath.platform.governance`` import paths working.
 """
 
-from uipath.core.governance import PolicyContext, PolicyResponse
+from uipath.core.governance import (
+    AllPoliciesResponse,
+    HookBundle,
+    PolicyContext,
+    PolicyResponse,
+)
 
-__all__ = ["PolicyContext", "PolicyResponse"]
+__all__ = ["AllPoliciesResponse", "HookBundle", "PolicyContext", "PolicyResponse"]

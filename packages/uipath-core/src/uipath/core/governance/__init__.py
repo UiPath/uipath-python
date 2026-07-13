@@ -9,7 +9,9 @@ core surface is just the contracts.
 
 from .config import (
     GOVERNANCE_FEATURE_FLAG,
+    REGO_FEATURE_FLAG,
     is_governance_enabled,
+    is_rego_enabled,
 )
 from .exceptions import (
     GovernanceBlockException,
@@ -19,10 +21,12 @@ from .exceptions import (
 )
 from .models import Action, AuditRecord, EnforcementMode, LifecycleHook, RuleEvaluation
 from .providers import (
+    AllPoliciesResponse,
     FiredRule,
     GovernanceCompensationProvider,
     GovernancePolicyProvider,
     GovernRequest,
+    HookBundle,
     PolicyContext,
     PolicyResponse,
 )
@@ -36,17 +40,21 @@ __all__ = [
     "RuleEvaluation",
     # Config
     "GOVERNANCE_FEATURE_FLAG",
+    "REGO_FEATURE_FLAG",
     "is_governance_enabled",
+    "is_rego_enabled",
     # Exceptions
     "GovernanceBlockException",
     "GovernanceConfigError",
     "GovernanceViolation",
     "Severity",
     # Provider protocols + wire models
+    "AllPoliciesResponse",
     "FiredRule",
     "GovernanceCompensationProvider",
     "GovernancePolicyProvider",
     "GovernRequest",
+    "HookBundle",
     "PolicyContext",
     "PolicyResponse",
 ]

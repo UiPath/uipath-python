@@ -10,10 +10,11 @@ from __future__ import annotations
 import atexit
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from uipath.core.governance import EnforcementMode, PolicyContext
-from uipath.core.governance.config import is_governance_enabled
+from uipath.core.governance.config import is_governance_enabled, is_rego_enabled
 from uipath.platform import UiPath
 from uipath.platform.governance import UiPathPlatformGovernanceProvider
 from uipath.platform.governance._live_track_event_dispatcher import (
@@ -28,6 +29,9 @@ from uipath.runtime.governance.native.guardrail_compensation import (
 )
 from uipath.runtime.governance.native.models import PolicyIndex
 from uipath.runtime.governance.runtime import UiPathGovernedRuntime
+
+if TYPE_CHECKING:
+    from uipath.runtime.governance.rego import RegoEvaluator
 
 from ._governance import build_policy_index_from_yaml
 from ._utils._console import ConsoleLogger
@@ -54,6 +58,7 @@ class GovernanceBootstrap:
     policy_index: PolicyIndex
     enforcement_mode: EnforcementMode
     dispose: Callable[[], None]
+    rego_evaluator: RegoEvaluator | None = field(default=None)
 
     def wrap_runtime(
         self,
@@ -68,6 +73,7 @@ class GovernanceBootstrap:
             policy_index=self.policy_index,
             enforcement_mode=self.enforcement_mode,
             evaluator=self.evaluator,
+            rego_evaluator=self.rego_evaluator,
             agent_name=agent_name,
             runtime_id=runtime_id,
         )
@@ -166,9 +172,26 @@ async def resolve_governance(
         )
         return None
 
+    rego_evaluator: RegoEvaluator | None = None
+    if is_rego_enabled():
+        try:
+            from uipath.runtime.governance.rego import build_rego_evaluator_async
+
+            rego_evaluator = await build_rego_evaluator_async(sdk.governance)
+            if rego_evaluator is not None:
+                console.info(
+                    f"Rego governance enabled "
+                    f"(hooks={[h.value for h in rego_evaluator.loaded_hooks]})"
+                )
+        except Exception as exc:
+            console.warning(
+                f"Rego governance setup failed - continuing without Rego evaluation: {exc}"
+            )
+
     return GovernanceBootstrap(
         evaluator=evaluator,
         policy_index=policy_index,
         enforcement_mode=response.mode,
         dispose=dispose,
+        rego_evaluator=rego_evaluator,
     )

@@ -18,6 +18,10 @@ from uipath.core.feature_flags import FeatureFlags
 # same toggle.
 GOVERNANCE_FEATURE_FLAG = "EnablePythonGovernanceChecker"
 
+# Feature flag name controlling whether the Rego/WASM evaluator runs.
+# Independent of the native evaluator flag — both can be enabled simultaneously.
+REGO_FEATURE_FLAG = "EnablePythonGovernanceRegoEvaluator"
+
 
 def is_governance_enabled() -> bool:
     """Return whether the ``EnablePythonGovernanceChecker`` flag is enabled.
@@ -35,3 +39,21 @@ def is_governance_enabled() -> bool:
     2. Default ``False`` (governance disabled).
     """
     return FeatureFlags.is_flag_enabled(GOVERNANCE_FEATURE_FLAG, default=False)
+
+
+def is_rego_enabled() -> bool:
+    """Return whether the ``EnablePythonGovernanceRegoEvaluator`` flag is enabled.
+
+    Rego evaluation is **off by default** — the flag must be explicitly
+    set to ``true`` (programmatically via the ``FeatureFlags`` registry,
+    or via the ``UIPATH_FEATURE_EnablePythonGovernanceRegoEvaluator`` env
+    var) for this function to return ``True``.
+
+    Resolution order:
+
+    1. :meth:`uipath.core.feature_flags.FeatureFlagsManager.is_flag_enabled` -
+       the in-process programmatic registry (typically populated from
+       gitops) and its own ``UIPATH_FEATURE_<name>`` env-var fallback.
+    2. Default ``False`` (Rego evaluation disabled).
+    """
+    return FeatureFlags.is_flag_enabled(REGO_FEATURE_FLAG, default=False)
