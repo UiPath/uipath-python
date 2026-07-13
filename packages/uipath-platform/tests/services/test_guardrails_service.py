@@ -303,6 +303,173 @@ class TestGuardrailsService:
             assert result.result == GuardrailValidationResultType.PASSED
             assert result.reason == "Validation passed"
 
+        def test_evaluate_guardrail_byog_forwards_byo_validator_name(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """A BYOG guardrail forwards byoValidatorName so the guardrails service
+            can resolve the connector-backed configuration."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            # BYOG persisted shape: "byo" sentinel + byoValidatorName reference.
+            byog_guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Databricks PII (BYOG)",
+                description="Customer-provided PII validator",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                byo_validator_name="my_databricks_pii",
+                validator_parameters=[],
+            )
+
+            result = service.evaluate_guardrail("some input", byog_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert request_payload["validator"] == "byo"
+            assert request_payload["byoValidatorName"] == "my_databricks_pii"
+            assert result.result == GuardrailValidationResultType.PASSED
+
+        def test_evaluate_guardrail_byo_without_name_raises(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """A "byo" guardrail missing its byoValidatorName reference fails fast
+            rather than sending an unresolvable request."""
+            guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Broken BYOG",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                validator_parameters=[],
+            )
+
+            with pytest.raises(ValueError, match="byo_validator_name"):
+                service.evaluate_guardrail("some input", guardrail)
+
+        def test_evaluate_guardrail_byo_validator_name_from_alias(self) -> None:
+            """byoValidatorName parses into the typed field via its camelCase alias."""
+            guardrail = BuiltInValidatorGuardrail.model_validate(
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "byog-id",
+                    "name": "BYOG",
+                    "validatorType": "byo",
+                    "byoValidatorName": "my_databricks_pii",
+                    "validatorParameters": [],
+                }
+            )
+            assert guardrail.byo_validator_name == "my_databricks_pii"
+
+        def test_evaluate_guardrail_non_byo_type_does_not_forward_name(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """byoValidatorName is only forwarded for the "byo" sentinel, never leaked
+            into a non-BYOG validator payload even if the field happens to be set."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII detection guardrail",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                byo_validator_name="stray_name",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoValidatorName" not in request_payload
+
+        def test_evaluate_guardrail_ootb_omits_byo_validator_name(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """OOTB validators (no byo_validator_name) keep their payload unchanged —
+            byoValidatorName is not sent."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII detection guardrail",
+                description="Test PII detection",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", pii_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoValidatorName" not in request_payload
+            assert pii_guardrail.byo_validator_name is None
+
         def test_evaluate_guardrail_sends_trace_context_headers(
             self,
             httpx_mock: HTTPXMock,
