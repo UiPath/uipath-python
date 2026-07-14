@@ -1,4 +1,4 @@
-"""Tests for the IXP design-time transport foundation (``platform/ixp/_transport``).
+"""Tests for the IXP design-time transport foundation (``platform/document_projects/_transport``).
 
 Cover the conventions the CLI SDK established and this layer must preserve:
 the ``du_/api/designtimeapi`` base path, the mandatory ``api-version=1.0`` query
@@ -11,8 +11,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.document_projects import IxpDesigntimeService
 from uipath.platform.errors import EnrichedException
-from uipath.platform.ixp import IxpDesigntimeService
 
 
 @pytest.fixture
