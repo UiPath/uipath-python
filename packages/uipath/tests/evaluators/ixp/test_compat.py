@@ -2,8 +2,7 @@
 
 These pin the upstream-faithful edge cases the golden fixtures don't reach:
 the FrozenDict API surface, the rounding helpers, whitespace normalization
-(including the regex-module parity on U+001C-U+001F), EntityDefId, and the
-assignment solver's transpose/infeasible branches.
+(including the regex-module parity on U+001C-U+001F) and EntityDefId.
 """
 
 from __future__ import annotations
@@ -19,7 +18,6 @@ from uipath.eval.evaluators.ixp._compat import (
     round_like_javascript,
     round_to_significant_figures,
 )
-from uipath.eval.evaluators.ixp.assignment import linear_sum_assignment
 
 
 def test_frozendict_construction_and_mapping() -> None:
@@ -96,24 +94,3 @@ def test_entity_def_id() -> None:
     assert EntityDefId.builtin_from_int(6) == EntityDefId.from_int(6)
     with pytest.raises(AssertionError):
         EntityDefId("not-hex")
-
-
-def test_assignment_transposed_and_edge_cases() -> None:
-    # more rows than columns exercises the transpose branch
-    rows, cols = linear_sum_assignment([[1.0], [2.0], [3.0]], maximize=True)
-    assert rows == [2] and cols == [0]
-    rows, cols = linear_sum_assignment(
-        [[9.0, 1.0], [1.0, 9.0], [5.0, 5.0]], maximize=True
-    )
-    assert rows == [0, 1] and cols == [0, 1]
-    # minimize mode (the scipy default) on a square matrix
-    rows, cols = linear_sum_assignment([[4.0, 1.0], [2.0, 8.0]])
-    assert rows == [0, 1] and cols == [1, 0]
-    # empty input
-    assert linear_sum_assignment([]) == ([], [])
-
-
-def test_assignment_infeasible_raises() -> None:
-    infinity = float("inf")
-    with pytest.raises(ValueError):
-        linear_sum_assignment([[infinity, infinity]], maximize=False)

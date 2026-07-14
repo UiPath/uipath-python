@@ -4,13 +4,13 @@ Replicates ixp-platform's own test suite against the port:
   - tests/test_ixp_metrics.py (both golden-fixture paths, 29 + 28 JSONs)
   - tests/test_ranged_value.py numeric table (exact numbers)
   - typed-normalizer cases from user-model tests/test_data_type.py
-  - assignment solver differential vs scipy (skipped when scipy is absent)
   - a worked example (Line Items)
+
+The assignment solver has its own extensive suite in test_assignment.py.
 """
 
 from __future__ import annotations
 
-import random
 from decimal import Decimal
 from pathlib import Path
 
@@ -317,30 +317,6 @@ def test_typed_equality_rules() -> None:
     assert not moon_extractions_are_equal(value("a"), value("A"), ())
     assert moon_extractions_are_equal(None, None, ())
     assert not moon_extractions_are_equal(value("a"), None, ())
-
-
-# --- assignment solver differential vs scipy ---
-
-
-def test_assignment_matches_scipy_exactly() -> None:
-    np = pytest.importorskip("numpy")
-    scipy_optimize = pytest.importorskip("scipy.optimize")
-
-    from uipath.eval.evaluators.ixp.assignment import linear_sum_assignment
-
-    rng = random.Random(20260713)
-    for _ in range(2000):
-        num_rows = rng.randint(1, 8)
-        num_cols = rng.randint(1, 8)
-        matrix = [
-            [float(rng.randint(0, 3)) for _ in range(num_cols)] for _ in range(num_rows)
-        ]
-        scipy_rows, scipy_cols = scipy_optimize.linear_sum_assignment(
-            np.array(matrix, dtype=np.float32), maximize=True
-        )
-        our_rows, our_cols = linear_sum_assignment(matrix, maximize=True)
-        assert list(scipy_rows) == our_rows
-        assert list(scipy_cols) == our_cols
 
 
 # --- worked example (Line Items) ---
