@@ -138,7 +138,6 @@ def debug(
                 with ExecutionSourceContext(ctx.execution_source), ctx:
                     factory: UiPathRuntimeFactoryProtocol | None = None
                     governance_bootstrap: GovernanceBootstrap | None = None
-                    live_tracking_processor: LiveTrackingSpanProcessor | None = None
 
                     try:
                         trigger_poll_interval: float = 5.0
@@ -169,12 +168,11 @@ def debug(
 
                         if ctx.job_id:
                             if UiPathConfig.is_tracing_enabled:
-                                live_tracking_processor = LiveTrackingSpanProcessor(
-                                    LlmOpsHttpExporter(),
-                                    settings=trace_settings,
-                                )
                                 trace_manager.add_span_processor(
-                                    live_tracking_processor
+                                    LiveTrackingSpanProcessor(
+                                        LlmOpsHttpExporter(),
+                                        settings=trace_settings,
+                                    )
                                 )
                             trigger_poll_interval = (
                                 0.0  # Polling disabled for production jobs
@@ -260,15 +258,13 @@ def debug(
                             await execute_debug_runtime()
 
                     finally:
-                        # Drain runtime-scoped sinks before the factory
-                        # shuts down — the factory may own transports they
-                        # use. (The inner runtime already disposed above.)
-                        if live_tracking_processor is not None:
-                            live_tracking_processor.shutdown()
-                        if governance_bootstrap is not None:
-                            governance_bootstrap.dispose()
-                        if factory:
-                            await factory.dispose()
+                        try:
+                            if governance_bootstrap is not None:
+                                governance_bootstrap.dispose()
+                            if factory:
+                                await factory.dispose()
+                        finally:
+                            trace_manager.shutdown()
 
             asyncio.run(execute_debug_runtime())
         except Exception as e:

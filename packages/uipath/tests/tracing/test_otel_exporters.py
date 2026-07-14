@@ -161,6 +161,17 @@ def test_force_flush(exporter):
     assert exporter.force_flush() is True
 
 
+def test_shutdown_closes_http_client(mock_env_vars):
+    with patch("uipath.tracing._otel_exporters.httpx.Client") as mock_client_class:
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+
+        exporter = LlmOpsHttpExporter()
+        exporter.shutdown()
+
+        mock_client.close.assert_called_once_with()
+
+
 def test_get_base_url():
     """Test _get_base_url method with different environment configurations."""
     # Test with environment variable set

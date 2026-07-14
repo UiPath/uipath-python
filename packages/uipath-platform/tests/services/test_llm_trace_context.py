@@ -44,7 +44,9 @@ class TestTraceparentHeader:
     def test_traceparent_from_config_and_span(self) -> None:
         span = _make_span()
         ctx = span.get_span_context()
-        expected_span_id = format(ctx.span_id, "032x")
+        # OTEL span id is 64-bit => 16 hex chars; traceparent carries the trailing flags
+        # segment. The gateway's strict W3C parser requires exactly this shape.
+        expected_span_id = format(ctx.span_id, "016x")
         config_trace = "abcdef1234567890abcdef1234567890"
         env = {"UIPATH_TRACE_ID": config_trace}
         with (
@@ -58,12 +60,13 @@ class TestTraceparentHeader:
 
         assert "x-uipath-traceparent-id" in headers
         value = headers["x-uipath-traceparent-id"]
-        assert value == f"00-{config_trace}-{expected_span_id}"
+        assert value == f"00-{config_trace}-{expected_span_id}-01"
         parts = value.split("-")
-        assert len(parts) == 3
+        assert len(parts) == 4
         assert parts[0] == "00"
         assert len(parts[1]) == 32
-        assert len(parts[2]) == 32
+        assert len(parts[2]) == 16
+        assert parts[3] == "01"
 
     def test_no_traceparent_without_config_trace_id(self) -> None:
         headers = build_trace_context_headers()
@@ -122,6 +125,7 @@ class TestBaggageHeader:
             "UIPATH_FOLDER_KEY": "folder-abc",
             ENV_PROJECT_KEY: "agent-123",
             "UIPATH_PROCESS_UUID": "process-789",
+            "UIPATH_JOB_KEY": "job-456",
         }
         with patch.dict(os.environ, env, clear=True):
             headers = build_trace_context_headers()
@@ -130,6 +134,7 @@ class TestBaggageHeader:
         assert "folderKey=folder-abc" in baggage
         assert "agentId=agent-123" in baggage
         assert "processKey=process-789" in baggage
+        assert "jobKey=job-456" in baggage
 
     def test_partial_env_vars(self) -> None:
         env = {"UIPATH_FOLDER_KEY": "folder-only"}

@@ -212,6 +212,8 @@ class EvalHelpers:
                         for evaluation in eval_set.evaluations
                     ],
                     model_settings=eval_set.model_settings,
+                    agent_memory_enabled=eval_set.agent_memory_enabled,
+                    agent_memory_settings=eval_set.agent_memory_settings,
                 )
         except ValidationError as e:
             raise ValueError(

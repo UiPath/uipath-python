@@ -459,6 +459,34 @@ class TestEntitiesService:
         assert result == [{"id": 1}, {"id": 2}]
         service._data.request.assert_called_once()
 
+    def test_query_entity_records_sets_source_header_when_provided(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records(
+            "SELECT id FROM Customers WHERE id > 0", source="LOW_CODE_AGENT"
+        )
+
+        headers = service._data.request.call_args.kwargs.get("headers") or {}
+        assert headers.get("x-uipath-source") == "LOW_CODE_AGENT"
+
+    def test_query_entity_records_omits_source_header_by_default(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records("SELECT id FROM Customers WHERE id > 0")
+
+        headers = service._data.request.call_args.kwargs.get("headers") or {}
+        assert "x-uipath-source" not in headers
+
     @pytest.mark.anyio
     async def test_query_entity_records_async_rejects_invalid_sql_before_network_call(
         self,
