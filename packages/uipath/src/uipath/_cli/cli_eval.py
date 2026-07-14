@@ -139,6 +139,13 @@ def _resolve_agent_memory_settings_override(
     if not evaluation_set.agent_memory_enabled:
         return {"enabled": False}
 
+    # "NoMemory" is a sentinel id meaning "run without memory", matching the
+    # Agents backend (ApplyAgentMemorySettingsOverride removes the memorySpace
+    # feature for a null or "NoMemory" setting). Its entry's field values are
+    # also "NoMemory" strings, so it must never be applied as real settings.
+    if agent_memory_settings_id == "NoMemory":
+        return {"enabled": False}
+
     memory_settings = evaluation_set.agent_memory_settings
     target = None
     if agent_memory_settings_id:
@@ -154,6 +161,9 @@ def _resolve_agent_memory_settings_override(
             )
     if target is None:
         target = memory_settings[0] if memory_settings else None
+
+    if target is not None and target.id == "NoMemory":
+        return {"enabled": False}
 
     if target is None:
         # Memory enabled but no settings configured: keep the agent's own configuration
