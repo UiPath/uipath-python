@@ -205,3 +205,53 @@ class TestResolveAgentMemorySettingsOverride:
         override = _resolve_agent_memory_settings_override("default", eval_set)
 
         assert override == {"enabled": True}
+
+    def test_no_memory_id_disables_memory(self):
+        # Selecting "No memory" in the eval settings passes the "NoMemory"
+        # sentinel id; its entry stores "NoMemory" field values that must not
+        # be applied as real settings.
+        eval_set = make_eval_set(
+            agentMemoryEnabled=True,
+            agentMemorySettings=[
+                {"id": "s1", "searchMode": "hybrid"},
+                {
+                    "id": "NoMemory",
+                    "resultCount": "NoMemory",
+                    "searchMode": "semantic",
+                    "threshold": "NoMemory",
+                },
+            ],
+        )
+
+        override = _resolve_agent_memory_settings_override("NoMemory", eval_set)
+
+        assert override == {"enabled": False}
+
+    def test_no_memory_id_disables_memory_without_matching_entry(self):
+        # The sentinel disables memory even when the eval set has no
+        # "NoMemory" entry; it must not fall back to the first setting.
+        eval_set = make_eval_set(
+            agentMemoryEnabled=True,
+            agentMemorySettings=[{"id": "s1", "searchMode": "hybrid"}],
+        )
+
+        override = _resolve_agent_memory_settings_override("NoMemory", eval_set)
+
+        assert override == {"enabled": False}
+
+    def test_fallback_to_no_memory_entry_disables_memory(self):
+        eval_set = make_eval_set(
+            agentMemoryEnabled=True,
+            agentMemorySettings=[
+                {
+                    "id": "NoMemory",
+                    "resultCount": "NoMemory",
+                    "searchMode": "semantic",
+                    "threshold": "NoMemory",
+                }
+            ],
+        )
+
+        override = _resolve_agent_memory_settings_override("default", eval_set)
+
+        assert override == {"enabled": False}
