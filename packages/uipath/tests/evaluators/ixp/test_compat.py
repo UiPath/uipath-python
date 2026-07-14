@@ -43,11 +43,13 @@ def test_frozendict_empty_singleton_and_identity() -> None:
 
 def test_frozendict_hash_is_order_insensitive() -> None:
     assert hash(FrozenDict({"a": 1, "b": 2})) == hash(FrozenDict({"b": 2, "a": 1}))
-    assert FrozenDict({"a": 1}) == FrozenDict({"a": 1})
+    # mapping and iterable-of-pairs constructors produce equal instances
+    assert FrozenDict({"a": 1}) == FrozenDict([("a", 1)])
     assert FrozenDict({"a": 1}) != FrozenDict({"a": 2})
-    # hash is cached after first computation
+    # hash is cached after first computation and stays stable
     frozen = FrozenDict({"a": 1})
-    assert hash(frozen) == hash(frozen)
+    first_hash = hash(frozen)
+    assert hash(frozen) == first_hash
 
 
 def test_frozendict_update_discard_set_return_new_instances() -> None:
