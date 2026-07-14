@@ -494,16 +494,20 @@ def eval(
                                 agent_memory_settings=agent_memory_settings_override,
                             )
 
-                            eval_context.runtime_schema = await runtime.get_schema()
+                            # The runtime is only needed for schema/evaluator
+                            # loading; dispose it before evaluation starts.
+                            try:
+                                eval_context.runtime_schema = await runtime.get_schema()
 
-                            eval_context.evaluators = await EvalHelpers.load_evaluators(
-                                resolved_eval_set_path,
-                                eval_context.evaluation_set,
-                                get_agent_model(eval_context.runtime_schema),
-                            )
-
-                            # Runtime is not required anymore.
-                            await runtime.dispose()
+                                eval_context.evaluators = (
+                                    await EvalHelpers.load_evaluators(
+                                        resolved_eval_set_path,
+                                        eval_context.evaluation_set,
+                                        get_agent_model(eval_context.runtime_schema),
+                                    )
+                                )
+                            finally:
+                                await runtime.dispose()
 
                             ctx.result = await evaluate(
                                 runtime_factory,
