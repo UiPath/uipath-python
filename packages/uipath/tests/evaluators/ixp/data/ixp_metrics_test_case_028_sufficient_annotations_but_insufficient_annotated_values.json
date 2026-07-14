@@ -1,0 +1,263 @@
+{
+  "title": "sufficient_annotations_but_insufficient_annotated_values",
+  "description": "One field with 11 annotations (2 values + 9 missing), all predicted correctly. Total annotations >= 10 but annotated values < 10, so insufficient_annotations should be 1",
+  "field_group_name_to_field_ids": {
+    "field_group_name_0": [
+      "0000000000000000"
+    ]
+  },
+  "document_ids": [
+    "abcdef0123450000",
+    "abcdef0123450001",
+    "abcdef0123450002",
+    "abcdef0123450003",
+    "abcdef0123450004",
+    "abcdef0123450005",
+    "abcdef0123450006",
+    "abcdef0123450007",
+    "abcdef0123450008",
+    "abcdef0123450009",
+    "abcdef012345000a"
+  ],
+  "raw": {
+    "train_document_metadatas": [
+      {"filename": "doc_0.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_0.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_0.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_0.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_1.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_1.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_1.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_1.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_2.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_2.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_2.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_2.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_3.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_3.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_3.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_3.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_4.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_4.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_4.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_4.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_5.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_5.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_5.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_5.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_6.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_6.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_6.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_6.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_7.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_7.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_7.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_7.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_8.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_8.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_8.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_8.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_9.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_9.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_9.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_9.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_10.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_10.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_10.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_10.pdf", "content_type": "pdf", "num_pages": 3}
+    ],
+    "test_document_metadatas": [
+      {"filename": "doc_0.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_1.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_2.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_3.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_4.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_5.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_6.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_7.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_8.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_9.pdf", "content_type": "pdf", "num_pages": 3},
+      {"filename": "doc_10.pdf", "content_type": "pdf", "num_pages": 3}
+    ],
+    "field_groups_extractions": {
+      "field_group_name_0": {
+        "test_assigned": {
+          "indices": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          "captures": [
+            [{"fields": {"0000000000000000": {"value": "value_0", "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": "value_0", "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 1.0}}, "confidence": 1.0}]
+          ]
+        },
+        "test_predicted": {
+          "indices": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          "captures": [
+            [{"fields": {"0000000000000000": {"value": "value_0", "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": "value_0", "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}],
+            [{"fields": {"0000000000000000": {"value": null, "confidence": 0.9}}, "confidence": 0.9}]
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "num_train_documents": 44,
+    "num_validated_documents": 11,
+    "project_score": 1.0,
+    "project_indicators": {
+      "project_score_quality": "excellent",
+      "field_num_indicators": {
+        "validated_fields": 1,
+        "insufficient_annotated_values": 1,
+        "poor_f1_score": 0,
+        "average_f1_score": 0,
+        "good_f1_score": 1
+      }
+    },
+    "ixp_metrics": {
+      "field_groups_metrics": {
+        "field_group_name_0": {
+          "f1_score": {"value": 1.0, "variability": null},
+          "precision": {"value": 1.0, "variability": null},
+          "recall": {"value": 1.0, "variability": null},
+          "indicators": {
+            "f1_score_quality": "good",
+            "field_num_indicators": {
+              "validated_fields": 1,
+              "insufficient_annotated_values": 1,
+              "poor_f1_score": 0,
+              "average_f1_score": 0,
+              "good_f1_score": 1
+            }
+          },
+          "num_annotated_documents": 11,
+          "num_documents_with_errors": {"value": 0, "variability": 0.0},
+          "proportion_documents_with_errors": {"value": 0.0, "variability": 0.0},
+          "num_annotations": 11,
+          "num_annotated_values": 2,
+          "num_annotated_missing": 9,
+          "num_predictions": {"value": 2, "variability": 1.0},
+          "error_rate": {"value": 0.0, "variability": 0.0},
+          "error_rate_missing_value": 0.0,
+          "error_rate_excluding_missing": {"value": 0.0, "variability": null},
+          "num_errors": {"value": 0, "variability": 0.0},
+          "num_value_errors": {"value": 0, "variability": null},
+          "num_incorrect_predictions": {"value": 0, "variability": 0.0},
+          "num_extra_predictions": {"value": 0, "variability": 0.0},
+          "num_missed_predictions": {"value": 0, "variability": 0.0},
+          "num_correct_value_predictions": {"value": 2, "variability": null},
+          "num_correct_missing_predictions": {"value": 9, "variability": null}
+        }
+      },
+      "fields_metrics": {
+        "field_group_name_0": {
+          "0000000000000000": {
+            "f1_score": {"value": 1.0, "variability": null},
+            "precision": {"value": 1.0, "variability": null},
+            "recall": {"value": 1.0, "variability": null},
+            "indicators": {
+              "f1_score_quality": "good",
+              "field_num_indicators": {
+                "validated_fields": 1,
+                "insufficient_annotated_values": 1,
+                "poor_f1_score": 0,
+                "average_f1_score": 0,
+                "good_f1_score": 1
+              }
+            },
+            "num_annotated_documents": 11,
+            "num_documents_with_errors": {"value": 0, "variability": 0.0},
+            "proportion_documents_with_errors": {"value": 0.0, "variability": 0.0},
+            "num_annotations": 11,
+            "num_annotated_values": 2,
+            "num_annotated_missing": 9,
+            "num_predictions": {"value": 2, "variability": 1.0},
+            "error_rate": {"value": 0.0, "variability": 0.0},
+            "error_rate_missing_value": 0.0,
+            "error_rate_excluding_missing": {"value": 0.0, "variability": null},
+            "num_errors": {"value": 0, "variability": 0.0},
+            "num_value_errors": {"value": 0, "variability": null},
+            "num_incorrect_predictions": {"value": 0, "variability": 0.0},
+            "num_extra_predictions": {"value": 0, "variability": 0.0},
+            "num_missed_predictions": {"value": 0, "variability": 0.0},
+            "num_correct_value_predictions": {"value": 2, "variability": null},
+            "num_correct_missing_predictions": {"value": 9, "variability": null}
+          }
+        }
+      }
+    },
+    "latency_metrics": null,
+    "document_ids": [
+      "abcdef0123450000",
+      "abcdef0123450001",
+      "abcdef0123450002",
+      "abcdef0123450003",
+      "abcdef0123450004",
+      "abcdef0123450005",
+      "abcdef0123450006",
+      "abcdef0123450007",
+      "abcdef0123450008",
+      "abcdef0123450009",
+      "abcdef012345000a"
+    ],
+    "document_names": [
+      "doc_0.pdf",
+      "doc_1.pdf",
+      "doc_2.pdf",
+      "doc_3.pdf",
+      "doc_4.pdf",
+      "doc_5.pdf",
+      "doc_6.pdf",
+      "doc_7.pdf",
+      "doc_8.pdf",
+      "doc_9.pdf",
+      "doc_10.pdf"
+    ],
+    "documents_metrics": {
+      "mean_document_field_error_rate": 0.0,
+      "mean_num_pages_per_document": 3.0,
+      "documents_metrics": [
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0},
+        {"field_error_rate": 0.0}
+      ]
+    },
+    "prediction_and_ground_truths": [
+      {"test_comment_index": 0, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": "value_0", "ground_truth_value": "value_0", "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 1, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": "value_0", "ground_truth_value": "value_0", "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 2, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 3, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 4, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 5, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 6, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 7, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 8, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 9, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9},
+      {"test_comment_index": 10, "field_group_name": "field_group_name_0", "i_extraction": 0, "field_id": "0000000000000000", "predicted_value": null, "ground_truth_value": null, "is_match": true, "confidence": 0.9}
+    ]
+  }
+}

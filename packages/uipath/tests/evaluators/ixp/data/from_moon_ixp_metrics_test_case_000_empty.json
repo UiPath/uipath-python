@@ -1,0 +1,12 @@
+{
+  "title": "empty_from_moon",
+  "description": "Empty, using RawIxpMetricsFromMoon",
+  "field_group_name_to_field_ids": {},
+  "document_ids": [],
+  "raw": {
+    "num_train_documents": 0,
+    "num_test_documents": 0,
+    "field_groups_extractions": {}
+  },
+  "expected": null
+}

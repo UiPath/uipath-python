@@ -1,0 +1,27 @@
+{
+  "title": "empty_captures",
+  "description": "No documents, with empty captures",
+  "field_group_name_to_field_ids": {
+    "field_group_name_0": []
+  },
+  "document_ids": [],
+  "raw": {
+    "train_document_metadatas": [],
+    "test_document_metadatas": [],
+    "field_groups_extractions": {
+      "field_group_name_0": {
+        "test_assigned": {
+          "indices": [
+            0
+          ],
+          "captures": []
+        },
+        "test_predicted": {
+          "indices": [],
+          "captures": []
+        }
+      }
+    }
+  },
+  "expected": null
+}

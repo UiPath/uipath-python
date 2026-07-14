@@ -1,0 +1,12 @@
+{
+  "title": "empty",
+  "description": "Empty",
+  "field_group_name_to_field_ids": {},
+  "document_ids": [],
+  "raw": {
+    "train_document_metadatas": [],
+    "test_document_metadatas": [],
+    "field_groups_extractions": {}
+  },
+  "expected": null
+}

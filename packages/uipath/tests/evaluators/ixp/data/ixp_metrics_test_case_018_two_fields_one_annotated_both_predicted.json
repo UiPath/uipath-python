@@ -1,0 +1,380 @@
+{
+  "title": "two_fields_one_annotated_both_predicted",
+  "description": "Two field annotated, both annotated with a value, one predicted correctly and one wrongly",
+  "field_group_name_to_field_ids": {
+    "field_group_name_0": [
+      "0000000000000000",
+      "0000000000000001"
+    ]
+  },
+  "document_ids": [
+    "abcdef0123456789"
+  ],
+  "raw": {
+    "train_document_metadatas": [
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      },
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      },
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      },
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      }
+    ],
+    "test_document_metadatas": [
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      }
+    ],
+    "field_groups_extractions": {
+      "field_group_name_0": {
+        "test_assigned": {
+          "indices": [
+            0
+          ],
+          "captures": [
+            [
+              {
+                "fields": {
+                  "0000000000000000": {
+                    "value": "ixplight",
+                    "confidence": 1.0
+                  }
+                },
+                "confidence": 1.0
+              }
+            ]
+          ]
+        },
+        "test_predicted": {
+          "indices": [
+            0
+          ],
+          "captures": [
+            [
+              {
+                "fields": {
+                  "0000000000000000": {
+                    "value": "ixplight",
+                    "confidence": 1.0
+                  },
+                  "0000000000000001": {
+                    "value": "crepuscular",
+                    "confidence": 1.0
+                  }
+                },
+                "confidence": 1.0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "num_train_documents": 4,
+    "num_validated_documents": 1,
+    "project_score": 0.5,
+    "project_indicators": {
+      "project_score_quality": "average",
+      "field_num_indicators": {
+        "validated_fields": 2,
+        "insufficient_annotated_values": 2,
+        "poor_f1_score": 1,
+        "average_f1_score": 0,
+        "good_f1_score": 1
+      }
+    },
+    "ixp_metrics": {
+      "field_groups_metrics": {
+        "field_group_name_0": {
+          "f1_score": {
+            "value": 0.6666666666666666,
+            "variability": null
+          },
+          "precision": {
+            "value": 0.5,
+            "variability": null
+          },
+          "recall": {
+            "value": 1.0,
+            "variability": null
+          },
+          "indicators": {
+            "f1_score_quality": "average",
+            "field_num_indicators": {
+              "validated_fields": 2,
+              "insufficient_annotated_values": 2,
+              "poor_f1_score": 1,
+              "average_f1_score": 0,
+              "good_f1_score": 1
+            }
+          },
+          "num_annotated_documents": 1,
+          "num_documents_with_errors": {
+            "value": 1,
+            "variability": null
+          },
+          "proportion_documents_with_errors": {
+            "value": 1.0,
+            "variability": null
+          },
+          "num_annotations": 2,
+          "num_annotated_values": 1,
+          "num_annotated_missing": 1,
+          "num_predictions": {
+            "value": 2,
+            "variability": null
+          },
+          "error_rate": {
+            "value": 0.5,
+            "variability": null
+          },
+          "error_rate_missing_value": 1.0,
+          "error_rate_excluding_missing": {
+            "value": 0.0,
+            "variability": null
+          },
+          "num_errors": {
+            "value": 1,
+            "variability": null
+          },
+          "num_value_errors": {
+            "value": 0,
+            "variability": null
+          },
+          "num_incorrect_predictions": {
+            "value": 0,
+            "variability": null
+          },
+          "num_extra_predictions": {
+            "value": 1,
+            "variability": null
+          },
+          "num_missed_predictions": {
+            "value": 0,
+            "variability": null
+          },
+          "num_correct_value_predictions": {
+            "value": 1,
+            "variability": null
+          },
+          "num_correct_missing_predictions": {
+            "value": 0,
+            "variability": null
+          }
+        }
+      },
+      "fields_metrics": {
+        "field_group_name_0": {
+          "0000000000000000": {
+            "f1_score": {
+              "value": 1.0,
+              "variability": null
+            },
+            "precision": {
+              "value": 1.0,
+              "variability": null
+            },
+            "recall": {
+              "value": 1.0,
+              "variability": null
+            },
+            "indicators": {
+              "f1_score_quality": "good",
+              "field_num_indicators": {
+                "validated_fields": 1,
+                "insufficient_annotated_values": 1,
+                "poor_f1_score": 0,
+                "average_f1_score": 0,
+                "good_f1_score": 1
+              }
+            },
+            "num_annotated_documents": 1,
+            "num_documents_with_errors": {
+              "value": 0,
+              "variability": null
+            },
+            "proportion_documents_with_errors": {
+              "value": 0.0,
+              "variability": null
+            },
+            "num_annotations": 1,
+            "num_annotated_values": 1,
+            "num_annotated_missing": 0,
+            "num_predictions": {
+              "value": 1,
+              "variability": null
+            },
+            "error_rate": {
+              "value": 0.0,
+              "variability": null
+            },
+            "error_rate_missing_value": 0.0,
+            "error_rate_excluding_missing": {
+              "value": 0.0,
+              "variability": null
+            },
+            "num_errors": {
+              "value": 0,
+              "variability": null
+            },
+            "num_value_errors": {
+              "value": 0,
+              "variability": null
+            },
+            "num_incorrect_predictions": {
+              "value": 0,
+              "variability": null
+            },
+            "num_extra_predictions": {
+              "value": 0,
+              "variability": null
+            },
+            "num_missed_predictions": {
+              "value": 0,
+              "variability": null
+            },
+            "num_correct_value_predictions": {
+              "value": 1,
+              "variability": null
+            },
+            "num_correct_missing_predictions": {
+              "value": 0,
+              "variability": null
+            }
+          },
+          "0000000000000001": {
+            "f1_score": {
+              "value": 0.0,
+              "variability": null
+            },
+            "precision": {
+              "value": 0.0,
+              "variability": null
+            },
+            "recall": {
+              "value": 1.0,
+              "variability": null
+            },
+            "indicators": {
+              "f1_score_quality": "poor",
+              "field_num_indicators": {
+                "validated_fields": 1,
+                "insufficient_annotated_values": 1,
+                "poor_f1_score": 1,
+                "average_f1_score": 0,
+                "good_f1_score": 0
+              }
+            },
+            "num_annotated_documents": 1,
+            "num_documents_with_errors": {
+              "value": 1,
+              "variability": null
+            },
+            "proportion_documents_with_errors": {
+              "value": 1.0,
+              "variability": null
+            },
+            "num_annotations": 1,
+            "num_annotated_values": 0,
+            "num_annotated_missing": 1,
+            "num_predictions": {
+              "value": 1,
+              "variability": null
+            },
+            "error_rate": {
+              "value": 1.0,
+              "variability": null
+            },
+            "error_rate_missing_value": 1.0,
+            "error_rate_excluding_missing": {
+              "value": 0.0,
+              "variability": null
+            },
+            "num_errors": {
+              "value": 1,
+              "variability": null
+            },
+            "num_value_errors": {
+              "value": 0,
+              "variability": null
+            },
+            "num_incorrect_predictions": {
+              "value": 0,
+              "variability": null
+            },
+            "num_extra_predictions": {
+              "value": 1,
+              "variability": null
+            },
+            "num_missed_predictions": {
+              "value": 0,
+              "variability": null
+            },
+            "num_correct_value_predictions": {
+              "value": 0,
+              "variability": null
+            },
+            "num_correct_missing_predictions": {
+              "value": 0,
+              "variability": null
+            }
+          }
+        }
+      }
+    },
+    "latency_metrics": null,
+    "document_ids": [
+      "abcdef0123456789"
+    ],
+    "document_names": [
+      "filename_0"
+    ],
+    "documents_metrics": {
+      "mean_document_field_error_rate": 0.5,
+      "mean_num_pages_per_document": 3.0,
+      "documents_metrics": [
+        {
+          "field_error_rate": 0.5
+        }
+      ]
+    },
+    "prediction_and_ground_truths": [
+      {
+        "test_comment_index": 0,
+        "field_group_name": "field_group_name_0",
+        "i_extraction": 0,
+        "field_id": "0000000000000000",
+        "predicted_value": "ixplight",
+        "ground_truth_value": "ixplight",
+        "is_match": true,
+        "confidence": 1.0
+      },
+      {
+        "test_comment_index": 0,
+        "field_group_name": "field_group_name_0",
+        "i_extraction": 0,
+        "field_id": "0000000000000001",
+        "predicted_value": "crepuscular",
+        "ground_truth_value": null,
+        "is_match": false,
+        "confidence": 1.0
+      }
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "title": "document_empty_captures",
+  "description": "With a document and empty captures",
+  "field_group_name_to_field_ids": {
+    "field_group_name_0": []
+  },
+  "document_ids": [
+    "abcdef0123456789"
+  ],
+  "raw": {
+    "train_document_metadatas": [
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      },
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      },
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      },
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      }
+    ],
+    "test_document_metadatas": [
+      {
+        "filename": "filename_0",
+        "content_type": "pdf",
+        "num_pages": 3
+      }
+    ],
+    "field_groups_extractions": {
+      "field_group_name_0": {
+        "test_assigned": {
+          "indices": [
+            0
+          ],
+          "captures": []
+        },
+        "test_predicted": {
+          "indices": [],
+          "captures": []
+        }
+      }
+    }
+  },
+  "expected": null
+}

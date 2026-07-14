@@ -1,0 +1,29 @@
+{
+  "title": "document_empty_captures_from_moon",
+  "description": "With a document and empty captures, using RawIxpMetricsFromMoon",
+  "field_group_name_to_field_ids": {
+    "field_group_name_0": []
+  },
+  "document_ids": [
+    "abcdef0123456789"
+  ],
+  "raw": {
+    "num_train_documents": 4,
+    "num_test_documents": 1,
+    "field_groups_extractions": {
+      "field_group_name_0": {
+        "test_assigned": {
+          "indices": [
+            0
+          ],
+          "captures": []
+        },
+        "test_predicted": {
+          "indices": [],
+          "captures": []
+        }
+      }
+    }
+  },
+  "expected": null
+}
