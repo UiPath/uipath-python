@@ -5,7 +5,7 @@ Replicates ixp-platform's own test suite against the port:
   - tests/test_ranged_value.py numeric table (exact numbers)
   - typed-normalizer cases from user-model tests/test_data_type.py
   - assignment solver differential vs scipy (skipped when scipy is absent)
-  - the design wiki's worked example
+  - a worked example (Line Items)
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 import uipath.eval.evaluators.ixp.ranged_value as ranged_value_module
-from tests.evaluators.ixp.demo import wiki_worked_example
+from tests.evaluators.ixp.demo import worked_example
 from tests.evaluators.ixp.ixp_utils import (
     GetIxpMetricsFromMoonTestCase,
     GetIxpMetricsTestCase,
@@ -343,18 +343,18 @@ def test_assignment_matches_scipy_exactly() -> None:
         assert list(scipy_cols) == our_cols
 
 
-# --- the design wiki's worked example ---
+# --- worked example (Line Items) ---
 
 
-def test_wiki_worked_example() -> None:
-    summary = wiki_worked_example()
+def test_worked_example() -> None:
+    summary = worked_example()
     group = next(iter(summary.ixp_metrics.field_groups_metrics.values()))
     field_f1s = [
         metrics.f1_score.value
         for group_fields in summary.ixp_metrics.fields_metrics.values()
         for metrics in group_fields.values()
     ]
-    # the wiki's documented numbers: TP=5 FP=1 FN=3
+    # expected totals: TP=5 FP=1 FN=3
     assert group.precision.value == pytest.approx(5 / 6)
     assert group.recall.value == pytest.approx(5 / 8)
     assert group.f1_score.value == pytest.approx(5 / 7)

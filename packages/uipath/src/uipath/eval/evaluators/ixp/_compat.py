@@ -21,7 +21,7 @@ from typing import Any, Generic, NamedTuple, NewType, TypeVar, Union, overload
 
 
 def round_to_significant_figures(target: float, num_figures: int) -> float:
-    if target == 0.0:
+    if target == 0.0:  # NOSONAR - upstream-faithful exact-zero check
         return 0.0
     return round(target, -int(math.floor(math.log10(abs(target)))) + (num_figures - 1))
 

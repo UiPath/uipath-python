@@ -1,8 +1,8 @@
 """Sample runs of the ported IXP Measure scoring core.
 
-1. The worked example from the design wiki ("Line Items", 3 annotated rows,
-   2 predicted rows) — asserts the documented numbers: group F1 = 5/7,
-   per-field F1 = 0.80 / 0.50 / 0.80, project score 0.70 → GOOD.
+1. A worked example ("Line Items", 3 annotated rows, 2 predicted rows) —
+   asserts the expected numbers: group F1 = 5/7, per-field
+   F1 = 0.80 / 0.50 / 0.80, project score 0.70 → GOOD.
 2. A few golden fixtures, scored and printed as a metric grid.
 
 Run from packages/uipath:
@@ -58,7 +58,7 @@ def _capture(values: dict[ExtractionFieldId, str | None]) -> RawCapture:
     )
 
 
-def wiki_worked_example() -> IxpSummaryMetrics:
+def worked_example() -> IxpSummaryMetrics:
     """One document; annotator marked 3 rows, the model predicted 2."""
     annotated = (
         _capture({DESCRIPTION: "Widget A", QTY: "2", AMOUNT: "10.00"}),  # A1
@@ -129,14 +129,14 @@ def print_summary(summary: IxpSummaryMetrics, title: str) -> None:
 
 
 def main() -> None:
-    summary = wiki_worked_example()
-    print_summary(summary, "wiki worked example: Line Items")
+    summary = worked_example()
+    print_summary(summary, "worked example: Line Items")
 
     group = summary.ixp_metrics.field_groups_metrics[LINE_ITEMS]
     assert math.isclose(group.f1_score.value, 5 / 7)
     assert math.isclose(summary.project_score, 0.70)
     assert summary.project_indicators.project_score_quality is ProjectScoreQuality.GOOD
-    print("\nall wiki numbers reproduced: F1=5/7≈0.71, project=0.70 → GOOD")
+    print("\nall expected numbers reproduced: F1=5/7≈0.71, project=0.70 → GOOD")
 
     # score a few golden fixtures end to end and show their grids
     from tests.evaluators.ixp.ixp_utils import (

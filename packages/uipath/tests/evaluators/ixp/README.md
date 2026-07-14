@@ -12,8 +12,8 @@ test suite:
   golden paths), the `test_ranged_value.py` numeric table, the
   typed-normalizer cases from user-model `test_data_type.py`, a differential
   test of the pure-Python assignment solver against scipy (skipped when
-  scipy is absent), and the design wiki's worked example.
-- `demo.py` — sample runs: the wiki worked example (F1 = 5/7, project score
+  scipy is absent), and a worked example.
+- `demo.py` — sample runs: the worked example (F1 = 5/7, project score
   0.70 → GOOD) plus a few golden fixtures printed as metric grids.
 
 ## Run
