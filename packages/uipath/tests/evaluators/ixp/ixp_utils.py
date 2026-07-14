@@ -1,29 +1,17 @@
 """Golden-fixture models and builders, ported from ixp-platform
-uipath_mls_user_model_store/tests/ixp_utils.py (pydantic v2, parse_file →
-model_validate_json). The JSON fixtures themselves are byte-for-byte copies
-from ixp-platform tests/data/.
+uipath_mls_user_model_store/tests/ixp_utils.py (pydantic v2). The JSON
+fixtures themselves are byte-for-byte copies from ixp-platform tests/data/.
 """
 
 from __future__ import annotations
 
-import sys
 from enum import Enum
 from pathlib import Path
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-_SRC_EVALUATORS = (
-    Path(__file__).resolve().parents[3]
-    / "src"
-    / "uipath"
-    / "eval"
-    / "evaluators"
-)
-if str(_SRC_EVALUATORS) not in sys.path:
-    sys.path.insert(0, str(_SRC_EVALUATORS))
-
-from ixp._compat import (  # noqa: E402
+from uipath.eval.evaluators.ixp._compat import (
     ExtractionFieldId,
     FieldId,
     FrozenDict,
@@ -31,7 +19,7 @@ from ixp._compat import (  # noqa: E402
     LabelName,
     TestCommentIndex,
 )
-from ixp.ixp import (  # noqa: E402
+from uipath.eval.evaluators.ixp.ixp import (
     DocumentMetadata,
     FieldF1ScoreQuality,
     FieldNumIndicators,
@@ -45,11 +33,10 @@ from ixp.ixp import (  # noqa: E402
     PredictionAndGroundTruth,
     ProjectIndicators,
     ProjectScoreQuality,
-    RangedValue,
     RawIxpMetrics,
     RawIxpMetricsFromMoon,
 )
-from ixp.moon import (  # noqa: E402
+from uipath.eval.evaluators.ixp.moon import (
     CaptureConfidence,
     RawCapture,
     RawCaptures,
@@ -57,6 +44,7 @@ from ixp.moon import (  # noqa: E402
     RawMoonField,
     RawMoonValue,
 )
+from uipath.eval.evaluators.ixp.ranged_value import RangedValue
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -182,9 +170,9 @@ class IxpSummaryMetricsTestCase(ApiBaseModel):
     document_ids: tuple[str, ...] = Field(...)
     document_names: tuple[str, ...] = Field(...)
     documents_metrics: IxpDocumentsMetricsTestCase = Field(...)
-    prediction_and_ground_truths: tuple[
-        PredictionAndGroundTruthTestCase, ...
-    ] = Field(...)
+    prediction_and_ground_truths: tuple[PredictionAndGroundTruthTestCase, ...] = Field(
+        ...
+    )
 
 
 class RawMoonFieldTestCase(ApiBaseModel):
@@ -233,10 +221,6 @@ class GetIxpMetricsTestCase(ApiBaseModel):
     raw: RawIxpMetricsTestCase = Field(...)
     expected: IxpSummaryMetricsTestCase | None = Field(...)
 
-    @classmethod
-    def parse_file(cls, path: Path) -> "GetIxpMetricsTestCase":
-        return cls.model_validate_json(path.read_text())
-
 
 class GetIxpMetricsFromMoonTestCase(ApiBaseModel):
     title: str = Field(...)
@@ -245,10 +229,6 @@ class GetIxpMetricsFromMoonTestCase(ApiBaseModel):
     document_ids: tuple[str, ...] = Field(...)
     raw: RawIxpMetricsFromMoonTestCase = Field(...)
     expected: IxpSummaryMetricsTestCase | None = Field(...)
-
-    @classmethod
-    def parse_file(cls, path: Path) -> "GetIxpMetricsFromMoonTestCase":
-        return cls.model_validate_json(path.read_text())
 
 
 def get_raw_ixp_metrics(test_case: RawIxpMetricsTestCase) -> RawIxpMetrics:
@@ -316,9 +296,7 @@ def get_ixp_summary_metrics(
         num_train_documents=test_case.num_train_documents,
         num_validated_documents=test_case.num_validated_documents,
         project_score=test_case.project_score,
-        project_indicators=_get_project_indicators(
-            test_case.project_indicators
-        ),
+        project_indicators=_get_project_indicators(test_case.project_indicators),
         ixp_metrics=_get_ixp_metrics(test_case.ixp_metrics),
         latency_metrics=(
             _get_latency_metrics(test_case.latency_metrics)
@@ -326,16 +304,13 @@ def get_ixp_summary_metrics(
             else None
         ),
         document_ids=tuple(
-            InternalCommentId(document_id)
-            for document_id in test_case.document_ids
+            InternalCommentId(document_id) for document_id in test_case.document_ids
         ),
         document_names=test_case.document_names,
         documents_metrics=_get_document_metrics(test_case.documents_metrics),
         prediction_and_ground_truths=tuple(
             _get_prediction_and_ground_truth(prediction_and_ground_truth)
-            for (
-                prediction_and_ground_truth
-            ) in test_case.prediction_and_ground_truths
+            for (prediction_and_ground_truth) in test_case.prediction_and_ground_truths
         ),
     )
 
@@ -393,9 +368,7 @@ def _get_raw_capture(test_case: RawCaptureTestCase) -> RawCapture:
             {
                 ExtractionFieldId(FieldId(field_id)): RawMoonField(
                     value=(
-                        RawMoonValue(field.value)
-                        if field.value is not None
-                        else None
+                        RawMoonValue(field.value) if field.value is not None else None
                     ),
                     confidence=field.confidence,
                 )
@@ -410,9 +383,7 @@ def _get_ixp_metrics(test_case: IxpMetricsTestCase) -> IxpMetrics:
     return IxpMetrics(
         field_groups_metrics=FrozenDict(
             {
-                LabelName(field_group_name): _get_ixp_level_metrics(
-                    field_group_metrics
-                )
+                LabelName(field_group_name): _get_ixp_level_metrics(field_group_metrics)
                 for (
                     field_group_name,
                     field_group_metrics,
@@ -423,9 +394,9 @@ def _get_ixp_metrics(test_case: IxpMetricsTestCase) -> IxpMetrics:
             {
                 LabelName(field_group_name): FrozenDict(
                     {
-                        ExtractionFieldId(
-                            FieldId(field_id)
-                        ): _get_ixp_level_metrics(field_metrics)
+                        ExtractionFieldId(FieldId(field_id)): _get_ixp_level_metrics(
+                            field_metrics
+                        )
                         for (
                             field_id,
                             field_metrics,
@@ -470,12 +441,8 @@ def _get_ixp_level_metrics(
         num_incorrect_predictions=_get_ranged_value_int(
             test_case.num_incorrect_predictions
         ),
-        num_extra_predictions=_get_ranged_value_int(
-            test_case.num_extra_predictions
-        ),
-        num_missed_predictions=_get_ranged_value_int(
-            test_case.num_missed_predictions
-        ),
+        num_extra_predictions=_get_ranged_value_int(test_case.num_extra_predictions),
+        num_missed_predictions=_get_ranged_value_int(test_case.num_missed_predictions),
         num_correct_value_predictions=_get_ranged_value_int(
             test_case.num_correct_value_predictions
         ),
@@ -488,17 +455,13 @@ def _get_ixp_level_metrics(
 def _get_ranged_value_int(
     test_case: RangedValueTestCase[int],
 ) -> RangedValue[int]:
-    return RangedValue[int](
-        value=test_case.value, variability=test_case.variability
-    )
+    return RangedValue[int](value=test_case.value, variability=test_case.variability)
 
 
 def _get_ranged_value_float(
     test_case: RangedValueTestCase[float],
 ) -> RangedValue[float]:
-    return RangedValue[float](
-        value=test_case.value, variability=test_case.variability
-    )
+    return RangedValue[float](value=test_case.value, variability=test_case.variability)
 
 
 def _get_project_indicators(
@@ -508,9 +471,7 @@ def _get_project_indicators(
         project_score_quality=_get_project_score_quality(
             test_case.project_score_quality
         ),
-        field_num_indicators=_get_field_num_indicators(
-            test_case.field_num_indicators
-        ),
+        field_num_indicators=_get_field_num_indicators(test_case.field_num_indicators),
     )
 
 
@@ -532,9 +493,7 @@ def _get_project_score_quality(
 def _get_indicators(test_case: IndicatorsTestCase) -> Indicators:
     return Indicators(
         f1_score_quality=_get_f1_score_quality(test_case.f1_score_quality),
-        field_num_indicators=_get_field_num_indicators(
-            test_case.field_num_indicators
-        ),
+        field_num_indicators=_get_field_num_indicators(test_case.field_num_indicators),
     )
 
 
@@ -564,23 +523,17 @@ def _get_field_num_indicators(
 
 
 def _get_latency_metrics(test_case: LatencyMetricsTestCase) -> LatencyMetrics:
-    return LatencyMetrics(
-        p99=test_case.p99, p95=test_case.p95, p50=test_case.p50
-    )
+    return LatencyMetrics(p99=test_case.p99, p95=test_case.p95, p50=test_case.p50)
 
 
 def _get_document_metrics(
     test_case: IxpDocumentsMetricsTestCase,
 ) -> IxpDocumentsMetrics:
     return IxpDocumentsMetrics(
-        mean_document_field_error_rate=(
-            test_case.mean_document_field_error_rate
-        ),
+        mean_document_field_error_rate=(test_case.mean_document_field_error_rate),
         mean_num_pages_per_document=test_case.mean_num_pages_per_document,
         document_metrics=tuple(
-            IxpDocumentMetrics(
-                field_error_rate=document_metrics.field_error_rate
-            )
+            IxpDocumentMetrics(field_error_rate=document_metrics.field_error_rate)
             for document_metrics in test_case.documents_metrics
         ),
     )

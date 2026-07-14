@@ -25,6 +25,7 @@ dependencies = [
   "graphtty==0.1.8",
   "applicationinsights>=0.11.10",
   "pyyaml>=6.0, <7.0",
+  "python-dateutil>=2.9.0",
 ]
 classifiers = [
   "Intended Audience :: Developers",
@@ -54,6 +55,7 @@ build-backend = "hatchling.build"
 dev = [
   "bandit>=1.8.2",
   "mypy>=1.14.1",
+  "types-python-dateutil>=2.9.0",
   "ruff>=0.9.4",
   "rust-just>=1.39.0",
   "pytest>=7.4.0",
@@ -87,7 +89,16 @@ include = ["src/uipath/_resources"]
 [tool.ruff]
 line-length = 88
 indent-width = 4
-exclude = ["samples/**", "testcases/**"]
+exclude = [
+  "samples/**",
+  "testcases/**",
+  # Verbatim ports from ixp-platform/mls — byte parity is contractual,
+  # pinned by tests/evaluators/ixp golden fixtures. Do not lint/format.
+  "src/uipath/eval/evaluators/ixp/ixp.py",
+  "src/uipath/eval/evaluators/ixp/ranged_value.py",
+  "src/uipath/eval/evaluators/ixp/data_type_utils.py",
+  "src/uipath/eval/evaluators/ixp/moon.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "D"]
@@ -109,6 +120,8 @@ ignore-decorators = []
 "uipath/_cli/**" = ["D"]
 # TODO: Remove this once model documentation is added
 "src/uipath/models/**" = ["D101", "D100", "D104", "D102", "D107"]
+# Vendored IXP scoring port: upstream shapes kept as-is, docstrings not required
+"src/uipath/eval/evaluators/ixp/**" = ["D"]
 
 [tool.ruff.format]
 quote-style = "double"

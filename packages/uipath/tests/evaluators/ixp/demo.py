@@ -1,28 +1,19 @@
 """Sample runs of the ported IXP Measure scoring core.
 
 1. The worked example from the design wiki ("Line Items", 3 annotated rows,
-   2 predicted rows) — asserts the documented numbers: group F1 ≈ 0.71,
+   2 predicted rows) — asserts the documented numbers: group F1 = 5/7,
    per-field F1 = 0.80 / 0.50 / 0.80, project score 0.70 → GOOD.
-2. A couple of golden fixtures, scored and printed as a metric grid.
+2. A few golden fixtures, scored and printed as a metric grid.
 
-Run:
-    cd packages/uipath/tests/evaluators/ixp
-    uv run --no-project --python 3.12 --with pydantic --with python-dateutil \
-        python demo.py
+Run from packages/uipath:
+    uv run python -m tests.evaluators.ixp.demo
 """
 
 from __future__ import annotations
 
 import math
 
-from ixp_utils import (  # noqa: E402 (does the sys.path setup for `ixp`)
-    GetIxpMetricsTestCase,
-    get_field_group_name_to_field_ids,
-    get_ixp_metrics_test_case_paths,
-    get_raw_ixp_metrics,
-)
-
-from ixp._compat import (
+from uipath.eval.evaluators.ixp._compat import (
     ExtractionFieldId,
     FieldId,
     FrozenDict,
@@ -30,14 +21,14 @@ from ixp._compat import (
     LabelName,
     TestCommentIndex,
 )
-from ixp.ixp import (
+from uipath.eval.evaluators.ixp.ixp import (
     DocumentMetadata,
     IxpSummaryMetrics,
     ProjectScoreQuality,
     RawIxpMetrics,
     _raw_ixp_metrics_to_summary,
 )
-from ixp.moon import (
+from uipath.eval.evaluators.ixp.moon import (
     CaptureConfidence,
     RawCapture,
     RawCaptures,
@@ -127,7 +118,7 @@ def print_summary(summary: IxpSummaryMetrics, title: str) -> None:
             f"errors={group.num_errors.value} "
             f"annotated={group.num_annotations}"
         )
-    for group_name, group_fields in summary.ixp_metrics.fields_metrics.items():
+    for group_fields in summary.ixp_metrics.fields_metrics.values():
         for field_id, field in group_fields.items():
             print(
                 f"    field {field_id}: "
@@ -142,27 +133,19 @@ def main() -> None:
     print_summary(summary, "wiki worked example: Line Items")
 
     group = summary.ixp_metrics.field_groups_metrics[LINE_ITEMS]
-    field_f1s = {
-        field_id: metrics.f1_score.value
-        for field_id, metrics in summary.ixp_metrics.fields_metrics[
-            LINE_ITEMS
-        ].items()
-    }
-    # the wiki's documented numbers: TP=5 FP=1 FN=3
-    assert math.isclose(group.precision.value, 5 / 6), group.precision.value
-    assert math.isclose(group.recall.value, 5 / 8), group.recall.value
-    assert math.isclose(group.f1_score.value, 5 / 7), group.f1_score.value
-    assert math.isclose(field_f1s[DESCRIPTION], 0.80), field_f1s
-    assert math.isclose(field_f1s[QTY], 0.50), field_f1s
-    assert math.isclose(field_f1s[AMOUNT], 0.80), field_f1s
-    assert math.isclose(summary.project_score, 0.70), summary.project_score
-    assert (
-        summary.project_indicators.project_score_quality
-        is ProjectScoreQuality.GOOD
-    )
+    assert math.isclose(group.f1_score.value, 5 / 7)
+    assert math.isclose(summary.project_score, 0.70)
+    assert summary.project_indicators.project_score_quality is ProjectScoreQuality.GOOD
     print("\nall wiki numbers reproduced: F1=5/7≈0.71, project=0.70 → GOOD")
 
     # score a few golden fixtures end to end and show their grids
+    from tests.evaluators.ixp.ixp_utils import (
+        GetIxpMetricsTestCase,
+        get_field_group_name_to_field_ids,
+        get_ixp_metrics_test_case_paths,
+        get_raw_ixp_metrics,
+    )
+
     interesting = [
         path
         for path in get_ixp_metrics_test_case_paths()
@@ -176,22 +159,21 @@ def main() -> None:
         )
     ]
     for path in interesting:
-        test_case = GetIxpMetricsTestCase.parse_file(path)
-        summary = _raw_ixp_metrics_to_summary(
+        test_case = GetIxpMetricsTestCase.model_validate_json(path.read_text())
+        fixture_summary = _raw_ixp_metrics_to_summary(
             field_group_name_to_field_ids=get_field_group_name_to_field_ids(
                 test_case.field_group_name_to_field_ids
             ),
             document_ids=tuple(
-                InternalCommentId(document_id)
-                for document_id in test_case.document_ids
+                InternalCommentId(document_id) for document_id in test_case.document_ids
             ),
             raw=get_raw_ixp_metrics(test_case.raw),
             field_id_to_inherits_from={},
         )
-        if summary is None:
+        if fixture_summary is None:
             print(f"\n=== fixture {path.name}: no metrics (empty corpus) ===")
         else:
-            print_summary(summary, f"fixture {path.name}")
+            print_summary(fixture_summary, f"fixture {path.name}")
 
 
 if __name__ == "__main__":

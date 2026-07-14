@@ -2558,6 +2558,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-python-dateutil"
+version = "2.9.0.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/e8/c01bdf0d7c3659428c091fbd693177093639565bcbc86bc20098e6d37cc6/types_python_dateutil-2.9.0.20260518.tar.gz", hash = "sha256:51f02dc03b61c7f6a07df45797d4dfe8a1aa47f0b7db9ad89f6fd3a1a70e1b51", size = 17082, upload-time = "2026-05-18T06:05:24.508Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/22/169273273ca34e9ab0ae2f387ba72ed7e09faaaf834da01d6b89c2bea71a/types_python_dateutil-2.9.0.20260518-py3-none-any.whl", hash = "sha256:d6a9c5bd0de61460c8fdef8ab2b400f956a1a1075cce08d4e2b4434e478c50b8", size = 18431, upload-time = "2026-05-18T06:05:23.641Z" },
+]
+
+[[package]]
 name = "types-pyyaml"
 version = "6.0.12.20260518"
 source = { registry = "https://pypi.org/simple" }
@@ -2612,6 +2621,7 @@ dependencies = [
     { name = "pydantic-function-models" },
     { name = "pyjwt" },
     { name = "pysignalr" },
+    { name = "python-dateutil" },
     { name = "python-dotenv" },
     { name = "python-socketio" },
     { name = "pyyaml" },
@@ -2648,6 +2658,7 @@ dev = [
     { name = "rust-just" },
     { name = "termynal" },
     { name = "tomli-w" },
+    { name = "types-python-dateutil" },
     { name = "types-pyyaml" },
     { name = "types-toml" },
     { name = "virtualenv" },
@@ -2666,6 +2677,7 @@ requires-dist = [
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pysignalr", specifier = "==1.3.0" },
+    { name = "python-dateutil", specifier = ">=2.9.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "python-socketio", specifier = ">=5.15.0,<6.0.0" },
     { name = "pyyaml", specifier = ">=6.0,<7.0" },
@@ -2702,6 +2714,7 @@ dev = [
     { name = "rust-just", specifier = ">=1.39.0" },
     { name = "termynal", specifier = ">=0.13.1" },
     { name = "tomli-w", specifier = ">=1.2.0" },
+    { name = "types-python-dateutil", specifier = ">=2.9.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
     { name = "types-toml", specifier = ">=0.10.8" },
     { name = "virtualenv", specifier = ">=20.36.1" },

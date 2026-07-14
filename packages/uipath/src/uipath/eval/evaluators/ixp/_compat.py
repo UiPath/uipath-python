@@ -2,6 +2,12 @@
 depends on. Every symbol here mirrors its upstream definition exactly where
 behavior matters for metric parity (identity-compared enums, ID wrappers,
 rounding, whitespace normalization); see the upstream paths in each section.
+
+Do NOT "clean up" or modernize anything in this file: the shapes and edge
+cases are contractual with ixp-platform's Measure page numbers, and parity
+is pinned only by the golden fixtures in tests/evaluators/ixp. Any change
+here must be mirrored upstream (which requires a metrics-cache version bump
+there — see the note at the top of upstream metrics/ixp.py).
 """
 
 import math
@@ -17,9 +23,7 @@ from typing import Any, Generic, NamedTuple, NewType, TypeVar, Union, overload
 def round_to_significant_figures(target: float, num_figures: int) -> float:
     if target == 0.0:
         return 0.0
-    return round(
-        target, -int(math.floor(math.log10(abs(target)))) + (num_figures - 1)
-    )
+    return round(target, -int(math.floor(math.log10(abs(target)))) + (num_figures - 1))
 
 
 def round_like_javascript(value: float, num_figures: int) -> float:
@@ -31,7 +35,12 @@ def round_like_javascript(value: float, num_figures: int) -> float:
 
 # --- uipath_mls_common/normalize.py (regex module swapped for stdlib re) ---
 
-_RX_ALL_WHITESPACE = re.compile(r"\s+")
+# Upstream uses the third-party `regex` module, whose \s does NOT match the
+# control chars U+001C-U+001F (FS/GS/RS/US); stdlib re's \s does. The class
+# below is "whitespace except U+001C-U+001F" so interior occurrences are
+# preserved exactly as upstream preserves them (leading/trailing ones are
+# stripped by str.strip() on both sides).
+_RX_ALL_WHITESPACE = re.compile(r"[^\S\x1c-\x1f]+")
 _RX_ZERO_WIDTH_CHARACTERS = re.compile(
     "\\u180e|\\u200b|\\u200c|\\u200d|\\u2060|\\ufeff"
 )
@@ -209,7 +218,7 @@ ENTITY_DEF_ID_EXTRACTION_BOOLEAN = EntityDefId.builtin_from_int(70)
 # --- uipath_mls_common/currency.py (member names are the contract;
 #     upstream values are proto ints, only identity is compared) ---
 
-Currency = Enum(  # type: ignore[misc]
+Currency = Enum(
     "Currency",
     "AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND "
     "BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU "
@@ -245,7 +254,7 @@ class ThreeDateDisambiguation(Enum):
     AS_MISSING = auto()
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, weakref_slot=True, frozen=True)
 class FieldChoice:
     name: FieldChoiceName
     formatted: str
@@ -258,7 +267,9 @@ class ChoiceFieldFlag(Enum):
     ALLOW_OUT_OF_DOMAIN = auto()
 
 
-# --- metrics/labels.py PRPrediction (the one symbol ixp.py needs) ---
+# --- metrics/labels.py PRPrediction. Imported by ixp.py only to feed its
+#     pr_predictions accumulator, which is built and never returned (dead
+#     upstream too) — kept so the verbatim ixp.py body imports cleanly. ---
 
 
 class PRPrediction(NamedTuple):
