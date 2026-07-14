@@ -102,16 +102,8 @@ def test_ixp_metrics_from_moon_golden(path: Path) -> None:
 
 # --- test_ranged_value.py numeric table (verbatim expected numbers) ---
 
-RANGED_VALUE_CASES: list[
-    tuple[
-        tuple[int, ...],
-        tuple[int, ...],
-        float,
-        tuple[float, float | None],
-        tuple[int, float | None],
-    ]
-] = [
-    # (numerators, denominators, zero_division, from_mean, from_sum)
+# (numerators, denominators, zero_division, from_mean, from_sum)
+RANGED_VALUE_CASES = [
     ((), (), 0.5767, (0.5767, None), (0, None)),
     ((5,), (10,), 0.5767, (0.5, None), (5, None)),
     ((5, 7), (10, 9), 0.5767, (0.63157895, 0.07911095), (12, 1.5031081)),
