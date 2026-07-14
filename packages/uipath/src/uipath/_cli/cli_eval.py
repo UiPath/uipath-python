@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import uuid
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
@@ -468,40 +469,42 @@ def eval(
                             )
                         )
 
-                        runtime = await runtime_factory.new_runtime(
-                            entrypoint=eval_context.entrypoint or "",
-                            runtime_id=eval_context.execution_id,
-                            settings=settings_override,
-                            agent_memory_settings=agent_memory_settings_override,
-                        )
+                        # Resource overwrites must be in scope before any runtime is
+                        # created: building the agent graph resolves folder-scoped
+                        # resources (e.g. escalation memory spaces) at tool-creation
+                        # time, and those lookups need the overwritten folder paths.
+                        async with AsyncExitStack() as stack:
+                            if project_id:
+                                studio_client = StudioClient(project_id)
 
-                        eval_context.runtime_schema = await runtime.get_schema()
-
-                        eval_context.evaluators = await EvalHelpers.load_evaluators(
-                            resolved_eval_set_path,
-                            eval_context.evaluation_set,
-                            get_agent_model(eval_context.runtime_schema),
-                        )
-
-                        # Runtime is not required anymore.
-                        await runtime.dispose()
-
-                        if project_id:
-                            studio_client = StudioClient(project_id)
-
-                            async with ResourceOverwritesContext(
-                                lambda: studio_client.get_resource_overwrites()
-                            ):
-                                ctx.result = await evaluate(
-                                    runtime_factory,
-                                    trace_manager,
-                                    eval_context,
-                                    event_bus,
+                                await stack.enter_async_context(
+                                    ResourceOverwritesContext(
+                                        lambda: studio_client.get_resource_overwrites()
+                                    )
                                 )
-                        else:
-                            logger.debug(
-                                "No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites"
+                            else:
+                                logger.debug(
+                                    "No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites"
+                                )
+
+                            runtime = await runtime_factory.new_runtime(
+                                entrypoint=eval_context.entrypoint or "",
+                                runtime_id=eval_context.execution_id,
+                                settings=settings_override,
+                                agent_memory_settings=agent_memory_settings_override,
                             )
+
+                            eval_context.runtime_schema = await runtime.get_schema()
+
+                            eval_context.evaluators = await EvalHelpers.load_evaluators(
+                                resolved_eval_set_path,
+                                eval_context.evaluation_set,
+                                get_agent_model(eval_context.runtime_schema),
+                            )
+
+                            # Runtime is not required anymore.
+                            await runtime.dispose()
+
                             ctx.result = await evaluate(
                                 runtime_factory,
                                 trace_manager,
