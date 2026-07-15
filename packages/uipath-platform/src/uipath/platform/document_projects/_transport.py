@@ -15,9 +15,8 @@ builds on:
   ``quote(safe="")`` (``/`` -> ``%2F``, space -> ``%20``).
 * **No retry on writes** — unlike the platform default, non-idempotent verbs
   (POST/PUT/PATCH, including multipart upload) and DELETE are **not** retried,
-  matching the CLI SDK's zero-retry contract so a transient 5xx cannot
-  double-create or double-confirm. Only idempotent GETs keep the platform
-  retry policy.
+  so a transient 5xx cannot double-create or double-confirm a design-time
+  mutation. Only idempotent GETs keep the platform retry policy.
 * **Multipart upload / binary download** — helpers for the ``file`` multipart
   field and for reading raw bytes + content-type back.
 
@@ -203,7 +202,7 @@ class IxpDesigntimeService(BaseService):
         body: Optional[Any] = None,
         params: Optional[dict[str, Any]] = None,
     ) -> Response:
-        """POST (not retried). A ``None`` body is sent as ``{}`` (matching the CLI SDK)."""
+        """POST (not retried). A ``None`` body is sent as ``{}`` (an empty JSON object)."""
         return self._send(
             "POST", endpoint, params=params, json=body if body is not None else {}
         )
