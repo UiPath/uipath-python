@@ -489,6 +489,15 @@ class TestEntitiesService:
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert "queryOptions" not in body
 
+    def test_query_entity_records_flag_is_keyword_only(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        # A second positional arg (as an old ``source`` call would pass) must be
+        # rejected rather than silently coerced into ``relationships_as_scalar``.
+        with pytest.raises(TypeError):
+            service.query_entity_records("SELECT id FROM Customers LIMIT 10", True)
+
     @pytest.mark.anyio
     async def test_query_entity_records_async_rejects_invalid_sql_before_network_call(
         self,

@@ -1821,7 +1821,7 @@ class EntitiesService(BaseService):
     @attach_datafabric_error_mapping("query_entity_records")
     @traced(name="entity_query_records", run_type="uipath")
     def query_entity_records(
-        self, sql_query: str, relationships_as_scalar: bool = False
+        self, sql_query: str, *, relationships_as_scalar: bool = False
     ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
@@ -1853,7 +1853,7 @@ class EntitiesService(BaseService):
     @attach_datafabric_error_mapping("query_entity_records_async")
     @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(
-        self, sql_query: str, relationships_as_scalar: bool = False
+        self, sql_query: str, *, relationships_as_scalar: bool = False
     ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
