@@ -127,6 +127,8 @@ class GuardrailsService(BaseService):
                     "BYO (Bring Your Own) guardrails require byo_validator_name."
                 )
             payload["byoValidatorName"] = guardrail.byo_validator_name
+            if guardrail.byo_connection_id:
+                payload["byoConnectionId"] = guardrail.byo_connection_id
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
