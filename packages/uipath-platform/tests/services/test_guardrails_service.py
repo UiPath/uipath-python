@@ -529,6 +529,49 @@ class TestGuardrailsService:
             request_payload = json.loads(captured_request.content)
             assert "byoValidatorName" not in request_payload
 
+        def test_evaluate_guardrail_non_byo_type_does_not_forward_connection_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """byoConnectionId is only forwarded for the "byo" sentinel, never leaked
+            into a non-BYOG validator payload even if the field happens to be set."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII detection guardrail",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                byo_connection_id="stray-conn",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoConnectionId" not in request_payload
+
         def test_evaluate_guardrail_ootb_omits_byo_validator_name(
             self,
             httpx_mock: HTTPXMock,
