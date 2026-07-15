@@ -1,7 +1,7 @@
-"""Transport foundation for the IXP design-time API.
+"""Base service for the IXP design-time API.
 
 All IXP design-time endpoints live under ``du_/api/designtimeapi`` and share a
-small set of transport conventions that differ from the rest of the platform
+small set of HTTP conventions that differ from the rest of the platform
 SDK. This module centralises them in :class:`IxpDesigntimeService`, the base
 class every IXP service (projects, taxonomy, labellings, documents, models)
 builds on:

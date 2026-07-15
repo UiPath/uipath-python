@@ -1,6 +1,6 @@
-"""Tests for the IXP design-time transport foundation (``platform/document_projects/_transport``).
+"""Tests for the IXP design-time base service (``platform/document_projects/_base_service``).
 
-Cover the design-time transport conventions this layer enforces:
+Cover the design-time HTTP conventions this layer enforces:
 the ``du_/api/designtimeapi`` base path, the mandatory ``api-version=1.0`` query
 param, strict path-segment percent-encoding, ``{}`` as the empty write body,
 multipart ``file`` upload, binary download, and — the load-bearing one — that
