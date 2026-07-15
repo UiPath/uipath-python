@@ -2,8 +2,8 @@
 
 :class:`DocumentProjectsService` is the entry point reached via
 ``sdk.document_projects``. It groups the design-time resource services under
-properties that mirror the CLI's command groups (``uip ixp projects``,
-``uip ixp fields``, ...), so callers write ``sdk.document_projects.projects.list()``.
+properties named for each resource (``projects``, ``fields``, ...), so callers
+write ``sdk.document_projects.projects.list()``.
 
 Only the ``projects`` resource is wired today; sibling resources (fields,
 data-types, groups, documents, labellings, deployments) are added as their

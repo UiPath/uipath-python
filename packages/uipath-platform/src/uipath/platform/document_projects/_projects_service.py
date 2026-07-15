@@ -1,9 +1,9 @@
 """Design-time projects resource service.
 
-:class:`ProjectsService` covers the project lifecycle exposed by the CLI's
-``uip ixp projects`` group core verbs — list, retrieve, create, update (title),
-delete — over ``du_/api/designtimeapi``. Sub-resources of a project (fields,
-data-types, taxonomy, documents, models, ...) are handled by sibling services.
+:class:`ProjectsService` covers the design-time project lifecycle — list,
+retrieve, create, update (title), delete — over ``du_/api/designtimeapi``.
+Sub-resources of a project (fields, data-types, taxonomy, documents, models,
+...) are handled by sibling services.
 
 It builds on :class:`IxpDesigntimeService`, so writes (create/update/delete) are
 **not** retried while list/retrieve keep the platform retry policy.
@@ -11,8 +11,8 @@ It builds on :class:`IxpDesigntimeService`, so writes (create/update/delete) are
 
 from uipath.core.tracing import traced
 
-from ._models import DeleteProjectResponse, Project, ProjectsPage
 from ._base_service import IxpDesigntimeService
+from ._models import DeleteProjectResponse, Project, ProjectsPage
 
 #: Default project-list page size — matches the design-time API's server-side default.
 DEFAULT_LIST_LIMIT = 50
