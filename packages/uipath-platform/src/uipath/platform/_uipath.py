@@ -18,6 +18,7 @@ from .common import (
 from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
+from .document_projects import DocumentProjectsService
 from .documents import DocumentsService
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
@@ -125,6 +126,10 @@ class UiPath:
     @property
     def documents(self) -> DocumentsService:
         return DocumentsService(self._config, self._execution_context)
+
+    @property
+    def document_projects(self) -> DocumentProjectsService:
+        return DocumentProjectsService(self._config, self._execution_context)
 
     @property
     def queues(self) -> QueuesService:
