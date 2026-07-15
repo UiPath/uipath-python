@@ -350,6 +350,109 @@ class TestGuardrailsService:
             assert request_payload["byoValidatorName"] == "my_databricks_pii"
             assert result.result == GuardrailValidationResultType.PASSED
 
+        def test_evaluate_guardrail_byog_forwards_byo_connection_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """A BYOG guardrail forwards byoConnectionId so the backend can narrow
+            configuration resolution to the specific connection."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            byog_guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Databricks PII (BYOG)",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                byo_validator_name="my_databricks_pii",
+                byo_connection_id="byog-conn-1",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", byog_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert request_payload["byoValidatorName"] == "my_databricks_pii"
+            assert request_payload["byoConnectionId"] == "byog-conn-1"
+
+        def test_evaluate_guardrail_byog_omits_connection_id_when_absent(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """byoConnectionId is only forwarded when present; a BYOG guardrail without
+            one resolves by validator name alone."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            byog_guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Databricks PII (BYOG)",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                byo_validator_name="my_databricks_pii",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", byog_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoConnectionId" not in request_payload
+
+        def test_evaluate_guardrail_byo_connection_id_from_alias(self) -> None:
+            """byoConnectionId parses into the typed field via its camelCase alias."""
+            guardrail = BuiltInValidatorGuardrail.model_validate(
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "byog-id",
+                    "name": "BYOG",
+                    "validatorType": "byo",
+                    "byoValidatorName": "my_databricks_pii",
+                    "byoConnectionId": "byog-conn-1",
+                    "validatorParameters": [],
+                }
+            )
+            assert guardrail.byo_connection_id == "byog-conn-1"
+
         def test_evaluate_guardrail_byo_without_name_raises(
             self,
             service: GuardrailsService,
