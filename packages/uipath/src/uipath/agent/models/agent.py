@@ -1218,7 +1218,7 @@ class AgentGuardrailEscalateAction(BaseModel):
     action_type: Literal[AgentGuardrailActionType.ESCALATE] = Field(
         alias="$actionType", default=AgentGuardrailActionType.ESCALATE, frozen=True
     )
-    app: AgentGuardrailEscalateActionApp
+    app: Optional[AgentGuardrailEscalateActionApp] = None
     recipient: "AgentEscalationRecipient"  # forward ref ok
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
