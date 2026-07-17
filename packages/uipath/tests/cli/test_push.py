@@ -712,6 +712,80 @@ class TestPush:
                 in result.output
             )
 
+    def test_first_push_to_uninitialized_project(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test push when the remote file system was never initialized.
+
+        The backend returns 404 from FileOperations/Structure for projects
+        whose file system does not exist yet (e.g. a freshly created Function
+        project). The first push should bootstrap the files instead of failing
+        the coded-agent validation.
+        """
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        # Uninitialized file system: Structure returns 404
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            status_code=404,
+            json={
+                "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+                "title": "Not Found",
+                "status": 404,
+            },
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        # Empty folder cleanup - get structure again after migration
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json={
+                "id": "root",
+                "name": "root",
+                "folders": [],
+                "files": [],
+                "folderType": "0",
+            },
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            with open("uv.lock", "w") as f:
+                f.write('version = 1 \n requires-python = ">=3.11"')
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+            assert "not of type coded agent" not in result.output
+            assert "Uploading 'main.py'" in result.output
+            assert "Uploading 'pyproject.toml'" in result.output
+            assert "Uploading 'uipath.json'" in result.output
+            assert "Uploading 'uv.lock'" in result.output
+            assert "Uploading '.uipath/studio_metadata.json'" in result.output
+
     def test_push_with_nolock_flag(
         self,
         runner: CliRunner,
