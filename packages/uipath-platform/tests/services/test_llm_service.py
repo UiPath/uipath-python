@@ -543,3 +543,128 @@ class TestNormalizedLlmServiceClaudeFiltering:
         assert "presence_penalty" not in request_body
         assert "top_p" not in request_body
         assert request_body["max_tokens"] == 8000
+
+
+class TestNormalizedLlmServiceReasoningModelFiltering:
+    """Test that reasoning models (o1, o3, o4) correctly filter out unsupported sampling parameters.
+
+    OpenAI reasoning models do NOT support temperature, top_p, frequency_penalty,
+    presence_penalty, or n, and sending them causes 400 errors.
+    """
+
+    @pytest.fixture
+    def config(self):
+        return UiPathApiConfig(base_url="https://example.com", secret="test_secret")
+
+    @pytest.fixture
+    def execution_context(self):
+        return UiPathExecutionContext()
+
+    @pytest.fixture
+    def llm_service(self, config, execution_context):
+        from uipath.platform.chat._llm_gateway_service import UiPathLlmChatService
+
+        return UiPathLlmChatService(config=config, execution_context=execution_context)
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "o3-mini-2025-01-31",
+            "o4-mini-2025-04-16",
+            "o1-2024-12-17",
+            "o1-mini-2024-09-12",
+            "o3-2025-04-16",
+        ],
+    )
+    @patch(
+        "uipath.platform.chat._llm_gateway_service.UiPathLlmChatService.request_async"
+    )
+    @pytest.mark.asyncio
+    async def test_reasoning_model_excludes_sampling_params(
+        self, mock_request, llm_service, model
+    ):
+        """Test that reasoning models do not include temperature or other sampling params."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        mock_request.return_value = mock_response
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "Hello"}],
+            model=model,
+            max_tokens=1000,
+        )
+
+        call_kwargs = mock_request.call_args[1]
+        request_body = call_kwargs["json"]
+
+        assert "temperature" not in request_body, (
+            f"Reasoning model {model} request must not include 'temperature'"
+        )
+        assert "n" not in request_body, (
+            f"Reasoning model {model} request must not include 'n'"
+        )
+        assert "frequency_penalty" not in request_body, (
+            f"Reasoning model {model} request must not include 'frequency_penalty'"
+        )
+        assert "presence_penalty" not in request_body, (
+            f"Reasoning model {model} request must not include 'presence_penalty'"
+        )
+        assert "top_p" not in request_body, (
+            f"Reasoning model {model} request must not include 'top_p'"
+        )
+        assert request_body["max_tokens"] == 1000
+
+    @patch(
+        "uipath.platform.chat._llm_gateway_service.UiPathLlmChatService.request_async"
+    )
+    @pytest.mark.asyncio
+    async def test_non_reasoning_model_includes_temperature(
+        self, mock_request, llm_service
+    ):
+        """Test that non-reasoning models still include temperature and sampling params."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "gpt-4.1-mini-2025-04-14",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Hello"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }
+        mock_request.return_value = mock_response
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "Hello"}],
+            model="gpt-4.1-mini-2025-04-14",
+            max_tokens=1000,
+            temperature=0.5,
+        )
+
+        call_kwargs = mock_request.call_args[1]
+        request_body = call_kwargs["json"]
+
+        assert request_body["temperature"] == 0.5
+        assert "n" in request_body
+        assert "frequency_penalty" in request_body
+        assert "presence_penalty" in request_body
