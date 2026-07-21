@@ -862,3 +862,165 @@ async def test_create_quickform_async_with_assignee_triggers_assign_call(
     await qf_runner_async(assignee="user@example.com")
     body = _posted_body(httpx_mock, qf_assign_url)
     assert body["taskAssignments"][0]["UserNameOrEmail"] == "user@example.com"
+
+
+# ---------------------------------------------------------------------------
+# JIT (debug) app task tests
+# ---------------------------------------------------------------------------
+
+_JIT_FLAG_ENV = "UIPATH_FEATURE_EnableJITEscalationApps"
+_APP_SCHEMAS_PATH = "deployed-action-apps-schemas"
+
+
+@pytest.fixture
+def create_task_url(base_url: str, org: str, tenant: str) -> str:
+    return f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask"
+
+
+@pytest.fixture
+def jit_debug_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Enable the JIT flag and place the process in a Studio debug run."""
+    monkeypatch.setenv(_JIT_FLAG_ENV, "true")
+    monkeypatch.setenv("UIPATH_PROJECT_ID", "project-1")
+    monkeypatch.setenv("UIPATH_TRACE_ID", "trace-1")
+    monkeypatch.setenv("UIPATH_TENANT_ID", "test-tenant-id")
+
+
+def _mock_create_task(httpx_mock: HTTPXMock, create_task_url: str) -> None:
+    httpx_mock.add_response(
+        url=create_task_url, status_code=200, json={"id": 1, "title": "Test Action"}
+    )
+
+
+def _requested_app_schemas(httpx_mock: HTTPXMock) -> bool:
+    return any(_APP_SCHEMAS_PATH in str(r.url) for r in httpx_mock.get_requests())
+
+
+def test_create_jit_sends_app_name_and_folder_path_without_resolving(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    task = service.create(
+        title="Test Action",
+        app_name="my-inline-app",
+        app_folder_path="Shared/Apps",
+        data={"test": "data"},
+    )
+
+    assert isinstance(task, Task)
+    body = _posted_body(httpx_mock, create_task_url)
+    # The app may not be deployed yet: the name is sent instead of an app id, which
+    # Action Center fills in once it resolves the app. No deployed-apps lookup happens.
+    assert body["appName"] == "my-inline-app"
+    assert "appId" not in body
+    assert body["folderPath"] == "Shared/Apps"
+    assert body["taskSource"]["isDebug"] is True
+    assert not _requested_app_schemas(httpx_mock)
+
+
+async def test_create_async_jit_sends_app_name_and_folder_path_without_resolving(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    task = await service.create_async(
+        title="Test Action",
+        app_name="my-inline-app",
+        app_folder_path="Shared/Apps",
+    )
+
+    assert isinstance(task, Task)
+    body = _posted_body(httpx_mock, create_task_url)
+    assert body["appName"] == "my-inline-app"
+    assert "appId" not in body
+    assert body["folderPath"] == "Shared/Apps"
+    assert body["taskSource"]["isDebug"] is True
+    assert not _requested_app_schemas(httpx_mock)
+
+
+def test_create_jit_carries_no_action_schema(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    service.create(
+        title="Test Action",
+        app_name="my-inline-app",
+        app_folder_path="Shared/Apps",
+        data={"test": "data"},
+    )
+
+    # Action Center builds the fields from the app it resolves, so nothing is
+    # derived from a schema here.
+    body = _posted_body(httpx_mock, create_task_url)
+    assert body["actionableMessageMetaData"] == {}
+    assert body["data"] == {"test": "data"}
+
+
+def test_create_skips_jit_when_flag_disabled(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    base_url: str,
+    org: str,
+) -> None:
+    monkeypatch.setenv(_JIT_FLAG_ENV, "false")
+    httpx_mock.add_response(
+        url=f"{base_url}{org}/apps_/default/api/v1/default/{_APP_SCHEMAS_PATH}?search=my-app&filterByDeploymentTitle=true",
+        status_code=200,
+        json={"deployed": [_make_deployed_app("my-app", "Shared/Apps", "folder-key")]},
+    )
+    _mock_create_task(httpx_mock, create_task_url)
+
+    service.create(
+        title="Test Action",
+        app_name="my-app",
+        app_folder_path="Shared/Apps",
+    )
+
+    body = _posted_body(httpx_mock, create_task_url)
+    assert body["appId"] == "my-app"  # resolved systemName, not the JIT passthrough
+    # Action Center rejects a name it is not allowed to resolve, so none is sent.
+    assert "appName" not in body
+    assert body["folderPath"] == "Shared/Apps"
+    assert "isDebug" not in body["taskSource"]
+    assert _requested_app_schemas(httpx_mock)
+
+
+def test_create_skips_jit_when_not_a_studio_project(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    base_url: str,
+    org: str,
+) -> None:
+    monkeypatch.delenv("UIPATH_PROJECT_ID")
+    httpx_mock.add_response(
+        url=f"{base_url}{org}/apps_/default/api/v1/default/{_APP_SCHEMAS_PATH}?search=my-app&filterByDeploymentTitle=true",
+        status_code=200,
+        json={"deployed": [_make_deployed_app("my-app", "Shared/Apps", "folder-key")]},
+    )
+    _mock_create_task(httpx_mock, create_task_url)
+
+    service.create(
+        title="Test Action",
+        app_name="my-app",
+        app_folder_path="Shared/Apps",
+    )
+
+    assert _requested_app_schemas(httpx_mock)
+    assert _posted_body(httpx_mock, create_task_url)["folderPath"] == "Shared/Apps"

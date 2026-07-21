@@ -29,6 +29,8 @@ import json
 import os
 from typing import Any
 
+JIT_ESCALATION_APPS_FEATURE_FLAG = "EnableJITEscalationApps"
+
 
 def _parse_env_value(raw: str) -> Any:
     """Convert an environment variable string to a Python value.
