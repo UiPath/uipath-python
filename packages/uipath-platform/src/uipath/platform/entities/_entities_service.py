@@ -1821,7 +1821,7 @@ class EntitiesService(BaseService):
     @attach_datafabric_error_mapping("query_entity_records")
     @traced(name="entity_query_records", run_type="uipath")
     def query_entity_records(
-        self, sql_query: str, source: Optional[str] = None
+        self, sql_query: str, *, relationships_as_scalar: bool = False
     ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
@@ -1831,9 +1831,11 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
-            source (str, optional): Value for the ``x-uipath-source`` header on the
-                query/execute request, identifying the calling surface (e.g.
-                ``"LOW_CODE_AGENT"``). Omitted from the request when not set.
+            relationships_as_scalar (bool, optional): When ``True``, relationship (FK)
+                fields are typed as their underlying scalar id instead of ``VARIANT``,
+                so a query can join on ``relationshipField = Other.Id``. Sent as
+                ``queryOptions.relationshipsAsScalar`` in the request body. Defaults to
+                ``False`` (unchanged behaviour).
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -1846,12 +1848,12 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return self._data.query_entity_records(sql_query, source)
+        return self._data.query_entity_records(sql_query, relationships_as_scalar)
 
     @attach_datafabric_error_mapping("query_entity_records_async")
     @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(
-        self, sql_query: str, source: Optional[str] = None
+        self, sql_query: str, *, relationships_as_scalar: bool = False
     ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
@@ -1861,9 +1863,11 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
-            source (str, optional): Value for the ``x-uipath-source`` header on the
-                query/execute request, identifying the calling surface (e.g.
-                ``"LOW_CODE_AGENT"``). Omitted from the request when not set.
+            relationships_as_scalar (bool, optional): When ``True``, relationship (FK)
+                fields are typed as their underlying scalar id instead of ``VARIANT``,
+                so a query can join on ``relationshipField = Other.Id``. Sent as
+                ``queryOptions.relationshipsAsScalar`` in the request body. Defaults to
+                ``False`` (unchanged behaviour).
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -1876,7 +1880,9 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return await self._data.query_entity_records_async(sql_query, source)
+        return await self._data.query_entity_records_async(
+            sql_query, relationships_as_scalar
+        )
 
     @traced(name="entity_upload_attachment", run_type="uipath")
     def upload_attachment(

@@ -459,7 +459,7 @@ class TestEntitiesService:
         assert result == [{"id": 1}, {"id": 2}]
         service._data.request.assert_called_once()
 
-    def test_query_entity_records_sets_source_header_when_provided(
+    def test_query_entity_records_sets_relationships_as_scalar_option_when_true(
         self,
         service: EntitiesService,
     ) -> None:
@@ -468,13 +468,14 @@ class TestEntitiesService:
         service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
 
         service.query_entity_records(
-            "SELECT id FROM Customers WHERE id > 0", source="LOW_CODE_AGENT"
+            "SELECT id FROM Customers WHERE id > 0", relationships_as_scalar=True
         )
 
-        headers = service._data.request.call_args.kwargs.get("headers") or {}
-        assert headers.get("x-uipath-source") == "LOW_CODE_AGENT"
+        call_kwargs = service._data.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {"relationshipsAsScalar": True}
 
-    def test_query_entity_records_omits_source_header_by_default(
+    def test_query_entity_records_omits_query_options_by_default(
         self,
         service: EntitiesService,
     ) -> None:
@@ -484,8 +485,18 @@ class TestEntitiesService:
 
         service.query_entity_records("SELECT id FROM Customers WHERE id > 0")
 
-        headers = service._data.request.call_args.kwargs.get("headers") or {}
-        assert "x-uipath-source" not in headers
+        call_kwargs = service._data.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert "queryOptions" not in body
+
+    def test_query_entity_records_flag_is_keyword_only(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        # A second positional arg (as an old ``source`` call would pass) must be
+        # rejected rather than silently coerced into ``relationships_as_scalar``.
+        with pytest.raises(TypeError):
+            service.query_entity_records("SELECT id FROM Customers LIMIT 10", True)
 
     @pytest.mark.anyio
     async def test_query_entity_records_async_rejects_invalid_sql_before_network_call(
@@ -517,6 +528,23 @@ class TestEntitiesService:
 
         assert result == [{"id": "c1"}]
         service._data.request_async.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_query_entity_records_async_sets_relationships_as_scalar_option(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.query_entity_records_async(
+            "SELECT id FROM Customers WHERE id > 0", relationships_as_scalar=True
+        )
+
+        call_kwargs = service._data.request_async.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {"relationshipsAsScalar": True}
 
     def test_query_entity_records_builds_routing_context_from_folders_map(
         self,
