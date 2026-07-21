@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import uuid
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
@@ -119,6 +120,67 @@ def _resolve_model_settings_override(
     return override if override else None
 
 
+def _resolve_agent_memory_settings_override(
+    agent_memory_settings_id: str, evaluation_set: EvaluationSet
+) -> dict[str, Any]:
+    """Resolve agent memory settings override from evaluation set.
+
+    Evaluation runs never consume agent memory unless the evaluation set
+    explicitly enables it (agentMemoryEnabled), mirroring the Agents
+    backend behavior for eval runs.
+
+    Returns:
+        Memory override dict passed to the factory via the
+        agent_memory_settings kwarg. ``{"enabled": False}`` disables agent
+        memory for the run; ``{"enabled": True, ...}`` force-enables it with
+        the selected settings ("same-as-agent" values preserve the agent's
+        own configuration).
+    """
+    if not evaluation_set.agent_memory_enabled:
+        return {"enabled": False}
+
+    # "NoMemory" is a sentinel id meaning "run without memory", matching the
+    # Agents backend (ApplyAgentMemorySettingsOverride removes the memorySpace
+    # feature for a null or "NoMemory" setting). Its entry's field values are
+    # also "NoMemory" strings, so it must never be applied as real settings.
+    if agent_memory_settings_id == "NoMemory":
+        return {"enabled": False}
+
+    memory_settings = evaluation_set.agent_memory_settings
+    target = None
+    if agent_memory_settings_id:
+        # "default" is looked up like any other id: the eval-set editor persists a
+        # "default" entry (all fields "same-as-agent") alongside user-defined ones.
+        target = next(
+            (ms for ms in memory_settings if ms.id == agent_memory_settings_id),
+            None,
+        )
+        if not target and agent_memory_settings_id != "default":
+            logger.warning(
+                f"Agent memory settings ID '{agent_memory_settings_id}' not found in evaluation set"
+            )
+    if target is None:
+        target = memory_settings[0] if memory_settings else None
+
+    if target is not None and target.id == "NoMemory":
+        return {"enabled": False}
+
+    if target is None:
+        # Memory enabled but no settings configured: keep the agent's own configuration
+        return {"enabled": True}
+
+    logger.info(
+        f"Applying agent memory settings override: searchMode={target.search_mode}, "
+        f"resultCount={target.result_count}, threshold={target.threshold}"
+    )
+    return {
+        "enabled": True,
+        "resultCount": target.result_count,
+        "searchMode": target.search_mode,
+        "threshold": target.threshold,
+    }
+
+
 class _EvalDiscoveryError(EntrypointDiscoveryException):
     """Raised when auto-discovery of entrypoint or eval set fails."""
 
@@ -204,6 +266,12 @@ def _discover_eval_sets() -> list[Path]:
     help="Model settings ID from evaluation set to override agent settings (default: 'default')",
 )
 @click.option(
+    "--agent-memory-settings-id",
+    type=str,
+    default="default",
+    help="Agent memory settings ID from evaluation set to override agent memory settings (default: 'default')",
+)
+@click.option(
     "--trace-file",
     required=False,
     type=click.Path(exists=False),
@@ -244,6 +312,7 @@ def eval(
     enable_mocker_cache: bool,
     report_coverage: bool,
     model_settings_id: str,
+    agent_memory_settings_id: str,
     trace_file: str | None,
     max_llm_concurrency: int,
     input_overrides: dict[str, Any],
@@ -262,6 +331,7 @@ def eval(
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
+        agent_memory_settings_id: Agent memory settings ID to override agent memory settings
         trace_file: File path where traces will be written in JSONL format
         max_llm_concurrency: Maximum concurrent LLM requests
         input_overrides: Input field overrides mapping (direct field override with deep merge)
@@ -403,40 +473,52 @@ def eval(
                         settings_override = _resolve_model_settings_override(
                             model_settings_id, eval_context.evaluation_set
                         )
-
-                        runtime = await runtime_factory.new_runtime(
-                            entrypoint=eval_context.entrypoint or "",
-                            runtime_id=eval_context.execution_id,
-                            settings=settings_override,
-                        )
-
-                        eval_context.runtime_schema = await runtime.get_schema()
-
-                        eval_context.evaluators = await EvalHelpers.load_evaluators(
-                            resolved_eval_set_path,
-                            eval_context.evaluation_set,
-                            get_agent_model(eval_context.runtime_schema),
-                        )
-
-                        # Runtime is not required anymore.
-                        await runtime.dispose()
-
-                        if project_id:
-                            studio_client = StudioClient(project_id)
-
-                            async with ResourceOverwritesContext(
-                                lambda: studio_client.get_resource_overwrites()
-                            ):
-                                ctx.result = await evaluate(
-                                    runtime_factory,
-                                    trace_manager,
-                                    eval_context,
-                                    event_bus,
-                                )
-                        else:
-                            logger.debug(
-                                "No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites"
+                        agent_memory_settings_override = (
+                            _resolve_agent_memory_settings_override(
+                                agent_memory_settings_id, eval_context.evaluation_set
                             )
+                        )
+
+                        # Resource overwrites must be in scope before any runtime is
+                        # created: building the agent graph resolves folder-scoped
+                        # resources (e.g. escalation memory spaces) at tool-creation
+                        # time, and those lookups need the overwritten folder paths.
+                        async with AsyncExitStack() as stack:
+                            if project_id:
+                                studio_client = StudioClient(project_id)
+
+                                await stack.enter_async_context(
+                                    ResourceOverwritesContext(
+                                        lambda: studio_client.get_resource_overwrites()
+                                    )
+                                )
+                            else:
+                                logger.debug(
+                                    "No UIPATH_PROJECT_ID configured, executing evaluation without resource overwrites"
+                                )
+
+                            runtime = await runtime_factory.new_runtime(
+                                entrypoint=eval_context.entrypoint or "",
+                                runtime_id=eval_context.execution_id,
+                                settings=settings_override,
+                                agent_memory_settings=agent_memory_settings_override,
+                            )
+
+                            # The runtime is only needed for schema/evaluator
+                            # loading; dispose it before evaluation starts.
+                            try:
+                                eval_context.runtime_schema = await runtime.get_schema()
+
+                                eval_context.evaluators = (
+                                    await EvalHelpers.load_evaluators(
+                                        resolved_eval_set_path,
+                                        eval_context.evaluation_set,
+                                        get_agent_model(eval_context.runtime_schema),
+                                    )
+                                )
+                            finally:
+                                await runtime.dispose()
+
                             ctx.result = await evaluate(
                                 runtime_factory,
                                 trace_manager,

@@ -3,15 +3,18 @@ import json
 import os
 import subprocess
 import sys
-import threading
 import time
-from typing import Any
 from urllib.request import urlopen
 
 import aiohttp
 import pytest
 
-from uipath._cli.cli_server import start_tcp_server
+from tests.cli.utils.server import (
+    get_free_port,
+    start_cli_server_thread,
+    start_job,
+    start_job_with_env,
+)
 
 SERVER_START_TIMEOUT_SECONDS = 20
 SERVER_STOP_TIMEOUT_SECONDS = 5
@@ -36,47 +39,6 @@ def main(input: Input) -> str:
 def create_uipath_json(script_path: str, entrypoint_name: str = "main"):
     """Helper to create uipath.json with functions."""
     return {"functions": {entrypoint_name: f"{script_path}:main"}}
-
-
-async def start_job(
-    port: int, job_key: str, command: str, args: list[str]
-) -> dict[str, Any]:
-    """Start a job on the server."""
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"http://127.0.0.1:{port}/jobs/{job_key}/start",
-            json={"command": command, "args": args},
-        ) as response:
-            return await response.json()
-
-
-async def start_job_with_env(
-    port: int,
-    job_key: str,
-    command: str,
-    args: list[str],
-    env_vars: dict[str, str],
-) -> dict[str, Any]:
-    """Start a job on the server with environment variables."""
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"http://127.0.0.1:{port}/jobs/{job_key}/start",
-            json={
-                "command": command,
-                "args": args,
-                "environmentVariables": env_vars,
-            },
-        ) as response:
-            return await response.json()
-
-
-def get_free_port() -> int:
-    """Use a random available port for testing."""
-    import socket
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
 
 
 def read_process_output(process: subprocess.Popen[str]) -> str:
@@ -128,29 +90,12 @@ class TestServer:
     @pytest.fixture
     def server_port(self):
         """Use a random available port for testing."""
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            return s.getsockname()[1]
+        return get_free_port()
 
     @pytest.fixture
     def server(self, server_port):
         """Start the server in a background thread."""
-
-        def run_server():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(start_tcp_server("127.0.0.1", server_port))
-            except asyncio.CancelledError:
-                pass
-            finally:
-                loop.close()
-
-        thread = threading.Thread(target=run_server, daemon=True)
-        thread.start()
-        time.sleep(0.5)
+        start_cli_server_thread(server_port)
 
         yield server_port
 
@@ -381,11 +326,7 @@ class TestServerEnvIsolation:
 
     @pytest.fixture
     def server_port(self):
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            return s.getsockname()[1]
+        return get_free_port()
 
     @pytest.fixture
     def env_snapshots(self):
@@ -405,19 +346,7 @@ class TestServerEnvIsolation:
         original_commands = cli_server.COMMANDS.copy()
         cli_server.COMMANDS["spy"] = spy_cmd
 
-        def run_server():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(start_tcp_server("127.0.0.1", server_port))
-            except asyncio.CancelledError:
-                pass
-            finally:
-                loop.close()
-
-        thread = threading.Thread(target=run_server, daemon=True)
-        thread.start()
-        time.sleep(0.5)
+        start_cli_server_thread(server_port)
 
         yield server_port
 

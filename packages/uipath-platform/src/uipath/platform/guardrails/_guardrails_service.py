@@ -17,7 +17,7 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
 from ..errors import EnrichedException
-from .guardrails import BuiltInValidatorGuardrail
+from .guardrails import BYO_VALIDATOR_TYPE, BuiltInValidatorGuardrail
 
 # x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
 # Based on W3C traceparent but allows 16- or 32-hex span IDs.
@@ -115,12 +115,20 @@ class GuardrailsService(BaseService):
         parameters = [
             param.model_dump(by_alias=True) for param in guardrail.validator_parameters
         ]
-        payload = {
+        payload: dict[str, Any] = {
             "validator": guardrail.validator_type,
             "input": input_data if isinstance(input_data, str) else str(input_data),
             "parameters": parameters,
             "guardrailName": guardrail.name,
         }
+        if guardrail.validator_type == BYO_VALIDATOR_TYPE:
+            if not guardrail.byo_validator_name:
+                raise ValueError(
+                    "BYO (Bring Your Own) guardrails require byo_validator_name."
+                )
+            payload["byoValidatorName"] = guardrail.byo_validator_name
+            if guardrail.byo_connection_id:
+                payload["byoConnectionId"] = guardrail.byo_connection_id
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),

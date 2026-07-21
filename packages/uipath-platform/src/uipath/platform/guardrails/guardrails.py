@@ -78,6 +78,11 @@ ValidatorParameter = Annotated[
 ]
 
 
+#: Sentinel ``validator_type`` for Bring Your Own Guardrail (BYOG) guardrails; the
+#: connector-backed configuration is referenced by ``byo_validator_name`` instead.
+BYO_VALIDATOR_TYPE = "byo"
+
+
 class BuiltInValidatorGuardrail(BaseGuardrail):
     """Built-in validator guardrail model."""
 
@@ -86,6 +91,8 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
     validator_parameters: list[ValidatorParameter] = Field(
         default_factory=list, alias="validatorParameters"
     )
+    byo_validator_name: str | None = Field(default=None, alias="byoValidatorName")
+    byo_connection_id: str | None = Field(default=None, alias="byoConnectionId")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
