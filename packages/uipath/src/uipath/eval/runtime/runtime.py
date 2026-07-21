@@ -46,7 +46,10 @@ from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
-from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..evaluators.base_evaluator import (
+    BaseEvaluatorJustification,
+    GenericBaseEvaluator,
+)
 from ..evaluators.dataset_evaluator_factory import (
     build_dataset_evaluator,
     dataset_result_key,
@@ -244,16 +247,36 @@ def compute_dataset_evaluator_results(
         shape. Exact-duplicate specs are deduped; aggregators whose source
         produced no results still emit a zeroed result.
     """
-    results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
-        list
-    )
+    # Deduplicate by (datapoint, evaluator) before aggregating, mirroring
+    # compute_evaluator_scores. The partial-failure path (see _execute_eval's
+    # except block) can emit a zero-score, details-less DTO for an evaluator
+    # that already produced a real result on the success path; and an external
+    # retry/resume can re-feed a datapoint. Without dedup those inflate
+    # n_total/n_skipped and would double-count real matrix pairs. When a
+    # datapoint has multiple DTOs for one evaluator, prefer the one whose
+    # details parse into an expected/actual justification.
+    latest_by_dp_eval: dict[tuple[str, str], EvaluationResultDto] = {}
     for eval_run_result in evaluation_set_results:
+        datapoint_id = eval_run_result.evaluation_name
         for eval_run_result_dto in eval_run_result.evaluation_run_results:
             if eval_run_result_dto.is_line_result:
                 continue
-            results_by_evaluator[eval_run_result_dto.evaluator_name].append(
-                eval_run_result_dto.result
-            )
+            dedup_key = (datapoint_id, eval_run_result_dto.evaluator_name)
+            existing = latest_by_dp_eval.get(dedup_key)
+            candidate = eval_run_result_dto.result
+            # Keep the entry with a parseable justification over one without.
+            if existing is not None and (
+                BaseEvaluatorJustification.try_from(candidate.details) is None
+                or BaseEvaluatorJustification.try_from(existing.details) is not None
+            ):
+                continue
+            latest_by_dp_eval[dedup_key] = candidate
+
+    results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for (_dp_id, dedup_eval_name), dp_result in latest_by_dp_eval.items():
+        results_by_evaluator[dedup_eval_name].append(dp_result)
 
     dataset_results: dict[str, EvaluationResultDto] = {}
     for evaluator in evaluators:

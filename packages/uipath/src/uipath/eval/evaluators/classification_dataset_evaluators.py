@@ -150,9 +150,9 @@ def _build_confusion(
 
 
 def _f_beta(precision: float, recall: float, beta: float) -> float:
-    if precision == 0.0 and recall == 0.0:
-        return 0.0
     b2 = beta * beta
+    # denom == 0 iff precision == recall == 0 (both terms are non-negative and
+    # beta > 0), which is exactly the zero-score case.
     denom = b2 * precision + recall
     if denom == 0:
         return 0.0

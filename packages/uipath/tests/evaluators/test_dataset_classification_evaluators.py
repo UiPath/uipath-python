@@ -491,6 +491,42 @@ class TestComputeDatasetEvaluatorResults:
         assert isinstance(dto.details, dict)
         assert dto.details["nScored"] == 0
 
+    def test_duplicate_datapoint_results_are_deduped(self) -> None:
+        """A datapoint with two DTOs for one evaluator (e.g. a real result plus
+        a details-less zero from the partial-failure path, or a retry/resume
+        re-feed) must count once — no inflated nTotal/nSkipped, no double-count
+        in the matrix. The parseable DTO wins over the details-less one."""
+        evaluator = _exact_match_evaluator(
+            "intent_match",
+            classes=["yes", "no"],
+            aggregators=[PrecisionAggregatorSpec(averaging="macro")],
+        )
+        eval_results = [
+            UiPathEvalRunResult(
+                evaluation_name="dp1",
+                evaluation_run_results=[
+                    UiPathEvalRunResultDto(
+                        evaluator_name="intent_match",
+                        evaluator_id=str(uuid.uuid4()),
+                        result=_result("yes", "yes"),
+                    ),
+                    # Duplicate: details-less zero (partial-failure path shape).
+                    UiPathEvalRunResultDto(
+                        evaluator_name="intent_match",
+                        evaluator_id=str(uuid.uuid4()),
+                        result=EvaluationResultDto(score=0.0),
+                    ),
+                ],
+            ),
+        ]
+        out = compute_dataset_evaluator_results(eval_results, [evaluator])
+        details = out["intent_match::precision"].details
+        assert isinstance(details, dict)
+        # One datapoint in, one counted — not two, and the parseable one scored.
+        assert details["nTotal"] == 1
+        assert details["nScored"] == 1
+        assert details["nSkipped"] == 0
+
     def test_duplicate_aggregator_type_disambiguates_by_averaging(self) -> None:
         """Two aggregators of the same type get distinct keys (no overwrite)."""
         evaluator = _exact_match_evaluator(
