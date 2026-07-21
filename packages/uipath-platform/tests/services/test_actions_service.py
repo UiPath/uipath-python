@@ -7,7 +7,12 @@ from pytest_httpx import HTTPXMock
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
 from uipath.platform.action_center._tasks_service import TasksService
-from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
+from uipath.platform.action_center.tasks import (
+    TaskRecipient,
+    TaskRecipientType,
+    is_low_code_app,
+)
+from uipath.platform.common import UiPathConfig
 from uipath.platform.constants import HEADER_USER_AGENT
 
 
@@ -20,6 +25,14 @@ def service(
     monkeypatch.setenv("UIPATH_FOLDER_PATH", "test-folder-path")
 
     return TasksService(config=config, execution_context=execution_context)
+
+
+@pytest.fixture
+def reset_uipath_config():
+    """Reset the ``UiPathConfig`` singleton around a test that mutates it."""
+    UiPathConfig.reset()
+    yield UiPathConfig
+    UiPathConfig.reset()
 
 
 class TestTasksService:
@@ -127,6 +140,141 @@ class TestTasksService:
         assert isinstance(action, Task)
         assert action.id == 1
         assert action.title == "Test Action"
+
+    def test_create_jit_custom_app_uses_provided_schema_and_sends_project_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        # JIT: a not-yet-deployed Custom app supplies its action schema and project
+        # key, so no deployed-app schema lookup happens and the schema is built from
+        # the supplied action_schema. app type + project key are sent so Orchestrator
+        # can resolve the app.
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+            status_code=200,
+            json={"id": 1, "title": "Test Action"},
+        )
+
+        action = service.create(
+            title="Test Action",
+            data={"stringInput": "value"},
+            app_project_key="proj-key-abc",
+            app_type="Custom",
+            action_schema={
+                "key": "schema-key",
+                "inOuts": [],
+                "inputs": [{"name": "stringInput", "key": "field-1"}],
+                "outputs": [],
+                "outcomes": [{"name": "approve", "key": "outcome-1"}],
+            },
+        )
+
+        assert isinstance(action, Task)
+        requests = httpx_mock.get_requests()
+        # No deployed-app schema resolution — the provided action_schema is used.
+        assert all("deployed-action-apps-schemas" not in str(r.url) for r in requests)
+        create_request = [r for r in requests if "CreateAppTask" in str(r.url)][0]
+        body = json.loads(create_request.content)
+        assert body["appType"] == "Custom"
+        assert body["appProjectKey"] == "proj-key-abc"
+        # Field set is derived from the supplied action_schema, not a lookup.
+        field_names = [
+            f["Name"] for f in body["actionableMessageMetaData"]["fieldSet"]["fields"]
+        ]
+        assert "stringInput" in field_names
+
+    def test_create_omits_project_key_when_not_provided(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        # Non-JIT (deployed) path: no app_project_key, so appProjectKey is not sent.
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+            status_code=200,
+            json={"id": 1, "title": "Test Action"},
+        )
+
+        action = service.create(
+            title="Test Action",
+            app_key="test-app-key",
+            data={"test": "data"},
+        )
+
+        assert isinstance(action, Task)
+        create_request = [
+            r for r in httpx_mock.get_requests() if "CreateAppTask" in str(r.url)
+        ][0]
+        body = json.loads(create_request.content)
+        assert "appProjectKey" not in body
+        assert "appType" not in body
+
+    def test_create_stamps_isdebug_task_source_from_config(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+        reset_uipath_config,
+    ) -> None:
+        # isDebug + solutionId on taskSource are driven purely by UiPathConfig, not a
+        # per-call flag. taskSource requires project_id + trace_id to be present.
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "proj-1")
+        monkeypatch.setenv("UIPATH_TRACE_ID", "trace-1")
+        reset_uipath_config.studio_solution_id = "sol-1"
+        reset_uipath_config.is_rooted_to_debug_job = True
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+            status_code=200,
+            json={"id": 1, "title": "Test Action"},
+        )
+
+        service.create(title="Test Action", app_key="test-app-key", data={})
+
+        create_request = [
+            r for r in httpx_mock.get_requests() if "CreateAppTask" in str(r.url)
+        ][0]
+        task_source = json.loads(create_request.content)["taskSource"]
+        assert task_source["isDebug"] is True
+        assert task_source["solutionId"] == "sol-1"
+
+    def test_create_no_isdebug_task_source_when_not_debug(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+        reset_uipath_config,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "proj-1")
+        monkeypatch.setenv("UIPATH_TRACE_ID", "trace-1")
+        # is_rooted_to_debug_job defaults to False (no override, no internal arg).
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+            status_code=200,
+            json={"id": 1, "title": "Test Action"},
+        )
+
+        service.create(title="Test Action", app_key="test-app-key", data={})
+
+        create_request = [
+            r for r in httpx_mock.get_requests() if "CreateAppTask" in str(r.url)
+        ][0]
+        task_source = json.loads(create_request.content)["taskSource"]
+        assert "isDebug" not in task_source
 
     def test_create_with_assignee(
         self,
@@ -862,3 +1010,17 @@ async def test_create_quickform_async_with_assignee_triggers_assign_call(
     await qf_runner_async(assignee="user@example.com")
     body = _posted_body(httpx_mock, qf_assign_url)
     assert body["taskAssignments"][0]["UserNameOrEmail"] == "user@example.com"
+
+
+@pytest.mark.parametrize(
+    "app_type,expected",
+    [
+        ("Custom", True),
+        ("Coded", False),
+        (None, False),
+        ("", False),
+        ("custom", False),  # case-sensitive
+    ],
+)
+def test_is_low_code_app(app_type: Any, expected: bool) -> None:
+    assert is_low_code_app(app_type) is expected

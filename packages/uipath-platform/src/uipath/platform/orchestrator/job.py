@@ -80,4 +80,5 @@ class Job(BaseModel):
     has_warnings: Optional[bool] = Field(default=None, alias="HasWarnings")
     job_error: Optional[JobErrorInfo] = Field(default=None, alias="JobError")
     folder_key: Optional[str] = Field(default=None, alias="FolderKey")
+    parent_context: Optional[str] = Field(default=None, alias="ParentContext")
     id: int = Field(alias="Id")
