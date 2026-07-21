@@ -9,6 +9,7 @@ by both `uipath eval` and the platform's python-dataset-eval-worker.
 """
 
 import uuid
+from typing import Any
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -23,7 +24,7 @@ from uipath.eval.evaluators._aggregator_specs import (
 from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
 
 
-def _evaluator(config: dict) -> ExactMatchEvaluator:
+def _evaluator(config: dict[str, Any]) -> ExactMatchEvaluator:
     return ExactMatchEvaluator.model_validate(
         {"evaluatorConfig": config, "id": str(uuid.uuid4())}
     )
@@ -33,7 +34,7 @@ class TestAggregatorSpecUnion:
     """Wire shape sent to the platform — {type, averaging, [fValue]}."""
 
     def test_discriminates_on_type(self) -> None:
-        adapter = TypeAdapter(AggregatorSpec)
+        adapter: TypeAdapter[AggregatorSpec] = TypeAdapter(AggregatorSpec)
         assert isinstance(
             adapter.validate_python({"type": "precision", "averaging": "macro"}),
             PrecisionAggregatorSpec,
@@ -66,7 +67,7 @@ class TestAggregatorSpecUnion:
 
     def test_fscore_fvalue_is_bounded(self) -> None:
         # A huge beta overflows beta² to inf → NaN score → unrepresentable JSON.
-        adapter = TypeAdapter(AggregatorSpec)
+        adapter: TypeAdapter[AggregatorSpec] = TypeAdapter(AggregatorSpec)
         for bad in (0, -1, 1e200, float("inf"), float("nan")):
             with pytest.raises(ValidationError):
                 adapter.validate_python(

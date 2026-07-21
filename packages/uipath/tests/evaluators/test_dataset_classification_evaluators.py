@@ -19,8 +19,10 @@ from uipath.eval.evaluators._aggregator_specs import (
 )
 from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
 from uipath.eval.evaluators.classification_dataset_evaluators import (
+    AveragedMetrics,
     ClassificationDatasetEvaluator,
     ClassificationDetails,
+    PerClassMetrics,
 )
 from uipath.eval.evaluators.dataset_evaluator_factory import build_dataset_evaluator
 from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator
@@ -81,6 +83,24 @@ def _details(result: object) -> ClassificationDetails:
     return result.details
 
 
+# per_class / macro / micro are Optional on ClassificationDetails (the
+# confusion_matrix variant omits them). Scalar-metric tests always populate
+# them; these accessors assert-narrow to the non-Optional type so mypy is happy.
+def _pc(d: ClassificationDetails) -> dict[str, PerClassMetrics]:
+    assert d.per_class is not None
+    return d.per_class
+
+
+def _macro(d: ClassificationDetails) -> AveragedMetrics:
+    assert d.macro is not None
+    return d.macro
+
+
+def _micro(d: ClassificationDetails) -> AveragedMetrics:
+    assert d.micro is not None
+    return d.micro
+
+
 def _exact_match_evaluator(
     name: str,
     classes: list[str],
@@ -111,8 +131,8 @@ class TestPrecisionEvaluator:
         d = _details(result)
         assert d.n_total == 0 and d.n_scored == 0
         assert d.confusion_matrix == [[0, 0], [0, 0]]
-        assert d.per_class["cat"].tp == 0
-        assert d.per_class["cat"].tn == 0
+        assert _pc(d)["cat"].tp == 0
+        assert _pc(d)["cat"].tn == 0
 
     def test_confusion_matrix_is_predicted_by_expected(self) -> None:
         # Pin the documented orientation: confusion_matrix[predicted][expected].
@@ -146,10 +166,10 @@ class TestPrecisionEvaluator:
         # precision_yes = 2 / (2 + 1) = 2/3
         # precision_no  = 0 / (0 + 1) = 0
         # macro = (2/3 + 0) / 2 = 1/3
-        assert d.per_class["yes"].precision == pytest.approx(2 / 3)
-        assert d.per_class["no"].precision == pytest.approx(0.0)
-        assert d.macro.precision == pytest.approx((2 / 3 + 0.0) / 2)
-        assert result.score == pytest.approx(d.macro.precision)
+        assert _pc(d)["yes"].precision == pytest.approx(2 / 3)
+        assert _pc(d)["no"].precision == pytest.approx(0.0)
+        assert _macro(d).precision == pytest.approx((2 / 3 + 0.0) / 2)
+        assert result.score == pytest.approx(_macro(d).precision)
 
     def test_two_class_micro_equals_accuracy(self) -> None:
         results = [
@@ -160,7 +180,7 @@ class TestPrecisionEvaluator:
         ]
         result = _precision(["yes", "no"], averaging="micro").evaluate(results)
         d = _details(result)
-        assert d.micro.precision == pytest.approx(0.5)
+        assert _micro(d).precision == pytest.approx(0.5)
         assert result.score == pytest.approx(0.5)
 
     def test_three_class_macro(self) -> None:
@@ -180,10 +200,10 @@ class TestPrecisionEvaluator:
         )
         d = _details(result)
         for label in ("cat", "dog", "bird"):
-            m = d.per_class[label]
+            m = _pc(d)[label]
             assert m.tp == 2 and m.fp == 1 and m.fn == 1 and m.tn == 5
             assert m.precision == pytest.approx(2 / 3)
-        assert d.macro.precision == pytest.approx(2 / 3)
+        assert _macro(d).precision == pytest.approx(2 / 3)
         assert result.score == pytest.approx(2 / 3)
 
 
@@ -197,8 +217,8 @@ class TestRecallEvaluator:
         ]
         result = _recall(["yes", "no"], averaging="macro").evaluate(results)
         d = _details(result)
-        assert d.per_class["yes"].recall == pytest.approx(2 / 3)
-        assert d.per_class["no"].recall == pytest.approx(0.0)
+        assert _pc(d)["yes"].recall == pytest.approx(2 / 3)
+        assert _pc(d)["no"].recall == pytest.approx(0.0)
         assert result.score == pytest.approx(1 / 3)
 
     def test_recall_differs_from_precision(self) -> None:
@@ -211,10 +231,10 @@ class TestRecallEvaluator:
         ]
         p = _details(_precision(["yes", "no"], averaging="macro").evaluate(results))
         r = _details(_recall(["yes", "no"], averaging="macro").evaluate(results))
-        assert p.per_class["yes"].precision == pytest.approx(0.5)
-        assert p.per_class["no"].precision == pytest.approx(1.0)
-        assert r.per_class["yes"].recall == pytest.approx(1.0)
-        assert r.per_class["no"].recall == pytest.approx(1 / 3)
+        assert _pc(p)["yes"].precision == pytest.approx(0.5)
+        assert _pc(p)["no"].precision == pytest.approx(1.0)
+        assert _pc(r)["yes"].recall == pytest.approx(1.0)
+        assert _pc(r)["no"].recall == pytest.approx(1 / 3)
 
 
 class TestFScoreEvaluator:
@@ -228,9 +248,9 @@ class TestFScoreEvaluator:
         f = _details(
             _fscore(["yes", "no"], averaging="macro", f_value=1.0).evaluate(results)
         )
-        assert f.per_class["yes"].f_score == pytest.approx(2 / 3)
-        assert f.per_class["no"].f_score == pytest.approx(0.0)
-        assert f.macro.f_score == pytest.approx((2 / 3 + 0.0) / 2)
+        assert _pc(f)["yes"].f_score == pytest.approx(2 / 3)
+        assert _pc(f)["no"].f_score == pytest.approx(0.0)
+        assert _macro(f).f_score == pytest.approx((2 / 3 + 0.0) / 2)
 
     def test_f_beta_emphasizes_recall_when_beta_above_one(self) -> None:
         results = [
@@ -246,7 +266,7 @@ class TestFScoreEvaluator:
         f2 = _details(
             _fscore(["yes", "no"], averaging="macro", f_value=2.0).evaluate(results)
         )
-        assert f2.per_class["yes"].f_score > f1.per_class["yes"].f_score
+        assert _pc(f2)["yes"].f_score > _pc(f1)["yes"].f_score
 
     def test_three_class_micro_pools_across_classes(self) -> None:
         pairs = [
@@ -265,7 +285,7 @@ class TestFScoreEvaluator:
                 [_result(e, a) for e, a in pairs]
             )
         )
-        assert d.micro.f_score == pytest.approx(6 / 9)
+        assert _micro(d).f_score == pytest.approx(6 / 9)
 
 
 class TestSkippingAndEdgeCases:
@@ -290,8 +310,8 @@ class TestSkippingAndEdgeCases:
     def test_case_insensitive(self) -> None:
         results = [_result("Cat", "CAT"), _result("DOG", "dog")]
         d = _details(_precision(["cat", "dog"]).evaluate(results))
-        assert d.per_class["cat"].tp == 1
-        assert d.per_class["dog"].tp == 1
+        assert _pc(d)["cat"].tp == 1
+        assert _pc(d)["dog"].tp == 1
 
 
 class TestFactory:
