@@ -7,6 +7,7 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
+uipath-ipc = false
 uipath-runtime = false
 uipath-platform = false
 uipath-core = false
@@ -2619,6 +2620,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "truststore" },
     { name = "uipath-core" },
+    { name = "uipath-ipc" },
     { name = "uipath-platform" },
     { name = "uipath-runtime" },
 ]
@@ -2673,6 +2675,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
+    { name = "uipath-ipc", specifier = ">=2.5.1", index = "https://pkgs.dev.azure.com/uipath/Public.Feeds/_packaging/UiPath-Internal/pypi/simple/" },
     { name = "uipath-platform", editable = "../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.12.2,<0.13.0" },
 ]
@@ -2737,6 +2740,15 @@ dev = [
     { name = "pytest-trio", specifier = ">=0.8.0" },
     { name = "ruff", specifier = ">=0.9.4" },
     { name = "rust-just", specifier = ">=1.39.0" },
+]
+
+[[package]]
+name = "uipath-ipc"
+version = "2.5.1+20260625.1"
+source = { registry = "https://pkgs.dev.azure.com/uipath/Public.Feeds/_packaging/UiPath-Internal/pypi/simple/" }
+sdist = { url = "https://pkgs.dev.azure.com/uipath/5b98d55c-1b14-4a03-893f-7a59746f1246/_packaging/788028a9-5a01-48ee-b925-3af51ae46294/pypi/download/uipath-ipc/2.5.1+20260625.1/uipath_ipc-2.5.1+20260625.1.tar.gz", hash = "sha256:bc202fef26d8ecae6b8bcfaccd6bcfb4675e0160faabf8d9281f1028643adee9" }
+wheels = [
+    { url = "https://pkgs.dev.azure.com/uipath/5b98d55c-1b14-4a03-893f-7a59746f1246/_packaging/788028a9-5a01-48ee-b925-3af51ae46294/pypi/download/uipath-ipc/2.5.1+20260625.1/uipath_ipc-2.5.1+20260625.1-py3-none-any.whl", hash = "sha256:0e90b0198b9afa8a1fa832e010aa1160914391d9b5610684a3bf582704f41773" },
 ]
 
 [[package]]
