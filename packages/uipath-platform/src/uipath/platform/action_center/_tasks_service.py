@@ -17,7 +17,7 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from .task_schema import TaskSchema
-from .tasks import Task, TaskRecipient, TaskRecipientType
+from .tasks import Task, TaskRecipient, TaskRecipientType, is_low_code_app
 
 
 def _ensure_string_value(value: Any) -> str:
@@ -39,6 +39,8 @@ def _create_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
+    app_project_key: Optional[str] = None,
+    app_type: Optional[str] = None,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -94,7 +96,7 @@ def _create_spec(
                 )
 
     json_payload: Dict[str, Any] = {
-        "appId": app_key,
+        "appId": app_key if app_key is not None else f"{uuid.UUID(int=0).hex}",
         "title": title,
         "data": data if data is not None else {},
         "actionableMessageMetaData": actionable_message_metadata
@@ -119,11 +121,14 @@ def _create_spec(
         ),
     }
 
+    if app_project_key is not None:
+        json_payload["appType"] = app_type
+        json_payload["appProjectKey"] = app_project_key
+
     _apply_priority_labels_and_actionable_toggle(
         json_payload, priority, labels, is_actionable_message_enabled
     )
     _apply_task_source(json_payload, source_name)
-
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
@@ -159,7 +164,10 @@ def _apply_priority_labels_and_actionable_toggle(
         payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
 
-def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
+def _apply_task_source(
+    payload: Dict[str, Any],
+    source_name: str,
+) -> None:
     """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
 
     Shared between AppTask and QuickForm spec builders — the taskSource block is
@@ -167,6 +175,7 @@ def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
     """
     project_id = UiPathConfig.project_id
     trace_id = UiPathConfig.trace_id
+    solution_id = UiPathConfig.studio_solution_id
     if not (project_id and trace_id):
         return
     payload["taskSource"] = {
@@ -178,7 +187,12 @@ def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
         },
+        "jobId": UiPathConfig.job_key,
     }
+
+    if UiPathConfig.is_rooted_to_debug_job:
+        payload["taskSource"]["isDebug"] = True
+        payload["taskSource"]["solutionId"] = solution_id
 
 
 def _normalize_priority(priority: str | None) -> str | None:
@@ -459,6 +473,9 @@ class TasksService(FolderContext, BaseService):
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         source_name: str = "Agent",
+        app_project_key: Optional[str] = None,
+        app_type: Optional[str] = None,
+        action_schema: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Creates a new action asynchronously.
 
@@ -478,6 +495,9 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
             source_name: The name of the source that created the task. Defaults to 'Agent'.
+            app_project_key: Optional project key of the app. Used for JIT (debug) task creation so
+                Orchestrator can resolve a not-yet-deployed app.
+            app_type: Optional app type ("Custom" or "Coded"), forwarded for JIT (debug) task creation.
 
         Returns:
             Action: The created action object
@@ -485,18 +505,28 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else await self._get_app_key_and_schema_async(
+        key: Optional[str]
+        schema: Optional[TaskSchema]
+        if app_project_key and is_low_code_app(app_type) and action_schema is not None:
+            key = app_key
+            schema = TaskSchema(
+                key=action_schema["key"],
+                in_outs=action_schema["inOuts"],
+                inputs=action_schema["inputs"],
+                outputs=action_schema["outputs"],
+                outcomes=action_schema["outcomes"],
+            )
+        elif app_key:
+            key, schema = app_key, None
+        else:
+            key, schema = await self._get_app_key_and_schema_async(
                 app_name, app_folder_path, app_folder_key
             )
-        )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
-            action_schema=action_schema,
+            action_schema=schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
             priority=priority,
@@ -504,8 +534,9 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            app_project_key=app_project_key,
+            app_type=app_type,
         )
-
         response = await self.request_async(
             spec.method,
             spec.endpoint,
@@ -545,25 +576,13 @@ class TasksService(FolderContext, BaseService):
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         source_name: str = "Agent",
+        app_project_key: Optional[str] = None,
+        app_type: Optional[str] = None,
+        action_schema: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Creates a new task synchronously.
 
-        This method creates a new action task in UiPath Orchestrator. The action can be
-        either app-specific (using app_name or app_key) or a generic action.
-
-        Args:
-            title: The title of the action
-            data: Optional dictionary containing input data for the action
-            app_name: The name of the application (if creating an app-specific action)
-            app_key: The key of the application (if creating an app-specific action)
-            app_folder_path: Optional folder path for the action
-            app_folder_key: Optional folder key for the action
-            assignee: Optional username or email to assign the task to
-            priority: Optional priority of the task
-            labels: Optional list of labels for the task
-            is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
-            actionable_message_metadata: Optional metadata for the action
-            source_name: The name of the source that created the task. Defaults to 'Agent'.
+        See :meth:`create_async` for parameter docs.
 
         Returns:
             Action: The created action object
@@ -571,16 +590,28 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else self._get_app_key_and_schema(app_name, app_folder_path, app_folder_key)
-        )
+        key: Optional[str]
+        schema: Optional[TaskSchema]
+        if app_project_key and is_low_code_app(app_type) and action_schema is not None:
+            key = app_key
+            schema = TaskSchema(
+                key=action_schema["key"],
+                in_outs=action_schema["inOuts"],
+                inputs=action_schema["inputs"],
+                outputs=action_schema["outputs"],
+                outcomes=action_schema["outcomes"],
+            )
+        elif app_key:
+            key, schema = app_key, None
+        else:
+            key, schema = self._get_app_key_and_schema(
+                app_name, app_folder_path, app_folder_key
+            )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
-            action_schema=action_schema,
+            action_schema=schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
             priority=priority,
@@ -588,6 +619,8 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            app_project_key=app_project_key,
+            app_type=app_type,
         )
 
         response = self.request(
