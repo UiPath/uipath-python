@@ -822,6 +822,7 @@ class BaseEscalationChannelProperties(BaseResourceProperties):
     resource_key: str | None = Field(default=None, alias="resourceKey")
     project_key: str | None = Field(default=None, alias="projectKey")
     app_type: str | None = Field(default=None, alias="appType")
+    solution_id: str | None = Field(default=None, alias="solutionId")
     action_schema: Optional[Any] = Field(default=None, alias="actionSchema")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
