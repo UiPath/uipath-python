@@ -1,4 +1,6 @@
 import asyncio
+import faulthandler
+import logging
 from typing import Any
 
 import click
@@ -41,6 +43,7 @@ from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
+logger = logging.getLogger(__name__)
 
 
 class _RunDiscoveryError(EntrypointDiscoveryException):
@@ -222,16 +225,19 @@ def run(
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         governance_bootstrap: GovernanceBootstrap | None = None
                         try:
+                            logger.info("[startup] resolving runtime factory")
                             factory = UiPathRuntimeFactoryRegistry.get(context=ctx)
 
                             resolved_entrypoint = entrypoint
                             if not resolved_entrypoint:
+                                logger.info("[startup] discovering entrypoint")
                                 available = factory.discover_entrypoints()
                                 if len(available) == 1:
                                     resolved_entrypoint = available[0]
                                 else:
                                     raise _RunDiscoveryError(available)
 
+                            logger.info("[startup] loading factory settings")
                             factory_settings = await factory.get_settings()
                             trace_settings = (
                                 factory_settings.trace_settings
@@ -248,6 +254,7 @@ def run(
                                 if factory_settings
                                 else None
                             )
+                            logger.info("[startup] resolving governance")
                             governance_bootstrap = await resolve_governance(
                                 agent_framework=agent_framework,
                                 agent_type=agent_type,
@@ -262,11 +269,18 @@ def run(
                                     governance_bootstrap.evaluator
                                 )
 
+                            logger.info(
+                                "[startup] building runtime and compiling graph "
+                                "(entrypoint=%s)",
+                                resolved_entrypoint,
+                            )
                             base_runtime = await factory.new_runtime(
                                 resolved_entrypoint,
                                 governance_runtime_id,
                                 **new_runtime_kwargs,
                             )
+                            logger.info("[startup] runtime ready, starting execution")
+                            faulthandler.cancel_dump_traceback_later()
 
                             if governance_bootstrap is not None:
                                 base_runtime = governance_bootstrap.wrap_runtime(
