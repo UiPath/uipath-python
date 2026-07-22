@@ -22,7 +22,11 @@ Design notes:
   assumes it owns the provider's async HTTP path — nothing else in
   the process should await ``track_event_async`` (or any other
   ``*_async`` method on the same underlying service) on a *different*
-  loop. See "one dispatcher per provider" below.
+  loop. In particular, the provider passed in must be backed by a
+  service whose async client has not already served a request on
+  another loop (e.g. a governance policy fetch on the CLI's main
+  loop) — hand the dispatcher a *dedicated* provider. See "one
+  dispatcher per provider" below.
 
 - **Backpressure.** A ``BoundedSemaphore`` caps in-flight coroutines;
   submissions that exceed the cap are dropped with a warning so
@@ -74,6 +78,19 @@ class LiveTrackEventDispatcher:
 
     _DEFAULT_MAX_INFLIGHT = 40
 
+    # Total wall-clock ceiling for a single dispatched call. The platform
+    # call retries (up to 5 attempts, honoring ``Retry-After`` up to 120s)
+    # and httpx's 30s timeout is per-phase, not total — so one degraded
+    # call could otherwise run for minutes, pinning an in-flight slot and
+    # stalling ``shutdown`` drain. This caps every dispatched call.
+    _PER_CALL_DEADLINE_SECONDS = 60.0
+
+    # Max wait for the background loop thread to signal readiness. The
+    # thread only fails to signal if it never starts (e.g. OS
+    # thread-creation failure); the caller treats a construction failure as
+    # "governance unavailable" (fail open) rather than blocking forever.
+    _LOOP_START_TIMEOUT_SECONDS = 5.0
+
     def __init__(
         self,
         provider: UiPathPlatformGovernanceProvider,
@@ -103,6 +120,10 @@ class LiveTrackEventDispatcher:
         self._shutdown_event = threading.Event()
         self._futures_lock = threading.Lock()
         self._futures: set[concurrent.futures.Future[None]] = set()
+        # Guards warn-once for swallowed dispatch failures. Only ever read
+        # or written on the background loop thread (inside ``_run``), so no
+        # lock is needed.
+        self._dispatch_failure_logged = False
 
         self._loop = asyncio.new_event_loop()
         self._loop_ready = threading.Event()
@@ -113,13 +134,31 @@ class LiveTrackEventDispatcher:
         )
         self._loop_thread.start()
         # Block until the loop is running so the first ``dispatch`` cannot
-        # race with startup and hit "loop not running" errors.
-        self._loop_ready.wait()
+        # race with startup and hit "loop not running" errors. Bounded so a
+        # thread that never starts surfaces as a construction failure the
+        # caller can fall back on, instead of hanging the process forever.
+        if not self._loop_ready.wait(timeout=self._LOOP_START_TIMEOUT_SECONDS):
+            # Signal the (possibly late-starting) loop thread to abort and
+            # close its own loop. NEVER close it here, across threads — that
+            # would race the thread's ``run_forever`` (closing a running
+            # loop, or running an already-closed one). See ``_run_loop``.
+            self._shutdown_event.set()
+            raise RuntimeError(
+                "governance track-event loop failed to start within "
+                f"{self._LOOP_START_TIMEOUT_SECONDS}s"
+            )
 
     def _run_loop(self) -> None:
         """Body of the background loop thread — runs until ``shutdown``."""
         asyncio.set_event_loop(self._loop)
         self._loop_ready.set()
+        # If construction already gave up waiting for readiness (the
+        # loop-start-timeout path set ``_shutdown_event`` before this thread
+        # got scheduled), abort now and close the loop HERE — on the thread
+        # that owns it — so ``__init__`` never closes it across threads.
+        if self._shutdown_event.is_set():
+            self._loop.close()
+            return
         try:
             self._loop.run_forever()
         finally:
@@ -170,11 +209,13 @@ class LiveTrackEventDispatcher:
           raises ``RuntimeError`` if the loop is stopped/closed
           (late-firing atexit path); the dispatcher rolls back the
           semaphore slot, closes the coroutine, and logs at debug.
-        - **Coroutine exception**: the provider's HTTP call may raise
-          for any reason (serialization, 5xx, transport). ``_run``
-          catches, logs at debug with ``exc_info=True``, and the
-          done-callback observes the future to suppress asyncio's
-          "exception was never retrieved" warning.
+        - **Coroutine exception / deadline**: the provider's HTTP call may
+          raise for any reason (serialization, 5xx, transport) or exceed
+          ``_PER_CALL_DEADLINE_SECONDS``. ``_run`` catches both, logs the
+          first such failure at warning (so silent telemetry loss is
+          visible) and the rest at debug, and the done-callback observes
+          the future to suppress asyncio's "exception was never retrieved"
+          warning.
         """
         if self._shutdown_event.is_set():
             logger.debug(
@@ -218,15 +259,60 @@ class LiveTrackEventDispatcher:
         data: dict[str, Any] | None,
         operation_id: str | None,
     ) -> None:
-        """Coroutine body — the async HTTP call itself."""
+        """Coroutine body — the async HTTP call itself, under a total deadline."""
         try:
-            await self._provider.track_event_async(
-                event_name=event_name,
-                data=data,
-                operation_id=operation_id,
-            )
+            async with asyncio.timeout(self._PER_CALL_DEADLINE_SECONDS) as cm:
+                await self._provider.track_event_async(
+                    event_name=event_name,
+                    data=data,
+                    operation_id=operation_id,
+                )
+        except TimeoutError as exc:
+            # ``cm.expired()`` disambiguates OUR deadline from a TimeoutError
+            # raised inside the provider call itself (e.g. a socket timeout —
+            # ``socket.timeout`` is aliased to ``TimeoutError``). Only the
+            # former is a deadline drop; the latter is a normal failure and
+            # deserves the exc_info-carrying generic log.
+            if cm.expired():
+                # The platform call outran the per-call deadline (retries +
+                # Retry-After can otherwise run for minutes). Drop it rather
+                # than let a degraded backend pin an in-flight slot.
+                self._log_dispatch_failure(
+                    "track_event exceeded the %.0fs deadline; dropped (event_name=%s)",
+                    self._PER_CALL_DEADLINE_SECONDS,
+                    event_name,
+                )
+            else:
+                self._log_dispatch_failure(
+                    "Failed to dispatch track_event (event_name=%s): %s",
+                    event_name,
+                    exc,
+                    exc_info=True,
+                )
         except Exception as exc:  # noqa: BLE001 - fire-and-forget contract
-            logger.debug("Failed to dispatch track_event: %s", exc, exc_info=True)
+            self._log_dispatch_failure(
+                "Failed to dispatch track_event (event_name=%s): %s",
+                event_name,
+                exc,
+                exc_info=True,
+            )
+
+    def _log_dispatch_failure(
+        self, msg: str, *args: object, exc_info: bool = False
+    ) -> None:
+        """Log a swallowed dispatch failure — first at warning, then debug.
+
+        Dispatch failures are silent to the caller by the fire-and-forget
+        contract, so the first one is surfaced at warning to make telemetry
+        loss visible; subsequent failures drop to debug so a sustained-down
+        backend cannot flood the logs. Only ever called on the background
+        loop thread, so the flag read/write needs no lock.
+        """
+        if not self._dispatch_failure_logged:
+            self._dispatch_failure_logged = True
+            logger.warning(msg, *args, exc_info=exc_info)
+        else:
+            logger.debug(msg, *args, exc_info=exc_info)
 
     def _on_future_done(self, future: concurrent.futures.Future[None]) -> None:
         """Observe the future, drop it from the pending set, release the slot.
@@ -253,7 +339,7 @@ class LiveTrackEventDispatcher:
                 self._futures.discard(future)
             self._inflight.release()
 
-    def shutdown(self, *, wait: bool = True, timeout: float = 30.0) -> None:
+    def shutdown(self, *, wait: bool = True, timeout: float = 5.0) -> None:
         """Stop accepting new submissions; optionally drain pending, then stop the loop.
 
         Call at process exit to avoid losing in-flight telemetry.
@@ -267,7 +353,10 @@ class LiveTrackEventDispatcher:
                 teardown path.
             timeout: Maximum seconds to wait for pending coroutines
                 when ``wait=True``. Coroutines still in flight after
-                the timeout are cancelled by loop teardown.
+                the timeout are cancelled by loop teardown. The default
+                is deliberately short: the only caller is a CLI exit path,
+                where a long drain against a degraded backend would just
+                stall process teardown (telemetry is best-effort).
         """
         if self._shutdown_event.is_set():
             return
