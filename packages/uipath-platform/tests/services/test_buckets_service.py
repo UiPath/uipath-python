@@ -27,6 +27,18 @@ def temp_file(tmp_path):
 
 
 class TestBucketsService:
+    @pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
+    @pytest.mark.anyio
+    async def test_aclose_closes_all_owned_http_clients(
+        self, service: BucketsService
+    ) -> None:
+        await service.aclose()
+
+        assert service._client.is_closed
+        assert service._client_async.is_closed
+        assert service.custom_client.is_closed
+        assert service.custom_client_async.is_closed
+
     class TestRetrieve:
         def test_retrieve_by_key(
             self,

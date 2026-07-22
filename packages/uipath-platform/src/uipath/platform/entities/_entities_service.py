@@ -112,6 +112,19 @@ class EntitiesService(BaseService):
             folders_service=folders_service,
         )
 
+    async def aclose(self) -> None:
+        """Close this facade and the services it creates."""
+        try:
+            await self._schema.aclose()
+        finally:
+            try:
+                await self._data.aclose()
+            finally:
+                try:
+                    await self._ontology.aclose()
+                finally:
+                    await super().aclose()
+
     # ------------------------------------------------------------------
     # Schema operations — delegate to EntitySchemaService
     # ------------------------------------------------------------------

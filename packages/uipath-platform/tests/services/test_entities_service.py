@@ -55,6 +55,20 @@ def record_schema_optional(request):
 
 
 class TestEntitiesService:
+    @pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
+    @pytest.mark.anyio
+    async def test_aclose_closes_owned_services(self, service: EntitiesService):
+        await service.aclose()
+
+        assert service._client.is_closed
+        assert service._client_async.is_closed
+        assert service._schema._client.is_closed
+        assert service._schema._client_async.is_closed
+        assert service._data._client.is_closed
+        assert service._data._client_async.is_closed
+        assert service._ontology._client.is_closed
+        assert service._ontology._client_async.is_closed
+
     def test_query_entity_records_has_datafabric_error_mapping(self) -> None:
         assert (
             EntitiesService.query_entity_records.__uipath_datafabric_method__  # type: ignore[attr-defined]
