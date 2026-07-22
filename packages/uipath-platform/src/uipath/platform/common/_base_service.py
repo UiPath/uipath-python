@@ -3,6 +3,7 @@ import types
 from logging import getLogger
 from typing import Any, Literal, Union
 
+from anyio import to_thread
 from httpx import (
     URL,
     AsyncClient,
@@ -170,6 +171,18 @@ class BaseService:
         self._logger.debug(f"HEADERS: {self.default_headers}")
 
         super().__init__()
+
+    async def aclose(self) -> None:
+        """Close the HTTP clients owned by this service.
+
+        The asynchronous client is closed by the active async backend. Closing the
+        synchronous client can block while its transport is torn down, so that work
+        runs in a backend-neutral worker thread.
+        """
+        try:
+            await self._client_async.aclose()
+        finally:
+            await to_thread.run_sync(self._client.close)
 
     @retry(
         retry=(

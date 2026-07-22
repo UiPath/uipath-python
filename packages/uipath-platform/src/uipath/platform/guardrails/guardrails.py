@@ -92,6 +92,7 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
         default_factory=list, alias="validatorParameters"
     )
     byo_validator_name: str | None = Field(default=None, alias="byoValidatorName")
+    byo_connection_id: str | None = Field(default=None, alias="byoConnectionId")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

@@ -1063,7 +1063,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.30"
+version = "0.5.31"
 source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -1095,9 +1095,10 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.9"
+version = "0.2.13"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "httpx" },
     { name = "pydantic-function-models" },
     { name = "sqlparse" },
@@ -1123,6 +1124,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "sqlparse", specifier = ">=0.5.5" },
