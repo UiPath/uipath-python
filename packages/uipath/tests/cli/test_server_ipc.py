@@ -129,6 +129,19 @@ class TestIpcServer:
         assert result.ExitCode != 0
         assert "Unknown command" in (result.Error or "")
 
+    def test_start_job_missing_command(self, pipe):
+        """Absent/empty Command is rejected before the job core is touched."""
+        result = asyncio.run(
+            _with_proxy(pipe, lambda p: p.StartJob({"JobKey": "job-1"}))
+        )
+        assert result.ExitCode != 0
+        assert "Command" in (result.Error or "")
+
+    def test_stop_job_returns_true(self, pipe):
+        """StopJob is a no-op stub today, but must ack (bool) so the call is awaitable."""
+        result = asyncio.run(_with_proxy(pipe, lambda p: p.StopJob("job-1")))
+        assert result is True
+
 
 class TestIpcServerEnvIsolation:
     """Env vars must not leak between sequential jobs (as on the HTTP path)."""
