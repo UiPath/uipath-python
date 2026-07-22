@@ -1,10 +1,11 @@
 [project]
 name = "uipath-platform"
-version = "0.2.11"
+version = "0.2.13"
 description = "HTTP client library for programmatic access to UiPath Platform"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
+  "anyio>=4.0.0",
   "httpx>=0.28.1",
   "tenacity>=9.0.0",
   "truststore>=0.10.1",

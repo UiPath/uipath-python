@@ -2741,9 +2741,10 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.11"
+version = "0.2.13"
 source = { editable = "../uipath-platform" }
 dependencies = [
+    { name = "anyio" },
     { name = "httpx" },
     { name = "pydantic-function-models" },
     { name = "sqlparse" },
@@ -2754,6 +2755,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "sqlparse", specifier = ">=0.5.5" },
