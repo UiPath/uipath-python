@@ -6,21 +6,34 @@ import shlex
 import sys
 import tempfile
 import time
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from importlib.util import find_spec
 from typing import Any
 
 import click
 from aiohttp import ClientSession, UnixConnector, web
-from uipath_ipc import IpcServer, NamedPipeServerTransport
 
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .cli_debug import debug
 from .cli_eval import eval
 from .cli_run import run
+from .cli_server_ipc import (
+    IPythonRuntimeServer,
+    PythonRunRequest,
+    PythonRunResult,
+    PythonRuntimeService,
+    start_ipc_server,
+)
+
+__all__ = [
+    "server",
+    "IPythonRuntimeServer",
+    "PythonRunRequest",
+    "PythonRunResult",
+    "PythonRuntimeService",
+    "start_ipc_server",
+]
 
 console = ConsoleLogger()
 
@@ -367,83 +380,9 @@ async def start_tcp_server(host: str, port: int) -> None:
         await runner.cleanup()
 
 
-# --------------------------------------------------------------------------- #
-# uipath-ipc transport, served alongside HTTP                                 #
-# Older servers didn't; the Handler copes                                     #
-# --------------------------------------------------------------------------- #
-
-
-@dataclass
-class PythonRunRequest:
-    """Mirrors the .NET PythonRunRequest DTO. PascalCase fields match the wire keys."""
-
-    JobKey: str = ""
-    Command: str = ""
-    Args: str | None = None
-    WorkingDirectory: str | None = None
-    EnvironmentVariables: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass
-class PythonRunResult:
-    """Mirrors the .NET PythonRunResult DTO."""
-
-    ExitCode: int = 0
-    Error: str | None = None
-
-
-class IPythonRuntimeServer(ABC):
-    """Contract the .NET job executor calls over uipath-ipc."""
-
-    @abstractmethod
-    async def StartJob(self, request: PythonRunRequest) -> PythonRunResult:
-        """Run a job → PythonRunResult(ExitCode, Error)."""
-
-    @abstractmethod
-    async def StopJob(self, job_key: str) -> bool:
-        """Cancel a running job by key (bool return avoids fire-and-forget)."""
-
-
-class PythonRuntimeService(IPythonRuntimeServer):
-    """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
-
-    async def StartJob(self, request: PythonRunRequest) -> PythonRunResult:
-        command_name = request.Command
-        if not isinstance(command_name, str) or not command_name:
-            return PythonRunResult(ExitCode=1, Error="Missing or invalid field: 'Command'")
-
-        cmd = COMMANDS.get(command_name)
-        if cmd is None:
-            return PythonRunResult(ExitCode=1, Error=f"Unknown command: {command_name}")
-
-        args = parse_args(request.Args)
-
-        console.info(f"Starting job {request.JobKey}: {command_name} {args}")
-
-        result = await _run_command_isolated(
-            cmd, args, request.EnvironmentVariables, request.WorkingDirectory
-        )
-        # IPC contract (PythonRunResult) carries only ExitCode + Error.
-        return PythonRunResult(ExitCode=result["ExitCode"], Error=result["Error"])
-
-    async def StopJob(self, job_key: str) -> bool:
-        # Cancellation is not wired into the job core yet — accept the request and
-        # no-op so the .NET side gets a clean response. Real cancellation lands here.
-        console.info(f"StopJob requested for {job_key} (no-op)")
-        return True
-
-
-async def start_ipc_server(pipe_name: str) -> None:
-    """Serve the Python runtime over a uipath-ipc named pipe until it is closed."""
-    _state.init()
-    server = IpcServer(
-        transport=NamedPipeServerTransport(pipe_name),
-        services={IPythonRuntimeServer: PythonRuntimeService()},
-        request_timeout=None,  # jobs are long-running; no server-side timeout
-    )
-    console.success(f"IPC server listening on pipe '{pipe_name}'")
-    async with server:
-        await server.serve_forever()
+# The uipath-ipc transport (contract, DTOs, service, ``start_ipc_server``) lives
+# in ``cli_server_ipc`` and is served alongside HTTP when ``--server-socket`` is
+# given. Older servers served HTTP only; the .NET Handler copes.
 
 
 # --------------------------------------------------------------------------- #
