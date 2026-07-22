@@ -119,9 +119,24 @@ def _stub_provider(
         "uipath._cli._governance_bootstrap.UiPath",
         lambda: MagicMock(governance=MagicMock()),
     )
+
+    def _make_provider(
+        service: Any = None,
+        *,
+        config: Any = None,
+        execution_context: Any = None,
+    ) -> Any:
+        # The policy fetch constructs the provider with ``service=``; the
+        # dispatcher gets a dedicated provider built from ``config=`` /
+        # ``execution_context=`` (a fresh async client — see the
+        # loop-affinity fix in ``resolve_governance``).
+        if service is not None:
+            return provider
+        return MagicMock()
+
     monkeypatch.setattr(
         "uipath._cli._governance_bootstrap.UiPathPlatformGovernanceProvider",
-        lambda service: provider,
+        _make_provider,
     )
     return provider
 
@@ -856,3 +871,114 @@ class TestResolveGovernance:
         assert len(unregistered_arg) == 1
         # Same bound method → same underlying dispatcher shutdown.
         assert registered_arg[0] == unregistered_arg[0]
+
+    async def test_dispatcher_gets_dedicated_provider_not_policy_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        cwd: Path,
+    ) -> None:
+        """Regression for the loop-affinity bug.
+
+        The policy fetch is awaited on the CLI's main loop, binding
+        ``sdk.governance``'s httpx ``AsyncClient`` to that loop. The
+        dispatcher awaits ``track_event`` on its own background loop, so it
+        must receive a DISTINCT provider (a fresh async client), never the
+        one used for the policy fetch — otherwise every event silently
+        fails or hangs. The policy provider is built with ``service=``; the
+        dispatcher's with ``config=`` / ``execution_context=``.
+        """
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.is_governance_enabled",
+            lambda: True,
+        )
+        _install_fake_runtime_governance(
+            monkeypatch,
+            audit_manager_cls=_FakeAuditManager,
+            metadata_cls=_FakeMetadata,
+            evaluator_cls=_FakeEvaluator,
+            compensator_cls=_FakeCompensator,
+        )
+
+        policy_provider = MagicMock(name="policy_provider")
+        policy_provider.get_policy_async = AsyncMock(
+            return_value=_fake_policy_response(
+                mode=EnforcementMode.ENFORCE, policies="rules: []"
+            )
+        )
+        dispatch_provider = MagicMock(name="dispatch_provider")
+
+        sentinel_config = object()
+        sentinel_ctx = object()
+        sdk = MagicMock()
+        sdk._config = sentinel_config
+        sdk._execution_context = sentinel_ctx
+        monkeypatch.setattr("uipath._cli._governance_bootstrap.UiPath", lambda: sdk)
+
+        provider_calls: list[dict[str, Any]] = []
+
+        def _make_provider(
+            service: Any = None,
+            *,
+            config: Any = None,
+            execution_context: Any = None,
+        ) -> Any:
+            provider_calls.append(
+                {
+                    "service": service,
+                    "config": config,
+                    "execution_context": execution_context,
+                }
+            )
+            return policy_provider if service is not None else dispatch_provider
+
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.UiPathPlatformGovernanceProvider",
+            _make_provider,
+        )
+
+        captured: dict[str, Any] = {}
+
+        class _RecordingDispatcher:
+            def __init__(self, provider: Any) -> None:
+                captured["provider"] = provider
+                self.dispatch = MagicMock()
+
+            def shutdown(self, *_a: Any, **_kw: Any) -> None:
+                pass
+
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.LiveTrackEventDispatcher",
+            _RecordingDispatcher,
+        )
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.atexit.register",
+            lambda *_a, **_kw: None,
+        )
+        monkeypatch.setattr(
+            "uipath._cli._governance_bootstrap.atexit.unregister",
+            lambda *_a, **_kw: None,
+        )
+
+        result = await resolve_governance(
+            agent_framework="langgraph",
+            agent_type="uipath_coded",
+            is_conversational=False,
+        )
+        assert result is not None
+        try:
+            # Two providers built: policy fetch + dispatcher.
+            assert len(provider_calls) == 2
+            # Policy fetch reused the shared cached service.
+            assert provider_calls[0]["service"] is sdk.governance
+            # Dispatcher provider built from config/context — a fresh
+            # service (fresh async client), not the policy one.
+            assert provider_calls[1]["service"] is None
+            assert provider_calls[1]["config"] is sentinel_config
+            assert provider_calls[1]["execution_context"] is sentinel_ctx
+            # The dispatcher received the DEDICATED provider.
+            assert captured["provider"] is dispatch_provider
+            assert captured["provider"] is not policy_provider
+            # And the policy fetch really ran on the policy provider.
+            policy_provider.get_policy_async.assert_awaited_once()
+        finally:
+            result.dispose()

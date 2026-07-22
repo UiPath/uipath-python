@@ -16,6 +16,7 @@ underlying HTTP. Tests focus on:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import threading
 import time
@@ -464,37 +465,42 @@ def test_shutdown_swallows_when_loop_already_stopped(provider: MagicMock) -> Non
     dispatcher.shutdown()
 
 
-def test_worker_exception_is_logged_at_debug(
+def test_worker_exception_warns_once_then_debug(
     provider: MagicMock,
     dispatcher: LiveTrackEventDispatcher,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Covers the ``except Exception`` branch inside ``_run``.
+    """Covers the ``except Exception`` branch inside ``_run`` and the
+    warn-once policy.
 
-    Complements :func:`test_worker_exception_does_not_propagate` by
-    asserting the log record (with ``exc_info``) actually fires, so
-    coverage records the debug-log line inside the coroutine.
+    Swallowed coroutine exceptions are silent to the caller by the
+    fire-and-forget contract, so the FIRST one is surfaced at warning (to
+    make otherwise-invisible telemetry loss visible) and the rest drop to
+    debug (so a sustained-down backend can't flood the logs). Both carry
+    ``exc_info`` so operators can trace the failure.
     """
     provider.track_event_async.side_effect = ValueError("bad payload")
 
     with caplog.at_level(logging.DEBUG, logger=_DISPATCHER_LOGGER):
-        dispatcher.dispatch(event_name="agent.bad")
-        # Wait for the coroutine to run AND the callback to fire so
-        # coverage collects the except-branch lines from the loop thread.
+        dispatcher.dispatch(event_name="agent.bad.1")
         assert _wait_for(lambda: provider.track_event_async.await_count >= 1)
-        # Small sleep to let the callback finalize (release semaphore,
-        # drop from set) — otherwise coverage may race the callback.
+        time.sleep(0.05)
+        dispatcher.dispatch(event_name="agent.bad.2")
+        assert _wait_for(lambda: provider.track_event_async.await_count >= 2)
         time.sleep(0.05)
 
-    matching = [
-        r
-        for r in caplog.records
-        if "Failed to dispatch track_event" in r.message and r.levelno == logging.DEBUG
+    failures = [
+        r for r in caplog.records if "Failed to dispatch track_event" in r.message
     ]
-    assert matching, "expected a debug log for the swallowed exception"
-    # exc_info is attached so operators can trace the failure.
-    assert matching[0].exc_info is not None
-    assert isinstance(matching[0].exc_info[1], ValueError)
+    warnings = [r for r in failures if r.levelno == logging.WARNING]
+    debugs = [r for r in failures if r.levelno == logging.DEBUG]
+
+    # Exactly one warning (warn-once), and at least one subsequent debug.
+    assert len(warnings) == 1, f"expected one warning, got {len(warnings)}"
+    assert debugs, "expected subsequent failures logged at debug"
+    # exc_info attached on the surfaced warning.
+    assert warnings[0].exc_info is not None
+    assert isinstance(warnings[0].exc_info[1], ValueError)
 
 
 # ---------------------------------------------------------------------------
@@ -579,3 +585,154 @@ def test_shutdown_respects_timeout_when_drain_stalls(provider: MagicMock) -> Non
     # few seconds — a hang here would freeze the whole test suite.
     assert elapsed < 3.0, f"shutdown took {elapsed:.3f}s with timeout=0.1s"
     assert not dispatcher._loop_thread.is_alive()
+
+
+def test_shutdown_default_timeout_is_short_for_cli_exit() -> None:
+    """The drain default must be short.
+
+    The only caller is a CLI exit path; a long drain against a degraded
+    backend would just stall process teardown (telemetry is best-effort).
+    Guards against silent drift back to a large default.
+    """
+    default = (
+        inspect.signature(LiveTrackEventDispatcher.shutdown)
+        .parameters["timeout"]
+        .default
+    )
+    assert default == 5.0
+
+
+# ---------------------------------------------------------------------------
+# per-call deadline
+# ---------------------------------------------------------------------------
+
+
+def test_per_call_deadline_drops_slow_call(
+    provider: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A single dispatched call that outruns the per-call deadline is
+    cancelled and dropped — it must not pin its in-flight slot, and the
+    caller must never see an error.
+
+    Without the deadline, one degraded call (5 retries × 30s + Retry-After
+    backoff) could hold a slot for minutes and stall shutdown drain.
+    """
+    monkeypatch.setattr(LiveTrackEventDispatcher, "_PER_CALL_DEADLINE_SECONDS", 0.1)
+
+    cancelled = threading.Event()
+
+    async def _too_slow(**_: object) -> None:
+        try:
+            await asyncio.sleep(5.0)  # far beyond the 0.1s deadline
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    provider.track_event_async.side_effect = _too_slow
+
+    dispatcher = LiveTrackEventDispatcher(provider, max_inflight=1)
+    try:
+        with caplog.at_level(logging.WARNING, logger=_DISPATCHER_LOGGER):
+            dispatcher.dispatch(event_name="slow.event")
+            # The 0.1s deadline fires long before the 5s sleep would.
+            assert cancelled.wait(timeout=2.0), (
+                "coroutine was not cancelled at the deadline"
+            )
+            # The in-flight slot is released once the dropped call finalizes,
+            # so it can be re-acquired.
+            reacquired = _wait_for(lambda: dispatcher._inflight.acquire(blocking=False))
+            assert reacquired, "in-flight slot not released after deadline drop"
+            dispatcher._inflight.release()
+
+        deadline_logs = [
+            r
+            for r in caplog.records
+            if "exceeded the" in r.message and "deadline" in r.message
+        ]
+        assert deadline_logs, "expected a deadline-exceeded log"
+    finally:
+        dispatcher.shutdown()
+
+
+def test_inner_timeout_error_not_mislabeled_as_deadline(
+    provider: MagicMock,
+    dispatcher: LiveTrackEventDispatcher,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A ``TimeoutError`` raised by the provider call itself (e.g. a socket
+    timeout — ``socket.timeout`` is aliased to ``TimeoutError``) must be
+    logged as a generic dispatch failure WITH ``exc_info``, not misreported
+    as a per-call-deadline drop.
+
+    Guards the ``cm.expired()`` disambiguation: the fast-firing inner
+    ``TimeoutError`` reaches ``_run`` long before the (unmonkeypatched, 60s)
+    deadline, so ``cm.expired()`` is False.
+    """
+    provider.track_event_async.side_effect = TimeoutError("socket read timed out")
+
+    with caplog.at_level(logging.WARNING, logger=_DISPATCHER_LOGGER):
+        dispatcher.dispatch(event_name="agent.inner_timeout")
+        assert _wait_for(lambda: provider.track_event_async.await_count >= 1)
+        time.sleep(0.05)
+
+    messages = [r.message for r in caplog.records]
+    assert not any("exceeded the" in m and "deadline" in m for m in messages), (
+        f"inner TimeoutError was mislabeled as a deadline drop: {messages}"
+    )
+    failures = [
+        r for r in caplog.records if "Failed to dispatch track_event" in r.message
+    ]
+    assert failures, f"expected a generic dispatch-failure log, got: {messages}"
+    assert failures[0].exc_info is not None
+    assert isinstance(failures[0].exc_info[1], TimeoutError)
+
+
+# ---------------------------------------------------------------------------
+# construction: bounded wait for the loop thread
+# ---------------------------------------------------------------------------
+
+
+def test_late_loop_start_raises_and_thread_closes_its_own_loop(
+    provider: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A loop thread that starts AFTER the readiness deadline must:
+
+    1. cause construction to fail fast (fail open — the bootstrap treats a
+       dispatcher construction failure as "governance unavailable", so it
+       can never hang the CLI), and
+    2. abort cleanly by closing its OWN loop when it finally runs — the
+       loop is never closed across threads (which would race
+       ``run_forever``: closing a running loop, or running a closed one).
+
+    Regression guard for the loop-affinity-review finding: ``__init__`` must
+    only *signal* the abort, and ``_run_loop`` must do the close.
+    """
+    monkeypatch.setattr(LiveTrackEventDispatcher, "_LOOP_START_TIMEOUT_SECONDS", 0.1)
+
+    gate = threading.Event()
+    real_run_loop = LiveTrackEventDispatcher._run_loop
+    captured: dict[str, LiveTrackEventDispatcher] = {}
+
+    def _delayed_run_loop(self: LiveTrackEventDispatcher) -> None:
+        # Hold the thread past the readiness deadline so __init__ times out
+        # first, THEN run the real loop body (which must hit the abort path).
+        captured["self"] = self
+        gate.wait(timeout=2.0)
+        real_run_loop(self)
+
+    monkeypatch.setattr(LiveTrackEventDispatcher, "_run_loop", _delayed_run_loop)
+
+    with pytest.raises(RuntimeError, match="failed to start"):
+        LiveTrackEventDispatcher(provider)
+
+    # __init__ has raised and signalled abort. Release the late thread into
+    # the REAL _run_loop: it must observe the abort flag, close its own loop,
+    # and exit — no run_forever, no leaked running loop, no cross-thread close.
+    dispatcher = captured["self"]
+    gate.set()
+    dispatcher._loop_thread.join(timeout=2.0)
+    assert not dispatcher._loop_thread.is_alive(), "late loop thread did not exit"
+    assert dispatcher._loop.is_closed(), "aborting thread did not close its own loop"

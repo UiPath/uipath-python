@@ -138,9 +138,25 @@ async def resolve_governance(
             logger.debug("dispatcher shutdown failed", exc_info=True)
 
     try:
-        track_event_dispatcher = LiveTrackEventDispatcher(provider)
+        # Telemetry is awaited on the dispatcher's private background loop.
+        # httpx AsyncClients are loop-affine: the policy fetch above already
+        # bound ``sdk.governance``'s async client to THIS (main) loop, so the
+        # dispatcher must NOT reuse that service — cross-loop reuse either
+        # silently fails every event or hangs, stalling shutdown. Give the
+        # dispatcher its own service (a fresh async client only its loop ever
+        # awaits), built from the same validated config/context so it targets
+        # the same backend with the same auth and does no extra auth I/O. See
+        # the dispatcher module docstring ("one dispatcher per provider").
+        dispatch_provider = UiPathPlatformGovernanceProvider(
+            config=sdk._config,
+            execution_context=sdk._execution_context,
+        )
+        track_event_dispatcher = LiveTrackEventDispatcher(dispatch_provider)
         atexit.register(track_event_dispatcher.shutdown)
 
+        # Compensation stays on ``provider``: it is a synchronous call
+        # (``compensate`` → sync httpx ``Client``), which has no event-loop
+        # affinity, so sharing the policy provider here is safe.
         compensator = GuardrailCompensator(provider)
         audit_manager = AuditManager(
             track_event=track_event_dispatcher.dispatch,
