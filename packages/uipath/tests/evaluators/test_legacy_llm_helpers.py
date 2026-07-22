@@ -75,3 +75,10 @@ class TestExtractToolCallResponse:
 
         with pytest.raises(ValueError, match="Missing 'score'"):
             extract_tool_call_response(response, "m")
+
+    @pytest.mark.parametrize("value", ["not-a-number", None, [95]])
+    def test_non_numeric_score_is_rejected(self, value: Any) -> None:
+        response = _make_response({"score": value, "justification": "j"})
+
+        with pytest.raises(ValueError, match="Non-numeric score"):
+            extract_tool_call_response(response, "m")

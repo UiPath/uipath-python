@@ -90,7 +90,17 @@ def extract_tool_call_response(response: Any, model: str) -> LLMResponse:
             logger.debug(f"Arguments: {arguments}")
             raise ValueError(error_msg)
 
-        score = float(arguments["score"])
+        try:
+            score = float(arguments["score"])
+        except (ValueError, TypeError) as e:
+            error_msg = (
+                f"Non-numeric score {arguments['score']!r} in tool call arguments "
+                f"from model {model}: expected a number between 0 and 100"
+            )
+            logger.error(f"❌ {error_msg}")
+            logger.debug(f"Arguments: {arguments}")
+            raise ValueError(error_msg) from e
+
         justification = str(arguments["justification"])
 
         # Models occasionally emit corrupted numeric tool arguments despite the
