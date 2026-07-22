@@ -7,6 +7,7 @@
 
 import warnings
 from typing import Any, List
+from urllib.parse import quote
 
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
@@ -150,20 +151,20 @@ class RemoteA2aService(FolderContext, BaseService):
         data = response.json()
         return [RemoteA2aAgent.model_validate(agent) for agent in data.get("value", [])]
 
-    @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="name")
     def retrieve(
         self,
-        slug: str,
+        name: str,
         *,
         folder_path: str | None = None,
     ) -> RemoteA2aAgent:
-        """Retrieve a specific Remote A2A agent by slug.
+        """Retrieve a specific Remote A2A agent by display name.
 
         .. warning::
             This method is experimental and subject to change.
 
         Args:
-            slug: The unique slug identifier for the agent.
+            name: The display name of the agent.
             folder_path: The folder path where the agent is located.
 
         Returns:
@@ -183,7 +184,7 @@ class RemoteA2aService(FolderContext, BaseService):
             "remote_a2a.retrieve is experimental and subject to change.",
             stacklevel=2,
         )
-        spec = self._retrieve_spec(slug=slug, folder_path=folder_path)
+        spec = self._retrieve_spec(name=name, folder_path=folder_path)
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -192,20 +193,20 @@ class RemoteA2aService(FolderContext, BaseService):
         )
         return RemoteA2aAgent.model_validate(response.json())
 
-    @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="name")
     async def retrieve_async(
         self,
-        slug: str,
+        name: str,
         *,
         folder_path: str | None = None,
     ) -> RemoteA2aAgent:
-        """Asynchronously retrieve a specific Remote A2A agent by slug.
+        """Asynchronously retrieve a specific Remote A2A agent by display name.
 
         .. warning::
             This method is experimental and subject to change.
 
         Args:
-            slug: The unique slug identifier for the agent.
+            name: The display name of the agent.
             folder_path: The folder path where the agent is located.
 
         Returns:
@@ -229,7 +230,7 @@ class RemoteA2aService(FolderContext, BaseService):
             "remote_a2a.retrieve_async is experimental and subject to change.",
             stacklevel=2,
         )
-        spec = self._retrieve_spec(slug=slug, folder_path=folder_path)
+        spec = self._retrieve_spec(name=name, folder_path=folder_path)
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -279,14 +280,16 @@ class RemoteA2aService(FolderContext, BaseService):
 
     def _retrieve_spec(
         self,
-        slug: str,
+        name: str,
         *,
         folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_path)
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"/agenthub_/api/remote-a2a-agents/{slug}"),
+            endpoint=Endpoint(
+                f"/agenthub_/api/remote-a2a-agents/{quote(name, safe='')}"
+            ),
             headers={
                 **header_folder(folder_key, None),
             },
