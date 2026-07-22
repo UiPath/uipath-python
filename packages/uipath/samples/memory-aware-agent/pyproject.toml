@@ -1,0 +1,13 @@
+[project]
+name = "memory-aware-agent"
+version = "0.0.1"
+description = "Sample agent that augments LLM prompts with UiPath Agent Memory recall"
+requires-python = ">=3.11"
+dependencies = [
+    "uipath",
+]
+
+[dependency-groups]
+dev = [
+    "uipath-dev",
+]
