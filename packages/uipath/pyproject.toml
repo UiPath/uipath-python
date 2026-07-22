@@ -8,7 +8,7 @@ dependencies = [
   "uipath-core>=0.5.30, <0.6.0",
   "uipath-runtime>=0.12.2, <0.13.0",
   "uipath-platform>=0.2.4, <0.3.0",
-  "uipath-ipc>=2.5.1",
+  "uipath-ipc>=2.5.1,<2.6.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -177,18 +177,7 @@ uipath-ipc = false
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }
 uipath-platform = { path = "../uipath-platform", editable = true }
-# uipath-ipc is published to the (anonymously accessible) UiPath-Internal Azure
-# Artifacts feed, not PyPI. Pin it to that index so uv fetches ONLY uipath-ipc
-# there — this avoids a dependency-confusion exposure from a plain extra-index.
-# NOTE: this is uv/dev-and-CI resolution config only (not baked into the wheel);
-# `pip install uipath` from PyPI still needs uipath-ipc to be resolvable
-# (public-PyPI release or an optional extra) — a separate decision.
-uipath-ipc = { index = "uipath-internal" }
-
-[[tool.uv.index]]
-name = "uipath-internal"
-url = "https://pkgs.dev.azure.com/uipath/Public.Feeds/_packaging/UiPath-Internal/pypi/simple/"
-explicit = true
+# uipath-ipc resolves from public PyPI (published there as of 2.5.2); no index pin.
 
 [[tool.uv.index]]
 name = "testpypi"

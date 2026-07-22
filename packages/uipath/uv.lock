@@ -2675,7 +2675,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
-    { name = "uipath-ipc", specifier = ">=2.5.1", index = "https://pkgs.dev.azure.com/uipath/Public.Feeds/_packaging/UiPath-Internal/pypi/simple/" },
+    { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.12.2,<0.13.0" },
 ]
@@ -2744,11 +2744,11 @@ dev = [
 
 [[package]]
 name = "uipath-ipc"
-version = "2.5.1+20260625.1"
-source = { registry = "https://pkgs.dev.azure.com/uipath/Public.Feeds/_packaging/UiPath-Internal/pypi/simple/" }
-sdist = { url = "https://pkgs.dev.azure.com/uipath/5b98d55c-1b14-4a03-893f-7a59746f1246/_packaging/788028a9-5a01-48ee-b925-3af51ae46294/pypi/download/uipath-ipc/2.5.1+20260625.1/uipath_ipc-2.5.1+20260625.1.tar.gz", hash = "sha256:bc202fef26d8ecae6b8bcfaccd6bcfb4675e0160faabf8d9281f1028643adee9" }
+version = "2.5.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/6b/53d9725d6abd1dab447300a7f999332f530678e3fabd38fc31171a5a9a6f/uipath_ipc-2.5.2.tar.gz", hash = "sha256:d69c3d7c1ad1a25ef7f9f1d78c505f5d2ed7daa7227bb202404fa3d47e0ba12e", size = 86360, upload-time = "2026-07-24T09:44:35.159Z" }
 wheels = [
-    { url = "https://pkgs.dev.azure.com/uipath/5b98d55c-1b14-4a03-893f-7a59746f1246/_packaging/788028a9-5a01-48ee-b925-3af51ae46294/pypi/download/uipath-ipc/2.5.1+20260625.1/uipath_ipc-2.5.1+20260625.1-py3-none-any.whl", hash = "sha256:0e90b0198b9afa8a1fa832e010aa1160914391d9b5610684a3bf582704f41773" },
+    { url = "https://files.pythonhosted.org/packages/29/eb/6def505a0d351119da27b342c11eb0767a31a7f100022d35e349c5194eb3/uipath_ipc-2.5.2-py3-none-any.whl", hash = "sha256:617f25f35377d87956165a875b0966a3cd69ae6724fcd533c93a7a6a9460fc4f", size = 50345, upload-time = "2026-07-24T09:44:33.7Z" },
 ]
 
 [[package]]
