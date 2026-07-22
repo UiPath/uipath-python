@@ -63,13 +63,16 @@ async def _with_proxy(pipe_name: str, fn: Callable[[Any], Awaitable[Any]]) -> An
     """Connect a uipath-ipc client to the pipe, run ``fn(proxy)``, then close."""
     client = IpcClient(transport=NamedPipeClientTransport(pipe_name))
     try:
-        proxy = client.get_proxy(IPythonRuntimeServer)
+        # get_proxy is by-contract; the abstract interface is exactly what it wants.
+        proxy = client.get_proxy(IPythonRuntimeServer)  # type: ignore[type-abstract]
         return await fn(proxy)
     finally:
         await client.aclose()
 
 
-def create_uipath_json(script_path: str, entrypoint_name: str = "main") -> dict:
+def create_uipath_json(
+    script_path: str, entrypoint_name: str = "main"
+) -> dict[str, Any]:
     return {"functions": {entrypoint_name: f"{script_path}:main"}}
 
 

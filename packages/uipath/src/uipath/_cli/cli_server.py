@@ -450,7 +450,9 @@ async def _serve(
         pipe_name = os.path.basename(server_socket)
         tasks.append(start_ipc_server(pipe_name))
     else:
-        console.warning("--server-socket not provided; serving HTTP only (no IPC channel).")
+        console.warning(
+            "--server-socket not provided; serving HTTP only (no IPC channel)."
+        )
 
     await asyncio.gather(*tasks)
 

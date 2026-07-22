@@ -62,7 +62,9 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
         command_name = request.Command
         if not isinstance(command_name, str) or not command_name:
-            return PythonRunResult(ExitCode=1, Error="Missing or invalid field: 'Command'")
+            return PythonRunResult(
+                ExitCode=1, Error="Missing or invalid field: 'Command'"
+            )
 
         cmd = COMMANDS.get(command_name)
         if cmd is None:

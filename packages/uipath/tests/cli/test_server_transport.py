@@ -13,6 +13,7 @@ through.
 """
 
 import asyncio
+from typing import Any
 
 from click.testing import CliRunner
 
@@ -20,7 +21,7 @@ import uipath._cli._telemetry as _telemetry
 from uipath._cli import cli_server
 
 
-def _stub_channels(monkeypatch) -> dict:
+def _stub_channels(monkeypatch) -> dict[str, Any]:
     """Stub the three channel runners + state init; record what ``_serve`` starts.
 
     Each runner is replaced with an async recorder that returns immediately, so
@@ -28,7 +29,7 @@ def _stub_channels(monkeypatch) -> dict:
     ``_state.init`` is stubbed too, so no event-loop-bound lock leaks between the
     per-test loops ``asyncio.run`` creates.
     """
-    calls: dict = {}
+    calls: dict[str, Any] = {}
 
     async def _rec_unix(ack_socket_path, server_socket_path=None):
         calls["unix"] = (ack_socket_path, server_socket_path)
@@ -62,9 +63,13 @@ def test_serve_runs_http_and_ipc_together(monkeypatch):
 def test_serve_derives_pipe_name_from_socket_basename(monkeypatch):
     calls = _stub_channels(monkeypatch)
     asyncio.run(
-        cli_server._serve("/tmp/ack.sock", "/var/tmp/uipath-server-42.sock", 8765, False)
+        cli_server._serve(
+            "/tmp/ack.sock", "/var/tmp/uipath-server-42.sock", 8765, False
+        )
     )
-    assert calls["ipc"] == "uipath-server-42.sock"  # basename (directory stripped, extension kept)
+    assert (
+        calls["ipc"] == "uipath-server-42.sock"
+    )  # basename (directory stripped, extension kept)
 
 
 def test_serve_rides_ipc_alongside_tcp(monkeypatch):
@@ -88,11 +93,11 @@ def test_serve_skips_ipc_without_server_socket(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def _capture_serve(monkeypatch) -> dict:
+def _capture_serve(monkeypatch) -> dict[str, Any]:
     """Replace ``_serve`` with an async recorder so ``_run_server`` runs to
     completion on its real per-OS loop (Proactor on Windows, ``asyncio.run`` on
     Linux) without actually serving anything."""
-    seen: dict = {}
+    seen: dict[str, Any] = {}
 
     async def _rec_serve(ack_socket_path, server_socket, port, use_tcp):
         seen.update(
@@ -142,9 +147,9 @@ def test_run_server_tcp_flag_forces_tcp(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def _stub_cli(monkeypatch) -> dict:
+def _stub_cli(monkeypatch) -> dict[str, Any]:
     """Disable telemetry + preload and record the args the CLI hands _run_server."""
-    seen: dict = {}
+    seen: dict[str, Any] = {}
     monkeypatch.setattr(_telemetry, "is_telemetry_enabled", lambda: False)
     monkeypatch.setattr(cli_server, "preload_modules", lambda: None)
     monkeypatch.setattr(
