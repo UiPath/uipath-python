@@ -1,3 +1,4 @@
+import faulthandler
 import importlib.metadata
 import os
 import sys
@@ -8,6 +9,30 @@ from dotenv import load_dotenv
 from uipath._cli._utils._context import CliContext
 from uipath._utils._logs import setup_logging
 from uipath.platform.constants import DOTENV_FILE
+
+
+def _arm_startup_traceback_watchdog() -> None:
+    """Dump all thread stacks to stderr if startup blocks past a threshold.
+
+    Armed at import time (before the lazy command modules load) so a hang
+    in module import or runtime construction is captured in the job logs,
+    where a stalled process is otherwise silent. Cancelled by the run
+    command once the runtime is ready, so a healthy run never dumps.
+    Opt-in via UIPATH_STARTUP_TRACEBACK_SECONDS; auto-enabled in the
+    serverless runtime with a conservative default.
+    """
+    raw = os.environ.get("UIPATH_STARTUP_TRACEBACK_SECONDS")
+    if raw is None and os.environ.get("UIPATH_ENVIRONMENT_TAG") == "Serverless":
+        raw = "120"
+    try:
+        seconds = int(raw) if raw else 0
+    except ValueError:
+        seconds = 0
+    if seconds > 0:
+        faulthandler.dump_traceback_later(seconds, repeat=True, file=sys.stderr)
+
+
+_arm_startup_traceback_watchdog()
 
 # Windows console uses codepages (e.g. cp1252) that can't encode Unicode
 # characters used by Rich spinners (Braille) and emoji output.
