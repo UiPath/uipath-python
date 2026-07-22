@@ -41,7 +41,6 @@ def _create_spec(
     source_name: str = "Agent",
     app_project_key: Optional[str] = None,
     app_type: Optional[str] = None,
-    is_debug: bool = False,
     solution_id: Optional[str] = None,
 ) -> RequestSpec:
     field_list = []
@@ -123,15 +122,14 @@ def _create_spec(
         ),
     }
 
-    if is_debug and app_type is not None:
+    if app_project_key is not None:
         json_payload["appType"] = app_type
-    if is_debug and app_project_key is not None:
         json_payload["appProjectKey"] = app_project_key
 
     _apply_priority_labels_and_actionable_toggle(
         json_payload, priority, labels, is_actionable_message_enabled
     )
-    _apply_task_source(json_payload, source_name, is_debug, solution_id)
+    _apply_task_source(json_payload, source_name, app_project_key is not None, solution_id)
     print('Calling CreateAppTask', json_payload)
     return RequestSpec(
         method="POST",
@@ -193,14 +191,13 @@ def _apply_task_source(
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
         },
+        "jobId": UiPathConfig.job_key
     }
 
     if solution_id is not None:
         payload["taskSource"]["solutionId"] = solution_id
     if is_debug:
         payload["taskSource"]["isDebug"] = True
-        payload["taskSource"]["jobId"] = UiPathConfig.job_key
-
 
 def _normalize_priority(priority: str | None) -> str | None:
     """Normalize priority string to match API expectations.
@@ -483,7 +480,6 @@ class TasksService(FolderContext, BaseService):
         source_name: str = "Agent",
         app_project_key: Optional[str] = None,
         app_type: Optional[str] = None,
-        is_debug: bool = False,
         action_schema: Optional[TaskSchema] = None,
         solution_id: Optional[str] = None,
     ) -> Task:
@@ -518,7 +514,7 @@ class TasksService(FolderContext, BaseService):
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
 
-        if is_debug and app_project_key:
+        if app_project_key:
             (key, schema) = (app_key, TaskSchema(
                     key=action_schema["key"],
                     in_outs=action_schema["inOuts"],
@@ -548,10 +544,8 @@ class TasksService(FolderContext, BaseService):
             source_name=source_name,
             app_project_key=app_project_key,
             app_type=app_type,
-            is_debug=is_debug,
             solution_id=solution_id,
         )
-        print("Headers", spec.headers)
         response = await self.request_async(
             spec.method,
             spec.endpoint,
@@ -593,7 +587,6 @@ class TasksService(FolderContext, BaseService):
         source_name: str = "Agent",
         app_project_key: Optional[str] = None,
         app_type: Optional[str] = None,
-        is_debug: bool = False,
         action_schema: Optional[TaskSchema] = None,
         solution_id: Optional[str] = None,
     ) -> Task:
@@ -628,8 +621,14 @@ class TasksService(FolderContext, BaseService):
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
 
-        if is_debug:
-            (key, schema) = (app_key, action_schema)
+        if app_project_key:
+            (key, schema) = (app_key, TaskSchema(
+                    key=action_schema["key"],
+                    in_outs=action_schema["inOuts"],
+                    inputs=action_schema["inputs"],
+                    outputs=action_schema["outputs"],
+                    outcomes=action_schema["outcomes"],
+                ))
         else:
             (key, schema) = (
                 (app_key, None)
@@ -652,7 +651,6 @@ class TasksService(FolderContext, BaseService):
             source_name=source_name,
             app_project_key=app_project_key,
             app_type=app_type,
-            is_debug=is_debug,
             solution_id=solution_id,
         )
 
