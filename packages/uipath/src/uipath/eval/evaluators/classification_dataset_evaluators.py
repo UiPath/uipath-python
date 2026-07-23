@@ -103,6 +103,7 @@ class _ConfusionData:
     n_total: int
     n_scored: int
     n_skipped: int
+    oov_fn: list[int]
 
 
 def _build_confusion(
@@ -112,16 +113,19 @@ def _build_confusion(
     """Build a confusion matrix from per-datapoint results.
 
     Results without a parseable justification are counted in ``n_skipped`` and
-    omitted from the matrix. Pairs whose expected or actual label isn't in
-    ``classes`` are also skipped. Labels are normalized to lowercase for the
-    lookup index so a classifier returning "Book" vs configured "book" still
-    matches, but the user-supplied casing is preserved in the returned
-    ``_ConfusionData.classes`` so downstream output (per_class keys, UI labels)
-    shows what the user typed.
+    omitted. A datapoint whose *predicted* label is out of vocabulary but whose
+    *expected* label is in vocabulary is a miss for that true class: it is
+    counted as a false negative (``oov_fn``) rather than dropped, so recall is
+    not inflated. A datapoint whose *expected* label is out of vocabulary is
+    skipped — there is no in-vocab true class to attribute the miss to. Labels
+    are normalized to lowercase for the lookup index so a classifier returning
+    "Book" vs configured "book" still matches, but the user-supplied casing is
+    preserved in the returned ``_ConfusionData.classes``.
     """
     index_of = {c.lower(): i for i, c in enumerate(classes)}
     k = len(classes)
     matrix = [[0] * k for _ in range(k)]
+    oov_fn = [0] * k
 
     n_total = len(results)
     n_scored = 0
@@ -134,8 +138,12 @@ def _build_confusion(
             continue
         exp = j.expected.lower()
         act = j.actual.lower()
-        if exp not in index_of or act not in index_of:
+        if exp not in index_of:
             n_skipped += 1
+            continue
+        if act not in index_of:
+            oov_fn[index_of[exp]] += 1
+            n_scored += 1
             continue
         matrix[index_of[act]][index_of[exp]] += 1
         n_scored += 1
@@ -146,6 +154,7 @@ def _build_confusion(
         n_total=n_total,
         n_scored=n_scored,
         n_skipped=n_skipped,
+        oov_fn=oov_fn,
     )
 
 
@@ -199,11 +208,11 @@ class ClassificationDatasetEvaluator(BaseDatasetEvaluator):
             row_sum = sum(confusion.matrix[c])  # predicted as `label`
             col_sum = sum(confusion.matrix[j][c] for j in range(k))  # true `label`
             fp = row_sum - tp
-            fn = col_sum - tp
+            fn = col_sum - tp + confusion.oov_fn[c]
             tn = confusion.n_scored - tp - fp - fn
 
             precision = tp / row_sum if row_sum > 0 else 0.0
-            recall = tp / col_sum if col_sum > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
             f_score = _f_beta(precision, recall, f_value)
 
             per_class[label] = PerClassMetrics(

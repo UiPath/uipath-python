@@ -140,6 +140,17 @@ class TestExactMatchAggregatorConfig:
                 }
             )
 
+    def test_rejects_aggregators_with_negated(self) -> None:
+        with pytest.raises(Exception, match="negated"):
+            _evaluator(
+                {
+                    "name": "IntentClassifier",
+                    "classes": ["yes", "no"],
+                    "negated": True,
+                    "aggregators": [{"type": "precision", "averaging": "macro"}],
+                }
+            )
+
     def test_rejects_padded_class_labels(self) -> None:
         # Padded labels pass a blank check but never match at lookup time —
         # every datapoint would silently land in nSkipped.

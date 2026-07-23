@@ -289,14 +289,25 @@ class TestFScoreEvaluator:
 
 
 class TestSkippingAndEdgeCases:
-    def test_out_of_vocab_labels_are_skipped(self) -> None:
+    def test_out_of_vocab_prediction_counts_as_recall_miss(self) -> None:
         results = [
             _result("cat", "cat"),
             _result("cat", "platypus"),
+        ]
+        d = _details(_recall(["cat", "dog"]).evaluate(results))
+        assert d.n_total == 2 and d.n_scored == 2 and d.n_skipped == 0
+        assert _pc(d)["cat"].fn == 1
+        assert _pc(d)["cat"].support == 2
+        assert _pc(d)["cat"].recall == pytest.approx(0.5)
+        assert _pc(d)["cat"].precision == pytest.approx(1.0)
+
+    def test_out_of_vocab_expected_label_is_skipped(self) -> None:
+        results = [
+            _result("cat", "cat"),
             _result("zebra", "dog"),
         ]
         d = _details(_precision(["cat", "dog"]).evaluate(results))
-        assert d.n_total == 3 and d.n_scored == 1 and d.n_skipped == 2
+        assert d.n_total == 2 and d.n_scored == 1 and d.n_skipped == 1
 
     def test_results_without_justification_are_skipped(self) -> None:
         results = [

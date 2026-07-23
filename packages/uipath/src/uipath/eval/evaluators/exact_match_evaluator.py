@@ -64,6 +64,14 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
                 "labels case-insensitively, so a datapoint could score 0.0 yet "
                 "land on the true-positive diagonal."
             )
+        if self.negated:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}': aggregators are not "
+                "supported with negated — negation flips only the per-datapoint "
+                "score, not the justification's expected/actual labels, so the "
+                "confusion matrix would put matches on the true-positive diagonal "
+                "while they scored 0.0 (and vice versa)."
+            )
         lowered = [c.lower() for c in self.classes]
         if any(not c.strip() or c != c.strip() for c in self.classes) or len(
             set(lowered)
