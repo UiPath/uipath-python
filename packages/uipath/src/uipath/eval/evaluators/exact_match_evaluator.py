@@ -1,11 +1,14 @@
 """Exact match evaluator for workload outputs."""
 
+from pydantic import Field, model_validator
+
 from ..models import (
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
     WorkloadExecution,
 )
+from ._aggregator_specs import AggregatorSpec
 from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
     OutputEvaluationCriteria,
@@ -20,6 +23,67 @@ class ExactMatchEvaluatorConfig(OutputEvaluatorConfig[OutputEvaluationCriteria])
     name: str = "ExactMatchEvaluator"
     case_sensitive: bool = False
     negated: bool = False
+    classes: list[str] | None = Field(
+        default=None,
+        description=(
+            "Label vocabulary shared by every aggregator on this evaluator. "
+            "Labels are matched case-insensitively against the per-datapoint "
+            "expected/actual outputs."
+        ),
+    )
+    aggregators: list[AggregatorSpec] | None = Field(
+        default=None,
+        description=(
+            "Dataset-level metrics (precision / recall / F-score / confusion "
+            "matrix) computed over the per-datapoint match outcomes. Requires "
+            "``classes``."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_aggregators(self) -> "ExactMatchEvaluatorConfig":
+        """Aggregators need a usable class vocabulary and per-label outcomes."""
+        if not self.aggregators:
+            return self
+        if not self.classes:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}' declares aggregators but no "
+                "``classes`` list. Set ``classes`` to the label vocabulary the "
+                "aggregators should compute Precision/Recall/F-score over."
+            )
+        if self.line_by_line_evaluator:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}': aggregators are not "
+                "supported with line_by_line_evaluator — per-line results carry "
+                "no expected/actual labels, so every datapoint would be skipped."
+            )
+        if self.case_sensitive:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}': aggregators are not "
+                "supported with case_sensitive — the confusion matrix buckets "
+                "labels case-insensitively, so a datapoint could score 0.0 yet "
+                "land on the true-positive diagonal."
+            )
+        if self.negated:
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}': aggregators are not "
+                "supported with negated — negation flips only the per-datapoint "
+                "score, not the justification's expected/actual labels, so the "
+                "confusion matrix would put matches on the true-positive diagonal "
+                "while they scored 0.0 (and vice versa)."
+            )
+        lowered = [c.lower() for c in self.classes]
+        if any(not c.strip() or c != c.strip() for c in self.classes) or len(
+            set(lowered)
+        ) != len(lowered):
+            raise ValueError(
+                f"ExactMatch evaluator '{self.name}': ``classes`` must be "
+                "non-blank, have no leading/trailing whitespace, and be unique "
+                "case-insensitively — labels are matched case-insensitively, so "
+                "duplicates would collapse onto one matrix index, and padded "
+                "labels would never match anything."
+            )
+        return self
 
 
 class ExactMatchEvaluator(

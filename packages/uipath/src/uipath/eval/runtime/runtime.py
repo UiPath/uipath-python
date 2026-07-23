@@ -46,7 +46,16 @@ from uipath.runtime.logging import UiPathRuntimeExecutionLogHandler
 from uipath.runtime.schema import UiPathRuntimeSchema
 
 from .._execution_context import ExecutionSpanCollector
-from ..evaluators.base_evaluator import GenericBaseEvaluator
+from ..evaluators.base_evaluator import (
+    BaseEvaluatorJustification,
+    GenericBaseEvaluator,
+)
+from ..evaluators.dataset_evaluator_factory import (
+    build_dataset_evaluator,
+    dataset_result_key,
+    unique_aggregator_specs,
+)
+from ..evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
 from ..helpers import get_agent_model
 from ..mocks._cache_manager import CacheManager
@@ -214,6 +223,95 @@ def compute_evaluator_scores(
     final_score = total_weighted_score / total_weight if total_weight > 0 else 0.0
 
     return final_score, agg_metrics_per_evaluator
+
+
+def compute_dataset_evaluator_results(
+    evaluation_set_results: list[UiPathEvalRunResult],
+    evaluators: Iterable[GenericBaseEvaluator[Any, Any, Any]],
+) -> dict[str, EvaluationResultDto]:
+    """Run any dataset-level aggregators embedded in per-datapoint evaluator configs.
+
+    Walks ``evaluators`` looking for any whose config carries an ``aggregators``
+    list (currently only ExactMatch). For each aggregator spec, builds the
+    corresponding dataset evaluator via the factory and runs it over the
+    per-datapoint results that came from that source evaluator.
+
+    Args:
+        evaluation_set_results: Per-datapoint results from the run.
+        evaluators: Per-datapoint evaluator instances that ran during this eval
+            set. Their configs may carry ``aggregators`` lists.
+
+    Returns:
+        Dict keyed by :func:`dataset_result_key` (same scheme as the platform
+        worker), with each value's ``details`` dumped to the camelCase wire
+        shape. Exact-duplicate specs are deduped; aggregators whose source
+        produced no results still emit a zeroed result.
+    """
+    # Deduplicate by (datapoint, evaluator) before aggregating, mirroring
+    # compute_evaluator_scores. The partial-failure path (see _execute_eval's
+    # except block) can emit a zero-score, details-less DTO for an evaluator
+    # that already produced a real result on the success path; and an external
+    # retry/resume can re-feed a datapoint. Without dedup those inflate
+    # n_total/n_skipped and would double-count real matrix pairs. When a
+    # datapoint has multiple DTOs for one evaluator, prefer the one whose
+    # details parse into an expected/actual justification.
+    latest_by_dp_eval: dict[tuple[str, str], EvaluationResultDto] = {}
+    for eval_run_result in evaluation_set_results:
+        datapoint_id = eval_run_result.evaluation_name
+        for eval_run_result_dto in eval_run_result.evaluation_run_results:
+            if eval_run_result_dto.is_line_result:
+                continue
+            dedup_key = (datapoint_id, eval_run_result_dto.evaluator_name)
+            existing = latest_by_dp_eval.get(dedup_key)
+            candidate = eval_run_result_dto.result
+            # Keep the entry with a parseable justification over one without.
+            if existing is not None and (
+                BaseEvaluatorJustification.try_from(candidate.details) is None
+                or BaseEvaluatorJustification.try_from(existing.details) is not None
+            ):
+                continue
+            latest_by_dp_eval[dedup_key] = candidate
+
+    results_by_evaluator: defaultdict[str, list[EvaluationResultDto]] = defaultdict(
+        list
+    )
+    for (_dp_id, dedup_eval_name), dp_result in latest_by_dp_eval.items():
+        results_by_evaluator[dedup_eval_name].append(dp_result)
+
+    dataset_results: dict[str, EvaluationResultDto] = {}
+    for evaluator in evaluators:
+        # Aggregators currently only live on ExactMatch evaluator configs — the
+        # per-datapoint match outcome (with expected/actual labels in the
+        # justification) is exactly what the confusion matrix needs. Widen the
+        # isinstance tuple if a future evaluator type grows an ``aggregators``
+        # field.
+        config = getattr(evaluator, "evaluator_config", None)
+        if not isinstance(config, ExactMatchEvaluatorConfig):
+            continue
+        if not config.aggregators or not config.classes:
+            continue
+        source_name = config.name
+        source_results = results_by_evaluator.get(source_name, [])
+        specs = unique_aggregator_specs(config.aggregators)
+        type_counts: dict[str, int] = defaultdict(int)
+        for spec in specs:
+            type_counts[spec.type] += 1
+        for spec in specs:
+            dataset_evaluator = build_dataset_evaluator(
+                spec, source_name, config.classes
+            )
+            key = dataset_result_key(source_name, spec, type_counts[spec.type] > 1)
+            result = dataset_evaluator.evaluate(source_results)
+            details: str | dict[str, Any] | None
+            if isinstance(result.details, BaseModel):
+                # Same camelCase wire shape the platform worker ships.
+                details = result.details.model_dump(by_alias=True, exclude_none=True)
+            else:
+                details = result.details
+            dataset_results[key] = EvaluationResultDto(
+                score=result.score, details=details
+            )
+    return dataset_results
 
 
 class UiPathEvalRuntime:
@@ -397,6 +495,14 @@ class UiPathEvalRuntime:
                     _, evaluator_averages = compute_evaluator_scores(
                         results.evaluation_set_results,
                         evaluators,
+                    )
+
+                    # Run dataset-level aggregators over the per-datapoint results.
+                    results.dataset_evaluator_results = (
+                        compute_dataset_evaluator_results(
+                            results.evaluation_set_results,
+                            evaluators,
+                        )
                     )
 
                     # Configure span with output and metadata
