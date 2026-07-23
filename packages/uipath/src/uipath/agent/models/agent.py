@@ -1047,7 +1047,7 @@ class AgentInternalBatchTransformToolProperties(BaseResourceProperties):
     settings: AgentInternalBatchTransformSettings = Field(..., alias="settings")
 
 
-class AgentInternalHttpRequestProperties(BaseResourceProperties):
+class AgentInternalHttpRequestToolProperties(BaseResourceProperties):
     """Agent internal http request tool properties model."""
 
     tool_type: Literal[AgentInternalToolType.HTTP_REQUEST] = Field(
@@ -1060,7 +1060,7 @@ AgentInternalToolProperties = Annotated[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
-        AgentInternalHttpRequestProperties,
+        AgentInternalHttpRequestToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),

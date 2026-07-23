@@ -27,6 +27,7 @@ from uipath.agent.models.agent import (
     AgentIntegrationToolResourceConfig,
     AgentInternalBatchTransformToolProperties,
     AgentInternalDeepRagToolProperties,
+    AgentInternalHttpRequestToolProperties,
     AgentInternalToolResourceConfig,
     AgentInternalToolType,
     AgentIxpExtractionResourceConfig,
@@ -3157,6 +3158,24 @@ class TestAgentBuilderConfig:
                     "description": "Test batch transform tool",
                     "isEnabled": True,
                 },
+                {
+                    "$resourceType": "Tool",
+                    "type": "Internal",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolType": "Http-Request",
+                    },
+                    "argumentProperties": {},
+                    "name": "HTTP Request Tool",
+                    "description": "Test http request tool",
+                    "isEnabled": True,
+                },
             ],
             "guardrails": [
                 {
@@ -3277,6 +3296,15 @@ class TestAgentBuilderConfig:
         assert (
             batch_tool.properties.settings.web_search_grounding.value
             == BatchTransformWebSearchGrounding.ENABLED
+        )
+
+        http_request_tool = config.resources[5]
+        assert isinstance(http_request_tool, AgentInternalToolResourceConfig)
+        assert isinstance(
+            http_request_tool.properties, AgentInternalHttpRequestToolProperties
+        )
+        assert (
+            http_request_tool.properties.tool_type == AgentInternalToolType.HTTP_REQUEST
         )
 
         assert config.guardrails is not None
