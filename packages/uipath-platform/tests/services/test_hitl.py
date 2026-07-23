@@ -18,31 +18,6 @@ from uipath.core.triggers import (
 
 from uipath.platform.action_center import Task
 from uipath.platform.action_center.tasks import TaskStatus
-from uipath.platform.common import (
-    CreateBatchTransform,
-    CreateDeepRag,
-    CreateDeepRagRaw,
-    CreateEphemeralIndex,
-    CreateEphemeralIndexRaw,
-    CreateTask,
-    DocumentExtraction,
-    DocumentExtractionValidation,
-    InvokeProcess,
-    InvokeProcessRaw,
-    InvokeSystemAgent,
-    WaitBatchTransform,
-    WaitDeepRag,
-    WaitDeepRagRaw,
-    WaitDocumentExtractionValidation,
-    WaitEphemeralIndex,
-    WaitEphemeralIndexRaw,
-    WaitIntegrationEvent,
-    WaitJob,
-    WaitJobRaw,
-    WaitSystemAgent,
-    WaitTask,
-    WaitUntil,
-)
 from uipath.platform.connections import Connection
 from uipath.platform.context_grounding import (
     BatchTransformCreationResponse,
@@ -70,10 +45,33 @@ from uipath.platform.documents import (
 from uipath.platform.orchestrator import Job, JobErrorInfo
 from uipath.platform.orchestrator.job import JobState
 from uipath.platform.resume_triggers import (
+    CreateBatchTransform,
+    CreateDeepRag,
+    CreateDeepRagRaw,
+    CreateEphemeralIndex,
+    CreateEphemeralIndexRaw,
+    CreateTask,
+    DocumentExtraction,
+    DocumentExtractionValidation,
+    InvokeProcess,
+    InvokeProcessRaw,
+    InvokeSystemAgent,
     PropertyName,
     TriggerMarker,
     UiPathResumeTriggerCreator,
     UiPathResumeTriggerReader,
+    WaitBatchTransform,
+    WaitDeepRag,
+    WaitDeepRagRaw,
+    WaitDocumentExtractionValidation,
+    WaitEphemeralIndex,
+    WaitEphemeralIndexRaw,
+    WaitIntegrationEvent,
+    WaitJob,
+    WaitJobRaw,
+    WaitSystemAgent,
+    WaitTask,
+    WaitUntil,
 )
 
 

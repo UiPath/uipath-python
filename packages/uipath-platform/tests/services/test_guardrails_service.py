@@ -9,7 +9,7 @@ from uipath.core.guardrails import (
     GuardrailValidationResultType,
 )
 
-from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform import UiPath, UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common import ExecutionSourceContext
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
@@ -31,6 +31,11 @@ def service(
 
 class TestGuardrailsService:
     """Test GuardrailsService functionality."""
+
+    def test_uipath_returns_canonical_service(self) -> None:
+        service = UiPath(base_url="https://test.uipath.com", secret="token").guardrails
+
+        assert type(service) is GuardrailsService
 
     class TestEvaluateGuardrail:
         """Test evaluate_guardrail method."""

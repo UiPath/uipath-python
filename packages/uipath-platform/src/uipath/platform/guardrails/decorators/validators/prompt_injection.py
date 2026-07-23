@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from uipath.platform.guardrails.guardrails import (
+from uipath.platform._guardrails_service import (
     BuiltInValidatorGuardrail,
     NumberParameterValue,
 )

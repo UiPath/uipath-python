@@ -2741,7 +2741,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.13"
+version = "0.2.14"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "anyio" },
@@ -2767,6 +2767,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.8.2" },
+    { name = "import-linter", specifier = ">=2.0" },
     { name = "mypy", specifier = ">=1.19.0" },
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pytest", specifier = ">=7.4.0" },
