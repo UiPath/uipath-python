@@ -18,14 +18,30 @@ from ._utils._console import ConsoleLogger
 from .cli_debug import debug
 from .cli_eval import eval
 from .cli_run import run
+from .cli_server_ipc import (
+    IPythonRuntimeServer,
+    PythonRunRequest,
+    PythonRunResult,
+    PythonRuntimeService,
+    start_ipc_server,
+)
+
+__all__ = [
+    "server",
+    "IPythonRuntimeServer",
+    "PythonRunRequest",
+    "PythonRunResult",
+    "PythonRuntimeService",
+    "start_ipc_server",
+]
 
 console = ConsoleLogger()
+
+IS_WINDOWS = sys.platform == "win32"
 
 SOCKET_ENV_VAR = "UIPATH_SERVER_SOCKET"
 DEFAULT_SOCKET_PATH = "/tmp/uipath-server.sock"
 DEFAULT_PORT = 8765
-
-IS_WINDOWS = sys.platform == "win32"
 
 COMMANDS = {
     "run": run,
@@ -97,7 +113,7 @@ def preload_modules() -> None:
 
 
 def generate_socket_path() -> str:
-    """Generate a unique socket path for the server to listen on."""
+    """Generate a unique socket path for the HTTP server to listen on."""
     return os.path.join(tempfile.gettempdir(), f"uipath-server-{os.getpid()}.sock")
 
 
@@ -118,6 +134,71 @@ def parse_args(args: str | list[str] | None) -> list[str]:
     if isinstance(args, str):
         return shlex.split(args)
     return []
+
+
+async def _run_command_isolated(
+    cmd: Any,
+    args: list[str],
+    env_vars: dict[str, str],
+    working_dir: str | None,
+) -> dict[str, Any]:
+    """Run one command with per-job env/cwd isolation (the shared job core)."""
+    if _state.lock is None or _state.baseline_env is None:
+        raise RuntimeError("Server state not initialized")
+
+    async with _state.lock:
+        original_cwd = os.getcwd()
+        try:
+            # Start from server baseline + request env vars only, so nothing from
+            # a previous job leaks through.
+            os.environ.clear()
+            os.environ.update(_state.baseline_env)
+            if isinstance(env_vars, dict):
+                os.environ.update(env_vars)
+
+            if working_dir and isinstance(working_dir, str):
+                try:
+                    os.chdir(working_dir)
+                except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+                    return {
+                        "ExitCode": 1,
+                        "Error": f"Cannot change to working directory: {e}",
+                        "Result": None,
+                        "Unexpected": False,
+                    }
+
+            result_value = await asyncio.to_thread(
+                cmd.main, args, standalone_mode=False
+            )
+            return {
+                "ExitCode": 0,
+                "Error": None,
+                "Result": result_value,
+                "Unexpected": False,
+            }
+        except SystemExit as e:
+            exit_code = e.code if isinstance(e.code, int) else 1
+            return {
+                "ExitCode": exit_code,
+                "Error": None if exit_code == 0 else f"Exit code: {exit_code}",
+                "Result": None,
+                "Unexpected": False,
+            }
+        except Exception as e:  # report any job failure as a result, not a fault
+            return {"ExitCode": 1, "Error": str(e), "Result": None, "Unexpected": True}
+        finally:
+            # Restore to server baseline.
+            try:
+                os.chdir(original_cwd)
+            except OSError:
+                pass
+            os.environ.clear()
+            os.environ.update(_state.baseline_env)
+
+
+# --------------------------------------------------------------------------- #
+# HTTP transport (default) — aiohttp over a Unix socket / TCP, with ready-ACK  #
+# --------------------------------------------------------------------------- #
 
 
 async def send_ack(ack_socket_path: str, server_socket_path: str) -> None:
@@ -150,7 +231,7 @@ async def handle_health(request: web.Request) -> web.Response:
 
 
 async def handle_start(request: web.Request) -> web.Response:
-    """Handle POST /jobs/{job_key}/start endpoint."""
+    """Handle POST /jobs/{job_key}/start — runs a job via the shared core."""
     job_key = request.match_info.get("job_key")
     if not job_key:
         return web.json_response(
@@ -173,28 +254,10 @@ async def handle_start(request: web.Request) -> web.Response:
             status=400,
         )
 
-    args_raw = get_field(message, "args", "Args")
-    args = parse_args(args_raw)
-
+    args = parse_args(get_field(message, "args", "Args"))
     env_vars = get_field(message, "environmentVariables", "EnvironmentVariables") or {}
     working_dir = get_field(message, "workingDirectory", "WorkingDirectory")
 
-    console.info(f"Starting job {job_key}: {command_name} {args}")
-
-    cmd = COMMANDS.get(command_name)
-    if cmd is None:
-        return web.json_response(
-            {"success": False, "error": f"Unknown command: {command_name}"},
-            status=400,
-        )
-
-    console.info(f"Original cwd: {os.getcwd()}")
-    console.info(f"Requested working_dir: {working_dir}")
-
-    if _state.lock is None or _state.baseline_env is None:
-        raise RuntimeError("Server state not initialized")
-
-    # Validate environmentVariables type early
     if env_vars and not isinstance(env_vars, dict):
         return web.json_response(
             {
@@ -204,62 +267,29 @@ async def handle_start(request: web.Request) -> web.Response:
             status=400,
         )
 
-    # Serialize command execution to prevent concurrent os.environ mutation
-    async with _state.lock:
-        original_cwd = os.getcwd()
+    cmd = COMMANDS.get(command_name)
+    if cmd is None:
+        return web.json_response(
+            {"success": False, "error": f"Unknown command: {command_name}"},
+            status=400,
+        )
 
-        try:
-            # Start from server baseline + request env vars only.
-            # This ensures no env vars from previous requests leak through.
-            os.environ.clear()
-            os.environ.update(_state.baseline_env)
-            if isinstance(env_vars, dict):
-                os.environ.update(env_vars)
+    console.info(f"Starting job {job_key}: {command_name} {args}")
 
-            if working_dir and isinstance(working_dir, str):
-                try:
-                    os.chdir(working_dir)
-                except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
-                    return web.json_response(
-                        {
-                            "success": False,
-                            "job_key": job_key,
-                            "error": f"Cannot change to working directory: {e}",
-                        },
-                        status=400,
-                    )
+    result = await _run_command_isolated(cmd, args, env_vars, working_dir)
 
-            result = await asyncio.to_thread(cmd.main, args, standalone_mode=False)
-
-            return web.json_response(
-                {
-                    "success": True,
-                    "job_key": job_key,
-                    "result": result,
-                }
-            )
-        except SystemExit as e:
-            exit_code = e.code if isinstance(e.code, int) else 1
-            return web.json_response(
-                {
-                    "success": exit_code == 0,
-                    "job_key": job_key,
-                    "error": None if exit_code == 0 else f"Exit code: {exit_code}",
-                }
-            )
-        except Exception as e:
-            return web.json_response(
-                {"success": False, "job_key": job_key, "error": str(e)},
-                status=500,
-            )
-        finally:
-            # Restore to server baseline
-            try:
-                os.chdir(original_cwd)
-            except OSError:
-                pass
-            os.environ.clear()
-            os.environ.update(_state.baseline_env)
+    if result["Unexpected"]:
+        return web.json_response(
+            {"success": False, "job_key": job_key, "error": result["Error"]},
+            status=500,
+        )
+    if result["ExitCode"] == 0:
+        return web.json_response(
+            {"success": True, "job_key": job_key, "result": result["Result"]}
+        )
+    return web.json_response(
+        {"success": False, "job_key": job_key, "error": result["Error"]}
+    )
 
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -350,29 +380,41 @@ async def start_tcp_server(host: str, port: int) -> None:
         await runner.cleanup()
 
 
+# The uipath-ipc transport (contract, DTOs, service, ``start_ipc_server``) lives
+# in ``cli_server_ipc`` and is served alongside HTTP when ``--server-socket`` is
+# given. Older servers served HTTP only; the .NET Handler copes.
+
+
+# --------------------------------------------------------------------------- #
+# CLI                                                                         #
+# --------------------------------------------------------------------------- #
+
+
 @click.command()
 @click.option(
     "--client-socket",
     type=str,
     default=None,
-    help=f"Unix socket path to send ready ack to (default: ${SOCKET_ENV_VAR} or {DEFAULT_SOCKET_PATH})",
+    help=f"Unix socket to send the ready ACK to (default: ${SOCKET_ENV_VAR} "
+    f"or {DEFAULT_SOCKET_PATH}).",
 )
 @click.option(
     "--server-socket",
     type=str,
     default=None,
-    help="Unix socket path the server listens on (default: auto-generated in tmp dir)",
+    help="Unix socket the HTTP server listens on; its basename is the uipath-ipc "
+    "pipe name (default: auto-generated in tmp).",
 )
 @click.option(
     "--port",
     type=int,
     default=None,
-    help=f"TCP port, used on Windows or when --tcp flag is set (default: {DEFAULT_PORT})",
+    help=f"TCP port, used on Windows or with --tcp (default: {DEFAULT_PORT}).",
 )
 @click.option(
     "--tcp",
     is_flag=True,
-    help="Force TCP mode even on Unix systems",
+    help="Force TCP mode even on Unix systems.",
 )
 @track_command("server")
 def server(
@@ -381,27 +423,64 @@ def server(
     port: int | None,
     tcp: bool,
 ) -> None:
-    """Start an HTTP server that forwards commands to run/debug/eval.
-
-    Creates its own socket to listen on and sends an ack to --client-socket with:
-    {"status": "ready", "socket": "/path/to/server.sock"}
-
-    Endpoint: POST /jobs/{job_key}/start
-    Body: {"command": "run", "args": "agent.json '{}'", "environmentVariables": {}, "workingDirectory": "/path"}
-
-    Endpoint: GET /health
-    """
-    use_tcp = IS_WINDOWS or tcp
-
+    """Serve run/debug/eval over HTTP, plus uipath-ipc when --server-socket is given."""
     preload_modules()
+    _run_server(client_socket, server_socket, port, tcp)
 
+
+async def _serve(
+    ack_socket_path: str,
+    server_socket: str | None,
+    port: int,
+    use_tcp: bool,
+) -> None:
+    """Run the HTTP channel and, when a server socket is given, the IPC channel too."""
+    _state.init()
+
+    tasks: list[Any] = []
+    if use_tcp:
+        tasks.append(start_tcp_server("127.0.0.1", port))
+    else:
+        tasks.append(start_unix_server(ack_socket_path, server_socket))
+
+    # The IPC pipe name is the HTTP UDS path's basename (directory stripped),
+    # identically to the .NET side (Path.GetFileName) — so the named-pipe transport
+    # resolves it to a socket distinct from the HTTP UDS and the two never collide.
+    if server_socket:
+        pipe_name = os.path.basename(server_socket)
+        tasks.append(start_ipc_server(pipe_name))
+    else:
+        console.warning(
+            "--server-socket not provided; serving HTTP only (no IPC channel)."
+        )
+
+    await asyncio.gather(*tasks)
+
+
+def _run_server(
+    client_socket: str | None,
+    server_socket: str | None,
+    port: int | None,
+    tcp: bool,
+) -> None:
+    """Drive ``_serve`` on the right event loop for the platform."""
+    use_tcp = IS_WINDOWS or tcp
+    ack_socket_path = (
+        client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
+    )
+    coro = _serve(ack_socket_path, server_socket, port or DEFAULT_PORT, use_tcp)
     try:
-        if use_tcp:
-            asyncio.run(start_tcp_server("127.0.0.1", port or DEFAULT_PORT))
+        # Windows named pipes need the Proactor loop; build it explicitly since another
+        # lib (e.g. socketio) may have flipped the policy to Selector. Gate on the
+        # sys.platform literal so mypy narrows ProactorEventLoop (Windows-only) here.
+        if sys.platform == "win32":
+            loop = asyncio.ProactorEventLoop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(coro)
+            finally:
+                loop.close()
         else:
-            ack_socket_path = (
-                client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
-            )
-            asyncio.run(start_unix_server(ack_socket_path, server_socket))
+            asyncio.run(coro)
     except KeyboardInterrupt:
         console.info("Shutting down")
