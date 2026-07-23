@@ -2,15 +2,20 @@
 
 import json
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from queue import Empty, Queue
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from uipath.core.feature_flags import FeatureFlags
 from uipath.platform.constants import (
     ENV_PROJECT_KEY,
     ENV_UIPATH_AGENT_ID,
     ENV_UIPATH_PROJECT_ID,
 )
+from uipath.telemetry import PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG
 from uipath.telemetry._track import (
     _AppInsightsEventClient,
     _DiagnosticSender,
@@ -24,6 +29,49 @@ from uipath.telemetry._track import (
     track,
     track_event,
 )
+
+
+@pytest.fixture
+def appinsights_ingestion_server():
+    """Capture App Insights ingestion requests on a local HTTP server."""
+    received: Queue[list[dict[str, object]]] = Queue()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_length))
+            received.put(payload)
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}", received
+    finally:
+        server.shutdown()
+        server.server_close()
+        server_thread.join()
+
+
+def _event_names(payload: list[dict[str, object]]) -> list[str]:
+    """Extract custom-event names from an App Insights ingestion payload."""
+    names: list[str] = []
+    for envelope in payload:
+        data = envelope.get("data")
+        if not isinstance(data, dict):
+            continue
+        base_data = data.get("baseData")
+        if not isinstance(base_data, dict):
+            continue
+        name = base_data.get("name")
+        if isinstance(name, str):
+            names.append(name)
+    return names
 
 
 class TestGetProjectKey:
@@ -128,15 +176,15 @@ class TestAppInsightsEventClient:
 
     def setup_method(self):
         """Reset AppInsightsEventClient state before each test."""
-        _AppInsightsEventClient._initialized = False
-        _AppInsightsEventClient._client = None
+        _AppInsightsEventClient.reset()
         _AppInsightsEventClient._connection_string_provider = None
+        FeatureFlags.reset_flags()
 
     def teardown_method(self):
         """Clean up after each test."""
-        _AppInsightsEventClient._initialized = False
-        _AppInsightsEventClient._client = None
+        _AppInsightsEventClient.reset()
         _AppInsightsEventClient._connection_string_provider = None
+        FeatureFlags.reset_flags()
 
     @patch("uipath.telemetry._track._CONNECTION_STRING", "$CONNECTION_STRING")
     def test_initialize_no_connection_string(self):
@@ -427,6 +475,196 @@ class TestAppInsightsEventClient:
 
         assert _AppInsightsEventClient._client is mock_client_2
         assert mock_client_class.call_count == 2
+
+    def test_single_event_remains_buffered_when_periodic_flush_disabled(
+        self, monkeypatch, appinsights_ingestion_server
+    ):
+        """Default behavior buffers one event until an explicit flush."""
+        endpoint, received = appinsights_ingestion_server
+        monkeypatch.setenv(
+            "TELEMETRY_CONNECTION_STRING",
+            f"InstrumentationKey=test-key;IngestionEndpoint={endpoint}",
+        )
+        monkeypatch.setattr(
+            "uipath.telemetry._track._PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS",
+            0.05,
+        )
+
+        track_event("single-buffered-event")
+
+        with pytest.raises(Empty):
+            received.get(timeout=0.15)
+
+        flush_events()
+        payload = received.get(timeout=1)
+        assert _event_names(payload) == ["single-buffered-event"]
+
+    def test_single_event_is_sent_by_periodic_flush(
+        self, monkeypatch, appinsights_ingestion_server
+    ):
+        """Enabled periodic flushing sends one event without an explicit flush."""
+        endpoint, received = appinsights_ingestion_server
+        monkeypatch.setenv(
+            "TELEMETRY_CONNECTION_STRING",
+            f"InstrumentationKey=test-key;IngestionEndpoint={endpoint}",
+        )
+        monkeypatch.setattr(
+            "uipath.telemetry._track._PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS",
+            0.05,
+        )
+        monkeypatch.setenv(
+            f"UIPATH_FEATURE_{PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG}", "true"
+        )
+
+        track_event("single-periodic-event")
+
+        payload = received.get(timeout=1)
+        assert _event_names(payload) == ["single-periodic-event"]
+
+    def test_periodic_worker_skips_flush_without_pending_events(self, monkeypatch):
+        """Periodic ticks do not flush while no event is queued."""
+        monkeypatch.setattr(
+            "uipath.telemetry._track._PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS",
+            0.01,
+        )
+        FeatureFlags.configure_flags({PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG: True})
+        mock_client = MagicMock()
+        monkeypatch.setattr(_AppInsightsEventClient, "_initialized", True)
+        monkeypatch.setattr(_AppInsightsEventClient, "_client", mock_client)
+
+        _AppInsightsEventClient._ensure_periodic_flush_worker()
+        threading.Event().wait(0.05)
+
+        mock_client.flush.assert_not_called()
+
+    def test_shutdown_waits_for_worker_and_serializes_final_flush(self, monkeypatch):
+        """Shutdown joins an active worker before performing its final flush."""
+        monkeypatch.setattr(
+            "uipath.telemetry._track._PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS",
+            0.01,
+        )
+        FeatureFlags.configure_flags({PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG: True})
+
+        flush_entered = threading.Event()
+        release_flush = threading.Event()
+        counter_lock = threading.Lock()
+        active_flushes = 0
+        max_active_flushes = 0
+
+        def blocking_flush() -> None:
+            nonlocal active_flushes, max_active_flushes
+            with counter_lock:
+                active_flushes += 1
+                max_active_flushes = max(max_active_flushes, active_flushes)
+            flush_entered.set()
+            release_flush.wait(timeout=1)
+            with counter_lock:
+                active_flushes -= 1
+
+        mock_client = MagicMock()
+        mock_client.flush.side_effect = blocking_flush
+        monkeypatch.setattr(_AppInsightsEventClient, "_initialized", True)
+        monkeypatch.setattr(_AppInsightsEventClient, "_client", mock_client)
+        _AppInsightsEventClient.track_event("test-event")
+        assert flush_entered.wait(timeout=1)
+
+        shutdown_thread = threading.Thread(target=_AppInsightsEventClient._shutdown)
+        shutdown_thread.start()
+        shutdown_thread.join(timeout=0.05)
+        assert shutdown_thread.is_alive()
+
+        release_flush.set()
+        shutdown_thread.join(timeout=1)
+
+        assert not shutdown_thread.is_alive()
+        assert max_active_flushes == 1
+        assert mock_client.flush.call_count == 2
+        assert _AppInsightsEventClient._flush_thread is None
+
+    def test_periodic_flush_does_not_block_event_tracking(self, monkeypatch):
+        """A slow flush must not block the event-producing thread."""
+        FeatureFlags.configure_flags({PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG: True})
+        flush_entered = threading.Event()
+        release_flush = threading.Event()
+
+        def blocking_flush() -> None:
+            flush_entered.set()
+            release_flush.wait(timeout=1)
+
+        mock_client = MagicMock()
+        mock_client.flush.side_effect = blocking_flush
+        monkeypatch.setattr(_AppInsightsEventClient, "_initialized", True)
+        monkeypatch.setattr(_AppInsightsEventClient, "_client", mock_client)
+
+        flush_thread = threading.Thread(target=_AppInsightsEventClient.flush)
+        flush_thread.start()
+        assert flush_entered.wait(timeout=1)
+
+        track_thread = threading.Thread(
+            target=_AppInsightsEventClient.track_event,
+            args=("event-during-flush",),
+        )
+        track_thread.start()
+        track_thread.join(timeout=0.2)
+
+        assert not track_thread.is_alive()
+        mock_client.track_event.assert_called_once()
+
+        release_flush.set()
+        flush_thread.join(timeout=1)
+        assert not flush_thread.is_alive()
+
+    def test_reset_prevents_worker_restart_during_shutdown(self, monkeypatch):
+        """Reset keeps worker lifecycle serialized until client state is cleared."""
+        monkeypatch.setattr(
+            "uipath.telemetry._track._PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS",
+            0.01,
+        )
+        FeatureFlags.configure_flags({PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG: True})
+        flush_entered = threading.Event()
+        release_flush = threading.Event()
+
+        def blocking_flush() -> None:
+            flush_entered.set()
+            release_flush.wait(timeout=1)
+
+        mock_client = MagicMock()
+        mock_client.flush.side_effect = blocking_flush
+        monkeypatch.setattr(_AppInsightsEventClient, "_initialized", True)
+        monkeypatch.setattr(_AppInsightsEventClient, "_client", mock_client)
+        _AppInsightsEventClient.track_event("start-worker")
+        assert flush_entered.wait(timeout=1)
+
+        reset_thread = threading.Thread(target=_AppInsightsEventClient.reset)
+        reset_thread.start()
+        reset_thread.join(timeout=0.05)
+        assert reset_thread.is_alive()
+
+        track_thread = threading.Thread(
+            target=_AppInsightsEventClient.track_event,
+            args=("event-during-reset",),
+        )
+        track_thread.start()
+        track_thread.join(timeout=0.05)
+        assert track_thread.is_alive()
+
+        release_flush.set()
+        reset_thread.join(timeout=1)
+        track_thread.join(timeout=1)
+
+        assert not reset_thread.is_alive()
+        assert not track_thread.is_alive()
+        assert _AppInsightsEventClient._client is None
+        assert _AppInsightsEventClient._flush_thread is None
+
+    def test_atexit_registration_uses_synchronized_shutdown(self, monkeypatch):
+        """The idempotent atexit callback owns worker shutdown and final flush."""
+        monkeypatch.setattr(_AppInsightsEventClient, "_atexit_registered", False)
+        with patch("uipath.telemetry._track.atexit.register") as register:
+            _AppInsightsEventClient.register_atexit_flush()
+            _AppInsightsEventClient.register_atexit_flush()
+
+        register.assert_called_once_with(_AppInsightsEventClient._shutdown)
 
 
 class TestPublicProviderAndResetFunctions:
