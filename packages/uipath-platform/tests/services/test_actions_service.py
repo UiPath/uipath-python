@@ -128,6 +128,72 @@ class TestTasksService:
         assert action.id == 1
         assert action.title == "Test Action"
 
+    def test_create_jit_debug_skips_resolution_and_sends_project_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        # JIT (debug): the app is not deployed, so no deployed-app schema lookup should happen and
+        # the project key + app type are sent so Orchestrator can resolve the app.
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+            status_code=200,
+            json={"id": 1, "title": "Test Action"},
+        )
+
+        action = service.create(
+            title="Test Action",
+            data={"test": "data"},
+            app_project_key="proj-key-abc",
+            app_type="Custom",
+            is_debug=True,
+        )
+
+        assert isinstance(action, Task)
+        requests = httpx_mock.get_requests()
+        # Only the create call — no deployed-action-apps-schemas resolution in debug mode.
+        assert all("deployed-action-apps-schemas" not in str(r.url) for r in requests)
+        create_request = [r for r in requests if "CreateAppTask" in str(r.url)][0]
+        body = json.loads(create_request.content)
+        assert body["appType"] == "Custom"
+        assert body["appProjectKey"] == "proj-key-abc"
+        assert body["appId"] is None
+
+    def test_create_does_not_send_project_key_when_not_debug(
+        self,
+        httpx_mock: HTTPXMock,
+        service: TasksService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/AppTasks/CreateAppTask",
+            status_code=200,
+            json={"id": 1, "title": "Test Action"},
+        )
+
+        action = service.create(
+            title="Test Action",
+            app_key="test-app-key",
+            data={"test": "data"},
+            app_project_key="proj-key-abc",
+            app_type="Coded",
+            is_debug=False,
+        )
+
+        assert isinstance(action, Task)
+        create_request = [
+            r for r in httpx_mock.get_requests() if "CreateAppTask" in str(r.url)
+        ][0]
+        body = json.loads(create_request.content)
+        # app type is still forwarded, but the project key is only sent in debug mode.
+        assert body["appType"] == "Coded"
+        assert "appProjectKey" not in body
+
     def test_create_with_assignee(
         self,
         httpx_mock: HTTPXMock,

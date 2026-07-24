@@ -817,6 +817,14 @@ def _resolve_task_title(v: Any) -> Any:
 class BaseEscalationChannelProperties(BaseResourceProperties):
     """Fields shared by every escalation channel's properties."""
 
+    app_name: str | None = Field(default=None, alias="appName")
+    app_version: int = Field(..., alias="appVersion")
+    folder_name: Optional[str] = Field(None, alias="folderName")
+    resource_key: str | None = Field(default=None, alias="resourceKey")
+    project_key: str | None = Field(default=None, alias="projectKey")
+    app_type: str | None = Field(default=None, alias="appType")
+    solution_id: str | None = Field(default=None, alias="solutionId")
+    action_schema: Optional[Any] = Field(default=None, alias="actionSchema")
     is_actionable_message_enabled: Optional[bool] = Field(
         None, alias="isActionableMessageEnabled"
     )

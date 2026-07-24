@@ -39,6 +39,9 @@ def _create_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
+    app_project_key: Optional[str] = None,
+    app_type: Optional[str] = None,
+    solution_id: Optional[str] = None,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -94,7 +97,7 @@ def _create_spec(
                 )
 
     json_payload: Dict[str, Any] = {
-        "appId": app_key,
+        "appId": app_key if app_key is not None else f"ID{uuid.uuid4().hex}",
         "title": title,
         "data": data if data is not None else {},
         "actionableMessageMetaData": actionable_message_metadata
@@ -119,11 +122,15 @@ def _create_spec(
         ),
     }
 
+    if app_project_key is not None:
+        json_payload["appType"] = app_type
+        json_payload["appProjectKey"] = app_project_key
+
     _apply_priority_labels_and_actionable_toggle(
         json_payload, priority, labels, is_actionable_message_enabled
     )
-    _apply_task_source(json_payload, source_name)
-
+    _apply_task_source(json_payload, source_name, app_project_key is not None, solution_id)
+    print('Calling CreateAppTask', json_payload)
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
@@ -159,7 +166,12 @@ def _apply_priority_labels_and_actionable_toggle(
         payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
 
-def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
+def _apply_task_source(
+    payload: Dict[str, Any],
+    source_name: str,
+    is_debug: Optional[bool] = None,
+    solution_id: Optional[str] = None,
+) -> None:
     """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
 
     Shared between AppTask and QuickForm spec builders — the taskSource block is
@@ -167,6 +179,7 @@ def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
     """
     project_id = UiPathConfig.project_id
     trace_id = UiPathConfig.trace_id
+    solution_id = solution_id or UiPathConfig.studio_solution_id
     if not (project_id and trace_id):
         return
     payload["taskSource"] = {
@@ -178,8 +191,13 @@ def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
         },
+        "jobId": UiPathConfig.job_key
     }
 
+    if solution_id is not None:
+        payload["taskSource"]["solutionId"] = solution_id
+    if is_debug:
+        payload["taskSource"]["isDebug"] = True
 
 def _normalize_priority(priority: str | None) -> str | None:
     """Normalize priority string to match API expectations.
@@ -229,6 +247,7 @@ def _create_quickform_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
+    solution_id: Optional[str] = None,
 ) -> RequestSpec:
     """Build the RequestSpec for Orchestrator's GenericTasks/CreateTask endpoint.
 
@@ -259,7 +278,7 @@ def _create_quickform_spec(
     )
     if actionable_message_metadata is not None:
         json_payload["actionableMessageMetaData"] = actionable_message_metadata
-    _apply_task_source(json_payload, source_name)
+    _apply_task_source(json_payload, source_name, solution_id=solution_id)
 
     return RequestSpec(
         method="POST",
@@ -459,6 +478,10 @@ class TasksService(FolderContext, BaseService):
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         source_name: str = "Agent",
+        app_project_key: Optional[str] = None,
+        app_type: Optional[str] = None,
+        action_schema: Optional[TaskSchema] = None,
+        solution_id: Optional[str] = None,
     ) -> Task:
         """Creates a new action asynchronously.
 
@@ -478,6 +501,11 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
             source_name: The name of the source that created the task. Defaults to 'Agent'.
+            app_project_key: Optional project key of the app. Used for JIT (debug) task creation so
+                Orchestrator can resolve a not-yet-deployed app. Only sent when is_debug is True.
+            app_type: Optional app type ("Custom" or "Coded"), forwarded for JIT (debug) task creation.
+            is_debug: When True, skips deployed-app key resolution and relies on app_project_key so a
+                not-yet-deployed app can be targeted during a debug run.
 
         Returns:
             Action: The created action object
@@ -485,18 +513,28 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else await self._get_app_key_and_schema_async(
-                app_name, app_folder_path, app_folder_key
+
+        if app_project_key:
+            (key, schema) = (app_key, TaskSchema(
+                    key=action_schema["key"],
+                    in_outs=action_schema["inOuts"],
+                    inputs=action_schema["inputs"],
+                    outputs=action_schema["outputs"],
+                    outcomes=action_schema["outcomes"],
+                ))
+        else:
+            (key, schema) = (
+                (app_key, None)
+                if app_key
+                else await self._get_app_key_and_schema_async(
+                    app_name, app_folder_path, app_folder_key
+                )
             )
-        )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
-            action_schema=action_schema,
+            action_schema=schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
             priority=priority,
@@ -504,8 +542,10 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            app_project_key=app_project_key,
+            app_type=app_type,
+            solution_id=solution_id,
         )
-
         response = await self.request_async(
             spec.method,
             spec.endpoint,
@@ -545,6 +585,10 @@ class TasksService(FolderContext, BaseService):
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         source_name: str = "Agent",
+        app_project_key: Optional[str] = None,
+        app_type: Optional[str] = None,
+        action_schema: Optional[TaskSchema] = None,
+        solution_id: Optional[str] = None,
     ) -> Task:
         """Creates a new task synchronously.
 
@@ -564,6 +608,11 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
             source_name: The name of the source that created the task. Defaults to 'Agent'.
+            app_project_key: Optional project key of the app. Used for JIT (debug) task creation so
+                Orchestrator can resolve a not-yet-deployed app. Only sent when is_debug is True.
+            app_type: Optional app type ("Custom" or "Coded"), forwarded for JIT (debug) task creation.
+            is_debug: When True, skips deployed-app key resolution and relies on app_project_key so a
+                not-yet-deployed app can be targeted during a debug run.
 
         Returns:
             Action: The created action object
@@ -571,16 +620,28 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else self._get_app_key_and_schema(app_name, app_folder_path, app_folder_key)
-        )
+
+        if app_project_key:
+            (key, schema) = (app_key, TaskSchema(
+                    key=action_schema["key"],
+                    in_outs=action_schema["inOuts"],
+                    inputs=action_schema["inputs"],
+                    outputs=action_schema["outputs"],
+                    outcomes=action_schema["outcomes"],
+                ))
+        else:
+            (key, schema) = (
+                (app_key, None)
+                if app_key
+                else self._get_app_key_and_schema(
+                    app_name, app_folder_path, app_folder_key
+                )
+            )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
-            action_schema=action_schema,
+            action_schema=schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
             priority=priority,
@@ -588,6 +649,9 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            app_project_key=app_project_key,
+            app_type=app_type,
+            solution_id=solution_id,
         )
 
         response = self.request(
@@ -625,6 +689,7 @@ class TasksService(FolderContext, BaseService):
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         creator_job_key: Optional[str] = None,
         source_name: str = "Agent",
+        solution_id: Optional[str] = None,
     ) -> Task:
         """Creates a new QuickForm task asynchronously.
 
@@ -675,6 +740,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            solution_id=solution_id,
         )
 
         response = await self.request_async(
@@ -715,6 +781,7 @@ class TasksService(FolderContext, BaseService):
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         creator_job_key: Optional[str] = None,
         source_name: str = "Agent",
+        solution_id: Optional[str] = None,
     ) -> Task:
         """Create a new QuickForm task synchronously.
 
@@ -733,6 +800,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            solution_id=solution_id,
         )
 
         response = self.request(
