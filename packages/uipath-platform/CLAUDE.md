@@ -98,7 +98,8 @@ Services provide both sync and async variants (e.g., `.invoke()` and `.invoke_as
 | `chat/` | LLM gateway, conversations, throttling |
 | `connections/` | External connection management |
 | `context_grounding/` | RAG services (DeepRAG, batch RAG, ephemeral indexes) |
-| `documents/` | Document Understanding (IXP) |
+| `document_projects/` | Document Understanding (IXP) **design-time** — projects, fields, taxonomy, labelling, deployments (`du_/api/designtimeapi`) |
+| `documents/` | Document Understanding (IXP) **runtime** — extraction/classification (`du_/api/framework`) |
 | `entities/` | Data Service entity management |
 | `guardrails/` | LLM output guardrails |
 | `resource_catalog/` | Resource discovery and metadata |
