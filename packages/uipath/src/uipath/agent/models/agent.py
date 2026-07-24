@@ -127,6 +127,7 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     ANALYZE_FILES = "analyze-attachments"
     DEEP_RAG = "deep-rag"
     BATCH_TRANSFORM = "batch-transform"
+    HTTP_REQUEST = "http-request"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -1046,11 +1047,20 @@ class AgentInternalBatchTransformToolProperties(BaseResourceProperties):
     settings: AgentInternalBatchTransformSettings = Field(..., alias="settings")
 
 
+class AgentInternalHttpRequestToolProperties(BaseResourceProperties):
+    """Agent internal http request tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.HTTP_REQUEST] = Field(
+        alias="toolType", default=AgentInternalToolType.HTTP_REQUEST, frozen=True
+    )
+
+
 AgentInternalToolProperties = Annotated[
     Union[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
+        AgentInternalHttpRequestToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
