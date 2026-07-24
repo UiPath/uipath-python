@@ -1,9 +1,13 @@
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common._bindings import (
+    GenericResourceOverwrite,
+    _resource_overwrites,
+)
 from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.orchestrator import McpService
 from uipath.platform.orchestrator._folder_service import FolderService
@@ -266,7 +270,9 @@ class TestMcpService:
                 json=mock_server,
             )
 
-            server = service.retrieve("test-mcp-server", folder_path="test-folder-path")
+            server = service.retrieve(
+                slug="test-mcp-server", folder_path="test-folder-path"
+            )
 
             assert isinstance(server, McpServer)
             assert server.name == "Test MCP Server"
@@ -340,7 +346,7 @@ class TestMcpService:
             )
 
             server = await service.retrieve_async(
-                "async-test-server", folder_path="test-folder-path"
+                slug="async-test-server", folder_path="test-folder-path"
             )
 
             assert isinstance(server, McpServer)
@@ -361,6 +367,113 @@ class TestMcpService:
             assert (
                 retrieve_request.headers[HEADER_USER_AGENT]
                 == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.McpService.retrieve_async/{version}"
+            )
+
+        def test_retrieve_server_by_name(self, service: McpService) -> None:
+            response = Mock()
+            response.json.return_value = {
+                "name": "Friendly MCP/Europe",
+                "slug": "friendly-mcp-europe",
+            }
+
+            with patch.object(service, "request", return_value=response) as request:
+                server = service.retrieve(name="Friendly MCP/Europe")
+
+            assert server.name == "Friendly MCP/Europe"
+            assert "api/servers/Friendly%20MCP%2FEurope" in str(
+                request.call_args.kwargs["url"]
+            )
+
+        def test_retrieve_applies_display_name_binding(
+            self, service: McpService
+        ) -> None:
+            response = Mock()
+            response.json.return_value = {
+                "name": "Replacement MCP",
+                "slug": "replacement-mcp",
+            }
+            overwrite = GenericResourceOverwrite(
+                resource_type="mcpServer",
+                name="Replacement MCP",
+                folder_path="Replacement Folder",
+            )
+            token = _resource_overwrites.set({"mcpServer.Original MCP": overwrite})
+
+            try:
+                with (
+                    patch.object(service, "request", return_value=response) as request,
+                    patch.object(
+                        service._folders_service,
+                        "retrieve_folder_key",
+                        return_value="replacement-folder-key",
+                    ),
+                ):
+                    service.retrieve(name="Original MCP")
+            finally:
+                _resource_overwrites.reset(token)
+
+            assert "api/servers/Replacement%20MCP" in str(
+                request.call_args.kwargs["url"]
+            )
+            assert (
+                request.call_args.kwargs["headers"][HEADER_FOLDER_KEY]
+                == "replacement-folder-key"
+            )
+
+        def test_retrieve_applies_legacy_slug_binding(
+            self, service: McpService
+        ) -> None:
+            response = Mock()
+            response.json.return_value = {
+                "name": "Replacement MCP",
+                "slug": "replacement-mcp",
+            }
+            overwrite = GenericResourceOverwrite(
+                resource_type="mcpServer",
+                name="Replacement MCP",
+                folder_path="Replacement Folder",
+            )
+            token = _resource_overwrites.set({"mcpServer.original-mcp": overwrite})
+
+            try:
+                with (
+                    patch.object(service, "request", return_value=response) as request,
+                    patch.object(
+                        service._folders_service,
+                        "retrieve_folder_key",
+                        return_value="replacement-folder-key",
+                    ),
+                ):
+                    service.retrieve(slug="original-mcp")
+            finally:
+                _resource_overwrites.reset(token)
+
+            assert "api/servers/Replacement%20MCP" in str(
+                request.call_args.kwargs["url"]
+            )
+            assert (
+                request.call_args.kwargs["headers"][HEADER_FOLDER_KEY]
+                == "replacement-folder-key"
+            )
+
+        @pytest.mark.anyio
+        async def test_retrieve_server_by_name_async(self, service: McpService) -> None:
+            response = Mock()
+            response.json.return_value = {
+                "name": "Friendly MCP/Europe",
+                "slug": "friendly-mcp-europe",
+            }
+
+            with patch.object(
+                service,
+                "request_async",
+                new=AsyncMock(return_value=response),
+            ) as request:
+                server = await service.retrieve_async(name="Friendly MCP/Europe")
+
+            assert server.name == "Friendly MCP/Europe"
+            assert "api/servers/Friendly%20MCP%2FEurope" in str(
+                request.call_args.kwargs["url"]
             )
 
     class TestRequestKwargs:
@@ -569,3 +682,9 @@ class TestMcpServerType:
         )
         assert server.type == 7
         assert server.slug == "contoso-directory"
+
+
+def test_mcp_retrieve_spec_encodes_display_name(service: McpService) -> None:
+    spec = service._retrieve_spec(name="Friendly MCP/Europe", folder_path=None)
+
+    assert "api/servers/Friendly%20MCP%2FEurope" in str(spec.endpoint)
