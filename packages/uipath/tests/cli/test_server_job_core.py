@@ -46,6 +46,7 @@ async def test_rejects_bad_working_dir(restore_state: Any, tmp_path: Any) -> Non
     assert result["ExitCode"] == 1
     assert "working directory" in result["Error"]
     assert result["Unexpected"] is False
+    assert result["ClientError"] is True  # HTTP maps this to 400
 
 
 async def test_maps_system_exit_code(restore_state: Any) -> None:
@@ -65,3 +66,29 @@ async def test_reports_unexpected_exception(restore_state: Any) -> None:
     assert result["ExitCode"] == 1
     assert result["Unexpected"] is True
     assert "boom" in result["Error"]
+
+
+# parse_args accepts what every caller sends: the .NET peer sends a single
+# string (shlex-split), HTTP dicts / tests may send a pre-split list, or None.
+
+
+def test_parse_args_splits_a_string() -> None:
+    # The real .NET-shaped Args: a single string, shlex-split into argv.
+    assert cli_server.parse_args("run --input-file in.json --flag") == [
+        "run",
+        "--input-file",
+        "in.json",
+        "--flag",
+    ]
+
+
+def test_parse_args_passes_a_list_through() -> None:
+    assert cli_server.parse_args(["run", "--input-file", "in.json"]) == [
+        "run",
+        "--input-file",
+        "in.json",
+    ]
+
+
+def test_parse_args_none_is_empty() -> None:
+    assert cli_server.parse_args(None) == []

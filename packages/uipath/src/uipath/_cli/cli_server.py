@@ -160,11 +160,14 @@ async def _run_command_isolated(
                 try:
                     os.chdir(working_dir)
                 except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+                    # Request-shaped error: the caller gave a bad working dir.
+                    # HTTP surfaces this as 400; IPC just returns ExitCode/Error.
                     return {
                         "ExitCode": 1,
                         "Error": f"Cannot change to working directory: {e}",
                         "Result": None,
                         "Unexpected": False,
+                        "ClientError": True,
                     }
 
             result_value = await asyncio.to_thread(
@@ -282,6 +285,12 @@ async def handle_start(request: web.Request) -> web.Response:
         return web.json_response(
             {"success": False, "job_key": job_key, "error": result["Error"]},
             status=500,
+        )
+    if result.get("ClientError"):
+        # Request-shaped failure (e.g. bad working directory) — 4xx, not 200.
+        return web.json_response(
+            {"success": False, "job_key": job_key, "error": result["Error"]},
+            status=400,
         )
     if result["ExitCode"] == 0:
         return web.json_response(

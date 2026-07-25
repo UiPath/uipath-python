@@ -147,6 +147,27 @@ class TestServer:
         assert response["success"] is False
         assert "Unknown command" in response["error"]
 
+    def test_bad_working_directory_returns_400(self, server):
+        """A request-shaped error (bad working dir) is a 4xx, not a 200."""
+        port = server
+
+        async def send():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://127.0.0.1:{port}/jobs/job-bad-cwd/start",
+                    json={
+                        "command": "run",
+                        "args": [],
+                        "workingDirectory": "/no/such/dir/xyz-does-not-exist",
+                    },
+                ) as response:
+                    return response.status, await response.json()
+
+        status, body = asyncio.run(send())
+        assert status == 400
+        assert body["success"] is False
+        assert "working directory" in body["error"]
+
     def test_start_job_missing_command(self, server):
         """Test starting a job without command field."""
         port = server

@@ -27,7 +27,9 @@ class PythonRunRequest:
 
     JobKey: str = ""
     Command: str = ""
-    Args: str | None = None
+    # The .NET peer sends a single string; HTTP callers and tests may pass a
+    # pre-split list. parse_args accepts both.
+    Args: str | list[str] | None = None
     WorkingDirectory: str | None = None
     EnvironmentVariables: dict[str, str] = field(default_factory=dict)
 

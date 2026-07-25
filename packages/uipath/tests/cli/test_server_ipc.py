@@ -56,7 +56,7 @@ def _serve_in_background(pipe_name: str) -> None:
 
     thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
-    time.sleep(0.5)
+    _wait_until_ready(pipe_name)
 
 
 async def _with_proxy(pipe_name: str, fn: Callable[[Any], Awaitable[Any]]) -> Any:
@@ -68,6 +68,26 @@ async def _with_proxy(pipe_name: str, fn: Callable[[Any], Awaitable[Any]]) -> An
         return await fn(proxy)
     finally:
         await client.aclose()
+
+
+def _wait_until_ready(pipe_name: str, timeout: float = 10.0) -> None:
+    """Poll the pipe until the IPC server answers, instead of a fixed sleep.
+
+    A fixed ``sleep`` races the server's startup under load; this connects a real
+    client and calls the no-op ``StopJob`` until it succeeds (or times out).
+    """
+    deadline = time.monotonic() + timeout
+    last_err: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            asyncio.run(_with_proxy(pipe_name, lambda p: p.StopJob("readiness-probe")))
+            return
+        except Exception as e:  # server not accepting connections yet
+            last_err = e
+            time.sleep(0.05)
+    raise TimeoutError(
+        f"IPC server on pipe {pipe_name!r} not ready within {timeout}s: {last_err}"
+    )
 
 
 def create_uipath_json(
