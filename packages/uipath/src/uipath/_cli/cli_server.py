@@ -162,10 +162,10 @@ async def handle_start(request: web.Request) -> web.Response:
         )
 
     args = parse_args(get_field(message, "args", "Args"))
-    env_vars = get_field(message, "environmentVariables", "EnvironmentVariables") or {}
+    env_vars = get_field(message, "environmentVariables", "EnvironmentVariables")
     working_dir = get_field(message, "workingDirectory", "WorkingDirectory")
 
-    if env_vars and not isinstance(env_vars, dict):
+    if env_vars is not None and not isinstance(env_vars, dict):
         return web.json_response(
             {
                 "success": False,
@@ -173,6 +173,7 @@ async def handle_start(request: web.Request) -> web.Response:
             },
             status=400,
         )
+    env_vars = env_vars or {}
 
     cmd = COMMANDS.get(command_name)
     if cmd is None:
