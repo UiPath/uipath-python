@@ -358,21 +358,21 @@ class TestServerEnvIsolation:
         """Start server with a spy command that captures os.environ."""
         import click
 
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         @click.command()
         def spy_cmd():
             env_snapshots.append(dict(os.environ))
 
-        original_commands = cli_server.COMMANDS.copy()
-        cli_server.COMMANDS["spy"] = spy_cmd
+        original_commands = _server_core.COMMANDS.copy()
+        _server_core.COMMANDS["spy"] = spy_cmd
 
         start_cli_server_thread(server_port)
 
         yield server_port
 
-        cli_server.COMMANDS.clear()
-        cli_server.COMMANDS.update(original_commands)
+        _server_core.COMMANDS.clear()
+        _server_core.COMMANDS.update(original_commands)
 
     def test_env_vars_do_not_leak_between_requests(
         self, server_with_spy, env_snapshots
@@ -417,7 +417,7 @@ class TestServerEnvIsolation:
 
     def test_server_baseline_env_preserved(self, server_with_spy, env_snapshots):
         """Server baseline env vars (like PATH) should be available during command execution."""
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         port = server_with_spy
 
@@ -435,7 +435,7 @@ class TestServerEnvIsolation:
         env_run = env_snapshots[0]
 
         # Baseline is captured at server start, not import time
-        baseline = cli_server._state.baseline_env
+        baseline = _server_core._state.baseline_env
         assert baseline is not None
 
         # Baseline env vars should be present
@@ -446,7 +446,7 @@ class TestServerEnvIsolation:
 
     def test_env_restored_after_request(self, server_with_spy):
         """os.environ should be restored to baseline after each request."""
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         port = server_with_spy
 
@@ -460,7 +460,7 @@ class TestServerEnvIsolation:
             )
         )
 
-        baseline = cli_server._state.baseline_env
+        baseline = _server_core._state.baseline_env
         assert baseline is not None
 
         # After the request, os.environ should match baseline

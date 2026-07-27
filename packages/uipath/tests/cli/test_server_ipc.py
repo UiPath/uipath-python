@@ -22,7 +22,7 @@ import click
 import pytest
 from uipath_ipc import IpcClient, NamedPipeClientTransport
 
-from uipath._cli import cli_server
+from uipath._cli import _server_core
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
     start_ipc_server,
@@ -177,16 +177,16 @@ class TestIpcServerEnvIsolation:
         def spy_cmd() -> None:
             env_snapshots.append(dict(os.environ))
 
-        original = cli_server.COMMANDS.copy()
-        cli_server.COMMANDS["spy"] = spy_cmd
+        original = _server_core.COMMANDS.copy()
+        _server_core.COMMANDS["spy"] = spy_cmd
 
         pipe_name = _unique_pipe()
         _serve_in_background(pipe_name)
         try:
             yield pipe_name, env_snapshots
         finally:
-            cli_server.COMMANDS.clear()
-            cli_server.COMMANDS.update(original)
+            _server_core.COMMANDS.clear()
+            _server_core.COMMANDS.update(original)
 
     def test_env_vars_do_not_leak_between_jobs(self, pipe_with_spy):
         pipe_name, env_snapshots = pipe_with_spy

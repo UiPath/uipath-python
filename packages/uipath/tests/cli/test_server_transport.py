@@ -18,7 +18,7 @@ from typing import Any
 from click.testing import CliRunner
 
 import uipath._cli._telemetry as _telemetry
-from uipath._cli import cli_server
+from uipath._cli import _server_core, cli_server
 
 
 def _stub_channels(monkeypatch) -> dict[str, Any]:
@@ -40,7 +40,7 @@ def _stub_channels(monkeypatch) -> dict[str, Any]:
     async def _rec_ipc(pipe_name):
         calls["ipc"] = pipe_name
 
-    monkeypatch.setattr(cli_server._state, "init", lambda: None)
+    monkeypatch.setattr(_server_core._state, "init", lambda: None)
     monkeypatch.setattr(cli_server, "start_unix_server", _rec_unix)
     monkeypatch.setattr(cli_server, "start_tcp_server", _rec_tcp)
     monkeypatch.setattr(cli_server, "start_ipc_server", _rec_ipc)
