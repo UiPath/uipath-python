@@ -106,11 +106,11 @@ class LegacyContextPrecisionEvaluator(
     chunks_placeholder: str = "{{Chunks}}"
     llm: Optional[UiPathLlmChatService] = None
 
-    def model_post_init(self, __context: Any):
+    def model_post_init(self, __context: Any) -> None:
         """Initialize the evaluator after model creation."""
         super().model_post_init(__context)
 
-    def _initialize_llm(self):
+    def _initialize_llm(self) -> None:
         """Initialize the LLM used for evaluation."""
         uipath = UiPath()
         self.llm = UiPathLlmChatService(
