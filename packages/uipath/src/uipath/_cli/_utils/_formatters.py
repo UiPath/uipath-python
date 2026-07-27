@@ -15,36 +15,16 @@ from typing import Any, Optional
 import click
 
 
-def format_output(
-    data: Any,
-    fmt: str = "table",
-    output: Optional[str] = None,
-    no_color: bool = False,
-) -> None:
-    """Format and output data to stdout or file.
+def _normalize_data(data: Any) -> Any:
+    """Normalize data for structured output (model_dump, list conversion).
 
     Handles:
     - Pydantic models (via model_dump())
     - Iterators and generators (converts to list)
-    - Lists, dicts, primitives
-    - Large datasets (warns at 10k+ items)
-
-    Args:
-        data: Data to format
-        fmt: Output format (json, table, csv)
-        output: Optional file path to write to
-        no_color: Disable colored output for table format
-
-    Example:
-        >>> format_output([{"name": "bucket1"}, {"name": "bucket2"}], fmt="table")
-        name
-        --------
-        bucket1
-        bucket2
+    - Large dataset warnings
     """
     if isinstance(data, (Iterator, Generator)):
         data = list(data)
-        # Warn about large datasets
         if len(data) > 10000:
             click.echo(
                 f"Warning: Loading {len(data)} items into memory for formatting. "
@@ -67,18 +47,50 @@ def format_output(
         else:
             data = [item.model_dump() for item in data]
 
+    return data
+
+
+def format_output(
+    data: Any,
+    fmt: str = "text",
+    output: Optional[str] = None,
+    no_color: bool = False,
+) -> None:
+    """Format and output data to stdout or file.
+
+    Handles:
+    - Pydantic models (via model_dump())
+    - Iterators and generators (converts to list)
+    - Lists, dicts, primitives
+    - Large datasets (warns at 10k+ items)
+
+    Args:
+        data: Data to format
+        fmt: Output format (json, text, csv)
+        output: Optional file path to write to
+        no_color: Disable colored output for text format
+
+    Example:
+        >>> format_output([{"name": "bucket1"}, {"name": "bucket2"}], fmt="text")
+        name
+        --------
+        bucket1
+        bucket2
+    """
+    data = _normalize_data(data)
+
     if hasattr(data, "__aiter__"):
         raise TypeError(
             "Async iterators not supported in CLI output. "
             "Use synchronous methods or convert to list first."
         )
 
-    if output and fmt == "table":
+    if output and fmt == "text":
         no_color = True
 
     if fmt == "json":
         text = _format_json(data)
-    elif fmt == "table":
+    elif fmt == "text":
         text = _format_table(data, no_color=no_color)
     elif fmt == "csv":
         text = _format_csv(data)
