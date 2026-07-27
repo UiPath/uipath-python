@@ -177,7 +177,6 @@ uipath-ipc = false
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }
 uipath-platform = { path = "../uipath-platform", editable = true }
-# uipath-ipc resolves from public PyPI (published there as of 2.5.2); no index pin.
 
 [[tool.uv.index]]
 name = "testpypi"

@@ -1,14 +1,8 @@
 """uipath-ipc runtime transport — the IPC contract, DTOs, and service.
 
-Split out from ``cli_server`` so the wire-dictated PascalCase names (methods and
-DTO fields) live in one file. Their casing is forced by the .NET/CoreIpc peer:
-the serializer maps method and field names verbatim (no alias mechanism), so
-they cannot be Python-idiomatic without breaking interop. The Sonar naming
-rules (python:S100 methods, python:S116 fields) are suppressed for this file
-only (see ``sonar-project.properties``), keeping the rest of the tree strict.
-
-Served alongside the HTTP channel by ``cli_server`` whenever a ``--server-socket``
-is given. Older servers served HTTP only; the .NET Handler copes.
+The PascalCase method and field names are dictated by the .NET/CoreIpc peer
+(the serializer maps them verbatim), so Sonar's S100/S116 naming rules are
+suppressed for this file only (see ``sonar-project.properties``).
 """
 
 from abc import ABC, abstractmethod
@@ -16,6 +10,7 @@ from dataclasses import dataclass, field
 
 from uipath_ipc import IpcServer, NamedPipeServerTransport
 
+from ._server_core import COMMANDS, _run_command_isolated, _state, parse_args
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -58,10 +53,6 @@ class PythonRuntimeService(IPythonRuntimeServer):
     """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
 
     async def StartJob(self, request: PythonRunRequest) -> PythonRunResult:
-        # Imported here (not at module top) to keep the job core one-directional:
-        # cli_server imports this module, so this module reaches back lazily.
-        from .cli_server import COMMANDS, _run_command_isolated, parse_args
-
         command_name = request.Command
         if not isinstance(command_name, str) or not command_name:
             return PythonRunResult(
@@ -91,8 +82,6 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
 async def start_ipc_server(pipe_name: str) -> None:
     """Serve the Python runtime over a uipath-ipc named pipe until it is closed."""
-    from .cli_server import _state
-
     _state.init()
     server = IpcServer(
         transport=NamedPipeServerTransport(pipe_name),
