@@ -1,7 +1,7 @@
 """Tests for the uipath-ipc runtime server channel.
 
-The server always hosts ``IPythonRuntimeServer`` (StartJob / StopJob) on a named
-pipe alongside the HTTP channel when a ``--server-socket`` is given (see
+The server hosts ``IPythonRuntimeServer`` (StartJob / StopJob) on a named pipe
+alongside the HTTP channel when ``--ipc-pipe`` names one (see
 ``test_server_transport.py`` for the channel composition). Mirrors
 ``test_server.py`` (the HTTP path) but drives the pipe with a Python
 ``uipath-ipc`` client.

@@ -1,10 +1,10 @@
 """`uipath server` serves BOTH transports concurrently — never either/or.
 
 The HTTP channel (aiohttp over a Unix socket, or TCP on Windows / ``--tcp``) is
-ALWAYS started. The uipath-ipc named-pipe channel is started alongside it when a
-``--server-socket`` is given, with the pipe name the socket's basename (directory
-stripped, extension kept), matching the .NET side. The HTTP channel is never torn
-down.
+ALWAYS started. The uipath-ipc named-pipe channel is opt-in and independent of the
+HTTP socket: it is started alongside HTTP only when ``--ipc-pipe`` names a pipe,
+served verbatim on that name (both sides agree on it out of band). The HTTP channel
+is never torn down.
 
 These tests stub the three channel runners (so ``_serve``'s ``asyncio.gather``
 returns at once instead of serving forever) and assert which channels ``_serve``
@@ -54,37 +54,56 @@ def _stub_channels(monkeypatch) -> dict[str, Any]:
 
 def test_serve_runs_http_and_ipc_together(monkeypatch):
     calls = _stub_channels(monkeypatch)
-    asyncio.run(cli_server._serve("/tmp/ack.sock", "/tmp/run-1.sock", 8765, False))
+    asyncio.run(
+        cli_server._serve("/tmp/ack.sock", "/tmp/run-1.sock", "agent.pipe", 8765, False)
+    )
     assert calls["unix"] == ("/tmp/ack.sock", "/tmp/run-1.sock")
-    assert calls["ipc"] == "run-1.sock"  # pipe = socket basename (directory stripped)
+    assert calls["ipc"] == "agent.pipe"  # served on the explicit --ipc-pipe name
     assert "tcp" not in calls
 
 
-def test_serve_derives_pipe_name_from_socket_basename(monkeypatch):
+def test_serve_uses_the_explicit_ipc_pipe_name(monkeypatch):
+    """The IPC pipe name is taken verbatim from ``--ipc-pipe``, not derived from the
+    HTTP socket path."""
     calls = _stub_channels(monkeypatch)
     asyncio.run(
         cli_server._serve(
-            "/tmp/ack.sock", "/var/tmp/uipath-server-42.sock", 8765, False
+            "/tmp/ack.sock",
+            "/var/tmp/uipath-server-42.sock",
+            "my-agent-pipe",
+            8765,
+            False,
         )
     )
-    assert (
-        calls["ipc"] == "uipath-server-42.sock"
-    )  # basename (directory stripped, extension kept)
+    assert calls["ipc"] == "my-agent-pipe"  # verbatim, independent of the HTTP socket
+
+
+def test_serve_ipc_is_independent_of_the_http_socket(monkeypatch):
+    """``--ipc-pipe`` drives IPC even when HTTP auto-generates its socket
+    (``server_socket`` is ``None``)."""
+    calls = _stub_channels(monkeypatch)
+    asyncio.run(cli_server._serve("/tmp/ack.sock", None, "agent.pipe", 8765, False))
+    assert calls["unix"] == ("/tmp/ack.sock", None)  # HTTP auto-socket
+    assert calls["ipc"] == "agent.pipe"
 
 
 def test_serve_rides_ipc_alongside_tcp(monkeypatch):
     calls = _stub_channels(monkeypatch)
-    asyncio.run(cli_server._serve("/tmp/ack.sock", "/tmp/run-1.sock", 9000, True))
+    asyncio.run(
+        cli_server._serve("/tmp/ack.sock", "/tmp/run-1.sock", "agent.pipe", 9000, True)
+    )
     assert calls["tcp"] == ("127.0.0.1", 9000)
     assert "unix" not in calls
-    assert calls["ipc"] == "run-1.sock"  # IPC is served next to TCP too, not only UDS
+    assert calls["ipc"] == "agent.pipe"  # IPC rides next to TCP too, not only UDS
 
 
-def test_serve_skips_ipc_without_server_socket(monkeypatch):
-    """No ``--server-socket`` ⇒ HTTP only (no pipe name to derive)."""
+def test_serve_skips_ipc_without_ipc_pipe(monkeypatch):
+    """No ``--ipc-pipe`` ⇒ HTTP only, regardless of the HTTP socket."""
     calls = _stub_channels(monkeypatch)
-    asyncio.run(cli_server._serve("/tmp/ack.sock", None, 8765, False))
-    assert calls["unix"] == ("/tmp/ack.sock", None)
+    asyncio.run(
+        cli_server._serve("/tmp/ack.sock", "/tmp/run-1.sock", None, 8765, False)
+    )
+    assert calls["unix"] == ("/tmp/ack.sock", "/tmp/run-1.sock")
     assert "ipc" not in calls
 
 
@@ -99,10 +118,11 @@ def _capture_serve(monkeypatch) -> dict[str, Any]:
     Linux) without actually serving anything."""
     seen: dict[str, Any] = {}
 
-    async def _rec_serve(ack_socket_path, server_socket, port, use_tcp):
+    async def _rec_serve(ack_socket_path, server_socket, ipc_pipe, port, use_tcp):
         seen.update(
             ack=ack_socket_path,
             server_socket=server_socket,
+            ipc_pipe=ipc_pipe,
             port=port,
             use_tcp=use_tcp,
         )
@@ -114,9 +134,10 @@ def _capture_serve(monkeypatch) -> dict[str, Any]:
 def test_run_server_defaults_ack_from_env(monkeypatch):
     seen = _capture_serve(monkeypatch)
     monkeypatch.setenv(cli_server.SOCKET_ENV_VAR, "/tmp/from-env.sock")
-    cli_server._run_server(None, "/tmp/s.sock", None, False)
+    cli_server._run_server(None, "/tmp/s.sock", "agent.pipe", None, False)
     assert seen["ack"] == "/tmp/from-env.sock"
     assert seen["server_socket"] == "/tmp/s.sock"
+    assert seen["ipc_pipe"] == "agent.pipe"
     assert seen["port"] == cli_server.DEFAULT_PORT
     assert seen["use_tcp"] is cli_server.IS_WINDOWS  # UDS on Linux, TCP on Windows
 
@@ -124,7 +145,7 @@ def test_run_server_defaults_ack_from_env(monkeypatch):
 def test_run_server_prefers_explicit_client_socket(monkeypatch):
     seen = _capture_serve(monkeypatch)
     monkeypatch.setenv(cli_server.SOCKET_ENV_VAR, "/tmp/from-env.sock")
-    cli_server._run_server("/tmp/explicit.sock", "/tmp/s.sock", 1234, False)
+    cli_server._run_server("/tmp/explicit.sock", "/tmp/s.sock", None, 1234, False)
     assert seen["ack"] == "/tmp/explicit.sock"  # explicit arg beats the env var
     assert seen["port"] == 1234
 
@@ -132,18 +153,18 @@ def test_run_server_prefers_explicit_client_socket(monkeypatch):
 def test_run_server_falls_back_to_default_ack(monkeypatch):
     seen = _capture_serve(monkeypatch)
     monkeypatch.delenv(cli_server.SOCKET_ENV_VAR, raising=False)
-    cli_server._run_server(None, "/tmp/s.sock", None, False)
+    cli_server._run_server(None, "/tmp/s.sock", None, None, False)
     assert seen["ack"] == cli_server.DEFAULT_SOCKET_PATH
 
 
 def test_run_server_tcp_flag_forces_tcp(monkeypatch):
     seen = _capture_serve(monkeypatch)
-    cli_server._run_server("/tmp/a.sock", "/tmp/s.sock", None, True)
+    cli_server._run_server("/tmp/a.sock", "/tmp/s.sock", None, None, True)
     assert seen["use_tcp"] is True
 
 
 # --------------------------------------------------------------------------- #
-# CLI wiring (backward-compatible single --server-socket)                     #
+# CLI wiring                                                                  #
 # --------------------------------------------------------------------------- #
 
 
@@ -155,9 +176,10 @@ def _stub_cli(monkeypatch) -> dict[str, Any]:
     monkeypatch.setattr(
         cli_server,
         "_run_server",
-        lambda client_socket, server_socket, port, tcp: seen.update(
+        lambda client_socket, server_socket, ipc_pipe, port, tcp: seen.update(
             client_socket=client_socket,
             server_socket=server_socket,
+            ipc_pipe=ipc_pipe,
             port=port,
             tcp=tcp,
         ),
@@ -169,18 +191,26 @@ def test_cli_passes_socket_args_through(monkeypatch):
     seen = _stub_cli(monkeypatch)
     result = CliRunner().invoke(
         cli_server.server,
-        ["--client-socket", "/tmp/ack.sock", "--server-socket", "/tmp/run.sock"],
+        [
+            "--client-socket",
+            "/tmp/ack.sock",
+            "--server-socket",
+            "/tmp/run.sock",
+            "--ipc-pipe",
+            "agent.pipe",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert seen["client_socket"] == "/tmp/ack.sock"
     assert seen["server_socket"] == "/tmp/run.sock"
+    assert seen["ipc_pipe"] == "agent.pipe"
     assert seen["tcp"] is False
 
 
-def test_cli_server_socket_is_optional(monkeypatch):
-    """No ``--server-socket`` is no longer an error: HTTP auto-generates one and
-    the IPC channel is simply skipped."""
+def test_cli_ipc_pipe_is_optional(monkeypatch):
+    """No ``--ipc-pipe`` ⇒ HTTP only; the server still starts (IPC simply skipped)."""
     seen = _stub_cli(monkeypatch)
     result = CliRunner().invoke(cli_server.server, [])
     assert result.exit_code == 0, result.output
     assert seen["server_socket"] is None
+    assert seen["ipc_pipe"] is None

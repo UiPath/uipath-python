@@ -294,8 +294,8 @@ async def start_tcp_server(host: str, port: int) -> None:
 
 
 # The uipath-ipc transport (contract, DTOs, service, ``start_ipc_server``) lives
-# in ``cli_server_ipc`` and is served alongside HTTP when ``--server-socket`` is
-# given. Older servers served HTTP only; the .NET Handler copes.
+# in ``cli_server_ipc`` and is served alongside HTTP when ``--ipc-pipe`` is given.
+# Older servers served HTTP only; the .NET Handler copes.
 
 
 # --------------------------------------------------------------------------- #
@@ -315,8 +315,14 @@ async def start_tcp_server(host: str, port: int) -> None:
     "--server-socket",
     type=str,
     default=None,
-    help="Unix socket the HTTP server listens on; its basename is the uipath-ipc "
-    "pipe name (default: auto-generated in tmp).",
+    help="Unix socket the HTTP server listens on (default: auto-generated in tmp).",
+)
+@click.option(
+    "--ipc-pipe",
+    type=str,
+    default=None,
+    help="Named pipe for the uipath-ipc channel. IPC is served only when this is "
+    "given; omit it for HTTP-only.",
 )
 @click.option(
     "--port",
@@ -333,21 +339,23 @@ async def start_tcp_server(host: str, port: int) -> None:
 def server(
     client_socket: str | None,
     server_socket: str | None,
+    ipc_pipe: str | None,
     port: int | None,
     tcp: bool,
 ) -> None:
-    """Serve run/debug/eval over HTTP, plus uipath-ipc when --server-socket is given."""
+    """Serve run/debug/eval over HTTP, plus uipath-ipc when --ipc-pipe is given."""
     preload_modules()
-    _run_server(client_socket, server_socket, port, tcp)
+    _run_server(client_socket, server_socket, ipc_pipe, port, tcp)
 
 
 async def _serve(
     ack_socket_path: str,
     server_socket: str | None,
+    ipc_pipe: str | None,
     port: int,
     use_tcp: bool,
 ) -> None:
-    """Run the HTTP channel and, when a server socket is given, the IPC channel too."""
+    """Run the HTTP channel, plus the uipath-ipc channel when a pipe name is given."""
     _state.init()
 
     tasks: list[Any] = []
@@ -356,16 +364,11 @@ async def _serve(
     else:
         tasks.append(start_unix_server(ack_socket_path, server_socket))
 
-    # The IPC pipe name is the HTTP UDS path's basename (directory stripped),
-    # identically to the .NET side (Path.GetFileName) — so the named-pipe transport
-    # resolves it to a socket distinct from the HTTP UDS and the two never collide.
-    if server_socket:
-        pipe_name = os.path.basename(server_socket)
-        tasks.append(start_ipc_server(pipe_name))
-    else:
-        console.warning(
-            "--server-socket not provided; serving HTTP only (no IPC channel)."
-        )
+    # IPC is opt-in and independent of the HTTP socket: it is served only when an
+    # explicit pipe name is given, which both sides agree on out of band (the .NET
+    # peer connects to the same name it passed — no derivation from the HTTP socket).
+    if ipc_pipe:
+        tasks.append(start_ipc_server(ipc_pipe))
 
     await asyncio.gather(*tasks)
 
@@ -373,6 +376,7 @@ async def _serve(
 def _run_server(
     client_socket: str | None,
     server_socket: str | None,
+    ipc_pipe: str | None,
     port: int | None,
     tcp: bool,
 ) -> None:
@@ -381,7 +385,9 @@ def _run_server(
     ack_socket_path = (
         client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
     )
-    coro = _serve(ack_socket_path, server_socket, port or DEFAULT_PORT, use_tcp)
+    coro = _serve(
+        ack_socket_path, server_socket, ipc_pipe, port or DEFAULT_PORT, use_tcp
+    )
     try:
         if sys.platform == "win32":
             with asyncio.Runner(loop_factory=asyncio.ProactorEventLoop) as runner:
