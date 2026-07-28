@@ -14,6 +14,7 @@ wiring and env isolation without it.
 import asyncio
 import json
 import os
+import sys
 import threading
 import time
 from typing import Any, Awaitable, Callable
@@ -107,6 +108,13 @@ class Input:
 def main(input: Input) -> str:
     return (input.message + " ") * input.repeat
 """
+
+
+def test_start_ipc_server_fails_fast_without_uipath_ipc(monkeypatch):
+    """--ipc-pipe with uipath-ipc absent must fail loudly, not silently no-op."""
+    monkeypatch.setitem(sys.modules, "uipath_ipc", None)
+    with pytest.raises(RuntimeError, match="uipath-ipc"):
+        asyncio.run(start_ipc_server(_unique_pipe()))
 
 
 class TestIpcServer:
