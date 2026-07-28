@@ -1,8 +1,10 @@
 """Service for calling the simulate-component API."""
 
+import json
 from typing import Any
 
 from uipath._utils import Endpoint
+from uipath.core.serialization import serialize_json
 from uipath.platform.common import BaseService
 from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
@@ -25,7 +27,7 @@ class SimulateComponentService(BaseService):
             url=Endpoint(
                 "/agentsruntime_/api/execution/simulations/simulate-component"
             ),
-            json=payload,
+            json=json.loads(serialize_json(payload)),
             headers=headers,
         )
         return response.json()

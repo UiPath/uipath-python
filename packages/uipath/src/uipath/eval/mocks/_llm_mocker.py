@@ -7,6 +7,7 @@ from typing import Any, Callable
 from opentelemetry.sdk.trace import ReadableSpan
 from pydantic import BaseModel, TypeAdapter
 
+from uipath.core.serialization import serialize_defaults
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
@@ -171,7 +172,7 @@ class LLMMocker(Mocker):
                     "testRunProctorInstructions": self.context.strategy.prompt,
                 }
                 prompt_generation_args = {
-                    k: json.dumps(pydantic_to_dict_safe(v))
+                    k: json.dumps(pydantic_to_dict_safe(v), default=serialize_defaults)
                     for k, v in prompt_input.items()
                 }
                 model_parameters = self.context.strategy.model
