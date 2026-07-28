@@ -113,8 +113,9 @@ def main(input: Input) -> str:
 def test_start_ipc_server_fails_fast_without_uipath_ipc(monkeypatch):
     """--ipc-pipe with uipath-ipc absent must fail loudly, not silently no-op."""
     monkeypatch.setitem(sys.modules, "uipath_ipc", None)
+    coro = start_ipc_server(_unique_pipe())
     with pytest.raises(RuntimeError, match="uipath-ipc"):
-        asyncio.run(start_ipc_server(_unique_pipe()))
+        asyncio.run(coro)
 
 
 class TestIpcServer:
