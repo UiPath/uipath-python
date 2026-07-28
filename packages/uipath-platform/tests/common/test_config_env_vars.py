@@ -190,3 +190,39 @@ class TestEvalFolderDetection:
         assert UiPathConfig.has_eval_folder is False
         (tmp_path / EVALS_FOLDER).mkdir()
         assert UiPathConfig.has_eval_folder is True
+
+
+class TestIsRootedToDebugJob:
+    @pytest.fixture(autouse=True)
+    def _reset_singleton(self):
+        # is_rooted_to_debug_job mutates the process-wide singleton; reset around
+        # each test so nothing leaks between tests.
+        UiPathConfig.reset()
+        yield
+        UiPathConfig.reset()
+
+    def test_defaults_to_false_when_unset(self):
+        assert UiPathConfig.is_rooted_to_debug_job is False
+
+    def test_reads_is_debug_internal_argument(self):
+        UiPathConfig.__dict__["_internal_arguments"] = {"isDebug": True}
+        assert UiPathConfig.is_rooted_to_debug_job is True
+
+    def test_setter_override_wins_and_is_true(self):
+        UiPathConfig.is_rooted_to_debug_job = True
+        assert UiPathConfig.is_rooted_to_debug_job is True
+
+    def test_setter_override_beats_internal_argument(self):
+        # Even when the internal argument says True, an explicit False override wins.
+        UiPathConfig.__dict__["_internal_arguments"] = {"isDebug": True}
+        UiPathConfig.is_rooted_to_debug_job = False
+        assert UiPathConfig.is_rooted_to_debug_job is False
+
+    def test_reset_clears_override(self):
+        UiPathConfig.__dict__["_internal_arguments"] = {"isDebug": True}
+        UiPathConfig.is_rooted_to_debug_job = False
+        assert UiPathConfig.is_rooted_to_debug_job is False
+        UiPathConfig.reset()
+        # Override cleared, so it falls back to the internal argument again — but
+        # reset() also drops the cached internal arguments, so it re-reads (None).
+        assert UiPathConfig.is_rooted_to_debug_job is False
