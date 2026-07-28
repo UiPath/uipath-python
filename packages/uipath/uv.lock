@@ -2624,6 +2624,11 @@ dependencies = [
     { name = "uipath-runtime" },
 ]
 
+[package.optional-dependencies]
+ipc = [
+    { name = "uipath-ipc" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "bandit" },
@@ -2675,9 +2680,11 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
+    { name = "uipath-ipc", marker = "extra == 'ipc'", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.12.2,<0.13.0" },
 ]
+provides-extras = ["ipc"]
 
 [package.metadata.requires-dev]
 dev = [

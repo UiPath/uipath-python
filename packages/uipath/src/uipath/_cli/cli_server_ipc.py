@@ -4,9 +4,10 @@ The PascalCase method and field names are dictated by the .NET/CoreIpc peer
 (the serializer maps them verbatim), so Sonar's S100/S116 naming rules are
 suppressed for this file only (see ``sonar-project.properties``).
 
-``uipath-ipc`` is an optional runtime dependency: it is imported lazily inside
-``start_ipc_server`` so this module — and HTTP-only serving — works without it.
-The DTOs and the contract below are pure stdlib and never reference it.
+``uipath-ipc`` is an optional dependency (the ``ipc`` extra): it is imported
+lazily inside ``start_ipc_server`` so this module — and HTTP-only serving —
+works without it. The DTOs and the contract below are pure stdlib and never
+reference it.
 """
 
 from abc import ABC, abstractmethod
@@ -89,8 +90,8 @@ async def start_ipc_server(pipe_name: str) -> None:
     except ImportError as e:
         raise RuntimeError(
             "The uipath-ipc channel was requested (--ipc-pipe) but the 'uipath-ipc' "
-            "package is not installed in this environment. Install uipath-ipc, or omit "
-            "--ipc-pipe to serve HTTP only."
+            "package is not installed in this environment. Install it (pip install "
+            "'uipath[ipc]') or omit --ipc-pipe to serve HTTP only."
         ) from e
 
     _state.init()
