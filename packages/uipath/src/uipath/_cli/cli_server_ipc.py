@@ -77,8 +77,6 @@ class PythonRuntimeService(IPythonRuntimeServer):
         return PythonRunResult(ExitCode=result["ExitCode"], Error=result["Error"])
 
     async def StopJob(self, job_key: str) -> bool:
-        # Cancellation is not wired into the job core yet — accept the request and
-        # no-op so the .NET side gets a clean response. Real cancellation lands here.
         console.info(f"StopJob requested for {job_key} (no-op)")
         return True
 
