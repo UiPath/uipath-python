@@ -147,6 +147,27 @@ class TestServer:
         assert response["success"] is False
         assert "Unknown command" in response["error"]
 
+    def test_bad_working_directory_returns_400(self, server):
+        """A request-shaped error (bad working dir) is a 4xx, not a 200."""
+        port = server
+
+        async def send():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://127.0.0.1:{port}/jobs/job-bad-cwd/start",
+                    json={
+                        "command": "run",
+                        "args": [],
+                        "workingDirectory": "/no/such/dir/xyz-does-not-exist",
+                    },
+                ) as response:
+                    return response.status, await response.json()
+
+        status, body = asyncio.run(send())
+        assert status == 400
+        assert body["success"] is False
+        assert "working directory" in body["error"]
+
     def test_start_job_missing_command(self, server):
         """Test starting a job without command field."""
         port = server
@@ -337,21 +358,21 @@ class TestServerEnvIsolation:
         """Start server with a spy command that captures os.environ."""
         import click
 
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         @click.command()
         def spy_cmd():
             env_snapshots.append(dict(os.environ))
 
-        original_commands = cli_server.COMMANDS.copy()
-        cli_server.COMMANDS["spy"] = spy_cmd
+        original_commands = _server_core.COMMANDS.copy()
+        _server_core.COMMANDS["spy"] = spy_cmd
 
         start_cli_server_thread(server_port)
 
         yield server_port
 
-        cli_server.COMMANDS.clear()
-        cli_server.COMMANDS.update(original_commands)
+        _server_core.COMMANDS.clear()
+        _server_core.COMMANDS.update(original_commands)
 
     def test_env_vars_do_not_leak_between_requests(
         self, server_with_spy, env_snapshots
@@ -396,7 +417,7 @@ class TestServerEnvIsolation:
 
     def test_server_baseline_env_preserved(self, server_with_spy, env_snapshots):
         """Server baseline env vars (like PATH) should be available during command execution."""
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         port = server_with_spy
 
@@ -414,7 +435,7 @@ class TestServerEnvIsolation:
         env_run = env_snapshots[0]
 
         # Baseline is captured at server start, not import time
-        baseline = cli_server._state.baseline_env
+        baseline = _server_core._state.baseline_env
         assert baseline is not None
 
         # Baseline env vars should be present
@@ -425,7 +446,7 @@ class TestServerEnvIsolation:
 
     def test_env_restored_after_request(self, server_with_spy):
         """os.environ should be restored to baseline after each request."""
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         port = server_with_spy
 
@@ -439,7 +460,7 @@ class TestServerEnvIsolation:
             )
         )
 
-        baseline = cli_server._state.baseline_env
+        baseline = _server_core._state.baseline_env
         assert baseline is not None
 
         # After the request, os.environ should match baseline

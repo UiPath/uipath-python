@@ -7,6 +7,7 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
+uipath-ipc = false
 uipath-runtime = false
 uipath-platform = false
 uipath-core = false
@@ -2598,7 +2599,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.13.17"
+version = "2.13.18"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2621,6 +2622,11 @@ dependencies = [
     { name = "uipath-core" },
     { name = "uipath-platform" },
     { name = "uipath-runtime" },
+]
+
+[package.optional-dependencies]
+ipc = [
+    { name = "uipath-ipc" },
 ]
 
 [package.dev-dependencies]
@@ -2650,6 +2656,7 @@ dev = [
     { name = "tomli-w" },
     { name = "types-pyyaml" },
     { name = "types-toml" },
+    { name = "uipath-ipc" },
     { name = "virtualenv" },
 ]
 
@@ -2673,9 +2680,11 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
+    { name = "uipath-ipc", marker = "extra == 'ipc'", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.12.2,<0.13.0" },
 ]
+provides-extras = ["ipc"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2704,6 +2713,7 @@ dev = [
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
     { name = "types-toml", specifier = ">=0.10.8" },
+    { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 
@@ -2737,6 +2747,15 @@ dev = [
     { name = "pytest-trio", specifier = ">=0.8.0" },
     { name = "ruff", specifier = ">=0.9.4" },
     { name = "rust-just", specifier = ">=1.39.0" },
+]
+
+[[package]]
+name = "uipath-ipc"
+version = "2.5.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/6b/53d9725d6abd1dab447300a7f999332f530678e3fabd38fc31171a5a9a6f/uipath_ipc-2.5.2.tar.gz", hash = "sha256:d69c3d7c1ad1a25ef7f9f1d78c505f5d2ed7daa7227bb202404fa3d47e0ba12e", size = 86360, upload-time = "2026-07-24T09:44:35.159Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/eb/6def505a0d351119da27b342c11eb0767a31a7f100022d35e349c5194eb3/uipath_ipc-2.5.2-py3-none-any.whl", hash = "sha256:617f25f35377d87956165a875b0966a3cd69ae6724fcd533c93a7a6a9460fc4f", size = 50345, upload-time = "2026-07-24T09:44:33.7Z" },
 ]
 
 [[package]]
