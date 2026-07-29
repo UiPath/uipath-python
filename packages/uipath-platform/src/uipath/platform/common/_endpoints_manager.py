@@ -21,6 +21,7 @@ class UiPathEndpoints(Enum):
         "agenthub_/llm/raw/vendor/{vendor}/model/{model}/completions"
     )
     AH_CAPABILITIES_ENDPOINT = "agenthub_/llm/api/capabilities"
+    AH_DISCOVERY_ENDPOINT = "agenthub_/llm/api/discovery"
 
     OR_NORMALIZED_COMPLETION_ENDPOINT = "orchestrator_/llm/api/chat/completions"
     OR_PASSTHROUGH_COMPLETION_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/chat/completions?api-version={api_version}"
@@ -29,6 +30,7 @@ class UiPathEndpoints(Enum):
         "orchestrator_/llm/raw/vendor/{vendor}/model/{model}/completions"
     )
     OR_CAPABILITIES_ENDPOINT = "orchestrator_/llm/api/capabilities"
+    OR_DISCOVERY_ENDPOINT = "orchestrator_/llm/api/discovery"
 
 
 class EndpointManager:
@@ -183,6 +185,14 @@ class EndpointManager:
         return cls._select_endpoint(
             UiPathEndpoints.AH_NORMALIZED_COMPLETION_ENDPOINT,
             UiPathEndpoints.OR_NORMALIZED_COMPLETION_ENDPOINT,
+        )
+
+    @classmethod
+    def get_discovery_endpoint(cls) -> str:
+        """Get the model discovery endpoint."""
+        return cls._select_endpoint(
+            UiPathEndpoints.AH_DISCOVERY_ENDPOINT,
+            UiPathEndpoints.OR_DISCOVERY_ENDPOINT,
         )
 
     @classmethod
