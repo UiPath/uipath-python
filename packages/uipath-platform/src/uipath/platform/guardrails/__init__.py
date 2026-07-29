@@ -17,6 +17,7 @@ from ._guardrails_service import GuardrailsService
 from .decorators import (
     BlockAction,
     BuiltInGuardrailValidator,
+    ByoValidator,
     CustomGuardrailValidator,
     CustomValidator,
     GuardrailAction,
@@ -43,6 +44,7 @@ from .decorators import (
     register_guardrail_adapter,
 )
 from .guardrails import (
+    BYO_VALIDATOR_TYPE,
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
     GuardrailType,
@@ -53,6 +55,7 @@ __all__ = [
     # Service
     "GuardrailsService",
     # Guardrail models
+    "BYO_VALIDATOR_TYPE",
     "BuiltInValidatorGuardrail",
     "GuardrailType",
     "GuardrailValidationResultType",
@@ -67,6 +70,7 @@ __all__ = [
     "guardrail",
     "GuardrailValidatorBase",
     "BuiltInGuardrailValidator",
+    "ByoValidator",
     "CustomGuardrailValidator",
     "HarmfulContentValidator",
     "IntellectualPropertyValidator",
