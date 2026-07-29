@@ -24,7 +24,25 @@ from uipath.platform import UiPath
 from uipath.platform.action_center import Task
 from uipath.platform.action_center.tasks import TaskStatus
 from uipath.platform.common._config import UiPathConfig
-from uipath.platform.common.interrupt_models import (
+from uipath.platform.connections import EventArguments
+from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
+from uipath.platform.context_grounding.context_grounding_index import (
+    ContextGroundingIndex,
+)
+from uipath.platform.errors import (
+    BatchTransformFailedException,
+    BatchTransformNotCompleteException,
+    OperationNotCompleteException,
+)
+from uipath.platform.orchestrator.job import JobState
+from uipath.platform.resume_triggers._enums import (
+    ExternalTrigger,
+    ExternalTriggerType,
+    PropertyName,
+    TriggerMarker,
+)
+
+from .interrupt_models import (
     CreateBatchTransform,
     CreateDeepRag,
     CreateDeepRagRaw,
@@ -51,23 +69,6 @@ from uipath.platform.common.interrupt_models import (
     WaitSystemAgent,
     WaitTask,
     WaitUntil,
-)
-from uipath.platform.connections import EventArguments
-from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
-from uipath.platform.context_grounding.context_grounding_index import (
-    ContextGroundingIndex,
-)
-from uipath.platform.errors import (
-    BatchTransformFailedException,
-    BatchTransformNotCompleteException,
-    OperationNotCompleteException,
-)
-from uipath.platform.orchestrator.job import JobState
-from uipath.platform.resume_triggers._enums import (
-    ExternalTrigger,
-    ExternalTriggerType,
-    PropertyName,
-    TriggerMarker,
 )
 
 

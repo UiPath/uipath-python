@@ -139,6 +139,11 @@ jobs:
         working-directory: packages/uipath-platform
         run: uv run ruff format --check .
 
+      - name: Check import contracts
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/uipath-platform
+        run: uv run lint-imports
+
   lint-uipath:
     name: Lint uipath
     needs: detect-changed-packages

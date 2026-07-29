@@ -3,7 +3,40 @@
 This module contains common models used across multiple services.
 """
 
+from typing import TYPE_CHECKING, Any
+
 from uipath.core.triggers import UiPathResumeMetadata
+
+# TODO: Remove the interrupt-model compatibility exports in the next breaking-change release.
+if TYPE_CHECKING:
+    from .interrupt_models import (
+        CreateBatchTransform,
+        CreateDeepRag,
+        CreateDeepRagRaw,
+        CreateEphemeralIndex,
+        CreateEphemeralIndexRaw,
+        CreateEscalation,
+        CreateTask,
+        DocumentExtraction,
+        DocumentExtractionValidation,
+        InvokeProcess,
+        InvokeProcessRaw,
+        InvokeSystemAgent,
+        WaitBatchTransform,
+        WaitDeepRag,
+        WaitDeepRagRaw,
+        WaitDocumentExtraction,
+        WaitDocumentExtractionValidation,
+        WaitEphemeralIndex,
+        WaitEphemeralIndexRaw,
+        WaitEscalation,
+        WaitIntegrationEvent,
+        WaitJob,
+        WaitJobRaw,
+        WaitSystemAgent,
+        WaitTask,
+        WaitUntil,
+    )
 
 from ._api_client import ApiClient
 from ._base_service import BaseService, resolve_trace_id
@@ -41,34 +74,6 @@ from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .auth import TokenData
 from .dynamic_schema import jsonschema_to_pydantic
-from .interrupt_models import (
-    CreateBatchTransform,
-    CreateDeepRag,
-    CreateDeepRagRaw,
-    CreateEphemeralIndex,
-    CreateEphemeralIndexRaw,
-    CreateEscalation,
-    CreateTask,
-    DocumentExtraction,
-    DocumentExtractionValidation,
-    InvokeProcess,
-    InvokeProcessRaw,
-    InvokeSystemAgent,
-    WaitBatchTransform,
-    WaitDeepRag,
-    WaitDeepRagRaw,
-    WaitDocumentExtraction,
-    WaitDocumentExtractionValidation,
-    WaitEphemeralIndex,
-    WaitEphemeralIndexRaw,
-    WaitEscalation,
-    WaitIntegrationEvent,
-    WaitJob,
-    WaitJobRaw,
-    WaitSystemAgent,
-    WaitTask,
-    WaitUntil,
-)
 from .paging import PagedResult
 from .timeout import (
     UiPathTimeoutError,
@@ -151,3 +156,49 @@ __all__ = [
 ]
 
 from .validation import validate_pagination_params
+
+_INTERRUPT_MODEL_NAMES = {
+    "CreateBatchTransform",
+    "CreateDeepRag",
+    "CreateDeepRagRaw",
+    "CreateEphemeralIndex",
+    "CreateEphemeralIndexRaw",
+    "CreateEscalation",
+    "CreateTask",
+    "DocumentExtraction",
+    "DocumentExtractionValidation",
+    "InvokeProcess",
+    "InvokeProcessRaw",
+    "InvokeSystemAgent",
+    "WaitBatchTransform",
+    "WaitDeepRag",
+    "WaitDeepRagRaw",
+    "WaitDocumentExtraction",
+    "WaitDocumentExtractionValidation",
+    "WaitEphemeralIndex",
+    "WaitEphemeralIndexRaw",
+    "WaitEscalation",
+    "WaitIntegrationEvent",
+    "WaitJob",
+    "WaitJobRaw",
+    "WaitSystemAgent",
+    "WaitTask",
+    "WaitUntil",
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve moved interrupt models on demand."""
+    if name not in _INTERRUPT_MODEL_NAMES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from . import interrupt_models
+
+    value = interrupt_models._resolve(name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    """List common exports, including compatibility aliases."""
+    return sorted(set(globals()) | set(__all__))

@@ -5,7 +5,7 @@ from typing import Any, ClassVar
 
 from uipath.core.guardrails import GuardrailValidationResult
 
-from uipath.platform.guardrails.guardrails import BuiltInValidatorGuardrail
+from uipath.platform._guardrails_service import BuiltInValidatorGuardrail
 
 from .._enums import GuardrailExecutionStage
 

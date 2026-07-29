@@ -13,7 +13,15 @@ from uipath.core.guardrails import (
     GuardrailValidationResultType,
 )
 
-from ._guardrails_service import GuardrailsService
+from uipath.platform._guardrails_service import (
+    BuiltInValidatorGuardrail,
+    EnumListParameterValue,
+    GuardrailsService,
+    GuardrailType,
+    MapEnumParameterValue,
+    NumberParameterValue,
+)
+
 from .decorators import (
     BlockAction,
     BuiltInGuardrailValidator,
@@ -42,12 +50,6 @@ from .decorators import (
     guardrail,
     register_guardrail_adapter,
 )
-from .guardrails import (
-    BuiltInValidatorGuardrail,
-    EnumListParameterValue,
-    GuardrailType,
-    MapEnumParameterValue,
-)
 
 __all__ = [
     # Service
@@ -63,6 +65,7 @@ __all__ = [
     "GuardrailValidationResult",
     "EnumListParameterValue",
     "MapEnumParameterValue",
+    "NumberParameterValue",
     # Decorator framework
     "guardrail",
     "GuardrailValidatorBase",
