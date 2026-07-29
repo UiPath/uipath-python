@@ -40,6 +40,7 @@ class TestProcessesService:
     ) -> None:
         process_name = "test-process"
         input_arguments = {"key": "value"}
+        entry_point = "invoice_tools/extract.py:extract_invoice_data"
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
             status_code=200,
@@ -56,7 +57,7 @@ class TestProcessesService:
             },
         )
 
-        job = service.invoke(process_name, input_arguments)
+        job = service.invoke(process_name, input_arguments, entry_point=entry_point)
 
         assert isinstance(job, Job)
         assert job.key == "test-job-key"
@@ -80,6 +81,7 @@ class TestProcessesService:
                     "ReleaseName": process_name,
                     "InputArguments": json.dumps(input_arguments),
                     "Source": "AgentService",
+                    "EntryPointPath": entry_point,
                 }
             },
             separators=(",", ":"),
@@ -263,6 +265,7 @@ class TestProcessesService:
     ) -> None:
         process_name = "test-process"
         input_arguments = {"key": "value"}
+        entry_point = "invoice_tools/extract.py:extract_invoice_data"
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
             status_code=200,
@@ -279,7 +282,9 @@ class TestProcessesService:
             },
         )
 
-        job = await service.invoke_async(process_name, input_arguments)
+        job = await service.invoke_async(
+            process_name, input_arguments, entry_point=entry_point
+        )
 
         assert isinstance(job, Job)
         assert job.key == "test-job-key"
@@ -303,6 +308,7 @@ class TestProcessesService:
                     "ReleaseName": process_name,
                     "InputArguments": json.dumps(input_arguments),
                     "Source": "AgentService",
+                    "EntryPointPath": entry_point,
                 }
             },
             separators=(",", ":"),

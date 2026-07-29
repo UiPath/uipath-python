@@ -50,6 +50,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
+        entry_point: Optional[str] = None,
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
         **kwargs: Any,
@@ -64,6 +65,7 @@ class ProcessesService(FolderContext, BaseService):
             attachments (Optional[list]): List of Attachment objects to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            entry_point (Optional[str]): The entry point to execute in a multi-entry-point process package.
             parent_operation_id (Optional[str]): The parent operation ID for BTS tracking correlation.
             run_as_me (Optional[bool]): If True, the job will run under the calling user's identity.
 
@@ -101,6 +103,7 @@ class ProcessesService(FolderContext, BaseService):
             input_data=input_data,
             folder_key=folder_key,
             folder_path=folder_path,
+            entry_point=entry_point,
             parent_span_id=kwargs.get("parent_span_id"),
             parent_operation_id=parent_operation_id,
             run_as_me=run_as_me,
@@ -126,6 +129,7 @@ class ProcessesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         attachments: Optional[list[Attachment]] = None,
+        entry_point: Optional[str] = None,
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
         **kwargs: Any,
@@ -140,6 +144,7 @@ class ProcessesService(FolderContext, BaseService):
             attachments (Optional[list]): List of Attachment objects to pass to the process.
             folder_key (Optional[str]): The key of the folder to execute the process in. Override the default one set in the SDK config.
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
+            entry_point (Optional[str]): The entry point to execute in a multi-entry-point process package.
             parent_operation_id (Optional[str]): The parent operation ID for BTS tracking correlation.
             run_as_me (Optional[bool]): If True, the job will run under the calling user's identity.
 
@@ -172,6 +177,7 @@ class ProcessesService(FolderContext, BaseService):
             input_data=input_data,
             folder_key=folder_key,
             folder_path=folder_path,
+            entry_point=entry_point,
             parent_span_id=kwargs.get("parent_span_id"),
             parent_operation_id=parent_operation_id,
             run_as_me=run_as_me,
@@ -318,6 +324,7 @@ class ProcessesService(FolderContext, BaseService):
         *,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        entry_point: Optional[str] = None,
         parent_span_id: Optional[str] = None,
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
@@ -328,6 +335,9 @@ class ProcessesService(FolderContext, BaseService):
             "Source": "AgentService",
         }
         self._add_tracing(payload, UiPathConfig.trace_id, parent_span_id)
+
+        if entry_point:
+            payload["EntryPointPath"] = entry_point
 
         if parent_operation_id:
             payload["ParentOperationId"] = parent_operation_id
