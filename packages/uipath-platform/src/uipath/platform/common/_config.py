@@ -14,7 +14,6 @@ class UiPathApiConfig(BaseModel):
 class ConfigurationManager:
     _instance = None
     studio_solution_id: str | None = None
-    _is_debug_run_override: bool | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -195,14 +194,7 @@ class ConfigurationManager:
     @property
     def is_rooted_to_debug_job(self) -> bool:
         """Whether this job, which may be a deployed process, is rooted to a debug session (e.g. Maestro solution debug)."""
-        if self._is_debug_run_override is not None:
-            return self._is_debug_run_override
         return self._read_internal_argument("isDebug") is True
-
-    @is_rooted_to_debug_job.setter
-    def is_rooted_to_debug_job(self, value: bool) -> None:
-        """Override the debug-run status resolved at runtime."""
-        self._is_debug_run_override = value
 
     @property
     def is_tracing_enabled(self) -> bool:
@@ -213,7 +205,6 @@ class ConfigurationManager:
     def reset(self) -> None:
         """Reset mutable cached state to defaults."""
         self.studio_solution_id = None
-        self._is_debug_run_override = None
         # Invalidate cached_property by removing from instance __dict__
         self.__dict__.pop("_internal_arguments", None)
 

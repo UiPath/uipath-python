@@ -830,8 +830,6 @@ class AgentEscalationChannelProperties(BaseEscalationChannelProperties):
 
     app_name: str | None = Field(default=None, alias="appName")
     app_version: int = Field(..., alias="appVersion")
-    app_type: str | None = Field(default=None, alias="appType")
-    action_schema: Optional[Any] = Field(default=None, alias="actionSchema")
     folder_name: Optional[str] = Field(None, alias="folderName")
     resource_key: str | None = Field(default=None, alias="resourceKey")
 

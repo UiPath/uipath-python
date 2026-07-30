@@ -6,13 +6,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
-APP_TYPE_LOW_CODE = "Custom"
-
-
-def is_low_code_app(app_type: str | None) -> bool:
-    """Return True when ``app_type`` denotes a low-code (custom) app."""
-    return app_type == APP_TYPE_LOW_CODE
-
 
 class TaskStatus(enum.IntEnum):
     """Enum representing possible Task status."""
