@@ -68,6 +68,13 @@ async def test_generate_llm_input_with_model_settings(
         json={},
     )
 
+    # Chat completions consults discovery to learn which parameters the model accepts.
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/discovery",
+        status_code=200,
+        json=[{"modelName": "gpt-4o-mini-2024-07-18", "modelDetails": {}}],
+    )
+
     httpx_mock.add_response(
         url="https://example.com/llm/api/chat/completions"
         "?api-version=2024-08-01-preview",
