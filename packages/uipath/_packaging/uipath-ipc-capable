@@ -1,0 +1,5 @@
+Presence of this file at the environment root — installed there by the `uipath`
+wheel via the wheel data scheme — marks that this `uipath` version can serve the
+uipath-ipc runtime transport (`uipath server --ipc-pipe`). Consumers detect
+capability with File.Exists(<venv>/.uipath-ipc-capable); only the file's presence
+matters, not its content.

@@ -88,6 +88,9 @@ dev = [
 packages = ["src/uipath"]
 include = ["src/uipath/_resources"]
 
+[tool.hatch.build.targets.wheel.shared-data]
+"_packaging/uipath-ipc-capable" = ".uipath-ipc-capable"
+
 [tool.ruff]
 line-length = 88
 indent-width = 4
