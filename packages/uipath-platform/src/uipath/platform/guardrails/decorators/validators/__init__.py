@@ -5,6 +5,7 @@ from ._base import (
     CustomGuardrailValidator,
     GuardrailValidatorBase,
 )
+from .byo import ByoValidator
 from .custom import CustomValidator, RuleFunction
 from .harmful_content import HarmfulContentValidator
 from .intellectual_property import IntellectualPropertyValidator
@@ -16,6 +17,7 @@ from .user_prompt_attacks import UserPromptAttacksValidator
 __all__ = [
     "GuardrailValidatorBase",
     "BuiltInGuardrailValidator",
+    "ByoValidator",
     "CustomGuardrailValidator",
     "HarmfulContentValidator",
     "IntellectualPropertyValidator",

@@ -19,6 +19,7 @@ from ._models import GuardrailAction, HarmfulContentEntity, PIIDetectionEntity
 from ._registry import GuardrailTargetAdapter, register_guardrail_adapter
 from .validators import (
     BuiltInGuardrailValidator,
+    ByoValidator,
     CustomGuardrailValidator,
     CustomValidator,
     GuardrailValidatorBase,
@@ -37,6 +38,7 @@ __all__ = [
     # Validators
     "GuardrailValidatorBase",
     "BuiltInGuardrailValidator",
+    "ByoValidator",
     "CustomGuardrailValidator",
     "HarmfulContentValidator",
     "IntellectualPropertyValidator",
