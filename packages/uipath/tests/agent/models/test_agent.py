@@ -39,6 +39,7 @@ from uipath.agent.models.agent import (
     AgentProcessToolResourceConfig,
     AgentQuickFormChannelProperties,
     AgentResourceType,
+    AgentSettings,
     AgentToolArgumentPropertiesVariant,
     AgentToolType,
     AgentUnknownGuardrail,
@@ -4750,3 +4751,30 @@ class TestToolOutputRecipientDeserialization:
         ).validate_python(payload)
         assert isinstance(recipient, CustomAssigneesRecipient)
         assert not isinstance(recipient, ToolOutputRecipient)
+
+
+class TestAgentModelSettings:
+    """settings.modelSettings is a native bag forwarded verbatim (no schema)."""
+
+    def _agent_settings(self, **extra: Any) -> dict[str, Any]:
+        return {
+            "engine": "basic-v2",
+            "model": "anthropic.claude-opus-4-6-v1",
+            "maxTokens": 49047,
+            "temperature": 0.63,
+            **extra,
+        }
+
+    def test_absent_model_settings_is_none(self):
+        settings = AgentSettings.model_validate(self._agent_settings())
+        assert settings.model_settings is None
+
+    def test_native_bag_survives_verbatim_by_alias(self):
+        native = {
+            "thinking": {"type": "enabled", "budget_tokens": 2048},
+            "output_config": {"effort": "high"},
+        }
+        settings = AgentSettings.model_validate(
+            self._agent_settings(modelSettings=native)
+        )
+        assert settings.model_dump(by_alias=True)["modelSettings"] == native
