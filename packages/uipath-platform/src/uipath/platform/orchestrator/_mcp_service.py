@@ -1,4 +1,5 @@
 from typing import List
+from urllib.parse import quote
 
 from uipath.core.tracing import traced
 
@@ -8,6 +9,7 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
+from ..common._resource_identifier import resolve_retrieve_identifier
 from ._folder_service import FolderService
 from .mcp import McpServer
 
@@ -66,7 +68,7 @@ class McpService(FolderContext, BaseService):
 
         return [McpServer.model_validate(server) for server in response.json()]
 
-    @traced(name="mcp_list", run_type="uipath")
+    @traced(name="mcp_list_async", run_type="uipath")
     async def list_async(
         self,
         *,
@@ -109,18 +111,21 @@ class McpService(FolderContext, BaseService):
 
         return [McpServer.model_validate(server) for server in response.json()]
 
+    @resource_override(resource_type="mcpServer", resource_identifier="name")
     @resource_override(resource_type="mcpServer", resource_identifier="slug")
     @traced(name="mcp_retrieve", run_type="uipath")
     def retrieve(
         self,
-        slug: str,
+        slug: str | None = None,
         *,
+        name: str | None = None,
         folder_path: str | None = None,
     ) -> McpServer:
-        """Retrieve a specific MCP server by its slug.
+        """Retrieve a specific MCP server by its display name or legacy slug.
 
         Args:
-            slug (str): The unique slug identifier for the server.
+            slug (Optional[str]): The legacy slug identifier of the server.
+            name (Optional[str]): The display name of the server.
             folder_path (Optional[str]): The path of the folder where the server is located.
 
         Returns:
@@ -132,12 +137,13 @@ class McpService(FolderContext, BaseService):
 
             client = UiPath()
 
-            server = client.mcp.retrieve(slug="my-server-slug", folder_path="MyFolder")
+            server = client.mcp.retrieve(name="My Server", folder_path="MyFolder")
             print(f"Server: {server.name}, URL: {server.mcp_url}")
             ```
         """
+        identifier = resolve_retrieve_identifier(name=name, slug=slug)
         spec = self._retrieve_spec(
-            slug=slug,
+            name=identifier,
             folder_path=folder_path,
         )
 
@@ -150,18 +156,21 @@ class McpService(FolderContext, BaseService):
 
         return McpServer.model_validate(response.json())
 
+    @resource_override(resource_type="mcpServer", resource_identifier="name")
     @resource_override(resource_type="mcpServer", resource_identifier="slug")
-    @traced(name="mcp_retrieve", run_type="uipath")
+    @traced(name="mcp_retrieve_async", run_type="uipath")
     async def retrieve_async(
         self,
-        slug: str,
+        slug: str | None = None,
         *,
+        name: str | None = None,
         folder_path: str | None = None,
     ) -> McpServer:
-        """Asynchronously retrieve a specific MCP server by its slug.
+        """Asynchronously retrieve an MCP server by its display name or legacy slug.
 
         Args:
-            slug (str): The unique slug identifier for the server.
+            slug (Optional[str]): The legacy slug identifier of the server.
+            name (Optional[str]): The display name of the server.
             folder_path (Optional[str]): The path of the folder where the server is located.
 
         Returns:
@@ -176,14 +185,15 @@ class McpService(FolderContext, BaseService):
             sdk = UiPath()
 
             async def main():
-                server = await sdk.mcp.retrieve_async(slug="my-server-slug", folder_path="MyFolder")
+                server = await sdk.mcp.retrieve_async(name="My Server", folder_path="MyFolder")
                 print(f"Server: {server.name}, URL: {server.mcp_url}")
 
             asyncio.run(main())
             ```
         """
+        identifier = resolve_retrieve_identifier(name=name, slug=slug)
         spec = self._retrieve_spec(
-            slug=slug,
+            name=identifier,
             folder_path=folder_path,
         )
 
@@ -223,14 +233,14 @@ class McpService(FolderContext, BaseService):
 
     def _retrieve_spec(
         self,
-        slug: str,
+        name: str,
         *,
         folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_path)
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"/agenthub_/api/servers/{slug}"),
+            endpoint=Endpoint(f"/agenthub_/api/servers/{quote(name, safe='')}"),
             headers={
                 **header_folder(folder_key, None),
             },

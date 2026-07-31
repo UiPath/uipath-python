@@ -7,6 +7,7 @@
 
 import warnings
 from typing import Any, List
+from urllib.parse import quote
 
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
@@ -14,6 +15,7 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
+from ..common._resource_identifier import resolve_retrieve_identifier
 from ..orchestrator import FolderService
 from .remote_a2a import RemoteA2aAgent
 
@@ -150,20 +152,23 @@ class RemoteA2aService(FolderContext, BaseService):
         data = response.json()
         return [RemoteA2aAgent.model_validate(agent) for agent in data.get("value", [])]
 
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="name")
     @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
     def retrieve(
         self,
-        slug: str,
+        slug: str | None = None,
         *,
+        name: str | None = None,
         folder_path: str | None = None,
     ) -> RemoteA2aAgent:
-        """Retrieve a specific Remote A2A agent by slug.
+        """Retrieve a Remote A2A agent by its display name or legacy slug.
 
         .. warning::
             This method is experimental and subject to change.
 
         Args:
-            slug: The unique slug identifier for the agent.
+            slug: The legacy slug identifier of the agent.
+            name: The display name of the agent.
             folder_path: The folder path where the agent is located.
 
         Returns:
@@ -183,7 +188,8 @@ class RemoteA2aService(FolderContext, BaseService):
             "remote_a2a.retrieve is experimental and subject to change.",
             stacklevel=2,
         )
-        spec = self._retrieve_spec(slug=slug, folder_path=folder_path)
+        identifier = resolve_retrieve_identifier(name=name, slug=slug)
+        spec = self._retrieve_spec(name=identifier, folder_path=folder_path)
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -192,20 +198,23 @@ class RemoteA2aService(FolderContext, BaseService):
         )
         return RemoteA2aAgent.model_validate(response.json())
 
+    @resource_override(resource_type="remoteA2aAgent", resource_identifier="name")
     @resource_override(resource_type="remoteA2aAgent", resource_identifier="slug")
     async def retrieve_async(
         self,
-        slug: str,
+        slug: str | None = None,
         *,
+        name: str | None = None,
         folder_path: str | None = None,
     ) -> RemoteA2aAgent:
-        """Asynchronously retrieve a specific Remote A2A agent by slug.
+        """Asynchronously retrieve a Remote A2A agent by display name or legacy slug.
 
         .. warning::
             This method is experimental and subject to change.
 
         Args:
-            slug: The unique slug identifier for the agent.
+            slug: The legacy slug identifier of the agent.
+            name: The display name of the agent.
             folder_path: The folder path where the agent is located.
 
         Returns:
@@ -229,7 +238,8 @@ class RemoteA2aService(FolderContext, BaseService):
             "remote_a2a.retrieve_async is experimental and subject to change.",
             stacklevel=2,
         )
-        spec = self._retrieve_spec(slug=slug, folder_path=folder_path)
+        identifier = resolve_retrieve_identifier(name=name, slug=slug)
+        spec = self._retrieve_spec(name=identifier, folder_path=folder_path)
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -279,14 +289,16 @@ class RemoteA2aService(FolderContext, BaseService):
 
     def _retrieve_spec(
         self,
-        slug: str,
+        name: str,
         *,
         folder_path: str | None,
     ) -> RequestSpec:
         folder_key = self._resolve_folder_key(folder_path)
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"/agenthub_/api/remote-a2a-agents/{slug}"),
+            endpoint=Endpoint(
+                f"/agenthub_/api/remote-a2a-agents/{quote(name, safe='')}"
+            ),
             headers={
                 **header_folder(folder_key, None),
             },

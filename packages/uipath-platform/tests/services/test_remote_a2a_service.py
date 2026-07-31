@@ -1,7 +1,13 @@
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.agenthub._remote_a2a_service import RemoteA2aService
+from uipath.platform.common._bindings import (
+    GenericResourceOverwrite,
+    _resource_overwrites,
+)
 from uipath.platform.constants import HEADER_FOLDER_KEY
 from uipath.platform.orchestrator._folder_service import FolderService
 
@@ -36,7 +42,7 @@ class TestRetrieveSpecFolderResolution:
         self, service: RemoteA2aService
     ) -> None:
         """No folder_path (e.g. local debug) must not raise; it falls back to context."""
-        spec = service._retrieve_spec(slug="weather", folder_path=None)
+        spec = service._retrieve_spec(name="weather", folder_path=None)
 
         assert "remote-a2a-agents/weather" in str(spec.endpoint)
         assert spec.headers[HEADER_FOLDER_KEY] == "context-folder-key"
@@ -50,6 +56,184 @@ class TestRetrieveSpecFolderResolution:
             lambda folder_path: "resolved-folder-key",
         )
 
-        spec = service._retrieve_spec(slug="weather", folder_path="MyFolder")
+        spec = service._retrieve_spec(name="weather", folder_path="MyFolder")
 
         assert spec.headers[HEADER_FOLDER_KEY] == "resolved-folder-key"
+
+    def test_encodes_display_name_in_lookup_path(
+        self, service: RemoteA2aService
+    ) -> None:
+        spec = service._retrieve_spec(name="Friendly Agent/Europe", folder_path=None)
+
+        assert "remote-a2a-agents/Friendly%20Agent%2FEurope" in str(spec.endpoint)
+
+
+class TestRetrieveByName:
+    def test_retrieves_by_display_name(self, service: RemoteA2aService) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Friendly Agent/Europe",
+            "slug": "friendly-agent-europe",
+        }
+
+        with patch.object(service, "request", return_value=response) as request:
+            agent = service.retrieve(name="Friendly Agent/Europe")
+
+        assert agent.name == "Friendly Agent/Europe"
+        assert "remote-a2a-agents/Friendly%20Agent%2FEurope" in str(
+            request.call_args.kwargs["url"]
+        )
+
+    def test_applies_display_name_binding(self, service: RemoteA2aService) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Replacement Agent",
+            "slug": "replacement-agent",
+        }
+        overwrite = GenericResourceOverwrite(
+            resource_type="remoteA2aAgent",
+            name="Replacement Agent",
+            folder_path="Replacement Folder",
+        )
+        token = _resource_overwrites.set({"remoteA2aAgent.Original Agent": overwrite})
+
+        try:
+            with (
+                patch.object(service, "request", return_value=response) as request,
+                patch.object(
+                    service._folders_service,
+                    "retrieve_folder_key",
+                    return_value="replacement-folder-key",
+                ),
+            ):
+                service.retrieve(name="Original Agent")
+        finally:
+            _resource_overwrites.reset(token)
+
+        assert "remote-a2a-agents/Replacement%20Agent" in str(
+            request.call_args.kwargs["url"]
+        )
+        assert (
+            request.call_args.kwargs["headers"][HEADER_FOLDER_KEY]
+            == "replacement-folder-key"
+        )
+
+    @pytest.mark.anyio
+    async def test_retrieves_by_display_name_async(
+        self, service: RemoteA2aService
+    ) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Friendly Agent/Europe",
+            "slug": "friendly-agent-europe",
+        }
+
+        with patch.object(
+            service,
+            "request_async",
+            new=AsyncMock(return_value=response),
+        ) as request:
+            agent = await service.retrieve_async(name="Friendly Agent/Europe")
+
+        assert agent.name == "Friendly Agent/Europe"
+        assert "remote-a2a-agents/Friendly%20Agent%2FEurope" in str(
+            request.call_args.kwargs["url"]
+        )
+
+
+class TestRetrieveCompatibility:
+    def test_retrieves_by_positional_slug(self, service: RemoteA2aService) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Friendly Agent",
+            "slug": "friendly-agent",
+        }
+
+        with patch.object(service, "request", return_value=response) as request:
+            agent = service.retrieve("friendly-agent")
+
+        assert agent.slug == "friendly-agent"
+        assert "remote-a2a-agents/friendly-agent" in str(
+            request.call_args.kwargs["url"]
+        )
+
+    def test_retrieves_by_slug_keyword(self, service: RemoteA2aService) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Friendly Agent",
+            "slug": "friendly-agent",
+        }
+
+        with patch.object(service, "request", return_value=response) as request:
+            agent = service.retrieve(slug="friendly-agent")
+
+        assert agent.slug == "friendly-agent"
+        assert "remote-a2a-agents/friendly-agent" in str(
+            request.call_args.kwargs["url"]
+        )
+
+    def test_applies_legacy_slug_binding(self, service: RemoteA2aService) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Replacement Agent",
+            "slug": "replacement-agent",
+        }
+        overwrite = GenericResourceOverwrite(
+            resource_type="remoteA2aAgent",
+            name="Replacement Agent",
+            folder_path="Replacement Folder",
+        )
+        token = _resource_overwrites.set({"remoteA2aAgent.original-agent": overwrite})
+
+        try:
+            with (
+                patch.object(service, "request", return_value=response) as request,
+                patch.object(
+                    service._folders_service,
+                    "retrieve_folder_key",
+                    return_value="replacement-folder-key",
+                ),
+            ):
+                service.retrieve("original-agent")
+        finally:
+            _resource_overwrites.reset(token)
+
+        assert "remote-a2a-agents/Replacement%20Agent" in str(
+            request.call_args.kwargs["url"]
+        )
+        assert (
+            request.call_args.kwargs["headers"][HEADER_FOLDER_KEY]
+            == "replacement-folder-key"
+        )
+
+    @pytest.mark.anyio
+    async def test_retrieves_by_positional_slug_async(
+        self, service: RemoteA2aService
+    ) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "name": "Friendly Agent",
+            "slug": "friendly-agent",
+        }
+
+        with patch.object(
+            service,
+            "request_async",
+            new=AsyncMock(return_value=response),
+        ) as request:
+            agent = await service.retrieve_async("friendly-agent")
+
+        assert agent.slug == "friendly-agent"
+        assert "remote-a2a-agents/friendly-agent" in str(
+            request.call_args.kwargs["url"]
+        )
+
+    def test_rejects_name_and_slug(self, service: RemoteA2aService) -> None:
+        with pytest.raises(
+            ValueError, match="Specify either 'name' or 'slug', not both"
+        ):
+            service.retrieve("friendly-agent", name="Friendly Agent")
+
+    def test_requires_name_or_slug(self, service: RemoteA2aService) -> None:
+        with pytest.raises(TypeError, match="Either 'name' or 'slug' must be provided"):
+            service.retrieve()

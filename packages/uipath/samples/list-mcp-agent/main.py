@@ -24,9 +24,9 @@ def list_mcp_servers() -> list[McpServer]:
     return uipath.mcp.list(folder_path="Shared")
 
 
-def retrieve_mcp_server(slug: str) -> McpServer:
+def retrieve_mcp_server(name: str) -> McpServer:
     uipath = UiPath()
-    return uipath.mcp.retrieve(slug, folder_path="Shared")
+    return uipath.mcp.retrieve(name, folder_path="Shared")
 
 
 async def connect_and_list_tools(server: McpServer) -> list[str]:

@@ -131,6 +131,58 @@ class TestBindingsInference:
             _resource_overwrites.reset(token)
 
 
+class TestStackedResourceOverrideDecorators:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("arguments", "expected"),
+        [
+            (
+                {"name": "original-resource"},
+                (None, "replacement-resource", "replacement-folder"),
+            ),
+            (
+                {"slug": "original-resource"},
+                ("replacement-resource", None, "replacement-folder"),
+            ),
+        ],
+        ids=["outer-name-decorator", "inner-slug-decorator"],
+    )
+    async def test_decorators_apply_override_for_active_identifier(
+        self,
+        arguments,
+        expected,
+    ):
+        """The outer name decorator must not prevent the inner slug override."""
+        overwrite = GenericResourceOverwrite(
+            resource_type="mcpServer",
+            name="replacement-resource",
+            folder_path="replacement-folder",
+        )
+
+        @resource_override(resource_type="mcpServer", resource_identifier="name")
+        @resource_override(resource_type="mcpServer", resource_identifier="slug")
+        def retrieve(slug=None, *, name=None, folder_path=None):
+            return slug, name, folder_path
+
+        @resource_override(
+            resource_type="mcpServer",
+            resource_identifier="name",
+        )
+        @resource_override(
+            resource_type="mcpServer",
+            resource_identifier="slug",
+        )
+        async def retrieve_async(slug=None, *, name=None, folder_path=None):
+            return slug, name, folder_path
+
+        token = _resource_overwrites.set({"mcpServer.original-resource": overwrite})
+        try:
+            assert retrieve(**arguments) == expected
+            assert await retrieve_async(**arguments) == expected
+        finally:
+            _resource_overwrites.reset(token)
+
+
 class TestResourceOverwritesContext:
     """Test that ResourceOverwritesContext works correctly with infer_bindings."""
 
