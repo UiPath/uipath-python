@@ -1417,6 +1417,14 @@ class AgentByomProperties(BaseCfg):
     connector_key: str = Field(alias="connectorKey")
 
 
+class ModelSettings(BaseCfg):
+    """Provider-native model settings bag (``settings.modelSettings``).
+
+    Keys are the target model's own parameter names, forwarded verbatim — no fixed
+    schema; discovery is the source of truth for the shape.
+    """
+
+
 class AgentSettings(BaseCfg):
     """Agent settings model."""
 
@@ -1427,6 +1435,7 @@ class AgentSettings(BaseCfg):
     byom_properties: Optional[AgentByomProperties] = Field(None, alias="byomProperties")
     max_iterations: Optional[int] = Field(None, alias="maxIterations")
     persona: Optional[str] = Field(None, alias="persona")
+    model_settings: Optional[ModelSettings] = Field(None, alias="modelSettings")
 
 
 class AgentDefinition(BaseModel):
