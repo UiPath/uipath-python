@@ -176,6 +176,10 @@ class LlmOpsHttpExporter(SpanExporter):
         """Force flush the exporter."""
         return True
 
+    def shutdown(self) -> None:
+        """Close the HTTP client."""
+        self.http_client.close()
+
     def upsert_span(
         self,
         span: ReadableSpan,

@@ -21,6 +21,7 @@ from uipath.core.guardrails import (
 
 from uipath.platform.guardrails.decorators import (
     BlockAction,
+    ByoValidator,
     CustomValidator,
     GuardrailAction,
     GuardrailBlockException,
@@ -1169,3 +1170,158 @@ class TestJokeAgentScenarios:
 
         # Short joke passes through
         assert submit_joke(joke="short") == "short"
+
+
+# ---------------------------------------------------------------------------
+# LLMAsJudgeValidator via @guardrail
+# ---------------------------------------------------------------------------
+
+
+class TestLLMAsJudgeDecorator:
+    """@guardrail(validator=LLMAsJudgeValidator(...)) behavior on a mocked verdict."""
+
+    def test_block_action_raises_on_failed_verdict(self):
+        mock_validator = MagicMock()
+        mock_validator.supported_stages = []
+        mock_validator.validate_stage = MagicMock()
+        mock_validator.run.return_value = _FAILED
+
+        @guardrail(
+            validator=mock_validator,
+            action=BlockAction(title="Blocked", detail="off-topic"),
+            stage=GuardrailExecutionStage.POST,
+        )
+        def joke(topic: str) -> str:
+            return f"joke about {topic}"
+
+        with pytest.raises(GuardrailBlockException, match="Blocked"):
+            joke("cats")
+
+    def test_log_action_continues_on_failed_verdict(self, caplog):
+        mock_validator = MagicMock()
+        mock_validator.supported_stages = []
+        mock_validator.validate_stage = MagicMock()
+        mock_validator.run.return_value = _FAILED
+
+        @guardrail(
+            validator=mock_validator,
+            action=LogAction(),
+            stage=GuardrailExecutionStage.PRE,
+            name="Judge",
+        )
+        def joke(topic: str) -> str:
+            return f"joke about {topic}"
+
+        with caplog.at_level(logging.WARNING):
+            assert joke("cats") == "joke about cats"  # log does not block
+        assert any("Judge" in r.message for r in caplog.records)
+
+    def test_real_validator_block_end_to_end_mocked_backend(self):
+        """Real LLMAsJudgeValidator.run() path with the UiPath API mocked."""
+        from uipath.platform.guardrails.decorators import LLMAsJudgeValidator
+
+        mock_uipath = MagicMock()
+        mock_uipath.guardrails.evaluate_guardrail.return_value = _FAILED
+
+        @guardrail(
+            validator=LLMAsJudgeValidator(
+                guardrail_text="Must be on-topic.", model="gpt-4o-2024-08-06"
+            ),
+            action=BlockAction(title="Off-topic", detail="blocked"),
+            stage=GuardrailExecutionStage.POST,
+        )
+        def joke(topic: str) -> str:
+            return f"joke about {topic}"
+
+        with patch("uipath.platform.UiPath", return_value=mock_uipath):
+            with pytest.raises(GuardrailBlockException):
+                joke("cats")
+        mock_uipath.guardrails.evaluate_guardrail.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# ByoValidator — Bring Your Own Guardrail configuration reference
+# ---------------------------------------------------------------------------
+
+
+class TestByoValidator:
+    def test_empty_validator_name_raises(self):
+        with pytest.raises(ValueError, match="validator_name"):
+            ByoValidator("")
+
+    def test_whitespace_validator_name_raises(self):
+        with pytest.raises(ValueError, match="validator_name"):
+            ByoValidator("   ")
+
+    def test_builds_byo_guardrail_with_name_and_connection(self):
+        v = ByoValidator(
+            "byog-harmful-content",
+            connection_id="24887687-6ed1-4fe2-9b87-087ffb232682",
+        )
+        g = v.get_built_in_guardrail("G", None, True)
+        assert g.validator_type == "byo"
+        assert g.byo_validator_name == "byog-harmful-content"
+        assert g.byo_connection_id == "24887687-6ed1-4fe2-9b87-087ffb232682"
+
+    def test_connection_id_defaults_to_none(self):
+        v = ByoValidator("byog-harmful-content")
+        g = v.get_built_in_guardrail("G", None, True)
+        assert g.byo_connection_id is None
+
+    def test_aliases_serialize_for_the_wire(self):
+        v = ByoValidator("byog-pii", connection_id="conn-1")
+        g = v.get_built_in_guardrail("G", None, True)
+        dumped = g.model_dump(by_alias=True)
+        assert dumped["validatorType"] == "byo"
+        assert dumped["byoValidatorName"] == "byog-pii"
+        assert dumped["byoConnectionId"] == "conn-1"
+        assert dumped["$guardrailType"] == "builtInValidator"
+
+    def test_parameters_pass_through(self):
+        from uipath.platform.guardrails.guardrails import NumberParameterValue
+
+        param = NumberParameterValue(parameter_type="number", id="threshold", value=0.7)
+        v = ByoValidator("byog-custom", parameters=[param])
+        g = v.get_built_in_guardrail("G", None, True)
+        assert g.validator_parameters == [param]
+
+    def test_parameters_default_empty(self):
+        v = ByoValidator("byog-custom")
+        g = v.get_built_in_guardrail("G", None, True)
+        assert g.validator_parameters == []
+
+    def test_default_description_includes_validator_name(self):
+        v = ByoValidator("byog-harmful-content")
+        g = v.get_built_in_guardrail("G", None, True)
+        assert g.description is not None
+        assert "byog-harmful-content" in g.description
+
+    def test_no_stage_restriction(self):
+        v = ByoValidator("byog-harmful-content")
+        # BYO capabilities are connector-defined — all stages allowed
+        v.validate_stage(GuardrailExecutionStage.PRE)
+        v.validate_stage(GuardrailExecutionStage.POST)
+
+    def test_selector_is_none(self):
+        v = ByoValidator("byog-harmful-content")
+        g = v.get_built_in_guardrail("G", None, True)
+        assert g.selector is None
+
+    def test_run_forwards_byo_guardrail_to_service(self):
+        v = ByoValidator("byog-harmful-content", connection_id="conn-1")
+        mock_uipath = MagicMock()
+        mock_uipath.guardrails.evaluate_guardrail.return_value = (
+            GuardrailValidationResult(
+                result=GuardrailValidationResultType.PASSED, reason=""
+            )
+        )
+        with patch("uipath.platform.UiPath", return_value=mock_uipath):
+            result = v.run(
+                "G", None, True, "some input", GuardrailExecutionStage.PRE, None, None
+            )
+        assert result.result == GuardrailValidationResultType.PASSED
+        data, g = mock_uipath.guardrails.evaluate_guardrail.call_args[0]
+        assert data == "some input"
+        assert g.validator_type == "byo"
+        assert g.byo_validator_name == "byog-harmful-content"
+        assert g.byo_connection_id == "conn-1"

@@ -27,6 +27,7 @@ from ..common._execution_context import UiPathExecutionContext
 from ..errors._datafabric_error import attach_datafabric_error_mapping
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
+from ._entity_ontology_service import EntityOntologyService
 from ._entity_resolution import (
     build_resolution_service,
     create_resolution_plan,
@@ -105,6 +106,24 @@ class EntitiesService(BaseService):
             folders_service=folders_service,
             routing_strategy=self._routing_strategy,
         )
+        self._ontology = EntityOntologyService(
+            config=config,
+            execution_context=execution_context,
+            folders_service=folders_service,
+        )
+
+    async def aclose(self) -> None:
+        """Close this facade and the services it creates."""
+        try:
+            await self._schema.aclose()
+        finally:
+            try:
+                await self._data.aclose()
+            finally:
+                try:
+                    await self._ontology.aclose()
+                finally:
+                    await super().aclose()
 
     # ------------------------------------------------------------------
     # Schema operations — delegate to EntitySchemaService
@@ -1101,6 +1120,29 @@ class EntitiesService(BaseService):
         """
         await self._data.delete_record_async(entity_key, record_id)
 
+    async def get_ontology_file_async(
+        self,
+        ontology_name: str,
+        file_type: str = "owl",
+        folder_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fetch one file of an ontology from Data Fabric.
+
+        !!! warning "Preview Feature"
+            This method is currently experimental. Behavior and parameters are
+            subject to change in future versions.
+
+        Args:
+            ontology_name (str): Name of the ontology.
+            file_type (str): The ontology file to fetch — one of owl, r2rml,
+                shacl, summary, context.
+            folder_key (Optional[str]): Key of the folder the ontology lives in.
+
+        Returns:
+            Dict[str, Any]: The file record (e.g. ``content``, ``mediaType``).
+        """
+        return await self._ontology.get_file_async(ontology_name, file_type, folder_key)
+
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
         self,
@@ -1791,7 +1833,9 @@ class EntitiesService(BaseService):
 
     @attach_datafabric_error_mapping("query_entity_records")
     @traced(name="entity_query_records", run_type="uipath")
-    def query_entity_records(self, sql_query: str) -> List[Dict[str, Any]]:
+    def query_entity_records(
+        self, sql_query: str, *, relationships_as_scalar: bool = False
+    ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
         PREVIEW: This method is in preview and may change in future releases.
@@ -1800,6 +1844,11 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+            relationships_as_scalar (bool, optional): When ``True``, relationship (FK)
+                fields are typed as their underlying scalar id instead of ``VARIANT``,
+                so a query can join on ``relationshipField = Other.Id``. Sent as
+                ``queryOptions.relationshipsAsScalar`` in the request body. Defaults to
+                ``False`` (unchanged behaviour).
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -1812,11 +1861,13 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return self._data.query_entity_records(sql_query)
+        return self._data.query_entity_records(sql_query, relationships_as_scalar)
 
     @attach_datafabric_error_mapping("query_entity_records_async")
     @traced(name="entity_query_records", run_type="uipath")
-    async def query_entity_records_async(self, sql_query: str) -> List[Dict[str, Any]]:
+    async def query_entity_records_async(
+        self, sql_query: str, *, relationships_as_scalar: bool = False
+    ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
         PREVIEW: This method is in preview and may change in future releases.
@@ -1825,6 +1876,11 @@ class EntitiesService(BaseService):
             sql_query (str): A SQL SELECT query to execute against Data Service entities.
                 Only SELECT statements are allowed. Queries without WHERE must include
                 a LIMIT clause. Subqueries and multi-statement queries are not permitted.
+            relationships_as_scalar (bool, optional): When ``True``, relationship (FK)
+                fields are typed as their underlying scalar id instead of ``VARIANT``,
+                so a query can join on ``relationshipField = Other.Id``. Sent as
+                ``queryOptions.relationshipsAsScalar`` in the request body. Defaults to
+                ``False`` (unchanged behaviour).
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -1837,7 +1893,9 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return await self._data.query_entity_records_async(sql_query)
+        return await self._data.query_entity_records_async(
+            sql_query, relationships_as_scalar
+        )
 
     @traced(name="entity_upload_attachment", run_type="uipath")
     def upload_attachment(

@@ -9,7 +9,6 @@ from pydantic import Field, field_validator
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat.llm_gateway import RequiredToolChoice
-from uipath.platform.constants import COMMUNITY_agents_SUFFIX
 
 from .._execution_context import eval_set_run_id_context
 from .._helpers.evaluators_helpers import trace_to_str
@@ -163,8 +162,6 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         assert self.llm, "LLM should be initialized before calling this method."
 
         model = self.model
-        if model.endswith(COMMUNITY_agents_SUFFIX):
-            model = model.replace(COMMUNITY_agents_SUFFIX, "")
 
         # Create evaluation tool for function calling (works across all models)
         evaluation_tool = create_evaluation_tool()

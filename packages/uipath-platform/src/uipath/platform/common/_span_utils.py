@@ -10,7 +10,8 @@ from functools import lru_cache
 from os import environ as env
 from typing import Any, Dict, List, Optional, TypeVar
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry import context as context_api
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
@@ -25,6 +26,31 @@ from uipath.platform.constants import (
     ENV_UIPATH_PROCESS_VERSION,
     ENV_UIPATH_TRACE_ID,
 )
+
+from ._reference_context import ReferenceContextAccessor
+
+
+def _inject_reference_hierarchy(span: Span) -> None:
+    ref_ctx = ReferenceContextAccessor.get()
+    if ref_ctx:
+        wire = ref_ctx.to_wire_list()
+        if wire:
+            span.set_attribute("uipath.reference_hierarchy", json.dumps(wire))
+
+
+class ReferenceHierarchySpanProcessor(SpanProcessor):
+    """Stamps uipath.reference_hierarchy on every span at creation time.
+
+    Runs on_start in the span-creating thread so ContextVar values are live.
+    Register this before any processor that reads the attribute on on_start
+    (e.g. LiveTrackingSpanProcessor).
+    """
+
+    def on_start(
+        self, span: Span, parent_context: Optional[context_api.Context] = None
+    ) -> None:
+        _inject_reference_hierarchy(span)
+
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +237,11 @@ class UiPathSpan:
     attributes: str | Dict[str, Any]  # Support both str (legacy) and dict (optimized)
     parent_id: Optional[str] = None  # 16-char hex (OTEL span ID format)
     start_time: str = field(default_factory=lambda: datetime.now().isoformat())
-    end_time: str = field(default_factory=lambda: datetime.now().isoformat())
+    # None means the span has not ended yet. Serialized as null — the LLMOps v3
+    # ingest contract (SpanV3Req.EndTime) is nullable, and downstream consumers
+    # (traceview UI, Insights OTLP export) rely on "EndTime set" meaning "span
+    # ended": fabricating a value here makes in-progress snapshots look terminal.
+    end_time: Optional[str] = None
     status: SpanStatus = SpanStatus.OK
     created_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat() + "Z")
@@ -245,6 +275,7 @@ class UiPathSpan:
     agent_version: Optional[str] = None
     verbosity_level: Optional[VerbosityLevel] = None
     attachments: Optional[List[SpanAttachment]] = None
+    context: Optional[Dict[str, Any]] = None
 
     def to_dict(self, serialize_attributes: bool = True) -> Dict[str, Any]:
         """Convert the Span to a dictionary suitable for JSON serialization.
@@ -304,6 +335,8 @@ class UiPathSpan:
                 del result[guid_key]
         if self.verbosity_level is not None:
             result["VerbosityLevel"] = self.verbosity_level
+        if self.context is not None:
+            result["Context"] = self.context
         return result
 
 
@@ -379,6 +412,11 @@ class _SpanUtils:
         otel_attrs = otel_span.attributes if otel_span.attributes else {}
         # Only copy if we need to modify - we'll build attributes_dict lazily
         attributes_dict: dict[str, Any] = dict(otel_attrs) if otel_attrs else {}
+
+        # Pull the reference hierarchy stamped by the span-start hook (runs in the
+        # correct thread/context; BatchSpanProcessor exports in a background thread
+        # where ContextVar values are not available).
+        ref_hierarchy_json = attributes_dict.pop("uipath.reference_hierarchy", None)
 
         # Map status
         status = SpanStatus.OK
@@ -496,18 +534,26 @@ class _SpanUtils:
             except Exception as e:
                 logger.warning(f"Error processing attachments: {e}")
 
+        context: Optional[Dict[str, Any]] = None
+        if ref_hierarchy_json:
+            try:
+                context = {"referenceHierarchy": json.loads(ref_hierarchy_json)}
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(
             (otel_span.start_time or 0) / 1e9
         ).isoformat()
 
+        # A live (not-yet-ended) OTel span has end_time None — preserve that rather
+        # than stamping now(): a fabricated EndTime makes in-progress upserts
+        # (upsert_span RUNNING → OK lifecycle) indistinguishable from ended spans.
         end_time_str = None
         if otel_span.end_time is not None:
             end_time_str = datetime.fromtimestamp(
                 (otel_span.end_time or 0) / 1e9
             ).isoformat()
-        else:
-            end_time_str = datetime.now().isoformat()
 
         return UiPathSpan(
             id=span_id,
@@ -527,6 +573,7 @@ class _SpanUtils:
             reference_id=reference_id,
             source=source,
             attachments=attachments,
+            context=context,
         )
 
     @staticmethod

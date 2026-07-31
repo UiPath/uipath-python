@@ -5,6 +5,7 @@ import click
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._cli._utils._debug import setup_debugging
+from uipath._cli._utils._tracing import create_trace_manager
 from uipath._cli.middlewares import Middlewares
 from uipath.core.tracing import UiPathTraceManager
 from uipath.platform.common import ExecutionSourceContext
@@ -86,7 +87,7 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
 
             factory = None
             try:
-                trace_manager = UiPathTraceManager()
+                trace_manager = create_trace_manager()
                 context, factory = _create_dev_context_and_factory(trace_manager)
 
                 app = UiPathDeveloperConsole(
@@ -127,7 +128,7 @@ def dev(interface: str, debug: bool, debug_port: int) -> None:
             signal.signal(signal.SIGTERM, signal_handler)
 
             try:
-                trace_manager = UiPathTraceManager()
+                trace_manager = create_trace_manager()
                 context, factory = _create_dev_context_and_factory(trace_manager)
 
                 app = UiPathDeveloperServer(

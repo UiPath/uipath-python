@@ -4,17 +4,18 @@ version = "0.0.1"
 description = "agent"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
-    "uipath-langchain>=0.0.149",
+    "uipath-langchain>=0.14.0,<0.15.0",
     "uipath"
 ]
 requires-python = ">=3.11"
 
 [tool.uv.sources]
 uipath = { path = "../../", editable = true }
+uipath-core = { path = "../../../uipath-core", editable = true }
+uipath-platform = { path = "../../../uipath-platform", editable = true }
 
-# Force the local uipath (the version under test) regardless of the upper bound
-# the published uipath-langchain declares, so a backward-compatible minor bump
-# does not break resolution purely on that cap. Mirrors the uv override used in
-# the cross-repo test workflows.
+# Force local UiPath packages under test regardless of upper bounds declared by
+# the published uipath-langchain package. Mirrors the uv override used in the
+# cross-repo test workflows.
 [tool.uv]
-override-dependencies = ["uipath"]
+override-dependencies = ["uipath", "uipath-core", "uipath-platform"]

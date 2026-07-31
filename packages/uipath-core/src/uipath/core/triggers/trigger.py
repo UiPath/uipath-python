@@ -48,6 +48,19 @@ class UiPathResumeTriggerName(str, Enum):
     DEEP_RAG_RAW = "DeepRagRaw"
 
 
+class UiPathResumeMetadata(BaseModel):
+    """UiPath metadata attached to resume values from multi-trigger interrupts."""
+
+    trigger_type: UiPathResumeTriggerType | None = Field(
+        default=None, alias="triggerType"
+    )
+    trigger_name: UiPathResumeTriggerName | None = Field(
+        default=None, alias="triggerName"
+    )
+
+    model_config = ConfigDict(validate_by_name=True)
+
+
 class UiPathApiTrigger(BaseModel):
     """API resume trigger request."""
 

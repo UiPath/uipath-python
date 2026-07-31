@@ -1,6 +1,7 @@
 """Helper functions for legacy LLM evaluators using function calling."""
 
 import logging
+import math
 from typing import Any
 
 from uipath.platform.chat.llm_gateway import (
@@ -89,8 +90,31 @@ def extract_tool_call_response(response: Any, model: str) -> LLMResponse:
             logger.debug(f"Arguments: {arguments}")
             raise ValueError(error_msg)
 
-        score = float(arguments["score"])
+        try:
+            score = float(arguments["score"])
+        except (ValueError, TypeError) as e:
+            error_msg = (
+                f"Non-numeric score {arguments['score']!r} in tool call arguments "
+                f"from model {model}: expected a number between 0 and 100"
+            )
+            logger.error(f"❌ {error_msg}")
+            logger.debug(f"Arguments: {arguments}")
+            raise ValueError(error_msg) from e
+
         justification = str(arguments["justification"])
+
+        # Models occasionally emit corrupted numeric tool arguments despite the
+        # 0-100 range stated in the tool schema (e.g. gemini-2.5-flash returning
+        # 989898 or 950). Unvalidated, such a value poisons every run-level
+        # aggregate downstream, so reject it and let the evaluation surface as
+        # an error instead of recording a fabricated score.
+        if not math.isfinite(score) or score < 0.0 or score > 100.0:
+            error_msg = (
+                f"Invalid score {score!r} in tool call arguments from model {model}: "
+                f"expected a number between 0 and 100"
+            )
+            logger.error(f"❌ {error_msg}")
+            raise ValueError(error_msg)
 
         logger.debug(
             f"✅ Extracted score: {score}, justification length: {len(justification)} chars"

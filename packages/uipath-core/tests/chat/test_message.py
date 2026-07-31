@@ -57,3 +57,31 @@ def test_explicit_ids_are_preserved() -> None:
     assert (
         msg.content_parts[0].content_part_id == "00000000-0000-0000-0000-000000000002"
     )
+
+
+def test_content_part_metadata_is_preserved() -> None:
+    msg = UiPathConversationMessage.model_validate(
+        {
+            "role": "assistant",
+            "contentParts": [
+                {
+                    "mimeType": "text/markdown",
+                    "name": "plan.md",
+                    "data": {
+                        "uri": "urn:uipath:cas:file:orchestrator:"
+                        "00000000-0000-0000-0000-000000000003"
+                    },
+                    "metaData": {"fileKind": "workspace", "sha256": "abc123"},
+                }
+            ],
+        }
+    )
+
+    assert msg.content_parts[0].metadata == {
+        "fileKind": "workspace",
+        "sha256": "abc123",
+    }
+    assert msg.model_dump(by_alias=True)["contentParts"][0]["metaData"] == {
+        "fileKind": "workspace",
+        "sha256": "abc123",
+    }

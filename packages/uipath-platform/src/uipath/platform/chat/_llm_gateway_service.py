@@ -29,6 +29,7 @@ from ..common._config import UiPathApiConfig
 from ..common._endpoints_manager import EndpointManager
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint
+from ._model_capabilities import should_skip_temperature
 from .llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
@@ -175,6 +176,7 @@ class UiPathOpenAIService(BaseService):
         action_id: Optional[str] = None,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._agenthub_config = agenthub_config
         self._llm_headers = _build_llm_headers(
             requesting_product, requesting_feature, agenthub_config, action_id
         )
@@ -327,11 +329,21 @@ class UiPathOpenAIService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
-        request_body = {
+        is_reasoning_model = model.lower().startswith(("o1", "o3", "o4"))
+
+        # Reasoning models (o1, o3, o4) don't support temperature; newer models
+        # reject it too, which only discovery knows about.
+        skip_temperature = is_reasoning_model or await should_skip_temperature(
+            self, model, self._agenthub_config
+        )
+
+        request_body: dict[str, Any] = {
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": temperature,
         }
+
+        if not skip_temperature:
+            request_body["temperature"] = temperature
 
         # Handle response_format - convert BaseModel to schema if needed
         if response_format:
@@ -387,6 +399,7 @@ class UiPathLlmChatService(BaseService):
         action_id: Optional[str] = None,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._agenthub_config = agenthub_config
         self._llm_headers = _build_llm_headers(
             requesting_product, requesting_feature, agenthub_config, action_id
         )
@@ -548,17 +561,27 @@ class UiPathLlmChatService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
-        # Build request body - Claude models don't support some OpenAI-specific parameters
-        is_claude_model = "claude" in model.lower()
+        # Build request body - some models don't support certain parameters
+        model_lower = model.lower()
+        is_claude_model = "claude" in model_lower
+        is_reasoning_model = model_lower.startswith(("o1", "o3", "o4"))
 
-        request_body = {
+        # Reasoning models (o1, o3, o4) don't support temperature; newer models
+        # reject it too, which only discovery knows about.
+        skip_temperature = is_reasoning_model or await should_skip_temperature(
+            self, model, self._agenthub_config
+        )
+
+        request_body: dict[str, Any] = {
             "messages": converted_messages,
             "max_tokens": max_tokens,
-            "temperature": temperature,
         }
 
-        # Only add OpenAI-specific parameters for non-Claude models
-        if not is_claude_model:
+        if not skip_temperature:
+            request_body["temperature"] = temperature
+
+        # Only add OpenAI-specific parameters for non-Claude and non-reasoning models
+        if not is_claude_model and not is_reasoning_model:
             request_body["n"] = n
             request_body["frequency_penalty"] = frequency_penalty
             request_body["presence_penalty"] = presence_penalty

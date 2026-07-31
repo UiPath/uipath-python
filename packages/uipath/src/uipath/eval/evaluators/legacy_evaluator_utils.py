@@ -3,22 +3,6 @@
 import json
 from typing import Any, Optional
 
-from uipath.platform.constants import COMMUNITY_agents_SUFFIX
-
-
-def clean_model_name(model: str) -> str:
-    """Remove community-agents suffix from model name.
-
-    Args:
-        model: Model name that may have the community suffix
-
-    Returns:
-        Model name without the community suffix
-    """
-    if model.endswith(COMMUNITY_agents_SUFFIX):
-        return model.replace(COMMUNITY_agents_SUFFIX, "")
-    return model
-
 
 def serialize_object(
     content: Any,

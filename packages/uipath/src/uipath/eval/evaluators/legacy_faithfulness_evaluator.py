@@ -18,7 +18,6 @@ from .base_legacy_evaluator import (
     track_evaluation_metrics,
 )
 from .legacy_evaluator_utils import (
-    clean_model_name,
     serialize_object,
 )
 
@@ -513,8 +512,7 @@ The stance must be exactly one of: "SUPPORTS", "CONTRADICTS", or "IRRELEVANT".""
             ToolParametersDefinition,
         )
 
-        # Remove community-agents suffix from llm model name
-        model = clean_model_name(self.model)
+        model = self.model
 
         # Create a dynamic tool definition based on the schema
         tool = ToolDefinition(

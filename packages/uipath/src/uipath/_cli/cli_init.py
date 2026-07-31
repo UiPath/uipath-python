@@ -158,6 +158,27 @@ def write_bindings_file(bindings: Bindings) -> Path:
     return bindings_file_path
 
 
+def mark_transaction_root_entrypoints(
+    entry_point_schemas: list[UiPathRuntimeSchema],
+) -> None:
+    """Stamp entrypoints with 'isTransactionRoot: true' for vertical-solution projects.
+
+    Reads 'runtimeOptions._uipathVerticalSolution' from uipath.json; when true,
+    marks every entrypoint schema in-place so the flag serializes into
+    entry-points.json. Otherwise leaves the schemas untouched, so the flag is
+    dropped on regeneration.
+
+    Args:
+        entry_point_schemas: The discovered entrypoint schemas.
+    """
+    config = UiPathJsonConfig.load_from_file(str(UiPathConfig.config_file_path))
+    if config.runtime_options.uipath_vertical_solution is not True:
+        return
+
+    for schema in entry_point_schemas:
+        schema.is_transaction_root = True
+
+
 def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
     """Write entrypoints to a JSON file.
 
@@ -472,6 +493,8 @@ def init(no_agents_md_override: bool) -> None:
                                 await runtime.dispose()
                 finally:
                     await factory.dispose()
+
+                mark_transaction_root_entrypoints(entry_point_schemas)
 
                 # Write entry-points.json with all schemas
                 entry_points_path = write_entry_points_file(entry_point_schemas)

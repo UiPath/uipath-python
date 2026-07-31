@@ -3,6 +3,8 @@
 This module contains common models used across multiple services.
 """
 
+from uipath.core.triggers import UiPathResumeMetadata
+
 from ._api_client import ApiClient
 from ._base_service import BaseService, resolve_trace_id
 from ._bindings import (
@@ -20,9 +22,15 @@ from ._execution_context import ExecutionSourceContext, UiPathExecutionContext
 from ._folder_context import FolderContext, header_folder
 from ._http_config import get_ca_bundle_path, get_httpx_client_kwargs
 from ._models import Endpoint, RequestSpec
+from ._reference_context import (
+    ReferenceContext,
+    ReferenceContextAccessor,
+    ReferenceEntry,
+)
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
 from ._span_utils import (
     ExecutionType,
+    ReferenceHierarchySpanProcessor,
     SpanSource,
     SpanStatus,
     UiPathSpan,
@@ -62,6 +70,12 @@ from .interrupt_models import (
     WaitUntil,
 )
 from .paging import PagedResult
+from .timeout import (
+    UiPathTimeoutError,
+    assert_no_timeout,
+    get_resume_metadata,
+    is_timeout,
+)
 
 __all__ = [
     "ApiClient",
@@ -117,6 +131,10 @@ __all__ = [
     "ResourceOverwrite",
     "ResourceOverwriteParser",
     "ResourceOverwritesContext",
+    "ReferenceEntry",
+    "ReferenceContext",
+    "ReferenceContextAccessor",
+    "ReferenceHierarchySpanProcessor",
     "SpanSource",
     "SpanStatus",
     "UiPathSpan",
@@ -125,6 +143,11 @@ __all__ = [
     "resolve_service_url",
     "inject_routing_headers",
     "resolve_trace_id",
+    "UiPathTimeoutError",
+    "UiPathResumeMetadata",
+    "assert_no_timeout",
+    "get_resume_metadata",
+    "is_timeout",
 ]
 
 from .validation import validate_pagination_params

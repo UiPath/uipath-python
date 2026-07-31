@@ -16,6 +16,7 @@ from uipath.platform.common._bindings import (
 from uipath.platform.entities import ChoiceSetValue, DataFabricEntityItem, Entity
 from uipath.platform.entities._entities_service import EntitiesService
 from uipath.platform.entities._entity_data_service import EntityDataService
+from uipath.platform.errors import EnrichedException
 
 
 @pytest.fixture
@@ -54,6 +55,20 @@ def record_schema_optional(request):
 
 
 class TestEntitiesService:
+    @pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
+    @pytest.mark.anyio
+    async def test_aclose_closes_owned_services(self, service: EntitiesService):
+        await service.aclose()
+
+        assert service._client.is_closed
+        assert service._client_async.is_closed
+        assert service._schema._client.is_closed
+        assert service._schema._client_async.is_closed
+        assert service._data._client.is_closed
+        assert service._data._client_async.is_closed
+        assert service._ontology._client.is_closed
+        assert service._ontology._client_async.is_closed
+
     def test_query_entity_records_has_datafabric_error_mapping(self) -> None:
         assert (
             EntitiesService.query_entity_records.__uipath_datafabric_method__  # type: ignore[attr-defined]
@@ -458,6 +473,45 @@ class TestEntitiesService:
         assert result == [{"id": 1}, {"id": 2}]
         service._data.request.assert_called_once()
 
+    def test_query_entity_records_sets_relationships_as_scalar_option_when_true(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records(
+            "SELECT id FROM Customers WHERE id > 0", relationships_as_scalar=True
+        )
+
+        call_kwargs = service._data.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {"relationshipsAsScalar": True}
+
+    def test_query_entity_records_omits_query_options_by_default(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records("SELECT id FROM Customers WHERE id > 0")
+
+        call_kwargs = service._data.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert "queryOptions" not in body
+
+    def test_query_entity_records_flag_is_keyword_only(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        # A second positional arg (as an old ``source`` call would pass) must be
+        # rejected rather than silently coerced into ``relationships_as_scalar``.
+        with pytest.raises(TypeError):
+            service.query_entity_records("SELECT id FROM Customers LIMIT 10", True)
+
     @pytest.mark.anyio
     async def test_query_entity_records_async_rejects_invalid_sql_before_network_call(
         self,
@@ -488,6 +542,23 @@ class TestEntitiesService:
 
         assert result == [{"id": "c1"}]
         service._data.request_async.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_query_entity_records_async_sets_relationships_as_scalar_option(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.query_entity_records_async(
+            "SELECT id FROM Customers WHERE id > 0", relationships_as_scalar=True
+        )
+
+        call_kwargs = service._data.request_async.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {"relationshipsAsScalar": True}
 
     def test_query_entity_records_builds_routing_context_from_folders_map(
         self,
@@ -2660,3 +2731,93 @@ class TestEntitiesServiceAsyncCoverage:
                 entity_key=str(entity_key),
                 records=[{"name": "x"}],
             )
+
+
+class TestGetOntologyFileAsync:
+    """Tests for EntitiesService.get_ontology_file_async (delegates to
+    EntityOntologyService). The HTTP call goes through ``service._ontology``,
+    so the sub-service's ``request_async`` is what gets patched."""
+
+    @pytest.mark.anyio
+    async def test_builds_endpoint_and_folder_header(
+        self, service: EntitiesService
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
+        service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        result = await service.get_ontology_file_async(
+            "library", "owl", folder_key="folder-1"
+        )
+
+        assert result == {"content": "OWL", "mediaType": "text/plain"}
+        service._ontology.request_async.assert_called_once()
+        call = service._ontology.request_async.call_args
+        method, endpoint = call.args[0], call.args[1]
+        headers = call.kwargs["headers"]
+        assert method == "GET"
+        assert str(endpoint) == "/datafabric_/api/ontologies/library/files/owl"
+        # Accept is added centrally by BaseService, not per-call.
+        assert headers["x-uipath-folderkey"] == "folder-1"
+
+    @pytest.mark.anyio
+    async def test_no_folder_header_when_folder_key_none(
+        self, service: EntitiesService
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
+        service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.get_ontology_file_async("library")
+
+        headers = service._ontology.request_async.call_args.kwargs["headers"]
+        assert "x-uipath-folderkey" not in headers
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "file_type", ["owl", "r2rml", "shacl", "summary", "context"]
+    )
+    async def test_accepts_allowed_file_types(
+        self, service: EntitiesService, file_type: str
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"content": "x"}
+        service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.get_ontology_file_async("library", file_type)
+
+        endpoint = service._ontology.request_async.call_args.args[1]
+        assert str(endpoint) == f"/datafabric_/api/ontologies/library/files/{file_type}"
+
+    @pytest.mark.anyio
+    async def test_rejects_unsupported_file_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """File-type validation is server-side (the ontology API), not in the
+        client. The SDK forwards the requested type and must surface the API's
+        rejection of an unsupported one as ``EnrichedException`` rather than
+        swallowing it."""
+        api_message = "Unsupported ontology file type: exe"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/ontologies/library/files/exe",
+            method="GET",
+            status_code=400,
+            json={"message": api_message},
+        )
+
+        with pytest.raises(EnrichedException) as exc_info:
+            await service.get_ontology_file_async("library", "exe")
+
+        # The SDK surfaces the API's rejection verbatim — status code, response
+        # body, and the extracted message — rather than masking it.
+        exc = exc_info.value
+        assert exc.status_code == 400
+        assert api_message in exc.response_content
+        assert exc.error_info is not None
+        assert exc.error_info.message == api_message

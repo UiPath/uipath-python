@@ -89,6 +89,10 @@ class LiveTrackingSpanProcessor(SpanProcessor):
             self.executor.shutdown(wait=True)
         except Exception as e:
             logger.debug(f"Executor shutdown failed: {e}")
+        try:
+            self.exporter.shutdown()
+        except Exception as e:
+            logger.debug(f"Exporter shutdown failed: {e}")
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Force flush - no-op for live tracking."""

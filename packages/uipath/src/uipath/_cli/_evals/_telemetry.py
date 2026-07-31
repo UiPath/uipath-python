@@ -20,6 +20,7 @@ from uipath.eval.runtime.events import (
 )
 from uipath.platform.common import UiPathConfig
 from uipath.platform.constants import ENV_TENANT_ID
+from uipath.runtime.errors import UiPathBaseRuntimeError
 from uipath.telemetry._track import is_telemetry_enabled, track_event
 
 logger = logging.getLogger(__name__)
@@ -238,15 +239,15 @@ class EvalTelemetrySubscriber:
                 )
 
             if event.exception_details:
-                properties["ErrorType"] = type(
-                    event.exception_details.exception
-                ).__name__
-                properties["ErrorMessage"] = str(event.exception_details.exception)[
-                    :500
-                ]
+                exception = event.exception_details.exception
+                properties["ErrorType"] = type(exception).__name__
+                properties["ErrorMessage"] = str(exception)[:500]
                 properties["IsRuntimeException"] = (
                     event.exception_details.runtime_exception
                 )
+                if isinstance(exception, UiPathBaseRuntimeError):
+                    properties["ErrorCode"] = exception.error_info.code
+                    properties["ErrorCategory"] = exception.error_info.category.value
 
             self._enrich_properties(properties)
 

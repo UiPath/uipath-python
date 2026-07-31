@@ -518,16 +518,20 @@ class EntityDataService(BaseService):
     def query_entity_records(
         self,
         sql_query: str,
+        relationships_as_scalar: bool = False,
     ) -> List[Dict[str, Any]]:
         """Internal implementation; see :meth:`EntitiesService.query_entity_records`."""
-        return self._query_entities_for_records(sql_query)
+        return self._query_entities_for_records(sql_query, relationships_as_scalar)
 
     async def query_entity_records_async(
         self,
         sql_query: str,
+        relationships_as_scalar: bool = False,
     ) -> List[Dict[str, Any]]:
         """Async variant of :meth:`query_entity_records`."""
-        return await self._query_entities_for_records_async(sql_query)
+        return await self._query_entities_for_records_async(
+            sql_query, relationships_as_scalar
+        )
 
     # ------------------------------------------------------------------
     # Attachments
@@ -680,21 +684,27 @@ class EntityDataService(BaseService):
     # Internal helpers — request specs
     # ------------------------------------------------------------------
 
-    def _query_entities_for_records(self, sql_query: str) -> List[Dict[str, Any]]:
+    def _query_entities_for_records(
+        self, sql_query: str, relationships_as_scalar: bool = False
+    ) -> List[Dict[str, Any]]:
         """Synchronously run a validated SQL query through the federated query engine."""
         self._validate_sql_query(sql_query)
         routing_context = self._routing_strategy.resolve()
-        spec = self._query_entity_records_spec(sql_query, routing_context)
+        spec = self._query_entity_records_spec(
+            sql_query, routing_context, relationships_as_scalar
+        )
         response = self.request(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
 
     async def _query_entities_for_records_async(
-        self, sql_query: str
+        self, sql_query: str, relationships_as_scalar: bool = False
     ) -> List[Dict[str, Any]]:
         """Asynchronously run a validated SQL query through the federated query engine."""
         self._validate_sql_query(sql_query)
         routing_context = await self._routing_strategy.resolve_async()
-        spec = self._query_entity_records_spec(sql_query, routing_context)
+        spec = self._query_entity_records_spec(
+            sql_query, routing_context, relationships_as_scalar
+        )
         response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
 
@@ -956,6 +966,7 @@ class EntityDataService(BaseService):
     def _query_entity_records_spec(
         sql_query: str,
         routing_context: Optional[QueryRoutingOverrideContext] = None,
+        relationships_as_scalar: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for the federated SQL query endpoint."""
         body: Dict[str, Any] = {"query": sql_query}
@@ -963,6 +974,8 @@ class EntityDataService(BaseService):
             body["routingContext"] = routing_context.model_dump(
                 by_alias=True, exclude_none=True
             )
+        if relationships_as_scalar:
+            body["queryOptions"] = {"relationshipsAsScalar": True}
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("datafabric_/api/v1/query/execute"),

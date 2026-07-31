@@ -1,14 +1,16 @@
 import atexit
 import json
 import os
+import threading
 from functools import wraps
 from importlib.metadata import version
 from logging import INFO, WARNING, LogRecord, getLogger
-from typing import Any, Callable, ClassVar, Dict, Mapping, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, Mapping
 
 from opentelemetry.sdk._logs import LoggingHandler
 from opentelemetry.util.types import AnyValue
 
+from uipath.core.feature_flags import FeatureFlags
 from uipath.platform.constants import (
     ENV_BASE_URL,
     ENV_ORGANIZATION_ID,
@@ -32,6 +34,7 @@ from ._constants import (
     _SDK_VERSION,
     _TELEMETRY_CONFIG_FILE,
     _UNKNOWN,
+    PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG,
 )
 
 # Try to import Application Insights client for custom events
@@ -59,7 +62,7 @@ except ImportError:
 
 def _parse_connection_string(
     connection_string: str,
-) -> Optional[Dict[str, str]]:
+) -> Dict[str, str] | None:
     """Parse Azure Application Insights connection string.
 
     Args:
@@ -89,6 +92,8 @@ def _parse_connection_string(
 
 _logger = getLogger(__name__)
 _logger.propagate = False
+
+_PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS = 5.0
 
 
 def _get_connection_string() -> str | None:
@@ -230,13 +235,19 @@ class _AppInsightsEventClient:
     """
 
     _initialized = False
-    _client: Optional[Any] = None
+    _client: Any | None = None
     _atexit_registered = False
-    _connection_string_provider: ClassVar[Optional[Callable[[], Optional[str]]]] = None
+    _connection_string_provider: ClassVar[Callable[[], str | None] | None] = None
+    _lifecycle_lock = threading.RLock()
+    _flush_lock = threading.Lock()
+    _flush_thread: threading.Thread | None = None
+    _flush_stop_event: threading.Event | None = None
+    _pending_events = threading.Event()
+    _shutdown_requested = False
 
     @staticmethod
     def set_connection_string_provider(
-        provider: Callable[[], Optional[str]],
+        provider: Callable[[], str | None],
     ) -> None:
         """Override how the connection string is resolved.
 
@@ -248,59 +259,101 @@ class _AppInsightsEventClient:
     @staticmethod
     def _initialize() -> None:
         """Initialize Application Insights client for custom events."""
-        if _AppInsightsEventClient._initialized:
-            return
-
-        _AppInsightsEventClient._initialized = True
-
-        # Suppress verbose logging from Application Insights SDK
-        # The SDK logs telemetry ingestion details which should not be user-facing
-        getLogger("applicationinsights").setLevel(WARNING)
-        getLogger("applicationinsights.channel").setLevel(WARNING)
-
-        if not _HAS_APPINSIGHTS:
-            return
-
-        if _AppInsightsEventClient._connection_string_provider:
-            connection_string = _AppInsightsEventClient._connection_string_provider()
-        else:
-            connection_string = _get_connection_string()
-        if not connection_string:
-            return
-
-        try:
-            parsed = _parse_connection_string(connection_string)
-            if not parsed:
+        with _AppInsightsEventClient._lifecycle_lock:
+            if _AppInsightsEventClient._shutdown_requested:
+                return
+            if _AppInsightsEventClient._initialized:
                 return
 
-            instrumentation_key = parsed["InstrumentationKey"]
-            ingestion_endpoint = parsed.get("IngestionEndpoint")
+            _AppInsightsEventClient._initialized = True
 
-            # Build custom channel: DiagnosticSender → SynchronousQueue → TelemetryChannel
-            if ingestion_endpoint:
-                endpoint_url = ingestion_endpoint.rstrip("/") + "/v2/track"
+            # Suppress verbose logging from Application Insights SDK
+            # The SDK logs telemetry ingestion details which should not be user-facing
+            getLogger("applicationinsights").setLevel(WARNING)
+            getLogger("applicationinsights.channel").setLevel(WARNING)
+
+            if not _HAS_APPINSIGHTS:
+                return
+
+            if _AppInsightsEventClient._connection_string_provider:
+                connection_string = (
+                    _AppInsightsEventClient._connection_string_provider()
+                )
             else:
-                endpoint_url = None  # SDK default
+                connection_string = _get_connection_string()
+            if not connection_string:
+                return
 
-            sender = _DiagnosticSender(service_endpoint_uri=endpoint_url)
-            queue = SynchronousQueue(sender)
-            channel = TelemetryChannel(queue=queue)
+            try:
+                parsed = _parse_connection_string(connection_string)
+                if not parsed:
+                    return
 
-            _AppInsightsEventClient._client = AppInsightsTelemetryClient(
-                instrumentation_key, telemetry_channel=channel
+                instrumentation_key = parsed["InstrumentationKey"]
+                ingestion_endpoint = parsed.get("IngestionEndpoint")
+
+                # Build custom channel: DiagnosticSender → SynchronousQueue → TelemetryChannel
+                if ingestion_endpoint:
+                    endpoint_url = ingestion_endpoint.rstrip("/") + "/v2/track"
+                else:
+                    endpoint_url = None  # SDK default
+
+                sender = _DiagnosticSender(service_endpoint_uri=endpoint_url)
+                queue = SynchronousQueue(sender)
+                channel = TelemetryChannel(queue=queue)
+
+                _AppInsightsEventClient._client = AppInsightsTelemetryClient(
+                    instrumentation_key, telemetry_channel=channel
+                )
+
+                # Set application version
+                _AppInsightsEventClient._client.context.application.ver = version(
+                    "uipath"
+                )
+            except Exception as e:
+                # Log but don't raise - telemetry should never break the main application
+                _logger.warning(
+                    f"Failed to initialize Application Insights client: {e}"
+                )
+                _logger.debug(
+                    "Application Insights initialization error", exc_info=True
+                )
+
+    @staticmethod
+    def _ensure_periodic_flush_worker() -> None:
+        """Start the feature-gated periodic flush worker once."""
+        if not FeatureFlags.is_flag_enabled(PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG):
+            return
+
+        with _AppInsightsEventClient._lifecycle_lock:
+            if _AppInsightsEventClient._shutdown_requested:
+                return
+            current = _AppInsightsEventClient._flush_thread
+            if current and current.is_alive():
+                return
+
+            stop_event = threading.Event()
+            worker = threading.Thread(
+                target=_AppInsightsEventClient._periodic_flush_worker,
+                args=(stop_event,),
+                name="uipath-appinsights-flush",
+                daemon=True,
             )
+            _AppInsightsEventClient._flush_stop_event = stop_event
+            _AppInsightsEventClient._flush_thread = worker
+            worker.start()
 
-            # Set application version
-            _AppInsightsEventClient._client.context.application.ver = version("uipath")
-        except Exception as e:
-            # Log but don't raise - telemetry should never break the main application
-            _logger.warning(f"Failed to initialize Application Insights client: {e}")
-            _logger.debug("Application Insights initialization error", exc_info=True)
+    @staticmethod
+    def _periodic_flush_worker(stop_event: threading.Event) -> None:
+        """Flush periodically until shutdown is requested."""
+        while not stop_event.wait(_PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS):
+            if _AppInsightsEventClient._pending_events.is_set():
+                _AppInsightsEventClient.flush()
 
     @staticmethod
     def track_event(
         name: str,
-        properties: Optional[Dict[str, Any]] = None,
+        properties: Dict[str, Any] | None = None,
     ) -> None:
         """Track a custom event to Application Insights customEvents table.
 
@@ -310,62 +363,100 @@ class _AppInsightsEventClient:
         """
         _AppInsightsEventClient._initialize()
 
-        if not _AppInsightsEventClient._client:
-            return
+        with _AppInsightsEventClient._lifecycle_lock:
+            if _AppInsightsEventClient._shutdown_requested:
+                return
 
-        try:
-            safe_properties: Dict[str, str] = {}
-            if properties:
-                for key, value in properties.items():
-                    if value is not None:
-                        safe_properties[key] = str(value)
+            if not _AppInsightsEventClient._client:
+                return
 
-            _AppInsightsEventClient._client.track_event(
-                name=name, properties=safe_properties, measurements={}
-            )
-            # Note: We don't flush after every event to avoid blocking.
-            # Events will be sent in batches by the SDK.
-        except Exception as e:
-            # Log but don't raise - telemetry should never break the main application
-            _logger.warning(f"Failed to track event '{name}': {e}")
-            _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
+            _AppInsightsEventClient._ensure_periodic_flush_worker()
+
+            try:
+                safe_properties: Dict[str, str] = {}
+                if properties:
+                    for key, value in properties.items():
+                        if value is not None:
+                            safe_properties[key] = str(value)
+
+                client = _AppInsightsEventClient._client
+                if not client:
+                    return
+                client.track_event(
+                    name=name, properties=safe_properties, measurements={}
+                )
+                _AppInsightsEventClient._pending_events.set()
+                # Note: We don't flush after every event to avoid blocking.
+                # Events are sent when the queue fills, on explicit/shutdown flush,
+                # or periodically when the periodic flush feature is enabled.
+            except Exception as e:
+                # Log but don't raise - telemetry should never break the main application
+                _logger.warning(f"Failed to track event '{name}': {e}")
+                _logger.debug(f"Event tracking error for '{name}'", exc_info=True)
 
     @staticmethod
     def flush() -> None:
         """Flush any pending telemetry events."""
-        if _AppInsightsEventClient._client:
-            try:
-                _AppInsightsEventClient._client.flush()
-                # Check if items remain after flush (indicates send failure)
+        with _AppInsightsEventClient._flush_lock:
+            client = _AppInsightsEventClient._client
+            if client:
+                _AppInsightsEventClient._pending_events.clear()
                 try:
-                    remaining = (
-                        _AppInsightsEventClient._client.channel.queue._queue.qsize()
-                    )
-                    if remaining > 0:
-                        _logger.warning(
-                            "AppInsights flush: %d items still in queue after flush",
-                            remaining,
-                        )
-                except Exception:
-                    pass
-            except Exception as e:
-                # Log but don't raise - telemetry should never break the main application
-                _logger.warning(f"Failed to flush telemetry events: {e}")
-                _logger.debug("Telemetry flush error", exc_info=True)
+                    client.flush()
+                    # Check if items remain after flush (indicates send failure)
+                    try:
+                        remaining = client.channel.queue._queue.qsize()
+                        if remaining > 0:
+                            _AppInsightsEventClient._pending_events.set()
+                            _logger.warning(
+                                "AppInsights flush: %d items still in queue after flush",
+                                remaining,
+                            )
+                    except Exception:
+                        pass
+                except Exception as e:
+                    _AppInsightsEventClient._pending_events.set()
+                    # Log but don't raise - telemetry should never break the main application
+                    _logger.warning(f"Failed to flush telemetry events: {e}")
+                    _logger.debug("Telemetry flush error", exc_info=True)
+
+    @staticmethod
+    def _shutdown(*, reset_client: bool = False) -> None:
+        """Stop the periodic worker and perform a synchronized final flush."""
+        with _AppInsightsEventClient._lifecycle_lock:
+            _AppInsightsEventClient._shutdown_requested = True
+            stop_event = _AppInsightsEventClient._flush_stop_event
+            worker = _AppInsightsEventClient._flush_thread
+            if stop_event:
+                stop_event.set()
+
+            if worker and worker is not threading.current_thread():
+                worker.join()
+
+            _AppInsightsEventClient.flush()
+
+            if _AppInsightsEventClient._flush_thread is worker:
+                _AppInsightsEventClient._flush_thread = None
+                _AppInsightsEventClient._flush_stop_event = None
+
+            if reset_client:
+                _AppInsightsEventClient._client = None
+                _AppInsightsEventClient._initialized = False
+                _AppInsightsEventClient._pending_events.clear()
+                _AppInsightsEventClient._shutdown_requested = False
 
     @staticmethod
     def register_atexit_flush() -> None:
-        """Register an atexit handler to flush events on process exit."""
-        if not _AppInsightsEventClient._atexit_registered:
-            atexit.register(_AppInsightsEventClient.flush)
-            _AppInsightsEventClient._atexit_registered = True
+        """Register an atexit handler to stop the worker and flush events."""
+        with _AppInsightsEventClient._lifecycle_lock:
+            if not _AppInsightsEventClient._atexit_registered:
+                atexit.register(_AppInsightsEventClient._shutdown)
+                _AppInsightsEventClient._atexit_registered = True
 
     @staticmethod
     def reset() -> None:
-        """Flush pending events and reset so the next call re-initializes."""
-        _AppInsightsEventClient.flush()
-        _AppInsightsEventClient._client = None
-        _AppInsightsEventClient._initialized = False
+        """Flush pending events, stop the worker, and reset client state."""
+        _AppInsightsEventClient._shutdown(reset_client=True)
 
 
 class _TelemetryClient:
@@ -405,7 +496,7 @@ class _TelemetryClient:
             _logger.debug("Telemetry initialization error", exc_info=True)
 
     @staticmethod
-    def _track_method(name: str, attrs: Optional[Dict[str, Any]] = None):
+    def _track_method(name: str, attrs: Dict[str, Any] | None = None):
         """Track function invocations using OpenTelemetry."""
         if not _TelemetryClient._is_enabled():
             return
@@ -417,7 +508,7 @@ class _TelemetryClient:
     @staticmethod
     def track_event(
         name: str,
-        properties: Optional[Dict[str, Any]] = None,
+        properties: Dict[str, Any] | None = None,
     ) -> None:
         """Track a custom event to Application Insights customEvents table.
 
@@ -453,7 +544,7 @@ class _TelemetryClient:
 
 def track_event(
     name: str,
-    properties: Optional[Dict[str, Any]] = None,
+    properties: Dict[str, Any] | None = None,
 ) -> None:
     """Track a custom event.
 
@@ -494,7 +585,7 @@ def flush_events() -> None:
 
 
 def set_event_connection_string_provider(
-    provider: Callable[[], Optional[str]],
+    provider: Callable[[], str | None],
 ) -> None:
     """Override how the Application Insights connection string is resolved.
 
@@ -511,7 +602,7 @@ def reset_event_client() -> None:
 
 def track_cli_event(
     name: str,
-    properties: Optional[Dict[str, Any]] = None,
+    properties: Dict[str, Any] | None = None,
 ) -> None:
     """Track a CLI event.
 
@@ -527,10 +618,10 @@ def track_cli_event(
 
 
 def track(
-    name_or_func: Optional[Union[str, Callable[..., Any]]] = None,
+    name_or_func: str | Callable[..., Any] | None = None,
     *,
-    when: Optional[Union[bool, Callable[..., bool]]] = True,
-    extra: Optional[Dict[str, Any]] = None,
+    when: bool | Callable[..., bool] | None = True,
+    extra: Dict[str, Any] | None = None,
 ):
     """Decorator that will trace function invocations.
 

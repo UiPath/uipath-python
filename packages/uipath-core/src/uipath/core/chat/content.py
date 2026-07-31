@@ -96,6 +96,7 @@ class UiPathConversationContentPartData(BaseModel):
 
     mime_type: str = Field(..., alias="mimeType")
     data: InlineOrExternal
+    metadata: dict[str, Any] | None = Field(None, alias="metaData")
     citations: Sequence[UiPathConversationCitationData] = Field(default_factory=list)
     is_transcript: bool | None = Field(None, alias="isTranscript")
     is_incomplete: bool | None = Field(None, alias="isIncomplete")

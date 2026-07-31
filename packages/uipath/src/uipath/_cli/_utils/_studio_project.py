@@ -513,6 +513,9 @@ class StudioClient:
 
     async def ensure_coded_agent_project_async(self):
         structure = await self.get_project_structure_async()
+        # An empty structure means a never-pushed project: allow the first push.
+        if not structure.files and not structure.folders:
+            return
         if not any(file.name == PYTHON_CONFIGURATION_FILE for file in structure.files):
             raise NonCodedAgentProjectException()
 
@@ -710,13 +713,22 @@ class StudioClient:
         if not force and self._project_structure_cache is not None:
             return self._project_structure_cache
 
-        response = await self.uipath.api_client.request_async(
-            "GET",
-            url=f"{self.file_operations_base_url}/Structure",
-            scoped="org",
-        )
+        try:
+            response = await self.uipath.api_client.request_async(
+                "GET",
+                url=f"{self.file_operations_base_url}/Structure",
+                scoped="org",
+            )
+            structure = ProjectStructure.model_validate(response.json())
+        except EnrichedException as e:
+            # The backend returns 404 for projects whose file system was never
+            # initialized (e.g. a freshly created Function project): treat it
+            # as an empty structure so the first push can bootstrap the files.
+            if e.status_code != 404:
+                raise
+            structure = ProjectStructure(name="root", folders=[], files=[])
 
-        self._project_structure_cache = ProjectStructure.model_validate(response.json())
+        self._project_structure_cache = structure
         return self._project_structure_cache
 
     @traced(name="create_folder", run_type="uipath")

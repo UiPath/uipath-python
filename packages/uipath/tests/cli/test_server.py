@@ -1,86 +1,29 @@
 import asyncio
 import json
 import os
-import threading
+import subprocess
+import sys
 import time
-from typing import Any
+from urllib.request import urlopen
 
 import aiohttp
 import pytest
 
-from uipath._cli.cli_server import start_tcp_server
+from tests.cli.utils.server import (
+    get_free_port,
+    start_cli_server_thread,
+    start_job,
+    start_job_with_env,
+)
+
+SERVER_START_TIMEOUT_SECONDS = 20
+SERVER_STOP_TIMEOUT_SECONDS = 5
+JOB_START_TIMEOUT_SECONDS = 30
 
 
-def create_uipath_json(script_path: str, entrypoint_name: str = "main"):
-    """Helper to create uipath.json with functions."""
-    return {"functions": {entrypoint_name: f"{script_path}:main"}}
-
-
-async def start_job(
-    port: int, job_key: str, command: str, args: list[str]
-) -> dict[str, Any]:
-    """Start a job on the server."""
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"http://127.0.0.1:{port}/jobs/{job_key}/start",
-            json={"command": command, "args": args},
-        ) as response:
-            return await response.json()
-
-
-async def start_job_with_env(
-    port: int,
-    job_key: str,
-    command: str,
-    args: list[str],
-    env_vars: dict[str, str],
-) -> dict[str, Any]:
-    """Start a job on the server with environment variables."""
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"http://127.0.0.1:{port}/jobs/{job_key}/start",
-            json={
-                "command": command,
-                "args": args,
-                "environmentVariables": env_vars,
-            },
-        ) as response:
-            return await response.json()
-
-
-class TestServer:
-    @pytest.fixture
-    def server_port(self):
-        """Use a random available port for testing."""
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            return s.getsockname()[1]
-
-    @pytest.fixture
-    def server(self, server_port):
-        """Start the server in a background thread."""
-
-        def run_server():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(start_tcp_server("127.0.0.1", server_port))
-            except asyncio.CancelledError:
-                pass
-            finally:
-                loop.close()
-
-        thread = threading.Thread(target=run_server, daemon=True)
-        thread.start()
-        time.sleep(0.5)
-
-        yield server_port
-
-    @pytest.fixture
-    def simple_script(self) -> str:
-        return """
+@pytest.fixture
+def simple_script() -> str:
+    return """
 from dataclasses import dataclass
 
 @dataclass
@@ -91,6 +34,70 @@ class Input:
 def main(input: Input) -> str:
     return (input.message + " ") * input.repeat
 """
+
+
+def create_uipath_json(script_path: str, entrypoint_name: str = "main"):
+    """Helper to create uipath.json with functions."""
+    return {"functions": {entrypoint_name: f"{script_path}:main"}}
+
+
+def read_process_output(process: subprocess.Popen[str]) -> str:
+    if process.stdout is None:
+        return ""
+    return process.stdout.read()
+
+
+def stop_process(process: subprocess.Popen[str]) -> str:
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=SERVER_STOP_TIMEOUT_SECONDS)
+    return read_process_output(process)
+
+
+def wait_for_server_health(port: int, process: subprocess.Popen[str]) -> None:
+    deadline = time.monotonic() + SERVER_START_TIMEOUT_SECONDS
+    last_error: Exception | None = None
+
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            output = read_process_output(process)
+            raise AssertionError(
+                f"uipath server exited before becoming healthy with code "
+                f"{process.returncode}\n\n{output}"
+            )
+
+        try:
+            with urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                if response.status == 200 and response.read().decode() == "OK":
+                    return
+        except Exception as e:
+            last_error = e
+
+        time.sleep(0.1)
+
+    output = stop_process(process)
+    raise AssertionError(
+        f"uipath server did not become healthy within "
+        f"{SERVER_START_TIMEOUT_SECONDS}s. Last error: {last_error}\n\n{output}"
+    )
+
+
+class TestServer:
+    @pytest.fixture
+    def server_port(self):
+        """Use a random available port for testing."""
+        return get_free_port()
+
+    @pytest.fixture
+    def server(self, server_port):
+        """Start the server in a background thread."""
+        start_cli_server_thread(server_port)
+
+        yield server_port
 
     def test_start_job_success(self, server, temp_dir, simple_script):
         """Test starting a job through the server."""
@@ -139,6 +146,27 @@ def main(input: Input) -> str:
 
         assert response["success"] is False
         assert "Unknown command" in response["error"]
+
+    def test_bad_working_directory_returns_400(self, server):
+        """A request-shaped error (bad working dir) is a 4xx, not a 200."""
+        port = server
+
+        async def send():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://127.0.0.1:{port}/jobs/job-bad-cwd/start",
+                    json={
+                        "command": "run",
+                        "args": [],
+                        "workingDirectory": "/no/such/dir/xyz-does-not-exist",
+                    },
+                ) as response:
+                    return response.status, await response.json()
+
+        status, body = asyncio.run(send())
+        assert status == 400
+        assert body["success"] is False
+        assert "working directory" in body["error"]
 
     def test_start_job_missing_command(self, server):
         """Test starting a job without command field."""
@@ -228,16 +256,98 @@ def main(input: Input) -> str:
             assert body == "OK"
 
 
+class TestServerProcess:
+    """Tests for the real `uipath server` command startup path."""
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows GitHub runners fail before server startup while loading asyncio.",
+    )
+    def test_uipath_server_process_starts_and_runs_job(
+        self, temp_dir: str, simple_script: str
+    ):
+        """The CLI command must preload modules, start the server, and run jobs."""
+        port = get_free_port()
+        script_file = "entrypoint.py"
+        script_path = os.path.join(temp_dir, script_file)
+        input_file = os.path.join(temp_dir, "input.json")
+        output_file = os.path.join(temp_dir, "output.json")
+
+        with open(script_path, "w") as f:
+            f.write(simple_script)
+
+        with open(os.path.join(temp_dir, "uipath.json"), "w") as f:
+            json.dump(create_uipath_json(script_file), f)
+
+        with open(input_file, "w") as f:
+            json.dump({"message": "Hello", "repeat": 2}, f)
+
+        src_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "src")
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(
+            part for part in [src_path, env.get("PYTHONPATH")] if part
+        )
+
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "from uipath._cli import cli; cli()",
+                "server",
+                "--tcp",
+                "--port",
+                str(port),
+            ],
+            cwd=temp_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        try:
+            wait_for_server_health(port, process)
+
+            response = asyncio.run(
+                asyncio.wait_for(
+                    start_job(
+                        port,
+                        "process-job-123",
+                        "run",
+                        [
+                            "main",
+                            "--input-file",
+                            input_file,
+                            "--output-file",
+                            output_file,
+                        ],
+                    ),
+                    timeout=JOB_START_TIMEOUT_SECONDS,
+                )
+            )
+
+            assert response["success"] is True
+            assert response["job_key"] == "process-job-123"
+            assert process.poll() is None
+            assert os.path.exists(output_file)
+
+            with open(output_file, "r") as f:
+                output = f.read()
+            assert "Hello" in output
+        finally:
+            output = stop_process(process)
+
+        assert "Traceback" not in output
+
+
 class TestServerEnvIsolation:
     """Test that environment variables are isolated between sequential server requests."""
 
     @pytest.fixture
     def server_port(self):
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            return s.getsockname()[1]
+        return get_free_port()
 
     @pytest.fixture
     def env_snapshots(self):
@@ -248,33 +358,21 @@ class TestServerEnvIsolation:
         """Start server with a spy command that captures os.environ."""
         import click
 
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         @click.command()
         def spy_cmd():
             env_snapshots.append(dict(os.environ))
 
-        original_commands = cli_server.COMMANDS.copy()
-        cli_server.COMMANDS["spy"] = spy_cmd
+        original_commands = _server_core.COMMANDS.copy()
+        _server_core.COMMANDS["spy"] = spy_cmd
 
-        def run_server():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(start_tcp_server("127.0.0.1", server_port))
-            except asyncio.CancelledError:
-                pass
-            finally:
-                loop.close()
-
-        thread = threading.Thread(target=run_server, daemon=True)
-        thread.start()
-        time.sleep(0.5)
+        start_cli_server_thread(server_port)
 
         yield server_port
 
-        cli_server.COMMANDS.clear()
-        cli_server.COMMANDS.update(original_commands)
+        _server_core.COMMANDS.clear()
+        _server_core.COMMANDS.update(original_commands)
 
     def test_env_vars_do_not_leak_between_requests(
         self, server_with_spy, env_snapshots
@@ -319,7 +417,7 @@ class TestServerEnvIsolation:
 
     def test_server_baseline_env_preserved(self, server_with_spy, env_snapshots):
         """Server baseline env vars (like PATH) should be available during command execution."""
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         port = server_with_spy
 
@@ -337,7 +435,7 @@ class TestServerEnvIsolation:
         env_run = env_snapshots[0]
 
         # Baseline is captured at server start, not import time
-        baseline = cli_server._state.baseline_env
+        baseline = _server_core._state.baseline_env
         assert baseline is not None
 
         # Baseline env vars should be present
@@ -348,7 +446,7 @@ class TestServerEnvIsolation:
 
     def test_env_restored_after_request(self, server_with_spy):
         """os.environ should be restored to baseline after each request."""
-        from uipath._cli import cli_server
+        from uipath._cli import _server_core
 
         port = server_with_spy
 
@@ -362,7 +460,7 @@ class TestServerEnvIsolation:
             )
         )
 
-        baseline = cli_server._state.baseline_env
+        baseline = _server_core._state.baseline_env
         assert baseline is not None
 
         # After the request, os.environ should match baseline

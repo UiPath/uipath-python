@@ -43,6 +43,13 @@ class JobsService(FolderContext, BaseService):
         self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
         os.makedirs(self._temp_dir, exist_ok=True)
 
+    async def aclose(self) -> None:
+        """Close this service and the attachment service it owns."""
+        try:
+            await self._attachments_service.aclose()
+        finally:
+            await super().aclose()
+
     @overload
     def resume(self, *, inbox_id: str, payload: Any) -> None: ...
 
