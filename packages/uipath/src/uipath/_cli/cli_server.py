@@ -22,18 +22,20 @@ from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .cli_server_ipc import (
     IPythonRuntimeServer,
-    PythonRunRequest,
-    PythonRunResult,
     PythonRuntimeService,
+    RunJobRequest,
+    RunJobResult,
+    StopJobRequest,
     start_ipc_server,
 )
 
 __all__ = [
     "server",
     "IPythonRuntimeServer",
-    "PythonRunRequest",
-    "PythonRunResult",
     "PythonRuntimeService",
+    "RunJobRequest",
+    "RunJobResult",
+    "StopJobRequest",
     "start_ipc_server",
 ]
 
