@@ -1,15 +1,3 @@
-"""uipath-ipc runtime transport — the IPC contract, DTOs, and service.
-
-The PascalCase method and field names are dictated by the .NET/CoreIpc peer
-(the serializer maps them verbatim), so Sonar's S100/S116 naming rules are
-suppressed for this file only (see ``sonar-project.properties``).
-
-``uipath-ipc`` is an optional dependency (the ``ipc`` extra): it is imported
-lazily inside ``start_ipc_server`` so this module — and HTTP-only serving —
-works without it. The DTOs and the contract below are pure stdlib and never
-reference it.
-"""
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -19,13 +7,18 @@ from ._utils._console import ConsoleLogger
 console = ConsoleLogger()
 
 
+def _run_id(job_key: str, resume_version: int | None) -> str:
+    return job_key if resume_version is None else f"{job_key}-{resume_version}"
+
+
 @dataclass
-class PythonRunRequest:
-    """Mirrors the .NET PythonRunRequest DTO. PascalCase fields match the wire keys."""
+class RunJobRequest:
+    """PascalCase fields match the wire keys."""
 
     JobKey: str = ""
+    ResumeVersion: int | None = None
     Command: str = ""
-    # The .NET peer sends a single string; HTTP callers and tests may pass a
+    # The peer sends a single string; HTTP callers and tests may pass a
     # pre-split list. parse_args accepts both.
     Args: str | list[str] | None = None
     WorkingDirectory: str | None = None
@@ -33,51 +26,59 @@ class PythonRunRequest:
 
 
 @dataclass
-class PythonRunResult:
-    """Mirrors the .NET PythonRunResult DTO."""
+class StopJobRequest:
+    JobKey: str = ""
+    ResumeVersion: int | None = None
+    ForceStop: bool = False
 
+
+@dataclass
+class RunJobResult:
     ExitCode: int = 0
     Error: str | None = None
 
 
 class IPythonRuntimeServer(ABC):
-    """Contract the .NET job executor calls over uipath-ipc."""
+    """Contract the job executor calls over uipath-ipc."""
 
     @abstractmethod
-    async def StartJob(self, request: PythonRunRequest) -> PythonRunResult:
-        """Run a job → PythonRunResult(ExitCode, Error)."""
+    async def RunJob(self, request: RunJobRequest) -> RunJobResult:
+        """Run a job → RunJobResult(ExitCode, Error)."""
 
     @abstractmethod
-    async def StopJob(self, job_key: str) -> bool:
+    async def StopJob(self, request: StopJobRequest) -> bool:
         """Cancel a running job by key (bool return avoids fire-and-forget)."""
 
 
 class PythonRuntimeService(IPythonRuntimeServer):
     """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
 
-    async def StartJob(self, request: PythonRunRequest) -> PythonRunResult:
+    async def RunJob(self, request: RunJobRequest) -> RunJobResult:
         command_name = request.Command
         if not isinstance(command_name, str) or not command_name:
-            return PythonRunResult(
-                ExitCode=1, Error="Missing or invalid field: 'Command'"
-            )
+            return RunJobResult(ExitCode=1, Error="Missing or invalid field: 'Command'")
 
         cmd = COMMANDS.get(command_name)
         if cmd is None:
-            return PythonRunResult(ExitCode=1, Error=f"Unknown command: {command_name}")
+            return RunJobResult(ExitCode=1, Error=f"Unknown command: {command_name}")
 
         args = parse_args(request.Args)
 
-        console.info(f"Starting job {request.JobKey}: {command_name} {args}")
+        console.info(
+            f"Running job {_run_id(request.JobKey, request.ResumeVersion)}: {command_name} {args}"
+        )
 
         result = await _run_command_isolated(
             cmd, args, request.EnvironmentVariables, request.WorkingDirectory
         )
-        # IPC contract (PythonRunResult) carries only ExitCode + Error.
-        return PythonRunResult(ExitCode=result["ExitCode"], Error=result["Error"])
+        # IPC contract (RunJobResult) carries only ExitCode + Error.
+        return RunJobResult(ExitCode=result["ExitCode"], Error=result["Error"])
 
-    async def StopJob(self, job_key: str) -> bool:
-        console.info(f"StopJob requested for {job_key} (no-op)")
+    async def StopJob(self, request: StopJobRequest) -> bool:
+        console.info(
+            f"StopJob requested for {_run_id(request.JobKey, request.ResumeVersion)} "
+            f"(force={request.ForceStop}) (no-op)"
+        )
         return True
 
 
