@@ -72,6 +72,27 @@ class TestEndSession:
         assert session.end_detail["callContext"]["id"] == "CA123"
         assert session.end_detail["endedBy"] == "agent"
 
+    async def test_session_ended_preserves_output_envelope(self) -> None:
+        """The voice outputs envelope must reach the job runtime untouched."""
+        session = _make_session()
+        envelope = {
+            "fields": {"caller_name": "Ada", "callback_requested": None},
+            "status": "extracted",
+            "extracted": True,
+        }
+        payload = {
+            "callEnded": True,
+            "endedBy": "agent",
+            "reason": "agent_completed",
+            "endToolCalled": True,
+            "output": envelope,
+        }
+
+        await session._handle_session_ended(payload)
+
+        assert session.end_detail["output"] == envelope
+        assert session.end_detail["endToolCalled"] is True
+
     async def test_session_ended_non_dict_payload_is_empty_detail(self) -> None:
         session = _make_session()
         await session._handle_session_ended("not-a-dict")
