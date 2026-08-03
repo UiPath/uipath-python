@@ -60,6 +60,7 @@ from uipath.platform.context_grounding.context_grounding_index import (
 from uipath.platform.errors import (
     BatchTransformFailedException,
     BatchTransformNotCompleteException,
+    ContextGroundingIndexNotFoundError,
     OperationNotCompleteException,
 )
 from uipath.platform.orchestrator.job import JobState
@@ -544,6 +545,8 @@ class UiPathResumeTriggerCreator:
                         f"Unexpected model received"
                         f"{type(suspend_value)} is not a valid Human-In-The-Loop model",
                     )
+        except UiPathFaultedTriggerError:
+            raise
         except Exception as e:
             raise UiPathFaultedTriggerError(
                 ErrorCategory.SYSTEM,
@@ -697,28 +700,35 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = value.deep_rag.id
         elif isinstance(value, CreateDeepRag):
             uipath = UiPath()
-            if value.is_ephemeral_index:
-                deep_rag = (
-                    await uipath.context_grounding.start_deep_rag_ephemeral_async(
+            try:
+                if value.is_ephemeral_index:
+                    deep_rag = (
+                        await uipath.context_grounding.start_deep_rag_ephemeral_async(
+                            name=value.name,
+                            index_id=value.index_id,
+                            prompt=value.prompt,
+                            glob_pattern=value.glob_pattern,
+                            citation_mode=value.citation_mode,
+                        )
+                    )
+                else:
+                    deep_rag = await uipath.context_grounding.start_deep_rag_async(
                         name=value.name,
+                        index_name=value.index_name,
                         index_id=value.index_id,
                         prompt=value.prompt,
                         glob_pattern=value.glob_pattern,
                         citation_mode=value.citation_mode,
+                        folder_path=value.index_folder_path,
+                        folder_key=value.index_folder_key,
                     )
-                )
-
-            else:
-                deep_rag = await uipath.context_grounding.start_deep_rag_async(
-                    name=value.name,
-                    index_name=value.index_name,
-                    index_id=value.index_id,
-                    prompt=value.prompt,
-                    glob_pattern=value.glob_pattern,
-                    citation_mode=value.citation_mode,
-                    folder_path=value.index_folder_path,
-                    folder_key=value.index_folder_key,
-                )
+            except ContextGroundingIndexNotFoundError as e:
+                raise UiPathFaultedTriggerError(
+                    ErrorCategory.DEPLOYMENT,
+                    "Context grounding index not found. Check that the index is "
+                    "deployed and available in the configured folder.",
+                    str(e),
+                ) from e
             if not deep_rag:
                 raise Exception("Failed to start deep rag")
 
@@ -778,27 +788,35 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = value.batch_transform.id
         elif isinstance(value, CreateBatchTransform):
             uipath = UiPath()
-            if value.is_ephemeral_index:
-                batch_transform = await uipath.context_grounding.start_batch_transform_ephemeral_async(
-                    name=value.name,
-                    index_id=value.index_id,
-                    prompt=value.prompt,
-                    output_columns=value.output_columns,
-                    storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
-                    enable_web_search_grounding=value.enable_web_search_grounding,
-                )
-            else:
-                batch_transform = await uipath.context_grounding.start_batch_transform_async(
-                    name=value.name,
-                    index_name=value.index_name,
-                    index_id=value.index_id,
-                    prompt=value.prompt,
-                    output_columns=value.output_columns,
-                    storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
-                    enable_web_search_grounding=value.enable_web_search_grounding,
-                    folder_path=value.index_folder_path,
-                    folder_key=value.index_folder_key,
-                )
+            try:
+                if value.is_ephemeral_index:
+                    batch_transform = await uipath.context_grounding.start_batch_transform_ephemeral_async(
+                        name=value.name,
+                        index_id=value.index_id,
+                        prompt=value.prompt,
+                        output_columns=value.output_columns,
+                        storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
+                        enable_web_search_grounding=value.enable_web_search_grounding,
+                    )
+                else:
+                    batch_transform = await uipath.context_grounding.start_batch_transform_async(
+                        name=value.name,
+                        index_name=value.index_name,
+                        index_id=value.index_id,
+                        prompt=value.prompt,
+                        output_columns=value.output_columns,
+                        storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
+                        enable_web_search_grounding=value.enable_web_search_grounding,
+                        folder_path=value.index_folder_path,
+                        folder_key=value.index_folder_key,
+                    )
+            except ContextGroundingIndexNotFoundError as e:
+                raise UiPathFaultedTriggerError(
+                    ErrorCategory.DEPLOYMENT,
+                    "Context grounding index not found. Check that the index is "
+                    "deployed and available in the configured folder.",
+                    str(e),
+                ) from e
             if not batch_transform:
                 raise Exception("Failed to start batch transform")
 
