@@ -1253,29 +1253,22 @@ class TestByoValidator:
         with pytest.raises(ValueError, match="validator_name"):
             ByoValidator("   ")
 
-    def test_builds_byo_guardrail_with_name_and_connection(self):
-        v = ByoValidator(
-            "byog-harmful-content",
-            connection_id="24887687-6ed1-4fe2-9b87-087ffb232682",
-        )
+    def test_builds_byo_guardrail_from_name_alone(self):
+        v = ByoValidator("my-harmful-content-guardrail")
         g = v.get_built_in_guardrail("G", None, True)
         assert g.validator_type == "byo"
-        assert g.byo_validator_name == "byog-harmful-content"
-        assert g.byo_connection_id == "24887687-6ed1-4fe2-9b87-087ffb232682"
-
-    def test_connection_id_defaults_to_none(self):
-        v = ByoValidator("byog-harmful-content")
-        g = v.get_built_in_guardrail("G", None, True)
-        assert g.byo_connection_id is None
+        assert g.byo_validator_name == "my-harmful-content-guardrail"
 
     def test_aliases_serialize_for_the_wire(self):
-        v = ByoValidator("byog-pii", connection_id="conn-1")
+        v = ByoValidator("byog-pii")
         g = v.get_built_in_guardrail("G", None, True)
         dumped = g.model_dump(by_alias=True)
         assert dumped["validatorType"] == "byo"
         assert dumped["byoValidatorName"] == "byog-pii"
-        assert dumped["byoConnectionId"] == "conn-1"
         assert dumped["$guardrailType"] == "builtInValidator"
+        # BYOG resolves by validator name alone (unique per tenant); no
+        # connection id exists on the wire model.
+        assert "byoConnectionId" not in dumped
 
     def test_parameters_pass_through(self):
         from uipath.platform.guardrails.guardrails import NumberParameterValue
@@ -1308,7 +1301,7 @@ class TestByoValidator:
         assert g.selector is None
 
     def test_run_forwards_byo_guardrail_to_service(self):
-        v = ByoValidator("byog-harmful-content", connection_id="conn-1")
+        v = ByoValidator("my-harmful-content-guardrail")
         mock_uipath = MagicMock()
         mock_uipath.guardrails.evaluate_guardrail.return_value = (
             GuardrailValidationResult(
@@ -1323,5 +1316,4 @@ class TestByoValidator:
         data, g = mock_uipath.guardrails.evaluate_guardrail.call_args[0]
         assert data == "some input"
         assert g.validator_type == "byo"
-        assert g.byo_validator_name == "byog-harmful-content"
-        assert g.byo_connection_id == "conn-1"
+        assert g.byo_validator_name == "my-harmful-content-guardrail"
