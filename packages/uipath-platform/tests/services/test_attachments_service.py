@@ -128,6 +128,27 @@ def blob_uri_response() -> dict[str, Any]:
     }
 
 
+@pytest.fixture
+def blob_uri_response_requires_auth(base_url: str) -> dict[str, Any]:
+    """Provides a mock response for blob access requests that require auth.
+
+    Returns:
+        Dict[str, Any]: A mock API response with blob storage access details requiring auth.
+    """
+    return {
+        "Id": "12345678-1234-1234-1234-123456789012",
+        "Name": "test_file.txt",
+        "BlobFileAccess": {
+            "Uri": f"{base_url}/blob-storage/test-blob",
+            "Headers": {
+                "Keys": ["x-ms-blob-type", "Content-Type"],
+                "Values": ["BlockBlob", "application/octet-stream"],
+            },
+            "RequiresAuth": True,
+        },
+    }
+
+
 class TestAttachmentsService:
     """Test suite for the AttachmentsService class."""
 
@@ -1207,3 +1228,183 @@ def test_attachments_service_conforms_to_attachments_protocol(
 
     conforming: AttachmentsProtocol = service
     assert isinstance(conforming, AttachmentsProtocol)
+
+
+class TestAttachmentsServiceRequiresAuth:
+    """Tests for uploads when RequiresAuth is True (uses self.request with timeout)."""
+
+    def test_upload_with_content_requires_auth(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        blob_uri_response_requires_auth: dict[str, Any],
+    ) -> None:
+        """Test uploading with content when RequiresAuth is True.
+
+        This exercises the code path where self.request() is called with timeout.
+        """
+        content = "Test content in memory"
+        file_name = "text_content.txt"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments",
+            method="POST",
+            status_code=200,
+            json=blob_uri_response_requires_auth,
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri_response_requires_auth["BlobFileAccess"]["Uri"],
+            method="PUT",
+            status_code=201,
+        )
+
+        attachment_key = service.upload(
+            name=file_name,
+            content=content,
+            timeout=60.0,
+        )
+
+        assert attachment_key == uuid.UUID(blob_uri_response_requires_auth["Id"])
+
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
+        upload_request = requests[1]
+        assert upload_request.method == "PUT"
+        assert upload_request.content == content.encode("utf-8")
+
+    def test_upload_with_file_path_requires_auth(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_file: Tuple[str, str, str],
+        blob_uri_response_requires_auth: dict[str, Any],
+    ) -> None:
+        """Test uploading from file path when RequiresAuth is True.
+
+        This exercises the code path where self.request() is called with timeout.
+        """
+        content, file_name, file_path = temp_file
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments",
+            method="POST",
+            status_code=200,
+            json=blob_uri_response_requires_auth,
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri_response_requires_auth["BlobFileAccess"]["Uri"],
+            method="PUT",
+            status_code=201,
+        )
+
+        attachment_key = service.upload(
+            name=file_name,
+            source_path=file_path,
+            timeout=45.0,
+        )
+
+        assert attachment_key == uuid.UUID(blob_uri_response_requires_auth["Id"])
+
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
+        upload_request = requests[1]
+        assert upload_request.method == "PUT"
+
+    @pytest.mark.asyncio
+    async def test_upload_async_with_content_requires_auth(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        blob_uri_response_requires_auth: dict[str, Any],
+    ) -> None:
+        """Test async uploading with content when RequiresAuth is True.
+
+        This exercises the code path where self.request_async() is called with timeout.
+        """
+        content = "Test content in memory async"
+        file_name = "text_content_async.txt"
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments",
+            method="POST",
+            status_code=200,
+            json=blob_uri_response_requires_auth,
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri_response_requires_auth["BlobFileAccess"]["Uri"],
+            method="PUT",
+            status_code=201,
+        )
+
+        attachment_key = await service.upload_async(
+            name=file_name,
+            content=content,
+            timeout=90.0,
+        )
+
+        assert attachment_key == uuid.UUID(blob_uri_response_requires_auth["Id"])
+
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
+        upload_request = requests[1]
+        assert upload_request.method == "PUT"
+        assert upload_request.content == content.encode("utf-8")
+
+    @pytest.mark.asyncio
+    async def test_upload_async_with_file_path_requires_auth(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AttachmentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        temp_file: Tuple[str, str, str],
+        blob_uri_response_requires_auth: dict[str, Any],
+    ) -> None:
+        """Test async uploading from file path when RequiresAuth is True.
+
+        This exercises the code path where self.request_async() is called with timeout.
+        """
+        content, file_name, file_path = temp_file
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments",
+            method="POST",
+            status_code=200,
+            json=blob_uri_response_requires_auth,
+        )
+
+        httpx_mock.add_response(
+            url=blob_uri_response_requires_auth["BlobFileAccess"]["Uri"],
+            method="PUT",
+            status_code=201,
+        )
+
+        attachment_key = await service.upload_async(
+            name=file_name,
+            source_path=file_path,
+            timeout=120.0,
+        )
+
+        assert attachment_key == uuid.UUID(blob_uri_response_requires_auth["Id"])
+
+        requests = httpx_mock.get_requests()
+        assert len(requests) == 2
+
+        upload_request = requests[1]
+        assert upload_request.method == "PUT"
