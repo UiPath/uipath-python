@@ -350,7 +350,7 @@ class TestGuardrailsService:
             assert request_payload["byoValidatorName"] == "my_databricks_pii"
             assert result.result == GuardrailValidationResultType.PASSED
 
-        def test_evaluate_guardrail_byog_forwards_byo_connection_id(
+        def test_evaluate_guardrail_byog_never_forwards_legacy_connection_id(
             self,
             httpx_mock: HTTPXMock,
             service: GuardrailsService,
@@ -358,8 +358,10 @@ class TestGuardrailsService:
             org: str,
             tenant: str,
         ) -> None:
-            """A BYOG guardrail forwards byoConnectionId so the backend can narrow
-            configuration resolution to the specific connection."""
+            """A legacy byoConnectionId (from persisted json or an older caller)
+            is never forwarded: BYOG resolves by validator name alone, which is
+            unique per tenant; the connection comes from the configuration
+            server-side."""
             captured_request = None
 
             def capture_request(request):
@@ -376,16 +378,18 @@ class TestGuardrailsService:
                 callback=capture_request,
             )
 
-            byog_guardrail = BuiltInValidatorGuardrail(
-                id="byog-id",
-                name="Databricks PII (BYOG)",
-                enabled_for_evals=True,
-                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
-                guardrail_type="builtInValidator",
-                validator_type="byo",
-                byo_validator_name="my_databricks_pii",
-                byo_connection_id="byog-conn-1",
-                validator_parameters=[],
+            byog_guardrail = BuiltInValidatorGuardrail.model_validate(
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "byog-id",
+                    "name": "Databricks PII (BYOG)",
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Llm"]},
+                    "validatorType": "byo",
+                    "byoValidatorName": "my_databricks_pii",
+                    "byoConnectionId": "byog-conn-1",
+                    "validatorParameters": [],
+                }
             )
 
             service.evaluate_guardrail("some input", byog_guardrail)
@@ -393,9 +397,9 @@ class TestGuardrailsService:
             assert captured_request is not None
             request_payload = json.loads(captured_request.content)
             assert request_payload["byoValidatorName"] == "my_databricks_pii"
-            assert request_payload["byoConnectionId"] == "byog-conn-1"
+            assert "byoConnectionId" not in request_payload
 
-        def test_evaluate_guardrail_byog_omits_connection_id_when_absent(
+        def test_evaluate_guardrail_byog_resolves_by_name_alone(
             self,
             httpx_mock: HTTPXMock,
             service: GuardrailsService,
@@ -403,8 +407,8 @@ class TestGuardrailsService:
             org: str,
             tenant: str,
         ) -> None:
-            """byoConnectionId is only forwarded when present; a BYOG guardrail without
-            one resolves by validator name alone."""
+            """A BYOG guardrail carries only byoValidatorName; no connection id
+            appears in the payload."""
             captured_request = None
 
             def capture_request(request):
@@ -438,8 +442,11 @@ class TestGuardrailsService:
             request_payload = json.loads(captured_request.content)
             assert "byoConnectionId" not in request_payload
 
-        def test_evaluate_guardrail_byo_connection_id_from_alias(self) -> None:
-            """byoConnectionId parses into the typed field via its camelCase alias."""
+        def test_evaluate_guardrail_legacy_byo_connection_id_still_parses(
+            self,
+        ) -> None:
+            """Legacy json carrying byoConnectionId still parses (extra="allow"),
+            but the value is not a typed field anymore."""
             guardrail = BuiltInValidatorGuardrail.model_validate(
                 {
                     "$guardrailType": "builtInValidator",
@@ -451,7 +458,8 @@ class TestGuardrailsService:
                     "validatorParameters": [],
                 }
             )
-            assert guardrail.byo_connection_id == "byog-conn-1"
+            assert guardrail.byo_validator_name == "my_databricks_pii"
+            assert "byo_connection_id" not in type(guardrail).model_fields
 
         def test_evaluate_guardrail_byo_without_name_raises(
             self,
@@ -529,7 +537,7 @@ class TestGuardrailsService:
             request_payload = json.loads(captured_request.content)
             assert "byoValidatorName" not in request_payload
 
-        def test_evaluate_guardrail_non_byo_type_does_not_forward_connection_id(
+        def test_evaluate_guardrail_non_byo_type_never_forwards_byo_fields(
             self,
             httpx_mock: HTTPXMock,
             service: GuardrailsService,
@@ -537,8 +545,8 @@ class TestGuardrailsService:
             org: str,
             tenant: str,
         ) -> None:
-            """byoConnectionId is only forwarded for the "byo" sentinel, never leaked
-            into a non-BYOG validator payload even if the field happens to be set."""
+            """BYO fields are only forwarded for the "byo" sentinel, never leaked
+            into a non-BYOG validator payload even if a name happens to be set."""
             captured_request = None
 
             def capture_request(request):
@@ -562,7 +570,7 @@ class TestGuardrailsService:
                 selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
                 guardrail_type="builtInValidator",
                 validator_type="pii_detection",
-                byo_connection_id="stray-conn",
+                byo_validator_name="stray-name",
                 validator_parameters=[],
             )
 
@@ -570,6 +578,7 @@ class TestGuardrailsService:
 
             assert captured_request is not None
             request_payload = json.loads(captured_request.content)
+            assert "byoValidatorName" not in request_payload
             assert "byoConnectionId" not in request_payload
 
         def test_evaluate_guardrail_ootb_omits_byo_validator_name(

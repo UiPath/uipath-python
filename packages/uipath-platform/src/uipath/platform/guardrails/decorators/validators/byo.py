@@ -19,13 +19,13 @@ class ByoValidator(BuiltInGuardrailValidator):
     Azure Content Safety subscription, a vendor connector, or a custom
     Integration Service connector) into UiPath guardrails. An admin first
     creates the configuration under ``Admin -> AI Trust Layer -> Guardrails
-    Configurations``; this validator references it by its validator name and
-    (recommended) Integration Service connection id.
+    Configurations``; this validator references it purely by its validator
+    name, which is unique per tenant. The Integration Service connection to
+    use is resolved server-side from the configuration, so an admin rebind is
+    always honored.
 
     Supported at all stages — BYO validator capabilities are connector-defined
     and cannot be known statically, so no stage restriction is applied here.
-    Configuring a scope or stage the connector does not support surfaces as a
-    ``PROVIDER_ERROR`` at evaluation time.
 
     Example::
 
@@ -35,10 +35,7 @@ class ByoValidator(BuiltInGuardrailValidator):
             guardrail,
         )
 
-        byog_harmful_content = ByoValidator(
-            "byog-harmful-content",
-            connection_id="24887687-6ed1-4fe2-9b87-087ffb232682",
-        )
+        byog_harmful_content = ByoValidator("my-harmful-content-guardrail")
 
         @guardrail(validator=byog_harmful_content, action=BlockAction())
         def summarize(text: str) -> str:
@@ -47,11 +44,7 @@ class ByoValidator(BuiltInGuardrailValidator):
     Args:
         validator_name: The BYOG configuration's validator name
             (``byoValidatorName``), as shown in Admin -> AI Trust Layer ->
-            Guardrails Configurations.
-        connection_id: Optional Integration Service connection id backing the
-            BYOG configuration. Strongly recommended: validator names are only
-            unique per connection, so omitting it lets the server pick the
-            first configuration matching the name.
+            Guardrails Configurations. Unique per tenant.
         parameters: Optional list of validator parameters. BYO parameter
             schemas are connector-defined, so values are passed through as-is.
 
@@ -63,14 +56,12 @@ class ByoValidator(BuiltInGuardrailValidator):
         self,
         validator_name: str,
         *,
-        connection_id: str | None = None,
         parameters: Sequence[ValidatorParameter] | None = None,
     ) -> None:
         """Initialize ByoValidator with a BYOG configuration reference."""
         if not validator_name or not validator_name.strip():
             raise ValueError("validator_name must be a non-empty string")
         self.validator_name = validator_name
-        self.connection_id = connection_id
         self.parameters = list(parameters or [])
 
     def get_built_in_guardrail(
@@ -88,7 +79,7 @@ class ByoValidator(BuiltInGuardrailValidator):
 
         Returns:
             Configured :class:`BuiltInValidatorGuardrail` referencing the BYOG
-            configuration via ``byoValidatorName``/``byoConnectionId``.
+            configuration via ``byoValidatorName``.
         """
         return BuiltInValidatorGuardrail(
             id=str(uuid4()),
@@ -100,5 +91,4 @@ class ByoValidator(BuiltInGuardrailValidator):
             validator_type=BYO_VALIDATOR_TYPE,
             validator_parameters=self.parameters,
             byo_validator_name=self.validator_name,
-            byo_connection_id=self.connection_id,
         )
