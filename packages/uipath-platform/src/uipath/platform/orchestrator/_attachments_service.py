@@ -560,7 +560,11 @@ class AttachmentsService(FolderContext, BaseService):
                 file_content = file.read()
                 if result["BlobFileAccess"]["RequiresAuth"]:
                     self.request(
-                        "PUT", upload_uri, headers=headers, content=file_content
+                        "PUT",
+                        upload_uri,
+                        headers=headers,
+                        content=file_content,
+                        timeout=timeout,
                     )
                 else:
                     with httpx.Client(
@@ -574,7 +578,13 @@ class AttachmentsService(FolderContext, BaseService):
                 content = content.encode("utf-8")
 
             if result["BlobFileAccess"]["RequiresAuth"]:
-                self.request("PUT", upload_uri, headers=headers, content=content)
+                self.request(
+                    "PUT",
+                    upload_uri,
+                    headers=headers,
+                    content=content,
+                    timeout=timeout,
+                )
             else:
                 with httpx.Client(
                     **get_httpx_client_kwargs(timeout=timeout)
@@ -704,7 +714,11 @@ class AttachmentsService(FolderContext, BaseService):
                 file_content = file.read()
                 if result["BlobFileAccess"]["RequiresAuth"]:
                     await self.request_async(
-                        "PUT", upload_uri, headers=headers, content=file_content
+                        "PUT",
+                        upload_uri,
+                        headers=headers,
+                        content=file_content,
+                        timeout=timeout,
                     )
                 else:
                     async with httpx.AsyncClient(
@@ -721,7 +735,11 @@ class AttachmentsService(FolderContext, BaseService):
 
             if result["BlobFileAccess"]["RequiresAuth"]:
                 await self.request_async(
-                    "PUT", upload_uri, headers=headers, content=content
+                    "PUT",
+                    upload_uri,
+                    headers=headers,
+                    content=content,
+                    timeout=timeout,
                 )
             else:
                 async with httpx.AsyncClient(
