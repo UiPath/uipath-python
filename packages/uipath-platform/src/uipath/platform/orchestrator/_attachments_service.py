@@ -586,9 +586,7 @@ class AttachmentsService(FolderContext, BaseService):
                     timeout=timeout,
                 )
             else:
-                with httpx.Client(
-                    **get_httpx_client_kwargs(timeout=timeout)
-                ) as client:
+                with httpx.Client(**get_httpx_client_kwargs(timeout=timeout)) as client:
                     client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
