@@ -53,6 +53,7 @@ def _create_spec(
     action_schema: Optional[TaskSchema],
     title: str,
     app_key: Optional[str] = None,
+    app_name: Optional[str] = None,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
     priority: Optional[str] = None,
@@ -116,7 +117,6 @@ def _create_spec(
                 )
 
     json_payload: Dict[str, Any] = {
-        "appId": app_key,
         "title": title,
         "data": data if data is not None else {},
         "actionableMessageMetaData": actionable_message_metadata
@@ -142,6 +142,13 @@ def _create_spec(
     }
 
     if is_debug:
+        # The app may not be deployed yet, so there is no system name to send as the
+        # app id: Action Center resolves the app from its name and fills the id in.
+        json_payload["appName"] = app_name
+    else:
+        json_payload["appId"] = app_key
+
+    if app_folder_path:
         json_payload["folderPath"] = app_folder_path
 
     _apply_priority_labels_and_actionable_toggle(
@@ -520,7 +527,9 @@ class TasksService(FolderContext, BaseService):
         action_schema: Optional[TaskSchema]
         is_debug = _is_jit_debug_app_task(app_name, app_key)
         if is_debug:
-            key, action_schema = app_name, None
+            # The app may not be deployed yet, so there is nothing to resolve:
+            # send the name and let Action Center resolve the app.
+            key, action_schema = None, None
         else:
             (key, action_schema) = (
                 (app_key, None)
@@ -533,6 +542,7 @@ class TasksService(FolderContext, BaseService):
             title=title,
             data=data,
             app_key=key,
+            app_name=app_name,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -615,7 +625,7 @@ class TasksService(FolderContext, BaseService):
         if is_debug:
             # The app may not be deployed yet, so there is nothing to resolve:
             # send the name and let Action Center resolve the app.
-            key, action_schema = app_name, None
+            key, action_schema = None, None
         else:
             (key, action_schema) = (
                 (app_key, None)
@@ -628,6 +638,7 @@ class TasksService(FolderContext, BaseService):
             title=title,
             data=data,
             app_key=key,
+            app_name=app_name,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,

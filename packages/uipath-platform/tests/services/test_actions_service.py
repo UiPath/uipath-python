@@ -913,9 +913,10 @@ def test_create_jit_sends_app_name_and_folder_path_without_resolving(
 
     assert isinstance(task, Task)
     body = _posted_body(httpx_mock, create_task_url)
-    # The app may not be deployed yet: the name is sent in place of a key and no
-    # deployed-apps lookup happens.
-    assert body["appId"] == "my-inline-app"
+    # The app may not be deployed yet: the name is sent instead of an app id, which
+    # Action Center fills in once it resolves the app. No deployed-apps lookup happens.
+    assert body["appName"] == "my-inline-app"
+    assert "appId" not in body
     assert body["folderPath"] == "Shared/Apps"
     assert body["taskSource"]["isDebug"] is True
     assert not _requested_app_schemas(httpx_mock)
@@ -937,7 +938,8 @@ async def test_create_async_jit_sends_app_name_and_folder_path_without_resolving
 
     assert isinstance(task, Task)
     body = _posted_body(httpx_mock, create_task_url)
-    assert body["appId"] == "my-inline-app"
+    assert body["appName"] == "my-inline-app"
+    assert "appId" not in body
     assert body["folderPath"] == "Shared/Apps"
     assert body["taskSource"]["isDebug"] is True
     assert not _requested_app_schemas(httpx_mock)
@@ -990,7 +992,9 @@ def test_create_skips_jit_when_flag_disabled(
 
     body = _posted_body(httpx_mock, create_task_url)
     assert body["appId"] == "my-app"  # resolved systemName, not the JIT passthrough
-    assert "folderPath" not in body
+    # Action Center rejects a name it is not allowed to resolve, so none is sent.
+    assert "appName" not in body
+    assert body["folderPath"] == "Shared/Apps"
     assert "isDebug" not in body["taskSource"]
     assert _requested_app_schemas(httpx_mock)
 
@@ -1019,7 +1023,7 @@ def test_create_skips_jit_when_not_a_studio_project(
     )
 
     assert _requested_app_schemas(httpx_mock)
-    assert "folderPath" not in _posted_body(httpx_mock, create_task_url)
+    assert _posted_body(httpx_mock, create_task_url)["folderPath"] == "Shared/Apps"
 
 
 def test_create_skips_jit_when_app_key_is_given(
@@ -1040,5 +1044,6 @@ def test_create_skips_jit_when_app_key_is_given(
     # An explicit key means the caller already knows the deployed app.
     body = _posted_body(httpx_mock, create_task_url)
     assert body["appId"] == "test-app-key"
-    assert "folderPath" not in body
+    assert "appName" not in body
+    assert body["folderPath"] == "Shared/Apps"
     assert "isDebug" not in body["taskSource"]
