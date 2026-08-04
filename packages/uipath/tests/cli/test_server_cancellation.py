@@ -7,7 +7,9 @@ cooperatively — which is what these pin, using commands shaped like the real o
 """
 
 import asyncio
+import threading
 import time
+from typing import Any
 
 import click
 import pytest
@@ -25,21 +27,22 @@ def _fresh_state(monkeypatch):
 
 class FakeCallback:
     def __init__(self) -> None:
-        self.results: list[dict] = []
+        self.results: list[dict[str, Any]] = []
         self.done = asyncio.Event()
 
-    async def post_result(self, job_key, payload):
+    async def post_result(self, job_key: str, payload: dict[str, Any]) -> bool:
         self.results.append(payload)
         self.done.set()
         return True
 
-    async def post_logs(self, job_key, lines):
+    async def post_logs(self, job_key: str, lines: list[dict[str, Any]]) -> bool:
         return True
 
 
 # Shaped like the real commands: a click command whose body is asyncio.run(...).
-_started = None
-_cleanup_ran = None
+# Rebound per test by the _events fixture.
+_started = threading.Event()
+_cleanup_ran = threading.Event()
 
 
 @click.command()
@@ -98,12 +101,12 @@ def _blocking_command() -> None:
 @pytest.fixture(autouse=True)
 def _events():
     global _started, _cleanup_ran
-    _started = __import__("threading").Event()
-    _cleanup_ran = __import__("threading").Event()
+    _started = threading.Event()
+    _cleanup_ran = threading.Event()
     yield
 
 
-async def _wait_for(event, timeout=10.0):
+async def _wait_for(event: threading.Event, timeout: float = 10.0) -> None:
     deadline = asyncio.get_running_loop().time() + timeout
     while not event.is_set():
         if asyncio.get_running_loop().time() > deadline:
