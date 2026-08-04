@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 from aiohttp import ClientSession, ClientTimeout, UnixConnector
 
+from ._job_control import JobControl
 from ._server_core import _run_command_isolated, resolve_logs_file_path
 from ._utils._console import ConsoleLogger
 
@@ -179,12 +180,21 @@ def build_result_payload(job_key: str, outcome: dict[str, Any]) -> dict[str, Any
         "stateConveyance": "file",
         "jobConveyance": outcome.get("DocumentConveyance", "file"),
         "job": outcome.get("Document"),
+        # Explicit so the caller reports Stopped rather than Faulted — the runtime's
+        # output.json records a cancelled job as FAULTED/ERROR_CancelledError, which is
+        # the wrong story for a stop the caller itself asked for.
+        "stopped": bool(outcome.get("Stopped")),
     }
 
 
 LOG_POLL_SECONDS = 0.25
 LOG_BATCH_MAX_LINES = 200
 LOG_FLUSH_TIMEOUT_SECONDS = 10
+
+# How long a cancelled job gets to unwind before we admit the stop did not take.
+STOP_GRACE_SECONDS = 30
+# Extra window after escalating to a full loop sweep.
+STOP_ESCALATION_SECONDS = 10
 # ``[2026-07-29 17:04:19,123][INFO] message`` — the format the runtime's file handler
 # emits and that the .NET FileLogsWatcher has always parsed.
 LOG_LINE_RE = re.compile(
@@ -307,6 +317,13 @@ class JobRegistry:
 
     def __init__(self) -> None:
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        # Jobs past the point of no return: executing on a thread, uncancellable.
+        self._running: set[str] = set()
+        # A suspended job resumes under the SAME key, so a stop meant for the previous
+        # run must not kill the resumed one.
+        self._resume_versions: dict[str, int | None] = {}
+        # Handle on each job's own event loop, so a stop can cancel it cooperatively.
+        self._controls: dict[str, JobControl] = {}
 
     def is_active(self, job_key: str) -> bool:
         task = self._tasks.get(job_key)
@@ -320,10 +337,13 @@ class JobRegistry:
         env_vars: dict[str, str],
         working_dir: str | None,
         callback: JobReporter,
+        resume_version: int | None = None,
     ) -> bool:
         """Register and schedule a job. False if one is already in flight for this key."""
         if self.is_active(job_key):
             return False
+
+        self._resume_versions[job_key] = resume_version
 
         task = asyncio.create_task(
             self._run(job_key, cmd, args, env_vars, working_dir, callback)
@@ -334,6 +354,9 @@ class JobRegistry:
 
     def _forget(self, job_key: str) -> None:
         self._tasks.pop(job_key, None)
+        self._running.discard(job_key)
+        self._resume_versions.pop(job_key, None)
+        self._controls.pop(job_key, None)
 
     async def _run(
         self,
@@ -371,11 +394,15 @@ class JobRegistry:
                 tailer = JobLogTailer(job_key, logs_path, callback)
                 tail_task = asyncio.create_task(tailer.run())
 
+            control = JobControl(job_key)
+            self._controls[job_key] = control
             outcome = await _run_command_isolated(
                 cmd,
                 args,
                 env_vars,
                 working_dir,
+                on_started=lambda: self._running.add(job_key),
+                control=control,
             )
         except asyncio.CancelledError:
             # Cancelled before it took the lock — report it rather than going silent,
@@ -388,18 +415,89 @@ class JobRegistry:
 
         await finish(outcome)
 
-    async def stop(self, job_key: str) -> bool:
+    async def stop(self, job_key: str, resume_version: int | None = None) -> bool:
         """Cancel a job that has not started executing yet.
 
-        Once the job is running its body is on a thread via ``asyncio.to_thread``, which
-        cannot be cancelled — so this only removes work that is still queued. Actually
-        interrupting a running job is a separate change.
+        Only queued work can be stopped. Once the job holds the lock its body is on a
+        thread via ``asyncio.to_thread``, which cannot be cancelled cooperatively —
+        cancelling the awaiting task would free the lock and report "cancelled before
+        execution" while the work carried on mutating process globals underneath the
+        next job. Refusing is the honest answer; real cancellation has to be designed
+        inside the runtime itself.
         """
         task = self._tasks.get(job_key)
         if task is None or task.done():
             return True
 
-        task.cancel()
+        # A stop is raised against a specific run. A suspended job resumes under the same
+        # key, so a stop for run N that arrives after N+1 started must not kill N+1.
+        if resume_version is not None:
+            registered = self._resume_versions.get(job_key)
+            if registered is not None and registered != resume_version:
+                console.warning(
+                    f"StopJob for {job_key} ignored: it targets resume version "
+                    f"{resume_version} but the live run is {registered}."
+                )
+                return False
+
+        if job_key not in self._running:
+            # Still queued behind the lock: cancelling the task is enough, and the job
+            # never touched process state.
+            task.cancel()
+            return True
+
+        # Executing. Cancel the job's OWN event loop rather than the awaiting task:
+        # that unwinds the runtime cooperatively, so its context managers run and
+        # output.json still gets written for the caller to fall back on.
+        control = self._controls.get(job_key)
+        if control is None:
+            _server_log(f"StopJob for {job_key}: no control handle")
+            return False
+
+        # Rung 1 — cancel the ROOT task only. The runtime's cleanup then unwinds
+        # normally, which is what writes output.json for the caller to fall back on.
+        # Cancelling everything here would abort that cleanup mid-write.
+        if not control.cancel():
+            _server_log(
+                f"StopJob for {job_key}: the job has not started an event loop yet; "
+                "the request is recorded and applied as soon as it does."
+            )
+
+        task = self._tasks.get(job_key)
+        if task is None:
+            return True
+
+        try:
+            await asyncio.wait_for(asyncio.shield(task), STOP_GRACE_SECONDS)
+            return True
+        except asyncio.TimeoutError:
+            pass
+        except BaseException:
+            # It ended; how it ended is the result push's business.
+            return True
+
+        # Rung 2 — cleanup itself is stuck. Sweep the loop, giving up on a clean
+        # output.json in exchange for releasing the lock.
+        _server_log(
+            f"StopJob for {job_key}: cleanup did not finish in {STOP_GRACE_SECONDS}s; "
+            "cancelling every task on the job's loop."
+        )
+        control.cancel_all()
+
+        try:
+            await asyncio.wait_for(asyncio.shield(task), STOP_ESCALATION_SECONDS)
+            return True
+        except asyncio.TimeoutError:
+            # Rung 3 would be taking the process down, which costs every queued job.
+            # Report the truth instead and let the caller decide.
+            _server_log(
+                f"StopJob for {job_key}: still running — it is blocked in a call that "
+                "cannot be interrupted (a socket read inside an LLM request, typically)."
+            )
+            return False
+        except BaseException:
+            return True
+
         return True
 
 

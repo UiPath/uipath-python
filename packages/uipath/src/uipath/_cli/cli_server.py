@@ -211,6 +211,7 @@ async def handle_start(request: web.Request) -> web.Response:
             env_vars,
             working_dir,
             HandlerCallback(result_callback_socket),
+            resume_version=get_field(message, "resumeVersion", "ResumeVersion"),
         )
         if not accepted:
             return web.json_response(
@@ -267,6 +268,36 @@ async def handle_start(request: web.Request) -> web.Response:
     )
 
 
+async def handle_stop(request: web.Request) -> web.Response:
+    """Stop a job, reporting whether it actually stopped.
+
+    Always 200 with the outcome in the body — 4xx/5xx stay reserved for request-shaped
+    failures, matching how /start already reports a failed job.
+    """
+    job_key = request.match_info.get("job_key")
+    if not job_key:
+        return web.json_response(
+            {"success": False, "error": "Missing job_key"}, status=400
+        )
+
+    try:
+        message: dict[str, Any] = await request.json()
+    except json.JSONDecodeError:
+        message = {}
+
+    resume_version = get_field(message, "resumeVersion", "ResumeVersion")
+    stopped = await get_registry().stop(job_key, resume_version)
+
+    return web.json_response(
+        {
+            "success": True,
+            "job_key": job_key,
+            "contractVersion": CONTRACT_VERSION,
+            "stopped": stopped,
+        }
+    )
+
+
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 
@@ -301,6 +332,7 @@ def create_app() -> web.Application:
     app = web.Application(middlewares=[host_validation_middleware])
     app.router.add_get("/health", handle_health)
     app.router.add_post("/jobs/{job_key}/start", handle_start)
+    app.router.add_post("/jobs/{job_key}/stop", handle_stop)
     return app
 
 
