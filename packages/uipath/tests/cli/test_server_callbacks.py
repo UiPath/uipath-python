@@ -82,6 +82,7 @@ def test_result_payload_carries_the_keys_the_handler_deserializes():
         "stateConveyance",
         "jobConveyance",
         "job",
+        "stopped",
     }
 
 
