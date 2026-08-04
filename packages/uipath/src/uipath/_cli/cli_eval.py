@@ -39,6 +39,7 @@ from uipath.tracing import (
     LlmOpsHttpExporter,
 )
 
+from ._job_control import run_job_loop
 from ._utils._console import ConsoleLogger
 
 logger = logging.getLogger(__name__)
@@ -528,7 +529,7 @@ def eval(
                     finally:
                         await runtime_factory.dispose()
 
-            asyncio.run(execute_eval())
+            run_job_loop(execute_eval())
 
         except _EvalDiscoveryError as e:
             click.echo("\n".join(e.get_usage_help()))

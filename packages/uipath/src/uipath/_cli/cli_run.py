@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 import click
@@ -36,6 +35,7 @@ from uipath.tracing import (
 
 from ._errors import EntrypointDiscoveryException
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
+from ._job_control import run_job_loop
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -330,7 +330,7 @@ def run(
                             finally:
                                 trace_manager.shutdown()
 
-            asyncio.run(execute())
+            run_job_loop(execute())
 
         except _RunDiscoveryError as e:
             click.echo("\n".join(e.get_usage_help()))

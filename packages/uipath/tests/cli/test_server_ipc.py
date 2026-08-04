@@ -201,7 +201,7 @@ class TestIpcServer:
         assert result is True
 
     def test_stop_job_returns_true(self, pipe):
-        """StopJob is a no-op stub today, but must ack (bool) so the call is awaitable."""
+        """StopJob must ack (bool) so the call is awaitable; an unknown key is a no-op."""
         result = asyncio.run(
             _with_proxy(
                 pipe, lambda p: p.StopJob({"JobKey": "job-1", "ForceStop": True})

@@ -56,7 +56,12 @@ class IPythonRuntimeServer(ABC):
 
     @abstractmethod
     async def StopJob(self, request: StopJobRequest) -> bool:
-        """Cancel a running job by key (bool return avoids fire-and-forget)."""
+        """Cancel a running job (bool return avoids fire-and-forget).
+
+        A nested DTO, matching the .NET peer: a suspended job resumes under the same
+        JobKey, so ``ResumeVersion`` is what keeps a stop aimed at the previous run from
+        killing the resumed one.
+        """
 
 
 class PythonRuntimeService(IPythonRuntimeServer):
@@ -86,6 +91,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 request.EnvironmentVariables,
                 request.WorkingDirectory,
                 HandlerCallback(callback_socket),
+                resume_version=request.ResumeVersion,
             )
             if not accepted:
                 return RunJobResult(
@@ -106,11 +112,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
         return RunJobResult(ExitCode=result["ExitCode"], Error=result["Error"])
 
     async def StopJob(self, request: StopJobRequest) -> bool:
-        console.info(
-            f"StopJob requested for {_run_id(request.JobKey, request.ResumeVersion)} "
-            f"(force={request.ForceStop}) (no-op)"
-        )
-        return True
+        return await get_registry().stop(request.JobKey, request.ResumeVersion)
 
 
 async def start_ipc_server(pipe_name: str) -> None:
