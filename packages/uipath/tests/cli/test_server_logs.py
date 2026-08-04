@@ -294,3 +294,52 @@ async def test_tailer_tolerates_a_missing_file(tmp_path):
     await asyncio.wait_for(tailer.run(), timeout=5)
 
     assert callback.batches == []
+
+
+# --------------------------------------------------------------------------- #
+# bounded reads                                                               #
+# --------------------------------------------------------------------------- #
+
+
+async def test_tailer_catches_up_across_multiple_read_windows(tmp_path, monkeypatch):
+    """A job that logs more than one window between polls must still be forwarded in
+    full — bounding the read must not mean dropping the remainder."""
+    import uipath._cli._server_jobs as jobs
+
+    monkeypatch.setattr(jobs, "LOG_READ_CHUNK_BYTES", 512)
+
+    log_file = tmp_path / "execution.log"
+    total = 200  # ~40 bytes each, comfortably several windows
+    log_file.write_bytes(
+        b"".join(b"[2026-07-29 17:00:00,000][INFO] line-%d\n" % i for i in range(total))
+    )
+
+    callback = RecordingCallback()
+    tailer = JobLogTailer("job-1", str(log_file), callback)
+    tailer.stop()
+    await asyncio.wait_for(tailer.run(), timeout=10)
+
+    messages = [line["message"] for line in callback.lines]
+    assert len(messages) == total
+    assert messages[0] == "line-0"
+    assert messages[-1] == f"line-{total - 1}"
+
+
+async def test_tailer_emits_a_line_longer_than_the_read_window(tmp_path, monkeypatch):
+    """A single pathologically long line must not stall the tailer forever: bounded
+    memory beats perfect line integrity here."""
+    import uipath._cli._server_jobs as jobs
+
+    monkeypatch.setattr(jobs, "LOG_READ_CHUNK_BYTES", 64)
+
+    log_file = tmp_path / "execution.log"
+    log_file.write_bytes(b"x" * 500 + b"\n[2026-07-29 17:00:00,000][INFO] after\n")
+
+    callback = RecordingCallback()
+    tailer = JobLogTailer("job-1", str(log_file), callback)
+    tailer.stop()
+    await asyncio.wait_for(tailer.run(), timeout=10)
+
+    joined = "".join(line["message"] for line in callback.lines)
+    assert "x" * 500 in joined, "the long line must be forwarded, even if fragmented"
+    assert any(line["message"] == "after" for line in callback.lines)
