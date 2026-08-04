@@ -539,10 +539,10 @@ async def test_http_stop_reaches_the_registry(monkeypatch):
     registry = _RecordingStopRegistry()
     monkeypatch.setattr(cli_server, "get_registry", lambda: registry)
 
-    response = await cli_server.handle_stop(_FakeRequest("job-1", {}))
+    response = await cli_server.handle_stop(_fake_request("job-1", {}))
 
     assert response.status == 200
-    body = json.loads(response.text)
+    body = _body(response)
     assert body["stopped"] is True
     assert registry.calls == [("job-1", None)]
 
@@ -551,7 +551,7 @@ async def test_http_stop_forwards_the_resume_version(monkeypatch):
     registry = _RecordingStopRegistry()
     monkeypatch.setattr(cli_server, "get_registry", lambda: registry)
 
-    await cli_server.handle_stop(_FakeRequest("job-1", {"resumeVersion": 2}))
+    await cli_server.handle_stop(_fake_request("job-1", {"resumeVersion": 2}))
 
     assert registry.calls == [("job-1", 2)]
 
@@ -562,10 +562,10 @@ async def test_http_stop_reports_a_refused_stop(monkeypatch):
         cli_server, "get_registry", lambda: _RecordingStopRegistry(stopped=False)
     )
 
-    response = await cli_server.handle_stop(_FakeRequest("job-1", {}))
+    response = await cli_server.handle_stop(_fake_request("job-1", {}))
 
     assert response.status == 200
-    assert json.loads(response.text)["stopped"] is False
+    assert _body(response)["stopped"] is False
 
 
 async def test_ipc_stop_forwards_the_dto_fields(monkeypatch):
