@@ -416,14 +416,12 @@ class JobRegistry:
         await finish(outcome)
 
     async def stop(self, job_key: str, resume_version: int | None = None) -> bool:
-        """Cancel a job that has not started executing yet.
+        """Stop a job, whether it is still queued or already executing.
 
-        Only queued work can be stopped. Once the job holds the lock its body is on a
-        thread via ``asyncio.to_thread``, which cannot be cancelled cooperatively —
-        cancelling the awaiting task would free the lock and report "cancelled before
-        execution" while the work carried on mutating process globals underneath the
-        next job. Refusing is the honest answer; real cancellation has to be designed
-        inside the runtime itself.
+        Queued work is cancelled by dropping the waiting task. Executing work is
+        cancelled through the job's own event loop so the runtime unwinds cooperatively.
+        Safe to call repeatedly for the same run: the second request does not deliver a
+        second cancellation.
         """
         task = self._tasks.get(job_key)
         if task is None or task.done():

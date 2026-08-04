@@ -24,6 +24,7 @@ class JobControl:
     def __init__(self, job_key: str) -> None:
         self.job_key = job_key
         self.cancel_requested = False
+        self._delivered = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: "asyncio.Task[Any] | None" = None
         # Bound from the job thread, read from the server loop.
@@ -51,23 +52,29 @@ class JobControl:
             return self._task is not None
 
     def cancel(self) -> bool:
-        """Deliver CancelledError to the job's ROOT task only.
+        """Deliver CancelledError to the job's ROOT task, at most once.
 
-        Call this at most once. A second cancel lands inside the runtime's cleanup
-        ``finally`` blocks — the ones that write ``output.json`` and tear the log
-        interceptor down — and aborts them, which would destroy the very fallback the
-        caller relies on. Escalate with ``cancel_all`` instead.
+        Delivering twice lands the second one inside the runtime's cleanup ``finally``
+        blocks — the ones that write ``output.json`` and tear the log interceptor down —
+        and aborts them, destroying the very fallback the caller relies on. Repeat stops
+        are ordinary (a stop followed by a force-stop escalation), so absorbing them is
+        this object's job rather than every caller's. Escalate with ``cancel_all``.
         """
         with self._sync:
             self.cancel_requested = True
+            if self._delivered:
+                return True
             loop, task = self._loop, self._task
-        if loop is None or task is None:
-            # Not bound yet; bind() will apply it.
-            return False
+            if loop is None or task is None:
+                # Not bound yet; bind() will apply it.
+                return False
+            self._delivered = True
         try:
             loop.call_soon_threadsafe(task.cancel)
         except RuntimeError:
             # Loop already closed — the job is finishing anyway.
+            with self._sync:
+                self._delivered = False
             return False
         return True
 
