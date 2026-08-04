@@ -7,7 +7,7 @@ channels, so the exit code it produces is what BOTH wires report. Click's
 rather than a stub, because it is the whole reason the exit code can be wrong.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import click
 import pytest
@@ -132,7 +132,8 @@ async def _post_start(monkeypatch, command_result: dict[str, Any]) -> web.Respon
         return command_result
 
     monkeypatch.setattr(cli_server, "_run_command_isolated", _fake_isolated)
-    return await cli_server.handle_start(_FakeRequest("job-1", {"command": "run"}))
+    request = cast(web.Request, _FakeRequest("job-1", {"command": "run"}))
+    return await cli_server.handle_start(request)
 
 
 async def test_success_body_carries_exit_code(monkeypatch):
@@ -157,7 +158,7 @@ async def test_failure_body_is_200_but_says_so_and_carries_exit_code(monkeypatch
     )
 
     assert response.status == 200
-    body = response.text
+    body = response.text or ""
     assert '"success": false' in body
     assert '"exitCode": 1' in body
     assert "Exit code: 1" in body
