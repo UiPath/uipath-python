@@ -16,7 +16,7 @@ import enum
 import os
 import re
 import sys
-from typing import Any
+from typing import Any, Protocol
 
 from aiohttp import ClientSession, ClientTimeout, UnixConnector
 
@@ -88,6 +88,18 @@ class _PostOutcome(enum.Enum):
     DELIVERED = "delivered"
     REJECTED = "rejected"  # 4xx — the caller is up and has moved on; do not retry
     UNREACHABLE = "unreachable"  # transport failure or 5xx — worth retrying
+
+
+class JobReporter(Protocol):
+    """Where a job's logs and outcome go.
+
+    All the registry and the tailer need. Kept separate from HandlerCallback so a
+    reporter can be substituted without inheriting the socket transport.
+    """
+
+    async def post_result(self, job_key: str, payload: dict[str, Any]) -> bool: ...
+
+    async def post_logs(self, job_key: str, lines: list[dict[str, Any]]) -> bool: ...
 
 
 class HandlerCallback:
@@ -200,7 +212,7 @@ class JobLogTailer:
     still produced exactly as before, we just also forward it.
     """
 
-    def __init__(self, job_key: str, path: str, callback: "HandlerCallback") -> None:
+    def __init__(self, job_key: str, path: str, callback: "JobReporter") -> None:
         self.job_key = job_key
         self.path = path
         self.callback = callback
@@ -307,7 +319,7 @@ class JobRegistry:
         args: list[str],
         env_vars: dict[str, str],
         working_dir: str | None,
-        callback: HandlerCallback,
+        callback: JobReporter,
     ) -> bool:
         """Register and schedule a job. False if one is already in flight for this key."""
         if self.is_active(job_key):
@@ -330,7 +342,7 @@ class JobRegistry:
         args: list[str],
         env_vars: dict[str, str],
         working_dir: str | None,
-        callback: HandlerCallback,
+        callback: JobReporter,
     ) -> None:
         tailer: JobLogTailer | None = None
         tail_task: "asyncio.Task[None] | None" = None

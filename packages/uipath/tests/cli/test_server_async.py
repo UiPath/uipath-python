@@ -8,10 +8,11 @@ pin both halves, because the blocking half is what every un-upgraded caller stil
 import asyncio
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 import click
 import pytest
+from aiohttp import web
 
 from uipath._cli import _server_core, cli_server, cli_server_ipc
 from uipath._cli._server_core import (
@@ -42,6 +43,9 @@ class FakeCallback:
     async def post_result(self, job_key: str, payload: dict[str, Any]) -> bool:
         self.results.append(payload)
         self.done.set()
+        return True
+
+    async def post_logs(self, job_key: str, lines: list[dict[str, Any]]) -> bool:
         return True
 
 
@@ -261,6 +265,16 @@ class _FakeRequest:
         return self._payload
 
 
+def _fake_request(job_key: str, payload: dict[str, Any]) -> web.Request:
+    """handle_start only touches match_info and json(); the cast keeps mypy honest."""
+    return cast(web.Request, _FakeRequest(job_key, payload))
+
+
+def _body(response: web.Response) -> dict[str, Any]:
+    assert response.text is not None
+    return cast("dict[str, Any]", json.loads(response.text))
+
+
 class _RecordingRegistry:
     def __init__(self, accept: bool = True) -> None:
         self.accept = accept
@@ -276,14 +290,14 @@ async def test_http_start_with_callback_returns_accepted(monkeypatch):
     monkeypatch.setattr(cli_server, "get_registry", lambda: registry)
 
     response = await cli_server.handle_start(
-        _FakeRequest(
+        _fake_request(
             "job-1",
             {"command": "run", "resultCallbackSocket": "/tmp/ack.sock"},
         )
     )
 
     assert response.status == 202
-    body = json.loads(response.text)
+    body = _body(response)
     assert body["disposition"] == "accepted"
     assert body["contractVersion"] == CONTRACT_VERSION
     assert registry.started == ["job-1"]
@@ -295,13 +309,13 @@ async def test_http_start_duplicate_is_409(monkeypatch):
     )
 
     response = await cli_server.handle_start(
-        _FakeRequest(
+        _fake_request(
             "job-1", {"command": "run", "resultCallbackSocket": "/tmp/ack.sock"}
         )
     )
 
     assert response.status == 409
-    assert json.loads(response.text)["success"] is False
+    assert _body(response)["success"] is False
 
 
 async def test_http_start_without_callback_stays_synchronous(monkeypatch):
@@ -319,11 +333,11 @@ async def test_http_start_without_callback_stays_synchronous(monkeypatch):
         lambda: pytest.fail("registry must not be used without a callback socket"),
     )
 
-    response = await cli_server.handle_start(_FakeRequest("job-1", {"command": "run"}))
+    response = await cli_server.handle_start(_fake_request("job-1", {"command": "run"}))
 
     assert called.get("ran") is True
     assert response.status == 200
-    body = json.loads(response.text)
+    body = _body(response)
     assert body["success"] is True
     assert "disposition" not in body
 
@@ -362,7 +376,7 @@ async def test_ipc_start_duplicate_reports_failure(monkeypatch):
 
     assert result.ExitCode == 1
     assert result.Disposition is None
-    assert "already in flight" in result.Error
+    assert "already in flight" in (result.Error or "")
 
 
 async def test_ipc_start_without_callback_stays_synchronous(monkeypatch):
