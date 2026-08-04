@@ -64,6 +64,31 @@ def _quick_async_command() -> None:
 
 
 @click.command()
+def _slow_cleanup_command() -> None:
+    async def body() -> None:
+        try:
+            _started.set()
+            await asyncio.sleep(30)
+        finally:
+            # The real cleanup awaits (flushing traces, closing clients), which is the
+            # window a second cancellation would land in.
+            await asyncio.sleep(0.5)
+            _cleanup_ran.set()
+
+    run_job_loop(body())
+
+
+@click.command()
+def _self_cancelling_command() -> None:
+    async def body() -> None:
+        _started.set()
+        # Nobody asked this job to stop; its own code let a CancelledError escape.
+        raise asyncio.CancelledError()
+
+    run_job_loop(body())
+
+
+@click.command()
 def _blocking_command() -> None:
     # No event loop at all: models a job wedged in a non-cancellable C call.
     _started.set()
@@ -154,6 +179,55 @@ async def test_stop_cancels_a_job_that_is_already_executing(tmp_path):
     await asyncio.wait_for(callback.done.wait(), timeout=10)
     assert callback.results[0]["stopped"] is True
     assert callback.results[0]["exitCode"] == EXIT_CODE_STOPPED
+
+
+async def test_cancel_delivers_a_single_cancellation_however_often_it_is_called():
+    """A second delivery lands in the cleanup and aborts it, so cancel() absorbs it."""
+    control = JobControl("job-1")
+    loop = asyncio.get_running_loop()
+    task = loop.create_task(asyncio.sleep(30))
+    control.bind(loop, task)
+
+    assert control.cancel() is True
+    assert control.cancel() is True
+    assert control.cancel() is True
+
+    await asyncio.gather(task, return_exceptions=True)
+    assert task.cancelling() == 1
+
+
+async def test_a_repeated_stop_does_not_abort_the_cleanup(tmp_path):
+    """A stop followed by a force-stop escalation is ordinary; both must be honoured
+    without the second one interrupting the cleanup that writes output.json."""
+    _server_core._state.init()
+    registry = JobRegistry()
+    callback = FakeCallback()
+
+    registry.start("job-1", _slow_cleanup_command, [], {}, str(tmp_path), callback)
+    await _wait_for(_started)
+
+    first, second = await asyncio.gather(registry.stop("job-1"), registry.stop("job-1"))
+
+    assert (first, second) == (True, True)
+    await asyncio.wait_for(callback.done.wait(), timeout=10)
+    assert _cleanup_ran.is_set(), "the second stop interrupted the job's cleanup"
+    assert callback.results[0]["stopped"] is True
+
+
+async def test_a_self_inflicted_cancellation_is_a_fault_not_a_stop(tmp_path):
+    """`cancelling() == 0` alone does not mean the caller asked for a stop — without a
+    stop request a stray CancelledError is a job failure, and filing it as Stopped
+    would report a fault as a clean stop."""
+    _server_core._state.init()
+    control = JobControl("job-1")
+
+    result = await _server_core._run_command_isolated(
+        _self_cancelling_command, [], {}, str(tmp_path), control=control
+    )
+
+    assert result.get("Stopped") is not True
+    assert result["ExitCode"] != EXIT_CODE_STOPPED
+    assert result["Unexpected"] is True
 
 
 async def test_a_stopped_job_still_unwinds_its_cleanup(tmp_path):

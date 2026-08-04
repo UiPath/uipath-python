@@ -175,20 +175,30 @@ async def _invoke_command(
             "Unexpected": False,
         }
     except asyncio.CancelledError:
-        # Two very different things arrive here. cancelling() > 0 means OUR awaiting task
-        # was cancelled (server shutdown) — never swallow that, or the shutdown stalls.
-        # 0 means the CancelledError travelled out of the job's own loop, i.e. our StopJob
-        # landed: that is an OUTCOME, and swallowing it keeps this task alive so the lock
-        # unwinds and the result document still gets read.
+        # Three very different things arrive here.
         current = asyncio.current_task()
         if current is not None and current.cancelling() > 0:
+            # OUR awaiting task was cancelled (server shutdown). Never swallow that, or
+            # the shutdown stalls.
             raise
+        if control is not None and control.cancel_requested:
+            # A stop we asked for travelled out of the job's own loop. That is an
+            # OUTCOME: swallowing it keeps this task alive so the lock unwinds and the
+            # result document still gets read.
+            return {
+                "ExitCode": EXIT_CODE_STOPPED,
+                "Error": "Job stopped on request",
+                "Result": None,
+                "Unexpected": False,
+                "Stopped": True,
+            }
+        # Nobody asked for this: the job's own code let a CancelledError escape. It is a
+        # failure, and reporting it as Stopped would file a fault as a clean stop.
         return {
-            "ExitCode": EXIT_CODE_STOPPED,
-            "Error": "Job stopped on request",
+            "ExitCode": 1,
+            "Error": "Job cancelled",
             "Result": None,
-            "Unexpected": False,
-            "Stopped": True,
+            "Unexpected": True,
         }
     except Exception as e:  # report any job failure as a result, not a fault
         return {"ExitCode": 1, "Error": str(e), "Result": None, "Unexpected": True}
