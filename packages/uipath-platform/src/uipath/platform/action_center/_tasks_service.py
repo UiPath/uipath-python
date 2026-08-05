@@ -12,7 +12,7 @@ from uipath.platform.constants import (
 )
 
 from ..common._base_service import BaseService
-from ..common._bindings import resource_override
+from ..common._bindings import resource_override, resource_override_applied
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
@@ -525,6 +525,9 @@ class TasksService(FolderContext, BaseService):
         is_debug = _is_jit_debug_app_task(app_name, app_key)
         if is_debug:
             key, action_schema = None, None
+            # pass app_folder_path only when a deployed app is used
+            if not resource_override_applied():
+                app_folder_path = None
         else:
             (key, action_schema) = (
                 (app_key, None)
@@ -618,9 +621,9 @@ class TasksService(FolderContext, BaseService):
         action_schema: Optional[TaskSchema]
         is_debug = _is_jit_debug_app_task(app_name, app_key)
         if is_debug:
-            # The app may not be deployed yet, so there is nothing to resolve:
-            # send the name and let Action Center resolve the app.
-            key, action_schema = None, None
+            # pass app_folder_path only when a deployed app is used
+            if not resource_override_applied():
+                app_folder_path = None
         else:
             (key, action_schema) = (
                 (app_key, None)

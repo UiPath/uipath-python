@@ -15,6 +15,7 @@ from ._bindings import (
     ResourceOverwriteParser,
     ResourceOverwritesContext,
     resource_override,
+    resource_override_applied,
 )
 from ._config import UiPathApiConfig, UiPathConfig
 from ._endpoints_manager import EndpointManager
@@ -120,6 +121,7 @@ __all__ = [
     "get_ca_bundle_path",
     "get_httpx_client_kwargs",
     "resource_override",
+    "resource_override_applied",
     "header_folder",
     "validate_pagination_params",
     "EndpointManager",

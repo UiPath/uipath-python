@@ -215,6 +215,22 @@ class ResourceOverwritesContext:
             _resource_overwrites.reset(self._token)
 
 
+_override_applied: ContextVar[bool] = ContextVar(
+    "resource_override_applied", default=False
+)
+
+
+def resource_override_applied() -> bool:
+    """Whether `@resource_override` matched an override for the running call.
+
+    Call this from inside a function decorated with `@resource_override`. When it
+    returns True, the resource and folder identifier arguments already hold the
+    overridden values. Returns False when nothing matched, when no
+    `ResourceOverwritesContext` is active, or when called outside a decorated call.
+    """
+    return _override_applied.get()
+
+
 def resource_override(
     resource_type: str,
     resource_identifier: str = "name",
@@ -240,8 +256,12 @@ def resource_override(
     def decorator(func: Callable[..., Any]):
         sig = inspect.signature(func)
 
-        def process_args(args, kwargs) -> dict[str, Any]:
-            """Process arguments and apply resource overrides if applicable."""
+        def process_args(args, kwargs) -> tuple[dict[str, Any], bool]:
+            """Process arguments and apply resource overrides if applicable.
+
+            Returns the arguments to call the function with, and whether an
+            override was matched and applied.
+            """
             # convert both args and kwargs to single dict
             bound = sig.bind_partial(*args, **kwargs)
             bound.apply_defaults()
@@ -255,6 +275,7 @@ def resource_override(
 
             # Get overwrites from context variable
             context_overwrites = _resource_overwrites.get()
+            applied = False
 
             if context_overwrites is not None:
                 resource_identifier_value = all_args.get(resource_identifier)
@@ -273,6 +294,7 @@ def resource_override(
 
                 # Apply the matched overwrite
                 if matched_overwrite is not None:
+                    applied = True
                     old_resource = all_args.get(resource_identifier)
                     old_folder = all_args.get(folder_identifier)
                     if resource_identifier in sig.parameters:
@@ -302,22 +324,30 @@ def resource_override(
                         func.__name__,
                     )
 
-            return all_args
+            return all_args, applied
 
         if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
-                all_args = process_args(args, kwargs)
-                return await func(**all_args)
+                all_args, applied = process_args(args, kwargs)
+                token = _override_applied.set(applied)
+                try:
+                    return await func(**all_args)
+                finally:
+                    _override_applied.reset(token)
 
             return async_wrapper
         else:
 
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                all_args = process_args(args, kwargs)
-                return func(**all_args)
+                all_args, applied = process_args(args, kwargs)
+                token = _override_applied.set(applied)
+                try:
+                    return func(**all_args)
+                finally:
+                    _override_applied.reset(token)
 
             return wrapper
 
