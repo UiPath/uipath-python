@@ -262,11 +262,6 @@ class BaseService:
         else:
             scoped_url = self._url.scope_url(str(url), scoped)
 
-        if "CreateAppTask" in scoped_url:
-            scoped_url = "https://localhost:7233/v1/tasks/AppTasks/CreateAppTask"
-            kwargs["headers"]["X-UiPath-Internal-TenantId"] = "4872fd02-4d23-4d7a-b287-3295332e284f"
-            print("headers", kwargs["headers"])
-
         response = await self._client_async.request(method, scoped_url, **kwargs)
 
         try:
