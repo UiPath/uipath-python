@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 TESTCASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 SAMPLE_DIR="$(cd "$TESTCASE_DIR/../../samples/simulate-component-agent" && pwd)"
@@ -22,6 +22,7 @@ echo "Authenticating with UiPath..."
 echo "Running agent with debug + component simulation..."
 "$UIPATH_BIN" debug main \
     -f input.json \
+    --attach none \
     --simulation "$(cat simulation.json)" 2>&1 | tee "$TESTCASE_DIR/run.log"
 
 # Copy the runtime output file back to the testcase dir for assert.py

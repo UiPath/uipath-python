@@ -239,7 +239,9 @@ def debug(
                             if schema.metadata and "settings" in schema.metadata:
                                 agent_model = schema.metadata["settings"].get("model")
 
-                            delegate_runtime = debug_runtime
+                            delegate_runtime: UiPathDebugRuntime | UiPathMockRuntime = (
+                                debug_runtime
+                            )
                             if simulation_config:
                                 mocking_context = build_mocking_context(
                                     simulation_config, agent_model
