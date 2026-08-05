@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import AsyncExitStack
 from typing import Any
 
 import click
@@ -10,18 +11,24 @@ from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
+from uipath.platform import UiPath
 from uipath.platform.common import (
     ExecutionSourceContext,
     ResourceOverwritesContext,
     UiPathConfig,
 )
 from uipath.runtime import (
+    ConversationalWorkspaceRuntime,
+    HydrationRuntime,
     UiPathExecuteOptions,
     UiPathRuntimeFactoryProtocol,
     UiPathRuntimeFactoryRegistry,
     UiPathRuntimeProtocol,
     UiPathRuntimeResult,
     UiPathStreamOptions,
+    Workspace,
+    WorkspaceHydrator,
+    WorkspaceRegistryStore,
 )
 from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.context import UiPathRuntimeContext
@@ -219,6 +226,11 @@ def run(
                         base_runtime: UiPathRuntimeProtocol | None = None
                         runtime: UiPathRuntimeProtocol | None = None
                         chat_runtime: UiPathRuntimeProtocol | None = None
+                        workspace: Workspace | None = None
+                        hydration_runtime: HydrationRuntime | None = None
+                        conversational_workspace_runtime: (
+                            ConversationalWorkspaceRuntime | None
+                        ) = None
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         governance_bootstrap: GovernanceBootstrap | None = None
                         try:
@@ -293,6 +305,51 @@ def run(
                                         mocking_context=mocking_context,
                                     )
 
+                            if (
+                                ctx.job_id is not None
+                                and factory_settings is not None
+                                and factory_settings.managed_workspace
+                            ):
+                                storage = await factory.get_storage()
+                                if storage is None:
+                                    raise RuntimeError(
+                                        "Runtime factory advertises managed workspace "
+                                        "support but provides no storage"
+                                    )
+
+                                client = UiPath()
+                                workspace = Workspace.create()
+                                workspace.path = workspace.path.resolve()
+                                hydrator = WorkspaceHydrator(
+                                    workspace_path=workspace.path,
+                                    attachments=client.attachments,
+                                    jobs=client.jobs,
+                                    current_job_key=ctx.job_id,
+                                    folder_key=ctx.folder_key,
+                                )
+                                registry_store = WorkspaceRegistryStore(
+                                    storage, ctx.job_id
+                                )
+                                hydration_runtime = HydrationRuntime(
+                                    runtime,
+                                    workspace=workspace,
+                                    hydrator=hydrator,
+                                    registry_store=registry_store,
+                                )
+                                runtime = hydration_runtime
+
+                                if (
+                                    ctx.conversation_id is not None
+                                    and ctx.exchange_id is not None
+                                ):
+                                    conversational_workspace_runtime = (
+                                        ConversationalWorkspaceRuntime(
+                                            hydration_runtime,
+                                            hydrator=hydrator,
+                                        )
+                                    )
+                                    runtime = conversational_workspace_runtime
+
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:
                                     trace_manager.add_span_processor(
@@ -316,19 +373,31 @@ def run(
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
-                            try:
-                                if chat_runtime:
-                                    await chat_runtime.dispose()
+                            cleanup = AsyncExitStack()
+                            cleanup.callback(trace_manager.shutdown)
+                            if factory:
+                                cleanup.push_async_callback(factory.dispose)
+                            if governance_bootstrap is not None:
+                                cleanup.callback(governance_bootstrap.dispose)
+                            if base_runtime is not None and (
+                                hydration_runtime is None
+                                or hydration_runtime.delegate is not base_runtime
+                            ):
+                                cleanup.push_async_callback(base_runtime.dispose)
+                            if hydration_runtime is None:
                                 if runtime is not None and runtime is not base_runtime:
-                                    await runtime.dispose()
-                                if base_runtime is not None:
-                                    await base_runtime.dispose()
-                                if governance_bootstrap is not None:
-                                    governance_bootstrap.dispose()
-                                if factory:
-                                    await factory.dispose()
-                            finally:
-                                trace_manager.shutdown()
+                                    cleanup.push_async_callback(runtime.dispose)
+                                if workspace is not None:
+                                    cleanup.push_async_callback(workspace.dispose)
+                            if hydration_runtime is not None:
+                                cleanup.push_async_callback(hydration_runtime.dispose)
+                            if conversational_workspace_runtime is not None:
+                                cleanup.push_async_callback(
+                                    conversational_workspace_runtime.dispose
+                                )
+                            if chat_runtime:
+                                cleanup.push_async_callback(chat_runtime.dispose)
+                            await cleanup.aclose()
 
             asyncio.run(execute())
 
