@@ -273,6 +273,14 @@ class SocketIOChatBridge:
         finally:
             await self._cleanup_client()
 
+    def _require_client(self) -> Any:
+        client = self._client
+        if client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+        return client
+
     async def emit_message_event(
         self, message_event: UiPathConversationMessageEvent
     ) -> None:
@@ -284,11 +292,7 @@ class SocketIOChatBridge:
         Raises:
             RuntimeError: If client is not connected
         """
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
-
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+        client = self._require_client()
 
         try:
             # Wrap message event with conversation/exchange IDs
@@ -309,11 +313,36 @@ class SocketIOChatBridge:
                     f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
             else:
-                await self._client.emit("ConversationEvent", event_data)
+                await client.emit("ConversationEvent", event_data)
 
             # Store the current message ID, used for emitting interrupt events.
             self._current_message_id = message_event.message_id
 
+        except Exception as e:
+            logger.error(f"Error sending conversation event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send conversation event: {e}") from e
+
+    async def emit_meta_event(self, meta_event: dict[str, Any]) -> None:
+        """Send an exchange-scoped conversation metadata event."""
+        client = self._require_client()
+
+        try:
+            event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    meta_event=meta_event,
+                ),
+            )
+            event_data = event.model_dump(mode="json", exclude_none=True, by_alias=True)
+
+            if self._websocket_disabled:
+                logger.info(
+                    "SocketIOChatBridge is in debug mode. Not sending event: %s",
+                    json.dumps(event_data),
+                )
+            else:
+                await client.emit("ConversationEvent", event_data)
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
@@ -331,11 +360,7 @@ class SocketIOChatBridge:
             logger.info("end_exchange is False; leaving the exchange open.")
             return
 
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
-
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+        client = self._require_client()
 
         try:
             exchange_end_event = UiPathConversationEvent(
@@ -355,7 +380,7 @@ class SocketIOChatBridge:
                     f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
             else:
-                await self._client.emit("ConversationEvent", event_data)
+                await client.emit("ConversationEvent", event_data)
 
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
@@ -371,11 +396,7 @@ class SocketIOChatBridge:
         Args:
             error: The exception that caused the error.
         """
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
-
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+        client = self._require_client()
 
         # Extract and map error to CAS-specific error ID and message.
         cas_error_id, cas_message = _resolve_cas_error(error)
@@ -403,7 +424,7 @@ class SocketIOChatBridge:
                     f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
             else:
-                await self._client.emit("ConversationEvent", event_data)
+                await client.emit("ConversationEvent", event_data)
 
         except Exception as e:
             logger.error(f"Error sending exchange error event to WebSocket: {e}")
