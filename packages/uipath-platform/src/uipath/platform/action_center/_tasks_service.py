@@ -142,8 +142,6 @@ def _create_spec(
     }
 
     if is_debug:
-        # The app may not be deployed yet, so there is no system name to send as the
-        # app id: Action Center resolves the app from its name and fills the id in.
         json_payload["appName"] = app_name
     else:
         json_payload["appId"] = app_key
@@ -197,8 +195,7 @@ def _apply_task_source(
     """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
 
     Shared between AppTask and QuickForm spec builders — the taskSource block is
-    identical for both task types. ``is_debug`` marks a JIT task so Action Center
-    resolves the app from the name and folder path on the payload.
+    identical for both task types.
     """
     project_id = UiPathConfig.project_id
     trace_id = UiPathConfig.trace_id
@@ -527,8 +524,6 @@ class TasksService(FolderContext, BaseService):
         action_schema: Optional[TaskSchema]
         is_debug = _is_jit_debug_app_task(app_name, app_key)
         if is_debug:
-            # The app may not be deployed yet, so there is nothing to resolve:
-            # send the name and let Action Center resolve the app.
             key, action_schema = None, None
         else:
             (key, action_schema) = (
