@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TESTCASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-SAMPLE_DIR="$(cd "$TESTCASE_DIR/../../samples/simulate-component-agent" && pwd)"
+SAMPLE_DIR="$(cd "$TESTCASE_DIR/../../samples/runtime-simulations-agent" && pwd)"
 
 echo "Syncing testcase dependencies (local editable uipath)..."
 uv sync --project "$TESTCASE_DIR"
@@ -19,7 +19,7 @@ echo "Authenticating with UiPath..."
     --client-secret="$CLIENT_SECRET" \
     --base-url="$BASE_URL"
 
-echo "Running agent with debug + component simulation..."
+echo "Running agent with debug + simulation..."
 "$UIPATH_BIN" debug main \
     -f input.json \
     --attach none \

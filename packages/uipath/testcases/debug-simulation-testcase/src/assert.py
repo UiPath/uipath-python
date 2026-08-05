@@ -13,38 +13,45 @@ assert status == "successful", f"Agent execution failed with status: {status}"
 
 output = output_data.get("output", {})
 
-# ── 2. Verify weather report structure ────────────────────────────────────────
-assert "current" in output, "Missing 'current' in output"
-assert "forecast" in output, "Missing 'forecast' in output"
+assert "syntax" in output, "Missing 'syntax' in output"
+assert "style" in output, "Missing 'style' in output"
+assert "improvements" in output, "Missing 'improvements' in output"
 assert "summary" in output, "Missing 'summary' in output"
 
-current = output["current"]
-assert "city" in current, "Missing 'city' in current weather"
-assert "temperature" in current, "Missing 'temperature' in current weather"
-assert "condition" in current, "Missing 'condition' in current weather"
-assert "humidity" in current, "Missing 'humidity' in current weather"
+assert isinstance(output["syntax"]["valid"], bool), "'syntax.valid' must be a bool"
+assert isinstance(output["syntax"]["errors"], list), "'syntax.errors' must be a list"
 
-assert isinstance(current["temperature"], (int, float)), (
-    "'temperature' must be a number"
+score = output["style"]["score"]
+assert isinstance(score, int), "'style.score' must be an int"
+assert 0 <= score <= 100, f"'style.score' out of range: {score}"
+assert isinstance(output["style"]["violations"], list), (
+    "'style.violations' must be a list"
 )
-assert isinstance(current["humidity"], int), "'humidity' must be an int"
 
-# ── 3. Verify simulation produced non-default values ─────────────────────────
-# Real tool impls return: temperature=20.0, condition="unknown", humidity=50,
-# forecast=[]. The component simulation should return richer output.
+assert isinstance(output["improvements"]["suggestions"], list), (
+    "'improvements.suggestions' must be a list"
+)
+assert isinstance(output["improvements"]["refactored_snippet"], str), (
+    "'improvements.refactored_snippet' must be a str"
+)
+
+# ── 2. Verify simulation produced non-default values ─────────────────────────
+# Real tool impls always return: score=100, violations=[], suggestions=[].
+# The LLM simulation should detect issues in the input code and return richer output.
 simulated_something = (
-    current["condition"] != "unknown"
-    or current["humidity"] != 50
-    or len(output["forecast"]) > 0
+    score < 100
+    or len(output["style"]["violations"]) > 0
+    or len(output["improvements"]["suggestions"]) > 0
 )
 assert simulated_something, (
     "Output matches hardcoded real-tool defaults — simulation may not have run. "
-    f"condition={current['condition']}, humidity={current['humidity']}, "
-    f"forecast_len={len(output['forecast'])}"
+    f"style.score={score}, violations={output['style']['violations']}, "
+    f"suggestions={output['improvements']['suggestions']}"
 )
 
 print(
-    f"Simulation confirmed: condition={current['condition']}, "
-    f"humidity={current['humidity']}, forecast_days={len(output['forecast'])}"
+    f"Simulation confirmed: score={score}, "
+    f"violations={len(output['style']['violations'])}, "
+    f"suggestions={len(output['improvements']['suggestions'])}"
 )
 print("All assertions passed.")
