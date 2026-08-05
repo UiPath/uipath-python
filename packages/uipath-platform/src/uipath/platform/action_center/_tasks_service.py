@@ -154,6 +154,8 @@ def _create_spec(
     )
     _apply_task_source(json_payload, source_name, is_debug=is_debug)
 
+    print('Calling Create App Task', json_payload)
+
     return RequestSpec(
         method="POST",
         endpoint=Endpoint("/orchestrator_/tasks/AppTasks/CreateAppTask"),
