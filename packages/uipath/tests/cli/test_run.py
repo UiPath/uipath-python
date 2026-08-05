@@ -1,14 +1,25 @@
 # type: ignore
+import hashlib
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
+from uuid import UUID
 
 import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
+from uipath.runtime import (
+    ConversationalWorkspaceRuntime,
+    HydrationRuntime,
+    UiPathRuntimeFactorySettings,
+    UiPathRuntimeResult,
+    UiPathRuntimeStatus,
+    get_workspace_path,
+)
 
 
 def _middleware_continue():
@@ -321,6 +332,311 @@ class TestRun:
                 with open(output_file_path, "r") as f:
                     output = f.read()
                     assert output.count("Hello world") >= 2
+
+        def test_installs_workspace_runtimes_before_chat_runtime(
+            self,
+            runner: CliRunner,
+            temp_dir: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ):
+            factory = _make_mock_factory(["main"])
+            base_runtime = factory.new_runtime.return_value
+            storage = Mock()
+            factory.get_storage = AsyncMock(return_value=storage)
+            factory.get_settings = AsyncMock(
+                return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+            )
+            chat_bridge = Mock()
+            chat_runtime = Mock(
+                execute=AsyncMock(return_value=Mock()),
+                dispose=AsyncMock(),
+            )
+            client = Mock(attachments=Mock(), jobs=Mock())
+
+            monkeypatch.setenv("UIPATH_JOB_KEY", "00000000-0000-0000-0000-000000000001")
+            monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with open("uipath.json", "w") as file:
+                    json.dump(
+                        {
+                            "fpsProperties": {
+                                "conversationalService.conversationId": "conversation-id",
+                                "conversationalService.exchangeId": "exchange-id",
+                            }
+                        },
+                        file,
+                    )
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPath",
+                        return_value=client,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.get_chat_bridge",
+                        return_value=chat_bridge,
+                    ),
+                    patch("uipath._cli.cli_run.UiPathChatRuntime") as chat_runtime_type,
+                ):
+                    chat_runtime_type.return_value = chat_runtime
+                    result = runner.invoke(cli, ["run", "main"])
+
+            assert result.exit_code == 0, (
+                f"output: {result.output!r}, exception: {result.exception}"
+            )
+            wrapped_runtime = chat_runtime_type.call_args.kwargs["delegate"]
+            assert isinstance(wrapped_runtime, ConversationalWorkspaceRuntime)
+            assert isinstance(wrapped_runtime.delegate, HydrationRuntime)
+            assert wrapped_runtime.delegate.delegate is base_runtime
+            assert wrapped_runtime.registry_store is None
+            assert (
+                wrapped_runtime.delegate.registry_store.runtime_id
+                == "00000000-0000-0000-0000-000000000001"
+            )
+            assert not wrapped_runtime.delegate.workspace.path.exists()
+            factory.get_storage.assert_awaited_once()
+            chat_runtime.dispose.assert_awaited_once()
+            base_runtime.dispose.assert_awaited_once()
+
+        def test_suspended_workspace_takes_precedence_over_conversation_snapshot(
+            self,
+            runner: CliRunner,
+            temp_dir: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ):
+            conversation_attachment_key = UUID(int=1)
+            suspended_attachment_key = UUID(int=2)
+            job_key = UUID(int=3)
+            attachment_contents = {
+                conversation_attachment_key: b"conversation",
+                suspended_attachment_key: b"suspended",
+            }
+
+            async def download_attachment(key, destination_path, **_):
+                Path(destination_path).write_bytes(attachment_contents[key])
+
+            attachments = Mock(
+                download_async=AsyncMock(side_effect=download_attachment),
+                upload_async=AsyncMock(return_value=UUID(int=4)),
+            )
+            client = Mock(
+                attachments=attachments,
+                jobs=Mock(link_attachment_async=AsyncMock()),
+            )
+            storage = Mock(
+                get_value=AsyncMock(
+                    return_value={
+                        "notes.txt": {
+                            "attachment_key": str(suspended_attachment_key),
+                            "sha256": hashlib.sha256(b"suspended").hexdigest(),
+                            "size": len(b"suspended"),
+                            "uploaded_at": "2026-01-01T00:00:00+00:00",
+                            "attachment_name": ".uipath-workspace~1notes.txt",
+                        }
+                    }
+                ),
+                set_value=AsyncMock(),
+            )
+            observed_contents = []
+
+            async def stream_runtime(*_, **__):
+                observed_contents.append(
+                    (get_workspace_path() / "notes.txt").read_text(encoding="utf-8")
+                )
+                yield UiPathRuntimeResult(status=UiPathRuntimeStatus.SUCCESSFUL)
+
+            base_runtime = Mock(
+                stream=Mock(side_effect=stream_runtime),
+                dispose=AsyncMock(),
+            )
+            factory = Mock(
+                discover_entrypoints=Mock(return_value=["main"]),
+                new_runtime=AsyncMock(return_value=base_runtime),
+                get_settings=AsyncMock(
+                    return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+                ),
+                get_storage=AsyncMock(return_value=storage),
+                dispose=AsyncMock(),
+            )
+            chat_runtime = Mock(dispose=AsyncMock())
+
+            async def execute_chat(input, options):
+                workspace_runtime = chat_runtime_type.call_args.kwargs["delegate"]
+                return await workspace_runtime.execute(input, options=options)
+
+            chat_runtime.execute = AsyncMock(side_effect=execute_chat)
+
+            monkeypatch.setenv("UIPATH_JOB_KEY", str(job_key))
+            monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+            input = {
+                "uipath__conversation_meta_events": [
+                    {
+                        "metaEvent": {
+                            "workspaceFiles": [
+                                {
+                                    "path": "notes.txt",
+                                    "attachmentKey": str(conversation_attachment_key),
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with open("uipath.json", "w") as file:
+                    json.dump(
+                        {
+                            "fpsProperties": {
+                                "conversationalService.conversationId": "conversation-id",
+                                "conversationalService.exchangeId": "exchange-id",
+                            }
+                        },
+                        file,
+                    )
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                    patch("uipath._cli.cli_run.UiPath", return_value=client),
+                    patch("uipath._cli.cli_run.get_chat_bridge"),
+                    patch("uipath._cli.cli_run.UiPathChatRuntime") as chat_runtime_type,
+                ):
+                    chat_runtime_type.return_value = chat_runtime
+                    result = runner.invoke(
+                        cli,
+                        ["run", "main", json.dumps(input)],
+                    )
+
+            assert result.exit_code == 0, (
+                f"output: {result.output!r}, exception: {result.exception}"
+            )
+            assert observed_contents == ["suspended"]
+            downloaded_keys = [
+                call.kwargs["key"]
+                for call in attachments.download_async.await_args_list
+            ]
+            assert downloaded_keys == [
+                conversation_attachment_key,
+                suspended_attachment_key,
+            ]
+            base_runtime.dispose.assert_awaited_once()
+
+        def test_disposes_runtime_when_managed_workspace_has_no_storage(
+            self,
+            runner: CliRunner,
+            temp_dir: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ):
+            factory = _make_mock_factory(["main"])
+            base_runtime = factory.new_runtime.return_value
+            factory.get_settings = AsyncMock(
+                return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+            )
+            factory.get_storage = AsyncMock(return_value=None)
+
+            monkeypatch.setenv("UIPATH_JOB_KEY", "job-id")
+            monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with open("uipath.json", "w") as file:
+                    json.dump({}, file)
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                ):
+                    runner.invoke(cli, ["run", "main"])
+
+            base_runtime.dispose.assert_awaited_once()
+            factory.dispose.assert_awaited_once()
+
+        def test_cleanup_continues_after_workspace_construction_failure(
+            self,
+            runner: CliRunner,
+            temp_dir: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ):
+            factory = _make_mock_factory(["main"])
+            base_runtime = factory.new_runtime.return_value
+            factory.get_settings = AsyncMock(
+                return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+            )
+            factory.get_storage = AsyncMock(return_value=Mock())
+            workspace = Mock(
+                path=Path(temp_dir),
+                dispose=AsyncMock(side_effect=RuntimeError("cleanup failed")),
+            )
+
+            monkeypatch.setenv("UIPATH_JOB_KEY", "job-id")
+            monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with open("uipath.json", "w") as file:
+                    json.dump({}, file)
+
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                    patch("uipath._cli.cli_run.UiPath"),
+                    patch(
+                        "uipath._cli.cli_run.Workspace.create",
+                        return_value=workspace,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.WorkspaceHydrator",
+                        side_effect=RuntimeError("construction failed"),
+                    ),
+                ):
+                    runner.invoke(cli, ["run", "main"])
+
+            workspace.dispose.assert_awaited_once()
+            base_runtime.dispose.assert_awaited_once()
+            factory.dispose.assert_awaited_once()
 
     def test_no_main_function_found(
         self,

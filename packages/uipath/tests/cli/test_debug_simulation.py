@@ -19,6 +19,11 @@ from uipath.eval.mocks._types import (
     LLMMockingStrategy,
     MockingContext,
 )
+from uipath.runtime import (
+    ConversationalWorkspaceRuntime,
+    HydrationRuntime,
+    UiPathRuntimeFactorySettings,
+)
 
 MOCK_RUNTIME_PATCH_PATH = "uipath.eval.mocks._mock_runtime"
 
@@ -335,6 +340,196 @@ class TestDebugCommandSimulationIntegration:
 
                                 # Verify UiPathMockRuntime was still instantiated
                                 assert mock_mock_runtime_class.called
+
+    def test_installs_workspace_runtimes_in_debug_chain(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        base_runtime = Mock(
+            get_schema=AsyncMock(return_value=Mock(metadata=None)),
+            dispose=AsyncMock(),
+        )
+        factory = Mock(
+            new_runtime=AsyncMock(return_value=base_runtime),
+            get_settings=AsyncMock(
+                return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+            ),
+            get_storage=AsyncMock(return_value=Mock()),
+            dispose=AsyncMock(),
+        )
+        client = Mock(attachments=Mock(), jobs=Mock())
+        chat_runtime = Mock(dispose=AsyncMock())
+        debug_runtime = Mock(dispose=AsyncMock())
+        mock_runtime = Mock(
+            execute=AsyncMock(return_value=Mock()),
+            dispose=AsyncMock(),
+        )
+
+        monkeypatch.setenv("UIPATH_JOB_KEY", "00000000-0000-0000-0000-000000000001")
+        monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as file:
+                json.dump(
+                    {
+                        "fpsProperties": {
+                            "conversationalService.conversationId": "conversation-id",
+                            "conversationalService.exchangeId": "exchange-id",
+                        }
+                    },
+                    file,
+                )
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        info_message=None,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch("uipath._cli.cli_debug.UiPath", return_value=client),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch("uipath._cli.cli_debug.get_chat_bridge"),
+                patch("uipath._cli.cli_debug.UiPathChatRuntime") as chat_runtime_type,
+                patch("uipath._cli.cli_debug.UiPathDebugRuntime") as debug_runtime_type,
+                patch("uipath._cli.cli_debug.UiPathMockRuntime") as mock_runtime_type,
+            ):
+                chat_runtime_type.return_value = chat_runtime
+                debug_runtime_type.return_value = debug_runtime
+                mock_runtime_type.return_value = mock_runtime
+                result = runner.invoke(cli, ["debug", "main", "{}"])
+
+        assert result.exit_code == 0, (
+            f"output: {result.output!r}, exception: {result.exception}"
+        )
+        workspace_runtime = chat_runtime_type.call_args.kwargs["delegate"]
+        assert isinstance(workspace_runtime, ConversationalWorkspaceRuntime)
+        assert isinstance(workspace_runtime.delegate, HydrationRuntime)
+        assert workspace_runtime.delegate.delegate is base_runtime
+        assert workspace_runtime.registry_store is None
+        assert (
+            workspace_runtime.delegate.registry_store.runtime_id
+            == "00000000-0000-0000-0000-000000000001"
+        )
+        assert debug_runtime_type.call_args.kwargs["delegate"] is chat_runtime
+        assert mock_runtime_type.call_args.kwargs["delegate"] is debug_runtime
+        assert not workspace_runtime.delegate.workspace.path.exists()
+        factory.get_storage.assert_awaited_once()
+        mock_runtime.dispose.assert_awaited_once()
+        debug_runtime.dispose.assert_awaited_once()
+        chat_runtime.dispose.assert_awaited_once()
+        base_runtime.dispose.assert_awaited_once()
+
+    def test_disposes_runtime_when_managed_workspace_has_no_storage(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        base_runtime = Mock(dispose=AsyncMock())
+        factory = Mock(
+            new_runtime=AsyncMock(return_value=base_runtime),
+            get_settings=AsyncMock(
+                return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+            ),
+            get_storage=AsyncMock(return_value=None),
+            dispose=AsyncMock(),
+        )
+
+        monkeypatch.setenv("UIPATH_JOB_KEY", "job-id")
+        monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as file:
+                json.dump({}, file)
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        info_message=None,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+            ):
+                runner.invoke(cli, ["debug", "main", "{}"])
+
+        base_runtime.dispose.assert_awaited_once()
+        factory.dispose.assert_awaited_once()
+
+    def test_cleanup_continues_after_workspace_construction_failure(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        base_runtime = Mock(dispose=AsyncMock())
+        factory = Mock(
+            new_runtime=AsyncMock(return_value=base_runtime),
+            get_settings=AsyncMock(
+                return_value=UiPathRuntimeFactorySettings(managed_workspace=True)
+            ),
+            get_storage=AsyncMock(return_value=Mock()),
+            dispose=AsyncMock(),
+        )
+        workspace = Mock(
+            path=Path(temp_dir),
+            dispose=AsyncMock(side_effect=RuntimeError("cleanup failed")),
+        )
+
+        monkeypatch.setenv("UIPATH_JOB_KEY", "job-id")
+        monkeypatch.setenv("UIPATH_TRACING_ENABLED", "false")
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as file:
+                json.dump({}, file)
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        info_message=None,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch("uipath._cli.cli_debug.UiPath"),
+                patch(
+                    "uipath._cli.cli_debug.Workspace.create",
+                    return_value=workspace,
+                ),
+                patch(
+                    "uipath._cli.cli_debug.WorkspaceHydrator",
+                    side_effect=RuntimeError("construction failed"),
+                ),
+            ):
+                runner.invoke(cli, ["debug", "main", "{}"])
+
+        workspace.dispose.assert_awaited_once()
+        base_runtime.dispose.assert_awaited_once()
+        factory.dispose.assert_awaited_once()
 
     def test_simulation_config_enables_tool_mocking(
         self, temp_dir: str, valid_simulation_config: dict[str, Any]
