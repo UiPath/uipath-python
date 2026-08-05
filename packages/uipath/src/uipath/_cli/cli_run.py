@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import AsyncExitStack
 from typing import Any
 
 import click
@@ -36,6 +37,7 @@ from uipath.tracing import (
 
 from ._errors import EntrypointDiscoveryException
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
+from ._managed_workspace import wrap_with_managed_workspace
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -218,7 +220,10 @@ def run(
                     with ExecutionSourceContext(ctx.execution_source), ctx:
                         base_runtime: UiPathRuntimeProtocol | None = None
                         runtime: UiPathRuntimeProtocol | None = None
+                        workspace_delegate: UiPathRuntimeProtocol | None = None
                         chat_runtime: UiPathRuntimeProtocol | None = None
+                        managed_workspace_created = False
+                        managed_workspace_cleanup = AsyncExitStack()
                         factory: UiPathRuntimeFactoryProtocol | None = None
                         governance_bootstrap: GovernanceBootstrap | None = None
                         try:
@@ -293,6 +298,21 @@ def run(
                                         mocking_context=mocking_context,
                                     )
 
+                            workspace_delegate = runtime
+                            runtime = await wrap_with_managed_workspace(
+                                workspace_delegate,
+                                context=ctx,
+                                factory=factory,
+                                enabled=bool(
+                                    factory_settings
+                                    and factory_settings.managed_workspace
+                                ),
+                                cleanup=managed_workspace_cleanup,
+                            )
+                            managed_workspace_created = (
+                                runtime is not workspace_delegate
+                            )
+
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:
                                     trace_manager.add_span_processor(
@@ -316,19 +336,26 @@ def run(
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:
-                            try:
-                                if chat_runtime:
-                                    await chat_runtime.dispose()
+                            cleanup = AsyncExitStack()
+                            cleanup.callback(trace_manager.shutdown)
+                            if factory:
+                                cleanup.push_async_callback(factory.dispose)
+                            if governance_bootstrap is not None:
+                                cleanup.callback(governance_bootstrap.dispose)
+                            if base_runtime is not None and (
+                                not managed_workspace_created
+                                or workspace_delegate is not base_runtime
+                            ):
+                                cleanup.push_async_callback(base_runtime.dispose)
+                            if not managed_workspace_created:
                                 if runtime is not None and runtime is not base_runtime:
-                                    await runtime.dispose()
-                                if base_runtime is not None:
-                                    await base_runtime.dispose()
-                                if governance_bootstrap is not None:
-                                    governance_bootstrap.dispose()
-                                if factory:
-                                    await factory.dispose()
-                            finally:
-                                trace_manager.shutdown()
+                                    cleanup.push_async_callback(runtime.dispose)
+                            cleanup.push_async_callback(
+                                managed_workspace_cleanup.aclose
+                            )
+                            if chat_runtime:
+                                cleanup.push_async_callback(chat_runtime.dispose)
+                            await cleanup.aclose()
 
             asyncio.run(execute())
 
