@@ -368,6 +368,225 @@ class TestDebugCommandSimulationIntegration:
             # Clean up
             clear_execution_context()
 
+
+_SIMULATION_JSON = {
+    "enabled": True,
+    "toolsToSimulate": [{"name": "check_syntax"}, {"name": "check_style"}],
+    "instructions": "Simulate.",
+}
+
+_COMPONENT_SIMULATION_JSON = {
+    "enabled": True,
+    "components": [
+        {
+            "componentId": "get_current_weather",
+            "componentType": "tool",
+            "simulationStrategy": 0,
+            "simulationInstruction": "Return realistic weather data",
+        },
+        {
+            "componentId": "get_forecast",
+            "componentType": "tool",
+            "simulationStrategy": 0,
+            "simulationInstruction": "Return a multi-day forecast",
+        },
+    ],
+}
+
+
+class TestDebugSimulationFlag:
+    """Tests for the --simulation flag on the debug command."""
+
+    def _make_debug_patches(self):
+        """Create common mock objects for debug command tests."""
+        mock_runtime = Mock()
+        mock_runtime.dispose = AsyncMock()
+        mock_runtime.get_schema = AsyncMock(return_value=Mock(metadata=None))
+
+        mock_factory = Mock()
+        mock_factory.new_runtime = AsyncMock(return_value=mock_runtime)
+        mock_factory.get_settings = AsyncMock(return_value=Mock(trace_settings=None))
+        mock_factory.dispose = AsyncMock()
+
+        mock_debug_runtime = Mock()
+        mock_debug_runtime.dispose = AsyncMock()
+
+        return mock_factory, mock_runtime, mock_debug_runtime
+
+    def test_invalid_simulation_json_exits_with_error(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            result = runner.invoke(
+                cli, ["debug", "main", "--simulation", "{ not valid json }"]
+            )
+        assert result.exit_code == 1
+        assert "Invalid" in result.output
+
+    def test_simulation_flag_wraps_runtime_with_mock_runtime(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        mock_factory, mock_runtime, mock_debug_runtime = self._make_debug_patches()
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        info_message=None,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=mock_factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch(
+                    "uipath._cli.cli_debug.UiPathDebugRuntime",
+                    return_value=mock_debug_runtime,
+                ),
+                patch("uipath._cli.cli_debug.UiPathMockRuntime") as mock_cls,
+            ):
+                mock_cls.return_value = Mock(
+                    execute=AsyncMock(
+                        return_value=Mock(status="SUCCESSFUL", output={})
+                    ),
+                    dispose=AsyncMock(),
+                )
+                runner.invoke(
+                    cli,
+                    [
+                        "debug",
+                        "main",
+                        "{}",
+                        "--simulation",
+                        json.dumps(_SIMULATION_JSON),
+                    ],
+                )
+
+            assert mock_cls.called
+            assert mock_cls.call_args.kwargs["mocking_context"] is not None
+            assert mock_cls.call_args.kwargs["delegate"] is mock_debug_runtime
+
+    def test_simulation_flag_disabled_does_not_wrap_runtime(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        mock_factory, mock_runtime, mock_debug_runtime = self._make_debug_patches()
+        disabled = {**_SIMULATION_JSON, "enabled": False}
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        info_message=None,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=mock_factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch(
+                    "uipath._cli.cli_debug.UiPathDebugRuntime",
+                    return_value=mock_debug_runtime,
+                ),
+                patch("uipath._cli.cli_debug.UiPathMockRuntime") as mock_cls,
+                patch(
+                    "uipath._cli.cli_debug.load_simulation_config",
+                    return_value=None,
+                ),
+            ):
+                mock_debug_runtime.execute = AsyncMock(
+                    return_value=Mock(status="SUCCESSFUL", output={})
+                )
+                runner.invoke(
+                    cli,
+                    ["debug", "main", "{}", "--simulation", json.dumps(disabled)],
+                )
+
+            assert not mock_cls.called
+
+    def test_simulation_flag_with_component_format(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        """Test that --simulation with new component format sets components on MockingContext."""
+        mock_factory, mock_runtime, mock_debug_runtime = self._make_debug_patches()
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_debug.Middlewares.next",
+                    return_value=MiddlewareResult(
+                        should_continue=True,
+                        info_message=None,
+                        error_message=None,
+                        should_include_stacktrace=False,
+                    ),
+                ),
+                patch(
+                    "uipath._cli.cli_debug.UiPathRuntimeFactoryRegistry.get",
+                    return_value=mock_factory,
+                ),
+                patch("uipath._cli.cli_debug.get_debug_bridge"),
+                patch(
+                    "uipath._cli.cli_debug.UiPathDebugRuntime",
+                    return_value=mock_debug_runtime,
+                ),
+                patch("uipath._cli.cli_debug.UiPathMockRuntime") as mock_cls,
+            ):
+                mock_cls.return_value = Mock(
+                    execute=AsyncMock(
+                        return_value=Mock(status="SUCCESSFUL", output={})
+                    ),
+                    dispose=AsyncMock(),
+                )
+                runner.invoke(
+                    cli,
+                    [
+                        "debug",
+                        "main",
+                        "{}",
+                        "--simulation",
+                        json.dumps(_COMPONENT_SIMULATION_JSON),
+                    ],
+                )
+
+            assert mock_cls.called
+            mocking_context = mock_cls.call_args.kwargs["mocking_context"]
+            assert mocking_context is not None
+            assert mocking_context.components is not None
+            assert len(mocking_context.components) == 2
+            assert mocking_context.components[0].component_id == "get_current_weather"
+            assert mocking_context.components[1].component_id == "get_forecast"
+            assert mocking_context.strategy is None
+
     def test_middleware_short_circuits_before_mock_runtime(
         self,
         runner: CliRunner,

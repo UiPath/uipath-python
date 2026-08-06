@@ -3,13 +3,14 @@ import logging
 from typing import Any, cast, get_args
 
 import click
+from pydantic import ValidationError
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import DebugAttachMode, get_debug_bridge
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli._utils._tracing import create_trace_manager
-from uipath.eval.mocks import UiPathMockRuntime
+from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.eval.mocks._mock_runtime import load_simulation_config
 from uipath.platform.common import (
     ExecutionSourceContext,
@@ -79,6 +80,12 @@ logger = logging.getLogger(__name__)
         "'console' for local runs."
     ),
 )
+@click.option(
+    "--simulation",
+    required=False,
+    default=None,
+    help="Simulation config as a JSON object (same schema as simulation.json)",
+)
 @track_command("debug")
 def debug(
     entrypoint: str | None,
@@ -90,12 +97,21 @@ def debug(
     debug: bool,
     debug_port: int,
     attach: str | None,
+    simulation: str | None,
 ) -> None:
     """Debug the project."""
     input_file = file or input_file
     # Setup debugging if requested
     if not setup_debugging(debug, debug_port):
         console.error(f"Failed to start debug server on port {debug_port}")
+
+    simulation_config: SimulationConfig | None = None
+    if simulation:
+        try:
+            simulation_config = SimulationConfig.model_validate_json(simulation)
+        except (ValidationError, ValueError) as e:
+            console.error(f"Invalid --simulation config: {e}")
+            return
 
     attach_mode: DebugAttachMode | None = (
         cast(DebugAttachMode, attach.lower()) if attach else None
@@ -223,22 +239,35 @@ def debug(
                             if schema.metadata and "settings" in schema.metadata:
                                 agent_model = schema.metadata["settings"].get("model")
 
-                            mocking_context = load_simulation_config(
-                                agent_model=agent_model
+                            delegate_runtime: UiPathDebugRuntime | UiPathMockRuntime = (
+                                debug_runtime
                             )
-
-                            mock_runtime = UiPathMockRuntime(
-                                delegate=debug_runtime,
-                                mocking_context=mocking_context,
-                            )
+                            if simulation_config:
+                                mocking_context = build_mocking_context(
+                                    simulation_config, agent_model
+                                )
+                                if mocking_context:
+                                    delegate_runtime = UiPathMockRuntime(
+                                        delegate=debug_runtime,
+                                        mocking_context=mocking_context,
+                                    )
+                            else:
+                                mocking_context = load_simulation_config(
+                                    agent_model=agent_model
+                                )
+                                delegate_runtime = UiPathMockRuntime(
+                                    delegate=debug_runtime,
+                                    mocking_context=mocking_context,
+                                )
 
                             try:
-                                ctx.result = await mock_runtime.execute(
+                                ctx.result = await delegate_runtime.execute(
                                     ctx.get_input(),
                                     options=UiPathExecuteOptions(resume=resume),
                                 )
                             finally:
-                                await mock_runtime.dispose()
+                                if delegate_runtime is not debug_runtime:
+                                    await delegate_runtime.dispose()
                                 await debug_runtime.dispose()
                                 if chat_runtime:
                                     await chat_runtime.dispose()

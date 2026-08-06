@@ -9,6 +9,9 @@ Run with real tools (no weather API — returns hardcoded defaults):
 
 Run with per-component simulation (routes each tool call to the API):
     uipath run main -f input.json --simulation "$(cat simulation.json)"
+
+Debug with per-component simulation:
+    uipath debug main -f input.json --simulation "$(cat simulation.json)"
 """
 
 from pydantic import BaseModel
