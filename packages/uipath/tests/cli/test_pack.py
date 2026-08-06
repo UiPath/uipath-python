@@ -5,6 +5,7 @@ import os
 import zipfile
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 from utils.project_details import ProjectDetails
 
@@ -1460,3 +1461,177 @@ class TestPack:
             assert (
                 "We recommend using a single type for all entrypoints" in result.output
             )
+
+
+class TestPackMetadataConflicts:
+    """Test that project files cannot shadow generated package metadata."""
+
+    def _setup_project(self, project_details: ProjectDetails, pack_options=None):
+        with open("uipath.json", "w") as f:
+            json.dump(create_uipath_json(pack_options=pack_options), f)
+        with open("pyproject.toml", "w") as f:
+            f.write(project_details.to_toml())
+        with open("main.py", "w") as f:
+            f.write("def main(input): return input")
+        create_bindings_file()
+        create_entry_points_file()
+
+    @pytest.mark.parametrize(
+        "conflicting_file",
+        ["operate.json", "package-descriptor.json", "bindings_v2.json"],
+    )
+    def test_pack_fails_when_metadata_file_exists_in_project(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        conflicting_file: str,
+    ) -> None:
+        """Test that a project file named like generated metadata blocks packing."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._setup_project(project_details)
+            with open(conflicting_file, "w") as f:
+                json.dump({"stale": True}, f)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 1
+            assert "These project files clash with generated package metadata:" in (
+                result.output
+            )
+            assert f"- {conflicting_file}" in result.output
+            assert "packOptions.filesExcluded" in result.output
+            assert "specs/uipath.spec.md#4-packoptions" in result.output
+            assert not os.path.exists(
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+
+    def test_pack_reports_all_conflicting_files(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that every conflicting file is listed, not just the first one."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._setup_project(project_details)
+            for conflicting_file in ("operate.json", "package-descriptor.json"):
+                with open(conflicting_file, "w") as f:
+                    json.dump({}, f)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 1
+            assert "- operate.json" in result.output
+            assert "- package-descriptor.json" in result.output
+
+    def test_pack_conflict_detection_is_case_insensitive(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that a case variant is rejected, since extraction is case-insensitive."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._setup_project(project_details)
+            with open("Operate.json", "w") as f:
+                json.dump({}, f)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 1
+            assert "- Operate.json" in result.output
+
+    def test_pack_allows_metadata_names_in_subdirectories(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that the same file name below the project root is not a conflict."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._setup_project(project_details)
+            os.makedirs("fixtures")
+            with open(os.path.join("fixtures", "operate.json"), "w") as f:
+                json.dump({"fixture": True}, f)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 0
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                names = z.namelist()
+                assert "content/fixtures/operate.json" in names
+                assert names.count("content/operate.json") == 1
+
+    def test_pack_succeeds_when_conflicting_file_is_excluded(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that packOptions.filesExcluded resolves the conflict."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._setup_project(
+                project_details, pack_options={"filesExcluded": ["operate.json"]}
+            )
+            with open("operate.json", "w") as f:
+                json.dump({"stale": True}, f)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 0
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                names = z.namelist()
+                assert names.count("content/operate.json") == 1
+                assert json.loads(z.read("content/operate.json")) != {"stale": True}
+
+    def test_nupkg_has_no_duplicate_entries(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that a packed project never contains duplicate archive entries."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._setup_project(project_details)
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+            assert result.exit_code == 0
+
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                names = z.namelist()
+                assert len(names) == len(set(names))
+
+    def test_pack_without_bindings_file(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+    ) -> None:
+        """Test that packing works when bindings.json is absent."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump(create_uipath_json(), f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("def main(input): return input")
+            create_entry_points_file()
+
+            result = runner.invoke(cli, ["pack", "./"], env={})
+
+            assert result.exit_code == 0, result.output
+            nupkg_path = (
+                f".uipath/{project_details.name}.{project_details.version}.nupkg"
+            )
+            with zipfile.ZipFile(nupkg_path, "r") as z:
+                assert "content/bindings_v2.json" not in z.namelist()
