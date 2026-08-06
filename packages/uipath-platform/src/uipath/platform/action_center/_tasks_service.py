@@ -3,6 +3,7 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional
 
+from uipath.core.feature_flags import FeatureFlags
 from uipath.core.tracing import traced
 
 from uipath.platform.constants import (
@@ -11,13 +12,15 @@ from uipath.platform.constants import (
 )
 
 from ..common._base_service import BaseService
-from ..common._bindings import resource_override
+from ..common._bindings import resource_override, resource_override_applied
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
+
+_JIT_ESCALATION_APPS_FEATURE_FLAG = "EnableJITEscalationApps"
 
 
 def _ensure_string_value(value: Any) -> str:
@@ -27,11 +30,30 @@ def _ensure_string_value(value: Any) -> str:
     return str(value) if value else ""
 
 
+def _is_jit_debug_app_task(app_name: Optional[str], app_key: Optional[str]) -> bool:
+    """Return whether this app task must be created just-in-time (JIT).
+
+    During a debug run an app task may target an app that is not deployed yet,
+    so neither an app key nor an action schema can be resolved from the
+    deployed-apps endpoint. Such a task is instead created with the app *name*
+    and folder path, and Action Center resolves the app itself.
+
+    Gated on the ``EnableJITEscalationApps`` feature flag. An explicit
+    ``app_key`` always wins, since the caller already knows the deployed app.
+    """
+    if FeatureFlags.is_flag_enabled(_JIT_ESCALATION_APPS_FEATURE_FLAG, default=False):
+        if app_key or not app_name:
+            return False
+        return UiPathConfig.is_studio_project
+    return False
+
+
 def _create_spec(
     data: Optional[Dict[str, Any]],
     action_schema: Optional[TaskSchema],
     title: str,
     app_key: Optional[str] = None,
+    app_name: Optional[str] = None,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
     priority: Optional[str] = None,
@@ -39,6 +61,7 @@ def _create_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
+    is_debug: bool = False,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -94,7 +117,6 @@ def _create_spec(
                 )
 
     json_payload: Dict[str, Any] = {
-        "appId": app_key,
         "title": title,
         "data": data if data is not None else {},
         "actionableMessageMetaData": actionable_message_metadata
@@ -119,10 +141,20 @@ def _create_spec(
         ),
     }
 
+    if is_debug:
+        json_payload["appName"] = app_name
+    else:
+        json_payload["appId"] = app_key
+
+    if app_folder_path:
+        json_payload["folderPath"] = app_folder_path
+
     _apply_priority_labels_and_actionable_toggle(
         json_payload, priority, labels, is_actionable_message_enabled
     )
-    _apply_task_source(json_payload, source_name)
+    _apply_task_source(json_payload, source_name, is_debug=is_debug)
+
+    print('Calling Create App Task', json_payload)
 
     return RequestSpec(
         method="POST",
@@ -159,7 +191,9 @@ def _apply_priority_labels_and_actionable_toggle(
         payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
 
-def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
+def _apply_task_source(
+    payload: Dict[str, Any], source_name: str, is_debug: bool = False
+) -> None:
     """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
 
     Shared between AppTask and QuickForm spec builders — the taskSource block is
@@ -178,7 +212,10 @@ def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
         },
+        "jobId": UiPathConfig.job_key,
     }
+    if is_debug:
+        payload["taskSource"]["isDebug"] = True
 
 
 def _normalize_priority(priority: str | None) -> str | None:
@@ -485,17 +522,27 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else await self._get_app_key_and_schema_async(
-                app_name, app_folder_path, app_folder_key
+        key: Optional[str]
+        action_schema: Optional[TaskSchema]
+        is_debug = _is_jit_debug_app_task(app_name, app_key)
+        if is_debug:
+            key, action_schema = None, None
+            # pass app_folder_path only when a deployed app is used
+            if not resource_override_applied():
+                app_folder_path = None
+        else:
+            (key, action_schema) = (
+                (app_key, None)
+                if app_key
+                else await self._get_app_key_and_schema_async(
+                    app_name, app_folder_path, app_folder_key
+                )
             )
-        )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
+            app_name=app_name,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -504,6 +551,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            is_debug=is_debug,
         )
 
         response = await self.request_async(
@@ -571,15 +619,26 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else self._get_app_key_and_schema(app_name, app_folder_path, app_folder_key)
-        )
+        key: Optional[str]
+        action_schema: Optional[TaskSchema]
+        is_debug = _is_jit_debug_app_task(app_name, app_key)
+        if is_debug:
+            # pass app_folder_path only when a deployed app is used
+            if not resource_override_applied():
+                app_folder_path = None
+        else:
+            (key, action_schema) = (
+                (app_key, None)
+                if app_key
+                else self._get_app_key_and_schema(
+                    app_name, app_folder_path, app_folder_key
+                )
+            )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
+            app_name=app_name,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -588,6 +647,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            is_debug=is_debug,
         )
 
         response = self.request(
