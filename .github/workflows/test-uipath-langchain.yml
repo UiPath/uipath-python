@@ -6,19 +6,19 @@ on:
 
 jobs:
   build-wheels:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     permissions:
       contents: read
     if: contains(github.event.pull_request.labels.*.name, 'test:uipath-langchain')
     steps:
       - name: Checkout uipath-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.12"
 
@@ -35,7 +35,7 @@ jobs:
         run: uv build
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: uipath-wheels
           path: packages/*/dist/*.whl
@@ -53,27 +53,27 @@ jobs:
 
     steps:
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Download wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: uipath-wheels
           path: wheels
 
       - name: Checkout uipath-langchain-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
 
       - name: Checkout uipath-python scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           path: _scripts
           sparse-checkout: .github/scripts
@@ -91,7 +91,7 @@ jobs:
           uv run pytest
 
   discover-testcases:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     permissions:
       contents: read
     needs: [test-uipath-langchain]
@@ -99,7 +99,7 @@ jobs:
       testcases: ${{ steps.discover.outputs.testcases }}
     steps:
       - name: Checkout uipath-langchain-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
@@ -119,7 +119,7 @@ jobs:
           echo "testcases=$testcases_json" >> $GITHUB_OUTPUT
 
   run-uipath-langchain-integration-tests:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     needs: [build-wheels, discover-testcases]
     container:
       image: ghcr.io/astral-sh/uv:python3.12-bookworm
@@ -139,19 +139,19 @@ jobs:
 
     steps:
       - name: Download wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: uipath-wheels
           path: wheels
 
       - name: Checkout uipath-langchain-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           repository: 'UiPath/uipath-langchain-python'
           path: 'uipath-langchain-python'
 
       - name: Checkout uipath-python scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           path: _scripts
           sparse-checkout: .github/scripts
@@ -187,12 +187,12 @@ jobs:
   notify-on-failure:
     needs: [test-uipath-langchain, run-uipath-langchain-integration-tests]
     if: always() && contains(github.event.pull_request.labels.*.name, 'test:uipath-langchain') && (needs.test-uipath-langchain.result == 'failure' || needs.run-uipath-langchain-integration-tests.result == 'failure')
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     permissions:
       pull-requests: write
     steps:
       - name: Comment on PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7.1.0
         with:
           script: |
             const marker = '<!-- cross-test-failure:uipath-langchain -->';

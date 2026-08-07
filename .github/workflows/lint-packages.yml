@@ -8,18 +8,18 @@ permissions:
 
 jobs:
   detect-changed-packages:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
       count: ${{ steps.detect.outputs.count }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.11'
 
@@ -34,7 +34,7 @@ jobs:
   lint-uipath-core:
     name: Lint uipath-core
     needs: detect-changed-packages
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     steps:
       - name: Check if package changed
         id: check
@@ -51,17 +51,17 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version-file: "packages/uipath-core/.python-version"
 
@@ -88,7 +88,7 @@ jobs:
   lint-uipath-platform:
     name: Lint uipath-platform
     needs: detect-changed-packages
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     steps:
       - name: Check if package changed
         id: check
@@ -105,17 +105,17 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version-file: "packages/uipath-platform/.python-version"
 
@@ -142,7 +142,7 @@ jobs:
   lint-uipath:
     name: Lint uipath
     needs: detect-changed-packages
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     steps:
       - name: Check if package changed
         id: check
@@ -159,17 +159,17 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version-file: "packages/uipath/.python-version"
 
@@ -201,7 +201,7 @@ jobs:
   lint-gate:
     name: Lint
     needs: [lint-uipath-core, lint-uipath-platform, lint-uipath]
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     if: always()
     steps:
       - name: Check lint results

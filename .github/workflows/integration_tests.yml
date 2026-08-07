@@ -11,18 +11,18 @@ permissions:
 
 jobs:
   detect-changed-packages:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
       count: ${{ steps.detect.outputs.count }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.11'
 
@@ -37,13 +37,13 @@ jobs:
   discover-testcases:
     needs: [detect-changed-packages]
     if: needs.detect-changed-packages.outputs.count > 0
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     outputs:
       testcases: ${{ steps.discover.outputs.testcases }}
       count: ${{ steps.discover.outputs.count }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
     - name: Discover testcases
       id: discover
@@ -75,7 +75,7 @@ jobs:
   integration-tests:
     needs: [discover-testcases]
     if: needs.discover-testcases.outputs.count > 0
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     container:
       image: ghcr.io/astral-sh/uv:python3.12-bookworm
       env:
@@ -91,7 +91,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
     - name: Install dependencies
       working-directory: packages/${{ matrix.testcase.package }}
@@ -125,7 +125,7 @@ jobs:
 
   summarize-results:
     needs: [detect-changed-packages, discover-testcases, integration-tests]
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     if: always()
     steps:
       - name: Check integration tests status

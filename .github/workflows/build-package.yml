@@ -23,21 +23,21 @@ permissions:
 jobs:
   build:
     name: Build ${{ inputs.package }}
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     defaults:
       run:
         working-directory: packages/${{ inputs.package }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version-file: "packages/${{ inputs.package }}/.python-version"
 
@@ -72,7 +72,7 @@ jobs:
         run: uv build --no-sources --package ${{ inputs.package }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: release-dists-${{ inputs.package }}
           path: packages/${{ inputs.package }}/dist/
