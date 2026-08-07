@@ -10,6 +10,7 @@ import pytest
 
 from uipath._cli._chat._bridge import SocketIOChatBridge, get_chat_bridge
 from uipath._cli._debug._bridge import SignalRDebugBridge
+from uipath.core.chat import UiPathConversationMessageEvent
 from uipath.core.triggers import UiPathApiTrigger, UiPathResumeTrigger
 from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
@@ -361,6 +362,130 @@ class TestSocketIOChatBridgeConnectionStates:
             await bridge.emit_exchange_end_event()
 
         assert "not connected" in str(exc_info.value).lower()
+
+    @pytest.mark.anyio
+    async def test_emit_message_event_sends_when_connected(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._client = AsyncMock()
+        bridge._connected_event.set()
+
+        await bridge.emit_message_event(
+            UiPathConversationMessageEvent(message_id="msg-123")
+        )
+
+        bridge._client.emit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_emit_exchange_error_event_sends_when_connected(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._client = AsyncMock()
+        bridge._connected_event.set()
+
+        await bridge.emit_exchange_error_event(ValueError("failed"))
+
+        bridge._client.emit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_emit_meta_event_sends_exchange_scoped_event(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._client = AsyncMock()
+        bridge._connected_event.set()
+
+        await bridge.emit_meta_event(
+            {"workspaceFiles": [{"path": "plan.md", "attachmentKey": "key-1"}]}
+        )
+
+        bridge._client.emit.assert_awaited_once_with(
+            "ConversationEvent",
+            {
+                "conversationId": "conv-123",
+                "exchange": {
+                    "exchangeId": "exch-456",
+                    "metaEvent": {
+                        "workspaceFiles": [
+                            {"path": "plan.md", "attachmentKey": "key-1"}
+                        ]
+                    },
+                },
+            },
+        )
+
+    @pytest.mark.anyio
+    async def test_emit_meta_event_requires_client(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+
+        with pytest.raises(RuntimeError, match="not connected"):
+            await bridge.emit_meta_event({})
+
+    @pytest.mark.anyio
+    async def test_emit_meta_event_requires_connected_client(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._client = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="not in connected state"):
+            await bridge.emit_meta_event({})
+
+    @pytest.mark.anyio
+    async def test_emit_meta_event_does_not_send_in_debug_mode(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._client = AsyncMock()
+        bridge._websocket_disabled = True
+
+        await bridge.emit_meta_event({"workspaceFiles": []})
+
+        bridge._client.emit.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_emit_meta_event_wraps_send_error(self) -> None:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+        )
+        bridge._client = AsyncMock()
+        bridge._client.emit.side_effect = ValueError("socket failed")
+        bridge._connected_event.set()
+
+        with pytest.raises(RuntimeError, match="Failed to send conversation event"):
+            await bridge.emit_meta_event({})
 
 
 class TestSocketIOChatBridgeEndExchange:
