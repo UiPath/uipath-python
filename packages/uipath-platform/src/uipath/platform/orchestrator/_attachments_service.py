@@ -451,6 +451,7 @@ class AttachmentsService(FolderContext, BaseService):
         content: str | bytes,
         folder_key: str | None = None,
         folder_path: str | None = None,
+        timeout: float = 30.0,
     ) -> uuid.UUID: ...
 
     @overload
@@ -461,6 +462,7 @@ class AttachmentsService(FolderContext, BaseService):
         source_path: str,
         folder_key: str | None = None,
         folder_path: str | None = None,
+        timeout: float = 30.0,
     ) -> uuid.UUID: ...
 
     @traced(
@@ -476,6 +478,7 @@ class AttachmentsService(FolderContext, BaseService):
         source_path: str | None = None,
         folder_key: str | None = None,
         folder_path: str | None = None,
+        timeout: float = 30.0,
     ) -> uuid.UUID:
         """Upload a file or content to UiPath as an attachment.
 
@@ -488,6 +491,7 @@ class AttachmentsService(FolderContext, BaseService):
             source_path (str | None): The local path of the file to upload.
             folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
             folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
+            timeout (float): Request timeout in seconds. Defaults to 30.0.
 
         Returns:
             uuid.UUID: The UUID of the created attachment.
@@ -556,10 +560,16 @@ class AttachmentsService(FolderContext, BaseService):
                 file_content = file.read()
                 if result["BlobFileAccess"]["RequiresAuth"]:
                     self.request(
-                        "PUT", upload_uri, headers=headers, content=file_content
+                        "PUT",
+                        upload_uri,
+                        headers=headers,
+                        content=file_content,
+                        timeout=timeout,
                     )
                 else:
-                    with httpx.Client(**get_httpx_client_kwargs()) as client:
+                    with httpx.Client(
+                        **get_httpx_client_kwargs(timeout=timeout)
+                    ) as client:
                         client.put(upload_uri, headers=headers, content=file_content)
         else:
             # Upload from memory
@@ -568,9 +578,15 @@ class AttachmentsService(FolderContext, BaseService):
                 content = content.encode("utf-8")
 
             if result["BlobFileAccess"]["RequiresAuth"]:
-                self.request("PUT", upload_uri, headers=headers, content=content)
+                self.request(
+                    "PUT",
+                    upload_uri,
+                    headers=headers,
+                    content=content,
+                    timeout=timeout,
+                )
             else:
-                with httpx.Client(**get_httpx_client_kwargs()) as client:
+                with httpx.Client(**get_httpx_client_kwargs(timeout=timeout)) as client:
                     client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
@@ -583,6 +599,7 @@ class AttachmentsService(FolderContext, BaseService):
         content: str | bytes,
         folder_key: str | None = None,
         folder_path: str | None = None,
+        timeout: float = 30.0,
     ) -> uuid.UUID: ...
 
     @overload
@@ -593,6 +610,7 @@ class AttachmentsService(FolderContext, BaseService):
         source_path: str,
         folder_key: str | None = None,
         folder_path: str | None = None,
+        timeout: float = 30.0,
     ) -> uuid.UUID: ...
 
     @traced(
@@ -608,6 +626,7 @@ class AttachmentsService(FolderContext, BaseService):
         source_path: str | None = None,
         folder_key: str | None = None,
         folder_path: str | None = None,
+        timeout: float = 30.0,
     ) -> uuid.UUID:
         """Upload a file or content to UiPath as an attachment asynchronously.
 
@@ -620,6 +639,7 @@ class AttachmentsService(FolderContext, BaseService):
             source_path (str | None): The local path of the file to upload.
             folder_key (str | None): The key of the folder. Override the default one set in the SDK config.
             folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
+            timeout (float): Request timeout in seconds. Defaults to 30.0.
 
         Returns:
             uuid.UUID: The UUID of the created attachment.
@@ -692,11 +712,19 @@ class AttachmentsService(FolderContext, BaseService):
                 file_content = file.read()
                 if result["BlobFileAccess"]["RequiresAuth"]:
                     await self.request_async(
-                        "PUT", upload_uri, headers=headers, content=file_content
+                        "PUT",
+                        upload_uri,
+                        headers=headers,
+                        content=file_content,
+                        timeout=timeout,
                     )
                 else:
-                    with httpx.Client(**get_httpx_client_kwargs()) as client:
-                        client.put(upload_uri, headers=headers, content=file_content)
+                    async with httpx.AsyncClient(
+                        **get_httpx_client_kwargs(timeout=timeout)
+                    ) as client:
+                        await client.put(
+                            upload_uri, headers=headers, content=file_content
+                        )
         else:
             # Upload from memory
             # Convert string to bytes if needed
@@ -705,11 +733,17 @@ class AttachmentsService(FolderContext, BaseService):
 
             if result["BlobFileAccess"]["RequiresAuth"]:
                 await self.request_async(
-                    "PUT", upload_uri, headers=headers, content=content
+                    "PUT",
+                    upload_uri,
+                    headers=headers,
+                    content=content,
+                    timeout=timeout,
                 )
             else:
-                with httpx.Client(**get_httpx_client_kwargs()) as client:
-                    client.put(upload_uri, headers=headers, content=content)
+                async with httpx.AsyncClient(
+                    **get_httpx_client_kwargs(timeout=timeout)
+                ) as client:
+                    await client.put(upload_uri, headers=headers, content=content)
 
         return attachment_key
 

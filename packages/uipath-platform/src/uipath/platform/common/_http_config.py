@@ -54,14 +54,16 @@ def create_ssl_context(cafile: str):
 
 def get_httpx_client_kwargs(
     headers: Dict[str, str] | None = None,
+    timeout: float = 30.0,
 ) -> Dict[str, Any]:
     """Get standardized httpx client configuration.
 
     Args:
         headers: Optional headers to merge with platform headers (e.g. licensing).
             Caller headers take priority on key conflicts.
+        timeout: Request timeout in seconds. Defaults to 30.0.
     """
-    client_kwargs: Dict[str, Any] = {"follow_redirects": True, "timeout": 30.0}
+    client_kwargs: Dict[str, Any] = {"follow_redirects": True, "timeout": timeout}
 
     ca_bundle = get_ca_bundle_path()
     client_kwargs["verify"] = create_ssl_context(ca_bundle) if ca_bundle else False
