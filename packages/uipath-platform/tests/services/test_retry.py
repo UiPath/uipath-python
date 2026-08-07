@@ -1,3 +1,5 @@
+from http import HTTPMethod
+
 import httpx
 from tenacity import Future, RetryCallState, Retrying
 
@@ -116,7 +118,9 @@ class TestExtractRetryAfterFromChain:
 
 
 def _make_http_status_error(
-    status_code: int, retry_after: str | None = None
+    status_code: int,
+    retry_after: str | None = None,
+    method: HTTPMethod = HTTPMethod.GET,
 ) -> httpx.HTTPStatusError:
     headers = {}
     if retry_after is not None:
@@ -124,7 +128,7 @@ def _make_http_status_error(
     response = httpx.Response(
         status_code=status_code,
         headers=headers,
-        request=httpx.Request("GET", "https://example.com"),
+        request=httpx.Request(method, "https://example.com"),
     )
     return httpx.HTTPStatusError(
         message=f"{status_code}", request=response.request, response=response
@@ -184,10 +188,23 @@ class TestIsRetryablePlatformException:
         err = EnrichedException(http_err)
         assert is_retryable_platform_exception(err) is False
 
-    def test_enriched_500_not_retryable(self):
-        http_err = _make_http_status_error(500)
+    def test_enriched_500_post_not_retryable(self):
+        http_err = _make_http_status_error(500, method=HTTPMethod.POST)
         err = EnrichedException(http_err)
         assert is_retryable_platform_exception(err) is False
+
+    def test_enriched_500_get_retryable(self):
+        http_err = _make_http_status_error(500, method=HTTPMethod.GET)
+        err = EnrichedException(http_err)
+        assert is_retryable_platform_exception(err) is True
+
+    def test_enriched_500_get_lowercase_retryable(self):
+        # httpx.Request normalizes method casing itself, so set http_method
+        # directly to exercise our own case-insensitive comparison.
+        http_err = _make_http_status_error(500, method=HTTPMethod.GET)
+        err = EnrichedException(http_err)
+        err.http_method = "get"
+        assert is_retryable_platform_exception(err) is True
 
     def test_raw_http_error_not_matched(self):
         err = _make_http_status_error(429)
