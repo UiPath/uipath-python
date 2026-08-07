@@ -2599,7 +2599,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.14.2"
+version = "2.14.3"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2682,7 +2682,7 @@ requires-dist = [
     { name = "uipath-core", editable = "../uipath-core" },
     { name = "uipath-ipc", marker = "extra == 'ipc'", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../uipath-platform" },
-    { name = "uipath-runtime", specifier = ">=0.13.0,<0.14.0" },
+    { name = "uipath-runtime", specifier = ">=0.13.1,<0.14.0" },
 ]
 provides-extras = ["ipc"]
 
@@ -2800,16 +2800,16 @@ dev = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.13.0"
+version = "0.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chardet" },
     { name = "uipath-core" },
     { name = "vadersentiment" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/65/c0/d55cf48ee43758c2c1c65f52fd0596fd75f5bd5067a5016e6553b4d2c5fe/uipath_runtime-0.13.0.tar.gz", hash = "sha256:8ae3150df5fb0043210faacf39148789c1fb252c6a8d6bc27174c0d9ce7304f5", size = 243594, upload-time = "2026-08-04T11:19:04.886Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/15/42/837240fd4cb2824ee5899cd2e06352c617645077efcecff7081a7292464a/uipath_runtime-0.13.1.tar.gz", hash = "sha256:4fd51d95e8b3c8554de8148239425499bbb7ec8687ad93a38f5107c6cdc0d7dd", size = 246257, upload-time = "2026-08-12T12:48:20.386Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/88/9518dcbeedaa8117e5fd3d0424c4a7354bae1f3ede1b2e3f48524e4b7efc/uipath_runtime-0.13.0-py3-none-any.whl", hash = "sha256:2a7c128cf14fdbef899b272ee5995da63baeb882acc904f39ef8f8f52bcb019f", size = 96349, upload-time = "2026-08-04T11:19:03.376Z" },
+    { url = "https://files.pythonhosted.org/packages/84/de/94e1ebcd7f25ee7620cb712f376cd84349d5d4b599bdbc6298556310598f/uipath_runtime-0.13.1-py3-none-any.whl", hash = "sha256:365134dfdc87050636b9027b839bbd93636ee56bd463bb38c1e48b7e19e848dd", size = 96876, upload-time = "2026-08-12T12:48:19.014Z" },
 ]
 
 [[package]]
