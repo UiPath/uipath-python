@@ -110,6 +110,15 @@ class UiPathJsonConfig(BaseModelWithDefaultConfig):
         "Each key is an entrypoint name, and each value is a path in format 'file_path:agent_name'",
     )
 
+    chat_bridge: str | None = Field(
+        default=None,
+        alias="chatBridge",
+        description="Where a conversational agent's messages go when the "
+        "Conversational Agent Service is not driving it, in the format "
+        "'file_path:factory_name'. The factory takes the runtime context and "
+        "returns a UiPathChatProtocol, or None to decline.",
+    )
+
     def to_json_string(self, indent: int = 2) -> str:
         """Export to JSON string with proper formatting."""
         return self.model_dump_json(
