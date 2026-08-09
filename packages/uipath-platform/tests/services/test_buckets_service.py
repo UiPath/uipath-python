@@ -478,10 +478,12 @@ class TestExists:
         tenant: str,
     ):
         """Test exists() propagates non-LookupError exceptions."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'error-bucket'&$top=1",
-            status_code=500,
-        )
+        for _ in range(5):
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/odata/Buckets?$filter=Name eq 'error-bucket'&$top=1",
+                status_code=500,
+                headers={"retry-after": "0"},
+            )
 
         # Should raise exception (not return False)
         from uipath.platform.errors import EnrichedException
