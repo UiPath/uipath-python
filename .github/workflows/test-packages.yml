@@ -80,17 +80,17 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13')
         working-directory: packages/uipath-core
         run: uv run pytest
 
       - name: Run tests with coverage
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13'
         working-directory: packages/uipath-core
         run: uv run pytest --cov-report=xml --cov-report=html --tb=short
 
       - name: Upload coverage HTML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: coverage-html-uipath-core
@@ -98,7 +98,7 @@ jobs:
           retention-days: 30
 
       - name: Upload coverage XML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: coverage-xml-uipath-core
@@ -150,17 +150,17 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13')
         working-directory: packages/uipath-platform
         run: uv run pytest
 
       - name: Run tests with coverage
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13'
         working-directory: packages/uipath-platform
         run: uv run pytest --cov-report=xml --cov-report=html --tb=short
 
       - name: Upload coverage HTML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: coverage-html-uipath-platform
@@ -168,7 +168,7 @@ jobs:
           retention-days: 30
 
       - name: Upload coverage XML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: coverage-xml-uipath-platform
@@ -228,7 +228,7 @@ jobs:
     name: Test (uipath, ${{ matrix.python-version }}, ${{ matrix.os }})
     needs: detect-changed-packages
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -270,17 +270,17 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13')
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13')
         working-directory: packages/uipath
         run: uv run pytest
 
       - name: Run tests with coverage
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13'
         working-directory: packages/uipath
         run: uv run pytest --cov-report=xml --cov-report=html --tb=short
 
       - name: Upload coverage HTML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: coverage-html-uipath
@@ -288,7 +288,7 @@ jobs:
           retention-days: 30
 
       - name: Upload coverage XML report
-        if: steps.check.outputs.skip != 'true' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13' && always()
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: coverage-xml-uipath
