@@ -395,6 +395,7 @@ class TestBuildExecutionHistory:
         clear_execution_context()
 
     def test_returns_valid_trace_and_span_ids(self):
+        from opentelemetry import context as context_api
         from opentelemetry import trace
         from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 
@@ -405,13 +406,13 @@ class TestBuildExecutionHistory:
             trace_flags=TraceFlags(TraceFlags.SAMPLED),
         )
         span = NonRecordingSpan(context=span_ctx)
-        token = trace.context_api.attach(trace.set_span_in_context(span))
+        token = context_api.attach(trace.set_span_in_context(span))
         try:
             trace_id, span_id = SimulateComponentMocker._get_span_context()
             assert trace_id == "1234567890abcdef1234567890abcdef"
             assert span_id == "fedcba0987654321"
         finally:
-            trace.context_api.detach(token)
+            context_api.detach(token)
 
 
 class TestPayloadLogging:
