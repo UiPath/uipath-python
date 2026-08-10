@@ -285,6 +285,54 @@ class TestPayloadConstruction:
         clear_execution_context()
 
     @pytest.mark.asyncio
+    async def test_payload_includes_folder_key_from_config(self, monkeypatch):
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-abc")
+        ctx = _make_context("my_tool", workload_id="wl-fk")
+        captured: list[dict[str, Any]] = []
+
+        async def _capture(payload, **kwargs):
+            captured.append(payload)
+            return {"status": 1, "simulatedOutput": "ok"}
+
+        svc_mock = MagicMock()
+        svc_mock.simulate = _capture
+
+        @mockable()
+        async def my_tool() -> str:
+            raise NotImplementedError()
+
+        set_execution_context(ctx, _mock_span_collector, "exec-fk")
+        with patch(_SIMULATE_PATH, return_value=svc_mock):
+            await my_tool()
+
+        assert captured[0]["folderKey"] == "folder-abc"
+        clear_execution_context()
+
+    @pytest.mark.asyncio
+    async def test_payload_folder_key_is_none_when_not_set(self, monkeypatch):
+        monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
+        ctx = _make_context("my_tool", workload_id="wl-fk2")
+        captured: list[dict[str, Any]] = []
+
+        async def _capture(payload, **kwargs):
+            captured.append(payload)
+            return {"status": 1, "simulatedOutput": "ok"}
+
+        svc_mock = MagicMock()
+        svc_mock.simulate = _capture
+
+        @mockable()
+        async def my_tool() -> str:
+            raise NotImplementedError()
+
+        set_execution_context(ctx, _mock_span_collector, "exec-fk2")
+        with patch(_SIMULATE_PATH, return_value=svc_mock):
+            await my_tool()
+
+        assert captured[0]["folderKey"] is None
+        clear_execution_context()
+
+    @pytest.mark.asyncio
     async def test_payload_uses_configured_component_id_not_invoked_name(self):
         """componentId in payload must be the configured ID, not the normalised call name."""
         ctx = MockingContext(
