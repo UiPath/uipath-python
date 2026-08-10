@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import AsyncExitStack
 from typing import Any, cast, get_args
 
 import click
@@ -29,6 +30,7 @@ from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
+from ._managed_workspace import wrap_with_managed_workspace
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -196,82 +198,108 @@ def debug(
 
                         async def execute_debug_runtime():
                             chat_runtime: UiPathRuntimeProtocol | None = None
-                            debug_bridge: UiPathDebugProtocol = get_debug_bridge(
-                                ctx, attach=attach_mode
-                            )
-                            new_runtime_kwargs: dict[str, Any] = {}
-                            if governance_bootstrap is not None:
-                                new_runtime_kwargs["evaluator"] = (
-                                    governance_bootstrap.evaluator
+                            managed_workspace_created = False
+                            managed_workspace_cleanup = AsyncExitStack()
+                            debug_runtime: UiPathRuntimeProtocol | None = None
+                            execution_runtime: UiPathRuntimeProtocol | None = None
+                            runtime: UiPathRuntimeProtocol | None = None
+                            try:
+                                debug_bridge: UiPathDebugProtocol = get_debug_bridge(
+                                    ctx, attach=attach_mode
                                 )
-                            runtime = await factory.new_runtime(
-                                entrypoint,
-                                governance_runtime_id,
-                                **new_runtime_kwargs,
-                            )
+                                new_runtime_kwargs: dict[str, Any] = {}
+                                if governance_bootstrap is not None:
+                                    new_runtime_kwargs["evaluator"] = (
+                                        governance_bootstrap.evaluator
+                                    )
+                                runtime = await factory.new_runtime(
+                                    entrypoint,
+                                    governance_runtime_id,
+                                    **new_runtime_kwargs,
+                                )
 
-                            if governance_bootstrap is not None:
-                                runtime = governance_bootstrap.wrap_runtime(
+                                if governance_bootstrap is not None:
+                                    runtime = governance_bootstrap.wrap_runtime(
+                                        runtime,
+                                        agent_name=entrypoint,
+                                        runtime_id=governance_runtime_id,
+                                    )
+
+                                delegate = runtime
+                                delegate = await wrap_with_managed_workspace(
                                     runtime,
-                                    agent_name=entrypoint,
-                                    runtime_id=governance_runtime_id,
+                                    context=ctx,
+                                    factory=factory,
+                                    enabled=bool(
+                                        factory_settings
+                                        and factory_settings.managed_workspace
+                                    ),
+                                    cleanup=managed_workspace_cleanup,
+                                )
+                                managed_workspace_created = delegate is not runtime
+
+                                if ctx.conversation_id and ctx.exchange_id:
+                                    chat_bridge: UiPathChatProtocol = get_chat_bridge(
+                                        context=ctx
+                                    )
+                                    chat_runtime = UiPathChatRuntime(
+                                        delegate=delegate, chat_bridge=chat_bridge
+                                    )
+                                    delegate = chat_runtime
+
+                                debug_runtime = UiPathDebugRuntime(
+                                    delegate=delegate,
+                                    debug_bridge=debug_bridge,
+                                    trigger_poll_interval=trigger_poll_interval,
                                 )
 
-                            delegate = runtime
-                            if ctx.conversation_id and ctx.exchange_id:
-                                chat_bridge: UiPathChatProtocol = get_chat_bridge(
-                                    context=ctx
-                                )
-                                chat_runtime = UiPathChatRuntime(
-                                    delegate=delegate, chat_bridge=chat_bridge
-                                )
-                                delegate = chat_runtime
+                                schema = await runtime.get_schema()
+                                agent_model = None
+                                if schema.metadata and "settings" in schema.metadata:
+                                    agent_model = schema.metadata["settings"].get(
+                                        "model"
+                                    )
 
-                            debug_runtime = UiPathDebugRuntime(
-                                delegate=delegate,
-                                debug_bridge=debug_bridge,
-                                trigger_poll_interval=trigger_poll_interval,
-                            )
-
-                            # Build mocking context with agent model for simulations
-                            schema = await runtime.get_schema()
-                            agent_model = None
-                            if schema.metadata and "settings" in schema.metadata:
-                                agent_model = schema.metadata["settings"].get("model")
-
-                            delegate_runtime: UiPathDebugRuntime | UiPathMockRuntime = (
-                                debug_runtime
-                            )
-                            if simulation_config:
-                                mocking_context = build_mocking_context(
-                                    simulation_config, agent_model
-                                )
-                                if mocking_context:
-                                    delegate_runtime = UiPathMockRuntime(
+                                if simulation_config:
+                                    mocking_context = build_mocking_context(
+                                        simulation_config, agent_model
+                                    )
+                                    if mocking_context:
+                                        execution_runtime = UiPathMockRuntime(
+                                            delegate=debug_runtime,
+                                            mocking_context=mocking_context,
+                                        )
+                                else:
+                                    mocking_context = load_simulation_config(
+                                        agent_model=agent_model
+                                    )
+                                    execution_runtime = UiPathMockRuntime(
                                         delegate=debug_runtime,
                                         mocking_context=mocking_context,
                                     )
-                            else:
-                                mocking_context = load_simulation_config(
-                                    agent_model=agent_model
-                                )
-                                delegate_runtime = UiPathMockRuntime(
-                                    delegate=debug_runtime,
-                                    mocking_context=mocking_context,
-                                )
 
-                            try:
-                                ctx.result = await delegate_runtime.execute(
+                                awaitable_runtime = execution_runtime or debug_runtime
+                                ctx.result = await awaitable_runtime.execute(
                                     ctx.get_input(),
                                     options=UiPathExecuteOptions(resume=resume),
                                 )
                             finally:
-                                if delegate_runtime is not debug_runtime:
-                                    await delegate_runtime.dispose()
-                                await debug_runtime.dispose()
+                                cleanup = AsyncExitStack()
+                                if not managed_workspace_created:
+                                    if runtime is not None:
+                                        cleanup.push_async_callback(runtime.dispose)
+                                cleanup.push_async_callback(
+                                    managed_workspace_cleanup.aclose
+                                )
                                 if chat_runtime:
-                                    await chat_runtime.dispose()
-                                await runtime.dispose()
+                                    cleanup.push_async_callback(chat_runtime.dispose)
+                                if debug_runtime is not None:
+                                    cleanup.push_async_callback(debug_runtime.dispose)
+                                if execution_runtime is not None:
+                                    cleanup.push_async_callback(
+                                        execution_runtime.dispose
+                                    )
+                                await cleanup.aclose()
 
                         if project_id := UiPathConfig.project_id:
                             studio_client = StudioClient(project_id)
