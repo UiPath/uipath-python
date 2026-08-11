@@ -56,11 +56,13 @@ nav:
   - Home: index.md
   - UiPath SDK:
         - Getting Started: core/getting_started.md
-        - Release Notes: core/release_notes.md
-        - Environment Variables: core/environment_variables.md
+        - Python Coded Functions: core/functions.md
+        - Python Coded Agents: core/agents.md
         - CLI Reference: cli/index.md
         - Tracing: core/traced.md
         - Studio Web Integration: core/studio_web.md
+        - Environment Variables: core/environment_variables.md
+        - Release Notes: core/release_notes.md
         - Services:
             - Assets: core/assets.md
             - Attachments: core/attachments.md
@@ -101,6 +103,7 @@ nav:
       - Getting Started: langchain/quick_start.md
       - Chat Models: langchain/chat_models.md
       - Context Grounding: langchain/context_grounding.md
+      - Guardrails: langchain/guardrails.md
       - Human In The Loop: langchain/human_in_the_loop.md
       - Sample Agents: https://github.com/UiPath/uipath-langchain-python/tree/main/samples
   - UiPath LlamaIndex SDK:

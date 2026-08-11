@@ -1,0 +1,12 @@
+[project]
+name = "simulation-testcase"
+version = "0.0.1"
+description = "simulation-testcase"
+authors = [{ name = "UiPath", email = "python-sdk@uipath.com" }]
+dependencies = [
+    "uipath",
+]
+requires-python = ">=3.11"
+
+[tool.uv.sources]
+uipath = { path = "../../", editable = true }

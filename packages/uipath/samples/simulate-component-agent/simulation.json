@@ -1,0 +1,73 @@
+{
+  "enabled": true,
+  "components": [
+    {
+      "componentId": "get_current_weather",
+      "componentType": "tool",
+      "simulationStrategy": 0,
+      "simulationInstruction": "Return realistic current weather for the given city. Use typical seasonal temperatures for the Northern Hemisphere in winter. the humidity should always be 70%",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number",
+            "description": "Temperature in Celsius"
+          },
+          "condition": {
+            "type": "string",
+            "description": "e.g. cloudy, rainy, sunny"
+          },
+          "humidity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "city",
+          "temperature",
+          "condition",
+          "humidity"
+        ]
+      }
+    },
+    {
+      "componentId": "get_forecast",
+      "componentType": "tool",
+      "simulationStrategy": 0,
+      "simulationInstruction": "Return a realistic multi-day weather forecast for the given city.",
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "YYYY-MM-DD"
+            },
+            "high": {
+              "type": "number",
+              "description": "High temperature in Celsius"
+            },
+            "low": {
+              "type": "number",
+              "description": "Low temperature in Celsius"
+            },
+            "condition": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "date",
+            "high",
+            "low",
+            "condition"
+          ]
+        }
+      }
+    }
+  ]
+}

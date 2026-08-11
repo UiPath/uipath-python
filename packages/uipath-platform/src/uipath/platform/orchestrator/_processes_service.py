@@ -7,6 +7,8 @@ from opentelemetry import trace
 from opentelemetry.trace import format_span_id
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import ENV_JOB_KEY, HEADER_JOB_KEY
+
 from ..attachments import Attachment
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
@@ -15,7 +17,6 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from ..common._span_utils import _SpanUtils
-from ..common.constants import ENV_JOB_KEY, HEADER_JOB_KEY
 from ._attachments_service import AttachmentsService
 from .job import Job
 

@@ -1,13 +1,13 @@
 [project]
 name = "uipath"
-version = "2.10.61"
+version = "2.14.2"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
-  "uipath-core>=0.5.8, <0.6.0",
-  "uipath-runtime>=0.10.1, <0.11.0",
-  "uipath-platform>=0.1.45, <0.2.0",
+  "uipath-core>=0.5.30, <0.6.0",
+  "uipath-runtime>=0.13.0, <0.14.0",
+  "uipath-platform>=0.2.14, <0.3.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
   "pyjwt>=2.10.1",
@@ -24,6 +24,7 @@ dependencies = [
   "mermaid-builder==0.0.3",
   "graphtty==0.1.8",
   "applicationinsights>=0.11.10",
+  "pyyaml>=6.0, <7.0",
 ]
 classifiers = [
   "Intended Audience :: Developers",
@@ -44,6 +45,9 @@ Documentation = "https://uipath.github.io/uipath-python/"
 
 [project.scripts]
 uipath = "uipath._cli:cli"
+
+[project.optional-dependencies]
+ipc = ["uipath-ipc>=2.5.1,<2.6.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -75,7 +79,9 @@ dev = [
   "mkdocs-llmstxt>=0.5.0",
   "inflection>=0.5.1",
   "types-toml>=0.10.8",
+  "types-PyYAML>=6.0",
   "pytest-timeout>=2.4.0",
+  "uipath-ipc>=2.5.1,<2.6.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -137,15 +143,39 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "-ra -q --cov"
+addopts = "-ra -q --cov=src --cov-report=term-missing"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_mode = "auto"
 
-[tool.coverage.report]
-show_missing = true
-
 [tool.coverage.run]
 source = ["src"]
+relative_files = true
+omit = [
+  "*/tests/*",
+  "*/__pycache__/*",
+  "*/site-packages/*",
+  "*/conftest.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "@(abc\\.)?abstractmethod",
+]
+
+[tool.uv]
+exclude-newer = "2 days"
+
+[tool.uv.exclude-newer-package]
+uipath-core = false
+uipath-runtime = false
+uipath-platform = false
+uipath-ipc = false
 
 [tool.uv.sources]
 uipath-core = { path = "../uipath-core", editable = true }

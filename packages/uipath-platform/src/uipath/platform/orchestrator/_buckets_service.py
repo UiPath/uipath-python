@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import httpx
+from anyio import to_thread
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -36,6 +37,16 @@ class BucketsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self.custom_client = httpx.Client(**get_httpx_client_kwargs())
         self.custom_client_async = httpx.AsyncClient(**get_httpx_client_kwargs())
+
+    async def aclose(self) -> None:
+        """Close the additional HTTP clients used for bucket transfers."""
+        try:
+            await self.custom_client_async.aclose()
+        finally:
+            try:
+                await to_thread.run_sync(self.custom_client.close)
+            finally:
+                await super().aclose()
 
     @traced(name="buckets_list", run_type="uipath")
     def list(
@@ -365,7 +376,7 @@ class BucketsService(FolderContext, BaseService):
         self.request(
             "DELETE",
             url=f"/orchestrator_/odata/Buckets({bucket.id})",
-            headers={**self.folder_headers},
+            headers={**header_folder(folder_key, folder_path)},
         )
 
     @resource_override(resource_type="bucket")
@@ -386,7 +397,7 @@ class BucketsService(FolderContext, BaseService):
         await self.request_async(
             "DELETE",
             url=f"/orchestrator_/odata/Buckets({bucket.id})",
-            headers={**self.folder_headers},
+            headers={**header_folder(folder_key, folder_path)},
         )
 
     @resource_override(resource_type="bucket")

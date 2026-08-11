@@ -15,18 +15,18 @@ permissions:
 jobs:
   detect-changed-packages:
     if: contains(github.event.pull_request.labels.*.name, 'build:dev')
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
       count: ${{ steps.detect.outputs.count }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.11'
 
@@ -42,7 +42,7 @@ jobs:
     name: Publish Dev Build - ${{ matrix.package }}
     needs: detect-changed-packages
     if: contains(github.event.pull_request.labels.*.name, 'build:dev') && needs.detect-changed-packages.outputs.count > 0
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     defaults:
       run:
         working-directory: packages/${{ matrix.package }}
@@ -53,15 +53,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
         with:
           enable-cache: true
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version-file: "packages/${{ matrix.package }}/.python-version"
 
@@ -109,17 +109,53 @@ jobs:
 
           Write-Output "Package $PROJECT_NAME version set to $DEV_VERSION"
 
+          # Shared dev suffix for every package built in this run (same PR + run number)
+          $DEV_SUFFIX = "dev1$PADDED_PR$PADDED_RUN"
+
+          # Intra-repo dependencies per package. A dev build of these is < the package's
+          # base version (PEP 440 pre-release), so it falls outside the published ">=base"
+          # constraint and must be forced in via [tool.uv] override-dependencies.
+          $internalDepsMap = @{
+            "uipath"          = @("uipath-platform", "uipath-core")
+            "uipath-platform" = @("uipath-core")
+            "uipath-core"     = @()
+          }
+
+          # Packages also published in this run (their dev builds exist on testpypi)
+          $changedPackages = '${{ needs.detect-changed-packages.outputs.packages }}' | ConvertFrom-Json
+
+          $overrideDeps = @()
+          foreach ($dep in $internalDepsMap[$PROJECT_NAME]) {
+            if ($changedPackages -contains $dep) {
+              $depPyproj = Get-Content "../$dep/pyproject.toml" -Raw
+              $depBaseVersion = ($depPyproj | Select-String -Pattern '(?m)^\[(project|tool\.poetry)\][^\[]*?version\s*=\s*"([^"]*)"' -AllMatches).Matches[0].Groups[2].Value
+              $overrideDeps += [PSCustomObject]@{ Name = $dep; Version = "$depBaseVersion.$DEV_SUFFIX" }
+            }
+          }
+
+          # [tool.uv.sources]: the package itself plus every overridden dep point at testpypi
+          $sourcesLines = @("$PROJECT_NAME = { index = `"testpypi`" }")
+          foreach ($d in $overrideDeps) { $sourcesLines += "$($d.Name) = { index = `"testpypi`" }" }
+          $sourcesBlock = $sourcesLines -join "`n"
+
+          # Optional [tool.uv] override block (omitted when no intra-repo dep was published)
+          $overrideBlock = ""
+          if ($overrideDeps.Count -gt 0) {
+            $overrideItems = ($overrideDeps | ForEach-Object { "`"$($_.Name)==$($_.Version)`"" }) -join ", "
+            $overrideBlock = "`n[tool.uv]`noverride-dependencies = [$overrideItems]`n"
+          }
+
           $dependencyMessage = @"
           ### $PROJECT_NAME
 
           ``````toml
           [project]
           dependencies = [
-            # Exact version:
+            # Exact version (copy-paste ready):
             "$PROJECT_NAME==$DEV_VERSION",
 
-            # Any version from PR
-            "$PROJECT_NAME>=$MIN_VERSION,<$MAX_VERSION"
+            # Any version from this PR (uncomment to use a range instead):
+            # "$PROJECT_NAME>=$MIN_VERSION,<$MAX_VERSION",
           ]
 
           [[tool.uv.index]]
@@ -129,8 +165,8 @@ jobs:
           explicit = true
 
           [tool.uv.sources]
-          $PROJECT_NAME = { index = "testpypi" }
-          ``````
+          $sourcesBlock
+          $overrideBlock``````
           "@
 
           # Get the owner and repo from the GitHub repository

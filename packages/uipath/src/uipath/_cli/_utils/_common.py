@@ -13,8 +13,8 @@ from uipath.platform.common import (
     ResourceOverwriteParser,
     UiPathConfig,
 )
+from uipath.platform.constants import ENV_BASE_URL, ENV_UIPATH_ACCESS_TOKEN
 
-from ..._utils.constants import ENV_UIPATH_ACCESS_TOKEN
 from ..models.runtime_schema import EntryPoint
 from ..spinner import Spinner
 from ._console import ConsoleLogger
@@ -60,8 +60,8 @@ def environment_options(function):
 
 
 def get_env_vars(spinner: Spinner | None = None) -> list[str]:
-    base_url = os.environ.get("UIPATH_URL")
-    token = os.environ.get("UIPATH_ACCESS_TOKEN")
+    base_url = os.environ.get(ENV_BASE_URL)
+    token = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
 
     if not all([base_url, token]):
         if spinner:
@@ -214,6 +214,14 @@ async def read_resource_overwrites_from_file(
                 .get("internalArguments", {})
                 .get("resourceOverwrites", {})
             )
+
+            logger.info(
+                "Resource overwrites read from %s (%d entries):\n%s",
+                file_path,
+                len(resource_overwrites),
+                json.dumps(resource_overwrites, indent=2, sort_keys=True),
+            )
+
             for key, value in resource_overwrites.items():
                 try:
                     overwrites_dict[key] = ResourceOverwriteParser.parse(key, value)
@@ -224,15 +232,9 @@ async def read_resource_overwrites_from_file(
                         e,
                     )
 
-            logger.debug(
-                "Loaded %d resource overwrite(s) from file %s",
-                len(overwrites_dict),
-                file_path,
-            )
-
     # Return empty dict if file doesn't exist or invalid json
     except FileNotFoundError:
-        logger.debug("Resource overwrites config file not found: %s", file_path)
+        logger.info("Resource overwrites config file not found: %s", file_path)
     except json.JSONDecodeError as e:
         logger.warning("Failed to parse resource overwrites from %s: %s", file_path, e)
 

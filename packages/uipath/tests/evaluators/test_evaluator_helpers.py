@@ -12,6 +12,9 @@ from typing import Any
 import pytest
 
 from uipath.eval._helpers.evaluators_helpers import (
+    _calls_match,
+    _match_key,
+    _sanitize_tool_name,
     extract_tool_calls,
     extract_tool_calls_names,
     extract_tool_calls_outputs,
@@ -681,6 +684,54 @@ class TestExtractionFunctions:
         assert "non_tool_span" not in output_names
         assert len(result) == 3
 
+    def test_extractors_skip_synthesized_tool_spans(self) -> None:
+        """Spans tagged with tool.synthesized=True (BPMN container spans
+        synthesized for trajectory rendering) must be filtered from all three
+        per-call extractors so they don't pollute tool-call evaluator actuals.
+        """
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        synth_process = ReadableSpan(
+            name="Instance: abc",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "FlowExecution",
+                "tool.synthesized": True,
+                "input.value": '{"instanceId": "abc"}',
+                "output.value": "Status: Completed",
+            },
+        )
+        synth_element = ReadableSpan(
+            name="Autonomous Agent",
+            start_time=2,
+            end_time=3,
+            attributes={
+                "tool.name": "ServiceTask: Autonomous Agent",
+                "tool.synthesized": True,
+                "input.value": "{}",
+                "output.value": "Status: Completed",
+            },
+        )
+        real_tool = ReadableSpan(
+            name="Tool call - web_search",
+            start_time=4,
+            end_time=5,
+            attributes={
+                "tool.name": "web_search",
+                "input.value": '{"query": "x"}',
+                "output.value": '{"content": "ok"}',
+            },
+        )
+
+        spans = [synth_process, synth_element, real_tool]
+
+        assert extract_tool_calls_names(spans) == ["web_search"]
+        calls = extract_tool_calls(spans)
+        assert [c.name for c in calls] == ["web_search"]
+        outputs = extract_tool_calls_outputs(spans)
+        assert [o.name for o in outputs] == ["web_search"]
+
     def test_all_extraction_functions_consistent(self, sample_spans: list[Any]) -> None:
         """Test that all extraction functions return consistent results."""
         names = extract_tool_calls_names(sample_spans)
@@ -820,3 +871,330 @@ class TestExtractionFunctions:
         assert result[0].name == "json_array_tool"
         # Should use the original string when parsed JSON is not a dict
         assert result[0].output == '["item1", "item2", "item3"]'
+
+
+class TestIdAwareExtraction:
+    """Verify tool.id propagation through the three extractors, plus the
+    include_args=False optimization and the JSON-first parse fallback.
+    """
+
+    def test_extractors_read_tool_id_when_present(self) -> None:
+        """When a span carries `tool.id`, it must surface on ToolCall/ToolOutput.id."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="Tool call - Web_Search",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "Web_Search",
+                "tool.id": "7abae702-f898-4cc9-95f1-c365b9a857f9",
+                "input.value": "{}",
+                "output.value": '{"content": "ok"}',
+            },
+        )
+        calls = extract_tool_calls([span])
+        outputs = extract_tool_calls_outputs([span])
+        assert calls[0].id == "7abae702-f898-4cc9-95f1-c365b9a857f9"
+        assert calls[0].name == "Web_Search"
+        assert outputs[0].id == "7abae702-f898-4cc9-95f1-c365b9a857f9"
+        assert outputs[0].name == "Web_Search"
+
+    def test_extractors_preserve_falsy_but_present_tool_id(self) -> None:
+        """tool.id of 0 or empty string is unusual but legal — must not be silently dropped.
+
+        Original code used `if tool_id` which would treat 0 / '' as missing.
+        Fix uses `is not None`.
+        """
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        for falsy_id in (0, "", False):
+            span = ReadableSpan(
+                name="t",
+                start_time=0,
+                end_time=1,
+                attributes={
+                    "tool.name": "f",
+                    "tool.id": falsy_id,
+                    "input.value": "{}",
+                    "output.value": '{"content": "ok"}',
+                },
+            )
+            calls = extract_tool_calls([span])
+            outputs = extract_tool_calls_outputs([span])
+            assert calls[0].id == str(falsy_id), f"falsy id {falsy_id!r} was dropped"
+            assert outputs[0].id == str(falsy_id), f"falsy id {falsy_id!r} was dropped"
+
+    def test_extract_tool_calls_parses_json_literals(self) -> None:
+        """input.value with JSON `true`/`false`/`null` should parse cleanly.
+
+        `ast.literal_eval` doesn't recognise those tokens (Python uses
+        True/False/None); the extractor now tries `json.loads` first and only
+        falls back to `ast.literal_eval` on JSON parse failure.
+        """
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="t",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "t",
+                "input.value": '{"a": true, "b": false, "c": null}',
+            },
+        )
+        calls = extract_tool_calls([span])
+        assert calls[0].args == {"a": True, "b": False, "c": None}
+
+    def test_extract_tool_calls_falls_back_to_python_literal(self) -> None:
+        """Single-quoted Python dict repr (the historical input shape) still parses."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="t",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "t",
+                "input.value": "{'a': 1, 'b': 'two'}",  # JSON-invalid, Python-valid
+            },
+        )
+        calls = extract_tool_calls([span])
+        assert calls[0].args == {"a": 1, "b": "two"}
+
+    def test_extract_tool_calls_non_dict_parsed_result_yields_empty_args(self) -> None:
+        """If input.value parses to a non-dict (e.g. a bare string), args→{}.
+
+        Avoids pydantic validation failures from feeding a non-dict into
+        ToolCall(args=...).
+        """
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="t",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "t",
+                "input.value": '"hello"',  # JSON-valid string, not a dict
+            },
+        )
+        calls = extract_tool_calls([span])
+        assert calls[0].args == {}
+
+    def test_extract_tool_calls_include_args_false_skips_parse(self) -> None:
+        """With include_args=False, broken input.value is not parsed and doesn't raise.
+
+        Used by count / order evaluators that don't need args.
+        """
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="t",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "t",
+                "tool.id": "abc",
+                "input.value": "this is not valid python or json{{{",
+            },
+        )
+        calls = extract_tool_calls([span], include_args=False)
+        assert len(calls) == 1
+        assert calls[0].name == "t"
+        assert calls[0].id == "abc"
+        assert calls[0].args == {}  # short-circuited, not parsed
+
+    def test_extractors_default_id_to_none_when_absent(self) -> None:
+        """Spans without `tool.id` produce ToolCall/ToolOutput with id=None (back-compat)."""
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        span = ReadableSpan(
+            name="Tool call - legacy",
+            start_time=0,
+            end_time=1,
+            attributes={
+                "tool.name": "legacy_tool",
+                "input.value": "{}",
+                "output.value": '{"content": "ok"}',
+            },
+        )
+        calls = extract_tool_calls([span])
+        outputs = extract_tool_calls_outputs([span])
+        assert calls[0].id is None
+        assert outputs[0].id is None
+
+
+class TestIdAwareMatching:
+    """Verify id-aware matching across all four tool-call scoring functions.
+
+    For each function: an Expected criterion authored against the tool's id
+    matches the actual call when the actual carries the same id, even if the
+    `name` differs (the common case after a tool rename or the
+    'Web Search' → 'Web_Search' display-vs-runtime divergence).
+    """
+
+    def test_args_score_matches_by_id_when_names_differ(self) -> None:
+        """Expected keyed by id matches actual with same id but different name."""
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
+
+        actual = [ToolCall(name="Web_Search", id="uuid-1", args={"q": "x"})]
+        expected = [ToolCall(name="Web Search", id="uuid-1", args={"q": "x"})]
+        score, _ = tool_calls_args_score(actual, expected)
+        assert score == 1.0
+
+    def test_args_score_strict_kind_no_id_fallback(self) -> None:
+        """Strict kind: actual has id → id-only mode, no name fallback even when actual.name matches expected.name."""
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
+
+        actual = [ToolCall(name="Web_Search", id="uuid-1", args={"q": "x"})]
+        expected = [ToolCall(name="Web_Search", args={"q": "x"})]
+        score, _ = tool_calls_args_score(actual, expected)
+        assert score == 0.0  # actual.id="uuid-1" != expected.name="Web_Search"
+
+    def test_args_score_name_only_when_actual_has_no_id(self) -> None:
+        """When actual has no id, sanitised-name comparison is the only path."""
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
+
+        actual = [ToolCall(name="Web_Search", args={"q": "x"})]
+        expected = [ToolCall(name="Web Search", args={"q": "x"})]
+        score, _ = tool_calls_args_score(actual, expected)
+        assert score == 1.0
+
+    def test_args_score_no_match_when_ids_differ(self) -> None:
+        """Different ids → no match even with same name."""
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_args_score
+
+        actual = [ToolCall(name="Web_Search", id="uuid-A", args={"q": "x"})]
+        expected = [ToolCall(name="Web_Search", id="uuid-B", args={"q": "x"})]
+        score, _ = tool_calls_args_score(actual, expected)
+        assert score == 0.0
+
+    def test_output_score_matches_by_id(self) -> None:
+        from uipath.eval._helpers.evaluators_helpers import tool_calls_output_score
+
+        actual = [ToolOutput(name="Web_Search", id="uuid-1", output="ok")]
+        expected = [ToolOutput(name="Web Search", id="uuid-1", output="ok")]
+        score, _ = tool_calls_output_score(actual, expected)
+        assert score == 1.0
+
+    def test_count_by_name_and_id_helper(self) -> None:
+        """Strict per-call kind: id-keyed when call has id, name-keyed otherwise — never both."""
+        from uipath.eval._helpers.evaluators_helpers import (
+            count_tool_calls_by_name_and_id,
+        )
+
+        calls = [
+            ToolCall(name="Web_Search", id="uuid-1", args={}),
+            ToolCall(name="Web_Search", id="uuid-1", args={}),
+            ToolCall(name="get_temp", args={}),  # no id
+        ]
+        counts = count_tool_calls_by_name_and_id(calls)
+        assert counts == {"uuid-1": 2, "get_temp": 1}
+        # Name key is NOT populated when id is present — kind separation.
+        assert "Web_Search" not in counts
+
+    def test_order_score_with_ids_matches_id_keyed_expected(self) -> None:
+        """Strict kind: actual has id → only id-keyed expected matches; legacy name-keyed against id-bearing actual is a miss."""
+        from uipath.eval._helpers.evaluators_helpers import (
+            tool_calls_order_score_with_ids,
+        )
+
+        actual = [
+            ToolCall(name="Web_Search", id="uuid-1", args={}),
+            ToolCall(name="Web_Search", id="uuid-1", args={}),
+        ]
+        # Expected authored by id matches.
+        score, _ = tool_calls_order_score_with_ids(actual, ["uuid-1", "uuid-1"])
+        assert score == 1.0
+        # Expected authored by name against id-bearing actual is a miss (no cross-kind).
+        score, _ = tool_calls_order_score_with_ids(actual, ["Web_Search", "Web_Search"])
+        assert score == 0.0
+        # Mixed expected: only the id-keyed element matches.
+        score, _ = tool_calls_order_score_with_ids(actual, ["uuid-1", "Web_Search"])
+        assert 0.0 < score < 1.0
+
+    def test_order_score_with_ids_back_compat_when_id_absent(self) -> None:
+        """When actual has no ids (legacy traces), comparison is name-only."""
+        from uipath.eval._helpers.evaluators_helpers import (
+            tool_calls_order_score_with_ids,
+        )
+
+        actual = [
+            ToolCall(name="get_temp", args={}),
+            ToolCall(name="get_humidity", args={}),
+        ]
+        score, _ = tool_calls_order_score_with_ids(actual, ["get_temp", "get_humidity"])
+        assert score == 1.0
+
+
+class TestSanitizedNameMatch:
+    """Sanitised-name fallback in ``_match_key`` / ``_calls_match`` — id-equality wins first."""
+
+    @staticmethod
+    def _reference_sanitize(name: str) -> str:
+        """Pinned copy of ``uipath_langchain.agent.tools.utils.sanitize_tool_name``."""
+        import re
+
+        trim_whitespaces = "_".join(name.split())
+        sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", trim_whitespaces)
+        return sanitized[:64]
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "Web Search",
+            "Google Sheets / Read",
+            "Add Numbers",
+            "tool with spaces and (parens)",
+            "snake_case_tool",
+            "kebab-case-tool",
+            "alreadySanitised",
+            "  multiple   whitespace  ",
+            "very-long-name-" + "x" * 100,
+            "",
+        ],
+    )
+    def test_normalize_matches_langchain_reference(self, raw: str) -> None:
+        assert _sanitize_tool_name(raw) == self._reference_sanitize(raw)
+
+    def test_normalize_handles_none(self) -> None:
+        assert _sanitize_tool_name(None) == ""
+
+    def test_match_key_display_vs_sanitised(self) -> None:
+        assert _match_key("Web_Search", None, "Web Search") is True
+
+    def test_match_key_id_wins_when_present(self) -> None:
+        assert _match_key("Web_Search", "webSearch1", "webSearch1") is True
+        # Strict kind: actual has id → display-name expected is rejected (no cross-kind).
+        assert _match_key("Web_Search", "webSearch1", "Web Search") is False
+
+    def test_match_key_mismatch_after_sanitising(self) -> None:
+        assert _match_key("Web_Search", None, "Image_Search") is False
+
+    def test_calls_match_display_vs_sanitised(self) -> None:
+        actual = ToolCall(name="Web_Search", args={})
+        expected = ToolCall(name="Web Search", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_id_equality_unchanged(self) -> None:
+        actual = ToolCall(name="Web_Search", id="webSearch1", args={})
+        expected = ToolCall(name="totally different", id="webSearch1", args={})
+        assert _calls_match(actual, expected) is True
+
+    def test_calls_match_output_display_vs_sanitised(self) -> None:
+        actual = ToolOutput(name="Web_Search", output="x")
+        expected = ToolOutput(name="Web Search", output="x")
+        assert _calls_match(actual, expected) is True
+
+    def test_count_score_display_name_matches_sanitised_actual(self) -> None:
+        actual = {"Web_Search": 2}
+        expected = {"Web Search": ("==", 2)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0
+
+    def test_count_score_id_keyed_expected_still_wins(self) -> None:
+        actual = {"Web_Search": 1, "webSearch1": 1}
+        expected = {"webSearch1": (">=", 1)}
+        score, _ = tool_calls_count_score(actual, expected)
+        assert score == 1.0

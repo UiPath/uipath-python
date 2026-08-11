@@ -22,6 +22,7 @@ from ._batch_transform_not_complete_exception import BatchTransformNotCompleteEx
 from ._context_grounding_index_not_found_exception import (
     ContextGroundingIndexNotFoundError,
 )
+from ._datafabric_error import DataFabricError
 from ._enriched_exception import EnrichedException, ExtractedErrorInfo
 from ._folder_not_found_exception import FolderNotFoundException
 from ._ingestion_in_progress_exception import IngestionInProgressException
@@ -29,9 +30,12 @@ from ._operation_failed_exception import OperationFailedException
 from ._operation_not_complete_exception import OperationNotCompleteException
 from ._secret_missing_error import SecretMissingError
 from ._unsupported_data_source_exception import UnsupportedDataSourceException
+from .datafabric_error_codes import DataFabricErrorCategory
 
 __all__ = [
     "BaseUrlMissingError",
+    "DataFabricError",
+    "DataFabricErrorCategory",
     "BatchTransformFailedException",
     "BatchTransformNotCompleteException",
     "ContextGroundingIndexNotFoundError",

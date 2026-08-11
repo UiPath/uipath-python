@@ -8,18 +8,18 @@ from typing import Any, Callable, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from uipath._utils.constants import (
-    ENV_TENANT_ID,
-    HEADER_SW_LOCK_KEY,
-    HEADER_TENANT_ID,
-    PYTHON_CONFIGURATION_FILE,
-    STUDIO_METADATA_FILE,
-)
 from uipath.platform import UiPath
 from uipath.platform.common import (
     ResourceOverwrite,
     ResourceOverwriteParser,
     UiPathConfig,
+)
+from uipath.platform.constants import (
+    ENV_TENANT_ID,
+    HEADER_SW_LOCK_KEY,
+    HEADER_TENANT_ID,
+    PYTHON_CONFIGURATION_FILE,
+    STUDIO_METADATA_FILE,
 )
 from uipath.platform.errors import EnrichedException
 from uipath.tracing import traced
@@ -513,6 +513,9 @@ class StudioClient:
 
     async def ensure_coded_agent_project_async(self):
         structure = await self.get_project_structure_async()
+        # An empty structure means a never-pushed project: allow the first push.
+        if not structure.files and not structure.folders:
+            return
         if not any(file.name == PYTHON_CONFIGURATION_FILE for file in structure.files):
             raise NonCodedAgentProjectException()
 
@@ -578,6 +581,12 @@ class StudioClient:
         with open(UiPathConfig.bindings_file_path, "rb") as f:
             file_content = f.read()
 
+        logger.info(
+            "Resource bindings (%s):\n%s",
+            UiPathConfig.bindings_file_path,
+            file_content.decode(),
+        )
+
         solution_id = await self._get_solution_id()
         tenant_id = os.getenv(ENV_TENANT_ID, None)
 
@@ -600,17 +609,17 @@ class StudioClient:
             files=files,
         )
         data = response.json()
-        overwrites = {}
-
-        for key, value in data.items():
-            overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         logger.info(
-            "Loaded %d resource overwrite(s) from Studio API for solution %s: %s",
-            len(overwrites),
+            "Resource overwrites received for solution %s (%d entries):\n%s",
             solution_id,
-            overwrites,
+            len(data),
+            json.dumps(data, indent=2),
         )
+
+        overwrites = {}
+        for key, value in data.items():
+            overwrites[key] = ResourceOverwriteParser.parse(key, value)
 
         return overwrites
 
@@ -704,13 +713,22 @@ class StudioClient:
         if not force and self._project_structure_cache is not None:
             return self._project_structure_cache
 
-        response = await self.uipath.api_client.request_async(
-            "GET",
-            url=f"{self.file_operations_base_url}/Structure",
-            scoped="org",
-        )
+        try:
+            response = await self.uipath.api_client.request_async(
+                "GET",
+                url=f"{self.file_operations_base_url}/Structure",
+                scoped="org",
+            )
+            structure = ProjectStructure.model_validate(response.json())
+        except EnrichedException as e:
+            # The backend returns 404 for projects whose file system was never
+            # initialized (e.g. a freshly created Function project): treat it
+            # as an empty structure so the first push can bootstrap the files.
+            if e.status_code != 404:
+                raise
+            structure = ProjectStructure(name="root", folders=[], files=[])
 
-        self._project_structure_cache = ProjectStructure.model_validate(response.json())
+        self._project_structure_cache = structure
         return self._project_structure_cache
 
     @traced(name="create_folder", run_type="uipath")

@@ -7,6 +7,7 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.chat import (
     AutoToolChoice,
     ChatModels,
+    RequiredToolChoice,
     SpecificToolChoice,
     ToolDefinition,
     ToolFunctionDefinition,
@@ -368,6 +369,87 @@ class TestUiPathLLMServiceMocked:
         assert result.choices[0].message.tool_calls[0].name == "test_tool"
         assert result.choices[0].message.tool_calls[0].arguments["name"] == "John"
         assert result.choices[0].message.tool_calls[0].arguments["password"] == "1234"
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_raw_dict_tool_passthrough_mocked(self, mock_request, llm_service):
+        """A tool supplied as a raw dict is sent unchanged, preserving nested schema.
+
+        ToolDefinition's converter only emits flat properties, so callers that need
+        an arbitrary nested JSON schema (e.g. the eval mockers) pass the tool as a
+        dict already in UiPath wire format. It must reach the gateway verbatim.
+        """
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "chatcmpl-raw",
+            "object": "chat.completion",
+            "created": 1677858242,
+            "model": "gpt-4o-mini-2024-07-18",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_raw",
+                                "name": "submit_tool_response",
+                                "arguments": {"response": {"items": [{"sku": "A1"}]}},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+                "cache_read_input_tokens": None,
+            },
+        }
+        mock_request.return_value = mock_response
+
+        nested_tool = {
+            "name": "submit_tool_response",
+            "description": "Return the simulated response matching the schema.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "response": {
+                        "type": "object",
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {"sku": {"type": "string"}},
+                                },
+                            }
+                        },
+                    }
+                },
+                "required": ["response"],
+            },
+        }
+
+        result = await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "go"}],
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
+            tools=[nested_tool],
+            tool_choice=RequiredToolChoice(),
+        )
+
+        mock_request.assert_called_once()
+        _, kwargs = mock_request.call_args
+        body = kwargs["json"]
+        # The dict tool is forwarded byte-for-byte, nested array schema intact.
+        assert body["tools"] == [nested_tool]
+        assert body["tool_choice"] == {"type": "required"}
+        assert result.choices[0].message.tool_calls[0].arguments == {
+            "response": {"items": [{"sku": "A1"}]}
+        }
 
     @pytest.mark.asyncio
     @patch.object(UiPathLlmChatService, "request_async")

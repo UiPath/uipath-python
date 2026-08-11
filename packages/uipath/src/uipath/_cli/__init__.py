@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from uipath._cli._utils._context import CliContext
 from uipath._utils._logs import setup_logging
-from uipath._utils.constants import DOTENV_FILE
+from uipath.platform.constants import DOTENV_FILE
 
 # Windows console uses codepages (e.g. cp1252) that can't encode Unicode
 # characters used by Rich spinners (Braille) and emoji output.

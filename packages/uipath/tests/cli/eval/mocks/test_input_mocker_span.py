@@ -212,6 +212,14 @@ async def test_simulate_input_span_on_error(httpx_mock: HTTPXMock, monkeypatch):
                 },
             },
         )
+        # The prose content above triggers the tool-call fallback; an empty
+        # response there fails the fallback too, producing the error span.
+        httpx_mock.add_response(
+            url="https://example.com/llm/api/chat/completions"
+            "?api-version=2024-08-01-preview",
+            status_code=200,
+            json={},
+        )
 
         mocking_strategy = InputMockingStrategy(
             prompt="Generate input",

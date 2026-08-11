@@ -62,6 +62,8 @@ On Missing Data:
 - Never attempt calls with incomplete data
 - On errors: modify parameters or change approach (never retry identical calls)
 
+{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}
+
 =====================================================================
 TOOL RESULTS
 =====================================================================
@@ -136,18 +138,26 @@ You have the following information about the user:
 {user_settings_json}
 ```"""
 
+_CONVERSATION_ID_TEMPLATE = """
+The current conversation ID is {conversation_id}. This may be useful to include in tool-calls when tool parameters specify passing in the conversation ID. Other than tool-call inputs, this ID should not be mentioned to the user.
+"""
+
 
 def get_chat_system_prompt(
     model: str,
     system_message: str,
     agent_name: str | None,
     user_settings: PromptUserSettings | None = None,
+    conversation_id: str | None = None,
 ) -> str:
     """Generate a system prompt for a conversational agent.
 
     Args:
-        agent_definition: Conversational agent definition
+        model: Model identifier.
+        system_message: The agent system prompt content.
+        agent_name: The agent display name; defaults to "Unnamed Agent" when None.
         user_settings: Optional user data that is injected into the system prompt.
+        conversation_id: Optional conversation identifier that is injected into the system prompt.
 
     Returns:
         The complete system prompt string
@@ -177,6 +187,10 @@ def get_chat_system_prompt(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_userSettingsPrompt}}",
         get_user_settings_template(user_settings),
     )
+    prompt = prompt.replace(
+        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}",
+        get_conversation_id_template(conversation_id),
+    )
 
     return prompt
 
@@ -190,7 +204,7 @@ def get_user_settings_template(
         user_settings: User profile information
 
     Returns:
-        The user context template with JSON or empty string
+        The filled-in user settings template if user_settings is provided, otherwise an empty string
     """
     if user_settings is None:
         return ""
@@ -205,3 +219,35 @@ def get_user_settings_template(
 
     user_settings_json = json.dumps(settings_dict, ensure_ascii=False)
     return _USER_CONTEXT_TEMPLATE.format(user_settings_json=user_settings_json)
+
+
+def get_conversation_id_template(conversation_id: str | None) -> str:
+    """Get the conversation ID prompt section.
+
+    Args:
+        conversation_id: The ID of the current conversation, if any
+
+    Returns:
+        The filled-in conversation ID template if conversation_id is provided, otherwise an empty string
+    """
+    if not conversation_id:
+        return ""
+    return _CONVERSATION_ID_TEMPLATE.format(conversation_id=conversation_id)
+
+
+_GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for this turn.
+
+Rules:
+- For each field, use values inferred from the conversation's recent turn.
+- For optional fields that are not yet relevant or determinable (e.g. the conversation is still gathering context, or the topic hasn't surfaced yet), omit them entirely.
+- For required fields that cannot yet be determined, provide a default placeholder. DO NOT fabricate, guess, or hallucinate meaningful values.
+- Do not produce any text response, as this will not be seen by the user. Only call the tool."""
+
+
+def get_generate_output_prompt() -> str:
+    """Return the framework-internal generate-output instruction.
+
+    Appended as a final user-message to the conversational structured-output
+    node's LLM call.
+    """
+    return _GENERATE_OUTPUT_INSTRUCTION

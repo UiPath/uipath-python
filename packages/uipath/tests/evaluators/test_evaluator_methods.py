@@ -58,26 +58,26 @@ from uipath.eval.evaluators.tool_call_output_evaluator import (
 )
 from uipath.eval.models import NumericEvaluationResult
 from uipath.eval.models.models import (
-    AgentExecution,
     ToolCall,
     ToolOutput,
     UiPathEvaluationError,
+    WorkloadExecution,
 )
 
 
 @pytest.fixture
-def sample_agent_execution() -> AgentExecution:
-    """Create a sample AgentExecution for testing."""
-    return AgentExecution(
+def sample_agent_execution() -> WorkloadExecution:
+    """Create a sample WorkloadExecution for testing."""
+    return WorkloadExecution(
         agent_input={"input": "Test input"},
-        agent_output={"output": "Test output"},
-        agent_trace=[],  # Empty trace for basic tests
+        workload_output={"output": "Test output"},
+        workload_trace=[],  # Empty trace for basic tests
     )
 
 
 @pytest.fixture
-def sample_agent_execution_with_trace() -> AgentExecution:
-    """Create a sample AgentExecution with tool call trace."""
+def sample_agent_execution_with_trace() -> WorkloadExecution:
+    """Create a sample WorkloadExecution with tool call trace."""
     # Mock spans that represent tool calls - simplified for testing
     mock_spans = [
         ReadableSpan(
@@ -122,12 +122,12 @@ def sample_agent_execution_with_trace() -> AgentExecution:
         ),
     ]
 
-    return AgentExecution(
+    return WorkloadExecution(
         agent_input={"input": "Test input with tools"},
-        agent_output={
+        workload_output={
             "output": "Test output with tools",
         },
-        agent_trace=mock_spans,
+        workload_trace=mock_spans,
     )
 
 
@@ -136,7 +136,7 @@ class TestExactMatchEvaluator:
 
     @pytest.mark.asyncio
     async def test_exact_match_string_success(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test exact match with matching strings."""
         config = {
@@ -156,7 +156,7 @@ class TestExactMatchEvaluator:
 
     @pytest.mark.asyncio
     async def test_exact_match_string_failure(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test exact match with non-matching strings."""
         config = {
@@ -178,7 +178,7 @@ class TestExactMatchEvaluator:
 
     @pytest.mark.asyncio
     async def test_exact_match_negated(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test exact match with negated criteria."""
         config = {
@@ -215,10 +215,10 @@ class TestExactMatchEvaluator:
         self, actual_output: Any, expected_output: Any, expected_score: float
     ) -> None:
         """Test that int and float scalar values are normalized before comparison."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output={"value": actual_output},
-            agent_trace=[],
+            workload_output={"value": actual_output},
+            workload_trace=[],
         )
         config = {"name": "ExactMatchNumericTest", "target_output_key": "value"}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -260,10 +260,10 @@ class TestExactMatchEvaluator:
         expected_score: float,
     ) -> None:
         """Test that int/float normalization works recursively for dicts, lists, and nested structures."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output=actual_output,
-            agent_trace=[],
+            workload_output=actual_output,
+            workload_trace=[],
         )
         config = {"name": "ExactMatchRecursiveTest", "target_output_key": target_key}
         evaluator = ExactMatchEvaluator.model_validate(
@@ -278,7 +278,7 @@ class TestExactMatchEvaluator:
 
     @pytest.mark.asyncio
     async def test_exact_match_validate_and_evaluate_criteria(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test exact match using validate_and_evaluate_criteria."""
         config = {
@@ -311,15 +311,15 @@ class TestExactMatchEvaluator:
         )
 
         # Multi-line output
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="line1\nline2\nline3",
-            agent_trace=[],
+            workload_output="line1\nline2\nline3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution, criteria
+            workload_execution, criteria
         )
 
         assert isinstance(result, NumericEvaluationResult)
@@ -346,15 +346,15 @@ class TestExactMatchEvaluator:
         )
 
         # Multi-line output with 2 out of 3 lines matching
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="line1\nwrong\nline3",
-            agent_trace=[],
+            workload_output="line1\nwrong\nline3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution, criteria
+            workload_execution, criteria
         )
 
         assert isinstance(result, NumericEvaluationResult)
@@ -384,15 +384,15 @@ class TestExactMatchEvaluator:
         )
 
         # Pipe-delimited output
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="part1|part2|part3",
-            agent_trace=[],
+            workload_output="part1|part2|part3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="part1|part2|part3")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution, criteria
+            workload_execution, criteria
         )
 
         assert isinstance(result, NumericEvaluationResult)
@@ -415,15 +415,15 @@ class TestExactMatchEvaluator:
         )
 
         # Multi-line output with 2 out of 3 lines matching
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"input": "Test input"},
-            agent_output="line1\nwrong\nline3",
-            agent_trace=[],
+            workload_output="line1\nwrong\nline3",
+            workload_trace=[],
         )
         criteria = OutputEvaluationCriteria(expected_output="line1\nline2\nline3")  # pyright: ignore[reportCallIssue]
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution, criteria
+            workload_execution, criteria
         )
 
         # Check that the result has the _line_by_line_results attribute
@@ -447,12 +447,454 @@ class TestExactMatchEvaluator:
         assert line3_result.score == 1.0
 
 
+class TestListTargetOutputKey:
+    """Test target_output_key as a list of keys."""
+
+    @pytest.mark.asyncio
+    async def test_exact_match_list_keys_all_match(self) -> None:
+        """All listed keys match → score 1.0."""
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok", "total": 42, "extra": "ignored"},
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok", "total": 42}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_exact_match_list_keys_value_mismatch(self) -> None:
+        """One key's value differs → score 0.0."""
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok", "total": 99},
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok", "total": 42}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_exact_match_list_keys_dot_notation(self) -> None:
+        """Nested dot-notation paths inside a list of keys."""
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"order": {"status": "shipped"}, "qty": 3},
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListDotKeys",
+            "target_output_key": ["order.status", "qty"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"order": {"status": "shipped"}, "qty": 3}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_missing_key_in_actual_raises(self) -> None:
+        """Missing key in actual output returns an ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok"},  # 'total' is missing
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok", "total": 42}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_missing_key_in_expected_raises(self) -> None:
+        """Missing key in expected output returns an ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok", "total": 42},
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={
+                "status": "ok"
+            }  # 'total' missing  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_expected_as_json_string(self) -> None:
+        """Expected output as a JSON string is parsed when key is a list."""
+        import json
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok", "total": 5},
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListKeys",
+            "target_output_key": ["status", "total"],
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output=json.dumps({"status": "ok", "total": 5})  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_invalid_json_string_expected_raises(self) -> None:
+        """Invalid JSON string for expected output returns an ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output="not valid json"  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_disables_line_by_line(self) -> None:
+        """line_by_line_evaluator=True is ignored when target_output_key is a list."""
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"a": "x", "b": "y"},
+            workload_trace=[],
+        )
+        config = {
+            "name": "ExactMatchListLbl",
+            "target_output_key": ["a", "b"],
+            "line_by_line_evaluator": True,
+        }
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        raw_criteria = {"expected_output": {"a": "x", "b": "y"}}
+        # Should not raise or split into lines; returns a plain NumericEvaluationResult
+        result = await evaluator.validate_and_evaluate_criteria(execution, raw_criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+        # No line-by-line details attached
+        assert (
+            not hasattr(result, "_line_by_line_results")
+            or result._line_by_line_results is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_json_similarity_list_keys_perfect_match(self) -> None:
+        """JsonSimilarityEvaluator with list keys scores 1.0 on exact match."""
+        from uipath.eval.evaluators.json_similarity_evaluator import (
+            JsonSimilarityEvaluator,
+        )
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"name": "Alice", "score": 100, "extra": "ignored"},
+            workload_trace=[],
+        )
+        config = {
+            "name": "JsonSimListKeys",
+            "target_output_key": ["name", "score"],
+        }
+        evaluator = JsonSimilarityEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"name": "Alice", "score": 100}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_non_dict_actual_raises(self) -> None:
+        """Non-dict workload_output with list key returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output="just a string",  # pyright: ignore[reportArgumentType]
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"status": "ok"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_non_dict_json_expected_raises(self) -> None:
+        """Valid JSON that parses to a non-dict returns ErrorEvaluationResult."""
+        import json
+
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        # Valid JSON but not an object — triggers the isinstance(expected_output, dict) guard
+        criteria = OutputEvaluationCriteria(
+            expected_output=json.dumps("just a string")  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_list_keys_attachment_uri_downloaded(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Attachment URIs within list-key actual output values are downloaded."""
+        att_uri = (
+            "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000001"
+        )
+        mocker.patch(
+            "uipath.eval.evaluators.output_evaluator.download_attachment_as_string",
+            return_value="downloaded_content",
+        )
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"file": att_uri, "status": "ok"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchListKeys", "target_output_key": ["file", "status"]}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"file": "downloaded_content", "status": "ok"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_attachment_uri_downloaded(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Attachment URI in scalar-key actual output is downloaded."""
+        att_uri = (
+            "urn:uipath:cas:file:orchestrator:00000000-0000-0000-0000-000000000002"
+        )
+        mocker.patch(
+            "uipath.eval.evaluators.output_evaluator.download_attachment_as_string",
+            return_value="file_content",
+        )
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"report": att_uri},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchScalarAtt", "target_output_key": "report"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"report": "file_content"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == 1.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_missing_in_actual_raises(self) -> None:
+        """Missing scalar target_output_key in actual output returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"other": "value"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchMissingActual", "target_output_key": "missing_key"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output={"missing_key": "val"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_missing_in_expected_raises(self) -> None:
+        """Missing scalar target_output_key in expected output returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchMissingExpected", "target_output_key": "status"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        # expected output dict doesn't contain the target key
+        criteria = OutputEvaluationCriteria(
+            expected_output={"other_key": "ok"}  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_scalar_key_invalid_json_expected_raises(self) -> None:
+        """Invalid JSON string for expected output with scalar key returns ErrorEvaluationResult."""
+        from uipath.eval.models.models import ErrorEvaluationResult
+
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchInvalidJson", "target_output_key": "status"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        criteria = OutputEvaluationCriteria(
+            expected_output="not valid json"  # pyright: ignore[reportCallIssue]
+        )
+        result = await evaluator.evaluate(execution, criteria)
+        assert isinstance(result, ErrorEvaluationResult)
+        assert result.score == 0.0
+
+    @pytest.mark.asyncio
+    async def test_validate_and_evaluate_criteria_none_raises(self) -> None:
+        """None criteria with no default configured raises UiPathEvaluationError."""
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output={"status": "ok"},
+            workload_trace=[],
+        )
+        config = {"name": "ExactMatchNoCriteria"}
+        evaluator = ExactMatchEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        with pytest.raises(UiPathEvaluationError) as exc_info:
+            await evaluator.validate_and_evaluate_criteria(execution, None)
+        assert "MISSING_EVALUATION_CRITERIA" in exc_info.value.error_info.code
+
+    def test_base_output_evaluator_get_full_expected_output_raises(self) -> None:
+        """BaseOutputEvaluator._get_full_expected_output raises NOT_IMPLEMENTED."""
+        from uipath.eval.evaluators.base_evaluator import BaseEvaluatorJustification
+        from uipath.eval.evaluators.output_evaluator import (
+            BaseOutputEvaluator,
+            OutputEvaluationCriteria,
+            OutputEvaluatorConfig,
+        )
+        from uipath.eval.models import EvaluationResult
+
+        class _MinimalEvaluator(
+            BaseOutputEvaluator[
+                OutputEvaluationCriteria,
+                OutputEvaluatorConfig[OutputEvaluationCriteria],
+                BaseEvaluatorJustification,
+            ]
+        ):
+            @classmethod
+            def get_evaluator_id(cls) -> str:
+                return "uipath-minimal-test"
+
+            async def evaluate(
+                self, workload_execution: Any, evaluation_criteria: Any
+            ) -> EvaluationResult:
+                return None  # type: ignore[return-value]
+
+            def validate_evaluation_criteria(
+                self, raw: Any
+            ) -> OutputEvaluationCriteria:
+                return OutputEvaluationCriteria.model_validate(raw)
+
+        evaluator = _MinimalEvaluator.model_validate(
+            {
+                "evaluatorConfig": {"name": "minimal"},
+                "id": str(uuid.uuid4()),
+            }
+        )
+        with pytest.raises(UiPathEvaluationError) as exc_info:
+            evaluator._get_full_expected_output(  # pyright: ignore[reportArgumentType]
+                OutputEvaluationCriteria(expected_output={})  # pyright: ignore[reportCallIssue]
+            )
+        assert "NOT_IMPLEMENTED" in exc_info.value.error_info.code
+
+
 class TestContainsEvaluator:
     """Test ContainsEvaluator.evaluate() method."""
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "agent_output, search_text, target_key, case_sensitive, negated, expected_score",
+        "workload_output, search_text, target_key, case_sensitive, negated, expected_score",
         [
             # Basic match
             ("Test output", "Test output", "*", False, False, 1.0),
@@ -476,24 +918,24 @@ class TestContainsEvaluator:
     )
     async def test_contains_evaluator(
         self,
-        agent_output: Any,
+        workload_output: Any,
         search_text: str,
         target_key: str,
         case_sensitive: bool,
         negated: bool,
         expected_score: float,
-        sample_agent_execution: AgentExecution,
+        sample_agent_execution: WorkloadExecution,
     ) -> None:
         """Test ContainsEvaluator across match, no-match, case sensitivity, and negation cases."""
         if target_key == "output":
             execution = (
-                sample_agent_execution  # has agent_output={"output": "Test output"}
+                sample_agent_execution  # has workload_output={"output": "Test output"}
             )
         else:
-            execution = AgentExecution(
+            execution = WorkloadExecution(
                 agent_input={},
-                agent_output=agent_output,
-                agent_trace=[],
+                workload_output=workload_output,
+                workload_trace=[],
             )
         config = {
             "name": "ContainsTest",
@@ -512,7 +954,7 @@ class TestContainsEvaluator:
 
     @pytest.mark.asyncio
     async def test_contains_evaluator_validate_and_evaluate_criteria(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test contains evaluator with validate_and_evaluate_criteria."""
         config = {
@@ -536,10 +978,10 @@ class TestJsonSimilarityEvaluator:
     @pytest.mark.asyncio
     async def test_json_similarity_identical(self) -> None:
         """Test JSON similarity with identical structures."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -559,10 +1001,10 @@ class TestJsonSimilarityEvaluator:
     @pytest.mark.asyncio
     async def test_json_similarity_partial_match(self) -> None:
         """Test JSON similarity with partial matches."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "LA"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "LA"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -602,10 +1044,10 @@ class TestJsonSimilarityEvaluator:
         expected_score: float,
     ) -> None:
         """Test that int/float normalization is applied before JSON similarity comparison."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output=actual_output,
-            agent_trace=[],
+            workload_output=actual_output,
+            workload_trace=[],
         )
         config = {"name": "JsonSimilarityTest"}
         evaluator = JsonSimilarityEvaluator.model_validate(
@@ -621,10 +1063,10 @@ class TestJsonSimilarityEvaluator:
     @pytest.mark.asyncio
     async def test_json_similarity_validate_and_evaluate_criteria(self) -> None:
         """Test JSON similarity using validate_and_evaluate_criteria."""
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -645,7 +1087,7 @@ class TestToolCallOrderEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_order_perfect_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call order with perfect order match."""
 
@@ -668,7 +1110,7 @@ class TestToolCallOrderEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_order_no_perfect_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call order with perfect order match."""
 
@@ -691,7 +1133,7 @@ class TestToolCallOrderEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_order_lcs_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call order with lcs order match."""
 
@@ -713,7 +1155,7 @@ class TestToolCallOrderEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_order_validate_and_evaluate_criteria(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call order using validate_and_evaluate_criteria."""
         config = {
@@ -738,7 +1180,7 @@ class TestToolCallCountEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_count_exact_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call count with exact count match."""
         config = {
@@ -759,7 +1201,7 @@ class TestToolCallCountEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_count_with_gt(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call count with strict count match."""
         config = {
@@ -780,7 +1222,7 @@ class TestToolCallCountEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_count_no_exact_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call count with no exact count match."""
         config = {
@@ -801,7 +1243,7 @@ class TestToolCallCountEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_count_partial_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call count with partial count match."""
         config = {
@@ -822,7 +1264,7 @@ class TestToolCallCountEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_count_validate_and_evaluate_criteria(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call count using validate_and_evaluate_criteria."""
         config = {
@@ -847,7 +1289,7 @@ class TestToolCallArgsEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_args_perfect_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call args with perfect match."""
         config = {
@@ -873,7 +1315,7 @@ class TestToolCallArgsEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_args_partial_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call args with partial match."""
         config = {
@@ -899,7 +1341,7 @@ class TestToolCallArgsEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_args_validate_and_evaluate_criteria(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call args using validate_and_evaluate_criteria."""
         config = {
@@ -931,7 +1373,7 @@ class TestToolCallOutputEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_perfect_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call output with perfect output match."""
         config = {
@@ -957,7 +1399,7 @@ class TestToolCallOutputEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_partial_match(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call output with partial output match."""
         config = {
@@ -983,7 +1425,7 @@ class TestToolCallOutputEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_no_match_strict(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call output with no match in strict mode."""
         config = {
@@ -1009,7 +1451,7 @@ class TestToolCallOutputEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_partial_match_non_strict(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call output with partial match in non-strict mode."""
         config = {
@@ -1033,7 +1475,7 @@ class TestToolCallOutputEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_empty_criteria(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call output with empty criteria."""
         config = {
@@ -1052,7 +1494,7 @@ class TestToolCallOutputEvaluator:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_validate_and_evaluate_criteria(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test tool call output using validate_and_evaluate_criteria."""
         config = {
@@ -1084,7 +1526,7 @@ class TestLlmAsAJudgeEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_judge_basic_evaluation(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM as judge basic evaluation functionality with function calling."""
         mock_tool_call = mocker.MagicMock()
@@ -1134,7 +1576,7 @@ class TestLlmAsAJudgeEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_judge_basic_evaluation_with_llm_service(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM judge basic evaluation functionality with a custom LLM service and function calling."""
         # Mock tool call for function calling approach
@@ -1181,7 +1623,7 @@ class TestLlmAsAJudgeEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_judge_validate_and_evaluate_criteria(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM judge using validate_and_evaluate_criteria with function calling."""
         mock_tool_call = mocker.MagicMock()
@@ -1236,7 +1678,7 @@ class TestLlmJudgeTrajectoryEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_trajectory_basic_evaluation(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM trajectory judge basic evaluation functionality with function calling."""
         mock_tool_call = mocker.MagicMock()
@@ -1288,7 +1730,7 @@ class TestLlmJudgeTrajectoryEvaluator:
 
     @pytest.mark.asyncio
     async def test_llm_trajectory_validate_and_evaluate_criteria(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test LLM trajectory judge using validate_and_evaluate_criteria with function calling."""
         mock_tool_call = mocker.MagicMock()
@@ -1383,7 +1825,7 @@ class TestEvaluationResultTypes:
 
     @pytest.mark.asyncio
     async def test_evaluators_return_results_with_scores(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test that evaluators return results with scores."""
         config = {
@@ -1405,7 +1847,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_exact_match_evaluator_justification(
-        self, sample_agent_execution: AgentExecution
+        self, sample_agent_execution: WorkloadExecution
     ) -> None:
         """Test that ExactMatchEvaluator provides BaseEvaluatorJustification."""
 
@@ -1430,10 +1872,10 @@ class TestJustificationHandling:
     async def test_json_similarity_evaluator_justification(self) -> None:
         """Test that JsonSimilarityEvaluator provides JsonSimilarityJustification."""
 
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={"input": "Test"},
-            agent_output={"name": "John", "age": 30, "city": "NYC"},
-            agent_trace=[],
+            workload_output={"name": "John", "age": 30, "city": "NYC"},
+            workload_trace=[],
         )
         config = {
             "name": "JsonSimilarityTest",
@@ -1455,7 +1897,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_tool_call_order_evaluator_justification(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test that ToolCallOrderEvaluator provides structured justification."""
 
@@ -1478,7 +1920,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_tool_call_count_evaluator_justification(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test that ToolCallCountEvaluator provides structured justification."""
 
@@ -1501,7 +1943,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_tool_call_args_evaluator_justification(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test that ToolCallArgsEvaluator provides structured justification."""
 
@@ -1529,7 +1971,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_tool_call_output_evaluator_justification(
-        self, sample_agent_execution_with_trace: AgentExecution
+        self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
         """Test that ToolCallOutputEvaluator handles justification correctly."""
         config = {
@@ -1561,7 +2003,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_llm_judge_output_evaluator_justification(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test that LLMJudgeOutputEvaluator handles str justification correctly with function calling."""
         mock_tool_call = mocker.MagicMock()
@@ -1617,7 +2059,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_llm_judge_trajectory_evaluator_justification(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test that LLMJudgeTrajectoryEvaluator handles str justification correctly."""
         mock_tool_call = mocker.MagicMock()
@@ -1763,7 +2205,7 @@ class TestJustificationHandling:
 
     @pytest.mark.asyncio
     async def test_llm_judge_omits_max_tokens_when_none(
-        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+        self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:
         """Test that max_tokens is omitted from API request when None (fixes 400 error)."""
         mock_tool_call = mocker.MagicMock()
@@ -1810,7 +2252,7 @@ class TestJustificationHandling:
         )
 
         result = await evaluator.evaluate(
-            agent_execution=sample_agent_execution,
+            workload_execution=sample_agent_execution,
             evaluation_criteria=OutputEvaluationCriteria(expected_output="42"),
         )
 
@@ -1850,7 +2292,7 @@ class TestClaude45ModelSupport:
     async def test_claude_45_evaluator_uses_function_calling(
         self,
         model_name: str,
-        sample_agent_execution: AgentExecution,
+        sample_agent_execution: WorkloadExecution,
         mocker: MockerFixture,
     ) -> None:
         """Test that Claude 4.5 evaluators use function calling (tools/tool_choice)."""
@@ -1923,7 +2365,7 @@ class TestClaude45ModelSupport:
     async def test_claude_45_sets_default_max_tokens(
         self,
         model_name: str,
-        sample_agent_execution: AgentExecution,
+        sample_agent_execution: WorkloadExecution,
         mocker: MockerFixture,
     ) -> None:
         """Test that Claude 4.5 models get default max_tokens=8000 when not configured."""
@@ -1978,7 +2420,7 @@ class TestClaude45ModelSupport:
     @pytest.mark.asyncio
     async def test_claude_45_respects_configured_max_tokens(
         self,
-        sample_agent_execution: AgentExecution,
+        sample_agent_execution: WorkloadExecution,
         mocker: MockerFixture,
     ) -> None:
         """Test that explicitly configured max_tokens overrides the Claude 4.5 default."""
@@ -2060,10 +2502,10 @@ class TestBinaryClassificationEvaluator:
             BinaryClassificationEvaluator,
         )
 
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": predicted},
-            agent_trace=[],
+            workload_output={"class": predicted},
+            workload_trace=[],
         )
         config = {
             "name": "BinaryClassificationTest",
@@ -2115,10 +2557,10 @@ class TestMulticlassClassificationEvaluator:
             MulticlassClassificationEvaluator,
         )
 
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": predicted},
-            agent_trace=[],
+            workload_output={"class": predicted},
+            workload_trace=[],
         )
         config = {
             "name": "MulticlassClassificationTest",
@@ -2146,10 +2588,10 @@ class TestMulticlassClassificationEvaluator:
         )
         from uipath.eval.models.models import ErrorEvaluationResult
 
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": "cat"},
-            agent_trace=[],
+            workload_output={"class": "cat"},
+            workload_trace=[],
         )
         config = {
             "name": "MulticlassClassificationTest",
@@ -2173,10 +2615,10 @@ class TestMulticlassClassificationEvaluator:
         )
         from uipath.eval.models.models import ErrorEvaluationResult
 
-        execution = AgentExecution(
+        execution = WorkloadExecution(
             agent_input={},
-            agent_output={"class": "fish"},
-            agent_trace=[],
+            workload_output={"class": "fish"},
+            workload_trace=[],
         )
         config = {
             "name": "MulticlassClassificationTest",

@@ -4,10 +4,10 @@ import math
 from typing import Any, Tuple
 
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from .base_evaluator import BaseEvaluatorJustification
 from .output_evaluator import (
@@ -51,7 +51,7 @@ class JsonSimilarityEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: OutputEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate similarity between expected and actual JSON outputs.
@@ -59,7 +59,7 @@ class JsonSimilarityEvaluator(
         Uses token-based comparison with tolerance for numeric differences
         and Levenshtein distance for string similarity.
 
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
                 - spans: The execution spans to use for the evaluation
@@ -69,7 +69,7 @@ class JsonSimilarityEvaluator(
             EvaluationResult: Numerical score between 0-100 indicating similarity
         """
         expected_output = self._get_expected_output(evaluation_criteria)
-        actual_output = self._get_actual_output(agent_execution)
+        actual_output = self._get_actual_output(workload_execution)
         score, justification = self._compare_json(
             expected_output,
             actual_output,

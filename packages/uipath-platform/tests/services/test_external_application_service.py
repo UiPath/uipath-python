@@ -3,11 +3,9 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from uipath.platform.common._external_application_service import (
-    ExternalApplicationService,
-)
 from uipath.platform.common.auth import TokenData
 from uipath.platform.errors import EnrichedException
+from uipath.platform.external_applications import ExternalApplicationService
 
 IDENTITY_SERVICE_SYNC = (
     "uipath.platform.identity.IdentityService.get_client_credentials_token"

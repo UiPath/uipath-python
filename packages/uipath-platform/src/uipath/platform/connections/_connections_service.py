@@ -8,7 +8,7 @@ from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
-from ..common._config import UiPathApiConfig
+from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import header_folder
 from ..common._models import Endpoint, RequestSpec
@@ -23,6 +23,13 @@ from .connections import (
 )
 
 logger: logging.Logger = logging.getLogger("uipath")
+
+HEADER_ORIGINATOR = "x-uipath-originator"
+HEADER_SOURCE = "x-uipath-source"
+# Sent on outbound Integration Service activity invocations so GenAI activities
+# can be stitched back to the parent job for licensing attribution.
+HEADER_ACTIVITY_JOB_ID = "x-uipath-job-id"
+_ORIGINATOR_VALUE = "uipath-python"
 
 
 class ConnectionsService(BaseService):
@@ -768,11 +775,13 @@ class ConnectionsService(BaseService):
 
         # header parameter handling
         headers = {
-            "x-uipath-originator": "uipath-python",
-            "x-uipath-source": "uipath-python",
+            HEADER_ORIGINATOR: _ORIGINATOR_VALUE,
+            HEADER_SOURCE: _ORIGINATOR_VALUE,
             **header_folder(folder_key, None),
             **header_params,
         }
+        if job_key := UiPathConfig.job_key:
+            headers[HEADER_ACTIVITY_JOB_ID] = job_key
 
         # body and files handling
         json_data: Dict[str, Any] | None = None
@@ -788,12 +797,22 @@ class ConnectionsService(BaseService):
                 # instead of making assumptions on whether or not it's present, we'll handle it defensively
                 if key == json_section:
                     continue
-                # files not supported yet supported so this will likely not work
-                files[key] = (
-                    key,
-                    val,
-                    None,
-                )  # probably needs to extract content type from val since IS metadata doesn't provide it
+                if isinstance(val, tuple):
+                    # Caller supplied httpx's (filename, content[, content_type])
+                    # shape — pass through verbatim. This is the recommended path
+                    # for file uploads so the multipart Content-Disposition gets
+                    # the real filename instead of the form-field name.
+                    files[key] = val
+                elif isinstance(val, (bytes, bytearray)) or hasattr(val, "read"):
+                    # Raw file content with no filename — fall back to the
+                    # form-field name (legacy behaviour). Backwards compatible
+                    # with callers that still pass bytes directly.
+                    files[key] = (key, val, "application/octet-stream")
+                else:
+                    # Scalar (string/number/etc.) — send as a plain multipart
+                    # form field, not a file part. The (None, value) shape tells
+                    # httpx to omit `filename=...` from the Content-Disposition.
+                    files[key] = (None, str(val))
 
             files[json_section] = (
                 "",

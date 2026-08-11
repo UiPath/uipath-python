@@ -17,3 +17,5 @@ test:uipath-integrations:
 test:uipath-runtime:
   - changed-files:
     - any-glob-to-any-file: ['packages/uipath-core/src/**/*.py']
+  - changed-files:
+    - any-glob-to-any-file: ['packages/uipath/pyproject.toml']

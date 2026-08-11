@@ -8,10 +8,16 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Literal, Optional, Tuple
 
+import anyio
 from pydantic import BaseModel, Field, TypeAdapter
 
 from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
 from uipath.platform.common import UiPathConfig
+from uipath.platform.constants import (
+    LEGACY_EVAL_FOLDER,
+    PYTHON_CONFIGURATION_FILE,
+    UIPATH_CONFIG_FILE,
+)
 
 from .._utils._console import ConsoleLogger
 from ._constants import is_binary_file
@@ -23,6 +29,34 @@ from ._studio_project import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_existing_project_id(directory: str = ".") -> Optional[str]:
+    """Return an already-established project id for this project, if any.
+
+    Checks the Studio Web project env var first, then falls back to the legacy
+    ``ProjectKey`` stored in ``.uipath/.telemetry.json``. Returns ``None`` when
+    neither is present.
+
+    Args:
+        directory: The project root directory to look for the telemetry file in.
+    """
+    from ...telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
+
+    if project_id := UiPathConfig.project_id:
+        return project_id
+
+    telemetry_file = os.path.join(directory, ".uipath", _TELEMETRY_CONFIG_FILE)
+    if os.path.exists(telemetry_file):
+        try:
+            with open(telemetry_file, "r") as f:
+                telemetry_data = json.load(f)
+                if project_id := telemetry_data.get(_PROJECT_KEY):
+                    return project_id
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return None
 
 
 class Severity(IntEnum):
@@ -89,8 +123,8 @@ def get_project_config(directory: str) -> dict[str, Any]:
     Raises:
         SystemExit: If required configuration files are missing or invalid
     """
-    config_path = os.path.join(directory, "uipath.json")
-    toml_path = os.path.join(directory, "pyproject.toml")
+    config_path = os.path.join(directory, UIPATH_CONFIG_FILE)
+    toml_path = os.path.join(directory, PYTHON_CONFIGURATION_FILE)
 
     if not os.path.isfile(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
@@ -199,7 +233,7 @@ def ensure_config_file(directory: str) -> None:
     Raises:
         SystemExit: If uipath.json is not found in the directory
     """
-    if not os.path.isfile(os.path.join(directory, "uipath.json")):
+    if not os.path.isfile(os.path.join(directory, UIPATH_CONFIG_FILE)):
         console.error(
             "uipath.json not found. Please run `uipath init` in the project directory."
         )
@@ -389,7 +423,7 @@ def files_to_include(
         tuple[list[FileInfo], list[str]]: Tuple of (included files, skipped file paths)
     """
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
-    files_included = ["pyproject.toml"]
+    files_included = [PYTHON_CONFIGURATION_FILE]
     files_excluded = []
 
     if directories_to_ignore is None:
@@ -429,7 +463,7 @@ def files_to_include(
         # Determine if we're in the root evals folder
         root_rel_path = os.path.relpath(root, directory)
         normalized_root_rel_path = root_rel_path.replace(os.sep, "/")
-        is_root_evals_folder = normalized_root_rel_path == "evals"
+        is_root_evals_folder = normalized_root_rel_path == LEGACY_EVAL_FOLDER
 
         # Skip all directories that start with . or are a venv or are excluded
         included_dirs = []
@@ -592,21 +626,21 @@ async def download_folder_files(
     collect_files_from_folder(folder, "", files_dict)
 
     for file_path, remote_file in files_dict.items():
-        local_path = base_path / file_path
-        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path = anyio.Path(base_path / file_path)
+        await local_path.parent.mkdir(parents=True, exist_ok=True)
 
         response = await studio_client.download_project_file_async(remote_file)
         remote_content = response.read().decode("utf-8")
         remote_hash = compute_normalized_hash(remote_content)
 
-        if os.path.exists(local_path):
-            with open(local_path, "r", encoding="utf-8") as f:
-                local_content = f.read()
-                local_hash = compute_normalized_hash(local_content)
+        if await local_path.exists():
+            local_content = await local_path.read_text(encoding="utf-8")
+            local_hash = compute_normalized_hash(local_content)
 
             if local_hash != remote_hash:
-                with open(local_path, "w", encoding="utf-8", newline="\n") as f:
-                    f.write(remote_content)
+                await local_path.write_text(
+                    remote_content, encoding="utf-8", newline="\n"
+                )
 
                 yield UpdateEvent(
                     file_path=file_path,
@@ -620,8 +654,7 @@ async def download_folder_files(
                     message=f"File '{file_path}' is up to date",
                 )
         else:
-            with open(local_path, "w", encoding="utf-8", newline="\n") as f:
-                f.write(remote_content)
+            await local_path.write_text(remote_content, encoding="utf-8", newline="\n")
 
             yield UpdateEvent(
                 file_path=file_path,

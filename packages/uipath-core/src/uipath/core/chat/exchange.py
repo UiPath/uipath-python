@@ -28,11 +28,24 @@ from .message import (
 )
 
 
+class UiPathClientSideToolDeclaration(BaseModel):
+    """A client-side tool declaration from the SDK client."""
+
+    name: str
+    input_schema: dict[str, Any] | None = Field(None, alias="inputSchema")
+    output_schema: dict[str, Any] | None = Field(None, alias="outputSchema")
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+
 class UiPathConversationExchangeStartEvent(BaseModel):
     """Signals the start of an exchange of messages within a conversation."""
 
     conversation_sequence: int | None = Field(None, alias="conversationSequence")
     metadata: dict[str, Any] | None = Field(None, alias="metaData")
+    client_side_tools: list[UiPathClientSideToolDeclaration] | None = Field(
+        None, alias="clientSideTools"
+    )
     timestamp: str | None = None
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

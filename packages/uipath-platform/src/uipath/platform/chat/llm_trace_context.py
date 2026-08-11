@@ -5,12 +5,17 @@ from uipath.core.feature_flags import FeatureFlags
 from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from ..common._config import UiPathConfig
+from ..common._span_utils import _SpanUtils, resolve_project_id
 
 
 def build_trace_context_headers(
     extra_baggage: list[str] | None = None,
 ) -> dict[str, str]:
-    """Build W3C-style trace context headers from the current OpenTelemetry span.
+    """Build W3C-style trace context headers for LLM Gateway requests.
+
+    Resolves the current span via ``UiPathSpanUtils.get_external_current_span()``
+    (which returns the deepest active span from the LLMOps hierarchy) with a
+    fallback to ``trace.get_current_span()``.
 
     Args:
         extra_baggage: Additional baggage entries (e.g. ``["source=agents"]``)
@@ -25,19 +30,28 @@ def build_trace_context_headers(
     headers: dict[str, str] = {}
     llmops_span = UiPathSpanUtils.get_external_current_span()
     span = llmops_span or trace.get_current_span()
+    config_trace_id = UiPathConfig.trace_id
     ctx = span.get_span_context()
-    if ctx and ctx.trace_id and ctx.span_id:
-        trace_id = format(ctx.trace_id, "032x")
+    if config_trace_id and ctx and ctx.span_id:
+        trace_id = _SpanUtils.normalize_trace_id(config_trace_id)
+        # An OTEL span id is 64-bit => 16 lowercase hex chars, and the W3C traceparent
+        # requires the trailing trace-flags segment. The LLM Gateway's strict parser
+        # (UiPath.Tracing.TraceParent.TryParse) rejects the header unless it is exactly
+        # {version}-{32-hex trace}-{16-hex span}-{2-hex flags}; on rejection the gateway
+        # synthesizes a fresh root trace and drops inbound baggage, orphaning the audit
+        # span from the caller's trace. Emitting 32-hex span / no flags was the bug.
         span_id = format(ctx.span_id, "016x")
-        headers["x-uipath-traceparent-id"] = f"00-{trace_id}-{span_id}"
+        headers["x-uipath-traceparent-id"] = f"00-{trace_id}-{span_id}-01"
 
     baggage_parts: list[str] = list(extra_baggage) if extra_baggage else []
     if folder_key := UiPathConfig.folder_key:
         baggage_parts.append(f"folderKey={folder_key}")
-    if agent_id := UiPathConfig.process_uuid:
+    if agent_id := resolve_project_id():
         baggage_parts.append(f"agentId={agent_id}")
-    if process_key := UiPathConfig.process_key:
-        baggage_parts.append(f"processKey={process_key}")
+    if process_uuid := UiPathConfig.process_uuid:
+        baggage_parts.append(f"processKey={process_uuid}")
+    if job_key := UiPathConfig.job_key:
+        baggage_parts.append(f"jobKey={job_key}")
     if baggage_parts:
         headers["x-uipath-tracebaggage"] = ",".join(baggage_parts)
 

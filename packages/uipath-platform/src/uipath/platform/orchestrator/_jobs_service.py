@@ -7,13 +7,14 @@ from typing import Any, Dict, List, Optional, Union, cast, overload
 
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import TEMP_ATTACHMENTS_FOLDER
+
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import TEMP_ATTACHMENTS_FOLDER
 from ..common.paging import PagedResult
 from ..common.validation import validate_pagination_params
 from ..errors import EnrichedException
@@ -41,6 +42,13 @@ class JobsService(FolderContext, BaseService):
         # Define the temp directory path for local attachments
         self._temp_dir = os.path.join(tempfile.gettempdir(), TEMP_ATTACHMENTS_FOLDER)
         os.makedirs(self._temp_dir, exist_ok=True)
+
+    async def aclose(self) -> None:
+        """Close this service and the attachment service it owns."""
+        try:
+            await self._attachments_service.aclose()
+        finally:
+            await super().aclose()
 
     @overload
     def resume(self, *, inbox_id: str, payload: Any) -> None: ...

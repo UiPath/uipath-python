@@ -3,6 +3,7 @@ import time
 import click
 
 from uipath.platform.common import TokenData
+from uipath.platform.constants import ENV_UIPATH_ACCESS_TOKEN
 from uipath.platform.identity import IdentityService
 from uipath.platform.portal import (
     PortalService as PlatformPortalService,
@@ -95,7 +96,7 @@ class AuthSession:
         def finalize(token_data: TokenData):
             self.update_token_data(token_data)
             update_auth_file(token_data)
-            update_env_file({"UIPATH_ACCESS_TOKEN": token_data.access_token})
+            update_env_file({ENV_UIPATH_ACCESS_TOKEN: token_data.access_token})
 
         if exp is not None and float(exp) > time.time():
             finalize(auth_data)

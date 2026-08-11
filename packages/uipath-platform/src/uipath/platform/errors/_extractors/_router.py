@@ -14,6 +14,7 @@ from typing import Any
 from .._enriched_exception import ExtractedErrorInfo
 from ._agenthub import extract_agenthub
 from ._apps import extract_apps
+from ._datafabric import extract_datafabric
 from ._elements import extract_elements
 from ._generic import extract_generic
 from ._helpers import extract_service_prefix, is_llm_path
@@ -29,6 +30,7 @@ _SERVICE_EXTRACTORS: dict[str, _Extractor] = {
     "agenthub_": extract_agenthub,
     "agentsruntime_": extract_agenthub,
     "apps_": extract_apps,
+    "datafabric_": extract_datafabric,
     "elements_": extract_elements,
     "llmopstenant_": extract_llmops,
 }

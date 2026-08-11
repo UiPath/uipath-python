@@ -16,11 +16,6 @@ from rich.console import Console
 
 from uipath._cli._utils._console import ConsoleLogger
 from uipath._utils import Endpoint, RequestSpec
-from uipath._utils.constants import (
-    ENV_EVAL_BACKEND_URL,
-    ENV_TENANT_ID,
-    HEADER_INTERNAL_TENANT_ID,
-)
 from uipath.core.events import EventBus
 from uipath.eval.evaluators import (
     BaseEvaluator,
@@ -38,6 +33,14 @@ from uipath.eval.runtime.events import (
 )
 from uipath.platform import UiPath
 from uipath.platform.common import UiPathConfig
+from uipath.platform.constants import (
+    ENV_EVAL_BACKEND_URL,
+    ENV_TENANT_ID,
+    ENV_UIPATH_AGENT_ID,
+    ENV_UIPATH_PROJECT_FILES_SOURCE,
+    ENV_UIPATH_PROJECT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +104,8 @@ class StudioWebProgressReporter:
         self._client = uipath.api_client
         self._console = console_logger
         self._rich_console = Console()
-        self._project_id = os.getenv("UIPATH_PROJECT_ID", None)
-        self._agent_id = os.getenv("UIPATH_AGENT_ID") or self._project_id
+        self._project_id = os.getenv(ENV_UIPATH_PROJECT_ID, None)
+        self._agent_id = os.getenv(ENV_UIPATH_AGENT_ID) or self._project_id
         if not self._agent_id:
             logger.warning(
                 "Cannot report data to StudioWeb. Please set UIPATH_PROJECT_ID."
@@ -358,7 +361,7 @@ class StudioWebProgressReporter:
         """Extract token usage and cost from OpenTelemetry spans.
 
         Args:
-            spans: List of ReadableSpan objects from agent execution
+            spans: List of ReadableSpan objects from workload execution
 
         Returns:
             Dictionary with tokens, completionTokens, promptTokens, and cost
@@ -1098,7 +1101,7 @@ class StudioWebProgressReporter:
 
     @staticmethod
     def _resolve_project_files_source() -> int | None:
-        raw = os.getenv("UIPATH_PROJECT_FILES_SOURCE")
+        raw = os.getenv(ENV_UIPATH_PROJECT_FILES_SOURCE)
         if not raw:
             return None
         normalized = raw.strip().lower()

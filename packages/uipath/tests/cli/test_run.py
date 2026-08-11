@@ -1,4 +1,5 @@
 # type: ignore
+import json
 import os
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
@@ -448,3 +449,113 @@ def main(input_data: PersonIn) -> PersonOut:
                 assert output_data["email"] == "john@example.com"
                 assert output_data["is_adult"] is True
                 assert output_data["greeting"] == "Hello, John Doe!"
+
+
+_SIMULATION_JSON = {
+    "enabled": True,
+    "toolsToSimulate": [{"name": "check_syntax"}, {"name": "check_style"}],
+    "instructions": "Simulate.",
+}
+
+
+class TestRunSimulation:
+    """Tests for the --simulation flag on the run command."""
+
+    def _make_factory(self):
+        factory = Mock()
+        runtime = Mock()
+        runtime.stream = Mock(side_effect=_empty_async_gen)
+        runtime.dispose = AsyncMock()
+        runtime.get_schema = AsyncMock(return_value=Mock(metadata=None))
+        factory.discover_entrypoints.return_value = ["main"]
+        factory.get_settings = AsyncMock(return_value=None)
+        factory.dispose = AsyncMock()
+        factory.new_runtime = AsyncMock(return_value=runtime)
+        return factory, runtime
+
+    def test_invalid_simulation_json_exits_with_error(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            result = runner.invoke(
+                cli, ["run", "main", "--simulation", "{ not valid json }"]
+            )
+        assert result.exit_code == 1
+        assert "Invalid JSON" in result.output
+
+    def test_simulation_wraps_runtime_with_mock_runtime(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        factory, _ = self._make_factory()
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_run.Middlewares.next",
+                    return_value=_middleware_continue(),
+                ),
+                patch(
+                    "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch(
+                    "uipath._cli.cli_run.ResourceOverwritesContext",
+                    side_effect=_mock_resource_overwrites_context,
+                ),
+                patch("uipath._cli.cli_run.UiPathMockRuntime") as mock_cls,
+            ):
+                mock_cls.return_value = Mock(
+                    stream=Mock(side_effect=_empty_async_gen),
+                    dispose=AsyncMock(),
+                    get_schema=AsyncMock(return_value=Mock(metadata=None)),
+                )
+                runner.invoke(
+                    cli,
+                    ["run", "main", "--simulation", json.dumps(_SIMULATION_JSON)],
+                )
+
+        assert mock_cls.called
+        assert mock_cls.call_args.kwargs["mocking_context"] is not None
+
+    def test_simulation_disabled_does_not_wrap_runtime(
+        self, runner: CliRunner, temp_dir: str
+    ):
+        factory, _ = self._make_factory()
+        disabled = {**_SIMULATION_JSON, "enabled": False}
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("uipath.json", "w") as f:
+                json.dump({"functions": {"main": "main.py:main"}}, f)
+            with open("main.py", "w") as f:
+                f.write("async def main(input): return {}")
+
+            with (
+                patch(
+                    "uipath._cli.cli_run.Middlewares.next",
+                    return_value=_middleware_continue(),
+                ),
+                patch(
+                    "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                    return_value=factory,
+                ),
+                patch(
+                    "uipath._cli.cli_run.ResourceOverwritesContext",
+                    side_effect=_mock_resource_overwrites_context,
+                ),
+                patch("uipath._cli.cli_run.UiPathMockRuntime") as mock_cls,
+            ):
+                runner.invoke(
+                    cli, ["run", "main", "--simulation", json.dumps(disabled)]
+                )
+
+        assert not mock_cls.called

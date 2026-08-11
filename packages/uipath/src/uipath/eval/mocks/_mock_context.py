@@ -43,17 +43,25 @@ def is_tool_simulated(tool_name: str) -> bool:
         to be simulated, False otherwise.
     """
     ctx = mocking_context.get()
-    strategy = ctx.strategy if ctx else None
-    if strategy is None:
+    if ctx is None:
         return False
 
     normalized_tool_name = _normalize_tool_name(tool_name)
 
+    if ctx.components:
+        return any(
+            _normalize_tool_name(c.component_id) == normalized_tool_name
+            for c in ctx.components
+        )
+
+    strategy = ctx.strategy
+    if strategy is None:
+        return False
+
     if isinstance(strategy, LLMMockingStrategy):
-        simulated_names = [
+        return normalized_tool_name in [
             _normalize_tool_name(t.name) for t in strategy.tools_to_simulate
         ]
-        return normalized_tool_name in simulated_names
     elif isinstance(strategy, MockitoMockingStrategy):
         return any(
             _normalize_tool_name(b.function) == normalized_tool_name

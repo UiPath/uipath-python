@@ -18,16 +18,16 @@ permissions:
 
 jobs:
   detect-publishable-packages:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
       count: ${{ steps.detect.outputs.count }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.11'
 
@@ -48,20 +48,20 @@ jobs:
     name: Publish uipath-core
     needs: [detect-publishable-packages, build-uipath-core]
     if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     environment: pypi
     permissions:
       contents: read
       id-token: write
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: release-dists-uipath-core
           path: dist/
 
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # release/v1
         with:
           verbose: true
           skip-existing: true
@@ -73,15 +73,15 @@ jobs:
       always() &&
       (contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform') ||
        contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath'))
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     steps:
       - name: Checkout
         if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup Python
         if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-core')
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.11'
 
@@ -110,20 +110,20 @@ jobs:
     if: |
       always() &&
       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     environment: pypi
     permissions:
       contents: read
       id-token: write
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: release-dists-uipath-platform
           path: dist/
 
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # release/v1
         with:
           verbose: true
           skip-existing: true
@@ -134,15 +134,15 @@ jobs:
     if: |
       always() &&
       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     steps:
       - name: Checkout
         if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup Python
         if: contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath-platform')
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: '3.11'
 
@@ -173,20 +173,20 @@ jobs:
     if: |
       always() &&
       contains(fromJson(needs.detect-publishable-packages.outputs.packages), 'uipath')
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     environment: pypi
     permissions:
       contents: read
       id-token: write
     steps:
       - name: Retrieve release distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: release-dists-uipath
           path: dist/
 
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # release/v1
         with:
           verbose: true
           skip-existing: true

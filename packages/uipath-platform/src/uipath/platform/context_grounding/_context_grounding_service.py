@@ -6,16 +6,18 @@ from pydantic import Field, TypeAdapter
 from typing_extensions import deprecated
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import (
+    ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
+)
+
 from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._http_config import get_httpx_client_kwargs
+from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import (
-    ORCHESTRATOR_STORAGE_BUCKET_DATA_SOURCE,
-)
 from ..errors import (
     BatchTransformFailedException,
     BatchTransformNotCompleteException,
@@ -221,6 +223,7 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             params=spec.params,
+            headers=spec.headers,
         ).json()
 
         return [
@@ -250,6 +253,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 spec.method,
                 spec.endpoint,
                 params=spec.params,
+                headers=spec.headers,
             )
         ).json()
 
@@ -268,6 +272,7 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             params=spec.params,
+            headers=spec.headers,
         ).json()
 
         return [
@@ -286,6 +291,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 spec.method,
                 spec.endpoint,
                 params=spec.params,
+                headers=spec.headers,
             )
         ).json()
 
@@ -455,7 +461,7 @@ class ContextGroundingService(FolderContext, BaseService):
             "GET",
             Endpoint("/ecs_/v2/indexes"),
             params={"$expand": "dataSource"},
-            headers={**header_folder(folder_key, None)},
+            headers={**header_folder(folder_key, None), **header_job_key()},
         ).json()
         return [
             ContextGroundingIndex.model_validate(item)
@@ -483,7 +489,7 @@ class ContextGroundingService(FolderContext, BaseService):
                 "GET",
                 Endpoint("/ecs_/v2/indexes"),
                 params={"$expand": "dataSource"},
-                headers={**header_folder(folder_key, None)},
+                headers={**header_folder(folder_key, None), **header_job_key()},
             )
         ).json()
         return [
@@ -521,6 +527,7 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             params=spec.params,
+            headers=spec.headers,
         ).json()
 
     @traced(name="contextgrounding_retrieve_by_id", run_type="uipath")
@@ -553,6 +560,7 @@ class ContextGroundingService(FolderContext, BaseService):
             spec.method,
             spec.endpoint,
             params=spec.params,
+            headers=spec.headers,
         )
 
         return response.json()
@@ -1556,7 +1564,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         query: str,
-        search_mode: SearchMode = SearchMode.AUTO,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
         number_of_results: int = 10,
         threshold: float = 0.0,
         scope: Optional[UnifiedSearchScope] = None,
@@ -1572,7 +1580,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Args:
             name (str): The name of the context index to search in.
             query (str): The search query in natural language.
-            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            search_mode (SearchMode): The search mode to use. Defaults to SEMANTIC.
             number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
@@ -1620,7 +1628,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         name: str,
         query: str,
-        search_mode: SearchMode = SearchMode.AUTO,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
         number_of_results: int = 10,
         threshold: float = 0.0,
         scope: Optional[UnifiedSearchScope] = None,
@@ -1636,7 +1644,7 @@ class ContextGroundingService(FolderContext, BaseService):
         Args:
             name (str): The name of the context index to search in.
             query (str): The search query in natural language.
-            search_mode (SearchMode): The search mode to use. Defaults to AUTO.
+            search_mode (SearchMode): The search mode to use. Defaults to SEMANTIC.
             number_of_results (int): Maximum number of results to return. Defaults to 10.
             threshold (float): Minimum similarity threshold. Defaults to 0.0.
             scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
@@ -1997,6 +2005,7 @@ class ContextGroundingService(FolderContext, BaseService):
             endpoint=Endpoint(f"/ecs_/v2/indexes/{key}/ingest"),
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2024,6 +2033,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes/allacrossfolders"),
             params=params,
+            headers={**header_job_key()},
         )
 
     def _retrieve_system_indexes_spec(
@@ -2040,6 +2050,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="GET",
             endpoint=Endpoint("/ecs_/v2/indexes/allsystemindexes"),
             params=params,
+            headers={**header_job_key()},
         )
 
     def _list_spec(
@@ -2054,6 +2065,7 @@ class ContextGroundingService(FolderContext, BaseService):
             },
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2074,6 +2086,7 @@ class ContextGroundingService(FolderContext, BaseService):
             },
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2126,6 +2139,7 @@ class ContextGroundingService(FolderContext, BaseService):
             json=payload.model_dump(by_alias=True, exclude_none=True),
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2156,7 +2170,7 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint("/ecs_/v2/indexes/createephemeral"),
             json=payload.model_dump(by_alias=True, exclude_none=True),
-            headers={**header_folder(folder_key, None)},
+            headers={**header_folder(folder_key, None), **header_job_key()},
         )
 
     def _build_data_source(self, source: SourceConfig) -> Dict[str, Any]:
@@ -2256,6 +2270,7 @@ class ContextGroundingService(FolderContext, BaseService):
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2272,6 +2287,7 @@ class ContextGroundingService(FolderContext, BaseService):
             endpoint=Endpoint(f"/ecs_/v2/indexes/{id}"),
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2299,6 +2315,7 @@ class ContextGroundingService(FolderContext, BaseService):
             },
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2306,7 +2323,7 @@ class ContextGroundingService(FolderContext, BaseService):
         self,
         index_id: str,
         query: str,
-        search_mode: SearchMode = SearchMode.AUTO,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
         number_of_results: int = 10,
         threshold: float = 0.0,
         scope: Optional[UnifiedSearchScope] = None,
@@ -2335,6 +2352,7 @@ class ContextGroundingService(FolderContext, BaseService):
             json=json_body,
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2364,6 +2382,7 @@ class ContextGroundingService(FolderContext, BaseService):
             },
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2387,7 +2406,7 @@ class ContextGroundingService(FolderContext, BaseService):
             params={
                 "$select": "id,lastDeepRagStatus,createdDate",
             },
-            headers={},
+            headers={**header_job_key()},
         )
 
     def _batch_transform_creation_spec(
@@ -2437,6 +2456,7 @@ class ContextGroundingService(FolderContext, BaseService):
             },
             headers={
                 **header_folder(folder_key, None),
+                **header_job_key(),
             },
         )
 
@@ -2463,7 +2483,7 @@ class ContextGroundingService(FolderContext, BaseService):
                     column.model_dump(by_alias=True) for column in output_columns
                 ],
             },
-            headers={},
+            headers={**header_job_key()},
         )
 
     def _deep_rag_retrieve_spec(
@@ -2476,6 +2496,7 @@ class ContextGroundingService(FolderContext, BaseService):
             params={
                 "$expand": "content",
             },
+            headers={**header_job_key()},
         )
 
     def _batch_transform_retrieve_spec(
@@ -2485,6 +2506,7 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}"),
+            headers={**header_job_key()},
         )
 
     def _batch_transform_get_read_uri_spec(
@@ -2494,6 +2516,7 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}/GetReadUri"),
+            headers={**header_job_key()},
         )
 
     def _batch_transform_download_blob_spec(
@@ -2503,6 +2526,7 @@ class ContextGroundingService(FolderContext, BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"/ecs_/v2/batchRag/{id}/DownloadBlob"),
+            headers={**header_job_key()},
         )
 
     def _resolve_folder_key(self, folder_key, folder_path):

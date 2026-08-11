@@ -12,6 +12,8 @@ from httpx import Response
 from httpx._types import RequestContent
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import TEMP_ATTACHMENTS_FOLDER
+
 from ..attachments import Attachment, AttachmentMode, BlobFileAccessInfo
 from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
@@ -19,7 +21,6 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._http_config import get_httpx_client_kwargs
 from ..common._models import Endpoint, RequestSpec
-from ..common.constants import TEMP_ATTACHMENTS_FOLDER
 
 
 def _upload_attachment_input_processor(inputs: dict[str, Any]) -> dict[str, Any]:

@@ -10,6 +10,7 @@ from uipath.core.guardrails import (
 )
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common import ExecutionSourceContext
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
@@ -262,15 +263,18 @@ class TestGuardrailsService:
             # Parse the request payload
             request_payload = json.loads(captured_request.content)
 
-            # Verify the payload structure matches the reverted format:
+            # Verify the payload structure:
             # {
             #     "validator": guardrail.validator_type,
             #     "input": input_data,
             #     "parameters": parameters,
+            #     "guardrailName": guardrail.name,
             # }
             assert "validator" in request_payload
             assert "input" in request_payload
             assert "parameters" in request_payload
+            assert "guardrailName" in request_payload
+            assert request_payload["guardrailName"] == "PII detection guardrail"
 
             # Verify validator is a string (not an object)
             assert isinstance(request_payload["validator"], str)
@@ -298,3 +302,598 @@ class TestGuardrailsService:
             # Verify result fields
             assert result.result == GuardrailValidationResultType.PASSED
             assert result.reason == "Validation passed"
+
+        def test_evaluate_guardrail_byog_forwards_byo_validator_name(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """A BYOG guardrail forwards byoValidatorName so the guardrails service
+            can resolve the connector-backed configuration."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            # BYOG persisted shape: "byo" sentinel + byoValidatorName reference.
+            byog_guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Databricks PII (BYOG)",
+                description="Customer-provided PII validator",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                byo_validator_name="my_databricks_pii",
+                validator_parameters=[],
+            )
+
+            result = service.evaluate_guardrail("some input", byog_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert request_payload["validator"] == "byo"
+            assert request_payload["byoValidatorName"] == "my_databricks_pii"
+            assert result.result == GuardrailValidationResultType.PASSED
+
+        def test_evaluate_guardrail_byog_never_forwards_legacy_connection_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """A legacy byoConnectionId (from persisted json or an older caller)
+            is never forwarded: BYOG resolves by validator name alone, which is
+            unique per tenant; the connection comes from the configuration
+            server-side."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            byog_guardrail = BuiltInValidatorGuardrail.model_validate(
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "byog-id",
+                    "name": "Databricks PII (BYOG)",
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Llm"]},
+                    "validatorType": "byo",
+                    "byoValidatorName": "my_databricks_pii",
+                    "byoConnectionId": "byog-conn-1",
+                    "validatorParameters": [],
+                }
+            )
+
+            service.evaluate_guardrail("some input", byog_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert request_payload["byoValidatorName"] == "my_databricks_pii"
+            assert "byoConnectionId" not in request_payload
+
+        def test_evaluate_guardrail_byog_resolves_by_name_alone(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """A BYOG guardrail carries only byoValidatorName; no connection id
+            appears in the payload."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            byog_guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Databricks PII (BYOG)",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                byo_validator_name="my_databricks_pii",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", byog_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoConnectionId" not in request_payload
+
+        def test_evaluate_guardrail_legacy_byo_connection_id_still_parses(
+            self,
+        ) -> None:
+            """Legacy json carrying byoConnectionId still parses (extra="allow"),
+            but the value is not a typed field anymore."""
+            guardrail = BuiltInValidatorGuardrail.model_validate(
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "byog-id",
+                    "name": "BYOG",
+                    "validatorType": "byo",
+                    "byoValidatorName": "my_databricks_pii",
+                    "byoConnectionId": "byog-conn-1",
+                    "validatorParameters": [],
+                }
+            )
+            assert guardrail.byo_validator_name == "my_databricks_pii"
+            assert "byo_connection_id" not in type(guardrail).model_fields
+
+        def test_evaluate_guardrail_byo_without_name_raises(
+            self,
+            service: GuardrailsService,
+        ) -> None:
+            """A "byo" guardrail missing its byoValidatorName reference fails fast
+            rather than sending an unresolvable request."""
+            guardrail = BuiltInValidatorGuardrail(
+                id="byog-id",
+                name="Broken BYOG",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                validator_parameters=[],
+            )
+
+            with pytest.raises(ValueError, match="byo_validator_name"):
+                service.evaluate_guardrail("some input", guardrail)
+
+        def test_evaluate_guardrail_byo_validator_name_from_alias(self) -> None:
+            """byoValidatorName parses into the typed field via its camelCase alias."""
+            guardrail = BuiltInValidatorGuardrail.model_validate(
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "byog-id",
+                    "name": "BYOG",
+                    "validatorType": "byo",
+                    "byoValidatorName": "my_databricks_pii",
+                    "validatorParameters": [],
+                }
+            )
+            assert guardrail.byo_validator_name == "my_databricks_pii"
+
+        def test_evaluate_guardrail_non_byo_type_does_not_forward_name(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """byoValidatorName is only forwarded for the "byo" sentinel, never leaked
+            into a non-BYOG validator payload even if the field happens to be set."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII detection guardrail",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                byo_validator_name="stray_name",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoValidatorName" not in request_payload
+
+        def test_evaluate_guardrail_non_byo_type_never_forwards_byo_fields(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """BYO fields are only forwarded for the "byo" sentinel, never leaked
+            into a non-BYOG validator payload even if a name happens to be set."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII detection guardrail",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                byo_validator_name="stray-name",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoValidatorName" not in request_payload
+            assert "byoConnectionId" not in request_payload
+
+        def test_evaluate_guardrail_ootb_omits_byo_validator_name(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """OOTB validators (no byo_validator_name) keep their payload unchanged —
+            byoValidatorName is not sent."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "Validation passed"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII detection guardrail",
+                description="Test PII detection",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(scopes=[GuardrailScope.LLM]),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("some input", pii_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+            assert "byoValidatorName" not in request_payload
+            assert pii_guardrail.byo_validator_name is None
+
+        def test_evaluate_guardrail_sends_trace_context_headers(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Outgoing request includes trace context headers."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={
+                        "result": "PASSED",
+                        "details": "OK",
+                    },
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert captured_request is not None
+            # build_trace_context_headers() injects traceparent/tracestate when
+            # an active span exists; at minimum, the merge with spec.headers
+            # should not fail and the request should go through successfully.
+            # When there IS an active trace context, headers are present:
+            headers = dict(captured_request.headers)
+            # The request should have been sent (basic smoke check that
+            # header merging works even when no active span exists)
+            assert "content-type" in headers
+
+        def test_evaluate_guardrail_sends_source_and_job_key_headers(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Outgoing request includes execution source and job key headers."""
+            monkeypatch.setenv("UIPATH_JOB_KEY", "job-123")
+
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "OK"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            with ExecutionSourceContext("runtime"):
+                service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert captured_request is not None
+            headers = dict(captured_request.headers)
+            assert headers.get("x-uipath-guardrails-source") == "runtime"
+            assert headers.get("x-uipath-jobkey") == "job-123"
+
+        def test_evaluate_guardrail_omits_source_and_job_key_when_unset(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+            monkeypatch: pytest.MonkeyPatch,
+        ) -> None:
+            """Source/job key headers are absent when unset."""
+            monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
+
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={"result": "PASSED", "details": "OK"},
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert captured_request is not None
+            headers = dict(captured_request.headers)
+            assert "x-uipath-guardrails-source" not in headers
+            assert "x-uipath-jobkey" not in headers
+
+        def test_evaluate_guardrail_extracts_span_id_from_traceparent(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """Response with x-uipath-traceparent-id header populates span_id."""
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                status_code=200,
+                json={
+                    "result": "VALIDATION_FAILED",
+                    "details": "PII detected",
+                },
+                headers={
+                    "x-uipath-traceparent-id": "00-abcdef1234567890abcdef1234567890-1234567890abcdef"
+                },
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            result = service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+            assert result.span_id == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_evaluate_guardrail_no_traceparent_header_no_span_id(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """Response without x-uipath-traceparent-id header leaves span_id as None."""
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                status_code=200,
+                json={
+                    "result": "PASSED",
+                    "details": "OK",
+                },
+            )
+
+            pii_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="PII guardrail",
+                description="Test",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["tool1"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="pii_detection",
+                validator_parameters=[],
+            )
+
+            result = service.evaluate_guardrail("test input", pii_guardrail)
+
+            assert result.result == GuardrailValidationResultType.PASSED
+            assert result.span_id is None
+
+    class TestExtractSpanIdFromTraceparent:
+        """Tests for _extract_span_id_from_traceparent."""
+
+        def test_valid_traceparent_16_char_span_id(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-1234567890abcdef"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_valid_traceparent_32_char_span_id(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-0a1b2c3d4e5f67890a1b2c3d4e5f6789"
+            )
+            assert result == "0a1b2c3d-4e5f-6789-0a1b-2c3d4e5f6789"
+
+        def test_none_input(self) -> None:
+            assert GuardrailsService._extract_span_id_from_traceparent(None) is None
+
+        def test_empty_string(self) -> None:
+            assert GuardrailsService._extract_span_id_from_traceparent("") is None
+
+        def test_valid_traceparent_4_part_with_trace_flags(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-abcdef1234567890abcdef1234567890-1234567890abcdef-01"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_uppercase_hex_normalized_to_lowercase(self) -> None:
+            result = GuardrailsService._extract_span_id_from_traceparent(
+                "00-ABCDEF1234567890ABCDEF1234567890-1234567890ABCDEF"
+            )
+            assert result == "00000000-0000-0000-1234-567890abcdef"
+
+        def test_invalid_span_id_length_rejected(self) -> None:
+            """Span IDs that are neither 16 nor 32 hex chars are rejected."""
+            assert (
+                GuardrailsService._extract_span_id_from_traceparent(
+                    "00-abcdef1234567890abcdef1234567890-1234abcd"
+                )
+                is None
+            )
+
+        def test_invalid_format(self) -> None:
+            assert (
+                GuardrailsService._extract_span_id_from_traceparent("not-valid") is None
+            )

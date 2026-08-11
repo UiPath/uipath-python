@@ -610,12 +610,14 @@ def test_llm_mockable_sync(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch):
 
     with pytest.raises(NotImplementedError):
         assert foofoo()
-    httpx_mock.add_response(
-        url="https://example.com/llm/api/chat/completions"
-        "?api-version=2024-08-01-preview",
-        status_code=200,
-        json={},
-    )
+    # Two empty responses: the response_format attempt and the tool-call fallback.
+    for _ in range(2):
+        httpx_mock.add_response(
+            url="https://example.com/llm/api/chat/completions"
+            "?api-version=2024-08-01-preview",
+            status_code=200,
+            json={},
+        )
     with pytest.raises(UiPathMockResponseGenerationError):
         assert foo()
 
@@ -720,12 +722,14 @@ async def test_llm_mockable_async(httpx_mock: HTTPXMock, monkeypatch: MonkeyPatc
     with pytest.raises(NotImplementedError):
         assert await foofoo()
 
-    httpx_mock.add_response(
-        url="https://example.com/llm/api/chat/completions"
-        "?api-version=2024-08-01-preview",
-        status_code=200,
-        json={},
-    )
+    # Two empty responses: the response_format attempt and the tool-call fallback.
+    for _ in range(2):
+        httpx_mock.add_response(
+            url="https://example.com/llm/api/chat/completions"
+            "?api-version=2024-08-01-preview",
+            status_code=200,
+            json={},
+        )
     with pytest.raises(UiPathMockResponseGenerationError):
         assert await foo()
 
@@ -929,3 +933,230 @@ async def test_llm_mockable_with_output_schema_async(
             },
         },
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+async def test_llm_mockable_uses_tool_call_directly_for_non_openai(
+    httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch
+):
+    """Tool simulation works for non-OpenAI providers (AE-1646).
+
+    Non-OpenAI providers don't honor ``response_format`` on the normalized
+    gateway (Claude answers with prose, Gemini with empty content), so their
+    strategies go straight to a forced tool call — a single request.
+    """
+    monkeypatch.setenv("UIPATH_URL", "https://example.com")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "1234567890")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
+
+    @mockable()
+    async def foo(*args, **kwargs) -> str:
+        raise NotImplementedError()
+
+    evaluation_item: dict[str, Any] = {
+        "id": "evaluation-id",
+        "name": "Mock foo",
+        "inputs": {},
+        "evaluationCriterias": {
+            "ExactMatchEvaluator": None,
+        },
+        "mockingStrategy": {
+            "type": "llm",
+            "prompt": "response is 'bar1'",
+            "toolsToSimulate": [{"name": "foo"}],
+            "model": {"model": "anthropic.claude-sonnet-4-5-20250929-v1:0"},
+        },
+    }
+    evaluation = EvaluationItem(**evaluation_item)
+    assert isinstance(evaluation.mocking_strategy, LLMMockingStrategy)
+    httpx_mock.add_response(
+        url="https://example.com/agenthub_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/orchestrator_/llm/api/capabilities",
+        status_code=200,
+        json={},
+    )
+
+    def _completion(message: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": "response-id",
+            "object": "",
+            "created": 0,
+            "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    # Claude goes straight to function calling: one request, one response.
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/chat/completions"
+        "?api-version=2024-08-01-preview",
+        status_code=200,
+        json=_completion(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "name": "submit_tool_response",
+                        "arguments": {"response": "bar1"},
+                    }
+                ],
+            }
+        ),
+    )
+
+    set_execution_context(
+        MockingContext(
+            strategy=evaluation.mocking_strategy,
+            name=evaluation.name,
+            inputs=evaluation.inputs,
+        ),
+        _mock_span_collector,
+        "test-execution-id",
+    )
+
+    assert await foo() == "bar1"
+
+    requests = [
+        r for r in httpx_mock.get_requests() if "chat/completions" in str(r.url)
+    ]
+    assert len(requests) == 1
+    body = json.loads(requests[0].content.decode("utf-8"))
+    # Non-OpenAI providers use a forced tool call directly — no response_format.
+    assert body["tool_choice"] == {"type": "required"}
+    assert body["tools"][0]["name"] == "submit_tool_response"
+    assert "response_format" not in body
+
+
+class TestUiPathMockRuntime:
+    """Tests for UiPathMockRuntime execute/stream/get_schema paths."""
+
+    def _make_context(self) -> MockingContext:
+        return MockingContext(
+            strategy=LLMMockingStrategy(
+                prompt="test",
+                tools_to_simulate=[ToolSimulation(name="my_tool")],
+            ),
+            name="test",
+            inputs={},
+        )
+
+    async def test_execute_with_mocking_context_sets_and_clears(self):
+        from unittest.mock import AsyncMock, patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        delegate = MagicMock()
+        mock_result = MagicMock()
+        delegate.execute = AsyncMock(return_value=mock_result)
+
+        runtime = UiPathMockRuntime(
+            delegate=delegate,
+            mocking_context=self._make_context(),
+        )
+
+        with (
+            patch("uipath.eval.mocks._mock_runtime.set_execution_context") as mock_set,
+            patch(
+                "uipath.eval.mocks._mock_runtime.clear_execution_context"
+            ) as mock_clear,
+        ):
+            result = await runtime.execute({"key": "value"})
+
+        assert result is mock_result
+        mock_set.assert_called_once()
+        mock_clear.assert_called_once()
+
+    async def test_stream_with_mocking_context_sets_and_clears(self):
+        from unittest.mock import patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        sentinel = object()
+
+        async def _gen(*args, **kwargs):
+            yield sentinel
+
+        delegate = MagicMock()
+        delegate.stream = _gen
+
+        runtime = UiPathMockRuntime(
+            delegate=delegate,
+            mocking_context=self._make_context(),
+        )
+
+        with (
+            patch("uipath.eval.mocks._mock_runtime.set_execution_context") as mock_set,
+            patch(
+                "uipath.eval.mocks._mock_runtime.clear_execution_context"
+            ) as mock_clear,
+        ):
+            events = [e async for e in runtime.stream({})]
+
+        assert events == [sentinel]
+        mock_set.assert_called_once()
+        mock_clear.assert_called_once()
+
+    async def test_stream_without_mocking_context_passes_through(self):
+        from unittest.mock import patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        sentinel = object()
+
+        async def _gen(*args, **kwargs):
+            yield sentinel
+
+        delegate = MagicMock()
+        delegate.stream = _gen
+
+        runtime = UiPathMockRuntime(delegate=delegate, mocking_context=None)
+        with patch(
+            "uipath.eval.mocks._mock_runtime.load_simulation_config", return_value=None
+        ):
+            runtime._mocking_context = None
+            events = [e async for e in runtime.stream({})]
+
+        assert events == [sentinel]
+
+    async def test_get_schema_delegates(self):
+        from unittest.mock import AsyncMock, patch
+
+        from uipath.eval.mocks._mock_runtime import UiPathMockRuntime
+
+        schema = MagicMock()
+        delegate = MagicMock()
+        delegate.get_schema = AsyncMock(return_value=schema)
+
+        runtime = UiPathMockRuntime(delegate=delegate, mocking_context=None)
+        with patch(
+            "uipath.eval.mocks._mock_runtime.load_simulation_config", return_value=None
+        ):
+            result = await runtime.get_schema()
+
+        assert result is schema
+
+    def test_set_execution_context_handles_mocker_creation_failure(self):
+        from unittest.mock import patch
+
+        from uipath.eval._execution_context import ExecutionSpanCollector
+        from uipath.eval.mocks._mock_context import mocker_context
+        from uipath.eval.mocks._mock_runtime import set_execution_context
+
+        context = self._make_context()
+        with patch(
+            "uipath.eval.mocks._mock_runtime.MockerFactory.create",
+            side_effect=RuntimeError("boom"),
+        ):
+            set_execution_context(context, ExecutionSpanCollector(), "test-id")
+
+        # mocking_context is set, but mocker_context must be None on failure
+        assert mocker_context.get() is None
+        clear_execution_context()

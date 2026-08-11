@@ -1,4 +1,4 @@
-"""Utility for resolving dot-notation paths from agent output dictionaries.
+"""Utility for resolving dot-notation paths from workload output dictionaries.
 
 Supports:
 - "*" → return entire output (default behavior)

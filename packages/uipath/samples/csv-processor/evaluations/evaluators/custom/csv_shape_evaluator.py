@@ -4,7 +4,11 @@ from uipath.eval.evaluators import (
     BaseEvaluatorConfig,
     BaseEvaluatorJustification,
 )
-from uipath.eval.models import AgentExecution, EvaluationResult, NumericEvaluationResult
+from uipath.eval.models import (
+    EvaluationResult,
+    NumericEvaluationResult,
+    WorkloadExecution,
+)
 
 
 class CSVShapeEvaluationCriteria(BaseEvaluationCriteria):
@@ -38,7 +42,7 @@ class CSVShapeEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: CSVShapeEvaluationCriteria,
     ) -> EvaluationResult:
         # The agent prints: "CSV shape (rows, columns)\nCSV columns [...]"
@@ -48,7 +52,7 @@ class CSVShapeEvaluator(
         shape_found = False
 
         # Check agent traces (where print output is captured)
-        for span in agent_execution.agent_trace:
+        for span in workload_execution.workload_trace:
             # Check span attributes
             if span.attributes:
                 for attr_value in span.attributes.values():
@@ -72,8 +76,8 @@ class CSVShapeEvaluator(
                 break
 
         # Check agent output
-        if not shape_found and agent_execution.agent_output:
-            output_str = str(agent_execution.agent_output)
+        if not shape_found and workload_execution.workload_output:
+            output_str = str(workload_execution.workload_output)
             shape_found = expected_shape in output_str
 
         return NumericEvaluationResult(

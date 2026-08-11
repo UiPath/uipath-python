@@ -74,8 +74,9 @@ def main() -> None:
 
                     # Allow 0 scores for Faithfulness and ContextPrecision evaluators
                     # since calculator doesn't use RAG/context grounding
+                    normalized_evaluator_name = evaluator_name.replace(" ", "")
                     is_rag_evaluator = any(
-                        x in evaluator_name
+                        x in normalized_evaluator_name
                         for x in ["Faithfulness", "ContextPrecision"]
                     )
 

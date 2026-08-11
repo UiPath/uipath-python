@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "main": "../../samples/list_target_output_key_test/main.py:main"
+  }
+}

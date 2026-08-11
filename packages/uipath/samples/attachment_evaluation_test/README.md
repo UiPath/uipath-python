@@ -159,7 +159,7 @@ The `targetOutputKey` points to the field containing the attachment URI.
 ### 3. Automatic Download and Evaluation
 
 When the evaluator runs:
-1. Extracts value from `agent_output["report"]`
+1. Extracts value from `workload_output["report"]`
 2. Detects it's an attachment URI (matches pattern)
 3. Downloads the attachment content automatically
 4. Evaluates the downloaded content against expected criteria
@@ -201,14 +201,14 @@ The `targetOutputKey` in evaluator configuration specifies which field contains 
 
 ```json
 {
-  "targetOutputKey": "report"  // Looks for agent_output["report"]
+  "targetOutputKey": "report"  // Looks for workload_output["report"]
 }
 ```
 
 For nested paths, use dot notation:
 ```json
 {
-  "targetOutputKey": "results.report"  // agent_output["results"]["report"]
+  "targetOutputKey": "results.report"  // workload_output["results"]["report"]
 }
 ```
 

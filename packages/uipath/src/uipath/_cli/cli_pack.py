@@ -8,19 +8,26 @@ import click
 from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings, EntryPoint, EntryPoints
-from uipath._cli.models.uipath_json_schema import RuntimeOptions, UiPathJsonConfig
+from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
 from uipath.platform.common import UiPathConfig
+from uipath.platform.constants import (
+    ENTRY_POINTS_FILE,
+    PYTHON_CONFIGURATION_FILE,
+    UIPATH_BINDINGS_FILE,
+    UIPATH_CONFIG_FILE,
+)
 
-from ..telemetry._constants import _PROJECT_KEY, _TELEMETRY_CONFIG_FILE
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
+    FileInfo,
     ensure_config_file,
     files_to_include,
     get_project_config,
     read_toml_project,
+    resolve_existing_project_id,
     validate_config,
 )
 from ._utils._uv_helpers import handle_uv_operations
@@ -29,34 +36,15 @@ console = ConsoleLogger()
 
 schema = "https://cloud.uipath.com/draft/2024-12/entry-point"
 
+pack_options_spec_url = "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md#4-packoptions"
 
-def get_project_id() -> str:
-    """Get project ID from telemetry file if it exists, otherwise generate a new one.
 
-    Returns:
-        Project ID string (either from telemetry file or newly generated).
-    """
-    # first check if this is a studio project
-    if project_id := UiPathConfig.project_id:
-        return project_id
-
-    telemetry_file = os.path.join(".uipath", _TELEMETRY_CONFIG_FILE)
-
-    if os.path.exists(telemetry_file):
-        try:
-            with open(telemetry_file, "r") as f:
-                telemetry_data = json.load(f)
-                project_id = telemetry_data.get(_PROJECT_KEY)
-                if project_id:
-                    return project_id
-        except (json.JSONDecodeError, IOError):
-            pass
-
-    return str(uuid.uuid4())
+class PackageMetadataConflictError(Exception):
+    """Raised when project files would be packaged over generated package metadata."""
 
 
 def get_project_version(directory):
-    toml_path = os.path.join(directory, "pyproject.toml")
+    toml_path = os.path.join(directory, PYTHON_CONFIGURATION_FILE)
     if not os.path.exists(toml_path):
         console.warning("pyproject.toml not found. Using default version 0.0.1")
         return "0.0.1"
@@ -72,14 +60,27 @@ def validate_config_structure(config_data):
 
 
 def generate_operate_file(
-    entrypoints: list[EntryPoint], runtimeOptions: RuntimeOptions, dependencies=None
+    entrypoints: list[EntryPoint],
+    config: UiPathJsonConfig,
+    dependencies=None,
+    directory: str = ".",
 ):
     if not entrypoints:
         raise ValueError(
             "No entry points found in entry-points.json. Please run 'uipath init' to generate valid entry points."
         )
 
-    project_id = get_project_id()
+    # prefer id from uipath.json; fall back to the legacy
+    # .telemetry.json or SW project id.
+    if config.id:
+        try:
+            uuid.UUID(config.id)
+        except ValueError:
+            console.error(f"uipath.json 'id' must be a valid GUID, got '{config.id}'.")
+
+    project_id = (
+        config.id or resolve_existing_project_id(directory) or str(uuid.uuid4())
+    )
 
     project_type = determine_project_type(entrypoints)
     first_entry = entrypoints[0]
@@ -94,7 +95,7 @@ def generate_operate_file(
         "runtimeOptions": {
             "requiresUserInteraction": False,
             "isAttended": False,
-            "isConversational": runtimeOptions.is_conversational,
+            "isConversational": config.runtime_options.is_conversational,
         },
     }
 
@@ -107,7 +108,7 @@ def generate_operate_file(
 def generate_entrypoints_file(entrypoints: list[EntryPoint]):
     entrypoint_json_data = {
         "$schema": schema,
-        "$id": "entry-points.json",
+        "$id": ENTRY_POINTS_FILE,
         "entryPoints": [
             ep.model_dump(by_alias=True, exclude_none=True) for ep in entrypoints
         ],
@@ -188,8 +189,8 @@ def generate_psmdcp_content(projectName, version, description, authors):
 def generate_package_descriptor_content(entrypoints: list[EntryPoint]):
     files = {
         "operate.json": "content/operate.json",
-        "entry-points.json": "content/entry-points.json",
-        "bindings.json": "content/bindings_v2.json",
+        ENTRY_POINTS_FILE: "content/entry-points.json",
+        UIPATH_BINDINGS_FILE: "content/bindings_v2.json",
     }
 
     for entry in entrypoints:
@@ -211,6 +212,44 @@ def is_venv_dir(d):
     )
 
 
+def archive_path_for(file: FileInfo) -> str:
+    """Return the path a project file is packaged under."""
+    return f"content/{file.relative_path}"
+
+
+def raise_on_metadata_conflicts(
+    metadata_files: dict[str, str], files: list[FileInfo]
+) -> None:
+    """Reject project files that would be written over generated package metadata.
+
+    The zip format allows several entries to share a name, so a project file
+    packaged at the same archive path as a generated metadata file yields a
+    package with duplicate entries that fails at extraction time.
+
+    Args:
+        metadata_files: Archive path -> content of the generated metadata files
+        files: Project files that would be packaged
+
+    Raises:
+        PackageMetadataConflictError: If any project file collides with metadata
+    """
+    reserved = {path.casefold() for path in metadata_files}
+    conflicts = sorted(
+        file.relative_path
+        for file in files
+        if archive_path_for(file).casefold() in reserved
+    )
+    if not conflicts:
+        return
+
+    conflict_list = "\n".join(f"  - {path}" for path in conflicts)
+    raise PackageMetadataConflictError(
+        f"These project files clash with generated package metadata:\n{conflict_list}\n"
+        "Delete, rename, or exclude them via packOptions.filesExcluded: "
+        f"{pack_options_spec_url}"
+    )
+
+
 def pack_fn(
     project_name,
     description,
@@ -224,14 +263,16 @@ def pack_fn(
         directory, str(UiPathConfig.entry_points_file_path)
     )
     if not os.path.exists(entry_points_file_path):
-        raise Exception("'entry-points.json' file not found. Please run 'uipath init'.")
+        raise Exception(
+            f"'{ENTRY_POINTS_FILE}' file not found. Please run 'uipath init'."
+        )
 
     with open(entry_points_file_path, "r") as f:
         entry_points_data = EntryPoints.model_validate(json.load(f))
 
     entrypoints = entry_points_data.entrypoints
 
-    config_path = os.path.join(directory, "uipath.json")
+    config_path = os.path.join(directory, UIPATH_CONFIG_FILE)
     if not os.path.exists(config_path):
         console.error("uipath.json not found, please run `uipath init`.")
 
@@ -239,10 +280,11 @@ def pack_fn(
         config_data = TypeAdapter(UiPathJsonConfig).validate_python(json.load(f))
 
     operate_file = generate_operate_file(
-        entrypoints, config_data.runtime_options, dependencies
+        entrypoints, config_data, dependencies, directory
     )
 
     # try to read bindings from bindings.json
+    bindings_data: Bindings | None = None
     bindings_path = os.path.join(directory, str(UiPathConfig.bindings_file_path))
     if os.path.exists(bindings_path):
         with open(bindings_path, "r") as f:
@@ -261,57 +303,59 @@ def pack_fn(
     )
     package_descriptor_content = generate_package_descriptor_content(entrypoints)
 
+    metadata_files = {
+        f"./package/services/metadata/core-properties/{psmdcp_file_name}": psmdcp_content,
+        "[Content_Types].xml": content_types_content,
+        "content/package-descriptor.json": json.dumps(
+            package_descriptor_content, indent=4
+        ),
+        "content/operate.json": json.dumps(operate_file, indent=4),
+    }
+    if bindings_data:
+        metadata_files["content/bindings_v2.json"] = json.dumps(
+            bindings_data.model_dump(by_alias=True), indent=4
+        )
+    metadata_files[f"{project_name}.nuspec"] = nuspec_content
+    metadata_files["_rels/.rels"] = rels_content
+
+    files, skipped_files = files_to_include(
+        config_data.pack_options,
+        directory,
+        include_uv_lock,
+        directories_to_ignore=[LEGACY_EVAL_FOLDER, EVALS_FOLDER],
+    )
+
+    raise_on_metadata_conflicts(metadata_files, files)
+
     # Create .uipath directory if it doesn't exist
     os.makedirs(".uipath", exist_ok=True)
 
     with zipfile.ZipFile(
         f".uipath/{project_name}.{version}.nupkg", "w", zipfile.ZIP_DEFLATED
     ) as z:
-        # Add metadata files
-        z.writestr(
-            f"./package/services/metadata/core-properties/{psmdcp_file_name}",
-            psmdcp_content,
-        )
-        z.writestr("[Content_Types].xml", content_types_content)
-        z.writestr(
-            "content/package-descriptor.json",
-            json.dumps(package_descriptor_content, indent=4),
-        )
-        z.writestr("content/operate.json", json.dumps(operate_file, indent=4))
-        if bindings_data:
-            z.writestr(
-                "content/bindings_v2.json",
-                json.dumps(bindings_data.model_dump(by_alias=True), indent=4),
-            )
-        z.writestr(f"{project_name}.nuspec", nuspec_content)
-        z.writestr("_rels/.rels", rels_content)
-
-        files, skipped_files = files_to_include(
-            config_data.pack_options,
-            directory,
-            include_uv_lock,
-            directories_to_ignore=[LEGACY_EVAL_FOLDER, EVALS_FOLDER],
-        )
+        for archive_path, content in metadata_files.items():
+            z.writestr(archive_path, content)
 
         for file in files:
+            archive_path = archive_path_for(file)
             if file.is_binary:
                 # Read binary files in binary mode
                 with open(file.file_path, "rb") as f:
-                    z.writestr(f"content/{file.relative_path}", f.read())
+                    z.writestr(archive_path, f.read())
             else:
                 try:
                     # Try UTF-8 first
                     with open(file.file_path, "r", encoding="utf-8") as f:
-                        z.writestr(f"content/{file.relative_path}", f.read())
+                        z.writestr(archive_path, f.read())
                 except UnicodeDecodeError:
                     # If UTF-8 fails, try with utf-8-sig (for files with BOM)
                     try:
                         with open(file.file_path, "r", encoding="utf-8-sig") as f:
-                            z.writestr(f"content/{file.relative_path}", f.read())
+                            z.writestr(archive_path, f.read())
                     except UnicodeDecodeError:
                         # If that also fails, try with latin-1 as a fallback
                         with open(file.file_path, "r", encoding="latin-1") as f:
-                            z.writestr(f"content/{file.relative_path}", f.read())
+                            z.writestr(archive_path, f.read())
 
 
 def display_project_info(config):
@@ -366,6 +410,8 @@ def pack(root, nolock):
             display_project_info(config)
             console.success("Project successfully packaged.")
 
+        except PackageMetadataConflictError as e:
+            console.error(str(e))
         except Exception as e:
             console.error(
                 f"Failed to create package {config['project_name']}.{version or config['version']}: {str(e)}"

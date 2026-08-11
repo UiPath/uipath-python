@@ -22,11 +22,14 @@ from opentelemetry import trace
 from pydantic import BaseModel
 from uipath.core.tracing import traced
 
+from uipath.platform.constants import HEADER_AGENTHUB_CONFIG
+
 from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._endpoints_manager import EndpointManager
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint
+from ._model_capabilities import should_skip_temperature
 from .llm_gateway import (
     ChatCompletion,
     SpecificToolChoice,
@@ -59,7 +62,7 @@ def _build_llm_headers(
         "X-UiPath-LlmGateway-RequestingFeature": requesting_feature,
     }
     if agenthub_config:
-        headers["X-UiPath-AgentHub-Config"] = agenthub_config
+        headers[HEADER_AGENTHUB_CONFIG] = agenthub_config
     if action_id:
         headers["X-UiPath-LlmGateway-ActionId"] = action_id
     return headers
@@ -173,6 +176,7 @@ class UiPathOpenAIService(BaseService):
         action_id: Optional[str] = None,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._agenthub_config = agenthub_config
         self._llm_headers = _build_llm_headers(
             requesting_product, requesting_feature, agenthub_config, action_id
         )
@@ -325,11 +329,21 @@ class UiPathOpenAIService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
-        request_body = {
+        is_reasoning_model = model.lower().startswith(("o1", "o3", "o4"))
+
+        # Reasoning models (o1, o3, o4) don't support temperature; newer models
+        # reject it too, which only discovery knows about.
+        skip_temperature = is_reasoning_model or await should_skip_temperature(
+            self, model, self._agenthub_config
+        )
+
+        request_body: dict[str, Any] = {
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": temperature,
         }
+
+        if not skip_temperature:
+            request_body["temperature"] = temperature
 
         # Handle response_format - convert BaseModel to schema if needed
         if response_format:
@@ -385,6 +399,7 @@ class UiPathLlmChatService(BaseService):
         action_id: Optional[str] = None,
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
+        self._agenthub_config = agenthub_config
         self._llm_headers = _build_llm_headers(
             requesting_product, requesting_feature, agenthub_config, action_id
         )
@@ -401,7 +416,7 @@ class UiPathLlmChatService(BaseService):
         presence_penalty: float = 0,
         top_p: float | None = 1,
         top_k: int | None = None,
-        tools: list[ToolDefinition] | None = None,
+        tools: list[ToolDefinition | dict[str, Any]] | None = None,
         tool_choice: ToolChoice | None = None,
         response_format: dict[str, Any] | type[BaseModel] | None = None,
         api_version: str = NORMALIZED_API_VERSION,
@@ -436,9 +451,11 @@ class UiPathLlmChatService(BaseService):
                 Controls diversity by considering only the top p probability mass. Defaults to 1.
             top_k (int, optional): Nucleus sampling parameter.
                 Controls diversity by considering only the top k most probable tokens. Defaults to None.
-            tools (Optional[List[ToolDefinition]], optional): List of tool definitions that the
-                model can call. Tools enable the model to perform actions or retrieve information
-                beyond text generation. Defaults to None.
+            tools (Optional[List[ToolDefinition | dict]], optional): List of tool definitions
+                that the model can call. Tools enable the model to perform actions or retrieve
+                information beyond text generation. A tool given as a dict must already be in
+                UiPath wire format and is forwarded unchanged, which allows arbitrary nested
+                JSON schemas in its parameters. Defaults to None.
             tool_choice (Optional[ToolChoice], optional): Controls which tools the model can call.
                 Can be "auto" (model decides), "none" (no tools), or a specific tool choice.
                 Defaults to None.
@@ -544,17 +561,27 @@ class UiPathLlmChatService(BaseService):
         )
         endpoint = Endpoint("/" + endpoint)
 
-        # Build request body - Claude models don't support some OpenAI-specific parameters
-        is_claude_model = "claude" in model.lower()
+        # Build request body - some models don't support certain parameters
+        model_lower = model.lower()
+        is_claude_model = "claude" in model_lower
+        is_reasoning_model = model_lower.startswith(("o1", "o3", "o4"))
 
-        request_body = {
+        # Reasoning models (o1, o3, o4) don't support temperature; newer models
+        # reject it too, which only discovery knows about.
+        skip_temperature = is_reasoning_model or await should_skip_temperature(
+            self, model, self._agenthub_config
+        )
+
+        request_body: dict[str, Any] = {
             "messages": converted_messages,
             "max_tokens": max_tokens,
-            "temperature": temperature,
         }
 
-        # Only add OpenAI-specific parameters for non-Claude models
-        if not is_claude_model:
+        if not skip_temperature:
+            request_body["temperature"] = temperature
+
+        # Only add OpenAI-specific parameters for non-Claude and non-reasoning models
+        if not is_claude_model and not is_reasoning_model:
             request_body["n"] = n
             request_body["frequency_penalty"] = frequency_penalty
             request_body["presence_penalty"] = presence_penalty
@@ -583,10 +610,15 @@ class UiPathLlmChatService(BaseService):
                 # Use provided dictionary format directly
                 request_body["response_format"] = response_format
 
-        # Add tools if provided - convert to UiPath format
+        # Add tools if provided. A tool already in UiPath wire format (a dict) is
+        # passed through unchanged so callers can supply an arbitrary JSON schema
+        # for the parameters; ToolDefinition objects are converted as before.
         if tools:
             request_body["tools"] = [
-                self._convert_tool_to_uipath_format(tool) for tool in tools
+                tool
+                if isinstance(tool, dict)
+                else self._convert_tool_to_uipath_format(tool)
+                for tool in tools
             ]
 
         # Handle tool_choice

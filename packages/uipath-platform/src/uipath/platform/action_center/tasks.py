@@ -22,18 +22,35 @@ class TaskRecipientType(str, enum.Enum):
     GROUP_ID = "GroupId"
     EMAIL = "UserEmail"
     GROUP_NAME = "GroupName"
+    WORKLOAD = "Workload"
+    ROUND_ROBIN = "RoundRobin"
 
 
 class TaskRecipient(BaseModel):
-    """Model representing a task recipient."""
+    """Model representing a task recipient.
+
+    `value` is the single identifier (group name, group id, user id, email, …).
+    `values` is the multi-assignee form used by Workload-with-custom-emails
+    assignments; when set it takes precedence over `value` for the
+    `assigneeNamesOrEmails` payload.
+
+    Note: there is no CustomAssignees member here on purpose. The agent-side
+    CustomAssignees criteria (AgentEscalationRecipientType.CUSTOM_ASSIGNEES,
+    type 11) is resolved to a Workload assignment with the explicit email list
+    in `values` before reaching this layer, so the Action Center
+    AssignTasks API only ever sees the existing literal types.
+    """
 
     type: Literal[
         TaskRecipientType.USER_ID,
         TaskRecipientType.GROUP_ID,
         TaskRecipientType.EMAIL,
         TaskRecipientType.GROUP_NAME,
+        TaskRecipientType.WORKLOAD,
+        TaskRecipientType.ROUND_ROBIN,
     ] = Field(..., alias="type")
     value: str = Field(..., alias="value")
+    values: Optional[List[str]] = Field(default=None, alias="values")
     display_name: Optional[str] = Field(default=None, alias="displayName")
 
 

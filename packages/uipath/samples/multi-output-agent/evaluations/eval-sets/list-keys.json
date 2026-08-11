@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "id": "list-keys-eval-set",
+  "name": "List Target Output Key Tests",
+  "evaluatorRefs": [
+    "list-keys-exact-match"
+  ],
+  "evaluations": [
+    {
+      "id": "list-keys-basic",
+      "name": "Check multiple keys - order completed",
+      "inputs": {
+        "customer_name": "John Doe",
+        "items": [
+          {"name": "Widget", "quantity": 2, "price": 9.99},
+          {"name": "Gadget", "quantity": 1, "price": 24.99}
+        ]
+      },
+      "evaluationCriterias": {
+        "list-keys-exact-match": {
+          "expectedOutput": {
+            "summary": {
+              "status": "completed",
+              "total": 44.97
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "list-keys-mismatch",
+      "name": "Check multiple keys - wrong total (should fail)",
+      "inputs": {
+        "customer_name": "Jane Smith",
+        "items": [
+          {"name": "Book", "quantity": 1, "price": 15.0}
+        ]
+      },
+      "evaluationCriterias": {
+        "list-keys-exact-match": {
+          "expectedOutput": {
+            "summary": {
+              "status": "completed",
+              "total": 999.0
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -519,6 +519,9 @@
         async function sendLogs(logs) {
             await fetch(`${baseUrl}/log`, {
                 method: 'POST',
+                headers: {
+                    'X-Auth-State': "__PY_REPLACE_EXPECTED_STATE__"
+                },
                 body: JSON.stringify(logs)
             });
         }
@@ -559,6 +562,9 @@
                     await sendLogs(logs);
                     await fetch(`${baseUrl}/set_token`, {
                         method: 'POST',
+                        headers: {
+                            'X-Auth-State': state
+                        },
                         body: JSON.stringify(tokenData)
                     });
 

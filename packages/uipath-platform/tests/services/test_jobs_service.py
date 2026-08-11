@@ -9,7 +9,7 @@ from pytest_httpx import HTTPXMock
 from pytest_mock import MockerFixture
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
+from uipath.platform.constants import HEADER_USER_AGENT, TEMP_ATTACHMENTS_FOLDER
 from uipath.platform.orchestrator import Job
 from uipath.platform.orchestrator._jobs_service import JobsService
 
@@ -101,6 +101,15 @@ def local_attachment_file(
 
 
 class TestJobsService:
+    @pytest.mark.anyio
+    async def test_aclose_closes_owned_services(self, service: JobsService):
+        await service.aclose()
+
+        assert service._client.is_closed
+        assert service._client_async.is_closed
+        assert service._attachments_service._client.is_closed
+        assert service._attachments_service._client_async.is_closed
+
     def test_retrieve(
         self,
         httpx_mock: HTTPXMock,

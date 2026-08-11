@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "id": "list-keys-exact-match",
+  "description": "Exact match on multiple output keys at once (summary.status and summary.total)",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "ListKeysExactMatch",
+    "targetOutputKey": ["summary.status", "summary.total"]
+  }
+}

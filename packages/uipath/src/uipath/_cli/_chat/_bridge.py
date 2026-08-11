@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import deque
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,14 +14,33 @@ from uipath.core.chat import (
     UiPathConversationEvent,
     UiPathConversationExchangeEndEvent,
     UiPathConversationExchangeEvent,
+    UiPathConversationExecutingToolCallEvent,
     UiPathConversationMessageEvent,
     UiPathConversationToolCallConfirmationEvent,
+    UiPathConversationToolCallEndEvent,
+    UiPathConversationToolCallEvent,
 )
 from uipath.core.triggers import UiPathResumeTrigger
+from uipath.platform.constants import (
+    ENV_BASE_URL,
+    ENV_ORGANIZATION_ID,
+    ENV_TENANT_ID,
+    ENV_UIPATH_ACCESS_TOKEN,
+    HEADER_INTERNAL_ACCOUNT_ID,
+    HEADER_INTERNAL_TENANT_ID,
+)
 from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
 logger = logging.getLogger(__name__)
+
+# Type for tool call resume values (confirmToolCall or endToolCall payloads)
+ToolResumeValue = (
+    UiPathConversationToolCallConfirmationEvent | UiPathConversationToolCallEndEvent
+)
+
+# Wrapper that pairs a resume value with its tool_call_id for keyed matching
+ToolResumeItem = dict[str, Any]  # {"tool_call_id": str, "value": ToolResumeValue}
 
 
 class CASErrorId:
@@ -103,6 +123,7 @@ class SocketIOChatBridge:
         exchange_id: str,
         headers: dict[str, str],
         auth: dict[str, Any] | None = None,
+        end_exchange: bool = True,
     ):
         """Initialize the WebSocket chat bridge.
 
@@ -112,6 +133,8 @@ class SocketIOChatBridge:
             exchange_id: The exchange ID for this session
             headers: HTTP headers to send during connection
             auth: Optional authentication data to send during connection
+            end_exchange: Whether to send the exchange-end event to CAS on
+                completion.
         """
         self.websocket_url = websocket_url
         self.websocket_path = websocket_path
@@ -119,13 +142,33 @@ class SocketIOChatBridge:
         self.exchange_id = exchange_id
         self.auth = auth
         self.headers = headers
+        self.end_exchange = end_exchange
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
-        self._tool_confirmation_event = asyncio.Event()
-        self._tool_confirmation_value: (
-            UiPathConversationToolCallConfirmationEvent | None
-        ) = None
+        # --- Tool call resume state ---
+        # When the LLM invokes multiple tools in one turn, the client can send
+        # back confirmToolCall / endToolCall responses concurrently and in any
+        # order.  Three data structures coordinate matching each response to the
+        # correct wait_for_resume() call:
+        #
+        # 1. _expected_tool_call_ids (deque):
+        #    Ordered queue of tool_call_ids populated by emit_interrupt_event()
+        #    (called by the runtime BEFORE each wait_for_resume()).  Tells
+        #    wait_for_resume() WHICH tool_call_id it should consume next.
+        #
+        # 2. _tool_resume_results (dict):
+        #    Responses that arrived BEFORE wait_for_resume() was called for that
+        #    tool_call_id.  When wait_for_resume() runs, it checks here first
+        #    and returns immediately if a match exists — no blocking needed.
+        #
+        # 3. _tool_resume_pending (dict of Futures):
+        #    Created by wait_for_resume() when the response hasn't arrived yet.
+        #    When the response later arrives in _handle_conversation_event, the
+        #    Future is resolved and wait_for_resume() unblocks.
+        self._tool_resume_results: dict[str, ToolResumeItem] = {}
+        self._tool_resume_pending: dict[str, asyncio.Future[ToolResumeItem]] = {}
+        self._expected_tool_call_ids: deque[str] = deque()
         self._current_message_id: str | None = None
 
         # Set CAS_WEBSOCKET_DISABLED when using the debugger to prevent websocket errors from
@@ -230,6 +273,14 @@ class SocketIOChatBridge:
         finally:
             await self._cleanup_client()
 
+    def _require_client(self) -> Any:
+        client = self._client
+        if client is None:
+            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+        if not self._connected_event.is_set() and not self._websocket_disabled:
+            raise RuntimeError("WebSocket client not in connected state")
+        return client
+
     async def emit_message_event(
         self, message_event: UiPathConversationMessageEvent
     ) -> None:
@@ -241,11 +292,7 @@ class SocketIOChatBridge:
         Raises:
             RuntimeError: If client is not connected
         """
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
-
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+        client = self._require_client()
 
         try:
             # Wrap message event with conversation/exchange IDs
@@ -266,7 +313,7 @@ class SocketIOChatBridge:
                     f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
             else:
-                await self._client.emit("ConversationEvent", event_data)
+                await client.emit("ConversationEvent", event_data)
 
             # Store the current message ID, used for emitting interrupt events.
             self._current_message_id = message_event.message_id
@@ -275,17 +322,45 @@ class SocketIOChatBridge:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
 
+    async def emit_meta_event(self, meta_event: dict[str, Any]) -> None:
+        """Send an exchange-scoped conversation metadata event."""
+        client = self._require_client()
+
+        try:
+            event = UiPathConversationEvent(
+                conversation_id=self.conversation_id,
+                exchange=UiPathConversationExchangeEvent(
+                    exchange_id=self.exchange_id,
+                    meta_event=meta_event,
+                ),
+            )
+            event_data = event.model_dump(mode="json", exclude_none=True, by_alias=True)
+
+            if self._websocket_disabled:
+                logger.info(
+                    "SocketIOChatBridge is in debug mode. Not sending event: %s",
+                    json.dumps(event_data),
+                )
+            else:
+                await client.emit("ConversationEvent", event_data)
+        except Exception as e:
+            logger.error(f"Error sending conversation event to WebSocket: {e}")
+            raise RuntimeError(f"Failed to send conversation event: {e}") from e
+
     async def emit_exchange_end_event(self) -> None:
         """Send an exchange end event.
+
+        When end_exchange is False the exchange is left open — the event is not
+        sent to CAS so a downstream consumer can continue and end it later.
 
         Raises:
            RuntimeError: If client is not connected
         """
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
+        if not self.end_exchange:
+            logger.info("end_exchange is False; leaving the exchange open.")
+            return
 
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+        client = self._require_client()
 
         try:
             exchange_end_event = UiPathConversationEvent(
@@ -305,7 +380,7 @@ class SocketIOChatBridge:
                     f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
             else:
-                await self._client.emit("ConversationEvent", event_data)
+                await client.emit("ConversationEvent", event_data)
 
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
@@ -321,11 +396,7 @@ class SocketIOChatBridge:
         Args:
             error: The exception that caused the error.
         """
-        if self._client is None:
-            raise RuntimeError("WebSocket client not connected. Call connect() first.")
-
-        if not self._connected_event.is_set() and not self._websocket_disabled:
-            raise RuntimeError("WebSocket client not in connected state")
+        client = self._require_client()
 
         # Extract and map error to CAS-specific error ID and message.
         cas_error_id, cas_message = _resolve_cas_error(error)
@@ -353,43 +424,123 @@ class SocketIOChatBridge:
                     f"SocketIOChatBridge is in debug mode. Not sending event: {json.dumps(event_data)}"
                 )
             else:
-                await self._client.emit("ConversationEvent", event_data)
+                await client.emit("ConversationEvent", event_data)
 
         except Exception as e:
             logger.error(f"Error sending exchange error event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send exchange error event: {e}") from e
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
-        """No-op.
+        """Register the trigger's tool_call_id for the upcoming wait_for_resume().
 
-        Tool confirmation — the only interrupt pattern CAS uses today — is
-        handled end-to-end via ``startToolCall`` with ``requireConfirmation:
-        true`` paired with ``wait_for_resume()``. This is deliberately
-        simpler than the old interrupt-based flow: CAS needs
-        ``requireConfirmation`` on the tool call event itself to render the
-        confirmation UI, so a parallel ``startInterrupt`` event would be
-        redundant.
-
-        The only hypothetical reason to put work here is a generic,
-        non-tool-call agent interrupt (e.g. a coded agent calling
-        ``interrupt("do you want to continue?")``). Nothing uses that today
-        and it's not a near-term requirement — the method is kept for
-        generic flexibility.
+        Does not emit any websocket event — tool confirmation and execution
+        events are handled elsewhere.  The runtime calls this immediately
+        before wait_for_resume() for each trigger, so we record the
+        tool_call_id here so wait_for_resume() knows which response to match.
         """
-        return None
+        if resume_trigger.api_resume and isinstance(
+            resume_trigger.api_resume.request, dict
+        ):
+            tool_call_id = resume_trigger.api_resume.request.get("tool_call_id")
+            if isinstance(tool_call_id, str) and tool_call_id:
+                self._expected_tool_call_ids.append(tool_call_id)
+
+    async def emit_executing_tool_call_event(
+        self,
+        tool_call_id: str,
+        tool_input: dict[str, Any] | None = None,
+    ) -> None:
+        """Emit an executingToolCall event.
+
+        Called by the runtime loop after a tool-call confirmation resumes
+        to signal that the tool is about to execute with the final input.
+        """
+        if not self._current_message_id:
+            return
+
+        executing_event = UiPathConversationMessageEvent(
+            message_id=self._current_message_id,
+            tool_call=UiPathConversationToolCallEvent(
+                tool_call_id=tool_call_id,
+                executing=UiPathConversationExecutingToolCallEvent(
+                    input=tool_input,
+                ),
+            ),
+        )
+        await self.emit_message_event(executing_event)
 
     async def wait_for_resume(self) -> dict[str, Any]:
-        """Wait for a confirmToolCall event to be received."""
-        self._tool_confirmation_event.clear()
-        self._tool_confirmation_value = None
+        """Wait for a tool resume event (confirmToolCall or endToolCall).
 
-        await self._tool_confirmation_event.wait()
+        Pops the next expected tool_call_id (registered by emit_interrupt_event)
+        and returns the matching response.  Two cases:
 
-        if self._tool_confirmation_value:
-            return self._tool_confirmation_value.model_dump(
-                mode="python", by_alias=False
+        1. Response already arrived (stored in _tool_resume_results) — return
+           immediately without blocking.
+        2. Response hasn't arrived yet — create a Future in _tool_resume_pending,
+           block until _handle_conversation_event resolves it.
+
+        Returns:
+            The resume data dict, including ``tool_call_id``.
+        """
+        if not self._expected_tool_call_ids:
+            raise RuntimeError(
+                "wait_for_resume() called but no tool_call_id was registered "
+                "by emit_interrupt_event(). This indicates a caller/protocol mismatch."
             )
-        return {}
+
+        expected_id = self._expected_tool_call_ids.popleft()
+
+        if expected_id in self._tool_resume_results:
+            # Response arrived before we got here — return it immediately
+            item = self._tool_resume_results.pop(expected_id)
+        else:
+            # Response hasn't arrived yet — wait for it
+            future: asyncio.Future[ToolResumeItem] = (
+                asyncio.get_running_loop().create_future()
+            )
+            self._tool_resume_pending[expected_id] = future
+            item = await future
+
+        value = item["value"]
+        result = value.model_dump(mode="python", by_alias=False)
+        result["tool_call_id"] = item["tool_call_id"]
+        return result
+
+    def _resolve_or_store_resume(
+        self, tool_call_id: str, value: ToolResumeValue
+    ) -> None:
+        """Route an incoming confirmToolCall/endToolCall to the correct consumer.
+
+        Called from _handle_conversation_event when a tool resume response
+        arrives from the client.  Two cases:
+
+        1. wait_for_resume() is already waiting (Future in _tool_resume_pending)
+           — resolve the Future so it unblocks immediately.
+        2. wait_for_resume() hasn't been called yet for this tool_call_id
+           — store in _tool_resume_results so it's found instantly when
+           wait_for_resume() runs later.
+        """
+        item: ToolResumeItem = {"tool_call_id": tool_call_id, "value": value}
+        if tool_call_id in self._tool_resume_pending:
+            future = self._tool_resume_pending.pop(tool_call_id)
+            if not future.done():
+                future.set_result(item)
+            else:
+                # Future was cancelled or already resolved — store the payload
+                # so a subsequent wait_for_resume() can still find it.
+                logger.warning(
+                    f"Resume for tool_call_id={tool_call_id} — "
+                    "future already done, storing as fallback."
+                )
+                self._tool_resume_results[tool_call_id] = item
+        else:
+            if tool_call_id in self._tool_resume_results:
+                logger.warning(
+                    f"Duplicate resume for tool_call_id={tool_call_id} — "
+                    "overwriting previously stored result."
+                )
+            self._tool_resume_results[tool_call_id] = item
 
     @property
     def is_connected(self) -> bool:
@@ -424,13 +575,11 @@ class SocketIOChatBridge:
                 parsed_event.exchange
                 and parsed_event.exchange.message
                 and (tool_call := parsed_event.exchange.message.tool_call)
-                and (confirm := tool_call.confirm)
             ):
-                logger.info(
-                    f"Received confirmToolCall for tool_call_id: {tool_call.tool_call_id}, approved: {confirm.approved}"
-                )
-                self._tool_confirmation_value = confirm
-                self._tool_confirmation_event.set()
+                if confirm := tool_call.confirm:
+                    self._resolve_or_store_resume(tool_call.tool_call_id, confirm)
+                elif end := tool_call.end:
+                    self._resolve_or_store_resume(tool_call.tool_call_id, end)
         except Exception as e:
             logger.warning(f"Error parsing conversation event: {e}")
 
@@ -468,7 +617,7 @@ def get_chat_bridge(
     assert context.exchange_id is not None, "exchange_id must be set in context"
 
     # Extract host from UIPATH_URL
-    base_url = os.environ.get("UIPATH_URL")
+    base_url = os.environ.get(ENV_BASE_URL)
     if not base_url:
         raise RuntimeError(
             "UIPATH_URL environment variable required for conversational mode"
@@ -493,13 +642,22 @@ def get_chat_bridge(
 
     # Build headers from context
     headers = {
-        "Authorization": f"Bearer {os.environ.get('UIPATH_ACCESS_TOKEN', '')}",
-        "X-UiPath-Internal-TenantId": f"{context.tenant_id}"
-        or os.environ.get("UIPATH_TENANT_ID", ""),
-        "X-UiPath-Internal-AccountId": f"{context.org_id}"
-        or os.environ.get("UIPATH_ORGANIZATION_ID", ""),
+        "Authorization": f"Bearer {os.environ.get(ENV_UIPATH_ACCESS_TOKEN, '')}",
+        HEADER_INTERNAL_TENANT_ID: context.tenant_id
+        or os.environ.get(ENV_TENANT_ID, ""),
+        HEADER_INTERNAL_ACCOUNT_ID: context.org_id
+        or os.environ.get(ENV_ORGANIZATION_ID, ""),
         "X-UiPath-ConversationId": context.conversation_id,
     }
+
+    # Conversation owner id (conversationalService.conversationalUserId) that CAS forwards via
+    # FpsProperties; always sent when present. It's there for RunAsMe=false, where the unattended
+    # robot's token subject is the robot account rather than the conversation owner, so CAS validates
+    # this presented id against conversation.user_id on the handshake instead of the token subject.
+    # Sent as a header (not a query param) to keep it out of access / load-balancer logs.
+    conversational_user_id = getattr(context, "conversational_user_id", None)
+    if conversational_user_id:
+        headers["X-UiPath-Internal-ConversationalUserId"] = conversational_user_id
 
     return SocketIOChatBridge(
         websocket_url=websocket_url,
@@ -507,6 +665,7 @@ def get_chat_bridge(
         conversation_id=context.conversation_id,
         exchange_id=context.exchange_id,
         headers=headers,
+        end_exchange=getattr(context, "end_exchange", True),
     )
 
 

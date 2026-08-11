@@ -1,4 +1,4 @@
-"""LLM judge trajectory evaluator for evaluating agent execution trajectories."""
+"""LLM judge trajectory evaluator for evaluating workload execution trajectories."""
 
 from typing import Any, TypeVar
 
@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field
 
 from .._helpers.evaluators_helpers import trace_to_str
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     EvaluatorType,
+    WorkloadExecution,
 )
 from ..models.llm_judge_types import (
     LLMJudgePromptTemplates,
@@ -72,15 +72,15 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: TrajectoryEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate using trajectory analysis."""
-        return await super().evaluate(agent_execution, evaluation_criteria)
+        return await super().evaluate(workload_execution, evaluation_criteria)
 
-    def _get_actual_output(self, agent_execution: AgentExecution) -> Any:
-        """Get the actual output from the agent execution."""
-        return trace_to_str(agent_execution.agent_trace)
+    def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
+        """Get the actual output from the workload execution."""
+        return trace_to_str(workload_execution.workload_trace)
 
     def _get_expected_output(
         self, evaluation_criteria: TrajectoryEvaluationCriteria
@@ -90,20 +90,20 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
 
     def _create_evaluation_prompt(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: TrajectoryEvaluationCriteria,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         formatted_prompt = super()._create_evaluation_prompt(
-            agent_execution, evaluation_criteria
+            workload_execution, evaluation_criteria
         )
         formatted_prompt = formatted_prompt.replace(
             self.user_input_placeholder,
-            str(agent_execution.agent_input),
+            str(workload_execution.agent_input),
         )
         formatted_prompt = formatted_prompt.replace(
             self.simulation_instructions_placeholder,
-            agent_execution.simulation_instructions,
+            workload_execution.simulation_instructions,
         )
         return formatted_prompt
 

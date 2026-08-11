@@ -3,7 +3,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common._base_service import BaseService
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_USER_AGENT
 from uipath.platform.errors import EnrichedException
 
 
@@ -17,6 +17,14 @@ def service(
 class TestBaseService:
     def test_init_base_service(self, service: BaseService):
         assert service is not None
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio", "trio"])
+    @pytest.mark.anyio
+    async def test_aclose_closes_owned_http_clients(self, service: BaseService):
+        await service.aclose()
+
+        assert service._client.is_closed
+        assert service._client_async.is_closed
 
     def test_base_service_default_headers(self, service: BaseService, secret: str):
         assert service.default_headers == {

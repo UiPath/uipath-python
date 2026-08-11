@@ -15,7 +15,7 @@ from uipath.platform.common._folder_context import (
     folder_path_header,
     header_folder,
 )
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     HEADER_FOLDER_KEY,
     HEADER_FOLDER_PATH,
     HEADER_FOLDER_PATH_ENCODED,

@@ -414,7 +414,7 @@ async def configure_evaluation_span(
         evaluation_run_results: UiPathEvalRunResult object containing evaluation results
         execution_id: The execution ID for this evaluation
         input_data: The input data for this evaluation
-        agent_execution_output: Optional agent execution output for error checking
+        agent_execution_output: Optional workload execution output for error checking
     """
     # Extract evaluator scores (already normalized to 0-100)
     evaluator_scores = extract_evaluator_scores(evaluation_run_results)

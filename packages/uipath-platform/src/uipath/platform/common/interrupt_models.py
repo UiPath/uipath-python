@@ -1,8 +1,9 @@
 """Models for interrupt operations in UiPath platform."""
 
+from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from uipath.platform.context_grounding.context_grounding_index import (
     ContextGroundingIndex,
@@ -279,3 +280,19 @@ class WaitIntegrationEvent(BaseModel):
     object_name: str
     filter_expression: str | None = None
     parameters: dict[str, str] | None = None
+
+
+class WaitUntil(BaseModel):
+    """Model representing a wait until an absolute point in time."""
+
+    resume_time: datetime = Field(alias="resumeTime")
+
+    model_config = ConfigDict(validate_by_name=True)
+
+    @field_validator("resume_time")
+    @classmethod
+    def validate_resume_time(cls, value: datetime) -> datetime:
+        """Validate and normalize resume_time to a UTC instant."""
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("resume_time must include timezone information")
+        return value.astimezone(timezone.utc)

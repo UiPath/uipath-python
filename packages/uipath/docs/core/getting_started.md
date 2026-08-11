@@ -114,6 +114,10 @@ Upon successful authentication, your project will contain a `.env` file with you
 
 ### Writing Your Code
 
+/// tip
+This walkthrough creates a **coded function** — plain Python with typed input and output, no LLM required. For a complete reference including platform services, tracing, idempotency, and Maestro integration, see [Python Coded Functions](./functions.md).
+///
+
 Open `main.py` in your code editor. You can start with this example code:
 ```python
 from dataclasses import dataclass

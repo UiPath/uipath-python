@@ -2,7 +2,7 @@ from base64 import b64encode
 from os import environ as env
 from typing import Any, Optional
 
-from uipath.platform.common.constants import (
+from uipath.platform.constants import (
     ENV_FOLDER_KEY,
     ENV_FOLDER_PATH,
     HEADER_FOLDER_KEY,

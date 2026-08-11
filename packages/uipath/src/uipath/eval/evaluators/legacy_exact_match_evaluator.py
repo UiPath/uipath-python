@@ -1,9 +1,9 @@
-"""Exact match evaluator for binary pass/fail evaluation of agent outputs."""
+"""Exact match evaluator for binary pass/fail evaluation of workload outputs."""
 
 from uipath.eval.models import BooleanEvaluationResult, EvaluationResult
 
 from .._helpers.output_path import resolve_output_path
-from ..models.models import AgentExecution
+from ..models.models import WorkloadExecution
 from .base_legacy_evaluator import LegacyEvaluationCriteria, LegacyEvaluatorConfig
 from .legacy_deterministic_evaluator_base import BaseLegacyDeterministicEvaluator
 
@@ -26,13 +26,13 @@ class LegacyExactMatchEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: LegacyEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate whether actual output exactly matches expected output.
 
         Args:
-            agent_execution: The execution details containing:
+            workload_execution: The execution details containing:
                 - agent_input: The input received by the agent
                 - actual_output: The actual output from the agent
                 - spans: The execution spans to use for the evaluation
@@ -41,7 +41,7 @@ class LegacyExactMatchEvaluator(
         Returns:
             EvaluationResult: Boolean result indicating exact match (True/False)
         """
-        actual_output = agent_execution.agent_output
+        actual_output = workload_execution.workload_output
         expected_output = evaluation_criteria.expected_output
 
         if self.target_output_key and self.target_output_key != "*":

@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "id": "ListKeysJsonSimilarity",
+  "description": "Checks 'category' and 'in_stock' together using a list of target output keys",
+  "evaluatorTypeId": "uipath-json-similarity",
+  "evaluatorConfig": {
+    "name": "ListKeysJsonSimilarity",
+    "targetOutputKey": ["category", "in_stock"]
+  }
+}

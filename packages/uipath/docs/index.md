@@ -2,38 +2,32 @@
 title: Getting Started
 ---
 
-<div class="grid cards" markdown>
--   __🚨 Breaking changes__
-
-    ---
-    
-    UiPath Python SDK v2.2.0+ will introduce **breaking changes** starting **November 26, 2025**  
-    [See Details](./core/release_notes.md)
-</div>
+<h2>What do you want to build?</h2>
 
 <div class="grid cards" markdown>
--   __UiPath SDK__
+-   __Python Coded Functions__
 
     ---
 
-    Code with full UiPath context to build custom automations and agents from the ground up.
+    Deterministic Python automation with typed input/output. No LLM required. Runs as an Orchestrator job, invokable from Maestro, Studio, or the CLI.
 
-    [Start Building](./core/getting_started.md)
+    **Requires:** `uipath`
 
-</div>
+    [Build a Function](./core/functions.md)
 
-<div class="grid cards" markdown>
--   __UiPath MCP SDK__
+-   __Python Coded Agents__
 
     ---
 
-    Build and host Coded MCP Servers within UiPath.
+    AI-driven automation with LLM reasoning loops. Uses the `uipath` SDK for platform services plus a framework extension of your choice.
 
-    [Start Building](./mcp/quick_start.md)
+    **Requires:** `uipath` + one of the extensions below
+
+    [Build an Agent](./core/agents.md)
 
 </div>
 
-<h2> Extensions </h2>
+<h2>Agent Framework Extensions</h2>
 <div class="grid cards" markdown>
 -   __UiPath Langchain SDK__
 
@@ -58,5 +52,17 @@ title: Getting Started
     Build enterprise-grade UiPath agents using the OpenAI Agents SDK framework, with seamless integration from build to run.
 
     [Get Started](./openai-agents/quick_start.md)
+
+</div>
+
+<h2>Other SDKs</h2>
+<div class="grid cards" markdown>
+-   __UiPath MCP SDK__
+
+    ---
+
+    Build and host Coded MCP Servers within UiPath.
+
+    [Start Building](./mcp/quick_start.md)
 
 </div>

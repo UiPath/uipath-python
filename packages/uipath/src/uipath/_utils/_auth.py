@@ -4,7 +4,8 @@ from os import environ as env
 from pathlib import Path
 from typing import Optional
 
-from .constants import (
+from uipath.platform.constants import (
+    DOTENV_FILE,
     ENV_BASE_URL,
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
@@ -22,7 +23,7 @@ def parse_access_token(access_token: str):
 
 
 def update_env_file(env_contents):
-    env_path = Path.cwd() / ".env"
+    env_path = Path.cwd() / DOTENV_FILE
     if env_path.exists():
         with open(env_path, "r") as f:
             for line in f:

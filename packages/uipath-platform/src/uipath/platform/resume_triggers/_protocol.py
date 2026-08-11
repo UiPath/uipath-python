@@ -3,6 +3,7 @@
 import json
 import os
 import uuid
+from functools import cache
 from typing import Any
 
 from uipath.core.errors import (
@@ -49,6 +50,7 @@ from uipath.platform.common.interrupt_models import (
     WaitJobRaw,
     WaitSystemAgent,
     WaitTask,
+    WaitUntil,
 )
 from uipath.platform.connections import EventArguments
 from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
@@ -58,6 +60,7 @@ from uipath.platform.context_grounding.context_grounding_index import (
 from uipath.platform.errors import (
     BatchTransformFailedException,
     BatchTransformNotCompleteException,
+    ContextGroundingIndexNotFoundError,
     OperationNotCompleteException,
 )
 from uipath.platform.orchestrator.job import JobState
@@ -129,12 +132,18 @@ class UiPathResumeTriggerReader:
             UiPathRuntimeError: If reading fails, job failed, API connection failed,
                 trigger type is unknown, or HITL feedback retrieval failed.
         """
-        uipath = UiPath()
+
+        @cache
+        def get_uipath() -> UiPath:
+            return UiPath()
 
         match trigger.trigger_type:
+            case UiPathResumeTriggerType.TIMER:
+                return {"resumeTime": serialize_object(trigger.resume_time)}
+
             case UiPathResumeTriggerType.TASK:
                 if trigger.item_key:
-                    task: Task = await uipath.tasks.retrieve_async(
+                    task: Task = await get_uipath().tasks.retrieve_async(
                         trigger.item_key,
                         app_folder_key=trigger.folder_key,
                         app_folder_path=trigger.folder_path,
@@ -182,7 +191,7 @@ class UiPathResumeTriggerReader:
 
             case UiPathResumeTriggerType.JOB:
                 if trigger.item_key:
-                    job = await uipath.jobs.retrieve_async(
+                    job = await get_uipath().jobs.retrieve_async(
                         trigger.item_key,
                         folder_key=trigger.folder_key,
                         folder_path=trigger.folder_path,
@@ -223,7 +232,7 @@ class UiPathResumeTriggerReader:
                             f"Process did not finish successfully. Error: {job_error}",
                         )
 
-                    output_data = await uipath.jobs.extract_output_async(job)
+                    output_data = await get_uipath().jobs.extract_output_async(job)
                     trigger_response = _try_convert_to_json_format(output_data)
 
                     # if response is an empty dictionary, use job state as placeholder value
@@ -239,9 +248,13 @@ class UiPathResumeTriggerReader:
                     return trigger_response
             case UiPathResumeTriggerType.DEEP_RAG:
                 if trigger.item_key:
-                    deep_rag = await uipath.context_grounding.retrieve_deep_rag_async(
-                        trigger.item_key,
-                        index_name=self._extract_field("index_name", trigger.payload),
+                    deep_rag = (
+                        await get_uipath().context_grounding.retrieve_deep_rag_async(
+                            trigger.item_key,
+                            index_name=self._extract_field(
+                                "index_name", trigger.payload
+                            ),
+                        )
                     )
                     deep_rag_status = deep_rag.last_deep_rag_status
 
@@ -279,7 +292,7 @@ class UiPathResumeTriggerReader:
 
             case UiPathResumeTriggerType.INDEX_INGESTION:
                 if trigger.item_key:
-                    index = await uipath.context_grounding.retrieve_by_id_async(
+                    index = await get_uipath().context_grounding.retrieve_by_id_async(
                         trigger.item_key
                     )
 
@@ -319,7 +332,7 @@ class UiPathResumeTriggerReader:
                     )
                     assert destination_path is not None
                     try:
-                        await uipath.context_grounding.download_batch_transform_result_async(
+                        await get_uipath().context_grounding.download_batch_transform_result_async(
                             trigger.item_key,
                             destination_path,
                             validate_status=True,
@@ -349,10 +362,8 @@ class UiPathResumeTriggerReader:
                     assert tag is not None
 
                     try:
-                        extraction_response = (
-                            await uipath.documents.retrieve_ixp_extraction_result_async(
-                                project_id, tag, trigger.item_key
-                            )
+                        extraction_response = await get_uipath().documents.retrieve_ixp_extraction_result_async(
+                            project_id, tag, trigger.item_key
                         )
                     except OperationNotCompleteException as e:
                         raise UiPathPendingTriggerError(
@@ -370,7 +381,7 @@ class UiPathResumeTriggerReader:
                     assert project_id is not None
                     assert tag is not None
                     try:
-                        escalation_response = await uipath.documents.retrieve_ixp_extraction_validation_result_async(
+                        escalation_response = await get_uipath().documents.retrieve_ixp_extraction_validation_result_async(
                             project_id, tag, trigger.item_key
                         )
                     except OperationNotCompleteException as e:
@@ -394,7 +405,7 @@ class UiPathResumeTriggerReader:
             case UiPathResumeTriggerType.API:
                 if trigger.api_resume and trigger.api_resume.inbox_id:
                     try:
-                        return await uipath.jobs.retrieve_api_payload_async(
+                        return await get_uipath().jobs.retrieve_api_payload_async(
                             trigger.api_resume.inbox_id
                         )
                     except Exception as e:
@@ -407,12 +418,16 @@ class UiPathResumeTriggerReader:
             case UiPathResumeTriggerType.INBOX:
                 if trigger.integration_resume and trigger.integration_resume.inbox_id:
                     try:
-                        inbox_payload = await uipath.jobs.retrieve_inbox_payload_async(
-                            trigger.integration_resume.inbox_id
+                        inbox_payload = (
+                            await get_uipath().jobs.retrieve_inbox_payload_async(
+                                trigger.integration_resume.inbox_id
+                            )
                         )
                         event_args = EventArguments.model_validate(inbox_payload)
-                        return await uipath.connections.retrieve_event_payload_async(
-                            event_args
+                        return (
+                            await get_uipath().connections.retrieve_event_payload_async(
+                                event_args
+                            )
                         )
                     except Exception as e:
                         raise UiPathFaultedTriggerError(
@@ -438,6 +453,23 @@ class UiPathResumeTriggerCreator:
 
     Implements UiPathResumeTriggerCreatorProtocol.
     """
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value.
+
+        Most values create a single trigger. A list or tuple creates sibling
+        triggers for the same interrupt; whichever one fires first resumes it.
+        """
+        if isinstance(suspend_value, (list, tuple)):
+            if not suspend_value:
+                raise ValueError("At least one interrupt model is required.")
+            return [
+                await self.create_trigger(child_suspend_value)
+                for child_suspend_value in suspend_value
+            ]
+
+        resume_trigger = await self.create_trigger(suspend_value)
+        return [resume_trigger]
 
     async def create_trigger(self, suspend_value: Any) -> UiPathResumeTrigger:
         """Create a resume trigger from a suspend value.
@@ -484,6 +516,9 @@ class UiPathResumeTriggerCreator:
                 case UiPathResumeTriggerType.INBOX:
                     await self._handle_inbox_trigger(suspend_value, resume_trigger)
 
+                case UiPathResumeTriggerType.TIMER:
+                    self._handle_time_trigger(suspend_value, resume_trigger)
+
                 case UiPathResumeTriggerType.DEEP_RAG:
                     await self._handle_deep_rag_job_trigger(
                         suspend_value, resume_trigger
@@ -510,6 +545,8 @@ class UiPathResumeTriggerCreator:
                         f"Unexpected model received"
                         f"{type(suspend_value)} is not a valid Human-In-The-Loop model",
                     )
+        except UiPathFaultedTriggerError:
+            raise
         except Exception as e:
             raise UiPathFaultedTriggerError(
                 ErrorCategory.SYSTEM,
@@ -570,6 +607,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerType.IXP_VS_ESCALATION
         if isinstance(value, WaitIntegrationEvent):
             return UiPathResumeTriggerType.INBOX
+        if isinstance(value, WaitUntil):
+            return UiPathResumeTriggerType.TIMER
         # default to API trigger
         return UiPathResumeTriggerType.API
 
@@ -606,6 +645,8 @@ class UiPathResumeTriggerCreator:
             return UiPathResumeTriggerName.EXTRACTION
         if isinstance(value, WaitIntegrationEvent):
             return UiPathResumeTriggerName.INBOX
+        if isinstance(value, WaitUntil):
+            return UiPathResumeTriggerName.TIMER
         # default to API trigger
         return UiPathResumeTriggerName.API
 
@@ -659,28 +700,35 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = value.deep_rag.id
         elif isinstance(value, CreateDeepRag):
             uipath = UiPath()
-            if value.is_ephemeral_index:
-                deep_rag = (
-                    await uipath.context_grounding.start_deep_rag_ephemeral_async(
+            try:
+                if value.is_ephemeral_index:
+                    deep_rag = (
+                        await uipath.context_grounding.start_deep_rag_ephemeral_async(
+                            name=value.name,
+                            index_id=value.index_id,
+                            prompt=value.prompt,
+                            glob_pattern=value.glob_pattern,
+                            citation_mode=value.citation_mode,
+                        )
+                    )
+                else:
+                    deep_rag = await uipath.context_grounding.start_deep_rag_async(
                         name=value.name,
+                        index_name=value.index_name,
                         index_id=value.index_id,
                         prompt=value.prompt,
                         glob_pattern=value.glob_pattern,
                         citation_mode=value.citation_mode,
+                        folder_path=value.index_folder_path,
+                        folder_key=value.index_folder_key,
                     )
-                )
-
-            else:
-                deep_rag = await uipath.context_grounding.start_deep_rag_async(
-                    name=value.name,
-                    index_name=value.index_name,
-                    index_id=value.index_id,
-                    prompt=value.prompt,
-                    glob_pattern=value.glob_pattern,
-                    citation_mode=value.citation_mode,
-                    folder_path=value.index_folder_path,
-                    folder_key=value.index_folder_key,
-                )
+            except ContextGroundingIndexNotFoundError as e:
+                raise UiPathFaultedTriggerError(
+                    ErrorCategory.DEPLOYMENT,
+                    "Context grounding index not found. Check that the index is "
+                    "deployed and available in the configured folder.",
+                    str(e),
+                ) from e
             if not deep_rag:
                 raise Exception("Failed to start deep rag")
 
@@ -740,27 +788,35 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = value.batch_transform.id
         elif isinstance(value, CreateBatchTransform):
             uipath = UiPath()
-            if value.is_ephemeral_index:
-                batch_transform = await uipath.context_grounding.start_batch_transform_ephemeral_async(
-                    name=value.name,
-                    index_id=value.index_id,
-                    prompt=value.prompt,
-                    output_columns=value.output_columns,
-                    storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
-                    enable_web_search_grounding=value.enable_web_search_grounding,
-                )
-            else:
-                batch_transform = await uipath.context_grounding.start_batch_transform_async(
-                    name=value.name,
-                    index_name=value.index_name,
-                    index_id=value.index_id,
-                    prompt=value.prompt,
-                    output_columns=value.output_columns,
-                    storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
-                    enable_web_search_grounding=value.enable_web_search_grounding,
-                    folder_path=value.index_folder_path,
-                    folder_key=value.index_folder_key,
-                )
+            try:
+                if value.is_ephemeral_index:
+                    batch_transform = await uipath.context_grounding.start_batch_transform_ephemeral_async(
+                        name=value.name,
+                        index_id=value.index_id,
+                        prompt=value.prompt,
+                        output_columns=value.output_columns,
+                        storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
+                        enable_web_search_grounding=value.enable_web_search_grounding,
+                    )
+                else:
+                    batch_transform = await uipath.context_grounding.start_batch_transform_async(
+                        name=value.name,
+                        index_name=value.index_name,
+                        index_id=value.index_id,
+                        prompt=value.prompt,
+                        output_columns=value.output_columns,
+                        storage_bucket_folder_path_prefix=value.storage_bucket_folder_path_prefix,
+                        enable_web_search_grounding=value.enable_web_search_grounding,
+                        folder_path=value.index_folder_path,
+                        folder_key=value.index_folder_key,
+                    )
+            except ContextGroundingIndexNotFoundError as e:
+                raise UiPathFaultedTriggerError(
+                    ErrorCategory.DEPLOYMENT,
+                    "Context grounding index not found. Check that the index is "
+                    "deployed and available in the configured folder.",
+                    str(e),
+                ) from e
             if not batch_transform:
                 raise Exception("Failed to start batch transform")
 
@@ -979,6 +1035,20 @@ class UiPathResumeTriggerCreator:
             inbox_id=str(uuid.uuid4()),
         )
 
+    def _handle_time_trigger(
+        self, value: WaitUntil, resume_trigger: UiPathResumeTrigger
+    ) -> None:
+        """Handle Timer-type resume triggers.
+
+        Orchestrator expects timer resume triggers as a top-level
+        `resumeTime` value on the resume trigger DTO.
+
+        Args:
+            value: The suspend value (WaitUntil)
+            resume_trigger: The resume trigger to populate
+        """
+        resume_trigger.resume_time = value.resume_time
+
 
 class UiPathResumeTriggerHandler:
     """Combined handler for creating and reading resume triggers.
@@ -1004,6 +1074,10 @@ class UiPathResumeTriggerHandler:
             UiPathRuntimeError: If trigger creation fails
         """
         return await self._creator.create_trigger(suspend_value)
+
+    async def create_triggers(self, suspend_value: Any) -> list[UiPathResumeTrigger]:
+        """Create resume triggers from a suspend value."""
+        return await self._creator.create_triggers(suspend_value)
 
     async def read_trigger(self, trigger: UiPathResumeTrigger) -> Any | None:
         """Read a resume trigger and convert it to runtime-compatible input.

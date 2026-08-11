@@ -3,7 +3,7 @@ from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common._api_client import ApiClient
-from uipath.platform.common.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_USER_AGENT
 
 
 @pytest.fixture

@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from os import environ as env
 from typing import Optional
 from urllib.parse import urlparse
@@ -5,10 +7,11 @@ from urllib.parse import urlparse
 import httpx
 from httpx import HTTPStatusError
 
+from uipath.platform.constants import ENV_BASE_URL
+
+from ..common.auth import TokenData
 from ..errors import EnrichedException
 from ..identity import IdentityService
-from .auth import TokenData
-from .constants import ENV_BASE_URL
 
 
 class ExternalApplicationService:
@@ -71,6 +74,31 @@ class ExternalApplicationService:
             # Default to cloud if parsing fails
             return "cloud"
 
+    @contextmanager
+    def _translate_auth_errors(self) -> Iterator[None]:
+        """Translate token acquisition failures into authentication errors."""
+        try:
+            yield
+        except HTTPStatusError as e:
+            match e.response.status_code:
+                case 400:
+                    message = "Invalid client credentials or request parameters."
+                case 401:
+                    message = "Unauthorized: Invalid client credentials."
+                case _:
+                    message = f"Authentication failed with unexpected status: {e.response.status_code}"
+            raise EnrichedException(
+                HTTPStatusError(
+                    message=message,
+                    request=e.request,
+                    response=e.response,
+                )
+            ) from e
+        except httpx.RequestError as e:
+            raise Exception(f"Network error during authentication: {e}") from e
+        except Exception as e:
+            raise Exception(f"Unexpected error during authentication: {e}") from e
+
     def get_token_data(
         self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
     ) -> TokenData:
@@ -84,42 +112,12 @@ class ExternalApplicationService:
         Returns:
             Token data if successful
         """
-        try:
+        with self._translate_auth_errors():
             return self._identity_service.get_client_credentials_token(
                 client_id=client_id,
                 client_secret=client_secret,
                 scope=scope,
             )
-        except HTTPStatusError as e:
-            match e.response.status_code:
-                case 400:
-                    raise EnrichedException(
-                        HTTPStatusError(
-                            message="Invalid client credentials or request parameters.",
-                            request=e.request,
-                            response=e.response,
-                        )
-                    ) from e
-                case 401:
-                    raise EnrichedException(
-                        HTTPStatusError(
-                            message="Unauthorized: Invalid client credentials.",
-                            request=e.request,
-                            response=e.response,
-                        )
-                    ) from e
-                case _:
-                    raise EnrichedException(
-                        HTTPStatusError(
-                            message=f"Authentication failed with unexpected status: {e.response.status_code}",
-                            request=e.request,
-                            response=e.response,
-                        )
-                    ) from e
-        except httpx.RequestError as e:
-            raise Exception(f"Network error during authentication: {e}") from e
-        except Exception as e:
-            raise Exception(f"Unexpected error during authentication: {e}") from e
 
     async def get_token_data_async(
         self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
@@ -134,39 +132,9 @@ class ExternalApplicationService:
         Returns:
             Token data if successful
         """
-        try:
+        with self._translate_auth_errors():
             return await self._identity_service.get_client_credentials_token_async(
                 client_id=client_id,
                 client_secret=client_secret,
                 scope=scope,
             )
-        except HTTPStatusError as e:
-            match e.response.status_code:
-                case 400:
-                    raise EnrichedException(
-                        HTTPStatusError(
-                            message="Invalid client credentials or request parameters.",
-                            request=e.request,
-                            response=e.response,
-                        )
-                    ) from e
-                case 401:
-                    raise EnrichedException(
-                        HTTPStatusError(
-                            message="Unauthorized: Invalid client credentials.",
-                            request=e.request,
-                            response=e.response,
-                        )
-                    ) from e
-                case _:
-                    raise EnrichedException(
-                        HTTPStatusError(
-                            message=f"Authentication failed with unexpected status: {e.response.status_code}",
-                            request=e.request,
-                            response=e.response,
-                        )
-                    ) from e
-        except httpx.RequestError as e:
-            raise Exception(f"Network error during authentication: {e}") from e
-        except Exception as e:
-            raise Exception(f"Unexpected error during authentication: {e}") from e

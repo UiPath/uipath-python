@@ -19,9 +19,9 @@ from uipath.eval.evaluators.legacy_csv_exact_match_evaluator import (
 )
 from uipath.eval.evaluators.output_evaluator import LineByLineEvaluationDetails
 from uipath.eval.models.models import (
-    AgentExecution,
     LegacyEvaluatorCategory,
     LegacyEvaluatorType,
+    WorkloadExecution,
 )
 
 
@@ -64,14 +64,14 @@ class TestLegacyCSVExactMatchEvaluator:
     async def test_single_column_match(self, evaluator_single_column) -> None:
         """Test exact match with single column."""
         csv_content = "Name,Age,City\nJohn,25,Paris"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator_single_column.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -84,14 +84,14 @@ class TestLegacyCSVExactMatchEvaluator:
     async def test_multiple_columns_match(self, evaluator_multiple_columns) -> None:
         """Test exact match with multiple columns."""
         csv_content = "Name,Age,City\nJohn,25,Paris"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator_multiple_columns.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -106,14 +106,14 @@ class TestLegacyCSVExactMatchEvaluator:
         actual_csv = "Name,Age,City\nJohn,25,Paris"
         expected_csv = "Name,Age,City\nJane,25,Paris"  # Different name
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=actual_csv,
+            workload_trace=[],
+            workload_output=actual_csv,
         )
 
         result = await evaluator_single_column.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": expected_csv},
                 expected_agent_behavior="",
@@ -131,14 +131,14 @@ class TestLegacyCSVExactMatchEvaluator:
             )
 
         csv_content = "name,AGE,CiTy\nJohn,25,Paris"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -153,14 +153,14 @@ class TestLegacyCSVExactMatchEvaluator:
     ) -> None:
         """Test handling dict with 'content' property."""
         csv_content = "Name,Age\nJohn,25"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output={"content": csv_content},
+            workload_trace=[],
+            workload_output={"content": csv_content},
         )
 
         result = await evaluator_single_column.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -193,14 +193,14 @@ class TestLegacyCSVExactMatchEvaluator:
                 **_make_base_params(target_sub_output_key="NonExistentColumn")
             )
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -214,14 +214,14 @@ class TestLegacyCSVExactMatchEvaluator:
     @pytest.mark.asyncio
     async def test_empty_csv_returns_error(self, evaluator_single_column) -> None:
         """Test that empty CSV returns error result."""
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output="",
+            workload_trace=[],
+            workload_output="",
         )
 
         result = await evaluator_single_column.validate_and_evaluate_criteria(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": "Name,Age\nJohn,25"},
                 expected_agent_behavior="",
@@ -244,14 +244,14 @@ class TestLegacyCSVExactMatchEvaluator:
         csv_content = (
             'Name,Description,Status\n"John, Jr.","Software Engineer, Senior","Active"'
         )
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -269,14 +269,14 @@ class TestLegacyCSVExactMatchEvaluator:
             )
 
         csv_content = "Name,Age,City\nJohn,,Paris"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -289,14 +289,14 @@ class TestLegacyCSVExactMatchEvaluator:
     async def test_no_data_rows_returns_error(self, evaluator_single_column) -> None:
         """Test that CSV with headers but no data rows returns error result."""
         csv_content = "Name,Age"  # Headers only, no data
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator_single_column.validate_and_evaluate_criteria(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -315,14 +315,14 @@ class TestLegacyCSVExactMatchEvaluator:
             )
 
         csv_content = "Name,Age\nJohn,25"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",
@@ -339,15 +339,15 @@ class TestLegacyCSVExactMatchEvaluator:
     ) -> None:
         """Test that expected output without 'content' property returns error result."""
         csv_content = "Name,Age\nJohn,25"
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=csv_content,
+            workload_trace=[],
+            workload_output=csv_content,
         )
 
         # Expected output as empty string
         result = await evaluator_single_column.validate_and_evaluate_criteria(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output="",
                 expected_agent_behavior="",
@@ -371,14 +371,14 @@ class TestLegacyCSVExactMatchEvaluator:
         actual_csv = "Name\nJohn"  # Missing Age column
         expected_csv = "Name,Age\nJohn,25"
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=actual_csv,
+            workload_trace=[],
+            workload_output=actual_csv,
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": expected_csv},
                 expected_agent_behavior="",
@@ -395,14 +395,14 @@ class TestLegacyCSVExactMatchEvaluator:
         actual_csv = "Name,Age\n  John  ,25"
         expected_csv = "Name,Age\nJohn,25"
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=actual_csv,
+            workload_trace=[],
+            workload_output=actual_csv,
         )
 
         result = await evaluator_single_column.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": expected_csv},
                 expected_agent_behavior="",
@@ -419,14 +419,14 @@ class TestLegacyCSVExactMatchEvaluator:
         actual_csv = "Name,Age\nJohn,25"
         expected_csv = "Name,Age\njohn,25"  # Different case
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=actual_csv,
+            workload_trace=[],
+            workload_output=actual_csv,
         )
 
         result = await evaluator_single_column.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": expected_csv},
                 expected_agent_behavior="",
@@ -441,14 +441,14 @@ class TestLegacyCSVExactMatchEvaluator:
         actual_csv = "Name,Age,City,Country\nJohn,25,Paris,France"
         expected_csv = "Name,Age,City\nJohn,30,London"  # Different Age and City, but we only check Name
 
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={},
-            agent_trace=[],
-            agent_output=actual_csv,
+            workload_trace=[],
+            workload_output=actual_csv,
         )
 
         result = await evaluator_single_column.evaluate(
-            agent_execution,
+            workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": expected_csv},
                 expected_agent_behavior="",
@@ -472,14 +472,14 @@ async def test_line_by_line_all_match():
         )
 
     csv_content = "Name,Age\nJohn,25\nJane,30\nBob,35"
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output=csv_content,
-        agent_trace=[],
+        workload_output=csv_content,
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output={"content": csv_content},
             expected_agent_behavior="",
@@ -509,14 +509,14 @@ async def test_line_by_line_partial_match():
     actual_csv = "Name,Age\nJohn,25\nDifferent,30\nBob,35"
     expected_csv = "Name,Age\nJohn,25\nJane,30\nBob,35"
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output=actual_csv,
-        agent_trace=[],
+        workload_output=actual_csv,
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output={"content": expected_csv},
             expected_agent_behavior="",
@@ -548,14 +548,14 @@ async def test_line_by_line_multiple_columns():
         )
 
     csv_content = "Name,Age,City\nJohn,25,Paris\nJane,30,London"
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output=csv_content,
-        agent_trace=[],
+        workload_output=csv_content,
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output={"content": csv_content},
             expected_agent_behavior="",
@@ -582,14 +582,14 @@ async def test_line_by_line_unequal_line_counts():
     actual_csv = "Name,Age\nJohn,25\nJane,30"  # 2 data rows
     expected_csv = "Name,Age\nJohn,25\nJane,30\nBob,35"  # 3 data rows
 
-    agent_execution = AgentExecution(
+    workload_execution = WorkloadExecution(
         agent_input={"input": "test"},
-        agent_output=actual_csv,
-        agent_trace=[],
+        workload_output=actual_csv,
+        workload_trace=[],
     )
 
     result = await evaluator.validate_and_evaluate_criteria(
-        agent_execution=agent_execution,
+        workload_execution=workload_execution,
         evaluation_criteria=LegacyEvaluationCriteria(
             expected_output={"content": expected_csv},
             expected_agent_behavior="",
@@ -621,15 +621,15 @@ async def test_line_by_line_with_job_attachment():
         "uipath.eval.evaluators.base_legacy_evaluator.download_attachment_as_string",
         return_value=csv_content,
     ):
-        agent_execution = AgentExecution(
+        workload_execution = WorkloadExecution(
             agent_input={"input": "test"},
             # Simulate job attachment URI
-            agent_output="urn:uipath:cas:file:orchestrator:12345678-1234-1234-1234-123456789abc",
-            agent_trace=[],
+            workload_output="urn:uipath:cas:file:orchestrator:12345678-1234-1234-1234-123456789abc",
+            workload_trace=[],
         )
 
         result = await evaluator.validate_and_evaluate_criteria(
-            agent_execution=agent_execution,
+            workload_execution=workload_execution,
             evaluation_criteria=LegacyEvaluationCriteria(
                 expected_output={"content": csv_content},
                 expected_agent_behavior="",

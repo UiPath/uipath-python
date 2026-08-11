@@ -49,6 +49,24 @@ class TestAutomationOpsService:
 
             assert result == expected_policy
 
+        def test_returns_empty_dict_when_no_policy_deployed(
+            self,
+            httpx_mock: HTTPXMock,
+            service: AutomationOpsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agenthub_/api/policies/deployed-policy",
+                status_code=200,
+                content=b"",
+            )
+
+            result = service.get_deployed_policy()
+
+            assert result == {}
+
         def test_uses_post_method(
             self,
             httpx_mock: HTTPXMock,
@@ -101,6 +119,24 @@ class TestAutomationOpsService:
             result = await service.get_deployed_policy_async()
 
             assert result == expected_policy
+
+        async def test_returns_empty_dict_when_no_policy_deployed(
+            self,
+            httpx_mock: HTTPXMock,
+            service: AutomationOpsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/agenthub_/api/policies/deployed-policy",
+                status_code=200,
+                content=b"",
+            )
+
+            result = await service.get_deployed_policy_async()
+
+            assert result == {}
 
         async def test_url_is_tenant_scoped(
             self,

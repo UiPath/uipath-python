@@ -68,6 +68,13 @@ async def test_generate_llm_input_with_model_settings(
         json={},
     )
 
+    # Chat completions consults discovery to learn which parameters the model accepts.
+    httpx_mock.add_response(
+        url="https://example.com/llm/api/discovery",
+        status_code=200,
+        json=[{"modelName": "gpt-4o-mini-2024-07-18", "modelDetails": {}}],
+    )
+
     httpx_mock.add_response(
         url="https://example.com/llm/api/chat/completions"
         "?api-version=2024-08-01-preview",
@@ -112,3 +119,10 @@ async def test_generate_llm_input_with_model_settings(
     assert len(chat_completion_requests) == 1, (
         "Expected exactly one chat completion request"
     )
+
+    # OpenAI returns content via response_format; no tool-call fallback needed.
+    import json
+
+    body = json.loads(chat_completion_requests[0].content.decode("utf-8"))
+    assert "response_format" in body
+    assert "tools" not in body

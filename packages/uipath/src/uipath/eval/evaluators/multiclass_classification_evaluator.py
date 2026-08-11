@@ -1,4 +1,4 @@
-"""Multiclass classification evaluator for agent outputs.
+"""Multiclass classification evaluator for workload outputs.
 
 Evaluates multiclass classification by comparing predicted vs expected class.
 Per-datapoint score is 1.0 (correct) or 0.0 (incorrect). The reduce_scores
@@ -10,10 +10,10 @@ macro averaging.
 from typing import Literal
 
 from ..models import (
-    AgentExecution,
     EvaluationResult,
     EvaluatorType,
     NumericEvaluationResult,
+    WorkloadExecution,
 )
 from ..models.models import (
     EvaluationResultDto,
@@ -66,11 +66,11 @@ class MulticlassClassificationEvaluator(
 
     async def evaluate(
         self,
-        agent_execution: AgentExecution,
+        workload_execution: WorkloadExecution,
         evaluation_criteria: MulticlassClassificationEvaluationCriteria,
     ) -> EvaluationResult:
         """Evaluate multiclass classification by comparing predicted vs expected class."""
-        predicted_class = str(self._get_actual_output(agent_execution)).lower()
+        predicted_class = str(self._get_actual_output(workload_execution)).lower()
         expected_class = evaluation_criteria.expected_class.lower()
         classes = [c.lower() for c in self.evaluator_config.classes]
 

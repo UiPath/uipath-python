@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "id": "ListKeysExactMatch",
+  "description": "Asserts 'name' and 'price' together using a list of target output keys",
+  "evaluatorTypeId": "uipath-exact-match",
+  "evaluatorConfig": {
+    "name": "ListKeysExactMatch",
+    "targetOutputKey": ["name", "price"]
+  }
+}

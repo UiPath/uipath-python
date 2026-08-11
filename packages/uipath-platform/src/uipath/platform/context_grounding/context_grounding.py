@@ -239,7 +239,6 @@ class ContextGroundingSearchResultItem(BaseModel):
 class SearchMode(str, Enum):
     """Enum representing possible unified search modes."""
 
-    AUTO = "Auto"
     SEMANTIC = "Semantic"
 
 

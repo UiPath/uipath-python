@@ -8,6 +8,7 @@ from uipath.agent.models.agent import (
     AgentBooleanOperator,
     AgentBooleanRule,
     AgentBuiltInValidatorGuardrail,
+    AgentClientSideToolResourceConfig,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
     AgentContextType,
@@ -26,6 +27,7 @@ from uipath.agent.models.agent import (
     AgentIntegrationToolResourceConfig,
     AgentInternalBatchTransformToolProperties,
     AgentInternalDeepRagToolProperties,
+    AgentInternalHttpRequestToolProperties,
     AgentInternalToolResourceConfig,
     AgentInternalToolType,
     AgentIxpExtractionResourceConfig,
@@ -35,6 +37,7 @@ from uipath.agent.models.agent import (
     AgentNumberOperator,
     AgentNumberRule,
     AgentProcessToolResourceConfig,
+    AgentQuickFormChannelProperties,
     AgentResourceType,
     AgentToolArgumentPropertiesVariant,
     AgentToolType,
@@ -48,13 +51,18 @@ from uipath.agent.models.agent import (
     AssetRecipient,
     BatchTransformFileExtension,
     BatchTransformWebSearchGrounding,
+    CachedToolsConfig,
     CitationMode,
+    CustomAssigneesRecipient,
     DeepRagFileExtension,
+    RoundRobinRecipient,
     StandardRecipient,
     TaskTitleType,
     TextBuilderTaskTitle,
     TextToken,
     TextTokenType,
+    ToolOutputRecipient,
+    WorkloadRecipient,
 )
 from uipath.platform.guardrails import (
     EnumListParameterValue,
@@ -2032,6 +2040,53 @@ class TestAgentBuilderConfig:
         assert tool2.output_schema is not None
         assert "content" in tool2.output_schema["properties"]
 
+    def test_cached_tools_config_refresh_schema_default(self):
+        """CachedToolsConfig defaults refresh_schema_before_call to True."""
+
+        config = CachedToolsConfig()
+        assert config.type == "cached"
+        assert config.refresh_schema_before_call is True
+
+    def test_cached_tools_config_refresh_schema_alias_roundtrip(self):
+        """refresh_schema_before_call parses from and serializes to refreshSchemaBeforeCall."""
+
+        config = TypeAdapter(CachedToolsConfig).validate_python(
+            {"type": "cached", "refreshSchemaBeforeCall": False}
+        )
+        assert config.refresh_schema_before_call is False
+        assert config.model_dump(by_alias=True)["refreshSchemaBeforeCall"] is False
+
+    def test_mcp_resource_with_cached_tools_configuration(self):
+        """AgentMcpResourceConfig parses a cached toolsConfiguration with the refresh flag."""
+
+        json_data = {
+            "$resourceType": "mcp",
+            "folderPath": "solution_folder",
+            "slug": "tavily-mcp",
+            "name": "tavily",
+            "description": "Tavily search tools",
+            "isEnabled": True,
+            "availableTools": [
+                {
+                    "name": "tavily-search",
+                    "description": "Search the web",
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+            ],
+            "toolsConfiguration": {
+                "discoveryMode": {
+                    "type": "cached",
+                    "refreshSchemaBeforeCall": False,
+                }
+            },
+        }
+
+        mcp_resource = TypeAdapter(AgentMcpResourceConfig).validate_python(json_data)
+        assert mcp_resource.tools_configuration is not None
+        discovery_mode = mcp_resource.tools_configuration.discovery_mode
+        assert isinstance(discovery_mode, CachedToolsConfig)
+        assert discovery_mode.refresh_schema_before_call is False
+
     @pytest.mark.parametrize(
         "recipient_type_int,value,expected_type",
         [
@@ -2606,10 +2661,83 @@ class TestAgentBuilderConfig:
         assert len(channel.recipients) == 0
 
         # Validate channel properties
+        assert isinstance(channel, AgentEscalationChannel)
         assert channel.properties.app_name is None
         assert channel.properties.app_version == 1
         assert channel.properties.folder_name is None
         assert channel.properties.resource_key is None
+
+    def test_quick_form_channel_properties_derive_schema_id_from_body(self):
+        """schema_id reads the schemaId nested inside the schema body."""
+
+        props = AgentQuickFormChannelProperties.model_validate(
+            {
+                "schema": {
+                    "schemaId": "e74ebb74-80ba-47b9-a370-532a1ba4c41e",
+                    "fields": [],
+                    "outcomes": [],
+                },
+            }
+        )
+        assert props.schema_id == "e74ebb74-80ba-47b9-a370-532a1ba4c41e"
+
+    def test_quick_form_channel_properties_schema_id_none_when_absent(self):
+        """schema_id is None when the schema body carries no schemaId."""
+
+        props = AgentQuickFormChannelProperties.model_validate(
+            {"schema": {"fields": [], "outcomes": []}}
+        )
+        assert props.schema_id is None
+
+    def test_quick_form_channel_properties_require_schema(self):
+        with pytest.raises(ValidationError):
+            AgentQuickFormChannelProperties.model_validate(
+                {"isActionableMessageEnabled": False}
+            )
+
+    def test_quick_form_channel_requires_schema(self):
+        """A quick-form channel without a schema fails to parse."""
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationResourceConfig).validate_python(
+                {
+                    "$resourceType": "escalation",
+                    "name": "Escalation",
+                    "description": "",
+                    "channels": [
+                        {
+                            "name": "c",
+                            "description": "",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "type": "actionCenterQuickForm",
+                            "recipients": [],
+                            "properties": {"isActionableMessageEnabled": False},
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                }
+            )
+
+    def test_unknown_escalation_channel_type_is_rejected(self):
+        """An unrecognized channel type fails to parse; the runtime cannot handle it."""
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationResourceConfig).validate_python(
+                {
+                    "$resourceType": "escalation",
+                    "name": "Escalation",
+                    "description": "",
+                    "channels": [
+                        {
+                            "name": "c",
+                            "description": "",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "type": "someFutureChannel",
+                            "recipients": [],
+                            "properties": {},
+                        }
+                    ],
+                    "isAgentMemoryEnabled": False,
+                }
+            )
 
     def test_task_title_text_builder_type(self):
         """Test TextBuilderTaskTitle with tokens."""
@@ -3030,6 +3158,24 @@ class TestAgentBuilderConfig:
                     "description": "Test batch transform tool",
                     "isEnabled": True,
                 },
+                {
+                    "$resourceType": "Tool",
+                    "type": "Internal",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "arguments": {},
+                    "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                    "properties": {
+                        "toolType": "Http-Request",
+                    },
+                    "argumentProperties": {},
+                    "name": "HTTP Request Tool",
+                    "description": "Test http request tool",
+                    "isEnabled": True,
+                },
             ],
             "guardrails": [
                 {
@@ -3150,6 +3296,15 @@ class TestAgentBuilderConfig:
         assert (
             batch_tool.properties.settings.web_search_grounding.value
             == BatchTransformWebSearchGrounding.ENABLED
+        )
+
+        http_request_tool = config.resources[5]
+        assert isinstance(http_request_tool, AgentInternalToolResourceConfig)
+        assert isinstance(
+            http_request_tool.properties, AgentInternalHttpRequestToolProperties
+        )
+        assert (
+            http_request_tool.properties.tool_type == AgentInternalToolType.HTTP_REQUEST
         )
 
         assert config.guardrails is not None
@@ -3558,6 +3713,144 @@ class TestAgentBuilderConfigResources:
         assert isinstance(tool_resource, AgentProcessToolResourceConfig)
         assert tool_resource.output_schema == {"type": "object", "properties": {}}
 
+    def test_flow_tool_type_enum_value(self):
+        """AgentToolType.FLOW exists with the wire value 'Flow' and is case-insensitive."""
+        assert AgentToolType.FLOW.value == "Flow"
+        assert AgentToolType("flow") is AgentToolType.FLOW
+        assert AgentToolType("FLOW") is AgentToolType.FLOW
+
+    def test_flow_tool_resource_deserialization(self):
+        """A resource with type='Flow' is parsed as AgentProcessToolResourceConfig."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "Flow",
+                "id": "flow-tool-1",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                },
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFlow",
+                    "folderPath": "/Shared/Flows",
+                },
+                "name": "Flow Tool",
+                "description": "Test Flow tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FLOW
+        assert tool_resource.properties.process_name == "MyFlow"
+        assert tool_resource.properties.folder_path == "/Shared/Flows"
+
+    def test_flow_tool_resource_case_insensitive(self):
+        """A resource with lowercase type='flow' also deserializes via CaseInsensitiveEnum."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "flow",
+                "id": "flow-tool-2",
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFlow",
+                    "folderPath": "/Shared/Flows",
+                },
+                "name": "Flow Tool",
+                "description": "Test Flow tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FLOW
+
+    def test_function_tool_type_enum_value(self):
+        """AgentToolType.FUNCTION exists with the wire value 'Function' and is case-insensitive."""
+        assert AgentToolType.FUNCTION.value == "Function"
+        assert AgentToolType("function") is AgentToolType.FUNCTION
+        assert AgentToolType("FUNCTION") is AgentToolType.FUNCTION
+
+    def test_function_tool_resource_deserialization(self):
+        """A resource with type='Function' is parsed as AgentProcessToolResourceConfig."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "Function",
+                "id": "function-tool-1",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                },
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFunction",
+                    "folderPath": "/Shared/Functions",
+                },
+                "name": "Function Tool",
+                "description": "Test Function tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FUNCTION
+        assert tool_resource.properties.process_name == "MyFunction"
+        assert tool_resource.properties.folder_path == "/Shared/Functions"
+
+    def test_function_tool_resource_case_insensitive(self):
+        """A resource with lowercase type='function' also deserializes via CaseInsensitiveEnum."""
+        resources = [
+            {
+                "$resourceType": "tool",
+                "type": "function",
+                "id": "function-tool-2",
+                "inputSchema": {"type": "object", "properties": {}},
+                "outputSchema": {"type": "object", "properties": {}},
+                "arguments": {},
+                "settings": {"timeout": 0, "maxAttempts": 0, "retryDelay": 0},
+                "properties": {
+                    "processName": "MyFunction",
+                    "folderPath": "/Shared/Functions",
+                },
+                "name": "Function Tool",
+                "description": "Test Function tool",
+            }
+        ]
+
+        json_data = self._agent_dict_with_resources(resources)
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentProcessToolResourceConfig)
+        assert tool_resource.type == AgentToolType.FUNCTION
+
     def test_escalation_missing_escalation_type_defaults_to_zero(self):
         """Test that missing escalationType defaults to 0."""
         resources = [
@@ -3649,6 +3942,127 @@ class TestDataFabricContextConfig:
         assert parsed.entity_set[0].entity_key is None
         assert parsed.entity_set[1].entity_key == "orders-ref"
         assert parsed.entity_set[1].description is None
+
+    def test_ontology_context_parses(self):
+        """The ontology context (datafabricontology) holds an ontologySet array."""
+        config = {
+            "$resourceType": "context",
+            "name": "Ontologies",
+            "description": "",
+            "contextType": "datafabricontology",
+            "ontologySet": [
+                {"name": "library", "folderId": "f1"},
+                {"name": "finance", "folderId": "f2"},
+            ],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.is_datafabric_ontology
+        assert not parsed.is_datafabric
+        assert parsed.ontology_set is not None
+        assert len(parsed.ontology_set) == 2
+        assert parsed.ontology_set[0].name == "library"
+        assert parsed.ontology_set[0].folder_key == "f1"
+        assert parsed.ontology_set[1].name == "finance"
+
+    def test_ontology_item_requires_folder_id(self):
+        """folderId is required on each ontology item."""
+        config = {
+            "$resourceType": "context",
+            "name": "Ontologies",
+            "description": "",
+            "contextType": "datafabricontology",
+            "ontologySet": [{"name": "library"}],  # missing folderId
+        }
+
+        with pytest.raises(ValidationError):
+            AgentContextResourceConfig.model_validate(config)
+
+    def test_ontology_context_dumps_by_alias(self):
+        """The ontology context round-trips back to aliased JSON keys."""
+        parsed = AgentContextResourceConfig.model_validate(
+            {
+                "$resourceType": "context",
+                "name": "Ontologies",
+                "description": "",
+                "contextType": "datafabricontology",
+                "ontologySet": [{"name": "library", "folderId": "f1"}],
+            }
+        )
+        dumped = parsed.model_dump(by_alias=True, exclude_none=True)
+
+        assert dumped["contextType"] == "datafabricontology"
+        assert dumped["ontologySet"][0]["name"] == "library"
+        assert dumped["ontologySet"][0]["folderId"] == "f1"
+
+    def test_entity_context_has_no_ontology_set(self):
+        """A plain entity context has no ontologySet and is not an ontology context."""
+        config = {
+            "$resourceType": "context",
+            "name": "TestDataFabric",
+            "description": "",
+            "contextType": "datafabricentityset",
+            "entitySet": [{"id": "e1", "name": "Customers", "folderId": "f1"}],
+        }
+
+        parsed = AgentContextResourceConfig.model_validate(config)
+
+        assert parsed.is_datafabric
+        assert not parsed.is_datafabric_ontology
+        assert parsed.ontology_set is None
+
+    def test_ontology_context_survives_full_definition_normalization(self):
+        """Regression: the datafabricontology context (with its ontologySet)
+        survives the full AgentDefinition normalizer and sits beside the entity
+        context, so the runtime can gather its ontologies to ground the DF query.
+        """
+        json_data = {
+            "id": "test-ontology-def",
+            "name": "Agent with ontology context",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "context",
+                    "contextType": "datafabricentityset",
+                    "name": "Entities",
+                    "description": "DF context",
+                    "entitySet": [
+                        {"id": "e1", "name": "LibraryLoan", "folderId": "f1"}
+                    ],
+                },
+                {
+                    "$resourceType": "context",
+                    "contextType": "datafabricontology",
+                    "name": "Ontologies",
+                    "description": "",
+                    "ontologySet": [{"name": "library", "folderId": "f1"}],
+                },
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        ontology_ctxs = [
+            r
+            for r in config.resources
+            if isinstance(r, AgentContextResourceConfig) and r.is_datafabric_ontology
+        ]
+        assert len(ontology_ctxs) == 1
+        assert ontology_ctxs[0].ontology_set is not None
+        assert ontology_ctxs[0].ontology_set[0].name == "library"
+        assert ontology_ctxs[0].ontology_set[0].folder_key == "f1"
 
     def test_is_datafabric(self):
         """Test is_datafabric property with datafabricentityset contextType."""
@@ -3950,3 +4364,389 @@ class TestArgumentRecipientDeserialization:
         payload = {"type": 8}
         with pytest.raises(ValidationError):
             TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_agent_with_client_side_tool(self):
+        """Test agent with ClientSide tool resource."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000010",
+            "name": "Agent with ClientSide Tool",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "cst-0001-0000-0000-000000000001",
+                    "name": "browser_navigate",
+                    "description": "Navigate to a URL in the browser",
+                    "location": "external",
+                    "type": "ClientSide",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "The URL to navigate to",
+                            }
+                        },
+                        "required": ["url"],
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "content": {"type": "string"},
+                        },
+                    },
+                    "arguments": {"timeout": 30},
+                    "properties": {},
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.name == "Agent with ClientSide Tool"
+        assert len(config.resources) == 1
+
+        tool = config.resources[0]
+        assert isinstance(tool, AgentClientSideToolResourceConfig)
+        assert tool.resource_type == AgentResourceType.TOOL
+        assert tool.type == AgentToolType.CLIENT_SIDE
+        assert tool.name == "browser_navigate"
+        assert tool.description == "Navigate to a URL in the browser"
+
+        # Validate input schema
+        assert tool.input_schema["type"] == "object"
+        assert "url" in tool.input_schema["properties"]
+        assert tool.input_schema["required"] == ["url"]
+
+        # Validate outputSchema alias deserializes to output_schema
+        assert tool.output_schema is not None
+        assert tool.output_schema["type"] == "object"
+        assert "title" in tool.output_schema["properties"]
+        assert "content" in tool.output_schema["properties"]
+
+        # Validate arguments
+        assert tool.arguments == {"timeout": 30}
+
+    def test_agent_with_client_side_tool_lowercase_type(self):
+        """Test that _normalize_resources handles lowercase 'clientside' type."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000011",
+            "name": "Agent with clientside Tool",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "cst-0002-0000-0000-000000000001",
+                    "name": "clipboard_copy",
+                    "description": "Copy text to clipboard",
+                    "location": "external",
+                    "type": "clientside",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string"},
+                        },
+                    },
+                    "properties": {},
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool = config.resources[0]
+        assert isinstance(tool, AgentClientSideToolResourceConfig)
+        assert tool.type == AgentToolType.CLIENT_SIDE
+        assert tool.name == "clipboard_copy"
+
+        # output_schema and arguments should default
+        assert tool.output_schema is None
+        assert tool.arguments == {}
+
+    def test_agent_with_client_side_tool_output_schema_alias(self):
+        """Test that the outputSchema alias correctly maps to output_schema."""
+
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000012",
+            "name": "Agent with ClientSide outputSchema alias",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+            },
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "cst-0003-0000-0000-000000000001",
+                    "name": "screen_capture",
+                    "description": "Capture a screenshot",
+                    "location": "external",
+                    "type": "ClientSide",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "region": {"type": "string"},
+                        },
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "imageBase64": {
+                                "type": "string",
+                                "description": "Base64-encoded image",
+                            }
+                        },
+                        "required": ["imageBase64"],
+                    },
+                    "properties": {},
+                    "isEnabled": True,
+                }
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool = config.resources[0]
+        assert isinstance(tool, AgentClientSideToolResourceConfig)
+
+        # Access via Python attribute name (snake_case)
+        assert tool.output_schema is not None
+        assert tool.output_schema["type"] == "object"
+        assert "imageBase64" in tool.output_schema["properties"]
+        assert tool.output_schema["required"] == ["imageBase64"]
+
+
+class TestCustomAssignmentRecipientDeserialization:
+    def test_workload_recipient_by_type_int(self):
+        payload = {"type": 9, "value": "group-1", "displayName": "Support Team"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, WorkloadRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+        assert recipient.type == AgentEscalationRecipientType.WORKLOAD
+
+    def test_workload_recipient_by_type_string(self):
+        payload = {
+            "type": "Workload",
+            "value": "group-1",
+            "displayName": "Support Team",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, WorkloadRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+
+    def test_round_robin_recipient_by_type_int(self):
+        payload = {"type": 10, "value": "group-1", "displayName": "Support Team"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, RoundRobinRecipient)
+        assert recipient.value == "group-1"
+        assert recipient.display_name == "Support Team"
+        assert recipient.type == AgentEscalationRecipientType.ROUND_ROBIN
+
+    def test_round_robin_recipient_by_type_string(self):
+        payload = {
+            "type": "RoundRobin",
+            "value": "group-1",
+            "displayName": "Support Team",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, RoundRobinRecipient)
+
+    def test_custom_assignees_recipient_by_type_int(self):
+        payload = {
+            "type": 11,
+            "value": "alice@example.com",
+            "displayName": "Alice",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == "alice@example.com"
+        assert recipient.display_name == "Alice"
+        assert recipient.type == AgentEscalationRecipientType.CUSTOM_ASSIGNEES
+
+    def test_custom_assignees_recipient_by_type_string(self):
+        payload = {"type": "CustomAssignees", "value": "alice@example.com"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == "alice@example.com"
+        assert recipient.display_name is None
+
+    def test_custom_assignees_recipient_accepts_empty_value_sentinel(self):
+        payload = {"type": 11, "value": ""}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert recipient.value == ""
+
+    def test_workload_recipient_missing_value_raises(self):
+        payload = {"type": 9, "displayName": "Support Team"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_workload_recipient_missing_display_name_raises(self):
+        payload = {"type": 9, "value": "group-1"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_round_robin_recipient_missing_value_raises(self):
+        payload = {"type": 10, "displayName": "Support Team"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_custom_assignees_recipient_missing_value_raises(self):
+        payload = {"type": 11}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+
+class TestToolOutputRecipientDeserialization:
+    @pytest.mark.parametrize(
+        "recipient_type",
+        [1, 2, 9, 10, 11],
+    )
+    def test_tool_output_recipient_by_type_int_for_supported_types(
+        self, recipient_type
+    ):
+        payload = {
+            "type": recipient_type,
+            "source": "toolOutput",
+            "toolName": "API workflow A",
+            "outputPath": "includeEmails",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ToolOutputRecipient)
+        assert recipient.tool_name == "API workflow A"
+        assert recipient.output_path == "includeEmails"
+        assert recipient.source == "toolOutput"
+
+    def test_tool_output_recipient_for_custom_assignees_by_type_string(self):
+        payload = {
+            "type": "CustomAssignees",
+            "source": "toolOutput",
+            "toolName": "API workflow A",
+            "outputPath": "includeEmails",
+        }
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, ToolOutputRecipient)
+        assert recipient.type == AgentEscalationRecipientType.CUSTOM_ASSIGNEES
+
+    def test_tool_output_recipient_missing_tool_name_raises(self):
+        payload = {"type": 11, "source": "toolOutput", "outputPath": "emails"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_tool_output_recipient_missing_output_path_raises(self):
+        payload = {"type": 11, "source": "toolOutput", "toolName": "A"}
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_tool_output_recipient_unknown_source_raises(self):
+        payload = {
+            "type": 11,
+            "source": "magicBox",
+            "toolName": "A",
+            "outputPath": "emails",
+        }
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    @pytest.mark.parametrize(
+        "recipient_type",
+        [3, 4, 5, 6, 7, 8],
+    )
+    def test_tool_output_recipient_not_allowed_for_static_asset_argument_types(
+        self, recipient_type
+    ):
+        # Static/asset/argument types (3, 4, 5, 6, 7, 8) are not supported
+        # for tool-output binding because they have their own design-time
+        # resolution rules.
+        payload = {
+            "type": recipient_type,
+            "source": "toolOutput",
+            "toolName": "A",
+            "outputPath": "emails",
+        }
+        with pytest.raises(ValidationError):
+            TypeAdapter(AgentEscalationRecipient).validate_python(payload)
+
+    def test_literal_recipient_without_source_still_parses_to_literal_class(self):
+        # Backward compat: a payload without `source` still matches the literal class.
+        payload = {"type": 11, "value": "alice@example.com", "displayName": "Alice"}
+        recipient: AgentEscalationRecipient = TypeAdapter(
+            AgentEscalationRecipient
+        ).validate_python(payload)
+        assert isinstance(recipient, CustomAssigneesRecipient)
+        assert not isinstance(recipient, ToolOutputRecipient)

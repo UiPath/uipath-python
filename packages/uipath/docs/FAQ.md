@@ -1,6 +1,6 @@
 # Frequently Asked Questions (FAQ)
 
-### Q: Why am I getting a "Failed to prepare environment" error when deploying my python agent to UiPath Cloud Platform?
+### Q: Why am I getting a "Failed to prepare environment" error when deploying my Python project to UiPath Cloud Platform?
 
 #### Error Message
 
@@ -30,7 +30,7 @@
 
 #### Description
 
-This error might occur when deploying coded-agents to UiPath Cloud Platform, even though the same project might work correctly in your local environment. The issue is often related to how Python packages are discovered and distributed during the cloud deployment process.
+This error might occur when deploying coded functions or coded agents to UiPath Cloud Platform, even though the same project might work correctly in your local environment. The issue is often related to how Python packages are discovered and distributed during the cloud deployment process.
 
 #### Common Causes
 
@@ -283,7 +283,7 @@ If you encounter SSL certificate errors:
    ////
 
 
-### Q: Why are my agent runs hanging on UiPath Cloud Platform?
+### Q: Why are my job runs hanging on UiPath Cloud Platform?
 
 #### Error Message
 
@@ -298,7 +298,7 @@ You may see errors like these in the logs panel:
 
 #### Description
 
-If your Python agent runs are hanging or not completing when deployed to UiPath Cloud Platform's serverless environment, this may be caused by a library incompatibility issue from an outdated version of the UiPath Python library.
+If your Python job runs are hanging or not completing when deployed to UiPath Cloud Platform's serverless environment, this may be caused by a library incompatibility issue from an outdated version of the UiPath Python library.
 
 #### Solution
 

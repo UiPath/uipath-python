@@ -2,6 +2,13 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 
+[options]
+exclude-newer = "2026-07-29T07:23:36.9681123Z"
+exclude-newer-span = "P2D"
+
+[options.exclude-newer-package]
+uipath-core = false
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -1056,7 +1063,7 @@ wheels = [
 
 [[package]]
 name = "uipath-core"
-version = "0.5.15"
+version = "0.5.31"
 source = { editable = "../uipath-core" }
 dependencies = [
     { name = "opentelemetry-instrumentation" },
@@ -1088,9 +1095,10 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.1.45"
+version = "0.2.17"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "httpx" },
     { name = "pydantic-function-models" },
     { name = "sqlparse" },
@@ -1116,6 +1124,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "sqlparse", specifier = ">=0.5.5" },

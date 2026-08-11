@@ -2,25 +2,28 @@ name: Test Packages
 
 on:
   workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: false
 
 permissions:
   contents: read
 
 jobs:
   detect-changed-packages:
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
       count: ${{ steps.detect.outputs.count }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
 
@@ -40,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
-        os: [ubuntu-latest, windows-latest]
+        os: [uipath-ubuntu-latest, uipath-windows-latest]
     steps:
       - name: Check if package changed
         id: check
@@ -59,15 +62,15 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -77,9 +80,30 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13')
         working-directory: packages/uipath-core
         run: uv run pytest
+
+      - name: Run tests with coverage
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13'
+        working-directory: packages/uipath-core
+        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
+
+      - name: Upload coverage HTML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage-html-uipath-core
+          path: packages/uipath-core/htmlcov/
+          retention-days: 30
+
+      - name: Upload coverage XML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage-xml-uipath-core
+          path: packages/uipath-core/coverage.xml
+          retention-days: 30
 
   test-uipath-platform:
     name: Test (uipath-platform, ${{ matrix.python-version }}, ${{ matrix.os }})
@@ -89,7 +113,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
-        os: [ubuntu-latest, windows-latest]
+        os: [uipath-ubuntu-latest, uipath-windows-latest]
     steps:
       - name: Check if package changed
         id: check
@@ -108,15 +132,15 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -126,14 +150,35 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13')
         working-directory: packages/uipath-platform
         run: uv run pytest
+
+      - name: Run tests with coverage
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13'
+        working-directory: packages/uipath-platform
+        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
+
+      - name: Upload coverage HTML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage-html-uipath-platform
+          path: packages/uipath-platform/htmlcov/
+          retention-days: 30
+
+      - name: Upload coverage XML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage-xml-uipath-platform
+          path: packages/uipath-platform/coverage.xml
+          retention-days: 30
 
   e2e-uipath-platform:
     name: E2E (uipath-platform, memory)
     needs: detect-changed-packages
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     steps:
       - name: Check if package changed
         id: check
@@ -152,15 +197,15 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
 
@@ -183,12 +228,12 @@ jobs:
     name: Test (uipath, ${{ matrix.python-version }}, ${{ matrix.os }})
     needs: detect-changed-packages
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
-        os: [ubuntu-latest, windows-latest]
+        os: [uipath-ubuntu-latest, uipath-windows-latest]
     steps:
       - name: Check if package changed
         id: check
@@ -207,15 +252,15 @@ jobs:
 
       - name: Checkout
         if: steps.check.outputs.skip != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Setup uv
         if: steps.check.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5.4.2
 
       - name: Setup Python
         if: steps.check.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -225,16 +270,82 @@ jobs:
         run: uv sync --all-extras --python ${{ matrix.python-version }}
 
       - name: Run tests
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip != 'true' && !(matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13')
         working-directory: packages/uipath
         run: uv run pytest
 
+      - name: Run tests with coverage
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13'
+        working-directory: packages/uipath
+        run: uv run pytest --cov-report=xml --cov-report=html --tb=short
+
+      - name: Upload coverage HTML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage-html-uipath
+          path: packages/uipath/htmlcov/
+          retention-days: 30
+
+      - name: Upload coverage XML report
+        if: steps.check.outputs.skip != 'true' && matrix.os == 'uipath-ubuntu-latest' && matrix.python-version == '3.13' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: coverage-xml-uipath
+          path: packages/uipath/coverage.xml
+          retention-days: 30
+
     continue-on-error: true
+
+  sonarcloud:
+    name: SonarCloud
+    needs: [test-uipath-core, test-uipath-platform, test-uipath]
+    runs-on: uipath-ubuntu-latest
+    if: always() && needs.test-uipath-core.result != 'failure' && needs.test-uipath-platform.result != 'failure' && needs.test-uipath.result != 'failure'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Download uipath-core coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: coverage-xml-uipath-core
+          path: packages/uipath-core
+
+      - name: Download uipath-platform coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: coverage-xml-uipath-platform
+          path: packages/uipath-platform
+
+      - name: Download uipath coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
+        continue-on-error: true
+        with:
+          name: coverage-xml-uipath
+          path: packages/uipath
+
+      - name: Rewrite coverage XML <source> to repo-relative paths
+        run: |
+          sed -i 's|<source>src</source>|<source>packages/uipath-core/src</source>|g' packages/uipath-core/coverage.xml || true
+          sed -i 's|<source>src</source>|<source>packages/uipath-platform/src</source>|g' packages/uipath-platform/coverage.xml || true
+          sed -i 's|<source>src</source>|<source>packages/uipath/src</source>|g' packages/uipath/coverage.xml || true
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703  # v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   test-gate:
     name: Test
     needs: [test-uipath-core, test-uipath-platform, test-uipath, e2e-uipath-platform]
-    runs-on: ubuntu-latest
+    runs-on: uipath-ubuntu-latest
     if: always()
     steps:
       - name: Check test results

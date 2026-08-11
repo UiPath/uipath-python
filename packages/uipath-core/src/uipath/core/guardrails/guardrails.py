@@ -1,7 +1,7 @@
 """Guardrails models for UiPath Platform."""
 
 from enum import Enum
-from typing import Annotated, Any, Callable, Literal
+from typing import Annotated, Any, Callable, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -30,6 +30,8 @@ class GuardrailValidationResult(BaseModel):
     Attributes:
         result: The validation result type.
         reason: Textual explanation describing why the validation passed or failed.
+        span_id: Span ID from the guardrail service response, formatted as a GUID
+            for trace correlation. None when the response omits the header.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -39,6 +41,11 @@ class GuardrailValidationResult(BaseModel):
     )
     reason: str = Field(
         alias="reason", description="Explanation for the validation result."
+    )
+    span_id: Optional[str] = Field(
+        default=None,
+        alias="spanId",
+        description="Span ID returned by the guardrail service for trace correlation.",
     )
 
 
