@@ -8,6 +8,7 @@ from typing import Any, Callable, cast
 from pydantic import TypeAdapter
 
 from uipath.platform.chat._llm_gateway_service import _cleanup_schema
+from uipath.platform.common import UiPathConfig
 
 from .._execution_context import execution_id_context, span_collector_context
 from ._llm_mocker import LLMMocker
@@ -98,9 +99,17 @@ class SimulateComponentMocker(Mocker):
             "workloadInfo": workload_info,
             "traceId": trace_id,
             "parentSpanId": parent_span_id,
+            "folderKey": UiPathConfig.folder_key,
         }
 
-        logger.info("simulate-component: calling API for '%s'", tool_name)
+        logger.info(
+            "simulate-component: calling API for '%s' "
+            "(traceId=%s, parentSpanId=%s, folderKey=%s)",
+            tool_name,
+            trace_id,
+            parent_span_id,
+            UiPathConfig.folder_key,
+        )
         try:
             service = _create_simulate_component_service()
             result = await service.simulate(payload)

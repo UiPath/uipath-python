@@ -285,6 +285,54 @@ class TestPayloadConstruction:
         clear_execution_context()
 
     @pytest.mark.asyncio
+    async def test_payload_includes_folder_key_from_config(self, monkeypatch):
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-abc")
+        ctx = _make_context("my_tool", workload_id="wl-fk")
+        captured: list[dict[str, Any]] = []
+
+        async def _capture(payload, **kwargs):
+            captured.append(payload)
+            return {"status": 1, "simulatedOutput": "ok"}
+
+        svc_mock = MagicMock()
+        svc_mock.simulate = _capture
+
+        @mockable()
+        async def my_tool() -> str:
+            raise NotImplementedError()
+
+        set_execution_context(ctx, _mock_span_collector, "exec-fk")
+        with patch(_SIMULATE_PATH, return_value=svc_mock):
+            await my_tool()
+
+        assert captured[0]["folderKey"] == "folder-abc"
+        clear_execution_context()
+
+    @pytest.mark.asyncio
+    async def test_payload_folder_key_is_none_when_not_set(self, monkeypatch):
+        monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
+        ctx = _make_context("my_tool", workload_id="wl-fk2")
+        captured: list[dict[str, Any]] = []
+
+        async def _capture(payload, **kwargs):
+            captured.append(payload)
+            return {"status": 1, "simulatedOutput": "ok"}
+
+        svc_mock = MagicMock()
+        svc_mock.simulate = _capture
+
+        @mockable()
+        async def my_tool() -> str:
+            raise NotImplementedError()
+
+        set_execution_context(ctx, _mock_span_collector, "exec-fk2")
+        with patch(_SIMULATE_PATH, return_value=svc_mock):
+            await my_tool()
+
+        assert captured[0]["folderKey"] is None
+        clear_execution_context()
+
+    @pytest.mark.asyncio
     async def test_payload_uses_configured_component_id_not_invoked_name(self):
         """componentId in payload must be the configured ID, not the normalised call name."""
         ctx = MockingContext(
@@ -344,6 +392,53 @@ class TestBuildExecutionHistory:
         mocker = SimulateComponentMocker(_make_context())
         assert mocker._build_execution_history() is None
 
+        clear_execution_context()
+
+    def test_returns_valid_trace_and_span_ids(self):
+        from opentelemetry import context as context_api
+        from opentelemetry import trace
+        from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
+
+        span_ctx = SpanContext(
+            trace_id=0x1234567890ABCDEF1234567890ABCDEF,
+            span_id=0xFEDCBA0987654321,
+            is_remote=False,
+            trace_flags=TraceFlags(TraceFlags.SAMPLED),
+        )
+        span = NonRecordingSpan(context=span_ctx)
+        token = context_api.attach(trace.set_span_in_context(span))
+        try:
+            trace_id, span_id = SimulateComponentMocker._get_span_context()
+            assert trace_id == "1234567890abcdef1234567890abcdef"
+            assert span_id == "fedcba0987654321"
+        finally:
+            context_api.detach(token)
+
+
+class TestPayloadLogging:
+    @pytest.mark.asyncio
+    async def test_log_includes_trace_and_folder_key(self, monkeypatch, caplog):
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-log")
+        ctx = _make_context("my_tool", workload_id="wl-log")
+        svc_mock = _make_service_mock({"status": 1, "simulatedOutput": "ok"})
+
+        @mockable()
+        async def my_tool() -> str:
+            raise NotImplementedError()
+
+        set_execution_context(ctx, _mock_span_collector, "exec-log")
+        import logging
+
+        with caplog.at_level(
+            logging.INFO, logger="uipath.eval.mocks._simulate_component_mocker"
+        ):
+            with patch(_SIMULATE_PATH, return_value=svc_mock):
+                await my_tool()
+
+        log_line = next(r.message for r in caplog.records if "calling API" in r.message)
+        assert "folderKey=folder-log" in log_line
+        assert "traceId=" in log_line
+        assert "parentSpanId=" in log_line
         clear_execution_context()
 
 
