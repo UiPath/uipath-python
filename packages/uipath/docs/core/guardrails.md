@@ -95,7 +95,7 @@ The `stage` parameter controls when the guardrail evaluates. Not all validators 
 |-------|---------------|--------------|
 | `PRE` | Before the function runs | All validators |
 | `POST` | After the function runs | All except `UserPromptAttacksValidator` |
-| `PRE_AND_POST` | Both before and after | `PIIValidator`, `HarmfulContentValidator`, `LLMAsJudgeValidator`, `CustomValidator` |
+| `PRE_AND_POST` | Both before and after | `PIIValidator`, `HarmfulContentValidator`, `LLMAsJudgeValidator`, `CustomValidator`, `ByoValidator` |
 
 ## Built-in Validators
 
@@ -241,6 +241,25 @@ def answer_question(question: str) -> str:
 - `model` (required) — the judge model id, e.g. `"gpt-4o-2024-08-06"`. It must be a model your organization's governance policy allows for the LLM-as-judge guardrail — LLM Gateway enforces the permitted list, so a model that isn't authorized for judging is rejected.
 - `threshold` — strictness from `0` (strictest) to `6` (most lenient), defaulting to `2`. Higher values flag only clear violations.
 - `positive_examples` / `negative_examples` — optional example payloads (not descriptions) that comply with / violate the rule, used to calibrate the judge. At most 2 entries per list, each at most 1000 characters.
+
+### Bring Your Own Guardrail (BYOG)
+
+Runs a customer-managed validator instead of a UiPath-managed one — your own Azure Content Safety subscription, a vendor connector, or a custom Integration Service connector. Supported at all stages: BYO validator capabilities are connector-defined and cannot be known statically, so no stage restriction is applied.
+
+An Org Admin first creates the configuration under **Admin → AI Trust Layer → Guardrails Configurations** and saves it with a validator name. The validator references that configuration by name alone — names are unique per tenant, and the Integration Service connection is resolved server-side from the configuration, so an admin rebind is always honored.
+
+```python
+from uipath.platform.guardrails import BlockAction, ByoValidator, guardrail
+
+byog_harmful_content = ByoValidator("my-harmful-content-guardrail")
+
+@guardrail(validator=byog_harmful_content, action=BlockAction())
+def summarize(text: str) -> str:
+    ...
+```
+
+- `validator_name` (required, positional) — the configuration's validator name (`byoValidatorName`), as shown in Admin → AI Trust Layer → Guardrails Configurations.
+- `parameters` — optional list of validator parameters. BYO parameter schemas are connector-defined, so values are passed through as-is; read the ids and allowed values from the validator's `Parameters` schema.
 
 ## Actions
 
