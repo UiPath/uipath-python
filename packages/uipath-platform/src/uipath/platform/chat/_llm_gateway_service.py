@@ -49,6 +49,11 @@ NORMALIZED_API_VERSION = (
 DEFAULT_REQUESTING_PRODUCT = "uipath-python-sdk"
 DEFAULT_REQUESTING_FEATURE = "llm-call"
 
+# Models that only accept function tools with a specific reasoning effort (keyed by
+# lowercase model name). gpt-5.6-terra requires reasoning_effort "none" when tools
+# are present; see SRE-636507 / SRE-639489.
+TOOL_CALL_MODEL_REASONING_EFFORT = {"gpt-5.6-terra": "none"}
+
 
 def _build_llm_headers(
     requesting_product: str = DEFAULT_REQUESTING_PRODUCT,
@@ -629,6 +634,20 @@ class UiPathLlmChatService(BaseService):
                 request_body["tool_choice"] = {"type": "tool", "name": tool_choice.name}
             else:
                 request_body["tool_choice"] = tool_choice.model_dump()
+
+        # gpt-5.6 (terra) rejects function tools combined with any reasoning effort
+        # other than "none" ("Function tools with reasoning_effort are not supported
+        # for gpt-5.6-terra ... set reasoning_effort to 'none'"); with reasoning left
+        # on it can also return a reasoning/tool-call choice without message.role or
+        # finish_reason, which fails ChatCompletion validation. Force "none" for
+        # tool-bearing requests; tool-less requests keep the default behavior.
+        if (
+            request_body.get("tools")
+            and model_lower in TOOL_CALL_MODEL_REASONING_EFFORT
+        ):
+            request_body["reasoning_effort"] = TOOL_CALL_MODEL_REASONING_EFFORT[
+                model_lower
+            ]
 
         headers = {
             **self._llm_headers,

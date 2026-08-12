@@ -95,7 +95,10 @@ ToolChoice = Union[
 class ChatMessage(BaseModel):
     """Model representing a chat message."""
 
-    role: str
+    # Reasoning models (e.g. gpt-5.6-terra) can return a forced tool-call choice
+    # without a role or finish_reason, so both are tolerated instead of rejecting
+    # an otherwise valid response.
+    role: str = "assistant"
     content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
 
@@ -105,7 +108,7 @@ class ChatCompletionChoice(BaseModel):
 
     index: int
     message: ChatMessage
-    finish_reason: str
+    finish_reason: Optional[str] = None
 
 
 class ChatCompletionUsage(BaseModel):
