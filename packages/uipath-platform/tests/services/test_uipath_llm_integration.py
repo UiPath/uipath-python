@@ -590,3 +590,178 @@ class TestUiPathLLMServiceMocked:
         assert kwargs["json"]["messages"] == messages
         assert kwargs["json"]["max_tokens"] == 100
         assert kwargs["json"]["temperature"] == 0.7
+
+
+class TestTerraToolCallReasoningEffort:
+    """gpt-5.6-terra only accepts function tools with reasoning_effort "none",
+    and with reasoning left on it can return a tool-call choice without
+    message.role / finish_reason (SRE-636507 / SRE-639489)."""
+
+    @pytest.fixture
+    def config(self):
+        return UiPathApiConfig(base_url="https://example.com", secret="test_secret")
+
+    @pytest.fixture
+    def execution_context(self):
+        return UiPathExecutionContext()
+
+    @pytest.fixture
+    def llm_service(self, config, execution_context):
+        return UiPathLlmChatService(config=config, execution_context=execution_context)
+
+    @staticmethod
+    def _tool() -> ToolDefinition:
+        return ToolDefinition(
+            type="function",
+            function=ToolFunctionDefinition(
+                name="submit_evaluation",
+                description="submit the evaluation score",
+                parameters=ToolParametersDefinition(
+                    type="object",
+                    properties={
+                        "score": ToolPropertyDefinition(
+                            type="number", description="score from 0-100"
+                        ),
+                    },
+                    required=["score"],
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _mock_response(model: str) -> MagicMock:
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "chatcmpl-terra",
+            "object": "chat.completion",
+            "created": 1677858242,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_terra1",
+                                "name": "submit_evaluation",
+                                "arguments": {"score": 90},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 50,
+                "completion_tokens": 25,
+                "total_tokens": 75,
+                "cache_read_input_tokens": None,
+            },
+        }
+        return mock_response
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_terra_with_tools_forces_reasoning_effort_none(
+        self, mock_request, llm_service
+    ):
+        mock_request.return_value = self._mock_response("gpt-5.6-terra")
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "score this"}],
+            model="gpt-5.6-terra",
+            max_tokens=250,
+            tools=[self._tool()],
+            tool_choice=RequiredToolChoice(),
+        )
+
+        request_body = mock_request.call_args[1]["json"]
+        assert request_body["reasoning_effort"] == "none"
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_terra_without_tools_keeps_default_reasoning(
+        self, mock_request, llm_service
+    ):
+        mock_request.return_value = self._mock_response("gpt-5.6-terra")
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "hello"}],
+            model="gpt-5.6-terra",
+            max_tokens=250,
+        )
+
+        request_body = mock_request.call_args[1]["json"]
+        assert "reasoning_effort" not in request_body
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_other_models_with_tools_do_not_send_reasoning_effort(
+        self, mock_request, llm_service
+    ):
+        mock_request.return_value = self._mock_response(
+            ChatModels.gpt_4_1_mini_2025_04_14
+        )
+
+        await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "score this"}],
+            model=ChatModels.gpt_4_1_mini_2025_04_14,
+            max_tokens=250,
+            tools=[self._tool()],
+            tool_choice=RequiredToolChoice(),
+        )
+
+        request_body = mock_request.call_args[1]["json"]
+        assert "reasoning_effort" not in request_body
+
+    @pytest.mark.asyncio
+    @patch.object(UiPathLlmChatService, "request_async")
+    async def test_roleless_tool_call_choice_without_finish_reason_parses(
+        self, mock_request, llm_service
+    ):
+        # Terra's forced-tool-call shape: no message.role, no finish_reason.
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "chatcmpl-terra",
+            "object": "chat.completion",
+            "created": 1677858242,
+            "model": "gpt-5.6-terra",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "tool_calls": [
+                            {
+                                "id": "call_terra2",
+                                "name": "submit_evaluation",
+                                "arguments": {"score": 85},
+                                "summary": [],
+                            }
+                        ],
+                    },
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 50,
+                "completion_tokens": 25,
+                "total_tokens": 75,
+            },
+        }
+        mock_request.return_value = mock_response
+
+        result = await llm_service.chat_completions(
+            messages=[{"role": "user", "content": "score this"}],
+            model="gpt-5.6-terra",
+            max_tokens=250,
+            tools=[self._tool()],
+            tool_choice=RequiredToolChoice(),
+        )
+
+        assert result.choices[0].message.role == "assistant"
+        assert result.choices[0].finish_reason is None
+        tool_calls = result.choices[0].message.tool_calls
+        assert tool_calls is not None
+        assert tool_calls[0].name == "submit_evaluation"
+        assert tool_calls[0].arguments["score"] == 85
