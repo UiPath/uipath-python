@@ -737,9 +737,7 @@ class EntityDataService(BaseService):
             params["$expand"] = ",".join(expand)
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/read"
-            ),
+            endpoint=Endpoint(f"datafabric_/api/v3/entities/entity/{entity_key}/read"),
             params=params,
         )
 
@@ -756,7 +754,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/insert"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/insert"
             ),
             params=params,
             json=EntityDataService._record_to_dict(data),
@@ -775,7 +773,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/read/{record_id}"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/read/{record_id}"
             ),
             params=params,
         )
@@ -794,7 +792,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/update/{record_id}"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/update/{record_id}"
             ),
             params=params,
             json=EntityDataService._record_to_dict(data),
@@ -806,7 +804,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="DELETE",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/delete/{record_id}"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/delete/{record_id}"
             ),
         )
 
@@ -824,7 +822,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/insert-batch"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/insert-batch"
             ),
             params=params,
             json=[EntityDataService._record_to_dict(record) for record in records],
@@ -844,7 +842,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/update-batch"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/update-batch"
             ),
             params=params,
             json=records,
@@ -861,7 +859,7 @@ class EntityDataService(BaseService):
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/delete-batch"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/delete-batch"
             ),
             params=params,
             json=record_ids,
@@ -946,13 +944,19 @@ class EntityDataService(BaseService):
         if expansion_level is not None:
             params["expansionLevel"] = expansion_level
 
-        if binnings:
+        # Route the query. Multi-entity joins stay on the v1 by-key endpoint: the
+        # v3 by-id query rejects `joins` with a 400 (cross-entity reads there go
+        # through the composite-data plane). Everything else — including binnings
+        # and aggregates — uses the v3 by-id query, which also serves Federated
+        # entities and gates binning on the same `EnableBinningOnQuery` feature
+        # flag the v2 endpoint used.
+        if joins:
             endpoint = Endpoint(
-                f"datafabric_/api/v2/EntityService/entity/{entity_key}/query"
+                f"datafabric_/api/EntityService/entity/{entity_key}/query"
             )
         else:
             endpoint = Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/query"
+                f"datafabric_/api/v3/entities/entity/{entity_key}/query"
             )
 
         return RequestSpec(
