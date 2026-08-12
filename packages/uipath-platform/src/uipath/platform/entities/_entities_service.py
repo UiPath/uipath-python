@@ -18,6 +18,7 @@ import logging
 from typing import Any, Dict, List, Optional, Type
 
 from httpx import Response
+from typing_extensions import deprecated
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -129,6 +130,7 @@ class EntitiesService(BaseService):
     # Schema operations — delegate to EntitySchemaService
     # ------------------------------------------------------------------
 
+    @deprecated("Deprecated; use retrieve_v3 (v3 API, supports Federated entities).")
     @traced(name="entity_retrieve", run_type="uipath")
     def retrieve(self, entity_key: str) -> Entity:
         """Retrieve an entity by its key.
@@ -164,6 +166,18 @@ class EntitiesService(BaseService):
         """
         return self._schema.retrieve(entity_key)
 
+    @traced(name="entity_retrieve_v3", run_type="uipath")
+    def retrieve_v3(self, entity_key: str) -> Entity:
+        """Retrieve an entity by key via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`retrieve` for parameter and return details.
+        """
+        return self._schema.retrieve(entity_key, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use retrieve_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_retrieve", run_type="uipath")
     async def retrieve_async(self, entity_key: str) -> Entity:
         """Asynchronously retrieve an entity by its key.
@@ -199,6 +213,14 @@ class EntitiesService(BaseService):
         """
         return await self._schema.retrieve_async(entity_key)
 
+    @traced(name="entity_retrieve_v3", run_type="uipath")
+    async def retrieve_v3_async(self, entity_key: str) -> Entity:
+        """Async variant of :meth:`retrieve_v3`."""
+        return await self._schema.retrieve_async(entity_key, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use retrieve_by_name_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_retrieve_by_name", run_type="uipath")
     def retrieve_by_name(
         self, entity_name: str, folder_key: Optional[str] = None
@@ -215,6 +237,22 @@ class EntitiesService(BaseService):
         """
         return self._schema.retrieve_by_name(entity_name, folder_key=folder_key)
 
+    @traced(name="entity_retrieve_by_name_v3", run_type="uipath")
+    def retrieve_by_name_v3(
+        self, entity_name: str, folder_key: Optional[str] = None
+    ) -> Entity:
+        """Retrieve an entity by name via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`retrieve_by_name` for parameter and return details.
+        """
+        return self._schema.retrieve_by_name(
+            entity_name, folder_key=folder_key, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use retrieve_by_name_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_retrieve_by_name", run_type="uipath")
     async def retrieve_by_name_async(
         self, entity_name: str, folder_key: Optional[str] = None
@@ -233,6 +271,18 @@ class EntitiesService(BaseService):
             entity_name, folder_key=folder_key
         )
 
+    @traced(name="entity_retrieve_by_name_v3", run_type="uipath")
+    async def retrieve_by_name_v3_async(
+        self, entity_name: str, folder_key: Optional[str] = None
+    ) -> Entity:
+        """Async variant of :meth:`retrieve_by_name_v3`."""
+        return await self._schema.retrieve_by_name_async(
+            entity_name, folder_key=folder_key, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use list_entities_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="list_entities", run_type="uipath")
     def list_entities(self) -> List[Entity]:
         """List all entities in Data Service.
@@ -272,6 +322,18 @@ class EntitiesService(BaseService):
         """
         return self._schema.list_entities()
 
+    @traced(name="list_entities_v3", run_type="uipath")
+    def list_entities_v3(self) -> List[Entity]:
+        """List all entities via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`list_entities` for parameter and return details.
+        """
+        return self._schema.list_entities(use_v3=True)
+
+    @deprecated(
+        "Deprecated; use list_entities_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="list_entities", run_type="uipath")
     async def list_entities_async(self) -> List[Entity]:
         """Asynchronously list all entities in the Data Service.
@@ -311,6 +373,11 @@ class EntitiesService(BaseService):
         """
         return await self._schema.list_entities_async()
 
+    @traced(name="list_entities_v3", run_type="uipath")
+    async def list_entities_v3_async(self) -> List[Entity]:
+        """Async variant of :meth:`list_entities_v3`."""
+        return await self._schema.list_entities_async(use_v3=True)
+
     @traced(name="list_choicesets", run_type="uipath")
     def list_choicesets(self) -> List[Entity]:
         """List all choice sets in Data Service.
@@ -336,6 +403,9 @@ class EntitiesService(BaseService):
         """
         return await self._schema.list_choicesets_async()
 
+    @deprecated(
+        "Deprecated; use create_entity_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_create", run_type="uipath")
     def create_entity(
         self,
@@ -398,6 +468,23 @@ class EntitiesService(BaseService):
         """
         return self._schema.create_entity(name, fields, options)
 
+    @traced(name="entity_create_v3", run_type="uipath")
+    def create_entity_v3(
+        self,
+        name: str,
+        fields: List[EntityCreateFieldOptions],
+        options: Optional[EntityCreateOptions] = None,
+    ) -> str:
+        """Create an entity via the v3 API (supports Federated entities).
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`create_entity` for parameter and return details.
+        """
+        return self._schema.create_entity(name, fields, options, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use create_entity_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_create", run_type="uipath")
     async def create_entity_async(
         self,
@@ -439,6 +526,21 @@ class EntitiesService(BaseService):
         """
         return await self._schema.create_entity_async(name, fields, options)
 
+    @traced(name="entity_create_v3", run_type="uipath")
+    async def create_entity_v3_async(
+        self,
+        name: str,
+        fields: List[EntityCreateFieldOptions],
+        options: Optional[EntityCreateOptions] = None,
+    ) -> str:
+        """Async variant of :meth:`create_entity_v3`."""
+        return await self._schema.create_entity_async(
+            name, fields, options, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use delete_entity_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_delete", run_type="uipath")
     def delete_entity(self, entity_id: str) -> None:
         """Delete an entity and all of its records.
@@ -453,6 +555,18 @@ class EntitiesService(BaseService):
         """
         self._schema.delete_entity(entity_id)
 
+    @traced(name="entity_delete_v3", run_type="uipath")
+    def delete_entity_v3(self, entity_id: str) -> None:
+        """Delete an entity via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`delete_entity` for parameter and return details.
+        """
+        self._schema.delete_entity(entity_id, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use delete_entity_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_delete", run_type="uipath")
     async def delete_entity_async(self, entity_id: str) -> None:
         """Asynchronously delete an entity and all of its records.
@@ -467,6 +581,14 @@ class EntitiesService(BaseService):
         """
         await self._schema.delete_entity_async(entity_id)
 
+    @traced(name="entity_delete_v3", run_type="uipath")
+    async def delete_entity_v3_async(self, entity_id: str) -> None:
+        """Async variant of :meth:`delete_entity_v3`."""
+        await self._schema.delete_entity_async(entity_id, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use update_entity_metadata_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_update_metadata", run_type="uipath")
     def update_entity_metadata(
         self,
@@ -506,6 +628,20 @@ class EntitiesService(BaseService):
         """
         self._schema.update_entity_metadata(entity_id, metadata)
 
+    @traced(name="entity_update_metadata_v3", run_type="uipath")
+    def update_entity_metadata_v3(
+        self, entity_id: str, metadata: EntityMetadataUpdateOptions | Dict[str, Any]
+    ) -> None:
+        """Update entity metadata via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`update_entity_metadata` for parameter and return details.
+        """
+        self._schema.update_entity_metadata(entity_id, metadata, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use update_entity_metadata_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_update_metadata", run_type="uipath")
     async def update_entity_metadata_async(
         self,
@@ -536,6 +672,15 @@ class EntitiesService(BaseService):
     # ------------------------------------------------------------------
     # Data operations — delegate to EntityDataService
     # ------------------------------------------------------------------
+
+    @traced(name="entity_update_metadata_v3", run_type="uipath")
+    async def update_entity_metadata_v3_async(
+        self, entity_id: str, metadata: EntityMetadataUpdateOptions | Dict[str, Any]
+    ) -> None:
+        """Async variant of :meth:`update_entity_metadata_v3`."""
+        await self._schema.update_entity_metadata_async(
+            entity_id, metadata, use_v3=True
+        )
 
     @traced(name="get_choiceset_values", run_type="uipath")
     def get_choiceset_values(
@@ -585,6 +730,9 @@ class EntitiesService(BaseService):
             choiceset_id, start=start, limit=limit
         )
 
+    @deprecated(
+        "Deprecated; use list_records_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_list_records", run_type="uipath")
     def list_records(
         self,
@@ -709,6 +857,32 @@ class EntitiesService(BaseService):
             expansion_level=expansion_level,
         )
 
+    @traced(name="entity_list_records_v3", run_type="uipath")
+    def list_records_v3(
+        self,
+        entity_key: str,
+        schema: Optional[Type[Any]] = None,
+        start: Optional[int] = None,
+        limit: Optional[int] = None,
+        expansion_level: Optional[int] = None,
+    ) -> EntityRecordsListResponse:
+        """List entity records via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`list_records` for parameter and return details.
+        """
+        return self._data.list_records(
+            entity_key,
+            schema=schema,
+            start=start,
+            limit=limit,
+            expansion_level=expansion_level,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use list_records_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_list_records", run_type="uipath")
     async def list_records_async(
         self,
@@ -821,6 +995,28 @@ class EntitiesService(BaseService):
             expansion_level=expansion_level,
         )
 
+    @traced(name="entity_list_records_v3", run_type="uipath")
+    async def list_records_v3_async(
+        self,
+        entity_key: str,
+        schema: Optional[Type[Any]] = None,
+        start: Optional[int] = None,
+        limit: Optional[int] = None,
+        expansion_level: Optional[int] = None,
+    ) -> EntityRecordsListResponse:
+        """Async variant of :meth:`list_records_v3`."""
+        return await self._data.list_records_async(
+            entity_key,
+            schema=schema,
+            start=start,
+            limit=limit,
+            expansion_level=expansion_level,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use insert_record_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_insert_record", run_type="uipath")
     def insert_record(
         self,
@@ -871,6 +1067,22 @@ class EntitiesService(BaseService):
             entity_key, data, expansion_level=expansion_level
         )
 
+    @traced(name="entity_insert_record_v3", run_type="uipath")
+    def insert_record_v3(
+        self, entity_key: str, data: Any, expansion_level: Optional[int] = None
+    ) -> EntityRecord:
+        """Insert a single record via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`insert_record` for parameter and return details.
+        """
+        return self._data.insert_record(
+            entity_key, data, expansion_level=expansion_level, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use insert_record_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_insert_record", run_type="uipath")
     async def insert_record_async(
         self,
@@ -908,6 +1120,16 @@ class EntitiesService(BaseService):
             entity_key, data, expansion_level=expansion_level
         )
 
+    @traced(name="entity_insert_record_v3", run_type="uipath")
+    async def insert_record_v3_async(
+        self, entity_key: str, data: Any, expansion_level: Optional[int] = None
+    ) -> EntityRecord:
+        """Async variant of :meth:`insert_record_v3`."""
+        return await self._data.insert_record_async(
+            entity_key, data, expansion_level=expansion_level, use_v3=True
+        )
+
+    @deprecated("Deprecated; use get_record_v3 (v3 API, supports Federated entities).")
     @traced(name="entity_get_record", run_type="uipath")
     def get_record(
         self,
@@ -943,6 +1165,22 @@ class EntitiesService(BaseService):
             entity_key, record_id, expansion_level=expansion_level
         )
 
+    @traced(name="entity_get_record_v3", run_type="uipath")
+    def get_record_v3(
+        self, entity_key: str, record_id: str, expansion_level: Optional[int] = None
+    ) -> EntityRecord:
+        """Fetch a single record by id via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`get_record` for parameter and return details.
+        """
+        return self._data.get_record(
+            entity_key, record_id, expansion_level=expansion_level, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use get_record_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_get_record", run_type="uipath")
     async def get_record_async(
         self,
@@ -971,6 +1209,18 @@ class EntitiesService(BaseService):
             entity_key, record_id, expansion_level=expansion_level
         )
 
+    @traced(name="entity_get_record_v3", run_type="uipath")
+    async def get_record_v3_async(
+        self, entity_key: str, record_id: str, expansion_level: Optional[int] = None
+    ) -> EntityRecord:
+        """Async variant of :meth:`get_record_v3`."""
+        return await self._data.get_record_async(
+            entity_key, record_id, expansion_level=expansion_level, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use update_record_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_update_record", run_type="uipath")
     def update_record(
         self,
@@ -1020,6 +1270,26 @@ class EntitiesService(BaseService):
             entity_key, record_id, data, expansion_level=expansion_level
         )
 
+    @traced(name="entity_update_record_v3", run_type="uipath")
+    def update_record_v3(
+        self,
+        entity_key: str,
+        record_id: str,
+        data: Any,
+        expansion_level: Optional[int] = None,
+    ) -> EntityRecord:
+        """Update a single record by id via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`update_record` for parameter and return details.
+        """
+        return self._data.update_record(
+            entity_key, record_id, data, expansion_level=expansion_level, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use update_record_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_update_record", run_type="uipath")
     async def update_record_async(
         self,
@@ -1057,6 +1327,22 @@ class EntitiesService(BaseService):
             entity_key, record_id, data, expansion_level=expansion_level
         )
 
+    @traced(name="entity_update_record_v3", run_type="uipath")
+    async def update_record_v3_async(
+        self,
+        entity_key: str,
+        record_id: str,
+        data: Any,
+        expansion_level: Optional[int] = None,
+    ) -> EntityRecord:
+        """Async variant of :meth:`update_record_v3`."""
+        return await self._data.update_record_async(
+            entity_key, record_id, data, expansion_level=expansion_level, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use delete_record_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_delete_record", run_type="uipath")
     def delete_record(self, entity_key: str, record_id: str) -> None:
         """Delete a single record by id.
@@ -1077,6 +1363,18 @@ class EntitiesService(BaseService):
         """
         self._data.delete_record(entity_key, record_id)
 
+    @traced(name="entity_delete_record_v3", run_type="uipath")
+    def delete_record_v3(self, entity_key: str, record_id: str) -> None:
+        """Delete a single record by id via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`delete_record` for parameter and return details.
+        """
+        self._data.delete_record(entity_key, record_id, use_v3=True)
+
+    @deprecated(
+        "Deprecated; use delete_record_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_delete_record", run_type="uipath")
     async def delete_record_async(self, entity_key: str, record_id: str) -> None:
         """Asynchronously delete a single record by id.
@@ -1095,6 +1393,11 @@ class EntitiesService(BaseService):
                 await entities_service.delete_record_async("Customers", "rec-1")
         """
         await self._data.delete_record_async(entity_key, record_id)
+
+    @traced(name="entity_delete_record_v3", run_type="uipath")
+    async def delete_record_v3_async(self, entity_key: str, record_id: str) -> None:
+        """Async variant of :meth:`delete_record_v3`."""
+        await self._data.delete_record_async(entity_key, record_id, use_v3=True)
 
     async def get_ontology_file_async(
         self,
@@ -1119,6 +1422,9 @@ class EntitiesService(BaseService):
         """
         return await self._ontology.get_file_async(ontology_name, file_type, folder_key)
 
+    @deprecated(
+        "Deprecated; use insert_records_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_record_insert_batch", run_type="uipath")
     def insert_records(
         self,
@@ -1213,6 +1519,32 @@ class EntitiesService(BaseService):
             fail_on_first=fail_on_first,
         )
 
+    @traced(name="entity_record_insert_batch_v3", run_type="uipath")
+    def insert_records_v3(
+        self,
+        entity_key: str,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
+        expansion_level: Optional[int] = None,
+        fail_on_first: Optional[bool] = None,
+    ) -> EntityRecordsBatchResponse:
+        """Batch-insert records via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`insert_records` for parameter and return details.
+        """
+        return self._data.insert_records(
+            entity_key,
+            records,
+            schema=schema,
+            expansion_level=expansion_level,
+            fail_on_first=fail_on_first,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use insert_records_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_record_insert_batch", run_type="uipath")
     async def insert_records_async(
         self,
@@ -1298,6 +1630,28 @@ class EntitiesService(BaseService):
             fail_on_first=fail_on_first,
         )
 
+    @traced(name="entity_record_insert_batch_v3", run_type="uipath")
+    async def insert_records_v3_async(
+        self,
+        entity_key: str,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
+        expansion_level: Optional[int] = None,
+        fail_on_first: Optional[bool] = None,
+    ) -> EntityRecordsBatchResponse:
+        """Async variant of :meth:`insert_records_v3`."""
+        return await self._data.insert_records_async(
+            entity_key,
+            records,
+            schema=schema,
+            expansion_level=expansion_level,
+            fail_on_first=fail_on_first,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use update_records_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_record_update_batch", run_type="uipath")
     def update_records(
         self,
@@ -1384,6 +1738,32 @@ class EntitiesService(BaseService):
             fail_on_first=fail_on_first,
         )
 
+    @traced(name="entity_record_update_batch_v3", run_type="uipath")
+    def update_records_v3(
+        self,
+        entity_key: str,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
+        expansion_level: Optional[int] = None,
+        fail_on_first: Optional[bool] = None,
+    ) -> EntityRecordsBatchResponse:
+        """Batch-update records via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`update_records` for parameter and return details.
+        """
+        return self._data.update_records(
+            entity_key,
+            records,
+            schema=schema,
+            expansion_level=expansion_level,
+            fail_on_first=fail_on_first,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use update_records_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_record_update_batch", run_type="uipath")
     async def update_records_async(
         self,
@@ -1470,6 +1850,28 @@ class EntitiesService(BaseService):
             fail_on_first=fail_on_first,
         )
 
+    @traced(name="entity_record_update_batch_v3", run_type="uipath")
+    async def update_records_v3_async(
+        self,
+        entity_key: str,
+        records: List[Any],
+        schema: Optional[Type[Any]] = None,
+        expansion_level: Optional[int] = None,
+        fail_on_first: Optional[bool] = None,
+    ) -> EntityRecordsBatchResponse:
+        """Async variant of :meth:`update_records_v3`."""
+        return await self._data.update_records_async(
+            entity_key,
+            records,
+            schema=schema,
+            expansion_level=expansion_level,
+            fail_on_first=fail_on_first,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use delete_records_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_record_delete_batch", run_type="uipath")
     def delete_records(
         self,
@@ -1531,6 +1933,25 @@ class EntitiesService(BaseService):
             entity_key, record_ids, fail_on_first=fail_on_first
         )
 
+    @traced(name="entity_record_delete_batch_v3", run_type="uipath")
+    def delete_records_v3(
+        self,
+        entity_key: str,
+        record_ids: List[str],
+        fail_on_first: Optional[bool] = None,
+    ) -> EntityRecordsBatchResponse:
+        """Batch-delete records via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`delete_records` for parameter and return details.
+        """
+        return self._data.delete_records(
+            entity_key, record_ids, fail_on_first=fail_on_first, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use delete_records_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_record_delete_batch", run_type="uipath")
     async def delete_records_async(
         self,
@@ -1592,6 +2013,21 @@ class EntitiesService(BaseService):
             entity_key, record_ids, fail_on_first=fail_on_first
         )
 
+    @traced(name="entity_record_delete_batch_v3", run_type="uipath")
+    async def delete_records_v3_async(
+        self,
+        entity_key: str,
+        record_ids: List[str],
+        fail_on_first: Optional[bool] = None,
+    ) -> EntityRecordsBatchResponse:
+        """Async variant of :meth:`delete_records_v3`."""
+        return await self._data.delete_records_async(
+            entity_key, record_ids, fail_on_first=fail_on_first, use_v3=True
+        )
+
+    @deprecated(
+        "Deprecated; use retrieve_records_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_retrieve_records", run_type="uipath")
     def retrieve_records(
         self,
@@ -1718,6 +2154,46 @@ class EntitiesService(BaseService):
             limit=limit,
         )
 
+    @traced(name="entity_retrieve_records_v3", run_type="uipath")
+    def retrieve_records_v3(
+        self,
+        entity_key: str,
+        filter_group: Optional[EntityQueryFilterGroup] = None,
+        sort_options: Optional[List[EntityQuerySortOption]] = None,
+        selected_fields: Optional[List[str]] = None,
+        expansions: Optional[List[Any]] = None,
+        expansion_level: Optional[int] = None,
+        aggregates: Optional[List[EntityAggregate]] = None,
+        group_by: Optional[List[str]] = None,
+        joins: Optional[List[EntityJoin]] = None,
+        binnings: Optional[List[EntityBinning]] = None,
+        start: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> RetrieveEntityRecordsResponse:
+        """Run a structured record query via the v3 API.
+
+        Experimental v3 surface (serves Federated entities); see
+        :meth:`retrieve_records` for parameter and return details.
+        """
+        return self._data.retrieve_records(
+            entity_key,
+            filter_group=filter_group,
+            sort_options=sort_options,
+            selected_fields=selected_fields,
+            expansions=expansions,
+            expansion_level=expansion_level,
+            aggregates=aggregates,
+            group_by=group_by,
+            joins=joins,
+            binnings=binnings,
+            start=start,
+            limit=limit,
+            use_v3=True,
+        )
+
+    @deprecated(
+        "Deprecated; use retrieve_records_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="entity_retrieve_records", run_type="uipath")
     async def retrieve_records_async(
         self,
@@ -1805,6 +2281,39 @@ class EntitiesService(BaseService):
             binnings=binnings,
             start=start,
             limit=limit,
+        )
+
+    @traced(name="entity_retrieve_records_v3", run_type="uipath")
+    async def retrieve_records_v3_async(
+        self,
+        entity_key: str,
+        filter_group: Optional[EntityQueryFilterGroup] = None,
+        sort_options: Optional[List[EntityQuerySortOption]] = None,
+        selected_fields: Optional[List[str]] = None,
+        expansions: Optional[List[Any]] = None,
+        expansion_level: Optional[int] = None,
+        aggregates: Optional[List[EntityAggregate]] = None,
+        group_by: Optional[List[str]] = None,
+        joins: Optional[List[EntityJoin]] = None,
+        binnings: Optional[List[EntityBinning]] = None,
+        start: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> RetrieveEntityRecordsResponse:
+        """Async variant of :meth:`retrieve_records_v3`."""
+        return await self._data.retrieve_records_async(
+            entity_key,
+            filter_group=filter_group,
+            sort_options=sort_options,
+            selected_fields=selected_fields,
+            expansions=expansions,
+            expansion_level=expansion_level,
+            aggregates=aggregates,
+            group_by=group_by,
+            joins=joins,
+            binnings=binnings,
+            start=start,
+            limit=limit,
+            use_v3=True,
         )
 
     @attach_datafabric_error_mapping("query_entity_records")
@@ -2189,6 +2698,9 @@ class EntitiesService(BaseService):
     # Cross-cutting — entity-set resolution for agent overrides
     # ------------------------------------------------------------------
 
+    @deprecated(
+        "Deprecated; use resolve_entity_set_v3 (v3 API, supports Federated entities)."
+    )
     @traced(name="resolve_entity_set", run_type="uipath")
     def resolve_entity_set(
         self,
@@ -2222,6 +2734,9 @@ class EntitiesService(BaseService):
             entities_service=resolution_service,
         )
 
+    @deprecated(
+        "Deprecated; use resolve_entity_set_v3_async (v3 API, supports Federated entities)."
+    )
     @traced(name="resolve_entity_set", run_type="uipath")
     async def resolve_entity_set_async(
         self,
@@ -2245,6 +2760,81 @@ class EntitiesService(BaseService):
             plan,
             self.retrieve_async,
             self.retrieve_by_name_async,
+            logger,
+        )
+        resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]
+            config=self._config,
+            execution_context=self._execution_context,
+            folders_service=self._folders_service,
+            plan=plan,
+            service_factory=EntitiesService,
+        )
+        return EntitySetResolution(
+            entities=entities,
+            entities_service=resolution_service,
+        )
+
+    @traced(name="resolve_entity_set_v3", run_type="uipath")
+    def resolve_entity_set_v3(
+        self,
+        items: List[DataFabricEntityItem],
+    ) -> EntitySetResolution:
+        """Resolve an agent entity set via the v3 API (serves Federated entities).
+
+        Experimental v3 surface; behaves like :meth:`resolve_entity_set` but
+        fetches entity metadata from ``datafabric_/api/v3/entities`` so Federated
+        entities resolve with their external field definitions.
+        """
+        plan = create_resolution_plan(
+            items,
+            _resource_overwrites.get() or {},
+            lambda folder_path: (
+                self._folders_service.retrieve_key(folder_path=folder_path)
+                if self._folders_service is not None
+                else None
+            ),
+        )
+        entities = fetch_resolved_entities(
+            plan,
+            self.retrieve_v3,
+            self.retrieve_by_name_v3,
+            logger,
+        )
+        resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]
+            config=self._config,
+            execution_context=self._execution_context,
+            folders_service=self._folders_service,
+            plan=plan,
+            service_factory=EntitiesService,
+        )
+        return EntitySetResolution(
+            entities=entities,
+            entities_service=resolution_service,
+        )
+
+    @traced(name="resolve_entity_set_v3", run_type="uipath")
+    async def resolve_entity_set_v3_async(
+        self,
+        items: List[DataFabricEntityItem],
+    ) -> EntitySetResolution:
+        """Async variant of :meth:`resolve_entity_set_v3`."""
+
+        async def _resolve_folder_path(folder_path: str) -> Optional[str]:
+            if self._folders_service is None:
+                return None
+            return await self._folders_service.retrieve_key_async(
+                folder_path=folder_path
+            )
+
+        plan = await create_resolution_plan_async(
+            items,
+            _resource_overwrites.get() or {},
+            _resolve_folder_path,
+        )
+        entities = await fetch_resolved_entities_async(
+            plan,
+            self.retrieve_v3_async,
+            self.retrieve_by_name_v3_async,
             logger,
         )
         resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]

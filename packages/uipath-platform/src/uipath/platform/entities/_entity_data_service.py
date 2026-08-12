@@ -43,6 +43,17 @@ from .entities import (
 
 logger = logging.getLogger(__name__)
 
+_V1_RECORD_ROOT = "datafabric_/api/EntityService/entity"
+_V2_RECORD_ROOT = "datafabric_/api/v2/EntityService/entity"
+_V3_RECORD_ROOT = "datafabric_/api/v3/entities/entity"
+
+
+def _record_base(entity_key: str, use_v3: bool) -> str:
+    """Return the record-endpoint base for the requested API version."""
+    root = _V3_RECORD_ROOT if use_v3 else _V1_RECORD_ROOT
+    return f"{root}/{entity_key}"
+
+
 FileContent = bytes | bytearray | memoryview
 """Acceptable raw bytes types for attachment and CSV uploads."""
 
@@ -144,6 +155,7 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsListResponse:
         """Internal implementation; see :meth:`EntitiesService.list_records`."""
         spec = self._list_records_spec(
@@ -151,6 +163,7 @@ class EntityDataService(BaseService):
             start=start,
             limit=limit,
             expansion_level=expansion_level,
+            use_v3=use_v3,
         )
         response = self.request(spec.method, spec.endpoint, params=spec.params)
         return self._build_records_list_response(response, schema, start, limit)
@@ -162,6 +175,7 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsListResponse:
         """Async variant of :meth:`list_records`."""
         spec = self._list_records_spec(
@@ -169,6 +183,7 @@ class EntityDataService(BaseService):
             start=start,
             limit=limit,
             expansion_level=expansion_level,
+            use_v3=use_v3,
         )
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params
@@ -184,9 +199,12 @@ class EntityDataService(BaseService):
         entity_key: str,
         data: Any,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecord:
         """Internal implementation; see :meth:`EntitiesService.insert_record`."""
-        spec = self._insert_record_spec(entity_key, data, expansion_level)
+        spec = self._insert_record_spec(
+            entity_key, data, expansion_level, use_v3=use_v3
+        )
         response = self.request(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
         )
@@ -197,9 +215,12 @@ class EntityDataService(BaseService):
         entity_key: str,
         data: Any,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecord:
         """Async variant of :meth:`insert_record`."""
-        spec = self._insert_record_spec(entity_key, data, expansion_level)
+        spec = self._insert_record_spec(
+            entity_key, data, expansion_level, use_v3=use_v3
+        )
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
         )
@@ -210,9 +231,12 @@ class EntityDataService(BaseService):
         entity_key: str,
         record_id: str,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecord:
         """Fetch a single record by its id."""
-        spec = self._get_record_spec(entity_key, record_id, expansion_level)
+        spec = self._get_record_spec(
+            entity_key, record_id, expansion_level, use_v3=use_v3
+        )
         response = self.request(spec.method, spec.endpoint, params=spec.params)
         return EntityRecord.model_validate(response.json())
 
@@ -221,9 +245,12 @@ class EntityDataService(BaseService):
         entity_key: str,
         record_id: str,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecord:
         """Async variant of :meth:`get_record`."""
-        spec = self._get_record_spec(entity_key, record_id, expansion_level)
+        spec = self._get_record_spec(
+            entity_key, record_id, expansion_level, use_v3=use_v3
+        )
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params
         )
@@ -235,9 +262,12 @@ class EntityDataService(BaseService):
         record_id: str,
         data: Any,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecord:
         """Internal implementation; see :meth:`EntitiesService.update_record`."""
-        spec = self._update_record_spec(entity_key, record_id, data, expansion_level)
+        spec = self._update_record_spec(
+            entity_key, record_id, data, expansion_level, use_v3=use_v3
+        )
         response = self.request(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
         )
@@ -249,22 +279,29 @@ class EntityDataService(BaseService):
         record_id: str,
         data: Any,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> EntityRecord:
         """Async variant of :meth:`update_record`."""
-        spec = self._update_record_spec(entity_key, record_id, data, expansion_level)
+        spec = self._update_record_spec(
+            entity_key, record_id, data, expansion_level, use_v3=use_v3
+        )
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
         )
         return EntityRecord.model_validate(response.json())
 
-    def delete_record(self, entity_key: str, record_id: str) -> None:
+    def delete_record(
+        self, entity_key: str, record_id: str, use_v3: bool = False
+    ) -> None:
         """Delete a single record by id."""
-        spec = self._delete_record_spec(entity_key, record_id)
+        spec = self._delete_record_spec(entity_key, record_id, use_v3=use_v3)
         self.request(spec.method, spec.endpoint)
 
-    async def delete_record_async(self, entity_key: str, record_id: str) -> None:
+    async def delete_record_async(
+        self, entity_key: str, record_id: str, use_v3: bool = False
+    ) -> None:
         """Async variant of :meth:`delete_record`."""
-        spec = self._delete_record_spec(entity_key, record_id)
+        spec = self._delete_record_spec(entity_key, record_id, use_v3=use_v3)
         await self.request_async(spec.method, spec.endpoint)
 
     # ------------------------------------------------------------------
@@ -278,6 +315,7 @@ class EntityDataService(BaseService):
         schema: Optional[Type[Any]] = None,
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
         """Internal implementation; see :meth:`EntitiesService.insert_records`."""
         spec = self._insert_batch_spec(
@@ -285,6 +323,7 @@ class EntityDataService(BaseService):
             records,
             expansion_level=expansion_level,
             fail_on_first=fail_on_first,
+            use_v3=use_v3,
         )
         response = self._request_or_extract_batch(
             sync_call=lambda: self.request(
@@ -302,6 +341,7 @@ class EntityDataService(BaseService):
         schema: Optional[Type[Any]] = None,
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
         """Async variant of :meth:`insert_records`."""
         spec = self._insert_batch_spec(
@@ -309,6 +349,7 @@ class EntityDataService(BaseService):
             records,
             expansion_level=expansion_level,
             fail_on_first=fail_on_first,
+            use_v3=use_v3,
         )
 
         async def _send_batch() -> Response:
@@ -328,6 +369,7 @@ class EntityDataService(BaseService):
         schema: Optional[Type[Any]] = None,
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
         """Internal implementation; see :meth:`EntitiesService.update_records`."""
         normalized = [self._record_to_dict(record) for record in records]
@@ -340,6 +382,7 @@ class EntityDataService(BaseService):
             normalized,
             expansion_level=expansion_level,
             fail_on_first=fail_on_first,
+            use_v3=use_v3,
         )
         response = self._request_or_extract_batch(
             sync_call=lambda: self.request(
@@ -357,6 +400,7 @@ class EntityDataService(BaseService):
         schema: Optional[Type[Any]] = None,
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
         """Async variant of :meth:`update_records`."""
         normalized = [self._record_to_dict(record) for record in records]
@@ -369,6 +413,7 @@ class EntityDataService(BaseService):
             normalized,
             expansion_level=expansion_level,
             fail_on_first=fail_on_first,
+            use_v3=use_v3,
         )
 
         async def _send_batch() -> Response:
@@ -386,10 +431,11 @@ class EntityDataService(BaseService):
         entity_key: str,
         record_ids: List[str],
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
         """Delete multiple records by id in a single batch."""
         spec = self._delete_batch_spec(
-            entity_key, record_ids, fail_on_first=fail_on_first
+            entity_key, record_ids, fail_on_first=fail_on_first, use_v3=use_v3
         )
         result = self._request_or_extract_batch(
             sync_call=lambda: self.request(
@@ -405,10 +451,11 @@ class EntityDataService(BaseService):
         entity_key: str,
         record_ids: List[str],
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
         """Async variant of :meth:`delete_records`."""
         spec = self._delete_batch_spec(
-            entity_key, record_ids, fail_on_first=fail_on_first
+            entity_key, record_ids, fail_on_first=fail_on_first, use_v3=use_v3
         )
 
         async def _send_batch() -> Response:
@@ -439,6 +486,7 @@ class EntityDataService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RetrieveEntityRecordsResponse:
         """Internal implementation; see :meth:`EntitiesService.retrieve_records`."""
         spec = self._retrieve_records_spec(
@@ -454,6 +502,7 @@ class EntityDataService(BaseService):
             binnings=binnings,
             start=start,
             limit=limit,
+            use_v3=use_v3,
         )
         response = self.request(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
@@ -474,6 +523,7 @@ class EntityDataService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RetrieveEntityRecordsResponse:
         """Async variant of :meth:`retrieve_records`."""
         spec = self._retrieve_records_spec(
@@ -489,6 +539,7 @@ class EntityDataService(BaseService):
             binnings=binnings,
             start=start,
             limit=limit,
+            use_v3=use_v3,
         )
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
@@ -698,6 +749,7 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the GET spec for the multi-record read endpoint.
 
@@ -715,9 +767,7 @@ class EntityDataService(BaseService):
             params["expansionLevel"] = expansion_level
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/read"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/read"),
             params=params,
         )
 
@@ -726,6 +776,7 @@ class EntityDataService(BaseService):
         entity_key: str,
         data: Any,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for inserting a single record."""
         params: Dict[str, Any] = {}
@@ -733,9 +784,7 @@ class EntityDataService(BaseService):
             params["expansionLevel"] = expansion_level
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/insert"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/insert"),
             params=params,
             json=EntityDataService._record_to_dict(data),
         )
@@ -745,6 +794,7 @@ class EntityDataService(BaseService):
         entity_key: str,
         record_id: str,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the GET spec for fetching a single record by id."""
         params: Dict[str, Any] = {}
@@ -752,9 +802,7 @@ class EntityDataService(BaseService):
             params["expansionLevel"] = expansion_level
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/read/{record_id}"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/read/{record_id}"),
             params=params,
         )
 
@@ -764,6 +812,7 @@ class EntityDataService(BaseService):
         record_id: str,
         data: Any,
         expansion_level: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for updating a single record by id."""
         params: Dict[str, Any] = {}
@@ -771,21 +820,19 @@ class EntityDataService(BaseService):
             params["expansionLevel"] = expansion_level
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/update/{record_id}"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/update/{record_id}"),
             params=params,
             json=EntityDataService._record_to_dict(data),
         )
 
     @staticmethod
-    def _delete_record_spec(entity_key: str, record_id: str) -> RequestSpec:
+    def _delete_record_spec(
+        entity_key: str, record_id: str, use_v3: bool = False
+    ) -> RequestSpec:
         """Build the DELETE spec for removing a single record by id."""
         return RequestSpec(
             method="DELETE",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/delete/{record_id}"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/delete/{record_id}"),
         )
 
     @staticmethod
@@ -794,6 +841,7 @@ class EntityDataService(BaseService):
         records: List[Any],
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for the batch-insert endpoint."""
         params = EntityDataService._batch_params(
@@ -801,9 +849,7 @@ class EntityDataService(BaseService):
         )
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/insert-batch"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/insert-batch"),
             params=params,
             json=[EntityDataService._record_to_dict(record) for record in records],
         )
@@ -814,6 +860,7 @@ class EntityDataService(BaseService):
         records: List[Dict[str, Any]],
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for the batch-update endpoint."""
         params = EntityDataService._batch_params(
@@ -821,9 +868,7 @@ class EntityDataService(BaseService):
         )
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/update-batch"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/update-batch"),
             params=params,
             json=records,
         )
@@ -833,14 +878,13 @@ class EntityDataService(BaseService):
         entity_key: str,
         record_ids: List[str],
         fail_on_first: Optional[bool] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for the batch-delete endpoint."""
         params = EntityDataService._batch_params(fail_on_first=fail_on_first)
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/delete-batch"
-            ),
+            endpoint=Endpoint(f"{_record_base(entity_key, use_v3)}/delete-batch"),
             params=params,
             json=record_ids,
         )
@@ -872,13 +916,19 @@ class EntityDataService(BaseService):
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
         limit: Optional[int] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the request spec for the structured-query endpoint.
 
         Filters, sorting, projection, expansions, aggregates, group-by, joins,
         binnings, ``start``, and ``limit`` are placed in the JSON body;
-        ``expansionLevel`` is a URL query parameter. The V2 endpoint is used
-        only when ``binnings`` are supplied.
+        ``expansionLevel`` is a URL query parameter.
+
+        On v1, ``binnings`` route to the v2 by-key endpoint and everything else
+        to the v1 by-key endpoint. On v3, multi-entity ``joins`` stay on the v1
+        by-key endpoint (the v3 by-id query rejects ``joins`` with a 400) while
+        everything else — including binnings and aggregates — uses the v3 by-id
+        query, which also serves Federated entities.
         """
         body: Dict[str, Any] = {}
         if filter_group is not None:
@@ -924,14 +974,15 @@ class EntityDataService(BaseService):
         if expansion_level is not None:
             params["expansionLevel"] = expansion_level
 
-        if binnings:
-            endpoint = Endpoint(
-                f"datafabric_/api/v2/EntityService/entity/{entity_key}/query"
-            )
+        if not use_v3:
+            if binnings:
+                endpoint = Endpoint(f"{_V2_RECORD_ROOT}/{entity_key}/query")
+            else:
+                endpoint = Endpoint(f"{_V1_RECORD_ROOT}/{entity_key}/query")
+        elif joins:
+            endpoint = Endpoint(f"{_V1_RECORD_ROOT}/{entity_key}/query")
         else:
-            endpoint = Endpoint(
-                f"datafabric_/api/EntityService/entity/{entity_key}/query"
-            )
+            endpoint = Endpoint(f"{_V3_RECORD_ROOT}/{entity_key}/query")
 
         return RequestSpec(
             method="POST",
