@@ -6,6 +6,9 @@ on:
       SONAR_TOKEN:
         required: false
 
+env:
+  SAFE_CHAIN_MINIMUM_PACKAGE_AGE_EXCLUSIONS: uipath-runtime
+
 permissions:
   contents: read
 

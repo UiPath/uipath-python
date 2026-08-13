@@ -3,6 +3,9 @@ name: Lint Packages
 on:
   workflow_call:
 
+env:
+  SAFE_CHAIN_MINIMUM_PACKAGE_AGE_EXCLUSIONS: uipath-runtime
+
 permissions:
   contents: read
 
