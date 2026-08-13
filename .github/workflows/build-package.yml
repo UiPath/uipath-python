@@ -16,6 +16,9 @@ on:
       APPLICATIONINSIGHTS_CONNECTION_STRING:
         required: false
 
+env:
+  SAFE_CHAIN_MINIMUM_PACKAGE_AGE_EXCLUSIONS: uipath-runtime
+
 permissions:
   contents: read
   actions: write
