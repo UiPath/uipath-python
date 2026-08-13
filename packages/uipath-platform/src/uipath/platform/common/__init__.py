@@ -16,7 +16,7 @@ from ._bindings import (
     ResourceOverwritesContext,
     resource_override,
 )
-from ._config import UiPathApiConfig, UiPathConfig
+from ._config import UiPathApiConfig, UiPathConfig, resolve_coded_agenthub_config
 from ._endpoints_manager import EndpointManager
 from ._execution_context import ExecutionSourceContext, UiPathExecutionContext
 from ._folder_context import FolderContext, header_folder
@@ -86,6 +86,7 @@ __all__ = [
     "FolderContext",
     "TokenData",
     "UiPathConfig",
+    "resolve_coded_agenthub_config",
     "CreateTask",
     "CreateEscalation",
     "WaitEscalation",

@@ -2,8 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from uipath.platform.common._config import UiPathConfig
+from uipath.platform.common._config import (
+    UiPathConfig,
+    resolve_coded_agenthub_config,
+)
 from uipath.platform.constants import (
+    AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND,
     ENTRY_POINTS_FILE,
     ENV_BASE_URL,
     ENV_FOLDER_KEY,
@@ -190,3 +194,44 @@ class TestEvalFolderDetection:
         assert UiPathConfig.has_eval_folder is False
         (tmp_path / EVALS_FOLDER).mkdir()
         assert UiPathConfig.has_eval_folder is True
+
+
+class TestResolveCodedAgentHubConfig:
+    @pytest.fixture(autouse=True)
+    def _isolated_config(self, monkeypatch, tmp_path):
+        # Run in an empty dir so is_rooted_to_debug_job has no stray uipath.json,
+        # and reset the cached internal arguments around each case.
+        monkeypatch.chdir(tmp_path)
+        UiPathConfig.reset()
+        yield
+        UiPathConfig.reset()
+
+    def test_local_run_is_design_time(self):
+        # No job key -> local/design-time -> coded playground marker.
+        assert (
+            resolve_coded_agenthub_config() == AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND
+        )
+
+    def test_deployed_job_returns_none(self, monkeypatch):
+        # Real job, not a studio project, not a debug session -> None (AgentHub.LLM).
+        monkeypatch.setenv(ENV_JOB_KEY, "deployed-job")
+        assert resolve_coded_agenthub_config() is None
+
+    def test_studio_web_job_is_design_time(self, monkeypatch):
+        # Job present but a studio project -> design-time.
+        monkeypatch.setenv(ENV_JOB_KEY, "sw-job")
+        monkeypatch.setenv(ENV_UIPATH_PROJECT_ID, "project-id")
+        assert (
+            resolve_coded_agenthub_config() == AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND
+        )
+
+    def test_debug_rooted_job_is_design_time(self, monkeypatch, tmp_path):
+        # Job present, no studio project, but rooted to a debug session -> design-time.
+        monkeypatch.setenv(ENV_JOB_KEY, "debug-job")
+        (tmp_path / "uipath.json").write_text(
+            '{"runtime": {"internalArguments": {"isDebug": true}}}'
+        )
+        UiPathConfig.reset()
+        assert (
+            resolve_coded_agenthub_config() == AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND
+        )

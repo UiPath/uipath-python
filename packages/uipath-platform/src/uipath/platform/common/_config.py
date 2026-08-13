@@ -225,3 +225,22 @@ class ConfigurationManager:
 
 
 UiPathConfig = ConfigurationManager()
+
+
+def resolve_coded_agenthub_config() -> str | None:
+    """AgentHub config header value for a coded-agent run, or ``None`` when deployed.
+
+    Design-time runs — local, Studio Web, or a debug session — return
+    ``codedagentsplayground`` so the agent's LLM calls draw the CodedAgents.Playground
+    licensing pool. A deployed run — a real Orchestrator job that is neither a Studio
+    Web project nor rooted to a debug session — returns ``None``, which the LLM gateway
+    resolves to the ``AgentHub.LLM`` operation code.
+    """
+    from uipath.platform.constants import AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND
+
+    deployed = (
+        bool(UiPathConfig.job_key)
+        and not UiPathConfig.is_studio_project
+        and not UiPathConfig.is_rooted_to_debug_job
+    )
+    return None if deployed else AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND
