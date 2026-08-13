@@ -22,6 +22,17 @@ class Mocker(ABC):
         raise NotImplementedError()
 
 
+def format_exception_message(e: BaseException) -> str:
+    """Format an exception for wrapped error messages, always naming its type.
+
+    Timeout and cancellation exceptions (``asyncio.TimeoutError``,
+    ``CancelledError``, httpx timeouts) often have an empty ``str``, which
+    otherwise produces blank, undiagnosable error messages downstream.
+    """
+    message = str(e).strip()
+    return f"{type(e).__name__}: {message}" if message else type(e).__name__
+
+
 class UiPathNoMockFoundError(Exception):
     """Exception when a mocker is unable to find a match with the invocation. This is a signal to invoke the real function."""
 

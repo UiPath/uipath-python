@@ -14,7 +14,7 @@ from uipath.platform.chat._llm_gateway_service import ChatModels
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
-from ._mocker import UiPathInputMockingError
+from ._mocker import UiPathInputMockingError, format_exception_message
 from ._structured_output import generate_structured_output
 from ._types import (
     InputMockingStrategy,
@@ -155,4 +155,6 @@ async def generate_llm_input(
     except UiPathInputMockingError:
         raise
     except Exception as e:
-        raise UiPathInputMockingError(f"Failed to generate input: {str(e)}") from e
+        raise UiPathInputMockingError(
+            f"Failed to generate input: {format_exception_message(e)}"
+        ) from e

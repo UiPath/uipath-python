@@ -28,6 +28,7 @@ from ._mocker import (
     T,
     UiPathMockResponseGenerationError,
     UiPathNoMockFoundError,
+    format_exception_message,
 )
 from ._structured_output import generate_structured_output
 from ._types import (
@@ -230,7 +231,9 @@ class LLMMocker(Mocker):
 
                 return result
             except Exception as e:
-                raise UiPathMockResponseGenerationError(str(e)) from e
+                raise UiPathMockResponseGenerationError(
+                    format_exception_message(e)
+                ) from e
         else:
             raise UiPathNoMockFoundError(f"Method '{function_name}' is not simulated.")
 
