@@ -93,7 +93,7 @@ class TestEntitiesService:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_key}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/{entity_key}",
             status_code=200,
             json={
                 "name": "TestEntity",
@@ -147,7 +147,7 @@ class TestEntitiesService:
         assert sent_request.method == "GET"
         assert (
             sent_request.url
-            == f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_key}"
+            == f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/{entity_key}"
         )
 
     def test_retrieve_records_with_no_schema_succeeds(
@@ -161,7 +161,7 @@ class TestEntitiesService:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{str(entity_key)}/read?start=0&limit=1",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{str(entity_key)}/read?start=0&limit=1",
             status_code=200,
             json={
                 "totalCount": 1,
@@ -199,7 +199,7 @@ class TestEntitiesService:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{str(entity_key)}/read?start=0&limit=1",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{str(entity_key)}/read?start=0&limit=1",
             status_code=200,
             json={
                 "totalCount": 1,
@@ -250,7 +250,7 @@ class TestEntitiesService:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{str(entity_key)}/read?start=0&limit=1",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{str(entity_key)}/read?start=0&limit=1",
             status_code=200,
             json={
                 "totalCount": 1,
@@ -308,7 +308,7 @@ class TestEntitiesService:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{str(entity_key)}/read",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{str(entity_key)}/read",
             status_code=200,
             json={
                 "totalCount": 1,
@@ -1199,7 +1199,7 @@ class TestEntitiesServiceNewMethods:
 
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert?expansionLevel=2",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/insert?expansionLevel=2",
             status_code=200,
             json={"Id": "rec-1", "name": "alice"},
         )
@@ -1229,7 +1229,7 @@ class TestEntitiesServiceNewMethods:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/insert",
             status_code=200,
             json={"Id": "rec-1"},
         )
@@ -1251,7 +1251,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         record_id = "12345"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read/{record_id}?expansionLevel=1",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/read/{record_id}?expansionLevel=1",
             status_code=200,
             json={"Id": record_id, "name": "found"},
         )
@@ -1274,7 +1274,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         record_id = "rec-9"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update/{record_id}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update/{record_id}",
             status_code=200,
             json={"Id": record_id, "name": "updated"},
         )
@@ -1302,7 +1302,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         record_id = "rec-9"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete/{record_id}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/delete/{record_id}",
             method="DELETE",
             status_code=200,
         )
@@ -1313,7 +1313,7 @@ class TestEntitiesServiceNewMethods:
         assert sent is not None
         assert sent.method == "DELETE"
 
-    def test_query_v1_with_filter_and_pagination(
+    def test_query_v3_by_id_with_filter_and_pagination(
         self,
         httpx_mock: HTTPXMock,
         service: EntitiesService,
@@ -1333,7 +1333,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/query.*"
             ),
             status_code=200,
             json={
@@ -1401,7 +1401,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/query.*"
             ),
             status_code=200,
             json={
@@ -1440,7 +1440,7 @@ class TestEntitiesServiceNewMethods:
         assert body["aggregates"][0]["alias"] == "total"
         assert body["groupBy"] == ["status"]
 
-    def test_query_v2_when_binnings_provided(
+    def test_query_binnings_route_to_v3(
         self,
         httpx_mock: HTTPXMock,
         service: EntitiesService,
@@ -1449,15 +1449,16 @@ class TestEntitiesServiceNewMethods:
         tenant: str,
         version: str,
     ) -> None:
+        """Binnings go to the v3 by-id query (which supports them, FF-gated), not v2."""
         from uipath.platform.entities import EntityAggregateFunction, EntityBinning
 
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/v2/EntityService/entity/{entity_key}/query.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/query.*"
             ),
             status_code=200,
-            json={"value": [], "totalCount": 0},
+            json={"value": [], "totalRecordCount": 0},
         )
 
         service.retrieve_records(
@@ -1473,7 +1474,52 @@ class TestEntitiesServiceNewMethods:
 
         sent = httpx_mock.get_request()
         assert sent is not None
-        assert "/v2/EntityService/" in str(sent.url)
+        assert "/v3/entities/entity/" in str(sent.url)
+        assert "/v2/" not in str(sent.url)
+        body = json.loads(sent.content)
+        assert body["binnings"][0]["fieldName"] == "status"
+
+    def test_query_with_joins_routes_to_v1(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """Multi-entity joins stay on the v1 by-key endpoint (v3 by-id rejects joins)."""
+        from uipath.platform.entities import EntityJoin
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query.*"
+            ),
+            status_code=200,
+            json={"value": [], "totalRecordCount": 0},
+        )
+
+        service.retrieve_records(
+            entity_key=str(entity_key),
+            joins=[
+                EntityJoin(
+                    entity_name="Order",
+                    join_type="LeftJoin",
+                    join_field_name="customerId",
+                    related_entity_name="Customer",
+                    related_field_name="Id",
+                )
+            ],
+        )
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        # v1 by-key path — not the v3 by-id path.
+        assert "/api/EntityService/entity/" in str(sent.url)
+        assert "/v3/" not in str(sent.url)
+        body = json.loads(sent.content)
+        assert body["joins"][0]["entityName"] == "Order"
 
     def test_upload_attachment_sends_multipart(
         self,
@@ -1573,7 +1619,7 @@ class TestEntitiesServiceNewMethods:
 
         new_entity_id = str(uuid.uuid4())
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
             method="POST",
             status_code=200,
             json=new_entity_id,
@@ -1605,6 +1651,143 @@ class TestEntitiesServiceNewMethods:
         assert body["entityDefinition"]["fields"][0]["name"] == "productName"
         assert body["entityDefinition"]["isRbacEnabled"] is True
 
+    def test_create_federated_entity_builds_v3_payload(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        from uipath.platform.entities import (
+            EntityClass,
+            EntityCreateExternalConnection,
+            EntityCreateExternalField,
+            EntityCreateExternalFieldMapping,
+            EntityCreateExternalObject,
+            EntityCreateExternalSource,
+            EntityCreateFieldOptions,
+            EntityCreateOptions,
+            NativeConnectionDetail,
+            SourceJoinConditionDetail,
+        )
+
+        new_entity_id = str(uuid.uuid4())
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
+            method="POST",
+            status_code=200,
+            json=new_entity_id,
+        )
+
+        connector_source = EntityCreateExternalSource(
+            external_object_detail=EntityCreateExternalObject(
+                external_object_name="sys_user",
+                primary_key="sys_id",
+                is_primary_source=True,
+                method="{}",
+            ),
+            external_connection_detail=EntityCreateExternalConnection(
+                connection_id="conn-1",
+                element_instance_id=373410,
+                connector_key="uipath-servicenow-servicenow",
+                connector_name="ServiceNow",
+            ),
+            fields=[
+                EntityCreateExternalField(
+                    field=EntityCreateFieldOptions(field_name="UserName"),
+                    external_field_mapping_detail=EntityCreateExternalFieldMapping(
+                        external_field_name="user_name"
+                    ),
+                )
+            ],
+        )
+        native_source = EntityCreateExternalSource(
+            external_object_detail=EntityCreateExternalObject(
+                external_object_name="UserDept", primary_key="Id"
+            ),
+            native_connection_detail=NativeConnectionDetail(
+                entity_id="dept-entity-id", folder_key="folder-1"
+            ),
+            fields=[
+                EntityCreateExternalField(
+                    field=EntityCreateFieldOptions(field_name="Department"),
+                    external_field_mapping_detail=EntityCreateExternalFieldMapping(
+                        external_field_name="Department"
+                    ),
+                )
+            ],
+        )
+
+        created_id = service.create_entity(
+            name="UserDirectory",
+            fields=[],
+            options=EntityCreateOptions(
+                entity_class=EntityClass.Federated,
+                external_fields=[connector_source, native_source],
+                source_join_condition_details=[
+                    SourceJoinConditionDetail(
+                        source_object_name="sys_user",
+                        source_join_field="user_name",
+                        source_object_connection_id="conn-1",
+                        related_source_object_name="UserDept",
+                        related_source_join_field="UserNameDept",
+                        related_source_object_connection_id="dept-entity-id",
+                    )
+                ],
+            ),
+        )
+
+        assert created_id == new_entity_id
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        definition = json.loads(sent.content)["entityDefinition"]
+        # Federated class discriminator (numeric wire id).
+        assert definition["entityClassId"] == 10
+        # Two sources; the connector source's field wraps in `fieldDefinition`
+        # and its mapping uses the numeric directionType.
+        sources = definition["externalFields"]
+        assert len(sources) == 2
+        connector = sources[0]
+        assert connector["externalObjectDetail"]["externalObjectName"] == "sys_user"
+        assert connector["externalConnectionDetail"]["elementInstanceId"] == 373410
+        field = connector["fields"][0]
+        assert field["fieldDefinition"]["name"] == "UserName"
+        assert field["externalFieldMappingDetail"]["externalFieldName"] == "user_name"
+        assert field["externalFieldMappingDetail"]["directionType"] == 0
+        # Native source carries its entity reference, not a connector connection.
+        assert sources[1]["nativeConnectionDetail"]["entityId"] == "dept-entity-id"
+        # Join is passed through in write shape.
+        join = definition["sourceJoinConditionDetails"][0]
+        assert join["sourceObjectName"] == "sys_user"
+        assert join["relatedSourceObjectName"] == "UserDept"
+        assert join["joinType"] == "LeftJoin"
+
+    def test_create_federated_entity_requires_sources(
+        self, service: EntitiesService
+    ) -> None:
+        from uipath.platform.entities import EntityClass, EntityCreateOptions
+
+        with pytest.raises(ValueError, match="at least one external source"):
+            service.create_entity(
+                name="EmptyFederated",
+                fields=[],
+                options=EntityCreateOptions(entity_class=EntityClass.Federated),
+            )
+
+    def test_create_entity_rejects_uncreatable_class(
+        self, service: EntitiesService
+    ) -> None:
+        from uipath.platform.entities import EntityClass, EntityCreateOptions
+
+        with pytest.raises(ValueError, match="is not creatable"):
+            service.create_entity(
+                name="CaseEntity",
+                fields=[],
+                options=EntityCreateOptions(entity_class=EntityClass.Case),
+            )
+
     def test_delete_entity(
         self,
         httpx_mock: HTTPXMock,
@@ -1616,7 +1799,7 @@ class TestEntitiesServiceNewMethods:
     ) -> None:
         entity_id = "ent-doomed"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_id}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/{entity_id}",
             method="DELETE",
             status_code=200,
         )
@@ -1639,7 +1822,7 @@ class TestEntitiesServiceNewMethods:
 
         entity_id = "ent-meta"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_id}/metadata",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/{entity_id}/metadata",
             method="PATCH",
             status_code=200,
             json={},
@@ -1695,7 +1878,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/read.*"
             ),
             status_code=200,
             json={
@@ -1747,7 +1930,7 @@ class TestEntitiesServiceNewMethods:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert-batch.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/insert-batch.*"
             ),
             status_code=200,
             json={"successRecords": [{"Id": "1"}], "failureRecords": []},
@@ -1785,7 +1968,7 @@ class TestEntitiesServiceNewMethods:
         """
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update-batch",
             method="POST",
             status_code=400,
             json={
@@ -1815,7 +1998,7 @@ class TestEntitiesServiceNewMethods:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/delete-batch",
             method="POST",
             status_code=400,
             json={
@@ -1865,7 +2048,7 @@ class TestEntitiesServiceCreateEntitySqlTypeMapping:
         from uipath.platform.entities import EntityCreateOptions
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
             method="POST",
             status_code=200,
             json="00000000-0000-0000-0000-000000000001",
@@ -2112,6 +2295,26 @@ class TestEntitiesServiceValidation:
                 ],
             )
 
+    def test_data_direction_type_accepts_legacy_string_names(self) -> None:
+        """Legacy string member names normalise to the numeric members (back-compat)."""
+        from uipath.platform.entities import (
+            DataDirectionType,
+            EntityCreateExternalFieldMapping,
+        )
+
+        # Legacy string input is intentionally off-type (the field expects the
+        # numeric enum); `_missing_` normalises it, so silence the type checker.
+        assert DataDirectionType("ReadOnly") is DataDirectionType.ReadOnly  # type: ignore[arg-type]
+        assert DataDirectionType("readandwrite") is DataDirectionType.ReadAndWrite  # type: ignore[arg-type]
+        assert int(DataDirectionType.ReadOnly) == 0
+        # A mapping built from a legacy string serialises to the numeric wire form.
+        mapping = EntityCreateExternalFieldMapping(
+            external_field_name="user_name",
+            direction_type="ReadOnly",  # type: ignore[arg-type]
+        )
+        dumped = mapping.model_dump(by_alias=True, exclude_none=True, mode="json")
+        assert dumped["directionType"] == 0
+
     def test_entity_query_filter_rejects_in_without_value_list(self) -> None:
         from uipath.platform.entities import EntityQueryFilter, QueryFilterOperator
 
@@ -2178,7 +2381,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         entity_key = uuid.uuid4()
         record_id = "rec-1"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read/{record_id}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/read/{record_id}",
             status_code=200,
             json={"Id": record_id, "name": "found"},
         )
@@ -2187,13 +2390,13 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         )
         assert record.id == record_id
 
-    async def test_query_async_v1(
+    async def test_query_async_v3_by_id(
         self, httpx_mock, service, base_url, org, tenant, version
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/query"
             ),
             status_code=200,
             json={"value": [{"Id": "1"}], "totalRecordCount": 1},
@@ -2207,7 +2410,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         entity_key = uuid.uuid4()
         record_id = "rec-1"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete/{record_id}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/delete/{record_id}",
             method="DELETE",
             status_code=200,
         )
@@ -2225,7 +2428,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
 
         new_id = "00000000-0000-0000-0000-000000000123"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
             method="POST",
             status_code=200,
             json=new_id,
@@ -2244,7 +2447,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         self, httpx_mock, service, base_url, org, tenant, version
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/ent-1",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/ent-1",
             method="DELETE",
             status_code=200,
         )
@@ -2254,7 +2457,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         self, httpx_mock, service, base_url, org, tenant, version
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/ent-1/metadata",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/ent-1/metadata",
             method="PATCH",
             status_code=200,
             json={},
@@ -2272,7 +2475,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
     ) -> None:
         """Snake_case dict keys must be sent to the backend as camelCase."""
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/ent-1/metadata",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/ent-1/metadata",
             method="PATCH",
             status_code=200,
             json={},
@@ -2352,7 +2555,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         entity_key = uuid.uuid4()
         # 500 with the shape — must propagate, not be silently treated as success.
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update-batch",
             method="POST",
             status_code=500,
             json={"successRecords": [], "failureRecords": []},
@@ -2370,7 +2573,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         entity_key = uuid.uuid4()
         # 404 with valid shape — still propagates because not a 400.
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update-batch",
             method="POST",
             status_code=404,
             json={"successRecords": [], "failureRecords": []},
@@ -2389,7 +2592,7 @@ class TestEntitiesServiceAsyncAndEdgeCases:
         must surface as an exception (so generic validation errors aren't masked)."""
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update-batch",
             method="POST",
             status_code=400,
             json={"error": "Validation failed", "code": "InvalidArg"},
@@ -2416,7 +2619,7 @@ class TestEntitiesServiceAsyncCoverage:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/{entity_key}",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/{entity_key}",
             status_code=200,
             json={
                 "name": "Customers",
@@ -2491,7 +2694,7 @@ class TestEntitiesServiceAsyncCoverage:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
             status_code=200,
             json=[
                 {
@@ -2525,7 +2728,7 @@ class TestEntitiesServiceAsyncCoverage:
         version: str,
     ) -> None:
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
             status_code=200,
             json=[
                 {
@@ -2553,7 +2756,7 @@ class TestEntitiesServiceAsyncCoverage:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/read.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/read.*"
             ),
             status_code=200,
             json={
@@ -2577,7 +2780,7 @@ class TestEntitiesServiceAsyncCoverage:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update/rec-1",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update/rec-1",
             method="POST",
             status_code=200,
             json={"Id": "rec-1", "name": "renamed"},
@@ -2601,7 +2804,7 @@ class TestEntitiesServiceAsyncCoverage:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert-batch.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/insert-batch.*"
             ),
             status_code=200,
             json={
@@ -2628,7 +2831,7 @@ class TestEntitiesServiceAsyncCoverage:
     ) -> None:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/update-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/update-batch",
             method="POST",
             status_code=400,
             json={
@@ -2654,7 +2857,7 @@ class TestEntitiesServiceAsyncCoverage:
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
             url=re.compile(
-                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/delete-batch.*"
+                rf"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/delete-batch.*"
             ),
             status_code=200,
             json={
@@ -2721,7 +2924,7 @@ class TestEntitiesServiceAsyncCoverage:
 
         entity_key = uuid.uuid4()
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/insert-batch",
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/entity/{entity_key}/insert-batch",
             method="POST",
             status_code=500,
             json={"successRecords": [], "failureRecords": []},

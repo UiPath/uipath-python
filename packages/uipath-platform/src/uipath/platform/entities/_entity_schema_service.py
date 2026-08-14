@@ -7,7 +7,7 @@ Record CRUD, queries, attachments, and bulk import live on
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from httpx import Response
 
@@ -19,11 +19,15 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
 from ..orchestrator._folder_service import FolderService
 from .entities import (
+    ENTITY_CLASS_TO_ID_MAP,
     ENTITY_FIELD_CONSTRAINT_DEFAULTS,
     ENTITY_FIELD_CONSTRAINT_SPEC,
     ENTITY_SCHEMA_FIELD_TYPE_MAP,
     RESERVED_FIELD_NAMES,
     Entity,
+    EntityClass,
+    EntityCreateExternalField,
+    EntityCreateExternalSource,
     EntityCreateFieldOptions,
     EntityCreateOptions,
     EntityFieldDataType,
@@ -31,6 +35,11 @@ from .entities import (
 )
 
 DATA_FABRIC_TENANT_FOLDER_ID = "00000000-0000-0000-0000-000000000000"
+
+# v3 entities upsert endpoint (a full-definition create/replace). Federated
+# creates require this endpoint (it accepts entityClassId / externalFields /
+# sourceJoinConditionDetails).
+_V3_ENTITIES = "datafabric_/api/v3/entities"
 
 _NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
 """Entity and field name pattern: must start with a letter, then letters and digits only.
@@ -49,7 +58,8 @@ class EntitySchemaService(BaseService):
     """HTTP service for entity-schema operations.
 
     Provides retrieval and lifecycle management for entities and choice sets.
-    Backend target: ``datafabric_/api/Entity``.
+    Backend target: ``datafabric_/api/v3/entities`` (choice-set listing and
+    the by-name metadata read remain on the v1 ``datafabric_/api/Entity`` surface).
 
     See Also:
         https://docs.uipath.com/data-service/automation-cloud/latest/user-guide/introduction
@@ -184,7 +194,7 @@ class EntitySchemaService(BaseService):
         """Build the GET spec for fetching an entity by key."""
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_key}"),
+            endpoint=Endpoint(f"{_V3_ENTITIES}/{entity_key}"),
         )
 
     @staticmethod
@@ -207,7 +217,7 @@ class EntitySchemaService(BaseService):
         """Build the GET spec for listing all entities (non-choice-sets)."""
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint("datafabric_/api/Entity"),
+            endpoint=Endpoint(_V3_ENTITIES),
         )
 
     @staticmethod
@@ -225,39 +235,131 @@ class EntitySchemaService(BaseService):
         fields: List[EntityCreateFieldOptions],
         options: Optional[EntityCreateOptions] = None,
     ) -> RequestSpec:
-        """Build the POST spec for creating an entity with its field schema."""
+        """Build the POST spec for creating an entity with its field schema.
+
+        Targets the v3 upsert endpoint. For a federated entity, pass
+        ``options.entity_class = EntityClass.Federated`` with at least one
+        source in ``options.external_fields`` and any cross-source joins in
+        ``options.source_join_condition_details``.
+        """
         cls._validate_name(name, "entity")
         for field in fields:
             cls._validate_name(field.field_name, "field")
         opts = options or EntityCreateOptions()
+
+        entity_class_id: Optional[int] = None
+        if opts.entity_class is not None:
+            if opts.entity_class not in (EntityClass.Native, EntityClass.Federated):
+                raise ValueError(
+                    f"entityClass {opts.entity_class.value!r} is not creatable. "
+                    "Use EntityClass.Native or EntityClass.Federated."
+                )
+            entity_class_id = int(ENTITY_CLASS_TO_ID_MAP[opts.entity_class])
+        if opts.entity_class is EntityClass.Federated and not opts.external_fields:
+            raise ValueError(
+                "Federated entities require at least one external source in "
+                "external_fields."
+            )
+
         # The user-facing option ``is_analytics_enabled`` maps to the legacy
         # backend field name ``isInsightsEnabled`` — the wire name predates
         # the "Analytics" UI rename.
+        entity_definition: Dict[str, Any] = {
+            "name": name,
+            "fields": [cls._build_schema_field_payload(f) for f in fields],
+            "folderId": opts.folder_key or DATA_FABRIC_TENANT_FOLDER_ID,
+            "isRbacEnabled": bool(opts.is_rbac_enabled or False),
+            "isInsightsEnabled": bool(opts.is_analytics_enabled or False),
+            "externalFields": cls._build_external_sources_payload(opts.external_fields),
+        }
+        if entity_class_id is not None:
+            entity_definition["entityClassId"] = entity_class_id
+        if opts.source_join_condition_details is not None:
+            entity_definition["sourceJoinConditionDetails"] = [
+                j.model_dump(by_alias=True, exclude_none=True, mode="json")
+                for j in opts.source_join_condition_details
+            ]
+
         payload: Dict[str, Any] = {
             "displayName": opts.display_name or name,
-            "entityDefinition": {
-                "name": name,
-                "fields": [cls._build_schema_field_payload(f) for f in fields],
-                "folderId": opts.folder_key or DATA_FABRIC_TENANT_FOLDER_ID,
-                "isRbacEnabled": bool(opts.is_rbac_enabled or False),
-                "isInsightsEnabled": bool(opts.is_analytics_enabled or False),
-                "externalFields": opts.external_fields or [],
-            },
+            "entityDefinition": entity_definition,
         }
         if opts.description is not None:
             payload["description"] = opts.description
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint("datafabric_/api/Entity"),
+            endpoint=Endpoint(_V3_ENTITIES),
             json=payload,
         )
+
+    @classmethod
+    def _build_external_sources_payload(
+        cls,
+        sources: Optional[Sequence[EntityCreateExternalSource | Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
+        """Build the wire ``externalFields`` payload for a federated entity.
+
+        Each source's internal columns run through the same field pipeline as
+        native fields (so ``fieldDefinition`` is identical to a native field),
+        paired with its external mapping and source connection/object details.
+        Dict inputs are validated through :class:`EntityCreateExternalSource`.
+        """
+        if not sources:
+            return []
+        built: List[Dict[str, Any]] = []
+        for source in sources:
+            if not isinstance(source, EntityCreateExternalSource):
+                source = EntityCreateExternalSource.model_validate(source)
+            entry: Dict[str, Any] = {
+                "fields": cls._build_external_fields_payload(source.fields),
+                "externalObjectDetail": source.external_object_detail.model_dump(
+                    by_alias=True, exclude_none=True, mode="json"
+                ),
+            }
+            if source.external_connection_detail is not None:
+                entry["externalConnectionDetail"] = (
+                    source.external_connection_detail.model_dump(
+                        by_alias=True, exclude_none=True, mode="json"
+                    )
+                )
+            if source.native_connection_detail is not None:
+                entry["nativeConnectionDetail"] = (
+                    source.native_connection_detail.model_dump(
+                        by_alias=True, exclude_none=True, mode="json"
+                    )
+                )
+            built.append(entry)
+        return built
+
+    @classmethod
+    def _build_external_fields_payload(
+        cls,
+        fields: Optional[List[EntityCreateExternalField]],
+    ) -> List[Dict[str, Any]]:
+        """Build the wire ``fields`` payload for a federated source.
+
+        Produces ``{fieldDefinition, externalFieldMappingDetail}`` per field —
+        ``fieldDefinition`` is the native field payload, ``externalFieldMappingDetail``
+        the source mapping (``directionType`` numeric, per :class:`DataDirectionType`).
+        """
+        if not fields:
+            return []
+        return [
+            {
+                "fieldDefinition": cls._build_schema_field_payload(f.field),
+                "externalFieldMappingDetail": f.external_field_mapping_detail.model_dump(
+                    by_alias=True, exclude_none=True, mode="json"
+                ),
+            }
+            for f in fields
+        ]
 
     @staticmethod
     def _delete_entity_spec(entity_id: str) -> RequestSpec:
         """Build the DELETE spec for removing an entity."""
         return RequestSpec(
             method="DELETE",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_id}"),
+            endpoint=Endpoint(f"{_V3_ENTITIES}/{entity_id}"),
         )
 
     @staticmethod
@@ -277,7 +379,7 @@ class EntitySchemaService(BaseService):
         body = metadata.model_dump(by_alias=True, exclude_none=True)
         return RequestSpec(
             method="PATCH",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_id}/metadata"),
+            endpoint=Endpoint(f"{_V3_ENTITIES}/{entity_id}/metadata"),
             json=body,
         )
 
