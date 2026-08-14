@@ -235,6 +235,55 @@ class TestJobsService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.JobsService.resume/{version}"
         )
 
+    def test_resume_job_needs_no_inbox(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """A job that suspended without an API trigger has no inbox to deliver to."""
+        endpoint = (
+            f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/"
+            "UiPath.Server.Configuration.OData.ResumeJob"
+        )
+        httpx_mock.add_response(url=endpoint, status_code=200)
+
+        service.resume_job(
+            job_key="ccd177d7-e477-40b6-9f27-477b0506ef65",
+            input_arguments={"message": "and what about last quarter?"},
+        )
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.method == "POST"
+        assert str(sent_request.url) == endpoint
+        assert json.loads(sent_request.content.decode()) == {
+            "jobKey": "ccd177d7-e477-40b6-9f27-477b0506ef65",
+            "inputArguments": json.dumps({"message": "and what about last quarter?"}),
+        }
+
+    def test_resume_job_without_arguments_sends_an_empty_object(
+        self,
+        httpx_mock: HTTPXMock,
+        service: JobsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        endpoint = (
+            f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/"
+            "UiPath.Server.Configuration.OData.ResumeJob"
+        )
+        httpx_mock.add_response(url=endpoint, status_code=200)
+
+        service.resume_job(job_key="ccd177d7-e477-40b6-9f27-477b0506ef65")
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert json.loads(sent_request.content.decode())["inputArguments"] == "{}"
+
     def test_resume_with_job_id(
         self,
         httpx_mock: HTTPXMock,

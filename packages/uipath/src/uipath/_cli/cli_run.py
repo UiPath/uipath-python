@@ -5,10 +5,12 @@ import click
 from pydantic import ValidationError
 
 from uipath._cli._chat._bridge import get_chat_bridge
+from uipath._cli._chat._custom import resolve_chat_bridge
 from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._tracing import create_trace_manager
+from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.platform.common import (
     ExecutionSourceContext,
@@ -293,6 +295,16 @@ def run(
                                         mocking_context=mocking_context,
                                     )
 
+                            # A project's own bridge is not tied to a platform job,
+                            # so it works the same locally and deployed.
+                            custom_bridge = resolve_chat_bridge(
+                                UiPathJsonConfig.load_from_file().chat_bridge, ctx
+                            )
+                            if custom_bridge is not None:
+                                chat_runtime = UiPathChatRuntime(
+                                    delegate=runtime, chat_bridge=custom_bridge
+                                )
+
                             if ctx.job_id:
                                 if UiPathConfig.is_tracing_enabled:
                                     trace_manager.add_span_processor(
@@ -302,7 +314,11 @@ def run(
                                         )
                                     )
 
-                                if ctx.conversation_id and ctx.exchange_id:
+                                if (
+                                    chat_runtime is None
+                                    and ctx.conversation_id
+                                    and ctx.exchange_id
+                                ):
                                     chat_bridge: UiPathChatProtocol = get_chat_bridge(
                                         context=ctx
                                     )
@@ -313,6 +329,8 @@ def run(
                                 ctx.result = await execute_runtime(
                                     ctx, chat_runtime or runtime
                                 )
+                            elif chat_runtime is not None:
+                                ctx.result = await execute_runtime(ctx, chat_runtime)
                             else:
                                 ctx.result = await debug_runtime(ctx, runtime)
                         finally:

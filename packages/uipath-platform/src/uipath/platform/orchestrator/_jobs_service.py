@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import tempfile
@@ -153,6 +154,99 @@ class JobsService(FolderContext, BaseService):
         spec = self._resume_spec(
             inbox_id=inbox_id,
             payload=payload,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+            json=spec.json,
+        )
+
+    @traced(name="jobs_resume_job", run_type="uipath")
+    def resume_job(
+        self,
+        *,
+        job_key: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Resumes a suspended job that is not waiting on an inbox.
+
+        :meth:`resume` delivers a payload to the inbox of a job suspended on an
+        API resume trigger. A job can also suspend without one, and then there is
+        no inbox to deliver to. A conversational agent ending an exchange is the
+        common case. Such a job is resumed at the job level instead, carrying the
+        next input as arguments.
+
+        Args:
+            job_key (str): The key of the job to resume.
+            input_arguments (Optional[Dict[str, Any]]): Arguments the resumed
+                execution receives as its input.
+            folder_key (Optional[str]): The key of the folder the job runs in.
+                Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder the job runs in.
+                Override the default one set in the SDK config.
+        """
+        spec = self._resume_job_spec(
+            job_key=job_key,
+            input_arguments=input_arguments,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+        self.request(
+            spec.method,
+            url=spec.endpoint,
+            headers=spec.headers,
+            json=spec.json,
+        )
+
+    @traced(name="jobs_resume_job", run_type="uipath")
+    async def resume_job_async(
+        self,
+        *,
+        job_key: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> None:
+        """Asynchronously resumes a suspended job that is not waiting on an inbox.
+
+        See :meth:`resume_job`.
+
+        Args:
+            job_key (str): The key of the job to resume.
+            input_arguments (Optional[Dict[str, Any]]): Arguments the resumed
+                execution receives as its input.
+            folder_key (Optional[str]): The key of the folder the job runs in.
+                Override the default one set in the SDK config.
+            folder_path (Optional[str]): The path of the folder the job runs in.
+                Override the default one set in the SDK config.
+
+        Examples:
+            ```python
+            import asyncio
+
+            from uipath.platform import UiPath
+
+            sdk = UiPath()
+
+
+            async def main():  # noqa: D103
+                await sdk.jobs.resume_job_async(
+                    job_key="ccd177d7-e477-40b6-9f27-477b0506ef65",
+                    input_arguments={"message": "and what about last quarter?"},
+                )
+
+
+            asyncio.run(main())
+            ```
+        """
+        spec = self._resume_job_spec(
+            job_key=job_key,
+            input_arguments=input_arguments,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -816,6 +910,28 @@ class JobsService(FolderContext, BaseService):
                 f"/orchestrator_/api/JobTriggers/DeliverPayload/{inbox_id}"
             ),
             json={"payload": payload},
+            headers={
+                **header_folder(folder_key, folder_path),
+            },
+        )
+
+    def _resume_job_spec(
+        self,
+        *,
+        job_key: str,
+        input_arguments: Optional[Dict[str, Any]] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(
+                "/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.ResumeJob"
+            ),
+            json={
+                "jobKey": job_key,
+                "inputArguments": json.dumps(input_arguments or {}),
+            },
             headers={
                 **header_folder(folder_key, folder_path),
             },
