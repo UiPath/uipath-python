@@ -501,10 +501,12 @@ class TestHitlReader:
         """Test reading an API trigger with a failed response."""
         inbox_id = str(uuid.uuid4())
 
-        httpx_mock.add_response(
-            url=f"{base_url}/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
-            status_code=500,
-        )
+        for _ in range(5):
+            httpx_mock.add_response(
+                url=f"{base_url}/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
+                status_code=500,
+                headers={"retry-after": "0"},
+            )
 
         resume_trigger = UiPathResumeTrigger(
             trigger_type=UiPathResumeTriggerType.API,
@@ -580,10 +582,12 @@ class TestHitlReader:
         """Test reading an Inbox trigger with a failed payload response."""
         inbox_id = str(uuid.uuid4())
 
-        httpx_mock.add_response(
-            url=f"{base_url}/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
-            status_code=500,
-        )
+        for _ in range(5):
+            httpx_mock.add_response(
+                url=f"{base_url}/orchestrator_/api/JobTriggers/GetPayload/{inbox_id}",
+                status_code=500,
+                headers={"retry-after": "0"},
+            )
 
         resume_trigger = UiPathResumeTrigger(
             trigger_type=UiPathResumeTriggerType.INBOX,

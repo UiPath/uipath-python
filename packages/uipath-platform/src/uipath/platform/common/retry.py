@@ -5,6 +5,7 @@ and platform-specific retry strategy for BaseService.
 """
 
 import random
+from http import HTTPMethod
 
 from httpx import ConnectTimeout, HTTPStatusError, Response, TimeoutException
 from tenacity import RetryCallState
@@ -12,6 +13,7 @@ from tenacity import RetryCallState
 from ..errors import EnrichedException
 
 RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 429, 502, 503, 504, 524})
+RETRYABLE_STATUS_CODES_ON_GET_ONLY: frozenset[int] = frozenset({500})
 NON_RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({400, 401, 403, 404, 413, 422})
 
 
@@ -70,7 +72,13 @@ def is_retryable_platform_exception(exception: BaseException) -> bool:
     if isinstance(exception, (ConnectTimeout, TimeoutException)):
         return True
     if isinstance(exception, EnrichedException):
-        return exception.status_code in RETRYABLE_STATUS_CODES
+        if exception.status_code in RETRYABLE_STATUS_CODES:
+            return True
+        if (
+            exception.status_code in RETRYABLE_STATUS_CODES_ON_GET_ONLY
+            and exception.http_method.upper() == HTTPMethod.GET
+        ):
+            return True
     return False
 
 

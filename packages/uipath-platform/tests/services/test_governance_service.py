@@ -193,11 +193,13 @@ class TestGovernanceService:
         ) -> None:
             from uipath.platform.errors import EnrichedException
 
-            httpx_mock.add_response(
-                url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/policy",
-                status_code=500,
-                text="boom",
-            )
+            for _ in range(5):
+                httpx_mock.add_response(
+                    url=f"{base_url}/{ORG_ID}/agenticgovernance_/api/v1/runtime/policy",
+                    status_code=500,
+                    text="boom",
+                    headers={"retry-after": "0"},
+                )
 
             with pytest.raises(EnrichedException):
                 service.retrieve_policy()
