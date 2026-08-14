@@ -30,6 +30,7 @@ from .entities import (
     ChoiceSetValue,
     EntityAggregate,
     EntityBinning,
+    EntityHavingFilter,
     EntityImportRecordsResponse,
     EntityJoin,
     EntityQueryFilterGroup,
@@ -451,6 +452,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         aggregates: Optional[List[EntityAggregate]] = None,
         group_by: Optional[List[str]] = None,
+        having_filter: Optional[EntityHavingFilter] = None,
         joins: Optional[List[EntityJoin]] = None,
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
@@ -466,6 +468,7 @@ class EntityDataService(BaseService):
             expansion_level=expansion_level,
             aggregates=aggregates,
             group_by=group_by,
+            having_filter=having_filter,
             joins=joins,
             binnings=binnings,
             start=start,
@@ -486,6 +489,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         aggregates: Optional[List[EntityAggregate]] = None,
         group_by: Optional[List[str]] = None,
+        having_filter: Optional[EntityHavingFilter] = None,
         joins: Optional[List[EntityJoin]] = None,
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
@@ -501,6 +505,7 @@ class EntityDataService(BaseService):
             expansion_level=expansion_level,
             aggregates=aggregates,
             group_by=group_by,
+            having_filter=having_filter,
             joins=joins,
             binnings=binnings,
             start=start,
@@ -890,6 +895,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         aggregates: Optional[List[Any]] = None,
         group_by: Optional[List[str]] = None,
+        having_filter: Optional[EntityHavingFilter] = None,
         joins: Optional[List[EntityJoin]] = None,
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
@@ -897,8 +903,9 @@ class EntityDataService(BaseService):
     ) -> RequestSpec:
         """Build the request spec for the structured-query endpoint.
 
-        Filters, sorting, projection, expansions, aggregates, group-by, joins,
-        binnings, ``start``, and ``limit`` are placed in the JSON body;
+        Filters, sorting, projection, expansions, aggregates, group-by,
+        having, joins, binnings, ``start``, and ``limit`` are placed in the
+        JSON body;
         ``expansionLevel`` is a URL query parameter. The V2 endpoint is used
         only when ``binnings`` are supplied.
         """
@@ -929,6 +936,15 @@ class EntityDataService(BaseService):
             ]
         if group_by:
             body["groupBy"] = list(group_by)
+        if having_filter is not None:
+            if not aggregates or not group_by:
+                raise ValueError(
+                    "having_filter requires aggregates and group_by; "
+                    "row-level conditions belong in filter_group."
+                )
+            body["havingFilter"] = having_filter.model_dump(
+                by_alias=True, exclude_none=True
+            )
         if joins:
             body["joins"] = [
                 j.model_dump(by_alias=True, exclude_none=True) for j in joins
