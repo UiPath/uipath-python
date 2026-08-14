@@ -1475,6 +1475,91 @@ class TestEntitiesServiceNewMethods:
         assert sent is not None
         assert "/v2/EntityService/" in str(sent.url)
 
+    def test_query_having_filter_sent_in_body(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        """``having_filter`` is serialized with camelCase wire keys."""
+        from uipath.platform.entities import (
+            EntityAggregate,
+            EntityAggregateFunction,
+            EntityHavingCondition,
+            EntityHavingFilter,
+            EntityHavingOperator,
+            LogicalOperator,
+        )
+
+        entity_key = uuid.uuid4()
+        httpx_mock.add_response(
+            url=re.compile(
+                rf"{base_url}{org}{tenant}/datafabric_/api/EntityService/entity/{entity_key}/query.*"
+            ),
+            status_code=200,
+            json={"value": [{"status": "active", "total": 12}], "totalRecordCount": 1},
+        )
+
+        service.retrieve_records(
+            entity_key=str(entity_key),
+            selected_fields=["status"],
+            group_by=["status"],
+            aggregates=[
+                EntityAggregate(
+                    function=EntityAggregateFunction.Count,
+                    field="Id",
+                    alias="total",
+                )
+            ],
+            having_filter=EntityHavingFilter(
+                logical_operator=LogicalOperator.And,
+                aggregate_filters=[
+                    EntityHavingCondition(
+                        aggregate_alias="total",
+                        operator=EntityHavingOperator.GreaterThan,
+                        value="5",
+                    )
+                ],
+            ),
+        )
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        body = json.loads(sent.content)
+        assert body["havingFilter"] == {
+            "logicalOperator": 0,
+            "aggregateFilters": [
+                {"aggregateAlias": "total", "operator": ">", "value": "5"}
+            ],
+        }
+
+    def test_query_having_filter_requires_aggregates_and_group_by(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        """``having_filter`` without aggregates + group_by fails locally, no HTTP."""
+        from uipath.platform.entities import (
+            EntityHavingCondition,
+            EntityHavingFilter,
+            EntityHavingOperator,
+        )
+
+        having = EntityHavingFilter(
+            aggregate_filters=[
+                EntityHavingCondition(
+                    aggregate_alias="total",
+                    operator=EntityHavingOperator.GreaterThan,
+                    value="5",
+                )
+            ],
+        )
+
+        with pytest.raises(ValueError, match="aggregates and group_by"):
+            service.retrieve_records(entity_key="ent-1", having_filter=having)
+
     def test_upload_attachment_sends_multipart(
         self,
         httpx_mock: HTTPXMock,

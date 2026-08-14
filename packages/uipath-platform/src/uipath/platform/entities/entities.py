@@ -547,6 +547,47 @@ class EntityAggregate(BaseModel):
     alias: Optional[str] = None
 
 
+class EntityHavingOperator(str, Enum):
+    """Comparison operators supported in HAVING conditions."""
+
+    Equals = "="
+    NotEquals = "!="
+    GreaterThan = ">"
+    GreaterThanOrEqual = ">="
+    LessThan = "<"
+    LessThanOrEqual = "<="
+
+
+class EntityHavingCondition(BaseModel):
+    """A single HAVING condition on a declared aggregate alias."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    aggregate_alias: str = Field(alias="aggregateAlias")
+    operator: EntityHavingOperator
+    value: str
+
+
+class EntityHavingFilter(BaseModel):
+    """Post-aggregation filter (SQL ``HAVING``) over declared aggregate aliases.
+
+    Conditions may reference aggregate aliases only; row-level conditions
+    belong in ``filter_group``, which the database applies before grouping.
+    Supported for native entities only and gated by the
+    ``enable-having-on-query`` feature flag on the backend. Maximum 5
+    conditions per query.
+    """
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    logical_operator: Optional[LogicalOperator] = Field(
+        default=None, alias="logicalOperator"
+    )
+    aggregate_filters: List[EntityHavingCondition] = Field(
+        alias="aggregateFilters", min_length=1
+    )
+
+
 class EntityJoin(BaseModel):
     """Multi-entity JOIN definition for cross-entity queries."""
 

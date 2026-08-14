@@ -45,6 +45,7 @@ from .entities import (
     EntityBinning,
     EntityCreateFieldOptions,
     EntityCreateOptions,
+    EntityHavingFilter,
     EntityImportRecordsResponse,
     EntityJoin,
     EntityMetadataUpdateOptions,
@@ -1627,6 +1628,7 @@ class EntitiesService(BaseService):
         expansion_level: Optional[int] = None,
         aggregates: Optional[List[EntityAggregate]] = None,
         group_by: Optional[List[str]] = None,
+        having_filter: Optional[EntityHavingFilter] = None,
         joins: Optional[List[EntityJoin]] = None,
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
@@ -1656,6 +1658,11 @@ class EntitiesService(BaseService):
             group_by (Optional[List[str]]): Fields to group aggregate results
                 by. Maximum 5; required when both ``aggregates`` and
                 ``selected_fields`` are supplied.
+            having_filter (Optional[EntityHavingFilter]): Post-aggregation
+                filter (SQL ``HAVING``) on declared aggregate aliases;
+                requires ``aggregates`` and ``group_by``. Maximum 5
+                conditions. Native entities only; gated by the
+                ``enable-having-on-query`` feature flag on the backend.
             joins (Optional[List[EntityJoin]]): Cross-entity joins. Maximum
                 3, all of the same type.
             binnings (Optional[List[EntityBinning]]): Bucket numeric or date
@@ -1726,6 +1733,38 @@ class EntitiesService(BaseService):
                 )
                 for row in result.items:
                     print(row.status, row.total)
+
+            HAVING (keep only statuses with more than 5 records)::
+
+                from uipath.platform.entities import (
+                    EntityAggregate,
+                    EntityAggregateFunction,
+                    EntityHavingCondition,
+                    EntityHavingFilter,
+                    EntityHavingOperator,
+                )
+
+                result = entities_service.retrieve_records(
+                    "Customers",
+                    selected_fields=["status"],
+                    group_by=["status"],
+                    aggregates=[
+                        EntityAggregate(
+                            function=EntityAggregateFunction.Count,
+                            field="Id",
+                            alias="total",
+                        )
+                    ],
+                    having_filter=EntityHavingFilter(
+                        aggregate_filters=[
+                            EntityHavingCondition(
+                                aggregate_alias="total",
+                                operator=EntityHavingOperator.GreaterThan,
+                                value="5",
+                            )
+                        ],
+                    ),
+                )
         """
         return self._data.retrieve_records(
             entity_key,
@@ -1736,6 +1775,7 @@ class EntitiesService(BaseService):
             expansion_level=expansion_level,
             aggregates=aggregates,
             group_by=group_by,
+            having_filter=having_filter,
             joins=joins,
             binnings=binnings,
             start=start,
@@ -1753,6 +1793,7 @@ class EntitiesService(BaseService):
         expansion_level: Optional[int] = None,
         aggregates: Optional[List[EntityAggregate]] = None,
         group_by: Optional[List[str]] = None,
+        having_filter: Optional[EntityHavingFilter] = None,
         joins: Optional[List[EntityJoin]] = None,
         binnings: Optional[List[EntityBinning]] = None,
         start: Optional[int] = None,
@@ -1780,6 +1821,11 @@ class EntitiesService(BaseService):
             group_by (Optional[List[str]]): Fields to group aggregate results
                 by. Maximum 5; required when both ``aggregates`` and
                 ``selected_fields`` are supplied.
+            having_filter (Optional[EntityHavingFilter]): Post-aggregation
+                filter (SQL ``HAVING``) on declared aggregate aliases;
+                requires ``aggregates`` and ``group_by``. Maximum 5
+                conditions. Native entities only; gated by the
+                ``enable-having-on-query`` feature flag on the backend.
             joins (Optional[List[EntityJoin]]): Cross-entity joins. Maximum
                 3, all of the same type.
             binnings (Optional[List[EntityBinning]]): Bucket numeric or date
@@ -1825,6 +1871,7 @@ class EntitiesService(BaseService):
             expansion_level=expansion_level,
             aggregates=aggregates,
             group_by=group_by,
+            having_filter=having_filter,
             joins=joins,
             binnings=binnings,
             start=start,
