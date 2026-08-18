@@ -465,6 +465,19 @@ def files_to_include(
         normalized_root_rel_path = root_rel_path.replace(os.sep, "/")
         is_root_evals_folder = normalized_root_rel_path == LEGACY_EVAL_FOLDER
 
+        # Whether this directory is only being walked because an explicit
+        # `files_included` entry lives under a dot/venv ancestor. In that case
+        # files here must NOT be picked up merely because their extension is on
+        # the allowlist -- that would leak unrelated hidden/venv contents (e.g.
+        # `.config/secrets.json`). Only explicitly-listed files are packed here.
+        root_under_pruned_dir = False
+        ancestor = root
+        while os.path.normpath(ancestor) != os.path.normpath(directory):
+            if os.path.basename(ancestor).startswith(".") or is_venv_dir(ancestor):
+                root_under_pruned_dir = True
+                break
+            ancestor = os.path.dirname(ancestor)
+
         # Skip directories that start with . or are a venv or are excluded,
         # unless an explicit `files_included` entry lives under them.
         included_dirs = []
@@ -527,10 +540,13 @@ def files_to_include(
                 skipped_files.append(normalized_rel_path)
                 continue
 
-            # Check inclusion: by extension (visible files only), or when the
-            # file is explicitly listed by filename / relative path.
+            # Check inclusion: by extension (only for visible files that are not
+            # under a pruned dot/venv directory), or when the file is explicitly
+            # listed by filename / relative path.
             should_include = (
-                not file.startswith(".") and file_extension in file_extensions_included
+                not file.startswith(".")
+                and not root_under_pruned_dir
+                and file_extension in file_extensions_included
             ) or explicitly_included
 
             # Check exclusion: by filename (for base directory only) or by relative path

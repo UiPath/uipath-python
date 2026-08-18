@@ -56,6 +56,9 @@ class TestFilesToIncludeExplicitHiddenPaths:
         os.makedirs(os.path.join(project_dir, ".git"))
         open(os.path.join(project_dir, ".git", "config.md"), "w").close()
         open(os.path.join(project_dir, ".secret.md"), "w").close()
+        # A *visible* file that shares the descended-into dot directory but is
+        # NOT explicitly listed must not be pulled in by its extension.
+        open(os.path.join(project_dir, ".config", "assets", "other.md"), "w").close()
 
         pack_options = PackOptions(
             filesIncluded=[".config/assets/asset.md", ".python-version"]
@@ -69,3 +72,6 @@ class TestFilesToIncludeExplicitHiddenPaths:
         # Hidden paths that were not explicitly included stay excluded.
         assert ".secret.md" not in rel_paths
         assert ".git/config.md" not in rel_paths
+        # A visible, non-listed file under the descended-into dot directory must
+        # not be included by extension (would leak hidden-dir contents).
+        assert ".config/assets/other.md" not in rel_paths
