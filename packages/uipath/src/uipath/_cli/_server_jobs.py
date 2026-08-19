@@ -189,6 +189,10 @@ def build_result_payload(job_key: str, outcome: dict[str, Any]) -> dict[str, Any
 
 LOG_POLL_SECONDS = 0.25
 LOG_BATCH_MAX_LINES = 200
+# Cap on how much log a single drain pulls into memory. Without it a job that logs
+# heavily between polls -- or the final drain after a long run -- reads the whole
+# remainder at once, and the decoded str costs more again.
+LOG_READ_CHUNK_BYTES = 256 * 1024
 LOG_FLUSH_TIMEOUT_SECONDS = 10
 
 # How long a cancelled job gets to unwind before we admit the stop did not take.
@@ -249,31 +253,48 @@ class JobLogTailer:
         self._stop.set()
 
     async def _drain(self, final: bool = False) -> None:
-        try:
-            if not os.path.exists(self.path):
+        """Forward whatever is new, a bounded window at a time until caught up."""
+        while True:
+            try:
+                if not os.path.exists(self.path):
+                    return
+                # Binary with explicit offsets: a text-mode tell() cookie is opaque, and
+                # we need to rewind past an unterminated tail.
+                with open(self.path, "rb") as f:
+                    f.seek(self._offset)
+                    chunk = f.read(LOG_READ_CHUNK_BYTES)
+            except OSError:
                 return
-            # Binary with explicit offsets: a text-mode tell() cookie is opaque, and we
-            # need to rewind past an unterminated tail.
-            with open(self.path, "rb") as f:
-                f.seek(self._offset)
-                chunk = f.read()
-        except OSError:
-            return
 
-        if not chunk:
-            return
-
-        # A logging handler writes the record and only then flushes, so the tail can be
-        # half a line. Leave it for the next poll rather than reporting a fragment as a
-        # complete entry — except on the final drain, where nothing more is coming.
-        if not final and not chunk.endswith(b"\n"):
-            cut = chunk.rfind(b"\n")
-            if cut == -1:
+            if not chunk:
                 return
-            chunk = chunk[: cut + 1]
 
-        self._offset += len(chunk)
+            # A short read means we reached the end of the file; a full one means there
+            # is more waiting and we should come back round.
+            more_pending = len(chunk) == LOG_READ_CHUNK_BYTES
 
+            if not chunk.endswith(b"\n"):
+                # A logging handler writes the record and only then flushes, so the tail
+                # can be half a line.
+                cut = chunk.rfind(b"\n")
+                if cut != -1:
+                    # Trim to the last complete line. Safe to decode: \n never appears
+                    # inside a multi-byte UTF-8 sequence.
+                    chunk = chunk[: cut + 1]
+                elif not (more_pending or final):
+                    # Partial line still being written — wait for its newline.
+                    return
+                # Otherwise: a single line longer than the read window, or the last drain
+                # with nothing more coming. Emit the fragment rather than buffering
+                # without bound.
+
+            self._offset += len(chunk)
+            await self._emit(chunk)
+
+            if not more_pending:
+                return
+
+    async def _emit(self, chunk: bytes) -> None:
         batch: list[dict[str, Any]] = []
         for raw in chunk.decode("utf-8", errors="replace").splitlines():
             line = raw.rstrip("\r")
