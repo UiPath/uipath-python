@@ -4,8 +4,10 @@ import asyncio
 import json
 import os
 import shlex
+from collections.abc import Callable
 from typing import Any
 
+from ._job_control import CURRENT_JOB_CONTROL, JobControl
 from .cli_debug import debug
 from .cli_eval import eval
 from .cli_run import run
@@ -54,6 +56,10 @@ MAX_INLINE_DOCUMENT_BYTES = 1024 * 1024
 DEFAULT_RUNTIME_DIR = "__uipath"
 DEFAULT_RESULT_FILE = "output.json"
 DEFAULT_LOGS_FILE = "execution.log"
+
+# Distinct from any click exit code, so the caller can tell "stopped on request" from
+# "the job failed" and report Stopped rather than Faulted.
+EXIT_CODE_STOPPED = 143
 
 
 def _resolve_runtime_file(
@@ -134,8 +140,13 @@ def _read_result_document() -> tuple[str | None, str]:
         return None, "file"
 
 
-async def _invoke_command(cmd: Any, args: list[str]) -> dict[str, Any]:
+async def _invoke_command(
+    cmd: Any, args: list[str], control: "JobControl | None" = None
+) -> dict[str, Any]:
     """Invoke one click command and classify how it ended."""
+    # asyncio.to_thread propagates contextvars, so the command reads this inside the
+    # worker and publishes its event loop back through it.
+    token = CURRENT_JOB_CONTROL.set(control) if control is not None else None
     try:
         result_value = await asyncio.to_thread(cmd.main, args, standalone_mode=False)
         # Under standalone_mode=False click RETURNS ctx.exit(N)'s code instead of
@@ -163,8 +174,37 @@ async def _invoke_command(cmd: Any, args: list[str]) -> dict[str, Any]:
             "Result": None,
             "Unexpected": False,
         }
+    except asyncio.CancelledError:
+        # Three very different things arrive here.
+        current = asyncio.current_task()
+        if current is not None and current.cancelling() > 0:
+            # OUR awaiting task was cancelled (server shutdown). Never swallow that, or
+            # the shutdown stalls.
+            raise
+        if control is not None and control.cancel_requested:
+            # A stop we asked for travelled out of the job's own loop. That is an
+            # OUTCOME: swallowing it keeps this task alive so the lock unwinds and the
+            # result document still gets read.
+            return {
+                "ExitCode": EXIT_CODE_STOPPED,
+                "Error": "Job stopped on request",
+                "Result": None,
+                "Unexpected": False,
+                "Stopped": True,
+            }
+        # Nobody asked for this: the job's own code let a CancelledError escape. It is a
+        # failure, and reporting it as Stopped would file a fault as a clean stop.
+        return {
+            "ExitCode": 1,
+            "Error": "Job cancelled",
+            "Result": None,
+            "Unexpected": True,
+        }
     except Exception as e:  # report any job failure as a result, not a fault
         return {"ExitCode": 1, "Error": str(e), "Result": None, "Unexpected": True}
+    finally:
+        if token is not None:
+            CURRENT_JOB_CONTROL.reset(token)
 
 
 async def _run_command_isolated(
@@ -172,12 +212,20 @@ async def _run_command_isolated(
     args: list[str],
     env_vars: dict[str, str],
     working_dir: str | None,
+    on_started: Callable[[], None] | None = None,
+    control: "JobControl | None" = None,
 ) -> dict[str, Any]:
-    """Run one command with per-job env/cwd isolation (the shared job core)."""
+    """Run one command with per-job env/cwd isolation (the shared job core).
+
+    ``on_started`` fires once the lock is held, i.e. the moment the job stops being
+    queued and becomes uncancellable.
+    """
     if _state.lock is None or _state.baseline_env is None:
         raise RuntimeError("Server state not initialized")
 
     async with _state.lock:
+        if on_started is not None:
+            on_started()
         original_cwd = os.getcwd()
         try:
             # Start from server baseline + request env vars only, so nothing from
@@ -201,7 +249,7 @@ async def _run_command_isolated(
                         "ClientError": True,
                     }
 
-            outcome = await _invoke_command(cmd, args)
+            outcome = await _invoke_command(cmd, args, control)
             # Must happen before the finally below restores env/cwd: the document's
             # location comes from this job's UIPATH_CONFIG_PATH and may be relative.
             document, conveyance = _read_result_document()
