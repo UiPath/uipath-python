@@ -3,6 +3,10 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional
 
+from uipath.core.feature_flags import (
+    JIT_ESCALATION_APPS_FEATURE_FLAG,
+    FeatureFlags,
+)
 from uipath.core.tracing import traced
 
 from uipath.platform.constants import (
@@ -27,11 +31,24 @@ def _ensure_string_value(value: Any) -> str:
     return str(value) if value else ""
 
 
+def _is_debug_app_task(app_name: Optional[str]) -> bool:
+    """Return whether this app task is created in debug mode.
+
+    Gated on the ``EnableJITEscalationApps`` feature flag.
+    """
+    if FeatureFlags.is_flag_enabled(JIT_ESCALATION_APPS_FEATURE_FLAG, default=False):
+        if not app_name:
+            return False
+        return UiPathConfig.is_studio_project
+    return False
+
+
 def _create_spec(
     data: Optional[Dict[str, Any]],
     action_schema: Optional[TaskSchema],
     title: str,
     app_key: Optional[str] = None,
+    app_name: Optional[str] = None,
     app_folder_key: Optional[str] = None,
     app_folder_path: Optional[str] = None,
     priority: Optional[str] = None,
@@ -39,6 +56,7 @@ def _create_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
+    is_debug: bool = False,
 ) -> RequestSpec:
     field_list = []
     outcome_list = []
@@ -94,7 +112,6 @@ def _create_spec(
                 )
 
     json_payload: Dict[str, Any] = {
-        "appId": app_key,
         "title": title,
         "data": data if data is not None else {},
         "actionableMessageMetaData": actionable_message_metadata
@@ -119,10 +136,18 @@ def _create_spec(
         ),
     }
 
+    if is_debug:
+        json_payload["appName"] = app_name
+    else:
+        json_payload["appId"] = app_key
+
+    if app_folder_path:
+        json_payload["folderPath"] = app_folder_path
+
     _apply_priority_labels_and_actionable_toggle(
         json_payload, priority, labels, is_actionable_message_enabled
     )
-    _apply_task_source(json_payload, source_name)
+    _apply_task_source(json_payload, source_name, is_debug=is_debug)
 
     return RequestSpec(
         method="POST",
@@ -159,7 +184,9 @@ def _apply_priority_labels_and_actionable_toggle(
         payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
 
-def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
+def _apply_task_source(
+    payload: Dict[str, Any], source_name: str, is_debug: bool = False
+) -> None:
     """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
 
     Shared between AppTask and QuickForm spec builders — the taskSource block is
@@ -178,7 +205,10 @@ def _apply_task_source(payload: Dict[str, Any], source_name: str) -> None:
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
         },
+        "jobId": UiPathConfig.job_key,
     }
+    if is_debug:
+        payload["taskSource"]["isDebug"] = True
 
 
 def _normalize_priority(priority: str | None) -> str | None:
@@ -485,17 +515,24 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else await self._get_app_key_and_schema_async(
-                app_name, app_folder_path, app_folder_key
+        key: Optional[str]
+        action_schema: Optional[TaskSchema]
+        is_debug = _is_debug_app_task(app_name)
+        if is_debug:
+            key, action_schema = None, None
+        else:
+            (key, action_schema) = (
+                (app_key, None)
+                if app_key
+                else await self._get_app_key_and_schema_async(
+                    app_name, app_folder_path, app_folder_key
+                )
             )
-        )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
+            app_name=app_name,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -504,6 +541,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            is_debug=is_debug,
         )
 
         response = await self.request_async(
@@ -571,15 +609,24 @@ class TasksService(FolderContext, BaseService):
         Raises:
             Exception: If neither app_name nor app_key is provided for app-specific actions
         """
-        (key, action_schema) = (
-            (app_key, None)
-            if app_key
-            else self._get_app_key_and_schema(app_name, app_folder_path, app_folder_key)
-        )
+        key: Optional[str]
+        action_schema: Optional[TaskSchema]
+        is_debug = _is_debug_app_task(app_name)
+        if is_debug:
+            key, action_schema = None, None
+        else:
+            (key, action_schema) = (
+                (app_key, None)
+                if app_key
+                else self._get_app_key_and_schema(
+                    app_name, app_folder_path, app_folder_key
+                )
+            )
         spec = _create_spec(
             title=title,
             data=data,
             app_key=key,
+            app_name=app_name,
             action_schema=action_schema,
             app_folder_key=app_folder_key,
             app_folder_path=app_folder_path,
@@ -588,6 +635,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            is_debug=is_debug,
         )
 
         response = self.request(
