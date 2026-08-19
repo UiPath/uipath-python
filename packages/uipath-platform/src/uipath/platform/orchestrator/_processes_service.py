@@ -52,6 +52,7 @@ class ProcessesService(FolderContext, BaseService):
         attachments: Optional[list[Attachment]] = None,
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
+        entry_point_path: Optional[str] = None,
         **kwargs: Any,
     ) -> Job:
         """Start execution of a process by its name.
@@ -104,6 +105,7 @@ class ProcessesService(FolderContext, BaseService):
             parent_span_id=kwargs.get("parent_span_id"),
             parent_operation_id=parent_operation_id,
             run_as_me=run_as_me,
+            entry_point_path=entry_point_path,
         )
         response = self.request(
             spec.method,
@@ -128,6 +130,7 @@ class ProcessesService(FolderContext, BaseService):
         attachments: Optional[list[Attachment]] = None,
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
+        entry_point_path: Optional[str] = None,
         **kwargs: Any,
     ) -> Job:
         """Asynchronously start execution of a process by its name.
@@ -175,6 +178,7 @@ class ProcessesService(FolderContext, BaseService):
             parent_span_id=kwargs.get("parent_span_id"),
             parent_operation_id=parent_operation_id,
             run_as_me=run_as_me,
+            entry_point_path=entry_point_path,
         )
 
         response = await self.request_async(
@@ -321,6 +325,7 @@ class ProcessesService(FolderContext, BaseService):
         parent_span_id: Optional[str] = None,
         parent_operation_id: Optional[str] = None,
         run_as_me: Optional[bool] = None,
+        entry_point_path: Optional[str] = None,
     ) -> RequestSpec:
         payload: Dict[str, Any] = {
             "ReleaseName": name,
@@ -334,6 +339,11 @@ class ProcessesService(FolderContext, BaseService):
 
         if run_as_me is not None:
             payload["RunAsMe"] = run_as_me
+
+        # Omitted rather than sent empty: Orchestrator resolves the release's configured entry
+        # point when the key is absent, and rejects a path that does not exist in the package.
+        if entry_point_path:
+            payload["EntryPointPath"] = entry_point_path
 
         request_spec = RequestSpec(
             method="POST",

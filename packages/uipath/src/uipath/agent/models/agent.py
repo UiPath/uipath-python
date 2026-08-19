@@ -948,6 +948,9 @@ class AgentProcessToolProperties(BaseResourceProperties):
 
     folder_path: Optional[str] = Field(None, alias="folderPath")
     process_name: Optional[str] = Field(None, alias="processName")
+    # Absent is a real mode, not a blank: Orchestrator resolves the process's configured entry
+    # point when StartJobs omits EntryPointPath.
+    entry_point_path: Optional[str] = Field(None, alias="entryPointPath")
 
 
 class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
