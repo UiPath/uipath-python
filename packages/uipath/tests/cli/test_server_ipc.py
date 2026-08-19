@@ -31,7 +31,7 @@ from uipath_ipc import (
 from uipath._cli import _server_core
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
-    RunJobResult,
+    PythonServerRunJobResult,
     start_ipc_server,
 )
 
@@ -81,20 +81,13 @@ def _wait_until_ready(pipe_name: str, timeout: float = 10.0) -> None:
     """Poll the pipe until the IPC server answers, instead of a fixed sleep.
 
     A fixed ``sleep`` races the server's startup under load; this connects a real
-    client and calls the no-op ``StopJob`` until it succeeds (or times out).
+    client and calls ``Register`` until it succeeds (or times out).
     """
     deadline = time.monotonic() + timeout
     last_err: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            asyncio.run(
-                _with_proxy(
-                    pipe_name,
-                    lambda p: p.StopJob(
-                        {"JobKey": "00000000-0000-0000-0000-000000000000"}
-                    ),
-                )
-            )
+            asyncio.run(_with_proxy(pipe_name, lambda p: p.Register()))
             return
         except Exception as e:  # server not accepting connections yet
             last_err = e
@@ -291,9 +284,12 @@ class TestIpcContractFieldTransit:
         received: list[Any] = []
 
         class SpyService(IPythonRuntimeServer):
-            async def RunJob(self, request: Any) -> RunJobResult:
+            async def Register(self) -> bool:
+                return True
+
+            async def RunJob(self, request: Any) -> PythonServerRunJobResult:
                 received.append(request)
-                return RunJobResult(ExitCode=0)
+                return PythonServerRunJobResult(ExitCode=0)
 
             async def StopJob(self, request: Any) -> bool:
                 received.append(request)
