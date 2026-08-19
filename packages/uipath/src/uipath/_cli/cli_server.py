@@ -23,9 +23,9 @@ from ._utils._console import ConsoleLogger
 from .cli_server_ipc import (
     IPythonRuntimeServer,
     PythonRuntimeService,
-    RunJobRequest,
-    RunJobResult,
-    StopJobRequest,
+    PythonServerRunJobResult,
+    PythonServerRunRequest,
+    PythonServerStopJobRequest,
     start_ipc_server,
 )
 
@@ -33,9 +33,9 @@ __all__ = [
     "server",
     "IPythonRuntimeServer",
     "PythonRuntimeService",
-    "RunJobRequest",
-    "RunJobResult",
-    "StopJobRequest",
+    "PythonServerRunJobResult",
+    "PythonServerRunRequest",
+    "PythonServerStopJobRequest",
     "start_ipc_server",
 ]
 
