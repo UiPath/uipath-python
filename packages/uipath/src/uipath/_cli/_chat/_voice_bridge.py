@@ -32,7 +32,9 @@ logger = logging.getLogger(__name__)
 
 
 _ATTEMPT_CAS_SOCKET_CONNECTION_TIMEOUT_SECONDS = 15.0
-_INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS = 30.0
+# Must outlast one tool call, or a session ending mid-tool abandons the in-flight task.
+# Sits just above the 180s voice tool-call deadline so the tool reports first.
+_INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS = 190.0
 
 
 class VoiceToolCallSessionError(RuntimeError):
