@@ -32,9 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 _ATTEMPT_CAS_SOCKET_CONNECTION_TIMEOUT_SECONDS = 15.0
-# Must outlast a single tool call, otherwise a call that ends mid-tool always abandons the
-# in-flight task. Sized just above the voice tool-call deadline (180s, JAR-10169) so the tool
-# hits its own timeout and reports rather than being dropped here.
+# Must outlast one tool call, or a session ending mid-tool abandons the in-flight task.
+# Sits just above the 180s voice tool-call deadline (JAR-10169) so the tool reports first.
 _INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS = 190.0
 
 
