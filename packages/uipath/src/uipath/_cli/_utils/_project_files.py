@@ -524,11 +524,12 @@ def files_to_include(
             # Normalize the path
             normalized_rel_path = rel_path.replace(os.sep, "/")
 
-            # A file is explicitly requested when it matches a `files_included`
-            # entry by filename (base directory only) or by relative path.
-            explicitly_included = (
-                file in files_included and normalized_rel_path == file
-            ) or normalized_rel_path in files_included
+            # A file is explicitly requested when its project-relative path
+            # matches a `files_included` entry. Root-level entries are bare
+            # filenames, which already equal `normalized_rel_path` there, so a
+            # single membership check covers both the base-directory filename
+            # case and the nested relative-path case.
+            explicitly_included = normalized_rel_path in files_included
 
             # Hidden files are excluded by default, but an explicit
             # `packOptions.filesIncluded` entry must still be honored.
