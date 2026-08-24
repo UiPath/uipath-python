@@ -12,7 +12,7 @@ def _run_id(job_key: str, resume_version: int | None) -> str:
 
 
 @dataclass
-class RunJobRequest:
+class PythonServerRunRequest:
     """PascalCase fields match the wire keys."""
 
     JobKey: str = ""
@@ -26,14 +26,14 @@ class RunJobRequest:
 
 
 @dataclass
-class StopJobRequest:
+class PythonServerStopJobRequest:
     JobKey: str = ""
     ResumeVersion: int | None = None
     ForceStop: bool = False
 
 
 @dataclass
-class RunJobResult:
+class PythonServerRunJobResult:
     ExitCode: int = 0
     Error: str | None = None
 
@@ -42,25 +42,37 @@ class IPythonRuntimeServer(ABC):
     """Contract the job executor calls over uipath-ipc."""
 
     @abstractmethod
-    async def RunJob(self, request: RunJobRequest) -> RunJobResult:
-        """Run a job → RunJobResult(ExitCode, Error)."""
+    async def Register(self) -> bool:
+        """Prove the connection is up. No-op until there is something to register."""
 
     @abstractmethod
-    async def StopJob(self, request: StopJobRequest) -> bool:
+    async def RunJob(self, request: PythonServerRunRequest) -> PythonServerRunJobResult:
+        """Run a job → PythonServerRunJobResult(ExitCode, Error)."""
+
+    @abstractmethod
+    async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
         """Cancel a running job by key (bool return avoids fire-and-forget)."""
 
 
 class PythonRuntimeService(IPythonRuntimeServer):
     """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
 
-    async def RunJob(self, request: RunJobRequest) -> RunJobResult:
+    async def Register(self) -> bool:
+        console.info("Runtime client registered.")
+        return True
+
+    async def RunJob(self, request: PythonServerRunRequest) -> PythonServerRunJobResult:
         command_name = request.Command
         if not isinstance(command_name, str) or not command_name:
-            return RunJobResult(ExitCode=1, Error="Missing or invalid field: 'Command'")
+            return PythonServerRunJobResult(
+                ExitCode=1, Error="Missing or invalid field: 'Command'"
+            )
 
         cmd = COMMANDS.get(command_name)
         if cmd is None:
-            return RunJobResult(ExitCode=1, Error=f"Unknown command: {command_name}")
+            return PythonServerRunJobResult(
+                ExitCode=1, Error=f"Unknown command: {command_name}"
+            )
 
         args = parse_args(request.Args)
 
@@ -71,10 +83,12 @@ class PythonRuntimeService(IPythonRuntimeServer):
         result = await _run_command_isolated(
             cmd, args, request.EnvironmentVariables, request.WorkingDirectory
         )
-        # IPC contract (RunJobResult) carries only ExitCode + Error.
-        return RunJobResult(ExitCode=result["ExitCode"], Error=result["Error"])
+        # IPC contract (PythonServerRunJobResult) carries only ExitCode + Error.
+        return PythonServerRunJobResult(
+            ExitCode=result["ExitCode"], Error=result["Error"]
+        )
 
-    async def StopJob(self, request: StopJobRequest) -> bool:
+    async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
         console.info(
             f"StopJob requested for {_run_id(request.JobKey, request.ResumeVersion)} "
             f"(force={request.ForceStop}) (no-op)"
