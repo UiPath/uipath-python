@@ -210,6 +210,10 @@ def generate_code(spec: str) -> str:
 
 ### LLM-as-judge
 
+<!-- REMOVE WHEN: LLM-as-judge feature flag is enabled on all rings -->
+!!! info "Platform Availability"
+    `LLMAsJudgeValidator` ships in the `uipath` package on PyPI, but the LLM-as-judge guardrail it calls is still rolling out on the platform side and isn't enabled on every tenant yet — regardless of which judge models your governance policy permits. Watch the UiPath product release notes for when it lands.
+
 Evaluates content against a rule written in plain language, using a judge LLM to decide whether the payload complies. Use it for policy checks that are hard to express as fixed entities or rules — tone, topicality, disclaimers, domain-specific policies.
 
 ```python
@@ -243,6 +247,10 @@ def answer_question(question: str) -> str:
 - `positive_examples` / `negative_examples` — optional example payloads (not descriptions) that comply with / violate the rule, used to calibrate the judge. At most 2 entries per list, each at most 1000 characters.
 
 ### Bring Your Own Guardrail (BYOG)
+
+<!-- REMOVE WHEN: BYOG feature flag is enabled on all rings -->
+!!! info "Platform Availability"
+    `ByoValidator` ships in the `uipath` package on PyPI and works on any tenant where Bring Your Own Guardrail is enabled. The admin step it depends on — configuring a guardrail connection from a guardrail connection template under **Admin → AI Trust Layer → Guardrails Configurations** — is still rolling out and isn't enabled on every tenant yet. If that page isn't in your Admin panel, BYOG isn't enabled on yours — watch the UiPath product release notes for when it lands.
 
 Runs a customer-managed validator instead of a UiPath-managed one — your own Azure Content Safety subscription, a vendor connector, or a custom Integration Service connector. Supported at all stages: BYO validator capabilities are connector-defined and cannot be known statically, so no stage restriction is applied.
 
