@@ -262,19 +262,27 @@ class TestGuardrailsService:
             # Parse the request payload
             request_payload = json.loads(captured_request.content)
 
-            # Verify the payload structure matches the reverted format:
+            # Verify the payload structure:
             # {
             #     "validator": guardrail.validator_type,
             #     "input": input_data,
             #     "parameters": parameters,
+            #     "guardrailName": guardrail.name,
             # }
             assert "validator" in request_payload
             assert "input" in request_payload
             assert "parameters" in request_payload
+            assert "guardrailName" in request_payload
 
             # Verify validator is a string (not an object)
             assert isinstance(request_payload["validator"], str)
             assert request_payload["validator"] == "pii_detection"
+
+            # The guardrail name is forwarded so the backend labels the span with it.
+            assert request_payload["guardrailName"] == "PII detection guardrail"
+
+            # A non-BYO guardrail must not send byoValidatorName.
+            assert "byoValidatorName" not in request_payload
 
             # Verify input is a string
             assert isinstance(request_payload["input"], str)
@@ -298,3 +306,56 @@ class TestGuardrailsService:
             # Verify result fields
             assert result.result == GuardrailValidationResultType.PASSED
             assert result.reason == "Validation passed"
+
+        def test_evaluate_byo_guardrail_forwards_names(
+            self,
+            httpx_mock: HTTPXMock,
+            service: GuardrailsService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            """A BYO guardrail forwards both the guardrail name and the BYO config name."""
+            captured_request = None
+
+            def capture_request(request):
+                nonlocal captured_request
+                captured_request = request
+                return httpx.Response(
+                    status_code=200,
+                    json={
+                        "result": "PASSED",
+                        "details": "Validation passed",
+                    },
+                )
+
+            httpx_mock.add_callback(
+                method="POST",
+                url=f"{base_url}{org}{tenant}/agentsruntime_/api/execution/guardrails/validate",
+                callback=capture_request,
+            )
+
+            byo_guardrail = BuiltInValidatorGuardrail(
+                id="test-id",
+                name="My harmful content guardrail",
+                description="Test BYO",
+                enabled_for_evals=True,
+                selector=GuardrailSelector(
+                    scopes=[GuardrailScope.TOOL], match_names=["StringToNumber"]
+                ),
+                guardrail_type="builtInValidator",
+                validator_type="byo",
+                validator_parameters=[],
+                byo_validator_name="My Harmful Content",
+            )
+
+            result = service.evaluate_guardrail("some input", byo_guardrail)
+
+            assert captured_request is not None
+            request_payload = json.loads(captured_request.content)
+
+            assert request_payload["validator"] == "byo"
+            assert request_payload["guardrailName"] == "My harmful content guardrail"
+            assert request_payload["byoValidatorName"] == "My Harmful Content"
+
+            assert result.result == GuardrailValidationResultType.PASSED

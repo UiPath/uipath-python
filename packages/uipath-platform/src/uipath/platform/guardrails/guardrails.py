@@ -51,6 +51,7 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
     validator_parameters: list[ValidatorParameter] = Field(
         default_factory=list, alias="validatorParameters"
     )
+    byo_validator_name: str | None = Field(default=None, alias="byoValidatorName")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

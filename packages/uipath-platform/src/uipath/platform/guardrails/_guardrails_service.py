@@ -78,11 +78,18 @@ class GuardrailsService(BaseService):
         parameters = [
             param.model_dump(by_alias=True) for param in guardrail.validator_parameters
         ]
-        payload = {
+        payload: dict[str, Any] = {
             "validator": guardrail.validator_type,
             "input": input_data if isinstance(input_data, str) else str(input_data),
             "parameters": parameters,
+            # Send the guardrail name so the backend labels the evaluation span with the
+            # guardrail as the user named it, rather than the validator/BYO config name.
+            "guardrailName": guardrail.name,
         }
+        # BYO guardrails need the config's validator name so the backend can route to the
+        # bring-your-own connector. Only present for BYO guardrails.
+        if guardrail.byo_validator_name:
+            payload["byoValidatorName"] = guardrail.byo_validator_name
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
