@@ -2599,7 +2599,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.14.8"
+version = "2.14.9"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2642,6 +2642,7 @@ dev = [
     { name = "mkdocs-simple-hooks" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "mypy" },
+    { name = "packaging" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -2699,6 +2700,7 @@ dev = [
     { name = "mkdocs-simple-hooks", specifier = ">=0.1.5" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.30.1" },
     { name = "mypy", specifier = ">=1.14.1" },
+    { name = "packaging", specifier = ">=24.0" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },

@@ -1,7 +1,12 @@
+import json
 import os
+import re
+import uuid
+from importlib.metadata import version
 from unittest.mock import patch
 
 from click.testing import CliRunner
+from packaging.specifiers import SpecifierSet
 
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
@@ -16,6 +21,18 @@ class TestNew:
             assert result.exit_code == 0
             assert os.path.exists("main.py")
             assert os.path.exists("pyproject.toml")
+
+    def test_new_project_writes_uipath_json_id(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """uipath.json gets a GUID id up front so later commands don't warn."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(cli, ["new", "my_project"])
+            assert result.exit_code == 0
+            with open("uipath.json") as f:
+                config = json.load(f)
+            uuid.UUID(config["id"])
+            assert config["functions"] == {"main": "main.py:main"}
 
     def test_new_project_without_name(self, runner: CliRunner, temp_dir: str) -> None:
         """Test creating a new project without specifying a name."""
@@ -79,3 +96,72 @@ class TestNew:
                     result = runner.invoke(cli, ["new", "my_project"])
                     assert result.exit_code == 1
                     assert "Created 'main.py' file." not in result.output
+
+
+class TestUipathDependencySpec:
+    """The scaffolded pin must follow the installed uipath version."""
+
+    def _written_pin(self, temp_dir: str) -> str:
+        from uipath._cli.cli_new import generate_pyproject
+
+        generate_pyproject(temp_dir, "demo")
+        with open(os.path.join(temp_dir, "pyproject.toml")) as f:
+            content = f.read()
+        match = re.search(r'"(uipath[^"]*)"', content)
+        assert match is not None, content
+        return match.group(1)
+
+    def test_pin_derived_from_installed_version(self, temp_dir: str) -> None:
+        with patch("uipath._cli._get_safe_version", return_value="2.14.7"):
+            assert self._written_pin(temp_dir) == "uipath>=2.14.0, <2.15.0"
+
+    def test_pin_strips_prerelease_suffix(self, temp_dir: str) -> None:
+        with patch("uipath._cli._get_safe_version", return_value="2.15.0rc1"):
+            assert self._written_pin(temp_dir) == "uipath>=2.15.0, <2.16.0"
+
+    def test_pin_falls_back_when_version_unknown(self, temp_dir: str) -> None:
+        from uipath._cli.cli_new import _fallback_uipath_dependency_spec, console
+
+        # _get_safe_version() returns "unknown" on PackageNotFoundError.
+        with (
+            patch("uipath._cli._get_safe_version", return_value="unknown"),
+            patch.object(console, "warning") as mock_warning,
+        ):
+            assert self._written_pin(temp_dir) == _fallback_uipath_dependency_spec()
+        mock_warning.assert_called_once()
+        assert (
+            "Could not determine the installed 'uipath' version"
+            in (mock_warning.call_args.args[0])
+        )
+
+    def test_fallback_pin_admits_installed_uipath(self) -> None:
+        """Guard: a release PR that forgets to bump FALLBACK_UIPATH_MINOR fails CI."""
+        from uipath._cli.cli_new import _fallback_uipath_dependency_spec
+
+        spec = _fallback_uipath_dependency_spec().removeprefix("uipath")
+        installed = version("uipath")
+        assert SpecifierSet(spec).contains(installed, prereleases=True), (
+            f"fallback pin '{spec}' does not admit installed uipath {installed}; "
+            "bump FALLBACK_UIPATH_MINOR in cli_new.py"
+        )
+
+    def test_scaffolded_pin_contains_installed_uipath(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Regression guard: runs against the real installed package, not a mock.
+
+        A stale hard-coded range would make ``uv sync`` downgrade the project's
+        venv right after ``uipath new``.
+        """
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(cli, ["new", "demo"])
+            assert result.exit_code == 0
+            with open("pyproject.toml") as f:
+                content = f.read()
+            match = re.search(r'"uipath([^"]*)"', content)
+            assert match is not None, content
+            pin = SpecifierSet(match.group(1))
+            installed = version("uipath")
+            assert pin.contains(installed, prereleases=True), (
+                f"scaffolded pin '{pin}' does not contain installed uipath {installed}"
+            )
