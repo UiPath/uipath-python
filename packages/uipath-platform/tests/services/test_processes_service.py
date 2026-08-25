@@ -132,8 +132,6 @@ class TestProcessesService:
         org: str,
         tenant: str,
     ) -> None:
-        # Sending "" would make Orchestrator resolve an entry point named "", which fails the
-        # release lookup; omitting the key is what selects the configured default.
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
             status_code=200,

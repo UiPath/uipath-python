@@ -341,7 +341,7 @@ class ProcessesService(FolderContext, BaseService):
             payload["RunAsMe"] = run_as_me
 
         # Omitted rather than sent empty: Orchestrator resolves the release's configured entry
-        # point when the key is absent, and rejects a path that does not exist in the package.
+        # point when the key is absent, and rejects a path that is not in the package.
         if entry_point_path:
             payload["EntryPointPath"] = entry_point_path
 
