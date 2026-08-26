@@ -30,6 +30,7 @@ import os
 from typing import Any
 
 JIT_ESCALATION_APPS_FEATURE_FLAG = "EnableJITEscalationApps"
+DEEP_RAG_FROM_ATTACHMENTS_FEATURE_FLAG = "EnableDeepRagFromAttachments"
 
 
 def _parse_env_value(raw: str) -> Any:
