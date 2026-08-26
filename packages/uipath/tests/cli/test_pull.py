@@ -377,6 +377,11 @@ class TestPull:
             json=mock_structure,
         )
 
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"id": project_id, "projectType": "Agent"},
+        )
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id

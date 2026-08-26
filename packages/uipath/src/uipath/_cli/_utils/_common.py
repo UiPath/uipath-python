@@ -20,6 +20,7 @@ from ..spinner import Spinner
 from ._console import ConsoleLogger
 from ._studio_project import (
     NonCodedAgentProjectException,
+    NonPythonFunctionProjectException,
     StudioClient,
     StudioProjectMetadata,
 )
@@ -137,13 +138,17 @@ def determine_project_type(entrypoints: list[EntryPoint]) -> str:
     return chosen_type
 
 
-async def ensure_coded_agent_project(studio_client: StudioClient):
+async def ensure_coded_project(studio_client: StudioClient):
+    console = ConsoleLogger()
     try:
-        await studio_client.ensure_coded_agent_project_async()
+        await studio_client.ensure_coded_project_async()
     except NonCodedAgentProjectException:
-        console = ConsoleLogger()
         console.error(
             "The targeted Studio Web project is not of type coded agent. Please check the UIPATH_PROJECT_ID environment variable."
+        )
+    except NonPythonFunctionProjectException:
+        console.error(
+            "The targeted Studio Web function project already contains TypeScript/JavaScript sources. Please check the UIPATH_PROJECT_ID environment variable."
         )
 
 
