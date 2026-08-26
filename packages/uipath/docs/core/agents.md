@@ -119,7 +119,7 @@ version = "0.1.0"
 description = "..."
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.11"
-dependencies = ["uipath>=2.0", "uipath-langchain>=2.0"]
+dependencies = ["uipath>=2.0", "uipath-langchain>=0.16"]
 ```
 
 Standard metadata plus the framework dependency (`uipath-langchain` here). The framework graph file and this dependency identify the project as a coded agent — `pyproject.toml` needs no UiPath-specific entries, and `uipath.json` carries no agent entry.
