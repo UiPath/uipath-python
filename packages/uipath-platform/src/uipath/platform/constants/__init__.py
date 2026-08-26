@@ -93,6 +93,7 @@ COMMUNITY_agents_SUFFIX = "-community-agents"
 
 # File names
 PYTHON_CONFIGURATION_FILE = "pyproject.toml"
+NODE_CONFIGURATION_FILE = "package.json"
 UIPATH_CONFIG_FILE = "uipath.json"
 UIPATH_BINDINGS_FILE = "bindings.json"
 ENTRY_POINTS_FILE = "entry-points.json"

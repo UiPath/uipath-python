@@ -8,7 +8,7 @@ import click
 from uipath.platform.common import UiPathConfig
 
 from ._telemetry import track_command
-from ._utils._common import ensure_coded_agent_project, may_override_files
+from ._utils._common import ensure_coded_project, may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     ProjectPullError,
@@ -61,7 +61,7 @@ def pull(root: Path, overwrite: bool) -> None:
     if not result.should_continue:
         return
 
-    asyncio.run(ensure_coded_agent_project(studio_client))
+    asyncio.run(ensure_coded_project(studio_client))
 
     if not overwrite:
         may_override = asyncio.run(may_override_files(studio_client, "local"))

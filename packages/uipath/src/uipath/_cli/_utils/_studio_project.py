@@ -18,6 +18,7 @@ from uipath.platform.constants import (
     ENV_TENANT_ID,
     HEADER_SW_LOCK_KEY,
     HEADER_TENANT_ID,
+    NODE_CONFIGURATION_FILE,
     PYTHON_CONFIGURATION_FILE,
     STUDIO_METADATA_FILE,
 )
@@ -31,6 +32,19 @@ class NonCodedAgentProjectException(Exception):
     """Raised when the targeted project is not a coded agent one."""
 
     pass
+
+
+class NonPythonFunctionProjectException(Exception):
+    """Raised when the targeted function project holds sources of another runtime."""
+
+    pass
+
+
+class StudioProjectType(str, Enum):
+    """Project types reported by the Studio Web backend."""
+
+    AGENT = "Agent"
+    FUNCTION = "Function"
 
 
 class ProjectFile(BaseModel):
@@ -498,26 +512,52 @@ class StudioClient:
         self._project_id = project_id
         self._resources_cache: Optional[List[dict[str, Any]]] = None
         self._project_structure_cache: Optional[ProjectStructure] = None
+        self._project_details_cache: Optional[dict[str, Any]] = None
+
+    async def _get_project_details(self) -> dict[str, Any]:
+        if self._project_details_cache is None:
+            response = await self.uipath.api_client.request_async(
+                "GET",
+                url=f"/studio_/backend/api/Project/{self._project_id}",
+                scoped="org",
+            )
+            self._project_details_cache = response.json()
+        return self._project_details_cache
 
     async def _get_solution_id(self) -> str:
         # implement property cache logic as coroutines are not supported
         if (solution_id := UiPathConfig.studio_solution_id) is not None:
             return solution_id
-        response = await self.uipath.api_client.request_async(
-            "GET",
-            url=f"/studio_/backend/api/Project/{self._project_id}",
-            scoped="org",
-        )
-        UiPathConfig.studio_solution_id = response.json()["solutionId"]
+        details = await self._get_project_details()
+        UiPathConfig.studio_solution_id = details["solutionId"]
         return UiPathConfig.studio_solution_id
 
-    async def ensure_coded_agent_project_async(self):
+    async def get_project_type_async(self) -> Optional[str]:
+        return (await self._get_project_details()).get("projectType")
+
+    async def ensure_coded_project_async(self):
+        """Validate that the targeted Studio Web project accepts a Python code push.
+
+        Function projects are created without a configuration file because they
+        may hold either Python or TypeScript/JavaScript sources, so they are
+        identified by their project type and only rejected once they already
+        hold sources of another runtime.
+        """
         structure = await self.get_project_structure_async()
         # An empty structure means a never-pushed project: allow the first push.
         if not structure.files and not structure.folders:
             return
-        if not any(file.name == PYTHON_CONFIGURATION_FILE for file in structure.files):
-            raise NonCodedAgentProjectException()
+
+        root_file_names = {file.name for file in structure.files}
+        if PYTHON_CONFIGURATION_FILE in root_file_names:
+            return
+
+        if await self.get_project_type_async() == StudioProjectType.FUNCTION:
+            if NODE_CONFIGURATION_FILE in root_file_names:
+                raise NonPythonFunctionProjectException()
+            return
+
+        raise NonCodedAgentProjectException()
 
     async def get_project_metadata_async(self) -> Optional[StudioProjectMetadata]:
         structure = await self.get_project_structure_async()
