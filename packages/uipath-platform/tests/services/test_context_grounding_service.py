@@ -3486,6 +3486,40 @@ class TestContextGroundingService:
         # citation_mode defaults to INLINE for the attachments primitive.
         assert request_data["citationMode"] == "Inline"
 
+    def test_start_deep_rag_from_attachments_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When folder_key is provided the folder header is added; no folder lookup."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/create?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "folder-scoped-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = service.start_deep_rag_from_attachments(
+            name="folder-scoped-task",
+            prompt="Summarize the attachments",
+            attachments=["attachment-1"],
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "folder-scoped-id"
+        sent_requests = httpx_mock.get_requests()
+        # The folder header is present on the outgoing request.
+        assert any(
+            "explicit-folder-key" in (v or "")
+            for v in sent_requests[0].headers.values()
+        )
+
     @pytest.mark.anyio
     async def test_start_deep_rag_ephemeral_async(
         self,

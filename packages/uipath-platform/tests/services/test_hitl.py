@@ -1757,6 +1757,16 @@ class TestHitlProcessor:
                 index_id="some-index-id",
             )
 
+    def test_create_deep_rag_attachments_rejects_index_name(self) -> None:
+        """The mutual-exclusivity check covers index_name too, not only index_id."""
+        with pytest.raises(ValueError, match="attachments cannot be combined"):
+            CreateDeepRag(
+                name="x",
+                prompt="p",
+                attachments=["a"],
+                index_name="some-index-name",
+            )
+
     def test_create_deep_rag_attachments_must_not_be_empty(self) -> None:
         """An empty attachments list is a caller bug, not a fallback signal."""
         with pytest.raises(ValueError, match="attachments must be a non-empty list"):
