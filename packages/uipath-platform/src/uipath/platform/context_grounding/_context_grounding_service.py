@@ -1358,7 +1358,9 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
-    @deprecated("Use start_deep_rag_from_attachments instead — one call, no separate index step.")
+    @deprecated(
+        "Use start_deep_rag_from_attachments instead — one call, no separate index step."
+    )
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag", run_type="uipath")
     async def start_deep_rag_ephemeral(
@@ -1400,7 +1402,9 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
-    @deprecated("Use start_deep_rag_from_attachments_async instead — one call, no separate index step.")
+    @deprecated(
+        "Use start_deep_rag_from_attachments_async instead — one call, no separate index step."
+    )
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag_async", run_type="uipath")
     async def start_deep_rag_ephemeral_async(
@@ -1487,7 +1491,9 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
-    @traced(name="contextgrounding_start_deep_rag_from_attachments_async", run_type="uipath")
+    @traced(
+        name="contextgrounding_start_deep_rag_from_attachments_async", run_type="uipath"
+    )
     async def start_deep_rag_from_attachments_async(
         self,
         name: str,
