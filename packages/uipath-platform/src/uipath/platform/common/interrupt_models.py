@@ -123,6 +123,13 @@ class CreateDeepRag(BaseModel):
             raise ValueError(
                 "Index id must be provided for an ephemeral index (or use attachments)"
             )
+        if self.attachments is not None:
+            if len(self.attachments) == 0:
+                raise ValueError("attachments must be a non-empty list when provided")
+            if self.index_id is not None or self.index_name is not None:
+                raise ValueError(
+                    "attachments cannot be combined with index_id or index_name"
+                )
         return self
 
 

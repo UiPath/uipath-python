@@ -701,7 +701,7 @@ class UiPathResumeTriggerCreator:
         elif isinstance(value, CreateDeepRag):
             uipath = UiPath()
             try:
-                if value.attachments:
+                if value.attachments is not None:
                     deep_rag = await uipath.context_grounding.start_deep_rag_from_attachments_async(
                         name=value.name,
                         prompt=value.prompt,
