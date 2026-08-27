@@ -2516,7 +2516,10 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: str | None = None,
         folder_path: str | None = None,
     ) -> RequestSpec:
-        folder_key = self._resolve_folder_key(folder_key, folder_path)
+        headers: dict[str, str] = {**header_job_key()}
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
+            headers = {**header_folder(folder_key, None), **headers}
 
         return RequestSpec(
             method="POST",
@@ -2530,10 +2533,7 @@ class ContextGroundingService(FolderContext, BaseService):
             params={
                 "$select": "id,lastDeepRagStatus,createdDate",
             },
-            headers={
-                **header_folder(folder_key, None),
-                **header_job_key(),
-            },
+            headers=headers,
         )
 
     def _batch_transform_creation_spec(
