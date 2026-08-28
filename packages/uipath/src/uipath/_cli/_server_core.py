@@ -45,11 +45,19 @@ def parse_args(args: str | list[str] | None) -> list[str]:
     return []
 
 
+def _surfaced_exit_code(result_value: Any, surface_exit_code: bool) -> int:
+    """The command's own int return code when surfacing is enabled; else 0."""
+    if surface_exit_code and isinstance(result_value, int):
+        return result_value
+    return 0
+
+
 async def _run_command_isolated(
     cmd: Any,
     args: list[str],
     env_vars: dict[str, str],
     working_dir: str | None,
+    surface_exit_code: bool = False,
 ) -> dict[str, Any]:
     """Run one command with per-job env/cwd isolation (the shared job core)."""
     if _state.lock is None or _state.baseline_env is None:
@@ -82,9 +90,10 @@ async def _run_command_isolated(
             result_value = await asyncio.to_thread(
                 cmd.main, args, standalone_mode=False
             )
+            exit_code = _surfaced_exit_code(result_value, surface_exit_code)
             return {
-                "ExitCode": 0,
-                "Error": None,
+                "ExitCode": exit_code,
+                "Error": None if exit_code == 0 else f"Exit code: {exit_code}",
                 "Result": result_value,
                 "Unexpected": False,
             }

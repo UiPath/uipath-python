@@ -115,6 +115,18 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     default=None,
     help="Simulation config as a JSON object (same schema as simulation.json)",
 )
+@click.option(
+    "--server-mode",
+    is_flag=True,
+    help="Serve jobs over uipath-ipc and stay alive (requires --ipc-pipe), "
+    "instead of running once and exiting.",
+)
+@click.option(
+    "--ipc-pipe",
+    type=str,
+    default=None,
+    help="Named pipe for the uipath-ipc channel (used with --server-mode).",
+)
 @track_command("run")
 def run(
     entrypoint: str | None,
@@ -129,8 +141,20 @@ def run(
     debug_port: int,
     keep_state_file: bool,
     simulation: str | None,
+    server_mode: bool,
+    ipc_pipe: str | None,
 ) -> None:
-    """Execute the project."""
+    """Execute the project, or serve jobs over uipath-ipc with --server-mode."""
+    if server_mode:
+        if not ipc_pipe:
+            console.error("--server-mode requires --ipc-pipe.")
+        # cli_server -> _server_core -> cli_run cycles at import time; defer it.
+        from .cli_server import preload_modules, run_ipc_server
+
+        preload_modules()
+        run_ipc_server(ipc_pipe, surface_exit_code=True)
+        return
+
     input_file = file or input_file
 
     # Setup debugging if requested

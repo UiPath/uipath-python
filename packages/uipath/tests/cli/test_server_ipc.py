@@ -44,7 +44,7 @@ def _unique_pipe() -> str:
     return f"uipath-ipc-test-{os.getpid()}-{_pipe_counter}"
 
 
-def _serve_in_background(pipe_name: str) -> None:
+def _serve_in_background(pipe_name: str, surface_exit_code: bool = False) -> None:
     """Run the IPC server on its own event loop in a daemon thread.
 
     ``asyncio.new_event_loop()`` yields the per-OS default loop — Proactor on
@@ -55,7 +55,7 @@ def _serve_in_background(pipe_name: str) -> None:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(start_ipc_server(pipe_name))
+            loop.run_until_complete(start_ipc_server(pipe_name, surface_exit_code))
         except asyncio.CancelledError:
             pass
         finally:
@@ -329,3 +329,90 @@ class TestIpcContractFieldTransit:
         assert stop_request.JobKey == job_key
         assert stop_request.ResumeVersion == 5
         assert stop_request.ForceStop is True
+
+
+class TestIpcServerExitCode:
+    """surface_exit_code makes the IPC server report a command's non-zero exit
+    code; the default reports 0."""
+
+    @pytest.fixture
+    def fail_command(self):
+        @click.command()
+        def fail_cmd() -> None:
+            click.get_current_context().exit(7)
+
+        original = _server_core.COMMANDS.copy()
+        _server_core.COMMANDS["fail"] = fail_cmd
+        try:
+            yield
+        finally:
+            _server_core.COMMANDS.clear()
+            _server_core.COMMANDS.update(original)
+
+    def test_surface_exit_code_reports_nonzero(self, fail_command):
+        pipe_name = _unique_pipe()
+        _serve_in_background(pipe_name, surface_exit_code=True)
+        result = asyncio.run(
+            _with_proxy(
+                pipe_name, lambda p: p.RunJob({"JobKey": "j", "Command": "fail"})
+            )
+        )
+        assert result.ExitCode == 7
+
+    def test_default_reports_zero(self, fail_command):
+        pipe_name = _unique_pipe()
+        _serve_in_background(pipe_name)
+        result = asyncio.run(
+            _with_proxy(
+                pipe_name, lambda p: p.RunJob({"JobKey": "j", "Command": "fail"})
+            )
+        )
+        assert result.ExitCode == 0
+
+
+class TestRunServerModeGuard:
+    """`uipath run --server-mode` requires --ipc-pipe."""
+
+    def test_server_mode_requires_ipc_pipe(self):
+        from click.testing import CliRunner
+
+        from uipath._cli.cli_run import run
+
+        result = CliRunner().invoke(run, ["--server-mode"])
+        assert result.exit_code == 1
+
+
+class TestServerModeWiring:
+    """`uipath run --server-mode` defers to run_ipc_server, which drives start_ipc_server."""
+
+    def test_run_ipc_server_drives_start_ipc_server(self, monkeypatch):
+        from uipath._cli import cli_server
+
+        captured: dict[str, Any] = {}
+
+        async def fake_start(pipe, surface_exit_code=False):
+            captured["pipe"] = pipe
+            captured["surface"] = surface_exit_code
+
+        monkeypatch.setattr(cli_server, "start_ipc_server", fake_start)
+        cli_server.run_ipc_server("pipe-1", surface_exit_code=True)
+        assert captured == {"pipe": "pipe-1", "surface": True}
+
+    def test_run_server_mode_defers_to_ipc_server(self, monkeypatch):
+        from click.testing import CliRunner
+
+        from uipath._cli import cli_server
+        from uipath._cli.cli_run import run
+
+        captured: dict[str, Any] = {}
+        monkeypatch.setattr(cli_server, "preload_modules", lambda: None)
+        monkeypatch.setattr(
+            cli_server,
+            "run_ipc_server",
+            lambda pipe, surface_exit_code=False: captured.update(
+                pipe=pipe, surface=surface_exit_code
+            ),
+        )
+        result = CliRunner().invoke(run, ["--server-mode", "--ipc-pipe", "mypipe"])
+        assert result.exit_code == 0
+        assert captured == {"pipe": "mypipe", "surface": True}

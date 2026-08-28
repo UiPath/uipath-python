@@ -68,6 +68,38 @@ async def test_reports_unexpected_exception(restore_state: Any) -> None:
     assert "boom" in result["Error"]
 
 
+async def test_surface_exit_code_reports_nonzero_return(restore_state: Any) -> None:
+    _init(restore_state)
+    cmd = Mock()
+    cmd.main.return_value = 3
+    result = await _server_core._run_command_isolated(
+        cmd, [], {}, None, surface_exit_code=True
+    )
+    assert result["ExitCode"] == 3
+    assert result["Error"] == "Exit code: 3"
+    assert result["Unexpected"] is False
+
+
+async def test_surface_exit_code_zero_return_is_success(restore_state: Any) -> None:
+    _init(restore_state)
+    cmd = Mock()
+    cmd.main.return_value = None
+    result = await _server_core._run_command_isolated(
+        cmd, [], {}, None, surface_exit_code=True
+    )
+    assert result["ExitCode"] == 0
+    assert result["Error"] is None
+
+
+async def test_default_does_not_surface_nonzero_return(restore_state: Any) -> None:
+    _init(restore_state)
+    cmd = Mock()
+    cmd.main.return_value = 3
+    result = await _server_core._run_command_isolated(cmd, [], {}, None)
+    assert result["ExitCode"] == 0
+    assert result["Error"] is None
+
+
 # parse_args accepts what every caller sends: the .NET peer sends a single
 # string (shlex-split), HTTP dicts / tests may send a pre-split list, or None.
 

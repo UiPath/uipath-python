@@ -31,6 +31,7 @@ from .cli_server_ipc import (
 
 __all__ = [
     "server",
+    "run_ipc_server",
     "IPythonRuntimeServer",
     "PythonRuntimeService",
     "PythonServerRunJobResult",
@@ -398,4 +399,19 @@ def _run_server(
         else:
             asyncio.run(coro)
     except KeyboardInterrupt:
+        console.info("Shutting down")
+
+
+def run_ipc_server(ipc_pipe: str, surface_exit_code: bool = False) -> None:
+    """Serve only the uipath-ipc channel, staying alive until the pipe closes.
+
+    Used by ``uipath run --server-mode``: no HTTP channel, no ready-ACK socket.
+    """
+    try:
+        if sys.platform == "win32":  # pragma: no cover
+            with asyncio.Runner(loop_factory=asyncio.ProactorEventLoop) as runner:
+                runner.run(start_ipc_server(ipc_pipe, surface_exit_code))
+        else:  # pragma: no cover
+            asyncio.run(start_ipc_server(ipc_pipe, surface_exit_code))
+    except KeyboardInterrupt:  # pragma: no cover
         console.info("Shutting down")

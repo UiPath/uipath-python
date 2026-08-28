@@ -57,6 +57,9 @@ class IPythonRuntimeServer(ABC):
 class PythonRuntimeService(IPythonRuntimeServer):
     """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
 
+    def __init__(self, surface_exit_code: bool = False) -> None:
+        self._surface_exit_code = surface_exit_code
+
     async def Register(self) -> bool:
         console.info("Runtime client registered.")
         return True
@@ -81,7 +84,11 @@ class PythonRuntimeService(IPythonRuntimeServer):
         )
 
         result = await _run_command_isolated(
-            cmd, args, request.EnvironmentVariables, request.WorkingDirectory
+            cmd,
+            args,
+            request.EnvironmentVariables,
+            request.WorkingDirectory,
+            surface_exit_code=self._surface_exit_code,
         )
         # IPC contract (PythonServerRunJobResult) carries only ExitCode + Error.
         return PythonServerRunJobResult(
@@ -96,7 +103,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
         return True
 
 
-async def start_ipc_server(pipe_name: str) -> None:
+async def start_ipc_server(pipe_name: str, surface_exit_code: bool = False) -> None:
     """Serve the Python runtime over a uipath-ipc named pipe until it is closed."""
     try:
         from uipath_ipc import IpcServer, NamedPipeServerTransport
@@ -110,7 +117,7 @@ async def start_ipc_server(pipe_name: str) -> None:
     _state.init()
     server = IpcServer(
         transport=NamedPipeServerTransport(pipe_name),
-        services={IPythonRuntimeServer: PythonRuntimeService()},
+        services={IPythonRuntimeServer: PythonRuntimeService(surface_exit_code)},
         request_timeout=None,  # jobs are long-running; no server-side timeout
     )
     console.success(f"IPC server listening on pipe '{pipe_name}'")
