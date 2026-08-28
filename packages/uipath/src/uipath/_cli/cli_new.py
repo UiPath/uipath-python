@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import shutil
 import uuid
 
@@ -15,33 +14,11 @@ from .middlewares import Middlewares
 
 console = ConsoleLogger()
 
-FALLBACK_UIPATH_MINOR = "2.14"
-
-
-def _minor_range_spec(major: int, minor: int) -> str:
-    return f"uipath>={major}.{minor}.0, <{major}.{minor + 1}.0"
-
-
-def _fallback_uipath_dependency_spec() -> str:
-    major, minor = (int(part) for part in FALLBACK_UIPATH_MINOR.split("."))
-    return _minor_range_spec(major, minor)
-
-
-def _uipath_dependency_spec() -> str:
-    from . import _get_safe_version
-
-    installed = _get_safe_version()
-    # Strip pre-release/dev/local suffixes: only the leading "major.minor" matters.
-    match = re.match(r"^(\d+)\.(\d+)", installed)
-    if match is None:
-        fallback = _fallback_uipath_dependency_spec()
-        console.warning(
-            f"Could not determine the installed 'uipath' version ('{installed}'); "
-            f"falling back to '{fallback}'. Pin it manually if needed."
-        )
-        return fallback
-
-    return _minor_range_spec(int(match.group(1)), int(match.group(2)))
+# The `uipath` minor release that scaffolded projects are pinned to.
+# Deliberately a constant: the guard test in tests/cli/test_new.py fails on
+# every minor bump so the scaffold (pin, template, hints) gets reviewed
+# alongside the release rather than drifting silently.
+UIPATH_SCAFFOLD_MINOR = "2.14"
 
 
 def generate_script(target_directory):
@@ -55,13 +32,14 @@ def generate_script(target_directory):
 
 def generate_pyproject(target_directory, project_name):
     project_toml_path = os.path.join(target_directory, PYTHON_CONFIGURATION_FILE)
+    major, minor = (int(part) for part in UIPATH_SCAFFOLD_MINOR.split("."))
     toml_content = f"""[project]
 name = "{project_name}"
 version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "{_uipath_dependency_spec()}"
+    "uipath>={major}.{minor}.0, <{major}.{minor + 1}.0"
 ]
 requires-python = ">=3.11"
 """
