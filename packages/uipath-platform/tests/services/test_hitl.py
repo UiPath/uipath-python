@@ -1707,6 +1707,72 @@ class TestHitlProcessor:
             )
 
     @pytest.mark.anyio
+    async def test_create_resume_trigger_create_deep_rag_from_attachments(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """CreateDeepRag with attachments routes to the from-attachments SDK method."""
+        deep_rag_id = "test-attachments-deep-rag-id"
+        create_deep_rag = CreateDeepRag(
+            name="test-deep-rag",
+            prompt="test prompt",
+            citation_mode=CitationMode.INLINE,
+            attachments=["attachment-1", "attachment-2"],
+            index_folder_path="/test/path",
+        )
+
+        mock_deep_rag = DeepRagCreationResponse(
+            id=deep_rag_id,
+            last_deep_rag_status=DeepRagStatus.QUEUED,
+            created_date="2024-01-01",
+        )
+        mock_from_attachments = AsyncMock(return_value=mock_deep_rag)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.start_deep_rag_from_attachments_async",
+            new=mock_from_attachments,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_deep_rag)
+
+            assert resume_trigger is not None
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.DEEP_RAG
+            assert resume_trigger.item_key == deep_rag_id
+            mock_from_attachments.assert_called_once_with(
+                name=create_deep_rag.name,
+                prompt=create_deep_rag.prompt,
+                attachments=["attachment-1", "attachment-2"],
+                citation_mode=create_deep_rag.citation_mode,
+                folder_path=create_deep_rag.index_folder_path,
+                folder_key=create_deep_rag.index_folder_key,
+            )
+
+    def test_create_deep_rag_attachments_rejects_index_id(self) -> None:
+        """attachments cannot be combined with index_id / index_name."""
+        with pytest.raises(ValueError, match="attachments cannot be combined"):
+            CreateDeepRag(
+                name="x",
+                prompt="p",
+                attachments=["a"],
+                index_id="some-index-id",
+            )
+
+    def test_create_deep_rag_attachments_rejects_index_name(self) -> None:
+        """The mutual-exclusivity check covers index_name too, not only index_id."""
+        with pytest.raises(ValueError, match="attachments cannot be combined"):
+            CreateDeepRag(
+                name="x",
+                prompt="p",
+                attachments=["a"],
+                index_name="some-index-name",
+            )
+
+    def test_create_deep_rag_attachments_must_not_be_empty(self) -> None:
+        """An empty attachments list is a caller bug, not a fallback signal."""
+        with pytest.raises(ValueError, match="attachments must be a non-empty list"):
+            CreateDeepRag(name="x", prompt="p", attachments=[])
+
+    @pytest.mark.anyio
     async def test_missing_deep_rag_index_is_deployment_error(
         self,
         setup_test_env: None,

@@ -1358,6 +1358,9 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
+    @deprecated(
+        "Use start_deep_rag_from_attachments instead — one call, no separate index step."
+    )
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag", run_type="uipath")
     async def start_deep_rag_ephemeral(
@@ -1399,6 +1402,9 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return DeepRagCreationResponse.model_validate(response.json())
 
+    @deprecated(
+        "Use start_deep_rag_from_attachments_async instead — one call, no separate index step."
+    )
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_deep_rag_async", run_type="uipath")
     async def start_deep_rag_ephemeral_async(
@@ -1428,6 +1434,98 @@ class ContextGroundingService(FolderContext, BaseService):
             glob_pattern=glob_pattern,
             prompt=prompt,
             citation_mode=citation_mode,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return DeepRagCreationResponse.model_validate(response.json())
+
+    @traced(name="contextgrounding_start_deep_rag_from_attachments", run_type="uipath")
+    def start_deep_rag_from_attachments(
+        self,
+        name: str,
+        prompt: Annotated[str, Field(max_length=250000)],
+        attachments: List[str],
+        citation_mode: CitationMode = CitationMode.INLINE,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> DeepRagCreationResponse:
+        """Starts a Deep RAG task by creating an ephemeral index from attachments in a single call.
+
+        The server creates the ephemeral index and starts the Deep RAG task in one operation;
+        the caller does not need to create the index separately.
+
+        Args:
+            name (str): The name of the Deep RAG task.
+            prompt (str): Describe the task: what to research across documents, what to synthesize and how to cite sources.
+            attachments (list[str]): The list of attachment ids from which the ephemeral index will be created.
+            citation_mode (CitationMode): The citation mode to use. Defaults to INLINE.
+            folder_key (str, optional): The folder key context. Defaults to None.
+            folder_path (str, optional): The folder path context. Defaults to None.
+
+        Returns:
+            DeepRagCreationResponse: The Deep RAG task creation response.
+        """
+        spec = self._deep_rag_from_attachments_creation_spec(
+            name=name,
+            prompt=prompt,
+            attachments=attachments,
+            citation_mode=citation_mode,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return DeepRagCreationResponse.model_validate(response.json())
+
+    @traced(
+        name="contextgrounding_start_deep_rag_from_attachments_async", run_type="uipath"
+    )
+    async def start_deep_rag_from_attachments_async(
+        self,
+        name: str,
+        prompt: Annotated[str, Field(max_length=250000)],
+        attachments: List[str],
+        citation_mode: CitationMode = CitationMode.INLINE,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> DeepRagCreationResponse:
+        """Asynchronously starts a Deep RAG task by creating an ephemeral index from attachments in a single call.
+
+        The server creates the ephemeral index and starts the Deep RAG task in one operation;
+        the caller does not need to create the index separately.
+
+        Args:
+            name (str): The name of the Deep RAG task.
+            prompt (str): Describe the task: what to research across documents, what to synthesize and how to cite sources.
+            attachments (list[str]): The list of attachment ids from which the ephemeral index will be created.
+            citation_mode (CitationMode): The citation mode to use. Defaults to INLINE.
+            folder_key (str, optional): The folder key context. Defaults to None.
+            folder_path (str, optional): The folder path context. Defaults to None.
+
+        Returns:
+            DeepRagCreationResponse: The Deep RAG task creation response.
+        """
+        spec = self._deep_rag_from_attachments_creation_spec(
+            name=name,
+            prompt=prompt,
+            attachments=attachments,
+            citation_mode=citation_mode,
+            folder_key=folder_key,
+            folder_path=folder_path,
         )
 
         response = await self.request_async(
@@ -2407,6 +2505,35 @@ class ContextGroundingService(FolderContext, BaseService):
                 "$select": "id,lastDeepRagStatus,createdDate",
             },
             headers={**header_job_key()},
+        )
+
+    def _deep_rag_from_attachments_creation_spec(
+        self,
+        name: str,
+        prompt: str,
+        attachments: List[str],
+        citation_mode: CitationMode,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> RequestSpec:
+        headers: dict[str, str] = {**header_job_key()}
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
+            headers = {**header_folder(folder_key, None), **headers}
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/ecs_/v2/deeprag/create"),
+            json={
+                "name": name,
+                "prompt": prompt,
+                "citationMode": citation_mode.value,
+                "attachments": attachments,
+            },
+            params={
+                "$select": "id,lastDeepRagStatus,createdDate",
+            },
+            headers=headers,
         )
 
     def _batch_transform_creation_spec(

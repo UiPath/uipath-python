@@ -3395,6 +3395,132 @@ class TestContextGroundingService:
         assert destination.parent.exists()
 
     @pytest.mark.anyio
+    async def test_start_deep_rag_from_attachments_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/create?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "new-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = await service.start_deep_rag_from_attachments_async(
+            name="my-attachments-deep-rag-task",
+            prompt="Summarize all documents related to financial reports",
+            attachments=["attachment-1", "attachment-2"],
+            citation_mode=CitationMode.INLINE,
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "new-deep-rag-task-id"
+        assert response.last_deep_rag_status == "Queued"
+        assert response.created_date == "2024-01-15T10:30:00Z"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert f"{base_url}{org}{tenant}/ecs_/v2/deeprag/create" in str(
+            sent_requests[0].url
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-attachments-deep-rag-task"
+        assert (
+            request_data["prompt"]
+            == "Summarize all documents related to financial reports"
+        )
+        assert request_data["citationMode"] == "Inline"
+        assert request_data["attachments"] == ["attachment-1", "attachment-2"]
+        assert "globPattern" not in request_data
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_deep_rag_from_attachments_async/{version}"
+        )
+
+    def test_start_deep_rag_from_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/create?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "sync-deep-rag-task-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = service.start_deep_rag_from_attachments(
+            name="sync-attachments-task",
+            prompt="Summarize the attachments",
+            attachments=["attachment-1"],
+        )
+
+        assert isinstance(response, DeepRagCreationResponse)
+        assert response.id == "sync-deep-rag-task-id"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[0].method == "POST"
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["attachments"] == ["attachment-1"]
+        # citation_mode defaults to INLINE for the attachments primitive.
+        assert request_data["citationMode"] == "Inline"
+
+    def test_start_deep_rag_from_attachments_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When folder_key is provided the folder header is added; no folder lookup."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/deeprag/create?$select=id,lastDeepRagStatus,createdDate",
+            status_code=200,
+            json={
+                "id": "folder-scoped-id",
+                "lastDeepRagStatus": "Queued",
+                "createdDate": "2024-01-15T10:30:00Z",
+            },
+        )
+
+        response = service.start_deep_rag_from_attachments(
+            name="folder-scoped-task",
+            prompt="Summarize the attachments",
+            attachments=["attachment-1"],
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "folder-scoped-id"
+        sent_requests = httpx_mock.get_requests()
+        # The folder header is present on the outgoing request.
+        assert any(
+            "explicit-folder-key" in (v or "")
+            for v in sent_requests[0].headers.values()
+        )
+
+    @pytest.mark.anyio
     async def test_start_deep_rag_ephemeral_async(
         self,
         httpx_mock: HTTPXMock,
