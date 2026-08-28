@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from click.testing import CliRunner
 from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
@@ -98,51 +99,24 @@ class TestNew:
                     assert "Created 'main.py' file." not in result.output
 
 
-class TestUipathDependencySpec:
-    """The scaffolded pin must follow the installed uipath version."""
+class TestUipathScaffoldPin:
+    """The scaffolded pin must admit the uipath release it ships with."""
 
-    def _written_pin(self, temp_dir: str) -> str:
-        from uipath._cli.cli_new import generate_pyproject
+    def test_scaffold_pin_admits_installed_uipath(self) -> None:
+        """Guard: fails on every minor bump so the scaffold gets reviewed.
 
-        generate_pyproject(temp_dir, "demo")
-        with open(os.path.join(temp_dir, "pyproject.toml")) as f:
-            content = f.read()
-        match = re.search(r'"(uipath[^"]*)"', content)
-        assert match is not None, content
-        return match.group(1)
+        When this fails, review the scaffold in ``cli_new.py`` (pin constant,
+        ``main.py`` template, post-scaffold hints) for the new minor, then bump
+        ``UIPATH_SCAFFOLD_MINOR``.
+        """
+        from uipath._cli.cli_new import UIPATH_SCAFFOLD_MINOR
 
-    def test_pin_derived_from_installed_version(self, temp_dir: str) -> None:
-        with patch("uipath._cli._get_safe_version", return_value="2.14.7"):
-            assert self._written_pin(temp_dir) == "uipath>=2.14.0, <2.15.0"
-
-    def test_pin_strips_prerelease_suffix(self, temp_dir: str) -> None:
-        with patch("uipath._cli._get_safe_version", return_value="2.15.0rc1"):
-            assert self._written_pin(temp_dir) == "uipath>=2.15.0, <2.16.0"
-
-    def test_pin_falls_back_when_version_unknown(self, temp_dir: str) -> None:
-        from uipath._cli.cli_new import _fallback_uipath_dependency_spec, console
-
-        # _get_safe_version() returns "unknown" on PackageNotFoundError.
-        with (
-            patch("uipath._cli._get_safe_version", return_value="unknown"),
-            patch.object(console, "warning") as mock_warning,
-        ):
-            assert self._written_pin(temp_dir) == _fallback_uipath_dependency_spec()
-        mock_warning.assert_called_once()
-        assert (
-            "Could not determine the installed 'uipath' version"
-            in (mock_warning.call_args.args[0])
-        )
-
-    def test_fallback_pin_admits_installed_uipath(self) -> None:
-        """Guard: a release PR that forgets to bump FALLBACK_UIPATH_MINOR fails CI."""
-        from uipath._cli.cli_new import _fallback_uipath_dependency_spec
-
-        spec = _fallback_uipath_dependency_spec().removeprefix("uipath")
-        installed = version("uipath")
-        assert SpecifierSet(spec).contains(installed, prereleases=True), (
-            f"fallback pin '{spec}' does not admit installed uipath {installed}; "
-            "bump FALLBACK_UIPATH_MINOR in cli_new.py"
+        installed = Version(version("uipath"))
+        installed_minor = f"{installed.major}.{installed.minor}"
+        assert UIPATH_SCAFFOLD_MINOR == installed_minor, (
+            f"uipath minor changed to {installed_minor} but UIPATH_SCAFFOLD_MINOR is "
+            f"{UIPATH_SCAFFOLD_MINOR}; review the scaffold in cli_new.py (pin, "
+            f"template, hints) and bump the constant"
         )
 
     def test_scaffolded_pin_contains_installed_uipath(
@@ -150,8 +124,8 @@ class TestUipathDependencySpec:
     ) -> None:
         """Regression guard: runs against the real installed package, not a mock.
 
-        A stale hard-coded range would make ``uv sync`` downgrade the project's
-        venv right after ``uipath new``.
+        A stale range would make ``uv sync`` downgrade the project's venv right
+        after ``uipath new``.
         """
         with runner.isolated_filesystem(temp_dir=temp_dir):
             result = runner.invoke(cli, ["new", "demo"])
