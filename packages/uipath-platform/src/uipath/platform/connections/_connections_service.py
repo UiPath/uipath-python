@@ -69,7 +69,7 @@ class ConnectionsService(BaseService):
         """
         spec = self._retrieve_spec(key)
         response = self.request(spec.method, url=spec.endpoint)
-        return Connection.model_validate(response.json())
+        return self._select_connection(response.json(), key)
 
     @traced(
         name="connections_metadata",
@@ -280,7 +280,7 @@ class ConnectionsService(BaseService):
         """
         spec = self._retrieve_spec(key)
         response = await self.request_async(spec.method, url=spec.endpoint)
-        return Connection.model_validate(response.json())
+        return self._select_connection(response.json(), key)
 
     @traced(
         name="connections_metadata",
@@ -570,6 +570,39 @@ class ConnectionsService(BaseService):
             endpoint=Endpoint(f"/connections_/api/v1/Connections/{key}/token"),
             params={"tokenType": token_type.value},
         )
+
+    def _select_connection(self, data: Any, key: str) -> Connection:
+        """Validate a single-connection retrieve response, tolerating list bodies.
+
+        The Connections endpoint normally returns a single connection object, but it
+        can also answer with a list (e.g. when the key resolves to a filtered
+        collection). Validating a list against the single ``Connection`` model raises
+        ``pydantic_core.ValidationError``; instead, select the connection whose ``id``
+        matches the requested key, falling back to the first entry when none match.
+
+        Args:
+            data: The deserialized JSON body of the retrieve response.
+            key: The connection key that was requested.
+
+        Returns:
+            Connection: The resolved connection.
+
+        Raises:
+            ValueError: If the response is a list but contains no connections.
+        """
+        if isinstance(data, list):
+            if not data:
+                raise ValueError(f"No connection found for key '{key}'.")
+            matched = next(
+                (
+                    item
+                    for item in data
+                    if isinstance(item, dict) and item.get("id") == key
+                ),
+                data[0],
+            )
+            return Connection.model_validate(matched)
+        return Connection.model_validate(data)
 
     def _parse_and_validate_list_response(self, response: Response) -> List[Connection]:
         """Parse and validate the list response from the API.
