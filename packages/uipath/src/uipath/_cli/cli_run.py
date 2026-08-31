@@ -149,9 +149,8 @@ def run(
         if not ipc_pipe:
             console.error("--server-mode requires --ipc-pipe.")
         # cli_server -> _server_core -> cli_run cycles at import time; defer it.
-        from .cli_server import preload_modules, run_ipc_server
+        from .cli_server import run_ipc_server
 
-        preload_modules()
         run_ipc_server(ipc_pipe, surface_exit_code=True)
         return
 

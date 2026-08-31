@@ -405,7 +405,6 @@ class TestServerModeWiring:
         from uipath._cli.cli_run import run
 
         captured: dict[str, Any] = {}
-        monkeypatch.setattr(cli_server, "preload_modules", lambda: None)
         monkeypatch.setattr(
             cli_server,
             "run_ipc_server",
