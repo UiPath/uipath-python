@@ -1,12 +1,12 @@
 [project]
 name = "uipath"
-version = "2.13.22"
+version = "2.13.23"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
   "uipath-core>=0.5.30, <0.6.0",
-  "uipath-runtime>=0.12.2, <0.13.0",
+  "uipath-runtime>=0.12.2, <0.14.0",
   "uipath-platform>=0.2.14, <0.3.0",
   "click>=8.3.1",
   "httpx>=0.28.1",
