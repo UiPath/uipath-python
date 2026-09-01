@@ -134,7 +134,7 @@ class EntityDataService(BaseService):
         return self._parse_choiceset_values(response)
 
     # ------------------------------------------------------------------
-    # List records (multi-record read with OData filters)
+    # List records (multi-record read: paging and expansion only)
     # ------------------------------------------------------------------
 
     def list_records(
@@ -144,10 +144,6 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
-        filter: Optional[str] = None,
-        orderby: Optional[str] = None,
-        select: Optional[List[str]] = None,
-        expand: Optional[List[str]] = None,
     ) -> EntityRecordsListResponse:
         """Internal implementation; see :meth:`EntitiesService.list_records`."""
         spec = self._list_records_spec(
@@ -155,10 +151,6 @@ class EntityDataService(BaseService):
             start=start,
             limit=limit,
             expansion_level=expansion_level,
-            filter=filter,
-            orderby=orderby,
-            select=select,
-            expand=expand,
         )
         response = self.request(spec.method, spec.endpoint, params=spec.params)
         return self._build_records_list_response(response, schema, start, limit)
@@ -170,10 +162,6 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
-        filter: Optional[str] = None,
-        orderby: Optional[str] = None,
-        select: Optional[List[str]] = None,
-        expand: Optional[List[str]] = None,
     ) -> EntityRecordsListResponse:
         """Async variant of :meth:`list_records`."""
         spec = self._list_records_spec(
@@ -181,10 +169,6 @@ class EntityDataService(BaseService):
             start=start,
             limit=limit,
             expansion_level=expansion_level,
-            filter=filter,
-            orderby=orderby,
-            select=select,
-            expand=expand,
         )
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params
@@ -714,12 +698,14 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
-        filter: Optional[str] = None,
-        orderby: Optional[str] = None,
-        select: Optional[List[str]] = None,
-        expand: Optional[List[str]] = None,
     ) -> RequestSpec:
-        """Build the GET spec for the multi-record read endpoint."""
+        """Build the GET spec for the multi-record read endpoint.
+
+        The endpoint implements only ``start``, ``limit`` and ``expansionLevel``.
+        OData-style ``$filter`` / ``$orderby`` / ``$select`` / ``$expand`` params
+        are accepted and silently ignored by the backend, so they are not sent —
+        use :meth:`retrieve_records` (``POST .../query``) to filter or sort.
+        """
         params: Dict[str, Any] = {}
         if start is not None:
             params["start"] = start
@@ -727,14 +713,6 @@ class EntityDataService(BaseService):
             params["limit"] = limit
         if expansion_level is not None:
             params["expansionLevel"] = expansion_level
-        if filter is not None:
-            params["$filter"] = filter
-        if orderby is not None:
-            params["$orderby"] = orderby
-        if select:
-            params["$select"] = ",".join(select)
-        if expand:
-            params["$expand"] = ",".join(expand)
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(
