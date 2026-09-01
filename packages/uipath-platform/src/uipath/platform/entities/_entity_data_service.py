@@ -134,7 +134,7 @@ class EntityDataService(BaseService):
         return self._parse_choiceset_values(response)
 
     # ------------------------------------------------------------------
-    # List records (multi-record read with OData filters)
+    # List records (multi-record read: paging and expansion only)
     # ------------------------------------------------------------------
 
     def list_records(

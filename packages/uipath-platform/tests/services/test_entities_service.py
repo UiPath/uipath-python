@@ -1733,6 +1733,30 @@ class TestEntitiesServiceNewMethods:
         # Sending them would promise filtering this endpoint cannot do.
         assert [key for key in params if key.startswith("$")] == []
 
+    @pytest.mark.parametrize(
+        "kwarg,value",
+        [
+            ("filter", "status eq 'active'"),
+            ("orderby", "name asc"),
+            ("select", ["Id"]),
+            ("expand", ["Company"]),
+        ],
+    )
+    def test_list_records_rejects_odata_kwargs(
+        self,
+        service: EntitiesService,
+        kwarg: str,
+        value: object,
+    ) -> None:
+        """The /read endpoint cannot filter, sort or project.
+
+        Accepting these kwargs again — directly or via ``**kwargs`` — would
+        return the full unfiltered set while looking like it filtered. Failing
+        loudly points callers at ``retrieve_records`` instead.
+        """
+        with pytest.raises(TypeError, match=kwarg):
+            service.list_records(entity_key=str(uuid.uuid4()), **{kwarg: value})
+
     def test_insert_records_passes_expansion_level_and_fail_on_first(
         self,
         httpx_mock: HTTPXMock,
