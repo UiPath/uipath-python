@@ -593,10 +593,6 @@ class EntitiesService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
-        filter: Optional[str] = None,
-        orderby: Optional[str] = None,
-        select: Optional[List[str]] = None,
-        expand: Optional[List[str]] = None,
     ) -> EntityRecordsListResponse:
         """List records from an entity with optional pagination and schema validation.
 
@@ -637,14 +633,6 @@ class EntitiesService(BaseService):
             expansion_level (Optional[int]): Depth of foreign-key expansion in the
                 response (``0`` means no expansion). Higher values inline related
                 records up to that many hops.
-            filter (Optional[str]): OData ``$filter`` expression
-                (e.g. ``"status eq 'active'"``).
-            orderby (Optional[str]): OData ``$orderby`` expression
-                (e.g. ``"created_at desc"``).
-            select (Optional[List[str]]): Column projection — field names to
-                include (rendered as ``$select``).
-            expand (Optional[List[str]]): Relationship names to expand inline
-                (rendered as ``$expand``).
 
         Returns:
             EntityRecordsListResponse: A list-compatible response with
@@ -674,15 +662,25 @@ class EntitiesService(BaseService):
                         "Customers", start=50, limit=50
                     )
 
-            With OData filter, sorting, projection, and expansion::
+            With foreign-key expansion::
 
-                records = entities_service.list_records(
+                records = entities_service.list_records("Customers", expansion_level=1)
+
+            To filter, sort, or project, use :meth:`retrieve_records` — this
+            endpoint only pages::
+
+                result = entities_service.retrieve_records(
                     "Customers",
-                    filter="status eq 'active'",
-                    orderby="created_at desc",
-                    select=["name", "email", "status"],
-                    expand=["company"],
-                    expansion_level=1,
+                    filter_group=EntityQueryFilterGroup(
+                        logical_operator=LogicalOperator.And,
+                        query_filters=[
+                            EntityQueryFilter(
+                                field_name="status",
+                                operator=QueryFilterOperator.Equals,
+                                value="active",
+                            )
+                        ],
+                    ),
                 )
 
             With schema validation::
@@ -709,10 +707,6 @@ class EntitiesService(BaseService):
             start=start,
             limit=limit,
             expansion_level=expansion_level,
-            filter=filter,
-            orderby=orderby,
-            select=select,
-            expand=expand,
         )
 
     @traced(name="entity_list_records", run_type="uipath")
@@ -723,10 +717,6 @@ class EntitiesService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
-        filter: Optional[str] = None,
-        orderby: Optional[str] = None,
-        select: Optional[List[str]] = None,
-        expand: Optional[List[str]] = None,
     ) -> EntityRecordsListResponse:
         """Asynchronously list records from an entity with optional pagination and schema validation.
 
@@ -767,14 +757,6 @@ class EntitiesService(BaseService):
             expansion_level (Optional[int]): Depth of foreign-key expansion in the
                 response (``0`` means no expansion). Higher values inline related
                 records up to that many hops.
-            filter (Optional[str]): OData ``$filter`` expression
-                (e.g. ``"status eq 'active'"``).
-            orderby (Optional[str]): OData ``$orderby`` expression
-                (e.g. ``"created_at desc"``).
-            select (Optional[List[str]]): Column projection — field names to
-                include (rendered as ``$select``).
-            expand (Optional[List[str]]): Relationship names to expand inline
-                (rendered as ``$expand``).
 
         Returns:
             EntityRecordsListResponse: A list-compatible response with
@@ -804,16 +786,14 @@ class EntitiesService(BaseService):
                         "Customers", start=50, limit=50
                     )
 
-            With OData filter, sorting, projection, and expansion::
+            With foreign-key expansion::
 
                 records = await entities_service.list_records_async(
-                    "Customers",
-                    filter="status eq 'active'",
-                    orderby="created_at desc",
-                    select=["name", "email", "status"],
-                    expand=["company"],
-                    expansion_level=1,
+                    "Customers", expansion_level=1
                 )
+
+            To filter, sort, or project, use :meth:`retrieve_records_async` —
+            this endpoint only pages.
 
             With schema validation::
 
@@ -839,10 +819,6 @@ class EntitiesService(BaseService):
             start=start,
             limit=limit,
             expansion_level=expansion_level,
-            filter=filter,
-            orderby=orderby,
-            select=select,
-            expand=expand,
         )
 
     @traced(name="entity_insert_record", run_type="uipath")

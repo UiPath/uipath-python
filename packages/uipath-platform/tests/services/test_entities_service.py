@@ -1709,10 +1709,6 @@ class TestEntitiesServiceNewMethods:
             start=0,
             limit=3,
             expansion_level=2,
-            filter="status eq 'active'",
-            orderby="name asc",
-            select=["Id", "name"],
-            expand=["Company"],
         )
 
         # New pagination metadata: backend totalCount surfaced verbatim.
@@ -1729,11 +1725,13 @@ class TestEntitiesServiceNewMethods:
         sent = httpx_mock.get_request()
         assert sent is not None
         params = sent.url.params
+        assert params.get("start") == "0"
+        assert params.get("limit") == "3"
         assert params.get("expansionLevel") == "2"
-        assert params.get("$filter") == "status eq 'active'"
-        assert params.get("$orderby") == "name asc"
-        assert params.get("$select") == "Id,name"
-        assert params.get("$expand") == "Company"
+        # The /read endpoint implements paging and expansion only — it accepts
+        # OData params and silently ignores them, returning the unfiltered set.
+        # Sending them would promise filtering this endpoint cannot do.
+        assert [key for key in params if key.startswith("$")] == []
 
     def test_insert_records_passes_expansion_level_and_fail_on_first(
         self,
