@@ -11,6 +11,7 @@ from uipath.platform.context_grounding.context_grounding_index import (
 
 from ..action_center.tasks import Task, TaskRecipient
 from ..attachments import Attachment
+from ..hitl.models import HitlSchema
 from ..context_grounding import (
     BatchTransformCreationResponse,
     BatchTransformOutputColumn,
@@ -59,7 +60,12 @@ class WaitJobRaw(WaitJob):
 
 
 class CreateTask(BaseModel):
-    """Model representing an action creation."""
+    """Model representing an action creation.
+
+    When *schema* is set the runtime creates a schema-driven **QuickForm** task
+    (``GenericTasks/CreateTask``, ``type=6``) instead of an action-app task.
+    No pre-deployed Action App is required in that case.
+    """
 
     title: str
     data: dict[str, Any] | None = None
@@ -74,6 +80,7 @@ class CreateTask(BaseModel):
     is_actionable_message_enabled: bool | None = None
     actionable_message_metadata: dict[str, Any] | None = None
     source_name: str = "Agent"
+    hitl_schema: HitlSchema | None = None
 
 
 class CreateEscalation(CreateTask):
