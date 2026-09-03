@@ -29,6 +29,7 @@ from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
+from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
@@ -154,6 +155,7 @@ def debug(
                 with ExecutionSourceContext(ctx.execution_source), ctx:
                     factory: UiPathRuntimeFactoryProtocol | None = None
                     governance_bootstrap: GovernanceBootstrap | None = None
+                    run_telemetry: RunTelemetry | None = None
 
                     try:
                         trigger_poll_interval: float = 5.0
@@ -173,6 +175,14 @@ def debug(
                             if factory_settings
                             else None
                         )
+                        run_telemetry = RunTelemetry.start(
+                            agent_type=agent_type,
+                            agent_framework=agent_framework,
+                            entrypoint=entrypoint,
+                            execution_source=ctx.execution_source,
+                            is_conversational=ctx.conversation_id is not None,
+                        )
+
                         governance_bootstrap = await resolve_governance(
                             agent_framework=agent_framework,
                             agent_type=agent_type,
@@ -286,6 +296,12 @@ def debug(
                             )
                             await execute_debug_runtime()
 
+                        if run_telemetry is not None:
+                            run_telemetry.finished(ctx.result)
+                    except Exception as e:
+                        if run_telemetry is not None:
+                            run_telemetry.failed(e)
+                        raise
                     finally:
                         try:
                             if governance_bootstrap is not None:
