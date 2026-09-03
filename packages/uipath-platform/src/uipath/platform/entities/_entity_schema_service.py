@@ -7,7 +7,7 @@ Record CRUD, queries, attachments, and bulk import live on
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from httpx import Response
 
@@ -19,11 +19,15 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
 from ..orchestrator._folder_service import FolderService
 from .entities import (
+    ENTITY_CLASS_TO_ID_MAP,
     ENTITY_FIELD_CONSTRAINT_DEFAULTS,
     ENTITY_FIELD_CONSTRAINT_SPEC,
     ENTITY_SCHEMA_FIELD_TYPE_MAP,
     RESERVED_FIELD_NAMES,
     Entity,
+    EntityClass,
+    EntityCreateExternalField,
+    EntityCreateExternalSource,
     EntityCreateFieldOptions,
     EntityCreateOptions,
     EntityFieldDataType,
@@ -31,6 +35,15 @@ from .entities import (
 )
 
 DATA_FABRIC_TENANT_FOLDER_ID = "00000000-0000-0000-0000-000000000000"
+
+_V1_ENTITIES = "datafabric_/api/Entity"
+_V3_ENTITIES = "datafabric_/api/v3/entities"
+
+
+def _schema_base(use_v3: bool) -> str:
+    """Return the entity-schema endpoint root for the requested API version."""
+    return _V3_ENTITIES if use_v3 else _V1_ENTITIES
+
 
 _NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
 """Entity and field name pattern: must start with a letter, then letters and digits only.
@@ -49,7 +62,9 @@ class EntitySchemaService(BaseService):
     """HTTP service for entity-schema operations.
 
     Provides retrieval and lifecycle management for entities and choice sets.
-    Backend target: ``datafabric_/api/Entity``.
+    Each operation targets either the legacy v1 ``datafabric_/api/Entity``
+    surface or the ``datafabric_/api/v3/entities`` surface depending on
+    ``use_v3``; only v3 serves Federated entities. Choice-set listing is v1 only.
 
     See Also:
         https://docs.uipath.com/data-service/automation-cloud/latest/user-guide/introduction
@@ -69,46 +84,52 @@ class EntitySchemaService(BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    def retrieve(self, entity_key: str) -> Entity:
+    def retrieve(self, entity_key: str, use_v3: bool = False) -> Entity:
         """Internal implementation; see :meth:`EntitiesService.retrieve`."""
-        spec = self._retrieve_spec(entity_key)
+        spec = self._retrieve_spec(entity_key, use_v3=use_v3)
         response = self.request(spec.method, spec.endpoint)
         return Entity.model_validate(response.json())
 
-    async def retrieve_async(self, entity_key: str) -> Entity:
+    async def retrieve_async(self, entity_key: str, use_v3: bool = False) -> Entity:
         """Async variant of :meth:`retrieve`."""
-        spec = self._retrieve_spec(entity_key)
+        spec = self._retrieve_spec(entity_key, use_v3=use_v3)
         response = await self.request_async(spec.method, spec.endpoint)
         return Entity.model_validate(response.json())
 
     def retrieve_by_name(
-        self, entity_name: str, folder_key: Optional[str] = None
+        self,
+        entity_name: str,
+        folder_key: Optional[str] = None,
+        use_v3: bool = False,
     ) -> Entity:
         """Internal implementation; see :meth:`EntitiesService.retrieve_by_name`."""
-        spec = self._retrieve_by_name_spec(entity_name)
+        spec = self._retrieve_by_name_spec(entity_name, use_v3=use_v3)
         headers = self._folder_key_headers(folder_key)
         response = self.request(spec.method, spec.endpoint, headers=headers)
         return Entity.model_validate(response.json())
 
     async def retrieve_by_name_async(
-        self, entity_name: str, folder_key: Optional[str] = None
+        self,
+        entity_name: str,
+        folder_key: Optional[str] = None,
+        use_v3: bool = False,
     ) -> Entity:
         """Async variant of :meth:`retrieve_by_name`."""
-        spec = self._retrieve_by_name_spec(entity_name)
+        spec = self._retrieve_by_name_spec(entity_name, use_v3=use_v3)
         headers = self._folder_key_headers(folder_key)
         response = await self.request_async(spec.method, spec.endpoint, headers=headers)
         return Entity.model_validate(response.json())
 
-    def list_entities(self) -> List[Entity]:
+    def list_entities(self, use_v3: bool = False) -> List[Entity]:
         """Internal implementation; see :meth:`EntitiesService.list_entities`."""
-        spec = self._list_entities_spec()
+        spec = self._list_entities_spec(use_v3=use_v3)
         response = self.request(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
 
-    async def list_entities_async(self) -> List[Entity]:
+    async def list_entities_async(self, use_v3: bool = False) -> List[Entity]:
         """Async variant of :meth:`list_entities`."""
-        spec = self._list_entities_spec()
+        spec = self._list_entities_spec(use_v3=use_v3)
         response = await self.request_async(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
@@ -130,9 +151,10 @@ class EntitySchemaService(BaseService):
         name: str,
         fields: List[EntityCreateFieldOptions],
         options: Optional[EntityCreateOptions] = None,
+        use_v3: bool = False,
     ) -> str:
         """Internal implementation; see :meth:`EntitiesService.create_entity`."""
-        spec = self._create_entity_spec(name, fields, options)
+        spec = self._create_entity_spec(name, fields, options, use_v3=use_v3)
         response = self.request(spec.method, spec.endpoint, json=spec.json)
         return self._extract_entity_id(response)
 
@@ -141,38 +163,41 @@ class EntitySchemaService(BaseService):
         name: str,
         fields: List[EntityCreateFieldOptions],
         options: Optional[EntityCreateOptions] = None,
+        use_v3: bool = False,
     ) -> str:
         """Async variant of :meth:`create_entity`."""
-        spec = self._create_entity_spec(name, fields, options)
+        spec = self._create_entity_spec(name, fields, options, use_v3=use_v3)
         response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return self._extract_entity_id(response)
 
-    def delete_entity(self, entity_id: str) -> None:
+    def delete_entity(self, entity_id: str, use_v3: bool = False) -> None:
         """Delete an entity and all of its records."""
-        spec = self._delete_entity_spec(entity_id)
+        spec = self._delete_entity_spec(entity_id, use_v3=use_v3)
         self.request(spec.method, spec.endpoint)
 
-    async def delete_entity_async(self, entity_id: str) -> None:
+    async def delete_entity_async(self, entity_id: str, use_v3: bool = False) -> None:
         """Async variant of :meth:`delete_entity`."""
-        spec = self._delete_entity_spec(entity_id)
+        spec = self._delete_entity_spec(entity_id, use_v3=use_v3)
         await self.request_async(spec.method, spec.endpoint)
 
     def update_entity_metadata(
         self,
         entity_id: str,
         metadata: EntityMetadataUpdateOptions | Dict[str, Any],
+        use_v3: bool = False,
     ) -> None:
         """Internal implementation; see :meth:`EntitiesService.update_entity_metadata`."""
-        spec = self._update_entity_metadata_spec(entity_id, metadata)
+        spec = self._update_entity_metadata_spec(entity_id, metadata, use_v3=use_v3)
         self.request(spec.method, spec.endpoint, json=spec.json)
 
     async def update_entity_metadata_async(
         self,
         entity_id: str,
         metadata: EntityMetadataUpdateOptions | Dict[str, Any],
+        use_v3: bool = False,
     ) -> None:
         """Async variant of :meth:`update_entity_metadata`."""
-        spec = self._update_entity_metadata_spec(entity_id, metadata)
+        spec = self._update_entity_metadata_spec(entity_id, metadata, use_v3=use_v3)
         await self.request_async(spec.method, spec.endpoint, json=spec.json)
 
     # ------------------------------------------------------------------
@@ -180,19 +205,19 @@ class EntitySchemaService(BaseService):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _retrieve_spec(entity_key: str) -> RequestSpec:
+    def _retrieve_spec(entity_key: str, use_v3: bool = False) -> RequestSpec:
         """Build the GET spec for fetching an entity by key."""
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_key}"),
+            endpoint=Endpoint(f"{_schema_base(use_v3)}/{entity_key}"),
         )
 
     @staticmethod
-    def _retrieve_by_name_spec(entity_name: str) -> RequestSpec:
+    def _retrieve_by_name_spec(entity_name: str, use_v3: bool = False) -> RequestSpec:
         """Build the GET spec for fetching an entity by name."""
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_name}/metadata"),
+            endpoint=Endpoint(f"{_schema_base(use_v3)}/{entity_name}/metadata"),
         )
 
     @staticmethod
@@ -203,11 +228,11 @@ class EntitySchemaService(BaseService):
         return {}
 
     @staticmethod
-    def _list_entities_spec() -> RequestSpec:
+    def _list_entities_spec(use_v3: bool = False) -> RequestSpec:
         """Build the GET spec for listing all entities (non-choice-sets)."""
         return RequestSpec(
             method="GET",
-            endpoint=Endpoint("datafabric_/api/Entity"),
+            endpoint=Endpoint(_schema_base(use_v3)),
         )
 
     @staticmethod
@@ -224,15 +249,85 @@ class EntitySchemaService(BaseService):
         name: str,
         fields: List[EntityCreateFieldOptions],
         options: Optional[EntityCreateOptions] = None,
+        use_v3: bool = False,
     ) -> RequestSpec:
-        """Build the POST spec for creating an entity with its field schema."""
+        """Build the POST spec for creating an entity with its field schema.
+
+        On v3, a federated entity is created by passing
+        ``options.entity_class = EntityClass.Federated`` with at least one
+        source in ``options.external_fields`` and any cross-source joins in
+        ``options.source_join_condition_details``. The legacy v1 endpoint does
+        not support Federated entities.
+        """
         cls._validate_name(name, "entity")
         for field in fields:
             cls._validate_name(field.field_name, "field")
         opts = options or EntityCreateOptions()
-        # The user-facing option ``is_analytics_enabled`` maps to the legacy
-        # backend field name ``isInsightsEnabled`` — the wire name predates
-        # the "Analytics" UI rename.
+
+        if not use_v3:
+            return cls._create_entity_spec_v1(name, fields, opts)
+
+        entity_class_id: Optional[int] = None
+        if opts.entity_class is not None:
+            if opts.entity_class not in (EntityClass.Native, EntityClass.Federated):
+                raise ValueError(
+                    f"entityClass {opts.entity_class.value!r} is not creatable. "
+                    "Use EntityClass.Native or EntityClass.Federated."
+                )
+            entity_class_id = int(ENTITY_CLASS_TO_ID_MAP[opts.entity_class])
+        if opts.entity_class is EntityClass.Federated and not opts.external_fields:
+            raise ValueError(
+                "Federated entities require at least one external source in "
+                "external_fields."
+            )
+
+        entity_definition: Dict[str, Any] = {
+            "name": name,
+            "fields": [cls._build_schema_field_payload(f) for f in fields],
+            "folderId": opts.folder_key or DATA_FABRIC_TENANT_FOLDER_ID,
+            "isRbacEnabled": bool(opts.is_rbac_enabled or False),
+            "isInsightsEnabled": bool(opts.is_analytics_enabled or False),
+            "externalFields": cls._build_external_sources_payload(opts.external_fields),
+        }
+        if entity_class_id is not None:
+            entity_definition["entityClassId"] = entity_class_id
+        if opts.source_join_condition_details is not None:
+            entity_definition["sourceJoinConditionDetails"] = [
+                j.model_dump(by_alias=True, exclude_none=True, mode="json")
+                for j in opts.source_join_condition_details
+            ]
+
+        payload: Dict[str, Any] = {
+            "displayName": opts.display_name or name,
+            "entityDefinition": entity_definition,
+        }
+        if opts.description is not None:
+            payload["description"] = opts.description
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(_V3_ENTITIES),
+            json=payload,
+        )
+
+    @classmethod
+    def _create_entity_spec_v1(
+        cls,
+        name: str,
+        fields: List[EntityCreateFieldOptions],
+        opts: EntityCreateOptions,
+    ) -> RequestSpec:
+        """Build the legacy v1 create-entity POST spec (no Federated support).
+
+        The user-facing option ``is_analytics_enabled`` maps to the legacy
+        backend field name ``isInsightsEnabled`` — the wire name predates the
+        "Analytics" UI rename.
+        """
+        external_fields = [
+            source.model_dump(by_alias=True, exclude_none=True, mode="json")
+            if isinstance(source, EntityCreateExternalSource)
+            else source
+            for source in (opts.external_fields or [])
+        ]
         payload: Dict[str, Any] = {
             "displayName": opts.display_name or name,
             "entityDefinition": {
@@ -241,29 +336,92 @@ class EntitySchemaService(BaseService):
                 "folderId": opts.folder_key or DATA_FABRIC_TENANT_FOLDER_ID,
                 "isRbacEnabled": bool(opts.is_rbac_enabled or False),
                 "isInsightsEnabled": bool(opts.is_analytics_enabled or False),
-                "externalFields": opts.external_fields or [],
+                "externalFields": external_fields,
             },
         }
         if opts.description is not None:
             payload["description"] = opts.description
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint("datafabric_/api/Entity"),
+            endpoint=Endpoint(_V1_ENTITIES),
             json=payload,
         )
 
+    @classmethod
+    def _build_external_sources_payload(
+        cls,
+        sources: Optional[Sequence[EntityCreateExternalSource | Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
+        """Build the wire ``externalFields`` payload for a federated entity.
+
+        Each source's internal columns run through the same field pipeline as
+        native fields (so ``fieldDefinition`` is identical to a native field),
+        paired with its external mapping and source connection/object details.
+        Dict inputs are validated through :class:`EntityCreateExternalSource`.
+        """
+        if not sources:
+            return []
+        built: List[Dict[str, Any]] = []
+        for source in sources:
+            if not isinstance(source, EntityCreateExternalSource):
+                source = EntityCreateExternalSource.model_validate(source)
+            entry: Dict[str, Any] = {
+                "fields": cls._build_external_fields_payload(source.fields),
+                "externalObjectDetail": source.external_object_detail.model_dump(
+                    by_alias=True, exclude_none=True, mode="json"
+                ),
+            }
+            if source.external_connection_detail is not None:
+                entry["externalConnectionDetail"] = (
+                    source.external_connection_detail.model_dump(
+                        by_alias=True, exclude_none=True, mode="json"
+                    )
+                )
+            if source.native_connection_detail is not None:
+                entry["nativeConnectionDetail"] = (
+                    source.native_connection_detail.model_dump(
+                        by_alias=True, exclude_none=True, mode="json"
+                    )
+                )
+            built.append(entry)
+        return built
+
+    @classmethod
+    def _build_external_fields_payload(
+        cls,
+        fields: Optional[List[EntityCreateExternalField]],
+    ) -> List[Dict[str, Any]]:
+        """Build the wire ``fields`` payload for a federated source.
+
+        Produces ``{fieldDefinition, externalFieldMappingDetail}`` per field —
+        ``fieldDefinition`` is the native field payload, ``externalFieldMappingDetail``
+        the source mapping (``directionType`` numeric, per :class:`DataDirectionType`).
+        """
+        if not fields:
+            return []
+        return [
+            {
+                "fieldDefinition": cls._build_schema_field_payload(f.field),
+                "externalFieldMappingDetail": f.external_field_mapping_detail.model_dump(
+                    by_alias=True, exclude_none=True, mode="json"
+                ),
+            }
+            for f in fields
+        ]
+
     @staticmethod
-    def _delete_entity_spec(entity_id: str) -> RequestSpec:
+    def _delete_entity_spec(entity_id: str, use_v3: bool = False) -> RequestSpec:
         """Build the DELETE spec for removing an entity."""
         return RequestSpec(
             method="DELETE",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_id}"),
+            endpoint=Endpoint(f"{_schema_base(use_v3)}/{entity_id}"),
         )
 
     @staticmethod
     def _update_entity_metadata_spec(
         entity_id: str,
         metadata: EntityMetadataUpdateOptions | Dict[str, Any],
+        use_v3: bool = False,
     ) -> RequestSpec:
         """Build the PATCH spec for updating entity metadata.
 
@@ -277,7 +435,7 @@ class EntitySchemaService(BaseService):
         body = metadata.model_dump(by_alias=True, exclude_none=True)
         return RequestSpec(
             method="PATCH",
-            endpoint=Endpoint(f"datafabric_/api/Entity/{entity_id}/metadata"),
+            endpoint=Endpoint(f"{_schema_base(use_v3)}/{entity_id}/metadata"),
             json=body,
         )
 
