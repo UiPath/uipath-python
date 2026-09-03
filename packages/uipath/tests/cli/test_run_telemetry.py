@@ -23,6 +23,7 @@ SCOPE_KEYS = {
     "JobId",
     "CloudOrganizationId",
     "CloudTenantId",
+    "CloudUserId",
     "ProjectId",
     "ProjectKey",
     "ProcessName",
@@ -201,6 +202,31 @@ class TestTerminalStatus:
         assert properties["Status"] == "Failed"
         assert properties["ErrorCode"] == "Python.Boom"
         assert properties["ErrorCategory"] == "User"
+
+    def test_faulted_result_does_not_borrow_the_error_code_as_error_type(self, emitted):
+        started().finished(
+            UiPathRuntimeResult(
+                status=UiPathRuntimeStatus.FAULTED,
+                error=UiPathErrorContract(
+                    code="Python.Boom",
+                    title="It broke",
+                    detail="d",
+                    category=UiPathErrorCategory.USER,
+                ),
+            )
+        )
+
+        _, properties = emitted[-1]
+        assert properties["ErrorCode"] == "Python.Boom"
+        assert "ErrorType" not in properties
+
+    def test_faulted_result_without_a_contract_invents_nothing(self, emitted):
+        started().finished(UiPathRuntimeResult(status=UiPathRuntimeStatus.FAULTED))
+
+        _, properties = emitted[-1]
+        assert properties["Status"] == "Failed"
+        assert "ErrorType" not in properties
+        assert "ErrorCode" not in properties
 
     def test_suspended_result_is_waiting_not_failing(self, emitted):
         started().finished(UiPathRuntimeResult(status=UiPathRuntimeStatus.SUSPENDED))

@@ -1,10 +1,7 @@
 """Lifecycle events for coded agent and coded function runs.
 
-The coded counterpart to low-code's ``AgentRun.*``: ``CodedAgentRun.*`` for a
-framework-driven run, ``CodedFunctionRun.*`` for a plain Python entrypoint.
-Unlike ``Cli.*`` these are not suppressed under a job key, so cloud runs report
-too, and every event carries the full scope block so none needs an Orchestrator
-lookup to attribute.
+The coded counterpart to low-code's ``AgentRun.*``. Unlike ``Cli.*`` these are not
+suppressed under a job key, so cloud runs report too.
 """
 
 import logging
@@ -47,9 +44,8 @@ class RunKind(str, Enum):
 def classify_run(agent_type: str | None, agent_framework: str | None) -> RunKind | None:
     """Run kind from factory settings, or ``None`` when low-code owns the run.
 
-    ``agent_type`` cannot separate the coded kinds — functions and LangGraph both
-    report ``uipath_coded``. Only the functions factory reports framework
-    ``python``; a factory reporting nothing is assumed to wrap a framework.
+    Both coded kinds report ``agent_type`` ``uipath_coded``, so only the framework
+    separates them. A factory reporting nothing is assumed to wrap one.
     """
     if agent_type and agent_type.strip().lower() == _LOWCODE_AGENT_TYPE:
         return None
@@ -72,13 +68,10 @@ def _cloud_user_id() -> str | None:
 def _scope_properties() -> dict[str, Any]:
     """Identity and scope, on every event so each one stands alone.
 
-    The cloud identity trio is required on every Automation Cloud event, so an
-    unauthenticated run reports ``N/A`` rather than dropping it. Optional scope
-    is omitted when absent, so a local run does not look like it has a folder.
-
-    ``UIPATH_PROCESS_KEY`` holds the display name, not an id. ``TraceId`` goes
-    through :func:`resolve_trace_id` because the env var may be a dashed UUID
-    while spans export as 32-char hex, and the two have to join.
+    The cloud identity trio is required, so it reports ``N/A`` rather than being
+    dropped; optional scope is omitted, so a local run has no folder. Note
+    ``UIPATH_PROCESS_KEY`` holds a display name, and ``TraceId`` needs
+    :func:`resolve_trace_id` to normalize a dashed UUID into the hex spans use.
     """
     properties: dict[str, Any] = {
         "FolderKey": UiPathConfig.folder_key,
@@ -101,14 +94,16 @@ def _scope_properties() -> dict[str, Any]:
 
 
 def _error_properties(
-    error_type: str, contract: UiPathErrorContract | None
+    error_type: str | None, contract: UiPathErrorContract | None
 ) -> dict[str, Any]:
-    """Error classification only — no message, no traceback.
+    """Error classification only, since message and traceback carry customer source.
 
-    Both carry customer source and values for a coded run; ``UiPathBaseRuntimeError``
-    even appends the traceback to ``detail``.
+    ``ErrorType`` is the exception class, so it is absent for a faulted result that
+    never raised rather than borrowing the contract code.
     """
-    properties: dict[str, Any] = {"ErrorType": error_type}
+    properties: dict[str, Any] = {}
+    if error_type:
+        properties["ErrorType"] = error_type
     if contract is None:
         return properties
     properties["ErrorCode"] = contract.code
@@ -147,10 +142,9 @@ class RunTelemetry:
         execution_source: str | None = None,
         is_conversational: bool = False,
     ) -> "RunTelemetry | None":
-        """Emit Start and return a handle, or ``None`` when this run is not reported.
+        """Emit Start and return a handle, or ``None`` when not reporting.
 
-        ``None`` when telemetry is off, or for low-code, which
-        uipath-agents-python reports itself.
+        ``None`` when telemetry is off, or for low-code, which reports itself.
         """
         if not is_telemetry_enabled():
             return None
@@ -171,17 +165,15 @@ class RunTelemetry:
     def finished(self, result: UiPathRuntimeResult | None) -> None:
         """Terminal event for a run that returned.
 
-        Faulted is a failure the runtime handled rather than raised; suspended is
-        waiting on a trigger, not broken.
+        Faulted failed without raising; suspended is waiting, not broken.
         """
         status = result.status if result else UiPathRuntimeStatus.SUCCESSFUL
 
         if status == UiPathRuntimeStatus.FAULTED:
             contract = result.error if result else None
-            error_type = contract.code if contract else "Unknown"
             self._emit(
                 "Failed",
-                {"Status": "Failed", **_error_properties(error_type, contract)},
+                {"Status": "Failed", **_error_properties(None, contract)},
             )
             return
 
