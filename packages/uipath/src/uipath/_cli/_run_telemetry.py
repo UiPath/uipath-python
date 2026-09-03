@@ -13,7 +13,7 @@ from importlib.metadata import version
 from typing import Any
 
 from uipath.platform.common import UiPathConfig, resolve_trace_id
-from uipath.platform.constants import ENV_JOB_ID
+from uipath.platform.constants import ENV_IMAGE_VERSION, ENV_JOB_ID
 from uipath.runtime.errors import UiPathBaseRuntimeError, UiPathErrorContract
 from uipath.runtime.result import UiPathRuntimeResult, UiPathRuntimeStatus
 from uipath.telemetry._track import is_telemetry_enabled, track_event
@@ -28,10 +28,6 @@ NOT_AVAILABLE = "N/A"
 
 _LOWCODE_AGENT_TYPE = "uipath_lowcode"
 _FUNCTION_FRAMEWORK = "python"
-
-_ENV_IMAGE_VERSION = "IMAGE_VERSION"
-_ENV_AS_CLUSTER_ID = "AUTOMATION_SUITE_CLUSTER_ID"
-_ENV_AS_CLUSTER_VERSION = "AUTOMATION_SUITE_CLUSTER_VERSION"
 
 
 class RunKind(str, Enum):
@@ -69,9 +65,7 @@ def _scope_properties() -> dict[str, Any]:
     """Identity and scope, on every event so each one stands alone.
 
     The cloud identity trio is required, so it reports ``N/A`` rather than being
-    dropped; optional scope is omitted, so a local run has no folder. Note
-    ``UIPATH_PROCESS_KEY`` holds a display name, and ``TraceId`` needs
-    :func:`resolve_trace_id` to normalize a dashed UUID into the hex spans use.
+    dropped; optional scope is omitted, so a local run has no folder.
     """
     properties: dict[str, Any] = {
         "FolderKey": UiPathConfig.folder_key,
@@ -86,9 +80,7 @@ def _scope_properties() -> dict[str, Any]:
         "ProcessUuid": UiPathConfig.process_uuid,
         "ProcessVersion": UiPathConfig.process_version,
         "TraceId": resolve_trace_id(),
-        "ImageVersion": os.getenv(_ENV_IMAGE_VERSION),
-        "AutomationSuiteClusterId": os.getenv(_ENV_AS_CLUSTER_ID),
-        "AutomationSuiteClusterVersion": os.getenv(_ENV_AS_CLUSTER_VERSION),
+        "ImageVersion": os.getenv(ENV_IMAGE_VERSION),
     }
     return {key: value for key, value in properties.items() if value is not None}
 
@@ -174,11 +166,12 @@ class RunTelemetry:
             self._emit(
                 "Failed",
                 {"Status": "Failed", **_error_properties(None, contract)},
+                include_duration=True,
             )
             return
 
         label = "Suspended" if status == UiPathRuntimeStatus.SUSPENDED else "Completed"
-        self._emit("End", {"Status": label})
+        self._emit("End", {"Status": label}, include_duration=True)
 
     def failed(self, exception: BaseException) -> None:
         """Terminal event for a run that raised."""
@@ -191,9 +184,12 @@ class RunTelemetry:
                 "Status": "Failed",
                 **_error_properties(type(exception).__name__, contract),
             },
+            include_duration=True,
         )
 
-    def _emit(self, suffix: str, extra: dict[str, Any]) -> None:
+    def _emit(
+        self, suffix: str, extra: dict[str, Any], include_duration: bool = False
+    ) -> None:
         try:
             properties: dict[str, Any] = {
                 "AgentRunId": self._run_id,
@@ -211,7 +207,7 @@ class RunTelemetry:
             }
             properties.update(_scope_properties())
 
-            if suffix != "Start":
+            if include_duration:
                 properties["DurationMs"] = int(
                     (time.monotonic() - self._started_at) * 1000
                 )

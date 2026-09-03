@@ -243,6 +243,13 @@ class TestTerminalStatus:
         assert "DurationMs" not in start_props
         assert end_props["DurationMs"] >= 0
 
+    def test_duration_is_opt_in_not_inferred_from_the_suffix(self, emitted):
+        handle = started()
+        handle._emit("Interrupted", {})
+
+        _, properties = emitted[-1]
+        assert "DurationMs" not in properties
+
 
 class TestTraceCorrelation:
     def test_a_dashed_uuid_trace_id_is_normalized_to_hex(self, emitted, monkeypatch):
