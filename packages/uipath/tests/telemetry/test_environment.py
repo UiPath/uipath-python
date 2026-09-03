@@ -21,8 +21,8 @@ class TestEnvironmentFromBaseUrl:
     def test_known_hosts_resolve_to_their_environment(self, base_url, expected):
         assert environment_from_base_url(base_url) == expected
 
-    def test_subdomain_resolves_to_the_parent_environment(self):
-        assert environment_from_base_url("https://tenant.alpha.uipath.com/o") == "alpha"
+    def test_subdomain_is_not_a_recognised_host(self):
+        assert environment_from_base_url("https://tenant.alpha.uipath.com/o") == "cloud"
 
     def test_host_matching_is_case_insensitive(self):
         assert environment_from_base_url("https://ALPHA.UiPath.COM/o") == "alpha"

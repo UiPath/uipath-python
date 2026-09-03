@@ -22,11 +22,6 @@ _ENVIRONMENT_BY_DOMAIN: dict[str, UiPathEnvironment] = {
 }
 
 
-def _is_domain_or_subdomain(hostname: str, domain: str) -> bool:
-    """Whether ``hostname`` is ``domain`` or a dot-separated subdomain of it."""
-    return hostname == domain or hostname.endswith(f".{domain}")
-
-
 def environment_from_base_url(base_url: str | None) -> UiPathEnvironment:
     """Map a UiPath base URL to its environment, defaulting to production."""
     if not base_url:
@@ -40,11 +35,7 @@ def environment_from_base_url(base_url: str | None) -> UiPathEnvironment:
     if not hostname:
         return DEFAULT_ENVIRONMENT
 
-    for domain, environment in _ENVIRONMENT_BY_DOMAIN.items():
-        if _is_domain_or_subdomain(hostname, domain):
-            return environment
-
-    return DEFAULT_ENVIRONMENT
+    return _ENVIRONMENT_BY_DOMAIN.get(hostname, DEFAULT_ENVIRONMENT)
 
 
 def resolve_environment() -> UiPathEnvironment:
