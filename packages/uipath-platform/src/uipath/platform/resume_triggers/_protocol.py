@@ -679,6 +679,7 @@ class UiPathResumeTriggerCreator:
                 labels=value.labels,
                 is_actionable_message_enabled=value.is_actionable_message_enabled,
                 actionable_message_metadata=value.actionable_message_metadata,
+                task_source_metadata=value.task_source_metadata,
                 source_name=value.source_name,
             )
             if not action:

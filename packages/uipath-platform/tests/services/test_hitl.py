@@ -1278,6 +1278,7 @@ class TestHitlProcessor:
                 labels=None,
                 is_actionable_message_enabled=None,
                 actionable_message_metadata=None,
+                task_source_metadata=None,
                 source_name="Agent",
             )
 

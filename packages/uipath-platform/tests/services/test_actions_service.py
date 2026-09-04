@@ -1024,3 +1024,88 @@ def test_create_skips_jit_when_not_a_studio_project(
 
     assert _requested_app_schemas(httpx_mock)
     assert _posted_body(httpx_mock, create_task_url)["folderPath"] == "Shared/Apps"
+
+
+def test_create_merges_task_source_metadata(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    service.create(
+        title="Test Action",
+        app_key="test-app-key",
+        data={"test": "data"},
+        task_source_metadata={"ConversationalAgentId": "agent-1"},
+    )
+
+    task_source_metadata = _posted_body(httpx_mock, create_task_url)["taskSource"][
+        "taskSourceMetadata"
+    ]
+    assert task_source_metadata["ConversationalAgentId"] == "agent-1"
+    # The built-in correlation keys are still populated alongside the extra one.
+    assert task_source_metadata["InstanceId"] == "trace-1"
+
+
+async def test_create_async_merges_task_source_metadata(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    await service.create_async(
+        title="Test Action",
+        app_key="test-app-key",
+        data={"test": "data"},
+        task_source_metadata={"ConversationalAgentId": "agent-1"},
+    )
+
+    task_source_metadata = _posted_body(httpx_mock, create_task_url)["taskSource"][
+        "taskSourceMetadata"
+    ]
+    assert task_source_metadata["ConversationalAgentId"] == "agent-1"
+    assert task_source_metadata["InstanceId"] == "trace-1"
+
+
+def test_create_omits_extra_task_source_metadata_when_unset(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    service.create(title="Test Action", app_key="test-app-key", data={"test": "data"})
+
+    task_source_metadata = _posted_body(httpx_mock, create_task_url)["taskSource"][
+        "taskSourceMetadata"
+    ]
+    assert "ConversationalAgentId" not in task_source_metadata
+    assert task_source_metadata["InstanceId"] == "trace-1"
+
+
+def test_create_task_source_metadata_overrides_a_built_in_key_on_collision(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    create_task_url: str,
+    jit_debug_env: None,
+) -> None:
+    _mock_create_task(httpx_mock, create_task_url)
+
+    service.create(
+        title="Test Action",
+        app_key="test-app-key",
+        data={"test": "data"},
+        task_source_metadata={"InstanceId": "caller-supplied-instance-id"},
+    )
+
+    task_source_metadata = _posted_body(httpx_mock, create_task_url)["taskSource"][
+        "taskSourceMetadata"
+    ]
+    # jit_debug_env sets UIPATH_TRACE_ID=trace-1, which _apply_task_source uses to
+    # build the built-in InstanceId; the caller-supplied key wins on collision.
+    assert task_source_metadata["InstanceId"] == "caller-supplied-instance-id"
