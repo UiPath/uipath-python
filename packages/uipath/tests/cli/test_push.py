@@ -692,6 +692,11 @@ class TestPush:
             json=mock_structure,
         )
 
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"id": project_id, "projectType": "Agent"},
+        )
+
         with runner.isolated_filesystem(temp_dir=temp_dir):
             self._create_required_files()
 
@@ -785,6 +790,137 @@ class TestPush:
             assert "Uploading 'uipath.json'" in result.output
             assert "Uploading 'uv.lock'" in result.output
             assert "Uploading '.uipath/studio_metadata.json'" in result.output
+
+    def test_push_to_scaffolded_function_project(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test push to a Function project that only holds the scaffolded files.
+
+        Studio Web creates Function projects without a pyproject.toml because
+        they may hold TypeScript/JavaScript sources instead, so the coded
+        validation must fall back to the project type.
+        """
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "project.uiproj",
+                    "isMain": False,
+                    "fileType": "0",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"id": project_id, "projectType": "Function"},
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            with open("uv.lock", "w") as f:
+                f.write('version = 1 \n requires-python = ">=3.11"')
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+            assert "not of type coded agent" not in result.output
+            assert "Uploading 'main.py'" in result.output
+            assert "Uploading 'pyproject.toml'" in result.output
+
+    def test_push_to_typescript_function_project(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test push to a Function project that already holds a package.json."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "package.json",
+                    "isMain": False,
+                    "fileType": "0",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"id": project_id, "projectType": "Function"},
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 1
+            assert "already contains TypeScript/JavaScript sources" in result.output
 
     def test_push_with_nolock_flag(
         self,

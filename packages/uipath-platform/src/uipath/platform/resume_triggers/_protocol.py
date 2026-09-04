@@ -701,7 +701,16 @@ class UiPathResumeTriggerCreator:
         elif isinstance(value, CreateDeepRag):
             uipath = UiPath()
             try:
-                if value.is_ephemeral_index:
+                if value.attachments is not None:
+                    deep_rag = await uipath.context_grounding.start_deep_rag_from_attachments_async(
+                        name=value.name,
+                        prompt=value.prompt,
+                        attachments=value.attachments,
+                        citation_mode=value.citation_mode,
+                        folder_path=value.index_folder_path,
+                        folder_key=value.index_folder_key,
+                    )
+                elif value.is_ephemeral_index:
                     deep_rag = (
                         await uipath.context_grounding.start_deep_rag_ephemeral_async(
                             name=value.name,

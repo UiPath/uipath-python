@@ -1,7 +1,13 @@
+import json
 import os
+import re
+import uuid
+from importlib.metadata import version
 from unittest.mock import patch
 
 from click.testing import CliRunner
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
 from uipath._cli import cli
 from uipath._cli.middlewares import MiddlewareResult
@@ -16,6 +22,18 @@ class TestNew:
             assert result.exit_code == 0
             assert os.path.exists("main.py")
             assert os.path.exists("pyproject.toml")
+
+    def test_new_project_writes_uipath_json_id(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """uipath.json gets a GUID id up front so later commands don't warn."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(cli, ["new", "my_project"])
+            assert result.exit_code == 0
+            with open("uipath.json") as f:
+                config = json.load(f)
+            uuid.UUID(config["id"])
+            assert config["functions"] == {"main": "main.py:main"}
 
     def test_new_project_without_name(self, runner: CliRunner, temp_dir: str) -> None:
         """Test creating a new project without specifying a name."""
@@ -79,3 +97,45 @@ class TestNew:
                     result = runner.invoke(cli, ["new", "my_project"])
                     assert result.exit_code == 1
                     assert "Created 'main.py' file." not in result.output
+
+
+class TestUipathScaffoldPin:
+    """The scaffolded pin must admit the uipath release it ships with."""
+
+    def test_scaffold_pin_admits_installed_uipath(self) -> None:
+        """Guard: fails on every minor bump so the scaffold gets reviewed.
+
+        When this fails, review the scaffold in ``cli_new.py`` (pin constant,
+        ``main.py`` template, post-scaffold hints) for the new minor, then bump
+        ``UIPATH_SCAFFOLD_MINOR``.
+        """
+        from uipath._cli.cli_new import UIPATH_SCAFFOLD_MINOR
+
+        installed = Version(version("uipath"))
+        installed_minor = f"{installed.major}.{installed.minor}"
+        assert UIPATH_SCAFFOLD_MINOR == installed_minor, (
+            f"uipath minor changed to {installed_minor} but UIPATH_SCAFFOLD_MINOR is "
+            f"{UIPATH_SCAFFOLD_MINOR}; review the scaffold in cli_new.py (pin, "
+            f"template, hints) and bump the constant"
+        )
+
+    def test_scaffolded_pin_contains_installed_uipath(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Regression guard: runs against the real installed package, not a mock.
+
+        A stale range would make ``uv sync`` downgrade the project's venv right
+        after ``uipath new``.
+        """
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(cli, ["new", "demo"])
+            assert result.exit_code == 0
+            with open("pyproject.toml") as f:
+                content = f.read()
+            match = re.search(r'"uipath([^"]*)"', content)
+            assert match is not None, content
+            pin = SpecifierSet(match.group(1))
+            installed = version("uipath")
+            assert pin.contains(installed, prereleases=True), (
+                f"scaffolded pin '{pin}' does not contain installed uipath {installed}"
+            )

@@ -186,7 +186,7 @@ class TestAppInsightsEventClient:
         _AppInsightsEventClient._connection_string_provider = None
         FeatureFlags.reset_flags()
 
-    @patch("uipath.telemetry._track._CONNECTION_STRING", "$CONNECTION_STRING")
+    @patch("uipath.telemetry._track._CONNECTION_STRING_PROD", "$CONNECTION_STRING_PROD")
     def test_initialize_no_connection_string(self):
         """Test initialization when no connection string is provided."""
         with patch.dict(os.environ, {}, clear=True):
@@ -204,13 +204,13 @@ class TestAppInsightsEventClient:
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
     @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
     @patch(
-        "uipath.telemetry._track._CONNECTION_STRING",
+        "uipath.telemetry._track._CONNECTION_STRING_PROD",
         "InstrumentationKey=builtin-key;IngestionEndpoint=https://example.com/",
     )
     def test_initialize_falls_back_to_builtin_connection_string(
         self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
     ):
-        """Test initialization uses _CONNECTION_STRING when env var is not set."""
+        """Test initialization uses the baked constant when env var is not set."""
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
 
@@ -399,13 +399,13 @@ class TestAppInsightsEventClient:
     @patch("uipath.telemetry._track._HAS_APPINSIGHTS", True)
     @patch("uipath.telemetry._track.AppInsightsTelemetryClient")
     @patch(
-        "uipath.telemetry._track._CONNECTION_STRING",
+        "uipath.telemetry._track._CONNECTION_STRING_PROD",
         "InstrumentationKey=builtin-key",
     )
     def test_provider_bypasses_builtin_fallback(
         self, mock_client_class, mock_sender_class, mock_queue_class, mock_channel_class
     ):
-        """Test that provider prevents fallback to _CONNECTION_STRING."""
+        """Test that provider prevents fallback to the baked constant."""
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
 

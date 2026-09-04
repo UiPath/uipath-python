@@ -28,7 +28,9 @@ from ._constants import (
     _CODE_FILEPATH,
     _CODE_FUNCTION,
     _CODE_LINENO,
-    _CONNECTION_STRING,
+    _CONNECTION_STRING_ALPHA,
+    _CONNECTION_STRING_PROD,
+    _CONNECTION_STRING_STAGING,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -36,6 +38,7 @@ from ._constants import (
     _UNKNOWN,
     PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG,
 )
+from ._environment import UiPathEnvironment, resolve_environment
 
 # Try to import Application Insights client for custom events
 # Note: applicationinsights is not typed, as it was deprecated in favor of the
@@ -96,18 +99,61 @@ _logger.propagate = False
 _PERIODIC_TELEMETRY_FLUSH_INTERVAL_SECONDS = 5.0
 
 
-def _get_connection_string() -> str | None:
-    """Get the Application Insights connection string.
+def _substituted(value: str, placeholder: str) -> str | None:
+    """Return ``value`` unless the build left it unset.
 
-    Checks the TELEMETRY_CONNECTION_STRING env var first, then falls back
-    to the _CONNECTION_STRING constant.
+    An untouched constant still holds its ``$NAME`` marker; one whose secret was
+    missing is substituted to an empty string. Neither is usable.
+    """
+    if value and value != placeholder:
+        return value
+    return None
+
+
+def _connection_string_slot(environment: UiPathEnvironment) -> tuple[str, str, str]:
+    """Return the ``(env var, baked constant, placeholder)`` for an environment.
+
+    Rebuilt per call so the constants stay patchable in tests.
+    """
+    slots: dict[UiPathEnvironment, tuple[str, str, str]] = {
+        "alpha": (
+            "TELEMETRY_CONNECTION_STRING_ALPHA",
+            _CONNECTION_STRING_ALPHA,
+            "$CONNECTION_STRING_ALPHA",
+        ),
+        "staging": (
+            "TELEMETRY_CONNECTION_STRING_STAGING",
+            _CONNECTION_STRING_STAGING,
+            "$CONNECTION_STRING_STAGING",
+        ),
+        "cloud": (
+            "TELEMETRY_CONNECTION_STRING_PROD",
+            _CONNECTION_STRING_PROD,
+            "$CONNECTION_STRING_PROD",
+        ),
+    }
+    return slots[environment]
+
+
+def _get_connection_string() -> str | None:
+    """Get the Application Insights connection string for this run.
+
+    ``TELEMETRY_CONNECTION_STRING`` overrides everything. Otherwise the
+    environment of ``UIPATH_URL`` selects between its per-environment env var and
+    its baked constant. An environment with neither is left unconfigured, so
+    telemetry is never reported to another environment's instance.
     """
     env_value = os.getenv("TELEMETRY_CONNECTION_STRING")
     if env_value:
         return env_value
-    if _CONNECTION_STRING and _CONNECTION_STRING != "$CONNECTION_STRING":
-        return _CONNECTION_STRING
-    return None
+
+    env_var, baked, placeholder = _connection_string_slot(resolve_environment())
+
+    override = os.getenv(env_var)
+    if override:
+        return override
+
+    return _substituted(baked, placeholder)
 
 
 def _get_project_key() -> str:

@@ -110,12 +110,26 @@ class CreateDeepRag(BaseModel):
     index_folder_key: str | None = None
     index_folder_path: str | None = None
     is_ephemeral_index: bool | None = None
+    attachments: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_ephemeral_index_requires_index_id(self) -> "CreateDeepRag":
         """Validate that if it is an ephemeral index that it is using index id."""
-        if self.is_ephemeral_index is True and self.index_id is None:
-            raise ValueError("Index id must be provided for an ephemeral index")
+        if (
+            self.is_ephemeral_index is True
+            and self.index_id is None
+            and not self.attachments
+        ):
+            raise ValueError(
+                "Index id must be provided for an ephemeral index (or use attachments)"
+            )
+        if self.attachments is not None:
+            if len(self.attachments) == 0:
+                raise ValueError("attachments must be a non-empty list when provided")
+            if self.index_id is not None or self.index_name is not None:
+                raise ValueError(
+                    "attachments cannot be combined with index_id or index_name"
+                )
         return self
 
 

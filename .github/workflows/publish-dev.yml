@@ -76,9 +76,11 @@ jobs:
           trap 'rm -f "$tmpfile"' EXIT
 
           rsync -a --no-whole-file --ignore-existing "$originalfile" "$tmpfile"
-          envsubst '$CONNECTION_STRING' < "$originalfile" > "$tmpfile" && mv "$tmpfile" "$originalfile"
+          envsubst '$CONNECTION_STRING_ALPHA $CONNECTION_STRING_STAGING $CONNECTION_STRING_PROD' < "$originalfile" > "$tmpfile" && mv "$tmpfile" "$originalfile"
         env:
-          CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          CONNECTION_STRING_ALPHA: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING_ALPHA }}
+          CONNECTION_STRING_STAGING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING_STAGING }}
+          CONNECTION_STRING_PROD: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING_PROD }}
 
       - name: Set development version
         shell: pwsh

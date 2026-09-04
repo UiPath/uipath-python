@@ -48,17 +48,37 @@ class FieldDisplayType(Enum):
     AutoNumber = "AutoNumber"
 
 
-class DataDirectionType(Enum):
-    """Enum representing data direction types for fields in entities."""
+class DataDirectionType(IntEnum):
+    """Data direction for an external field mapping.
 
-    ReadOnly = "ReadOnly"
-    ReadAndWrite = "ReadAndWrite"
+    Numeric on the wire — the string form (e.g. ``"ReadOnly"``) is rejected by
+    the v3 create/upsert endpoint with a 500. ``ReadOnly`` is read-only,
+    ``ReadAndWrite`` supports reads and writes.
+
+    For backward compatibility, the legacy string member names (``"ReadOnly"`` /
+    ``"ReadAndWrite"``, case-insensitive) are still accepted as input — e.g. from
+    older persisted payloads — and normalise to the numeric members.
+    """
+
+    ReadOnly = 0
+    ReadAndWrite = 1
+
+    @classmethod
+    def _missing_(cls, value: object) -> "DataDirectionType | None":
+        """Accept legacy string member names as input, mapping them to the enum."""
+        if isinstance(value, str):
+            key = value.strip().lower()
+            for member in cls:
+                if member.name.lower() == key:
+                    return member
+        return None
 
 
-class JoinType(Enum):
+class JoinType(str, Enum):
     """Enum representing types of joins between entities."""
 
     LeftJoin = "LeftJoin"
+    InnerJoin = "InnerJoin"
 
 
 class EntityType(Enum):
@@ -68,6 +88,33 @@ class EntityType(Enum):
     ChoiceSet = "ChoiceSet"
     InternalEntity = "InternalEntity"
     SystemEntity = "SystemEntity"
+
+
+class EntityClass(str, Enum):
+    """Product class of a Data Fabric entity.
+
+    ``Native`` stores its data in UiPath. ``Federated`` is an experimental,
+    read-only unified view over one or more external / native sources. ``Case``
+    is read-only and only ever returned by reads (never creatable).
+    """
+
+    Native = "Native"
+    Federated = "Federated"
+    Case = "Case"
+
+
+class EntityClassId(IntEnum):
+    """Internal numeric discriminator for :class:`EntityClass` on the wire."""
+
+    Native = 9
+    Federated = 10
+
+
+ENTITY_CLASS_TO_ID_MAP: Dict[EntityClass, EntityClassId] = {
+    EntityClass.Native: EntityClassId.Native,
+    EntityClass.Federated: EntityClassId.Federated,
+}
+"""Maps a public :class:`EntityClass` to its wire :class:`EntityClassId`."""
 
 
 class EntityFieldMetadata(BaseModel):
@@ -766,6 +813,156 @@ class EntityCreateFieldOptions(BaseModel):
     )
 
 
+# --------------------------------------------------------------------------
+# Federated entity create/update types (experimental)
+# --------------------------------------------------------------------------
+
+
+class SearchabilityOperator(BaseModel):
+    """Operator-based searchability for a federated external field mapping."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    searchable_operators: Optional[List[str]] = Field(
+        default=None, alias="searchableOperators"
+    )
+
+
+class SearchabilityNamedSearch(BaseModel):
+    """Named-search searchability for a federated external field mapping."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    searchable_names: Optional[List[str]] = Field(default=None, alias="searchableNames")
+
+
+class Searchability(BaseModel):
+    """Searchability metadata attached to a federated external field mapping."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    searchable: bool
+    supports_operators: Optional[SearchabilityOperator] = Field(
+        default=None, alias="supportsOperators"
+    )
+    supports_named_search: Optional[SearchabilityNamedSearch] = Field(
+        default=None, alias="supportsNamedSearch"
+    )
+
+
+class EntityCreateExternalConnection(BaseModel):
+    """Integration Service connection backing a federated external source."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    connection_id: str = Field(alias="connectionId")
+    element_instance_id: Optional[int] = Field(default=None, alias="elementInstanceId")
+    folder_key: Optional[str] = Field(default=None, alias="folderKey")
+    connector_key: str = Field(alias="connectorKey")
+    connector_name: str = Field(alias="connectorName")
+    connection_name: Optional[str] = Field(default=None, alias="connectionName")
+
+
+class NativeConnectionDetail(BaseModel):
+    """Reference to another UiPath entity used as a federated native source."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    entity_id: str = Field(alias="entityId")
+    folder_key: str = Field(alias="folderKey")
+
+
+class EntityCreateExternalObject(BaseModel):
+    """Identity of the object a federated source reads from."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    external_object_name: str = Field(alias="externalObjectName")
+    external_object_display_name: Optional[str] = Field(
+        default=None, alias="externalObjectDisplayName"
+    )
+    primary_key: Optional[str] = Field(default=None, alias="primaryKey")
+    is_primary_source: Optional[bool] = Field(default=None, alias="isPrimarySource")
+    method: Optional[str] = Field(default=None, alias="method")
+
+
+class EntityCreateExternalFieldMapping(BaseModel):
+    """Maps an internal column to a field on the external source.
+
+    ``direction_type`` is numeric on the wire (see :class:`DataDirectionType`).
+    """
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    external_field_name: str = Field(alias="externalFieldName")
+    external_field_display_name: Optional[str] = Field(
+        default=None, alias="externalFieldDisplayName"
+    )
+    external_field_type: Optional[str] = Field(default=None, alias="externalFieldType")
+    direction_type: DataDirectionType = Field(
+        default=DataDirectionType.ReadOnly, alias="directionType"
+    )
+    searchability: Optional[Searchability] = Field(default=None, alias="searchability")
+    is_required_for_read: Optional[bool] = Field(
+        default=None, alias="isRequiredForRead"
+    )
+    sortable: Optional[bool] = Field(default=None, alias="sortable")
+
+
+class EntityCreateExternalField(BaseModel):
+    """A field a federated source contributes: internal column + external mapping."""
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    field: EntityCreateFieldOptions
+    external_field_mapping_detail: EntityCreateExternalFieldMapping = Field(
+        alias="externalFieldMappingDetail"
+    )
+
+
+class EntityCreateExternalSource(BaseModel):
+    """A single source on a federated entity (connector object or native entity).
+
+    Use ``external_connection_detail`` for an Integration Service connector
+    source, or ``native_connection_detail`` for another UiPath entity.
+    """
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    fields: Optional[List[EntityCreateExternalField]] = Field(default=None)
+    external_object_detail: EntityCreateExternalObject = Field(
+        alias="externalObjectDetail"
+    )
+    external_connection_detail: Optional[EntityCreateExternalConnection] = Field(
+        default=None, alias="externalConnectionDetail"
+    )
+    native_connection_detail: Optional[NativeConnectionDetail] = Field(
+        default=None, alias="nativeConnectionDetail"
+    )
+
+
+class SourceJoinConditionDetail(BaseModel):
+    """Write-shape join between two federated sources (names + connection ids).
+
+    Each side's connection id is the Integration Service ``connectionId`` for a
+    connector source, or the DF entity id for a native source.
+    """
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
+
+    source_object_name: str = Field(alias="sourceObjectName")
+    source_join_field: str = Field(alias="sourceJoinField")
+    source_object_connection_id: Optional[str] = Field(
+        default=None, alias="sourceObjectConnectionId"
+    )
+    join_type: JoinType = Field(default=JoinType.LeftJoin, alias="joinType")
+    related_source_object_name: str = Field(alias="relatedSourceObjectName")
+    related_source_join_field: str = Field(alias="relatedSourceJoinField")
+    related_source_object_connection_id: Optional[str] = Field(
+        default=None, alias="relatedSourceObjectConnectionId"
+    )
+
+
 class EntityCreateOptions(BaseModel):
     """Options for creating a new Data Fabric entity."""
 
@@ -780,8 +977,12 @@ class EntityCreateOptions(BaseModel):
     is_analytics_enabled: Optional[bool] = Field(
         default=None, alias="isAnalyticsEnabled"
     )
-    external_fields: Optional[List[Dict[str, Any]]] = Field(
-        default=None, alias="externalFields"
+    entity_class: Optional[EntityClass] = Field(default=None, alias="entityClass")
+    external_fields: Optional[List[EntityCreateExternalSource | Dict[str, Any]]] = (
+        Field(default=None, alias="externalFields")
+    )
+    source_join_condition_details: Optional[List[SourceJoinConditionDetail]] = Field(
+        default=None, alias="sourceJoinConditionDetails"
     )
 
 

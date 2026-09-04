@@ -18,7 +18,7 @@ from ._push._summary import ResourceImportSummary
 from ._push._virtual_kinds import fetch_supported_virtual_kinds
 from ._push.sw_file_handler import SwFileHandler
 from ._telemetry import track_command
-from ._utils._common import ensure_coded_agent_project, may_override_files
+from ._utils._common import ensure_coded_project, may_override_files
 from ._utils._console import ConsoleLogger
 from ._utils._project_files import (
     Severity,
@@ -243,7 +243,7 @@ def push(root: str, ignore_resources: bool, nolock: bool, overwrite: bool) -> No
 
     studio_client = StudioClient(project_id=project_id)
 
-    asyncio.run(ensure_coded_agent_project(studio_client))
+    asyncio.run(ensure_coded_project(studio_client))
 
     if not overwrite:
         may_override = asyncio.run(may_override_files(studio_client, "remote"))

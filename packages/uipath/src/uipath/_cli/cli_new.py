@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import uuid
 
 import click
 
@@ -8,9 +9,16 @@ from uipath.platform.constants import PYTHON_CONFIGURATION_FILE, UIPATH_CONFIG_F
 
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
+from ._utils._project_files import resolve_existing_project_id
 from .middlewares import Middlewares
 
 console = ConsoleLogger()
+
+# The `uipath` minor release that scaffolded projects are pinned to.
+# Deliberately a constant: the guard test in tests/cli/test_new.py fails on
+# every minor bump so the scaffold (pin, template, hints) gets reviewed
+# alongside the release rather than drifting silently.
+UIPATH_SCAFFOLD_MINOR = "2.14"
 
 
 def generate_script(target_directory):
@@ -24,13 +32,14 @@ def generate_script(target_directory):
 
 def generate_pyproject(target_directory, project_name):
     project_toml_path = os.path.join(target_directory, PYTHON_CONFIGURATION_FILE)
+    major, minor = (int(part) for part in UIPATH_SCAFFOLD_MINOR.split("."))
     toml_content = f"""[project]
 name = "{project_name}"
 version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "uipath>=2.10.0, <2.11.0"
+    "uipath>={major}.{minor}.0, <{major}.{minor + 1}.0"
 ]
 requires-python = ">=3.11"
 """
@@ -41,7 +50,8 @@ requires-python = ">=3.11"
 
 def generate_uipath_json(target_directory):
     uipath_json_path = os.path.join(target_directory, UIPATH_CONFIG_FILE)
-    uipath_config = {"functions": {"main": "main.py:main"}}
+    project_id = resolve_existing_project_id(target_directory) or str(uuid.uuid4())
+    uipath_config = {"id": project_id, "functions": {"main": "main.py:main"}}
 
     with open(uipath_json_path, "w") as f:
         json.dump(uipath_config, f, indent=2)
@@ -81,7 +91,7 @@ def new(name: str):
         console.success(f"Created '{UIPATH_CONFIG_FILE}' file.")
         init_command = """uipath init"""
         run_command = """uipath run main '{"message": "Hello World!"}'"""
-        console.hint(f""" Initialize project: {click.style(init_command, fg="cyan")}""")
+        console.hint(f"""Initialize project: {click.style(init_command, fg="cyan")}""")
         console.hint(f"""Run project: {click.style(run_command, fg="cyan")}""")
 
 
