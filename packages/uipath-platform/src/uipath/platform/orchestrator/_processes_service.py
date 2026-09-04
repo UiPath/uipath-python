@@ -67,6 +67,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
             parent_operation_id (Optional[str]): The parent operation ID for BTS tracking correlation.
             run_as_me (Optional[bool]): If True, the job will run under the calling user's identity.
+            entry_point_path (Optional[str]): The workflow to run, as a package-relative path. Omitted from the request when unset, which runs the release's configured entry point.
 
         Returns:
             Job: The job execution details.
@@ -145,6 +146,7 @@ class ProcessesService(FolderContext, BaseService):
             folder_path (Optional[str]): The path of the folder to execute the process in. Override the default one set in the SDK config.
             parent_operation_id (Optional[str]): The parent operation ID for BTS tracking correlation.
             run_as_me (Optional[bool]): If True, the job will run under the calling user's identity.
+            entry_point_path (Optional[str]): The workflow to run, as a package-relative path. Omitted from the request when unset, which runs the release's configured entry point.
 
         Returns:
             Job: The job execution details.
