@@ -284,12 +284,19 @@ class EntitiesService(BaseService):
         "Deprecated; use list_entities_v3 (v3 API, supports Federated entities)."
     )
     @traced(name="list_entities", run_type="uipath")
-    def list_entities(self) -> List[Entity]:
+    def list_entities(self, include_fields: bool = True) -> List[Entity]:
         """List all entities in Data Service.
+
+        Args:
+            include_fields (bool): When ``False``, list entities without their
+                ``fields`` schema. The response carries the same entity records
+                and is far smaller, which keeps the traced span small on tenants
+                with many entities.
 
         Returns:
             List[Entity]: A list of all entities with their metadata and field definitions.
                 Each entity includes name, display name, fields, record count, and storage information.
+                With ``include_fields=False``, ``Entity.fields`` is ``None``.
 
         Examples:
             List all entities::
@@ -319,8 +326,12 @@ class EntitiesService(BaseService):
                 print(f"Total entities: {len(entities)}")
                 print(f"Total records: {total_records}")
                 print(f"Total storage: {total_storage:.2f} MB")
+
+            List entity names only, without the field schemas::
+
+                entities = entities_service.list_entities(include_fields=False)
         """
-        return self._schema.list_entities()
+        return self._schema.list_entities(include_fields=include_fields)
 
     @traced(name="list_entities_v3", run_type="uipath")
     def list_entities_v3(self) -> List[Entity]:
@@ -335,12 +346,19 @@ class EntitiesService(BaseService):
         "Deprecated; use list_entities_v3_async (v3 API, supports Federated entities)."
     )
     @traced(name="list_entities", run_type="uipath")
-    async def list_entities_async(self) -> List[Entity]:
+    async def list_entities_async(self, include_fields: bool = True) -> List[Entity]:
         """Asynchronously list all entities in the Data Service.
+
+        Args:
+            include_fields (bool): When ``False``, list entities without their
+                ``fields`` schema. The response carries the same entity records
+                and is far smaller, which keeps the traced span small on tenants
+                with many entities.
 
         Returns:
             List[Entity]: A list of all entities with their metadata and field definitions.
                 Each entity includes name, display name, fields, record count, and storage information.
+                With ``include_fields=False``, ``Entity.fields`` is ``None``.
 
         Examples:
             List all entities::
@@ -370,8 +388,14 @@ class EntitiesService(BaseService):
                 print(f"Total entities: {len(entities)}")
                 print(f"Total records: {total_records}")
                 print(f"Total storage: {total_storage:.2f} MB")
+
+            List entity names only, without the field schemas::
+
+                entities = await entities_service.list_entities_async(
+                    include_fields=False
+                )
         """
-        return await self._schema.list_entities_async()
+        return await self._schema.list_entities_async(include_fields=include_fields)
 
     @traced(name="list_entities_v3", run_type="uipath")
     async def list_entities_v3_async(self) -> List[Entity]:
