@@ -210,10 +210,6 @@ def generate_code(spec: str) -> str:
 
 ### LLM-as-judge
 
-<!-- REMOVE WHEN: LLM-as-judge feature flag is enabled on all rings -->
-!!! info "Platform Availability"
-    `LLMAsJudgeValidator` ships in the `uipath` package on PyPI, but the LLM-as-judge guardrail it calls is still rolling out on the platform side and isn't enabled on every tenant yet — regardless of which judge models your governance policy permits. Watch the UiPath product release notes for when it lands.
-
 Evaluates content against a rule written in plain language, using a judge LLM to decide whether the payload complies. Use it for policy checks that are hard to express as fixed entities or rules — tone, topicality, disclaimers, domain-specific policies.
 
 ```python
