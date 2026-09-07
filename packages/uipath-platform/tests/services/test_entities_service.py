@@ -2563,6 +2563,74 @@ class TestEntitiesServiceAsyncCoverage:
         entities = await service.list_entities_async()
         assert len(entities) == 1
 
+    def test_list_entities_without_fields(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/simple",
+            status_code=200,
+            json=[
+                {
+                    "name": "Customers",
+                    "displayName": "Customers",
+                    "entityType": "Entity",
+                    "isRbacEnabled": False,
+                    "recordCount": 3,
+                    "id": "ent-1",
+                },
+                {
+                    "name": "Orders",
+                    "displayName": "Orders",
+                    "entityType": "Entity",
+                    "isRbacEnabled": False,
+                    "recordCount": 7,
+                    "id": "ent-2",
+                },
+            ],
+        )
+        entities = service.list_entities(include_fields=False)
+        assert [e.name for e in entities] == ["Customers", "Orders"]
+        assert all(e.fields is None for e in entities)
+
+    async def test_list_entities_without_fields_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/Entity/simple",
+            status_code=200,
+            json=[
+                {
+                    "name": "Customers",
+                    "displayName": "Customers",
+                    "entityType": "Entity",
+                    "isRbacEnabled": False,
+                    "id": "ent-1",
+                }
+            ],
+        )
+        entities = await service.list_entities_async(include_fields=False)
+        assert len(entities) == 1
+        assert entities[0].fields is None
+
+    def test_list_entities_without_fields_rejected_on_v3(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        with pytest.raises(ValueError, match="only supported on the v1 entity API"):
+            service._schema.list_entities(use_v3=True, include_fields=False)
+
     async def test_list_records_async(
         self,
         httpx_mock: HTTPXMock,

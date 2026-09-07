@@ -120,16 +120,20 @@ class EntitySchemaService(BaseService):
         response = await self.request_async(spec.method, spec.endpoint, headers=headers)
         return Entity.model_validate(response.json())
 
-    def list_entities(self, use_v3: bool = False) -> List[Entity]:
+    def list_entities(
+        self, use_v3: bool = False, include_fields: bool = True
+    ) -> List[Entity]:
         """Internal implementation; see :meth:`EntitiesService.list_entities`."""
-        spec = self._list_entities_spec(use_v3=use_v3)
+        spec = self._list_entities_spec(use_v3=use_v3, include_fields=include_fields)
         response = self.request(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
 
-    async def list_entities_async(self, use_v3: bool = False) -> List[Entity]:
+    async def list_entities_async(
+        self, use_v3: bool = False, include_fields: bool = True
+    ) -> List[Entity]:
         """Async variant of :meth:`list_entities`."""
-        spec = self._list_entities_spec(use_v3=use_v3)
+        spec = self._list_entities_spec(use_v3=use_v3, include_fields=include_fields)
         response = await self.request_async(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
@@ -228,8 +232,25 @@ class EntitySchemaService(BaseService):
         return {}
 
     @staticmethod
-    def _list_entities_spec(use_v3: bool = False) -> RequestSpec:
-        """Build the GET spec for listing all entities (non-choice-sets)."""
+    def _list_entities_spec(
+        use_v3: bool = False, include_fields: bool = True
+    ) -> RequestSpec:
+        """Build the GET spec for listing all entities (non-choice-sets).
+
+        ``include_fields=False`` targets the ``simple`` route, which returns the
+        same entity records without their ``fields`` schema — a much smaller
+        response (and traced span) on tenants with many entities. Only the v1
+        surface serves that route.
+        """
+        if not include_fields:
+            if use_v3:
+                raise ValueError(
+                    "include_fields=False is only supported on the v1 entity API."
+                )
+            return RequestSpec(
+                method="GET",
+                endpoint=Endpoint(f"{_V1_ENTITIES}/simple"),
+            )
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(_schema_base(use_v3)),
