@@ -55,6 +55,7 @@ def _create_spec(
     labels: Optional[List[str]] = None,
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
+    task_source_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
     is_debug: bool = False,
 ) -> RequestSpec:
@@ -147,7 +148,12 @@ def _create_spec(
     _apply_priority_labels_and_actionable_toggle(
         json_payload, priority, labels, is_actionable_message_enabled
     )
-    _apply_task_source(json_payload, source_name, is_debug=is_debug)
+    _apply_task_source(
+        json_payload,
+        source_name,
+        is_debug=is_debug,
+        custom_metadata=task_source_metadata,
+    )
 
     return RequestSpec(
         method="POST",
@@ -185,12 +191,20 @@ def _apply_priority_labels_and_actionable_toggle(
 
 
 def _apply_task_source(
-    payload: Dict[str, Any], source_name: str, is_debug: bool = False
+    payload: Dict[str, Any],
+    source_name: str,
+    is_debug: bool = False,
+    custom_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Populate ``payload["taskSource"]`` when UiPathConfig has project_id + trace_id.
 
     Shared between AppTask and QuickForm spec builders — the taskSource block is
     identical for both task types.
+
+    ``custom_metadata`` is merged into ``taskSourceMetadata`` on top of the built-in
+    InstanceId/FolderKey/JobKey/ProcessKey keys, so a caller-supplied key (e.g. a
+    conversational-agent id a HITL task should carry) wins on collision rather than
+    being silently dropped.
     """
     project_id = UiPathConfig.project_id
     trace_id = UiPathConfig.trace_id
@@ -204,6 +218,7 @@ def _apply_task_source(
             "FolderKey": UiPathConfig.folder_key,
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
+            **(custom_metadata or {}),
         },
         "jobId": UiPathConfig.job_key,
     }
@@ -488,6 +503,7 @@ class TasksService(FolderContext, BaseService):
         labels: Optional[List[str]] = None,
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        task_source_metadata: Optional[Dict[str, Any]] = None,
         source_name: str = "Agent",
     ) -> Task:
         """Creates a new action asynchronously.
@@ -507,6 +523,12 @@ class TasksService(FolderContext, BaseService):
             labels: Optional list of labels for the task
             is_actionable_message_enabled: Optional boolean indicating whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
+            task_source_metadata: Optional extra keys merged into taskSource.taskSourceMetadata,
+                on top of the built-in InstanceId/FolderKey/JobKey/ProcessKey (e.g. a
+                conversational-agent id a HITL task should carry downstream). Takes
+                effect only when taskSource itself is populated, which needs both
+                UiPathConfig.project_id and UiPathConfig.trace_id set; otherwise this
+                (like the rest of taskSource) is silently dropped.
             source_name: The name of the source that created the task. Defaults to 'Agent'.
 
         Returns:
@@ -540,6 +562,7 @@ class TasksService(FolderContext, BaseService):
             labels=labels,
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
+            task_source_metadata=task_source_metadata,
             source_name=source_name,
             is_debug=is_debug,
         )
@@ -582,6 +605,7 @@ class TasksService(FolderContext, BaseService):
         labels: Optional[List[str]] = None,
         is_actionable_message_enabled: Optional[bool] = None,
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
+        task_source_metadata: Optional[Dict[str, Any]] = None,
         source_name: str = "Agent",
     ) -> Task:
         """Creates a new task synchronously.
@@ -601,6 +625,12 @@ class TasksService(FolderContext, BaseService):
             labels: Optional list of labels for the task
             is_actionable_message_enabled: Optional boolean indicating  whether actionable notifications are enabled for this task
             actionable_message_metadata: Optional metadata for the action
+            task_source_metadata: Optional extra keys merged into taskSource.taskSourceMetadata,
+                on top of the built-in InstanceId/FolderKey/JobKey/ProcessKey (e.g. a
+                conversational-agent id a HITL task should carry downstream). Takes
+                effect only when taskSource itself is populated, which needs both
+                UiPathConfig.project_id and UiPathConfig.trace_id set; otherwise this
+                (like the rest of taskSource) is silently dropped.
             source_name: The name of the source that created the task. Defaults to 'Agent'.
 
         Returns:
@@ -634,6 +664,7 @@ class TasksService(FolderContext, BaseService):
             labels=labels,
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
+            task_source_metadata=task_source_metadata,
             source_name=source_name,
             is_debug=is_debug,
         )
