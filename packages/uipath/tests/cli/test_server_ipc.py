@@ -17,6 +17,7 @@ import os
 import sys
 import threading
 import time
+import types
 from typing import Any, Awaitable, Callable
 
 import click
@@ -24,6 +25,7 @@ import pytest
 from uipath_ipc import (
     IpcClient,
     IpcServer,
+    Message,
     NamedPipeClientTransport,
     NamedPipeServerTransport,
 )
@@ -31,6 +33,7 @@ from uipath_ipc import (
 from uipath._cli import _server_core
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
+    PythonRuntimeService,
     PythonServerRunJobResult,
     start_ipc_server,
 )
@@ -284,7 +287,7 @@ class TestIpcContractFieldTransit:
         received: list[Any] = []
 
         class SpyService(IPythonRuntimeServer):
-            async def Register(self) -> bool:
+            async def Register(self, message: Any) -> bool:
                 return True
 
             async def RunJob(self, request: Any) -> PythonServerRunJobResult:
@@ -329,3 +332,94 @@ class TestIpcContractFieldTransit:
         assert stop_request.JobKey == job_key
         assert stop_request.ResumeVersion == 5
         assert stop_request.ForceStop is True
+
+
+class TestPooledLogSink:
+    """``Register`` wires the runtime's process-global log sink to the caller's callback.
+
+    This is the pooled path: the handler dials in and hosts an ``IIpcLogSink`` callback; the server
+    grabs it off the injected ``Message`` and points the runtime's sink at it, so a pooled job's logs
+    reach back over the same pipe. The runtime side is exercised in uipath-runtime's own tests; here
+    we lock in the seam (get_callback → set_pooled_log_sink → forward on the loop).
+    """
+
+    @staticmethod
+    def _fake_runtime_jobapi(monkeypatch: Any) -> dict[str, Any]:
+        """Install a stand-in ``uipath.runtime.jobapi`` and record what the server wires into it."""
+        captured: dict[str, Any] = {}
+
+        class IIpcLogSink:  # matches the contract the server asks get_callback for
+            pass
+
+        def set_pooled_log_sink(sink: Any) -> None:
+            captured["sink"] = sink
+
+        module = types.ModuleType("uipath.runtime.jobapi")
+        module.IIpcLogSink = IIpcLogSink  # type: ignore[attr-defined]
+        module.set_pooled_log_sink = set_pooled_log_sink  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "uipath.runtime.jobapi", module)
+        captured["IIpcLogSink"] = IIpcLogSink
+        return captured
+
+    def test_register_forwards_logs_to_the_caller_callback(self, monkeypatch):
+        captured = self._fake_runtime_jobapi(monkeypatch)
+        sent: list[tuple[str, Any]] = []
+
+        class _Callback:
+            async def SendLog(self, job_id: str, log: Any) -> None:
+                sent.append((job_id, log))
+
+        class _Client:
+            def __init__(self) -> None:
+                self.asked_for: Any = None
+
+            def get_callback(self, contract: Any) -> Any:
+                self.asked_for = contract
+                return _Callback()
+
+        client = _Client()
+
+        async def scenario() -> None:
+            ok = await PythonRuntimeService().Register(Message(client=client))
+            assert ok is True
+            # It asked the caller for exactly the IIpcLogSink callback...
+            assert client.asked_for is captured["IIpcLogSink"]
+            # ...and registered a forwarder. Driving it (as the runtime would, off a worker thread)
+            # schedules SendLog on this loop, tagged with the job id.
+            sink = captured["sink"]
+            log = {"Message": "hello", "LogLevel": 2}
+            sink("job-key-42", log)
+            await asyncio.sleep(0.05)
+            assert sent == [("job-key-42", log)]
+
+        asyncio.run(scenario())
+
+    def test_register_is_graceful_when_runtime_lacks_pooled_sink(self, monkeypatch):
+        # An older uipath-runtime has no jobapi module: importing it raises, and Register must still
+        # succeed (the job simply keeps its file+watcher log path).
+        monkeypatch.setitem(sys.modules, "uipath.runtime.jobapi", None)
+
+        class _Client:
+            def get_callback(
+                self, contract: Any
+            ) -> Any:  # pragma: no cover - never reached
+                raise AssertionError(
+                    "must not reach get_callback without the runtime API"
+                )
+
+        async def scenario() -> None:
+            assert (
+                await PythonRuntimeService().Register(Message(client=_Client())) is True
+            )
+
+        asyncio.run(scenario())
+
+    def test_register_without_a_caller_handle_is_a_noop(self, monkeypatch):
+        # A Message with no client (defensive; real dispatch always injects one) wires nothing.
+        captured = self._fake_runtime_jobapi(monkeypatch)
+
+        async def scenario() -> None:
+            assert await PythonRuntimeService().Register(Message()) is True
+
+        asyncio.run(scenario())
+        assert "sink" not in captured
