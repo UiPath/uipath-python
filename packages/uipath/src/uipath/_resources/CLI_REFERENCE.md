@@ -924,6 +924,7 @@ Options:
 - `--limit`: Maximum number of results (default: 10) (default: `10`)
 - `--threshold`: Minimum similarity threshold (default: 0.0) (default: `0.0`)
 - `--search-mode`: Search mode (default: Semantic) (default: `Semantic`)
+- `--search-during-ingestion`: Search the documents indexed so far even while ingestion is in progress
 - `--folder-path`: Folder path (e.g., "Shared"). Can also be set via UIPATH_FOLDER_PATH environment variable. (default: `Sentinel.UNSET`)
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)

@@ -464,6 +464,12 @@ def ingest_index(
     default="Semantic",
     help="Search mode (default: Semantic)",
 )
+@click.option(
+    "--search-during-ingestion",
+    is_flag=True,
+    default=False,
+    help="Search the documents indexed so far even while ingestion is in progress",
+)
 @common_service_options
 @service_command
 def search_index(
@@ -473,6 +479,7 @@ def search_index(
     limit: int,
     threshold: float,
     search_mode: str,
+    search_during_ingestion: bool,
     folder_path: Optional[str],
     folder_key: Optional[str],
     format: Optional[str],
@@ -494,6 +501,7 @@ def search_index(
         number_of_results=limit,
         threshold=threshold,
         search_mode=SearchMode(search_mode),
+        search_during_ingestion=search_during_ingestion,
         folder_path=folder_path,
         folder_key=folder_key,
     )

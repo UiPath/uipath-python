@@ -428,6 +428,15 @@ class AgentContextSettings(BaseCfg):
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
     )
+    search_during_ingestion: bool = Field(
+        default=False,
+        alias="searchDuringIngestion",
+        description=(
+            "Allow the agent to query this index while an ingestion is still in "
+            "progress, returning results from the documents indexed so far. When "
+            "False, a search against an ingesting index fails instead."
+        ),
+    )
 
 
 class AgentContextResourceConfig(BaseAgentResourceConfig):
