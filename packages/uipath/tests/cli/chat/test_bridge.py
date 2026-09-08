@@ -351,3 +351,43 @@ class TestSignalRDebugBridgeSendMethod:
         assert parsed_data["message"] == "test message"
         assert isinstance(parsed_data["timestamp"], str)
         assert isinstance(parsed_data["nested"]["created_at"], str)
+
+    @pytest.mark.anyio
+    async def test_handle_start_emits_execution_started(self) -> None:
+        """Start command applies breakpoints and re-emits ExecutionStarted."""
+        bridge = SignalRDebugBridge(
+            hub_url="wss://test.example.com/signalr",
+            access_token="test-token",
+            headers={},
+        )
+
+        mock_client = MagicMock()
+        mock_client.send = AsyncMock()
+        bridge._client = mock_client
+
+        await bridge._handle_start(
+            ['{"breakpoints": ["node-a", "node-b"], "enableStepMode": true}']
+        )
+
+        assert bridge.state.breakpoints == {"node-a", "node-b"}
+        assert bridge.state.step_mode is True
+        mock_client.send.assert_awaited_once()
+        assert mock_client.send.call_args.kwargs["arguments"][0] == (
+            "OnExecutionStarted"
+        )
+
+    @pytest.mark.anyio
+    async def test_handle_start_with_empty_args_does_not_emit(self) -> None:
+        bridge = SignalRDebugBridge(
+            hub_url="wss://test.example.com/signalr",
+            access_token="test-token",
+            headers={},
+        )
+
+        mock_client = MagicMock()
+        mock_client.send = AsyncMock()
+        bridge._client = mock_client
+
+        await bridge._handle_start([])
+
+        mock_client.send.assert_not_awaited()
