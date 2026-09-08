@@ -3,7 +3,7 @@
 import asyncio
 import os
 import shlex
-from typing import Any
+from typing import Any, Callable
 
 from .cli_debug import debug
 from .cli_eval import eval
@@ -50,8 +50,14 @@ async def _run_command_isolated(
     args: list[str],
     env_vars: dict[str, str],
     working_dir: str | None,
+    on_run_start: Callable[[], None] | None = None,
+    on_run_end: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
-    """Run one command with per-job env/cwd isolation (the shared job core)."""
+    """Run one command with per-job env/cwd isolation (the shared job core).
+
+    ``on_run_start`` / ``on_run_end`` run INSIDE the serialization lock, so any per-job process-global
+    state is visible only while this job runs.
+    """
     if _state.lock is None or _state.baseline_env is None:
         raise RuntimeError("Server state not initialized")
 
@@ -79,9 +85,15 @@ async def _run_command_isolated(
                         "ClientError": True,
                     }
 
-            result_value = await asyncio.to_thread(
-                cmd.main, args, standalone_mode=False
-            )
+            if on_run_start is not None:
+                on_run_start()
+            try:
+                result_value = await asyncio.to_thread(
+                    cmd.main, args, standalone_mode=False
+                )
+            finally:
+                if on_run_end is not None:
+                    on_run_end()
             return {
                 "ExitCode": 0,
                 "Error": None,
