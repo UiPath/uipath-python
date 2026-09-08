@@ -35,7 +35,10 @@ from uipath.platform.context_grounding import (
 from uipath.platform.context_grounding._context_grounding_service import (
     ContextGroundingService,
 )
-from uipath.platform.errors import ContextGroundingIndexNotFoundError
+from uipath.platform.errors import (
+    ContextGroundingIndexNotFoundError,
+    IngestionInProgressException,
+)
 from uipath.platform.orchestrator._buckets_service import BucketsService
 from uipath.platform.orchestrator._folder_service import FolderService
 
@@ -3838,6 +3841,123 @@ class TestContextGroundingService:
         assert response.semantic_results is not None
         assert response.semantic_results.metadata is not None
         assert len(response.semantic_results.values) == 1
+
+    def _mock_index_lookup(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        """Mock the folder + index lookup that precedes a unified search."""
+        for _ in range(2):
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+                status_code=200,
+                json={
+                    "PageItems": [
+                        {
+                            "Key": "test-folder-key",
+                            "FullyQualifiedName": "test-folder-path",
+                        }
+                    ]
+                },
+            )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": ingestion_status,
+                    }
+                ]
+            },
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    async def test_unified_search_async_blocks_during_ingestion_by_default(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+
+        with pytest.raises(IngestionInProgressException):
+            await service.unified_search_async(name="test-index", query="test query")
+
+    @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    def test_unified_search_blocks_during_ingestion_by_default(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+
+        with pytest.raises(IngestionInProgressException):
+            service.unified_search(name="test-index", query="test query")
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    async def test_unified_search_async_opt_in_searches_during_ingestion(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
+                    "values": [
+                        {
+                            "id": "result-1",
+                            "source": "test-source",
+                            "page_number": 1,
+                            "content": "Partially ingested content",
+                            "score": 0.95,
+                        }
+                    ],
+                },
+                "explanation": "test explanation",
+            },
+        )
+
+        response = await service.unified_search_async(
+            name="test-index",
+            query="test query",
+            search_during_ingestion=True,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.semantic_results is not None
+        assert len(response.semantic_results.values) == 1
+        assert (
+            response.semantic_results.values[0].content == "Partially ingested content"
+        )
 
     def test_unified_search_with_scope(
         self,
