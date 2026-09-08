@@ -1,8 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
-from concurrent.futures import Future
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ._server_core import COMMANDS, _run_command_isolated, _state, parse_args
 from ._utils._console import ConsoleLogger
@@ -10,9 +9,8 @@ from ._utils._console import ConsoleLogger
 if TYPE_CHECKING:
     from uipath_ipc import Message
 else:
-    # Optional dependency: only present when the uipath-ipc channel is served (uipath[ipc]).
-    # The Register annotation stays a string forward-ref so this placeholder is never subscripted
-    # at import; it is resolved (to the real Message) only during dispatch, which needs uipath-ipc.
+    # Optional dependency (uipath[ipc]): the Register annotation stays a string forward-ref so this
+    # placeholder is never subscripted at import — resolved to the real Message only at dispatch.
     try:
         from uipath_ipc import Message
     except ImportError:  # pragma: no cover - no IPC means Register is never dispatched
@@ -37,6 +35,8 @@ class PythonServerRunRequest:
     Args: str | list[str] | None = None
     WorkingDirectory: str | None = None
     EnvironmentVariables: dict[str, str] = field(default_factory=dict)
+    # Per-job opt-in (default False so it stays off unless explicitly set).
+    StreamOutputOverIpc: bool = False
 
 
 @dataclass
@@ -57,13 +57,7 @@ class IPythonRuntimeServer(ABC):
 
     @abstractmethod
     async def Register(self, message: "Message[None]") -> bool:
-        """Prove the connection is up, and grab the caller's log-sink callback.
-
-        The injected ``message`` is a reach-back handle (it carries no wire
-        argument): ``message.client.get_callback`` reaches the handler's
-        ``IIpcLogSink`` over this same pipe, which pooled jobs stream their logs
-        into.
-        """
+        """Prove the connection is up and grab the caller's callback via ``message.client.get_callback``."""
 
     @abstractmethod
     async def RunJob(self, request: PythonServerRunRequest) -> PythonServerRunJobResult:
@@ -77,8 +71,23 @@ class IPythonRuntimeServer(ABC):
 class PythonRuntimeService(IPythonRuntimeServer):
     """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
 
+    def __init__(self) -> None:
+        # The caller's callback, grabbed at Register (None until then).
+        self._callback: Any = None
+        self._loop: "asyncio.AbstractEventLoop | None" = None
+
     async def Register(self, message: "Message[None]") -> bool:
-        _wire_pooled_log_sink(message)
+        client = message.client
+        if client is not None:
+            try:
+                from ._job_api import IJobInvocationCommonApi
+
+                self._callback = client.get_callback(IJobInvocationCommonApi)  # type: ignore[type-abstract]
+                self._loop = asyncio.get_running_loop()
+            except Exception:
+                self._callback = (
+                    None  # older runtime / no callback: jobs keep the file path
+                )
         console.info("Runtime client registered.")
         return True
 
@@ -101,9 +110,27 @@ class PythonRuntimeService(IPythonRuntimeServer):
             f"Running job {_run_id(request.JobKey, request.ResumeVersion)}: {command_name} {args}"
         )
 
+        # Only when opted in and a callback exists. Install/clear the sinks INSIDE the job core's lock
+        # (via the hooks) so they're bound only while THIS job runs.
+        callback, loop = self._callback, self._loop
+        on_run_start: "Any" = None
+        on_run_end: "Any" = None
+        if request.StreamOutputOverIpc and callback is not None and loop is not None:
+            from ._job_api import clear_runtime_sinks, install_runtime_sinks
+
+            job_key = request.JobKey
+            on_run_start = lambda: install_runtime_sinks(job_key, callback, loop)  # noqa: E731
+            on_run_end = clear_runtime_sinks
+
         result = await _run_command_isolated(
-            cmd, args, request.EnvironmentVariables, request.WorkingDirectory
+            cmd,
+            args,
+            request.EnvironmentVariables,
+            request.WorkingDirectory,
+            on_run_start=on_run_start,
+            on_run_end=on_run_end,
         )
+
         # IPC contract (PythonServerRunJobResult) carries only ExitCode + Error.
         return PythonServerRunJobResult(
             ExitCode=result["ExitCode"], Error=result["Error"]
@@ -115,49 +142,6 @@ class PythonRuntimeService(IPythonRuntimeServer):
             f"(force={request.ForceStop}) (no-op)"
         )
         return True
-
-
-def _drain(future: "Future[object]") -> None:
-    # Retrieve (and discard) a forwarded log's result so a failed one-way send never surfaces.
-    try:
-        future.exception()
-    except BaseException:
-        pass
-
-
-def _wire_pooled_log_sink(message: "Message[None]") -> None:
-    """Point the runtime's process-global log sink at this connection's IIpcLogSink callback.
-
-    Pooled jobs run in this same process (``_run_command_isolated`` → a worker thread), so their
-    logging can reach back to the handler over the pipe the handler dialed in on. The runtime raises
-    each record to a process-global sink; here we make that sink forward to the handler's callback.
-
-    Best-effort: log streaming is an add-on to the Register handshake, so any failure (an older
-    uipath-runtime without the pooled sink API, or a peer hosting no callback) leaves jobs on their
-    file+watcher path and never fails registration.
-    """
-    # A Message built without a caller handle has nothing to reach back to.
-    client = message.client
-    if client is None:
-        return
-    try:
-        from uipath.runtime.jobapi import (  # type: ignore[import-untyped]
-            IIpcLogSink,
-            set_pooled_log_sink,
-        )
-    except ImportError:
-        return  # runtime predates the pooled sink — nothing to wire; jobs keep the file path
-
-    sink_proxy = client.get_callback(IIpcLogSink)
-    loop = asyncio.get_running_loop()
-
-    def _forward(job_id: str, log: object) -> None:
-        # Runs on the job's worker thread: hand the one-way SendLog to the server loop and return at
-        # once. A dropped log (pipe down) must never surface into the job, so failures are swallowed.
-        future = asyncio.run_coroutine_threadsafe(sink_proxy.SendLog(job_id, log), loop)
-        future.add_done_callback(_drain)
-
-    set_pooled_log_sink(_forward)
 
 
 async def start_ipc_server(pipe_name: str) -> None:
@@ -172,6 +156,12 @@ async def start_ipc_server(pipe_name: str) -> None:
         ) from e
 
     _state.init()
+
+    # Register the default runtime factory (idempotent) so the server works when started outside the CLI.
+    from uipath._cli import _ensure_runtime_initialized
+
+    _ensure_runtime_initialized()
+
     server = IpcServer(
         transport=NamedPipeServerTransport(pipe_name),
         services={IPythonRuntimeServer: PythonRuntimeService()},
@@ -182,11 +172,7 @@ async def start_ipc_server(pipe_name: str) -> None:
         async with server:
             await server.serve_forever()
     finally:
-        # Drop the process-global sink so it can't outlive this loop (matters if the server is
-        # ever restarted in-process, e.g. in tests).
-        try:
-            from uipath.runtime.jobapi import set_pooled_log_sink
+        # Drop the sinks so they can't outlive this loop (matters on in-process restart).
+        from ._job_api import clear_runtime_sinks
 
-            set_pooled_log_sink(None)
-        except ImportError:
-            pass
+        clear_runtime_sinks()
