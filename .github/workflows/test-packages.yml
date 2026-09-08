@@ -2,6 +2,9 @@ name: Test Packages
 
 on:
   workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -181,6 +184,24 @@ jobs:
         run: uv run pytest
 
     continue-on-error: true
+
+  sonarcloud:
+    name: SonarCloud
+    needs: [test-uipath-core, test-uipath-platform, test-uipath]
+    runs-on: ubuntu-latest
+    if: always() && needs.test-uipath-core.result != 'failure' && needs.test-uipath-platform.result != 'failure' && needs.test-uipath.result != 'failure'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703  # v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   test-gate:
     name: Test
