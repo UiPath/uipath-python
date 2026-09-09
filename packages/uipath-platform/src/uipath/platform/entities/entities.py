@@ -205,7 +205,11 @@ class FieldMetadata(BaseModel):
     field_display_type: Optional[str] = Field(
         default=None, alias="fieldDisplayType"
     )  # Should be FieldDisplayType enum
-    choiceset_id: Optional[str] = Field(default=None, alias="choicesetId")
+    choiceset_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("choiceSetId", "choicesetId", "ChoiceSetId"),
+        alias="choiceSetId",
+    )
     default_value: Optional[str] = Field(default=None, alias="defaultValue")
     is_attachment: bool = Field(alias="isAttachment")
     is_rbac_enabled: bool = Field(alias="isRbacEnabled")

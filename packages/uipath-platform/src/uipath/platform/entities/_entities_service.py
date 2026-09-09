@@ -2319,7 +2319,11 @@ class EntitiesService(BaseService):
     @attach_datafabric_error_mapping("query_entity_records")
     @traced(name="entity_query_records", run_type="uipath")
     def query_entity_records(
-        self, sql_query: str, *, relationships_as_scalar: bool = False
+        self,
+        sql_query: str,
+        *,
+        relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
         """Query entity records using a validated SQL query.
 
@@ -2334,6 +2338,10 @@ class EntitiesService(BaseService):
                 so a query can join on ``relationshipField = Other.Id``. Sent as
                 ``queryOptions.relationshipsAsScalar`` in the request body. Defaults to
                 ``False`` (unchanged behaviour).
+            resolve_choice_sets (bool, optional): When ``True``, choice-set fields
+                in results are returned as key-value pairs (label + NumberId) instead
+                of bare integers. Sent as ``queryOptions.resolveChoiceSets`` in the
+                request body. Defaults to ``False``.
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -2346,12 +2354,18 @@ class EntitiesService(BaseService):
             ValueError: If the SQL query fails validation (e.g., non-SELECT, missing
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
-        return self._data.query_entity_records(sql_query, relationships_as_scalar)
+        return self._data.query_entity_records(
+            sql_query, relationships_as_scalar, resolve_choice_sets
+        )
 
     @attach_datafabric_error_mapping("query_entity_records_async")
     @traced(name="entity_query_records", run_type="uipath")
     async def query_entity_records_async(
-        self, sql_query: str, *, relationships_as_scalar: bool = False
+        self,
+        sql_query: str,
+        *,
+        relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
         """Asynchronously query entity records using a validated SQL query.
 
@@ -2366,6 +2380,10 @@ class EntitiesService(BaseService):
                 so a query can join on ``relationshipField = Other.Id``. Sent as
                 ``queryOptions.relationshipsAsScalar`` in the request body. Defaults to
                 ``False`` (unchanged behaviour).
+            resolve_choice_sets (bool, optional): When ``True``, choice-set fields
+                in results are returned as key-value pairs (label + NumberId) instead
+                of bare integers. Sent as ``queryOptions.resolveChoiceSets`` in the
+                request body. Defaults to ``False``.
 
         Notes:
             A routing context is always derived from the configured ``folders_map``
@@ -2379,7 +2397,7 @@ class EntitiesService(BaseService):
                 WHERE/LIMIT, forbidden keywords, subqueries).
         """
         return await self._data.query_entity_records_async(
-            sql_query, relationships_as_scalar
+            sql_query, relationships_as_scalar, resolve_choice_sets
         )
 
     @traced(name="entity_upload_attachment", run_type="uipath")
