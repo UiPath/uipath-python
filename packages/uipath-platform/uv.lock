@@ -1095,7 +1095,7 @@ dev = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.27"
+version = "0.2.28"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },

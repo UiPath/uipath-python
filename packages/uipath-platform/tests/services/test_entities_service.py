@@ -16,7 +16,9 @@ from uipath.platform.common._bindings import (
 from uipath.platform.entities import ChoiceSetValue, DataFabricEntityItem, Entity
 from uipath.platform.entities._entities_service import EntitiesService
 from uipath.platform.entities._entity_data_service import EntityDataService
+from uipath.platform.entities.entities import FieldMetadata
 from uipath.platform.errors import EnrichedException
+from uipath.platform.errors._datafabric_error import DataFabricSqlValidationError
 
 
 @pytest.fixture
@@ -446,6 +448,44 @@ class TestEntitiesService:
         with pytest.raises(ValueError, match=re.escape(error_message)):
             service._data._validate_sql_query(sql_query)
 
+    @pytest.mark.parametrize(
+        "sql_query,expected_code",
+        [
+            ("", "SQL_EMPTY"),
+            ("INSERT INTO Customers VALUES (1)", "SQL_STATEMENT_NOT_SELECT"),
+            (
+                "SELECT id FROM (SELECT id FROM Customers) c",
+                "SQL_SUBQUERY_NOT_ALLOWED",
+            ),
+            ("SELECT 1 LIMIT 1", "SQL_MISSING_FROM"),
+            (
+                "SELECT COUNT(*) FROM Customers",
+                "SQL_COUNT_STAR_NOT_SUPPORTED",
+            ),
+            (
+                "SELECT * FROM Customers LIMIT 10",
+                "SQL_SELECT_STAR_NOT_ALLOWED",
+            ),
+            (
+                "SELECT id FROM Customers",
+                "SQL_LIMIT_REQUIRED",
+            ),
+            (
+                "SELECT id, name, email, phone, address FROM Customers LIMIT 10",
+                "SQL_TOO_MANY_COLUMNS",
+            ),
+        ],
+    )
+    def test_validate_sql_query_raises_datafabric_error_with_code(
+        self,
+        sql_query: str,
+        expected_code: str,
+        service: EntitiesService,
+    ) -> None:
+        with pytest.raises(DataFabricSqlValidationError) as exc_info:
+            service._data._validate_sql_query(sql_query)
+        assert exc_info.value.error.code == expected_code
+
     def test_query_entity_records_rejects_invalid_sql_before_network_call(
         self,
         service: EntitiesService,
@@ -488,6 +528,43 @@ class TestEntitiesService:
         call_kwargs = service._data.request.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["queryOptions"] == {"relationshipsAsScalar": True}
+
+    def test_query_entity_records_sets_resolve_choice_sets_option_when_true(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records(
+            "SELECT id FROM Customers WHERE id > 0", resolve_choice_sets=True
+        )
+
+        call_kwargs = service._data.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {"resolveChoiceSets": True}
+
+    def test_query_entity_records_sets_both_query_options(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request = MagicMock(return_value=response)  # type: ignore[method-assign]
+
+        service.query_entity_records(
+            "SELECT id FROM Customers WHERE id > 0",
+            relationships_as_scalar=True,
+            resolve_choice_sets=True,
+        )
+
+        call_kwargs = service._data.request.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {
+            "relationshipsAsScalar": True,
+            "resolveChoiceSets": True,
+        }
 
     def test_query_entity_records_omits_query_options_by_default(
         self,
@@ -559,6 +636,45 @@ class TestEntitiesService:
         call_kwargs = service._data.request_async.call_args
         body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         assert body["queryOptions"] == {"relationshipsAsScalar": True}
+
+    @pytest.mark.anyio
+    async def test_query_entity_records_async_sets_resolve_choice_sets_option(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.query_entity_records_async(
+            "SELECT id FROM Customers WHERE id > 0", resolve_choice_sets=True
+        )
+
+        call_kwargs = service._data.request_async.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {"resolveChoiceSets": True}
+
+    @pytest.mark.anyio
+    async def test_query_entity_records_async_sets_both_query_options(
+        self,
+        service: EntitiesService,
+    ) -> None:
+        response = MagicMock()
+        response.json.return_value = {"results": []}
+        service._data.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+
+        await service.query_entity_records_async(
+            "SELECT id FROM Customers WHERE id > 0",
+            relationships_as_scalar=True,
+            resolve_choice_sets=True,
+        )
+
+        call_kwargs = service._data.request_async.call_args
+        body = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
+        assert body["queryOptions"] == {
+            "relationshipsAsScalar": True,
+            "resolveChoiceSets": True,
+        }
 
     def test_query_entity_records_builds_routing_context_from_folders_map(
         self,
@@ -1181,6 +1297,51 @@ class TestEntitiesService:
         values = service.get_choiceset_values(choiceset_id)
 
         assert values == []
+
+
+class TestFieldMetadataChoiceSetAlias:
+    """Verify FieldMetadata.choiceset_id accepts all server-side casing variants."""
+
+    _BASE_PAYLOAD: dict[str, object] = {
+        "name": "status",
+        "isPrimaryKey": False,
+        "isForeignKey": False,
+        "isExternalField": False,
+        "isHiddenField": False,
+        "isUnique": False,
+        "sqlType": {"name": "NVARCHAR"},
+        "isRequired": False,
+        "displayName": "Status",
+        "isSystemField": False,
+        "isAttachment": False,
+        "isRbacEnabled": False,
+    }
+
+    def test_parses_camel_case_choiceSetId(self) -> None:
+        payload = {**self._BASE_PAYLOAD, "choiceSetId": "cs-1"}
+        meta = FieldMetadata.model_validate(payload)
+        assert meta.choiceset_id == "cs-1"
+
+    def test_parses_lowercase_choicesetId(self) -> None:
+        payload = {**self._BASE_PAYLOAD, "choicesetId": "cs-2"}
+        meta = FieldMetadata.model_validate(payload)
+        assert meta.choiceset_id == "cs-2"
+
+    def test_parses_pascal_case_ChoiceSetId(self) -> None:
+        payload = {**self._BASE_PAYLOAD, "ChoiceSetId": "cs-3"}
+        meta = FieldMetadata.model_validate(payload)
+        assert meta.choiceset_id == "cs-3"
+
+    def test_defaults_to_none_when_absent(self) -> None:
+        meta = FieldMetadata.model_validate(self._BASE_PAYLOAD)
+        assert meta.choiceset_id is None
+
+    def test_serializes_as_choiceSetId(self) -> None:
+        payload = {**self._BASE_PAYLOAD, "choicesetId": "cs-4"}
+        meta = FieldMetadata.model_validate(payload)
+        dumped = meta.model_dump(by_alias=True)
+        assert "choiceSetId" in dumped
+        assert dumped["choiceSetId"] == "cs-4"
 
 
 class TestEntitiesServiceNewMethods:

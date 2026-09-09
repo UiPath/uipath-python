@@ -22,6 +22,7 @@ from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
+from ..errors._datafabric_error import DataFabricSqlValidationError
 from ..errors._enriched_exception import EnrichedException
 from ..orchestrator._folder_service import FolderService
 from ._entity_resolution import RoutingStrategy, create_routing_strategy
@@ -554,18 +555,22 @@ class EntityDataService(BaseService):
         self,
         sql_query: str,
         relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
         """Internal implementation; see :meth:`EntitiesService.query_entity_records`."""
-        return self._query_entities_for_records(sql_query, relationships_as_scalar)
+        return self._query_entities_for_records(
+            sql_query, relationships_as_scalar, resolve_choice_sets
+        )
 
     async def query_entity_records_async(
         self,
         sql_query: str,
         relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
         """Async variant of :meth:`query_entity_records`."""
         return await self._query_entities_for_records_async(
-            sql_query, relationships_as_scalar
+            sql_query, relationships_as_scalar, resolve_choice_sets
         )
 
     # ------------------------------------------------------------------
@@ -720,25 +725,31 @@ class EntityDataService(BaseService):
     # ------------------------------------------------------------------
 
     def _query_entities_for_records(
-        self, sql_query: str, relationships_as_scalar: bool = False
+        self,
+        sql_query: str,
+        relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
         """Synchronously run a validated SQL query through the federated query engine."""
         self._validate_sql_query(sql_query)
         routing_context = self._routing_strategy.resolve()
         spec = self._query_entity_records_spec(
-            sql_query, routing_context, relationships_as_scalar
+            sql_query, routing_context, relationships_as_scalar, resolve_choice_sets
         )
         response = self.request(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
 
     async def _query_entities_for_records_async(
-        self, sql_query: str, relationships_as_scalar: bool = False
+        self,
+        sql_query: str,
+        relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
         """Asynchronously run a validated SQL query through the federated query engine."""
         self._validate_sql_query(sql_query)
         routing_context = await self._routing_strategy.resolve_async()
         spec = self._query_entity_records_spec(
-            sql_query, routing_context, relationships_as_scalar
+            sql_query, routing_context, relationships_as_scalar, resolve_choice_sets
         )
         response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return response.json().get("results", [])
@@ -996,6 +1007,7 @@ class EntityDataService(BaseService):
         sql_query: str,
         routing_context: Optional[QueryRoutingOverrideContext] = None,
         relationships_as_scalar: bool = False,
+        resolve_choice_sets: bool = False,
     ) -> RequestSpec:
         """Build the POST spec for the federated SQL query endpoint."""
         body: Dict[str, Any] = {"query": sql_query}
@@ -1003,8 +1015,13 @@ class EntityDataService(BaseService):
             body["routingContext"] = routing_context.model_dump(
                 by_alias=True, exclude_none=True
             )
+        query_options: Dict[str, Any] = {}
         if relationships_as_scalar:
-            body["queryOptions"] = {"relationshipsAsScalar": True}
+            query_options["relationshipsAsScalar"] = True
+        if resolve_choice_sets:
+            query_options["resolveChoiceSets"] = True
+        if query_options:
+            body["queryOptions"] = query_options
         return RequestSpec(
             method="POST",
             endpoint=Endpoint("datafabric_/api/v1/query/execute"),
@@ -1256,20 +1273,37 @@ class EntityDataService(BaseService):
     # ------------------------------------------------------------------
 
     def _validate_sql_query(self, sql_query: str) -> None:
-        """Validate a SQL string for the federated query endpoint client-side."""
+        """Validate a SQL string for the federated query endpoint client-side.
+
+        Raises:
+            DataFabricSqlValidationError: The statement violates the
+                entity-query subset. Its :class:`DataFabricError` category
+                distinguishes a mechanically fixable statement (``BAD_SQL``)
+                from one whose shape the subset cannot express at all
+                (``UNSUPPORTED_CONSTRUCT``), so a retry loop can stop instead
+                of re-trying variants of an impossible approach.
+        """
         query = sql_query.strip().rstrip(";").strip()
         if not query:
-            raise ValueError("SQL query cannot be empty.")
+            raise DataFabricSqlValidationError(
+                "SQL query cannot be empty.", code="SQL_EMPTY"
+            )
 
         statements = sqlparse.parse(query)
         if len(statements) != 1 or not statements[0].tokens:
-            raise ValueError("Only a single SELECT statement is allowed.")
+            raise DataFabricSqlValidationError(
+                "Only a single SELECT statement is allowed.",
+                code="SQL_MULTIPLE_STATEMENTS",
+            )
 
         stmt = statements[0]
         stmt_type = stmt.get_type()
 
         if stmt_type != "SELECT":
-            raise ValueError("Only SELECT statements are allowed.")
+            raise DataFabricSqlValidationError(
+                "Only SELECT statements are allowed.",
+                code="SQL_STATEMENT_NOT_SELECT",
+            )
 
         keywords = set()
         for token in stmt.flatten():
@@ -1278,46 +1312,65 @@ class EntityDataService(BaseService):
 
         for kw in _FORBIDDEN_DML:
             if kw in keywords:
-                raise ValueError(f"SQL keyword '{kw}' is not allowed.")
+                raise DataFabricSqlValidationError(
+                    f"SQL keyword '{kw}' is not allowed.",
+                    code="SQL_KEYWORD_NOT_ALLOWED",
+                )
 
         for kw in _FORBIDDEN_DDL:
             if kw in keywords:
-                raise ValueError(f"SQL keyword '{kw}' is not allowed.")
+                raise DataFabricSqlValidationError(
+                    f"SQL keyword '{kw}' is not allowed.",
+                    code="SQL_KEYWORD_NOT_ALLOWED",
+                )
 
         for kw in _DISALLOWED_KEYWORDS:
             if kw in keywords:
-                raise ValueError(
-                    f"SQL construct '{kw}' is not allowed in entity queries."
+                raise DataFabricSqlValidationError(
+                    f"SQL construct '{kw}' is not allowed in entity queries.",
+                    code="SQL_CONSTRUCT_NOT_ALLOWED",
                 )
 
         if self._has_subquery(stmt):
-            raise ValueError("Subqueries are not allowed.")
+            raise DataFabricSqlValidationError(
+                "Subqueries are not allowed.", code="SQL_SUBQUERY_NOT_ALLOWED"
+            )
 
         has_where = any(isinstance(t, Where) for t in stmt.tokens)
         has_limit = "LIMIT" in keywords
         has_from = "FROM" in keywords
 
         if not has_from:
-            raise ValueError("Queries must include a FROM clause.")
+            raise DataFabricSqlValidationError(
+                "Queries must include a FROM clause.", code="SQL_MISSING_FROM"
+            )
 
         projection = self._projection_tokens(stmt)
 
         if self._projection_has_count_star(projection):
-            raise ValueError(
-                "COUNT(*) is not supported. Use COUNT(column_name) instead."
+            raise DataFabricSqlValidationError(
+                "COUNT(*) is not supported. Use COUNT(column_name) instead.",
+                code="SQL_COUNT_STAR_NOT_SUPPORTED",
             )
 
         has_aggregate = self._projection_has_aggregate(projection)
 
         if not has_where and not has_limit and not has_aggregate:
-            raise ValueError("Queries without WHERE must include a LIMIT clause.")
+            raise DataFabricSqlValidationError(
+                "Queries without WHERE must include a LIMIT clause.",
+                code="SQL_LIMIT_REQUIRED",
+            )
 
         has_bare_wildcard = self._projection_has_bare_wildcard(projection)
         if has_bare_wildcard:
-            raise ValueError("SELECT * is not allowed. Specify column names instead.")
+            raise DataFabricSqlValidationError(
+                "SELECT * is not allowed. Specify column names instead.",
+                code="SQL_SELECT_STAR_NOT_ALLOWED",
+            )
         if not has_where and self._projection_column_count(projection) > 4:
-            raise ValueError(
-                "Selecting more than 4 columns without filtering is not allowed."
+            raise DataFabricSqlValidationError(
+                "Selecting more than 4 columns without filtering is not allowed.",
+                code="SQL_TOO_MANY_COLUMNS",
             )
 
     @staticmethod

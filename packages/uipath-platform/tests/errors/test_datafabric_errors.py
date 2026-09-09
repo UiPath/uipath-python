@@ -9,6 +9,7 @@ from uipath.platform.errors import (
     DataFabricErrorCategory,
     EnrichedException,
 )
+from uipath.platform.errors._datafabric_error import DataFabricSqlValidationError
 from uipath.platform.errors._extractors._datafabric import extract_datafabric
 from uipath.platform.errors._extractors._router import extract_error_info
 from uipath.platform.errors.datafabric_error_codes import classify_error_code
@@ -45,6 +46,32 @@ class TestClassifyErrorCode:
     def test_bad_sql_codes(self) -> None:
         for code in ("SQL_PARSING", "SQL_VALIDATION"):
             assert classify_error_code(code) == DataFabricErrorCategory.BAD_SQL
+
+    def test_client_validation_bad_sql_codes(self) -> None:
+        """Pre-flight rejections a rewrite can satisfy classify as bad SQL."""
+        for code in (
+            "SQL_EMPTY",
+            "SQL_MULTIPLE_STATEMENTS",
+            "SQL_MISSING_FROM",
+            "SQL_LIMIT_REQUIRED",
+            "SQL_SELECT_STAR_NOT_ALLOWED",
+            "SQL_COUNT_STAR_NOT_SUPPORTED",
+            "SQL_TOO_MANY_COLUMNS",
+        ):
+            assert classify_error_code(code) == DataFabricErrorCategory.BAD_SQL
+
+    def test_unsupported_construct_codes(self) -> None:
+        """Rejections of the query shape are distinct from fixable bad SQL."""
+        for code in (
+            "SQL_STATEMENT_NOT_SELECT",
+            "SQL_KEYWORD_NOT_ALLOWED",
+            "SQL_CONSTRUCT_NOT_ALLOWED",
+            "SQL_SUBQUERY_NOT_ALLOWED",
+        ):
+            assert (
+                classify_error_code(code)
+                == DataFabricErrorCategory.UNSUPPORTED_CONSTRUCT
+            )
 
     def test_infrastructure_codes(self) -> None:
         for code in (
@@ -187,3 +214,62 @@ class TestRouterDatafabric:
 
     def test_non_json_returns_none(self) -> None:
         assert extract_error_info(_DATAFABRIC_URL, "not json") is None
+
+
+# ---------- Client-side SQL validation ----------
+
+
+class TestDataFabricSqlValidationError:
+    def test_is_a_value_error(self) -> None:
+        """Callers catching ValueError keep working."""
+        exc = DataFabricSqlValidationError(
+            "Subqueries are not allowed.", code="SQL_SUBQUERY_NOT_ALLOWED"
+        )
+        assert isinstance(exc, ValueError)
+        assert str(exc) == "Subqueries are not allowed."
+
+    def test_carries_a_datafabric_error(self) -> None:
+        exc = DataFabricSqlValidationError(
+            "Subqueries are not allowed.", code="SQL_SUBQUERY_NOT_ALLOWED"
+        )
+        assert exc.error.code == "SQL_SUBQUERY_NOT_ALLOWED"
+        assert exc.error.message == "Subqueries are not allowed."
+        assert exc.error.trace_id is None
+        assert exc.error.category == DataFabricErrorCategory.UNSUPPORTED_CONSTRUCT
+        assert exc.error.is_unsupported_construct is True
+        assert exc.error.is_bad_sql is False
+
+    def test_fixable_rejection_is_bad_sql(self) -> None:
+        exc = DataFabricSqlValidationError(
+            "Queries without WHERE must include a LIMIT clause.",
+            code="SQL_LIMIT_REQUIRED",
+        )
+        assert exc.error.is_bad_sql is True
+        assert exc.error.is_unsupported_construct is False
+
+
+class TestFromException:
+    def test_extracts_from_validation_error(self) -> None:
+        exc = DataFabricSqlValidationError(
+            "SQL construct 'UNION' is not allowed in entity queries.",
+            code="SQL_CONSTRUCT_NOT_ALLOWED",
+        )
+        err = DataFabricError.from_exception(exc)
+        assert err is not None
+        assert err.category == DataFabricErrorCategory.UNSUPPORTED_CONSTRUCT
+
+    def test_extracts_from_enriched_exception(self) -> None:
+        body = json.dumps(
+            {"error": "bad sql", "code": "SQL_VALIDATION", "traceId": "t-9"}
+        )
+        err = DataFabricError.from_exception(_make_enriched(body=body))
+        assert err is not None
+        assert err.code == "SQL_VALIDATION"
+        assert err.category == DataFabricErrorCategory.BAD_SQL
+
+    def test_non_datafabric_enriched_exception_returns_none(self) -> None:
+        assert DataFabricError.from_exception(_make_enriched(url=_NON_DF_URL)) is None
+
+    def test_unrelated_exception_returns_none(self) -> None:
+        assert DataFabricError.from_exception(RuntimeError("boom")) is None
+        assert DataFabricError.from_exception(ValueError("plain")) is None

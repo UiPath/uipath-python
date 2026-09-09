@@ -59,6 +59,48 @@ class DataFabricError:
     def is_bad_sql(self) -> bool:
         return self.category == DataFabricErrorCategory.BAD_SQL
 
+    @property
+    def is_unsupported_construct(self) -> bool:
+        """True when the entity-query subset cannot express this query shape.
+
+        Distinct from :attr:`is_bad_sql`: a bad statement can be fixed by
+        rewriting the SQL, whereas an unsupported construct means retrying a
+        variant of the same approach will fail again.
+        """
+        return self.category == DataFabricErrorCategory.UNSUPPORTED_CONSTRUCT
+
+    @staticmethod
+    def from_exception(exc: BaseException) -> DataFabricError | None:
+        """Extract a DataFabricError from any Data Fabric query failure.
+
+        Covers both origins of a failed query so callers need one branch:
+        client-side validation rejections raised before the request, and
+        server-side errors returned by the query engine.
+
+        Returns None if the exception is not a Data Fabric query failure.
+        """
+        if isinstance(exc, DataFabricSqlValidationError):
+            return exc.error
+        from ._enriched_exception import EnrichedException as _EnrichedException
+
+        if isinstance(exc, _EnrichedException):
+            return DataFabricError.from_enriched_exception(exc)
+        return None
+
+    @staticmethod
+    def from_validation(code: str, message: str) -> DataFabricError:
+        """Build a DataFabricError for a client-side validation rejection.
+
+        These never reach the query engine, so there is no trace id; the code
+        is classified through the same table as server-returned codes.
+        """
+        return DataFabricError(
+            code=code,
+            message=message,
+            trace_id=None,
+            category=classify_error_code(code),
+        )
+
     @staticmethod
     def from_enriched_exception(exc: EnrichedException) -> DataFabricError | None:
         """Extract a DataFabricError from an EnrichedException, if applicable.
@@ -107,3 +149,25 @@ class DataFabricError:
             trace_id=trace_id,
             category=classify_error_code(code),
         )
+
+
+class DataFabricSqlValidationError(ValueError):
+    """A SQL statement rejected by client-side entity-query validation.
+
+    A thin carrier: the classification callers act on is the
+    :class:`DataFabricError` on :attr:`error`, the same type server-side
+    failures produce. Remains a :class:`ValueError` subclass so existing
+    callers catching ``ValueError`` are unaffected; reach the structured form
+    with :meth:`DataFabricError.from_exception`.
+    """
+
+    def __init__(self, message: str, *, code: str) -> None:
+        """Initialise the error.
+
+        Args:
+            message: Human-readable rejection reason.
+            code: Stable code for this rejection, classified into a
+                :class:`DataFabricErrorCategory` by the shared code table.
+        """
+        super().__init__(message)
+        self.error = DataFabricError.from_validation(code=code, message=message)
