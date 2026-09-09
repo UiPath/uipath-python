@@ -91,6 +91,61 @@ class TestProcessesService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ProcessesService.invoke/{version}"
         )
 
+    def test_invoke_includes_entry_point_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        process_name = "test-process"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
+            status_code=200,
+            json={"value": [{"Key": "k", "State": "Running", "Id": 1}]},
+        )
+
+        service.invoke(process_name, entry_point_path="Workflows/Main.xaml")
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert sent_request.content.decode("utf-8") == json.dumps(
+            {
+                "startInfo": {
+                    "ReleaseName": process_name,
+                    "InputArguments": "{}",
+                    "Source": "AgentService",
+                    "EntryPointPath": "Workflows/Main.xaml",
+                }
+            },
+            separators=(",", ":"),
+        )
+
+    def test_invoke_omits_an_empty_entry_point_path(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ProcessesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs",
+            status_code=200,
+            json={"value": [{"Key": "k", "State": "Running", "Id": 1}]},
+        )
+
+        service.invoke("test-process", entry_point_path="")
+
+        sent_request = httpx_mock.get_request()
+        if sent_request is None:
+            raise Exception("No request was sent")
+
+        assert "EntryPointPath" not in sent_request.content.decode("utf-8")
+
     def test_invoke_without_input_arguments(
         self,
         httpx_mock: HTTPXMock,
