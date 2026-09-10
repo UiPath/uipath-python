@@ -93,6 +93,14 @@
   "justificationSchema": {
     "description": "Justification for the tool call count evaluator.",
     "properties": {
+      "expected": {
+        "title": "Expected",
+        "type": "string"
+      },
+      "actual": {
+        "title": "Actual",
+        "type": "string"
+      },
       "explained_tool_calls_count": {
         "additionalProperties": {
           "type": "string"
@@ -102,6 +110,8 @@
       }
     },
     "required": [
+      "expected",
+      "actual",
       "explained_tool_calls_count"
     ],
     "title": "ToolCallCountEvaluatorJustification",

@@ -113,6 +113,14 @@
   "justificationSchema": {
     "description": "Justification for the tool call output evaluator.",
     "properties": {
+      "expected": {
+        "title": "Expected",
+        "type": "string"
+      },
+      "actual": {
+        "title": "Actual",
+        "type": "string"
+      },
       "explained_tool_calls_outputs": {
         "additionalProperties": {
           "type": "string"
@@ -122,6 +130,8 @@
       }
     },
     "required": [
+      "expected",
+      "actual",
       "explained_tool_calls_outputs"
     ],
     "title": "ToolCallOutputEvaluatorJustification",
