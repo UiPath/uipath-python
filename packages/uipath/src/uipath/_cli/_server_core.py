@@ -1,8 +1,11 @@
 """Transport-agnostic job core shared by the HTTP and uipath-ipc channels."""
 
 import asyncio
+import logging
 import os
 import shlex
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
 from .cli_debug import debug
@@ -32,6 +35,66 @@ class _ServerState:
 
 
 _state = _ServerState()
+
+logger = logging.getLogger(__name__)
+
+# Optional per-job scope, registered by an out-of-process concern that needs to bracket
+# every job this server runs. ``None`` — the default — means no scope is installed and
+# the job runs exactly as it did before.
+_job_scope_provider: Callable[[], AbstractAsyncContextManager[None]] | None = None
+
+
+def register_job_scope_provider(
+    provider: Callable[[], AbstractAsyncContextManager[None]] | None,
+) -> None:
+    """Register an async context manager entered around every job body.
+
+    The scope is entered inside the per-job lock, *after* this module has applied the job's
+    ``env_vars`` and ``working_dir`` and *before* the command runs, and exited before that
+    state is restored. A caller therefore sees the same process environment and cwd the job
+    itself sees, which is what makes per-job setup/teardown possible from outside this module.
+
+    Args:
+        provider: Zero-argument callable returning a fresh async context manager per job, or
+            ``None`` to clear the registration.
+    """
+    global _job_scope_provider
+    _job_scope_provider = provider
+
+
+@asynccontextmanager
+async def _job_scope() -> AsyncIterator[None]:
+    """Enter the registered per-job scope, or do nothing when none is registered.
+
+    Fail-open in both directions: a provider that raises on entry yields an un-scoped job, and
+    one that raises on exit cannot mask the job's own outcome. Teardown is shielded, so a
+    cancelled job still runs it to completion.
+    """
+    provider = _job_scope_provider
+    if provider is None:
+        yield
+        return
+
+    scope: AbstractAsyncContextManager[None] | None = None
+    try:
+        scope = provider()
+        await scope.__aenter__()
+    except Exception:
+        logger.warning(
+            "job scope provider failed to start; job runs unscoped", exc_info=True
+        )
+        scope = None
+
+    try:
+        yield
+    finally:
+        if scope is not None:
+            try:
+                # Shielded: a cancel delivered while the job unwinds must not leave the
+                # provider half torn down.
+                await asyncio.shield(scope.__aexit__(None, None, None))
+            except Exception:
+                logger.warning("job scope provider failed to exit", exc_info=True)
 
 
 def parse_args(args: str | list[str] | None) -> list[str]:
@@ -79,9 +142,10 @@ async def _run_command_isolated(
                         "ClientError": True,
                     }
 
-            result_value = await asyncio.to_thread(
-                cmd.main, args, standalone_mode=False
-            )
+            async with _job_scope():
+                result_value = await asyncio.to_thread(
+                    cmd.main, args, standalone_mode=False
+                )
             return {
                 "ExitCode": 0,
                 "Error": None,
