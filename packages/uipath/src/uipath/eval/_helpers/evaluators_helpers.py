@@ -634,14 +634,34 @@ def tool_calls_output_score(
     ), justifications
 
 
-def trace_to_str(workload_trace: Sequence[ReadableSpan]) -> str:
+def _format_workload_output(workload_output: dict[str, Any] | str) -> str:
+    """Render a workload's own output for the run-history string."""
+    if isinstance(workload_output, str):
+        return workload_output
+    try:
+        return json.dumps(workload_output)
+    except (TypeError, ValueError):
+        return str(workload_output)
+
+
+def trace_to_str(
+    workload_trace: Sequence[ReadableSpan],
+    workload_output: dict[str, Any] | str | None = None,
+) -> str:
     """Convert OTEL spans to a platform-style workload run history string.
 
     Creates a similar structure to LangChain message processing but using OTEL spans.
-    Only processes tool spans (spans with 'tool.name' attribute).
+    Tool spans (spans with 'tool.name' attribute) are rendered as the trajectory;
+    the workload's own output is appended as a final "Agent Output" block.
+
+    LLM spans are deliberately not rendered — they carry the full system prompt
+    and would swamp the judge's context. `workload_output` is the workload's
+    answer, so it is passed in rather than recovered from the trace.
 
     Args:
         workload_trace: List of ReadableSpan objects from the workload execution
+        workload_output: The workload's own output. Omit it to render the tool
+            calls alone.
 
     Returns:
         String representation of the workload run history in platform format
@@ -704,5 +724,10 @@ def trace_to_str(workload_trace: Sequence[ReadableSpan]) -> str:
             )
             platform_history.append(f"{tool_result}")
             platform_history.append("")
+
+    if workload_output is not None:
+        platform_history.append("Agent Output:")
+        platform_history.append(_format_workload_output(workload_output))
+        platform_history.append("")
 
     return "\n".join(platform_history)

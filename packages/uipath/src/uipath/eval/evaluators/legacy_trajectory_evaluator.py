@@ -101,6 +101,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=workload_execution.expected_agent_behavior,
             agent_run_history=workload_execution.workload_trace,
+            workload_output=workload_execution.workload_output,
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 
@@ -113,6 +114,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         self,
         expected_agent_behavior: Any,
         agent_run_history: Any,
+        workload_output: dict[str, Any] | str | None = None,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         # Validate that expected agent behavior is not empty
@@ -134,12 +136,13 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         )
 
         # Trim extra properties from the spans (such as timestamps which are not relevant to the eval)
-        if (
-            isinstance(agent_run_history, list)
-            and agent_run_history
-            and isinstance(agent_run_history[0], ReadableSpan)
-        ):
-            agent_run_history = trace_to_str(agent_run_history)
+        is_span_trace = isinstance(agent_run_history, list) and (
+            not agent_run_history or isinstance(agent_run_history[0], ReadableSpan)
+        )
+        # A run with no tool spans still has an output to grade, so an empty
+        # trace goes through trace_to_str whenever there is one to append.
+        if is_span_trace and (agent_run_history or workload_output is not None):
+            agent_run_history = trace_to_str(agent_run_history, workload_output)
         else:
             agent_run_history = str(agent_run_history)
 

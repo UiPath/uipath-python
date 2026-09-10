@@ -80,7 +80,10 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
 
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
         """Get the actual output from the workload execution."""
-        return trace_to_str(workload_execution.workload_trace)
+        return trace_to_str(
+            workload_execution.workload_trace,
+            workload_execution.workload_output,
+        )
 
     def _get_expected_output(
         self, evaluation_criteria: TrajectoryEvaluationCriteria

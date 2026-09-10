@@ -22,6 +22,7 @@ from uipath.eval._helpers.evaluators_helpers import (
     tool_calls_count_score,
     tool_calls_order_score,
     tool_calls_output_score,
+    trace_to_str,
 )
 from uipath.eval.models.models import ToolCall, ToolOutput
 
@@ -1198,3 +1199,72 @@ class TestSanitizedNameMatch:
         expected = {"webSearch1": (">=", 1)}
         score, _ = tool_calls_count_score(actual, expected)
         assert score == 1.0
+
+
+class TestTraceToStrAgentOutput:
+    """``trace_to_str`` must carry the workload's own output, not just its tool calls.
+
+    Regression guard for AE-2147: the trajectory judge reads the run through
+    ``{{AgentRunHistory}}`` only, so an output missing from this string is an
+    output the judge cannot grade.
+    """
+
+    @staticmethod
+    def _web_search_span() -> Any:
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        return ReadableSpan(
+            name="Web_Search",
+            start_time=1_756_233_000_000_000_000,
+            end_time=1_756_233_007_000_000_000,
+            attributes={
+                "openinference.span.kind": "TOOL",
+                "tool.name": "Web_Search",
+                "input.value": "{}",
+                "output.value": "{}",
+            },
+        )
+
+    def test_includes_workload_output(self) -> None:
+        history = trace_to_str(
+            [self._web_search_span()],
+            workload_output={
+                "search_results_answer": "Argentina won the most recent FIFA World Cup."
+            },
+        )
+
+        assert "Tool Call Response - Web_Search" in history
+        assert "Agent Output:" in history
+        assert "Argentina won the most recent FIFA World Cup." in history
+
+    def test_output_comes_after_the_tool_calls(self) -> None:
+        history = trace_to_str(
+            [self._web_search_span()],
+            workload_output={"answer": "Argentina"},
+        )
+
+        assert history.index("Tool Call Response") < history.index("Agent Output:")
+
+    def test_string_output_is_rendered_verbatim(self) -> None:
+        history = trace_to_str([], workload_output="Argentina")
+
+        assert history.strip() == "Agent Output:\nArgentina"
+
+    def test_output_omitted_when_not_supplied(self) -> None:
+        history = trace_to_str([self._web_search_span()])
+
+        assert "Agent Output:" not in history
+
+    def test_empty_output_is_still_reported(self) -> None:
+        history = trace_to_str([self._web_search_span()], workload_output={})
+
+        assert "Agent Output:\n{}" in history
+
+    def test_unserialisable_output_falls_back_to_repr(self) -> None:
+        """A judge run must not die because an output holds a non-JSON value."""
+        sentinel = object()
+
+        history = trace_to_str([], workload_output={"handle": sentinel})
+
+        assert "Agent Output:" in history
+        assert repr(sentinel) in history
