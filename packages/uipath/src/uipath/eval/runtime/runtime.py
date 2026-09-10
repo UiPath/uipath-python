@@ -970,6 +970,13 @@ class UiPathEvalRuntime:
     def _get_and_clear_execution_data(
         self, execution_id: str
     ) -> tuple[list[ReadableSpan], list[logging.LogRecord]]:
+        # Force a flush right before reading: the flush triggered by the root
+        # execution span ending only exports spans whose on_end() had already
+        # fired by that moment. A tool-call span that finishes a beat later
+        # (e.g. a detached background task) would otherwise still be sitting
+        # in the batch processor's queue and be silently missing from
+        # AgentRunHistory (UV-16309).
+        self.trace_manager.flush_spans()
         spans = self.span_exporter.get_spans(execution_id)
         self.span_exporter.clear(execution_id)
         self.span_collector.clear(execution_id)
