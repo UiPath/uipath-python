@@ -98,3 +98,22 @@ class TestGetHttpxClientKwargsHeaders:
         ):
             result = get_httpx_client_kwargs(headers={})
         assert "headers" not in result
+
+
+class TestGetHttpxClientKwargsTimeout:
+    """Tests for timeout parameter in get_httpx_client_kwargs()."""
+
+    def test_default_timeout(self) -> None:
+        """Default timeout is 30.0 seconds."""
+        result = get_httpx_client_kwargs()
+        assert result["timeout"] == 30.0
+
+    def test_custom_timeout(self) -> None:
+        """Custom timeout value is passed through."""
+        result = get_httpx_client_kwargs(timeout=12.5)
+        assert result["timeout"] == 12.5
+
+    def test_zero_timeout(self) -> None:
+        """Zero timeout is valid."""
+        result = get_httpx_client_kwargs(timeout=0)
+        assert result["timeout"] == 0
