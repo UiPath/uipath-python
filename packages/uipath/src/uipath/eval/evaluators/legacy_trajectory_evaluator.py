@@ -101,6 +101,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=workload_execution.expected_agent_behavior,
             agent_run_history=workload_execution.workload_trace,
+            workload_output=workload_execution.workload_output,
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 
@@ -113,6 +114,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         self,
         expected_agent_behavior: Any,
         agent_run_history: Any,
+        workload_output: dict[str, Any] | str | None = None,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         # Validate that expected agent behavior is not empty
@@ -139,7 +141,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
             and agent_run_history
             and isinstance(agent_run_history[0], ReadableSpan)
         ):
-            agent_run_history = trace_to_str(agent_run_history)
+            agent_run_history = trace_to_str(agent_run_history, workload_output)
         else:
             agent_run_history = str(agent_run_history)
 
