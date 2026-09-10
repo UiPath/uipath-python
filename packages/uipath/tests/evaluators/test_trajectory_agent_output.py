@@ -7,7 +7,9 @@ graded as if the agent had answered nothing.
 """
 
 import uuid
+from typing import Any
 
+import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 
 from uipath.eval.evaluators import LegacyTrajectoryEvaluator
@@ -105,3 +107,49 @@ def test_legacy_trajectory_prompt_contains_the_agent_output() -> None:
 
     assert "Tool Call Response - Web_Search" in prompt
     assert AGENT_ANSWER in prompt
+
+
+@pytest.mark.asyncio
+async def test_legacy_trajectory_evaluate_sends_the_agent_output_to_the_llm(
+    mocker: Any,
+) -> None:
+    """The output has to survive the real ``evaluate`` path, not just the helper."""
+    evaluator = LegacyTrajectoryEvaluator(
+        id=str(uuid.uuid4()),
+        name="Legacy trajectory",
+        config_type=LegacyTrajectoryEvaluatorConfig,
+        evaluation_criteria_type=LegacyEvaluationCriteria,
+        justification_type=str,
+        category=LegacyEvaluatorCategory.Trajectory,
+        type=LegacyEvaluatorType.Trajectory,
+        prompt="History:\n{{AgentRunHistory}}\nExpected:\n{{ExpectedAgentBehavior}}",
+        createdAt="2026-05-14T00:00:00Z",
+        updatedAt="2026-05-14T00:00:00Z",
+    )
+
+    sent_prompts: list[str] = []
+    tool_call = mocker.MagicMock()
+    tool_call.arguments = {"score": 90, "justification": "answered correctly"}
+    response = mocker.MagicMock()
+    response.choices = [
+        mocker.MagicMock(message=mocker.MagicMock(tool_calls=[tool_call]))
+    ]
+
+    async def chat_completions(**kwargs: Any) -> Any:
+        sent_prompts.append(kwargs["messages"][0]["content"])
+        return response
+
+    evaluator.llm = mocker.MagicMock(chat_completions=chat_completions)
+
+    result = await evaluator.evaluate(
+        _workload_execution(),
+        LegacyEvaluationCriteria.model_validate(
+            {
+                "expectedOutput": {},
+                "expectedAgentBehavior": "The agent should identify Argentina.",
+            }
+        ),
+    )
+
+    assert result.score == 90
+    assert AGENT_ANSWER in sent_prompts[0]

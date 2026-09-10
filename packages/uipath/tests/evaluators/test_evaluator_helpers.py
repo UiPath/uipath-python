@@ -1259,3 +1259,12 @@ class TestTraceToStrAgentOutput:
         history = trace_to_str([self._web_search_span()], workload_output={})
 
         assert "Agent Output:\n{}" in history
+
+    def test_unserialisable_output_falls_back_to_repr(self) -> None:
+        """A judge run must not die because an output holds a non-JSON value."""
+        sentinel = object()
+
+        history = trace_to_str([], workload_output={"handle": sentinel})
+
+        assert "Agent Output:" in history
+        assert repr(sentinel) in history
