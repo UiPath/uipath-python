@@ -58,7 +58,7 @@ The current date and time is: {current_datetime}
 Based on the above information, provide a realistic input to the LLM agent. Your response should:
 1. Match the expected input format according to the INPUT_SCHEMA exactly
 2. Be consistent with the style and level of detail in the example inputs
-3. Consider the context of the the agent being tested
+3. Consider the context of the agent being tested
 4. Be realistic and representative of what a real user might say or ask
 
 OUTPUT: ONLY the simulated agent input in the exact format of the INPUT_SCHEMA in valid JSON. Do not include any explanations, quotation marks, or markdown."""
