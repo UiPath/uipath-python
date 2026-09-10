@@ -45,6 +45,7 @@ from uipath.agent.models.agent import (
     AgentUnknownGuardrail,
     AgentUnknownResourceConfig,
     AgentUnknownToolResourceConfig,
+    AgentVariant,
     AgentWordOperator,
     AgentWordRule,
     ArgumentEmailRecipient,
@@ -3472,6 +3473,38 @@ class TestAgentDefinitionIsCaseManager:
         )
 
         assert config.is_case_manager is True
+
+    def test_conversational_case_manager_variant_is_accepted(self):
+        """An agent definition carrying the conversational variant parses."""
+        json_data = {
+            "id": "test-conversational-case-manager",
+            "name": "Case Manager Conversational Agent",
+            "version": "1.0.0",
+            "metadata": {
+                "isConversational": True,
+                "variant": "conversationalCaseManager",
+                "storageVersion": "1.0.0",
+            },
+            "settings": {
+                "model": "gpt-4o",
+                "maxTokens": 4096,
+                "temperature": 0,
+                "engine": "conversational-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "messages": [
+                {"role": "system", "content": "You answer questions about a case."}
+            ],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.metadata is not None
+        assert config.metadata.variant is AgentVariant.CONVERSATIONAL_CASE_MANAGER
 
     def test_is_case_manager_false_when_variant_is_none(self):
         """Returns False when metadata.variant is None."""

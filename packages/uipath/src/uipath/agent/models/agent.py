@@ -184,6 +184,7 @@ class AgentVariant(str, CaseInsensitiveEnum):
     """Agent variant enumeration."""
 
     CASE_MANAGER = "caseManager"
+    CONVERSATIONAL_CASE_MANAGER = "conversationalCaseManager"
 
 
 class AgentGuardrailActionType(str, CaseInsensitiveEnum):
