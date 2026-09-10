@@ -201,7 +201,7 @@ def test_format_output_forces_no_color_for_file_output(tmp_path):
     data = [{"name": "test"}]
     output_file = tmp_path / "output.txt"
 
-    format_output(data, fmt="table", output=str(output_file), no_color=False)
+    format_output(data, fmt="text", output=str(output_file), no_color=False)
 
     content = output_file.read_text(encoding="utf-8")
     # Verify no ANSI escape codes in output

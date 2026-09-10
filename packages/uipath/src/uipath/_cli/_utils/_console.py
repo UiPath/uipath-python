@@ -18,6 +18,19 @@ from rich.spinner import Spinner as RichSpinner
 from rich.text import Text
 
 
+class OutputMode(Enum):
+    """Output mode for CLI commands.
+
+    TEXT: Human-readable output (tables, spinners, colors).
+    JSON: Machine-readable JSON output.
+    CSV:  Machine-readable CSV output.
+    """
+
+    TEXT = "text"
+    JSON = "json"
+    CSV = "csv"
+
+
 class LogLevel(Enum):
     """Enum for log levels with corresponding emojis."""
 
@@ -30,6 +43,18 @@ class LogLevel(Enum):
     SELECT = "👇"
     LINK = "🔗"
     MAGIC = "✨"
+
+
+class CLIError(Exception):
+    """Raised by ConsoleLogger.error() in structured output modes.
+
+    Caught by LazyGroup.invoke() to emit structured error output.
+    """
+
+    def __init__(self, message: str, messages: list[dict[str, str]] | None = None):
+        self.message = message
+        self.messages = messages or []
+        super().__init__(message)
 
 
 class ConsoleLogger:
@@ -59,6 +84,21 @@ class ConsoleLogger:
             self._progress: Progress | None = None
             self._progress_tasks: dict[str, TaskID] = {}
             self._initialized = True
+            self._output_mode: OutputMode = OutputMode.TEXT
+            self._messages: list[dict[str, str]] = []
+            self._result: Any = None
+
+    @property
+    def output_mode(self) -> OutputMode:
+        """Get the current output mode."""
+        return self._output_mode
+
+    @output_mode.setter
+    def output_mode(self, value: OutputMode) -> None:
+        """Set the output mode and reset collected state."""
+        self._output_mode = value
+        self._messages = []
+        self._result = None
 
     def _stop_spinner_if_active(self) -> None:
         """Internal method to stop the spinner if it's active."""
@@ -83,6 +123,11 @@ class ConsoleLogger:
             level: The log level (determines the emoji)
             fg: Optional foreground color for the message
         """
+        if self._output_mode is not OutputMode.TEXT:
+            level_name = level.name.lower()
+            self._messages.append({"level": level_name, "message": message})
+            return
+
         # Stop any active spinner before logging
         self._stop_spinner_if_active()
 
@@ -118,6 +163,9 @@ class ConsoleLogger:
                     traceback.format_exception(exc_type, exc_value, exc_tb, chain=False)
                 )
                 message = f"{message}\n{tb}"
+
+        if self._output_mode is not OutputMode.TEXT:
+            raise CLIError(message, messages=list(self._messages))
 
         self.log(message, LogLevel.ERROR, "red")
         click.get_current_context().exit(1)
@@ -168,7 +216,16 @@ class ConsoleLogger:
 
         Returns:
             The user's input
+
+        Raises:
+            CLIError: If called in a structured output mode (JSON/CSV)
         """
+        if self._output_mode is not OutputMode.TEXT:
+            raise CLIError(
+                f"Interactive prompt not supported in {self._output_mode.value} mode: {message}",
+                messages=list(self._messages),
+            )
+
         # Stop any active spinner before prompting
         self._stop_spinner_if_active()
 
@@ -187,7 +244,16 @@ class ConsoleLogger:
 
         Returns:
             True if user confirms, False otherwise
+
+        Raises:
+            CLIError: If called in a structured output mode (JSON/CSV)
         """
+        if self._output_mode is not OutputMode.TEXT:
+            raise CLIError(
+                f"Interactive confirm not supported in {self._output_mode.value} mode: {message}",
+                messages=list(self._messages),
+            )
+
         # Stop any active spinner before prompting
         self._stop_spinner_if_active()
 
@@ -216,6 +282,10 @@ class ConsoleLogger:
         Yields:
             None
         """
+        if self._output_mode is not OutputMode.TEXT:
+            yield
+            return
+
         try:
             # Stop any existing spinner before starting a new one
             self._stop_spinner_if_active()
@@ -279,6 +349,34 @@ class ConsoleLogger:
 
         finally:
             self._stop_progress_if_active()
+
+    def set_result(self, data: Any) -> None:
+        """Store structured result data for JSON output."""
+        self._result = data
+
+    def emit(self) -> None:
+        """Emit collected output. Only does something in structured output modes."""
+        if self._output_mode is OutputMode.TEXT:
+            return
+
+        import json
+
+        output: dict[str, Any] = {"status": "success"}
+        if self._messages:
+            output["messages"] = self._messages
+        if self._result is not None:
+            output["data"] = self._result
+
+        if self._output_mode is OutputMode.JSON:
+            click.echo(json.dumps(output, indent=2, default=str))
+        elif self._output_mode is OutputMode.CSV:
+            from ._formatters import _format_csv
+
+            if self._result is not None:
+                click.echo(_format_csv(self._result))
+
+        self._messages = []
+        self._result = None
 
     @classmethod
     def get_instance(cls) -> "ConsoleLogger":
