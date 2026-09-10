@@ -153,3 +153,44 @@ async def test_legacy_trajectory_evaluate_sends_the_agent_output_to_the_llm(
 
     assert result.score == 90
     assert AGENT_ANSWER in sent_prompts[0]
+
+
+def _legacy_evaluator() -> LegacyTrajectoryEvaluator:
+    return LegacyTrajectoryEvaluator(
+        id=str(uuid.uuid4()),
+        name="Legacy trajectory",
+        config_type=LegacyTrajectoryEvaluatorConfig,
+        evaluation_criteria_type=LegacyEvaluationCriteria,
+        justification_type=str,
+        category=LegacyEvaluatorCategory.Trajectory,
+        type=LegacyEvaluatorType.Trajectory,
+        prompt="History:\n{{AgentRunHistory}}\nExpected:\n{{ExpectedAgentBehavior}}",
+        createdAt="2026-05-14T00:00:00Z",
+        updatedAt="2026-05-14T00:00:00Z",
+    )
+
+
+def test_legacy_trajectory_keeps_the_output_when_the_run_called_no_tools() -> None:
+    """An agent that answers without calling a tool has an empty span list.
+
+    The span-list check used to require a first element, so those runs fell to
+    ``str([])`` and lost the output all over again.
+    """
+    prompt = _legacy_evaluator()._create_evaluation_prompt(
+        expected_agent_behavior="The agent should identify Argentina.",
+        agent_run_history=[],
+        workload_output={"search_results_answer": AGENT_ANSWER},
+    )
+
+    assert AGENT_ANSWER in prompt
+
+
+def test_legacy_trajectory_empty_trace_without_output_stays_empty() -> None:
+    """No trace and no output is still rendered the way it always was."""
+    prompt = _legacy_evaluator()._create_evaluation_prompt(
+        expected_agent_behavior="The agent should identify Argentina.",
+        agent_run_history=[],
+        workload_output=None,
+    )
+
+    assert "History:\n[]\n" in prompt
