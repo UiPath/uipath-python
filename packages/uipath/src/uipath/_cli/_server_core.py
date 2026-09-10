@@ -1,9 +1,12 @@
 """Transport-agnostic job core shared by the HTTP and uipath-ipc channels."""
 
 import asyncio
+import logging
 import os
 import shlex
-from typing import Any, Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from typing import Any
 
 from .cli_debug import debug
 from .cli_eval import eval
@@ -22,6 +25,10 @@ class _ServerState:
     def __init__(self) -> None:
         self.lock: asyncio.Lock | None = None
         self.baseline_env: dict[str, str] | None = None
+        # Optional per-job scope; ``None`` (the default) leaves jobs unscoped.
+        self.job_scope_provider: (
+            Callable[[], AbstractAsyncContextManager[None]] | None
+        ) = None
 
     def init(self) -> None:
         """Must be called inside a running event loop at server startup."""
@@ -32,6 +39,66 @@ class _ServerState:
 
 
 _state = _ServerState()
+
+logger = logging.getLogger(__name__)
+
+
+def register_job_scope_provider(
+    provider: Callable[[], AbstractAsyncContextManager[None]] | None,
+) -> None:
+    """Register an async context manager entered around every job body.
+
+    The scope is entered inside the per-job lock, *after* this module has applied the job's
+    ``env_vars`` and ``working_dir`` and *before* the command runs, and on the normal path is
+    exited before that state is restored. A caller therefore sees the same process environment
+    and cwd the job itself sees, which is what makes per-job setup/teardown possible from
+    outside this module.
+
+    Teardown ordering is best-effort rather than guaranteed. When a job is cancelled the
+    teardown is shielded but not awaited, so it runs detached and may observe the restored
+    server baseline instead of the job's env and cwd. A provider that needs the job's values
+    on the teardown side should capture them on entry rather than read the process state.
+
+    Args:
+        provider: Zero-argument callable returning a fresh async context manager per job, or
+            ``None`` to clear the registration.
+    """
+    _state.job_scope_provider = provider
+
+
+@asynccontextmanager
+async def _job_scope() -> AsyncIterator[None]:
+    """Enter the registered per-job scope, or do nothing when none is registered.
+
+    Fail-open in both directions: a provider that raises on entry yields an un-scoped job, and
+    one that raises on exit cannot mask the job's own outcome. Teardown is shielded, so a
+    cancelled job still runs it to completion.
+    """
+    provider = _state.job_scope_provider
+    if provider is None:
+        yield
+        return
+
+    scope: AbstractAsyncContextManager[None] | None = None
+    try:
+        scope = provider()
+        await scope.__aenter__()
+    except Exception:
+        logger.warning(
+            "job scope provider failed to start; job runs unscoped", exc_info=True
+        )
+        scope = None
+
+    try:
+        yield
+    finally:
+        if scope is not None:
+            try:
+                # Shielded: a cancel delivered while the job unwinds must not leave the
+                # provider half torn down.
+                await asyncio.shield(scope.__aexit__(None, None, None))
+            except Exception:
+                logger.warning("job scope provider failed to exit", exc_info=True)
 
 
 def parse_args(args: str | list[str] | None) -> list[str]:
@@ -89,9 +156,13 @@ async def _run_command_isolated(
             if on_run_start is not None:
                 on_run_start()
             try:
-                result_value = await asyncio.to_thread(
-                    cmd.main, args, standalone_mode=False
-                )
+                # Scope nested inside the hooks: the sink is installed before the scope is
+                # entered and cleared after it exits, so anything the provider logs on the
+                # way in or out belongs to this job rather than to the server.
+                async with _job_scope():
+                    result_value = await asyncio.to_thread(
+                        cmd.main, args, standalone_mode=False
+                    )
             finally:
                 if on_run_end is not None:
                     on_run_end()
