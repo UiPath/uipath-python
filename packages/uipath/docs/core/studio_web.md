@@ -171,6 +171,7 @@ First, install the SDK package for the framework you want to use:
 #   uipath-pydantic-ai     - PydanticAI
 #   uipath-google-adk      - Google ADK
 #   uipath-agent-framework - UiPath Agent Framework
+#   uipath-claude-sdk      - Claude Agent SDK
 > uv add uipath-langchain
 Resolved 42 packages in 1.2s
 Installed 42 packages in 0.8s
@@ -190,6 +191,7 @@ Installed 42 packages in 0.8s
 #   uipath-pydantic-ai     - PydanticAI
 #   uipath-google-adk      - Google ADK
 #   uipath-agent-framework - UiPath Agent Framework
+#   uipath-claude-sdk      - Claude Agent SDK
 > pip install uipath-langchain
 Successfully installed uipath-langchain
 ```
@@ -221,9 +223,13 @@ Selected tenant: Tenant1
 
 That's it, your agent should now be visible in Studio Web.
 
+/// info
+`uipath new` defaults to `--type auto`, which lets the installed framework integration claim the scaffold. With several integrations installed, pick one explicitly: `uipath new agent --type agent --agent-framework <framework>`.
+///
+
 #### Coded Function
 
-A coded function doesn't require an additional framework package. Authenticate, scaffold the project, and initialize it:
+A coded function doesn't require an additional framework package. Authenticate, scaffold the project, and initialize it (`--type function` guarantees a function project even when a framework integration is installed):
 
 <!-- termynal -->
 
@@ -238,7 +244,7 @@ Select tenant number: 0
 Selected tenant: Tenant1
 ✓  Authentication successful.
 
-> uipath new my-function
+> uipath new my-function --type function
 ✓  Created 'main.py' file.
 ✓  Created 'pyproject.toml' file.
 ✓  Created 'uipath.json' file.

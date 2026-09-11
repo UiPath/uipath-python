@@ -17,14 +17,17 @@ Every coded agent is built from two layers:
 
 The `uipath` package is always required. Add one framework extension on top:
 
-| Framework | Package | Best for |
-|-----------|---------|---------|
-| LangChain / LangGraph | `uipath-langchain` | Graph-based agents, complex multi-step flows |
-| LlamaIndex | `uipath-llamaindex` | RAG-heavy agents, document reasoning |
-| OpenAI Agents SDK | `uipath-openai-agents` | OpenAI-native tool use, handoffs |
-| PydanticAI | `uipath-pydantic-ai` | Type-safe agents with Pydantic models |
-| Google ADK | `uipath-google-adk` | Gemini models, Google ecosystem |
-| UiPath Agent Framework | `uipath-agent-framework` | UiPath-native agent primitives |
+| Framework | Package | `--agent-framework` | Best for |
+|-----------|---------|---------------------|---------|
+| LangChain / LangGraph | `uipath-langchain` | `langchain` | Graph-based agents, complex multi-step flows |
+| LlamaIndex | `uipath-llamaindex` | `llamaindex` | RAG-heavy agents, document reasoning |
+| OpenAI Agents SDK | `uipath-openai-agents` | `openai-agents` | OpenAI-native tool use, handoffs |
+| PydanticAI | `uipath-pydantic-ai` | `pydantic-ai` | Type-safe agents with Pydantic models |
+| Google ADK | `uipath-google-adk` | `google-adk` | Gemini models, Google ecosystem |
+| UiPath Agent Framework | `uipath-agent-framework` | `microsoft-agent-framework` | UiPath-native agent primitives |
+| Claude Agent SDK | `uipath-claude-sdk` | `claude-sdk` | Claude models, Anthropic-native agent loop |
+
+The `--agent-framework` column is the value to pass to `uipath new --type agent` when scaffolding explicitly (see the note below the Quickstart).
 
 ---
 
@@ -84,6 +87,14 @@ The example below uses LangChain. Swap `uipath-langchain` for the framework of y
 ```
 
 ////
+
+/// info | Explicit project type and framework
+`uipath new` defaults to `--type auto`: the installed agent framework integration claims the scaffold, which is why the commands above create an agent project. To request one explicitly — required when several framework integrations are installed in the same environment — pass the type and framework:
+
+```shell
+uipath new agent --type agent --agent-framework langchain
+```
+///
 
 ---
 
