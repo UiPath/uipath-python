@@ -70,6 +70,14 @@ Use coded functions for deterministic compute steps: document extraction, ERP wr
 
 ////
 
+/// info | Guaranteeing a function project
+`uipath new` defaults to `--type auto`: when an agent framework integration (e.g. `uipath-langchain`) is installed in the environment, it scaffolds a coded agent instead of a function. Pass `--type function` to always get a coded function project:
+
+```shell
+uipath new my-function --type function
+```
+///
+
 ---
 
 ## Project Structure
