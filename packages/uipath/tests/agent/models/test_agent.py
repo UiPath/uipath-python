@@ -11,6 +11,7 @@ from uipath.agent.models.agent import (
     AgentClientSideToolResourceConfig,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
+    AgentContextSettings,
     AgentContextType,
     AgentCustomGuardrail,
     AgentDefinition,
@@ -4811,3 +4812,49 @@ class TestAgentModelSettings:
             self._agent_settings(modelSettings=native)
         )
         assert settings.model_dump(by_alias=True)["modelSettings"] == native
+
+
+class TestSearchDuringIngestion:
+    """settings.searchDuringIngestion opts a context resource into mid-ingestion search."""
+
+    def _context_settings(self, **extra: Any) -> dict[str, Any]:
+        return {
+            "threshold": 0,
+            "resultCount": 3,
+            "retrievalMode": "Semantic",
+            "query": {"description": "The query.", "variant": "Dynamic"},
+            **extra,
+        }
+
+    def test_defaults_to_false_when_absent(self):
+        settings = AgentContextSettings.model_validate(self._context_settings())
+        assert settings.search_during_ingestion is False
+
+    @pytest.mark.parametrize(
+        "key", ["searchDuringIngestion", "search_during_ingestion"]
+    )
+    def test_opt_in_parsed_from_alias_and_field_name(self, key: str):
+        settings = AgentContextSettings.model_validate(
+            self._context_settings(**{key: True})
+        )
+        assert settings.search_during_ingestion is True
+
+    def test_round_trips_by_alias(self):
+        settings = AgentContextSettings.model_validate(
+            self._context_settings(searchDuringIngestion=True)
+        )
+        assert settings.model_dump(by_alias=True)["searchDuringIngestion"] is True
+
+    def test_reaches_the_resource_config(self):
+        resource = AgentContextResourceConfig.model_validate(
+            {
+                "$resourceType": "context",
+                "folderPath": "TestFolder",
+                "indexName": "Test Index",
+                "name": "Test Context",
+                "description": "Context that may be searched mid-ingestion",
+                "settings": self._context_settings(searchDuringIngestion=True),
+            }
+        )
+        assert resource.settings is not None
+        assert resource.settings.search_during_ingestion is True

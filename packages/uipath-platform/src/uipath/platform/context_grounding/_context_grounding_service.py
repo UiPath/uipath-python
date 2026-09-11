@@ -1669,6 +1669,7 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         include_system_indexes: bool = False,
+        search_during_ingestion: bool = False,
     ) -> UnifiedQueryResult:
         """Perform a unified search on a context grounding index.
 
@@ -1687,9 +1688,17 @@ class ContextGroundingService(FolderContext, BaseService):
             include_system_indexes (bool): If True, fall back to tenant-wide
                 system indexes when the index is not found in folder or
                 across-folders listings. Defaults to False.
+            search_during_ingestion (bool): If True, query the index even while an
+                ingestion is in progress, returning results from the documents
+                indexed so far. Defaults to False, which raises
+                IngestionInProgressException instead.
 
         Returns:
             UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+
+        Raises:
+            IngestionInProgressException: If the index is still ingesting and
+                search_during_ingestion is False.
         """
         index = self.retrieve(
             name,
@@ -1697,6 +1706,8 @@ class ContextGroundingService(FolderContext, BaseService):
             folder_path=folder_path,
             include_system_indexes=include_system_indexes,
         )
+        if not search_during_ingestion and index and index.in_progress_ingestion():
+            raise IngestionInProgressException(index_name=name)
 
         folder_key = folder_key or index.folder_key
 
@@ -1733,6 +1744,7 @@ class ContextGroundingService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         include_system_indexes: bool = False,
+        search_during_ingestion: bool = False,
     ) -> UnifiedQueryResult:
         """Asynchronously perform a unified search on a context grounding index.
 
@@ -1751,9 +1763,17 @@ class ContextGroundingService(FolderContext, BaseService):
             include_system_indexes (bool): If True, fall back to tenant-wide
                 system indexes when the index is not found in folder or
                 across-folders listings. Defaults to False.
+            search_during_ingestion (bool): If True, query the index even while an
+                ingestion is in progress, returning results from the documents
+                indexed so far. Defaults to False, which raises
+                IngestionInProgressException instead.
 
         Returns:
             UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+
+        Raises:
+            IngestionInProgressException: If the index is still ingesting and
+                search_during_ingestion is False.
         """
         index = await self.retrieve_async(
             name,
@@ -1761,7 +1781,7 @@ class ContextGroundingService(FolderContext, BaseService):
             folder_path=folder_path,
             include_system_indexes=include_system_indexes,
         )
-        if index and index.in_progress_ingestion():
+        if not search_during_ingestion and index and index.in_progress_ingestion():
             raise IngestionInProgressException(index_name=name)
 
         folder_key = folder_key or index.folder_key
