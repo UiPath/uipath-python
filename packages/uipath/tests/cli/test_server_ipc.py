@@ -367,6 +367,21 @@ class TestPooledSinks:
         asyncio.run(scenario())
         assert service._callback is None
 
+    def test_register_swallows_a_failing_get_callback(self):
+        # A peer that can't hand back a callback must not break registration; the job just keeps
+        # to the file path (callback stays None).
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                raise RuntimeError("no callback available")
+
+        service = PythonRuntimeService()
+
+        async def scenario() -> None:
+            assert await service.Register(Message(client=_Client())) is True
+
+        asyncio.run(scenario())
+        assert service._callback is None
+
     def test_runjob_installs_then_clears_the_sinks(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest

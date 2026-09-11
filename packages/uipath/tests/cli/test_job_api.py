@@ -153,6 +153,53 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
     asyncio.run(scenario())
 
 
+def test_log_forwarding_failure_does_not_escape_emit(monkeypatch):
+    # A forward failure must not raise out of emit() — the logging framework calls it, so an escape
+    # would break the job's own logging. emit routes to handleError instead. (SendLog raising
+    # synchronously stands in for any forward failure.)
+    captured = _fake_output_sinks(monkeypatch)
+
+    class _Callback:
+        def SendLog(self, jid: str, dto: Any) -> None:
+            raise RuntimeError("pipe is gone")
+
+    loop = asyncio.new_event_loop()
+    try:
+        _job_api.install_runtime_sinks("job-8", _Callback(), loop)
+        handler = captured["handler"]
+        handled: list[Any] = []
+        monkeypatch.setattr(handler, "handleError", handled.append)
+        handler.emit(logging.LogRecord("n", logging.INFO, "p", 1, "hi", (), None))
+        assert len(handled) == 1
+    finally:
+        loop.close()
+
+
+def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch, caplog):
+    # A SetResult failure is a side channel: it must be logged, not raised — an escape would fault
+    # the job and clobber the already-written output.json.
+    captured = _fake_output_sinks(monkeypatch)
+
+    class _Callback:
+        async def SetResult(self, jid: str, dto: Any) -> bool:
+            raise RuntimeError("handler said no")
+
+    class _Result:
+        status = UiPathRuntimeStatus.SUCCESSFUL
+        error = None
+
+    async def scenario() -> None:
+        loop = asyncio.get_running_loop()
+        _job_api.install_runtime_sinks("job-9", _Callback(), loop)
+        sink = captured["sink"]
+        # The runtime calls the sink synchronously on a worker thread; nothing may escape it.
+        await asyncio.to_thread(sink, _Result(), "out.args")
+
+    with caplog.at_level(logging.ERROR, logger="uipath._cli._job_api"):
+        asyncio.run(scenario())
+    assert "Failed to deliver job result over IPC" in caplog.text
+
+
 def test_install_is_a_noop_without_the_runtime(monkeypatch):
     # An older uipath-runtime has no output_sinks module: install/clear must not raise.
     monkeypatch.setitem(sys.modules, "uipath.runtime.output_sinks", None)
