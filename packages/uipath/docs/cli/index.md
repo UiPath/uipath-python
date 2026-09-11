@@ -69,6 +69,61 @@ Treat `--client-secret` as a credential. In CI, prefer reading it from a secret 
 
 ::: mkdocs-click
     :module: uipath._cli
+    :command: new
+    :depth: 1
+    :style: table
+
+Scaffolds a project in the current directory. `--type` selects what gets created:
+
+- **`auto`** (default) — an installed agent framework integration (e.g. `uipath-langchain`) claims the scaffold and creates a coded agent project; with none installed, a coded function project is created.
+- **`function`** — always creates a coded function project, regardless of installed integrations.
+- **`agent`** — creates a coded agent project. `--agent-framework` picks the framework and defaults to the one whose integration package is installed.
+
+| Installed framework integrations | `uipath new x` (auto) | `uipath new x --type agent` |
+|----------------------------------|------------------------|------------------------------|
+| none | coded function project | error listing the integration packages |
+| one | that framework's coded agent project | that framework's coded agent project |
+| several | error: pick one explicitly | error: pick one explicitly |
+
+`--agent-framework` is only valid together with `--type agent`.
+
+Scaffold a coded function:
+
+<!-- termynal -->
+
+```shell
+> uipath new my-function --type function
+⠋ Creating new project my-function in current directory ...
+✓  Created 'main.py' file.
+✓  Created 'pyproject.toml' file.
+✓  Created 'uipath.json' file.
+💡 Initialize project: uipath init
+💡 Run project: uipath run main '{"message": "Hello World!"}'
+```
+
+Scaffold a coded agent — requires the framework's integration package in the environment:
+
+<!-- termynal -->
+
+```shell
+> uv add uipath-langchain
+Resolved 42 packages in 1.2s
+Installed 42 packages in 0.8s
+
+> uipath new my-agent --type agent
+Using the installed 'langchain' agent framework.
+⠋ Creating new agent my-agent in current directory ...
+✓  Created 'main.py' file.
+✓  Created 'langgraph.json' file.
+✓  Created 'pyproject.toml' file.
+💡 Initialize project: uipath init
+💡 Run agent: uipath run agent '{"topic": "UiPath"}'
+```
+
+---
+
+::: mkdocs-click
+    :module: uipath._cli
     :command: init
     :depth: 1
     :style: table
