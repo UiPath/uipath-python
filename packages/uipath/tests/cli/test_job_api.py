@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 
 from uipath._cli import _job_api
+from uipath.runtime.result import UiPathRuntimeStatus
 
 
 def test_to_result_dto_maps_status_error_and_path():
@@ -30,7 +31,7 @@ def test_to_result_dto_maps_status_error_and_path():
         status = None
 
     class _Result:
-        status = "faulted"
+        status = UiPathRuntimeStatus.FAULTED
         error = _Error()
 
     dto = _job_api._to_result_dto("job-1", _Result(), "out.args")
@@ -45,12 +46,21 @@ def test_to_result_dto_maps_status_error_and_path():
 
 def test_to_result_dto_defaults_to_successful_without_error():
     class _Result:
-        status = "successful"
+        status = UiPathRuntimeStatus.SUCCESSFUL
         error = None
 
     dto = _job_api._to_result_dto("j", _Result(), "p.args")
     assert dto.status == _job_api.ExecutorJobStatus.SUCCESSFUL.value
     assert dto.error is None
+
+
+def test_to_result_dto_maps_suspended():
+    class _Result:
+        status = UiPathRuntimeStatus.SUSPENDED
+        error = None
+
+    dto = _job_api._to_result_dto("j", _Result(), "p.args")
+    assert dto.status == _job_api.ExecutorJobStatus.SUSPENDED.value
 
 
 def test_to_log_level_maps_python_levels_to_wire_values():
@@ -132,7 +142,7 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
 
         # The result sink maps the result and calls SetResult, off a worker thread, for the ack.
         class _Result:
-            status = "successful"
+            status = UiPathRuntimeStatus.SUCCESSFUL
             error = None
 
         sink = captured["sink"]
@@ -257,7 +267,7 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
             return True
 
     class _Result:
-        status = "successful"
+        status = UiPathRuntimeStatus.SUCCESSFUL
         error = None
 
     pipe = _unique_jobapi_pipe()
