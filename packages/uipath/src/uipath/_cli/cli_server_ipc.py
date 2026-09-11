@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from ._server_core import COMMANDS, _run_command_isolated, _state, parse_args
+from ._server_jobs import CONTRACT_VERSION, HandlerCallback, get_registry
 from ._utils._console import ConsoleLogger
 
 console = ConsoleLogger()
@@ -23,6 +24,10 @@ class PythonServerRunRequest:
     Args: str | list[str] | None = None
     WorkingDirectory: str | None = None
     EnvironmentVariables: dict[str, str] = field(default_factory=dict)
+    # Where to POST the terminal result. Absent ⇒ the caller predates async dispatch,
+    # so run inline and return the outcome on this call, exactly as before.
+    ResultCallbackSocket: str | None = None
+    ContractVersion: int = 0
 
 
 @dataclass
@@ -36,6 +41,10 @@ class PythonServerStopJobRequest:
 class PythonServerRunJobResult:
     ExitCode: int = 0
     Error: str | None = None
+    # "accepted" ⇒ the job was queued and its result will be pushed. Absent/"completed"
+    # ⇒ ExitCode is terminal (the legacy contract).
+    Disposition: str | None = None
+    ContractVersion: int = 0
 
 
 class IPythonRuntimeServer(ABC):
@@ -79,6 +88,28 @@ class PythonRuntimeService(IPythonRuntimeServer):
         console.info(
             f"Running job {_run_id(request.JobKey, request.ResumeVersion)}: {command_name} {args}"
         )
+
+        callback_socket = request.ResultCallbackSocket
+        if callback_socket:
+            accepted = get_registry().start(
+                request.JobKey,
+                cmd,
+                args,
+                request.EnvironmentVariables,
+                request.WorkingDirectory,
+                HandlerCallback(callback_socket),
+            )
+            if not accepted:
+                return RunJobResult(
+                    ExitCode=1,
+                    Error=f"Job {request.JobKey} is already in flight",
+                    ContractVersion=CONTRACT_VERSION,
+                )
+            return RunJobResult(
+                ExitCode=0,
+                Disposition="accepted",
+                ContractVersion=CONTRACT_VERSION,
+            )
 
         result = await _run_command_isolated(
             cmd, args, request.EnvironmentVariables, request.WorkingDirectory

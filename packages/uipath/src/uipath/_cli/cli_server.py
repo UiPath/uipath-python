@@ -18,6 +18,13 @@ from ._server_core import (
     _state,
     parse_args,
 )
+from ._server_jobs import (
+    CONTRACT_VERSION,
+    EXIT_CALLBACK_UNREACHABLE,
+    HandlerCallback,
+    get_registry,
+    shutdown_event,
+)
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .cli_server_ipc import (
@@ -112,9 +119,14 @@ def get_field(message: dict[str, Any], *keys: str) -> Any:
 
 async def send_ack(ack_socket_path: str, server_socket_path: str) -> None:
     """Send acknowledgment via HTTP POST to the ack socket."""
-    ack_message: dict[str, str] = {
+    # capabilities lets the caller know what this runtime can do before it dispatches
+    # anything — notably whether it will push logs, which decides whether the caller
+    # tails the log file itself. Unknown keys are ignored by older callers.
+    ack_message: dict[str, Any] = {
         "status": "ready",
         "socket": server_socket_path,
+        "protocolVersion": CONTRACT_VERSION,
+        "capabilities": ["asyncStart", "resultPush", "logPush"],
     }
 
     conn = UnixConnector(path=ack_socket_path)
@@ -186,6 +198,40 @@ async def handle_start(request: web.Request) -> web.Response:
 
     console.info(f"Starting job {job_key}: {command_name} {args}")
 
+    # A caller that gave us somewhere to report to gets async dispatch; one that did
+    # not (an older handler) gets the original blocking call, unchanged.
+    result_callback_socket = get_field(
+        message, "resultCallbackSocket", "ResultCallbackSocket"
+    )
+    if isinstance(result_callback_socket, str) and result_callback_socket:
+        accepted = get_registry().start(
+            job_key,
+            cmd,
+            args,
+            env_vars,
+            working_dir,
+            HandlerCallback(result_callback_socket),
+        )
+        if not accepted:
+            return web.json_response(
+                {
+                    "success": False,
+                    "job_key": job_key,
+                    "contractVersion": CONTRACT_VERSION,
+                    "error": f"Job {job_key} is already in flight",
+                },
+                status=409,
+            )
+        return web.json_response(
+            {
+                "success": True,
+                "job_key": job_key,
+                "contractVersion": CONTRACT_VERSION,
+                "disposition": "accepted",
+            },
+            status=202,
+        )
+
     result = await _run_command_isolated(cmd, args, env_vars, working_dir)
 
     if result["Unexpected"]:
@@ -199,12 +245,25 @@ async def handle_start(request: web.Request) -> web.Response:
             {"success": False, "job_key": job_key, "error": result["Error"]},
             status=400,
         )
+    # exitCode is additive and redundant with success, but it is what handlers built
+    # against the original response shape actually read — emitting it makes them
+    # correct without an upgrade.
     if result["ExitCode"] == 0:
         return web.json_response(
-            {"success": True, "job_key": job_key, "result": result["Result"]}
+            {
+                "success": True,
+                "job_key": job_key,
+                "exitCode": 0,
+                "result": result["Result"],
+            }
         )
     return web.json_response(
-        {"success": False, "job_key": job_key, "error": result["Error"]}
+        {
+            "success": False,
+            "job_key": job_key,
+            "exitCode": result["ExitCode"],
+            "error": result["Error"],
+        }
     )
 
 
@@ -373,7 +432,26 @@ async def _serve(
     if ipc_pipe:
         tasks.append(start_ipc_server(ipc_pipe))
 
-    await asyncio.gather(*tasks)
+    channels = [asyncio.ensure_future(t) for t in tasks]
+    stopper = asyncio.ensure_future(shutdown_event().wait())
+
+    done, pending = await asyncio.wait(
+        {*channels, stopper}, return_when=asyncio.FIRST_COMPLETED
+    )
+
+    for task in pending:
+        task.cancel()
+
+    if stopper in done:
+        console.warning(
+            "Stopping the server: the result callback is unreachable, so no job can be "
+            "reported. The caller completes pending jobs from their result files."
+        )
+        raise SystemExit(EXIT_CALLBACK_UNREACHABLE)
+
+    # A channel returning or throwing on its own is still fatal; surface it.
+    for task in done:
+        task.result()
 
 
 def _run_server(
