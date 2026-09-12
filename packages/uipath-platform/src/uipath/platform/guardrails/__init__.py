@@ -47,6 +47,7 @@ from .guardrails import (
     BYO_VALIDATOR_TYPE,
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
+    GuardrailAttachment,
     GuardrailType,
     MapEnumParameterValue,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "GuardrailsService",
     # Guardrail models
     "BYO_VALIDATOR_TYPE",
+    "GuardrailAttachment",
     "BuiltInValidatorGuardrail",
     "GuardrailType",
     "GuardrailValidationResultType",
