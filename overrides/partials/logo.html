@@ -1,0 +1,4 @@
+<picture data-light="{{ config.theme.custom_logo.light | url }}" data-dark="{{ config.theme.custom_logo.dark | url }}">
+    <source srcset="{{ config.theme.custom_logo.dark | url }}" media="(prefers-color-scheme: dark)">
+    <img src="{{ config.theme.custom_logo.light | url }}">
+</picture>
