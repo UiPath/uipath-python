@@ -370,20 +370,23 @@ class UiPathEvaluationError(Exception):
     ):
         """Initialize the UiPathEvaluationError."""
         # Get the current traceback as a string
+        full_detail = detail
         if include_traceback:
             tb = traceback.format_exc()
             if (
                 tb and tb.strip() != "NoneType: None"
             ):  # Ensure there's an actual traceback
-                detail = f"{detail}\n\n{tb}"
+                full_detail = f"{detail}\n\n{tb}"
 
         self.error_info = UiPathEvaluationErrorContract(
             code=f"{prefix}.{code}",
             title=title,
-            detail=detail,
+            detail=full_detail,
             category=category,
         )
-        super().__init__(detail)
+        # str(exc) stays human-readable (title + detail); the raw traceback is
+        # still available via error_info.detail for logs/support.
+        super().__init__(f"{title}: {detail}")
 
     @property
     def as_dict(self) -> dict[str, Any]:
