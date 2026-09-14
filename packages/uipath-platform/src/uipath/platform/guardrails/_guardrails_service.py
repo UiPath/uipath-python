@@ -27,6 +27,26 @@ from .guardrails import (
 #: file inside the request, which the default 30s client timeout does not allow for.
 _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
 
+
+def _redact_attachment_urls(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Strip SAS urls from the traced inputs of ``evaluate_guardrail``.
+
+    ``@traced`` records a function's arguments on the span by default. An attachment
+    ``url`` is a short-lived SAS credential and must never reach telemetry, so replace
+    it and keep the rest (guardrail, input, attachment identity) intact.
+    """
+    attachments = inputs.get("attachments")
+    if not isinstance(attachments, list):
+        return inputs
+    redacted = []
+    for attachment in attachments:
+        if isinstance(attachment, dict) and "url" in attachment:
+            redacted.append({**attachment, "url": "<redacted>"})
+        else:
+            redacted.append(attachment)
+    return {**inputs, "attachments": redacted}
+
+
 # x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
 # Based on W3C traceparent but allows 16- or 32-hex span IDs.
 _TRACEPARENT_PATTERN = re.compile(
@@ -105,7 +125,9 @@ class GuardrailsService(BaseService):
                 # Fallback to validation_failed if unknown
                 return GuardrailValidationResultType.VALIDATION_FAILED
 
-    @traced("evaluate_guardrail", run_type="uipath")
+    @traced(
+        "evaluate_guardrail", run_type="uipath", input_processor=_redact_attachment_urls
+    )
     def evaluate_guardrail(
         self,
         input_data: str | dict[str, Any],

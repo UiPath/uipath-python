@@ -1008,3 +1008,87 @@ class TestGuardrailAttachments:
         assert parsed.file_name == "a.csv"
         assert parsed.mime_type == "text/csv"
         assert parsed.model_dump(by_alias=True) == wire
+
+
+class TestGuardrailAttachmentTracing:
+    """The traced span must never carry an attachment's SAS url."""
+
+    def test_input_processor_redacts_urls_and_keeps_identity(self) -> None:
+        from uipath.platform.guardrails._guardrails_service import (
+            _redact_attachment_urls,
+        )
+
+        inputs = {
+            "input_data": "see attached",
+            "guardrail": {"name": "Injection check"},
+            "attachments": [
+                {
+                    "id": _ATTACHMENT_ID,
+                    "fileName": "Tickets.csv",
+                    "mimeType": "text/csv",
+                    "url": "https://acct.blob.core.windows.net/c/Tickets.csv?sig=SECRET",
+                }
+            ],
+        }
+
+        processed = _redact_attachment_urls(inputs)
+
+        assert "SECRET" not in json.dumps(processed)
+        assert processed["attachments"][0]["url"] == "<redacted>"
+        assert processed["attachments"][0]["fileName"] == "Tickets.csv"
+        assert processed["input_data"] == "see attached"
+        # Never mutates the caller's dict.
+        assert "SECRET" in json.dumps(inputs)
+
+    def test_input_processor_is_a_noop_without_attachments(self) -> None:
+        from uipath.platform.guardrails._guardrails_service import (
+            _redact_attachment_urls,
+        )
+
+        inputs = {"input_data": "x", "guardrail": {}}
+
+        assert _redact_attachment_urls(inputs) == inputs
+        assert _redact_attachment_urls({**inputs, "attachments": None}) == {
+            **inputs,
+            "attachments": None,
+        }
+
+    def test_evaluate_guardrail_forwards_a_longer_timeout_with_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """The default client timeout is 30s; a validate call that waits on the backend
+        fetching files gets 60s. Without this assertion the kwarg could vanish silently."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] == 60.0
+
+    def test_evaluate_guardrail_keeps_default_timeout_without_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] != 60.0
