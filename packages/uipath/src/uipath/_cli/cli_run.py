@@ -171,6 +171,14 @@ def run(
         console.error(result.error_message)
         return
 
+    if not result.should_continue and handler_ipc_pipe is not None:
+        # A plugin ran the job its own way, so nothing reached the pipe the caller is waiting on.
+        console.error(
+            "--handler-ipc-pipe was requested, but a plugin took over the run and cannot "
+            "stream the logs or the result over it."
+        )
+        return
+
     if result.should_continue:
         try:
 

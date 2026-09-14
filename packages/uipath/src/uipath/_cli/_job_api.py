@@ -379,7 +379,7 @@ async def handler_ipc_connection(
     pipe: str | None, job_id: str | None
 ) -> AsyncIterator[Any]:
     """Connect (if ``pipe`` is set) and always disconnect on exit; yields the connection or None."""
-    conn = connect_handler_ipc(pipe, job_id) if pipe else None
+    conn = connect_handler_ipc(pipe, job_id) if pipe is not None else None
     try:
         yield conn
     finally:

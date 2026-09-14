@@ -178,6 +178,77 @@ class TestRun:
                     assert result.exit_code == 0
                     assert "Successful execution." in result.output
 
+    class TestHandlerIpcPipe:
+        """``--handler-ipc-pipe`` promises the caller logs + result over a pipe."""
+
+        @staticmethod
+        def _taken_over():
+            return patch(
+                "uipath._cli.cli_run.Middlewares.next",
+                return_value=MiddlewareResult(
+                    should_continue=False,
+                    info_message="Execution succeeded",
+                    error_message=None,
+                    should_include_stacktrace=False,
+                ),
+            )
+
+        @pytest.mark.parametrize("pipe", ["some-pipe", ""])
+        def test_taken_over_run_cannot_honour_the_pipe(
+            self, runner: CliRunner, temp_dir: str, entrypoint: str, pipe: str
+        ):
+            with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
+                result = runner.invoke(
+                    cli, ["run", entrypoint, "--handler-ipc-pipe", pipe]
+                )
+            assert result.exit_code == 1
+            assert "a plugin took over the run" in result.output
+            assert "Successful execution." not in result.output
+
+        def test_taken_over_run_without_the_pipe_is_untouched(
+            self, runner: CliRunner, temp_dir: str, entrypoint: str
+        ):
+            with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
+                result = runner.invoke(cli, ["run", entrypoint])
+            assert result.exit_code == 0
+            assert "Successful execution." in result.output
+
+        def test_a_run_nobody_claimed_reaches_the_pipe(
+            self, runner: CliRunner, temp_dir: str
+        ):
+            opened: list[str] = []
+
+            @asynccontextmanager
+            async def _fake_connection(pipe, job_id):
+                opened.append(pipe)
+                yield None
+
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=_make_mock_factory(["my_agent"]),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                    patch(
+                        "uipath._cli._job_api.handler_ipc_connection", _fake_connection
+                    ),
+                ):
+                    result = runner.invoke(
+                        cli, ["run", "--handler-ipc-pipe", "some-pipe"]
+                    )
+
+            assert opened == ["some-pipe"], f"output: {result.output!r}"
+            assert result.exit_code == 0
+            assert "took over the run" not in result.output
+
     class TestMiddleware:
         def test_autodiscover_entrypoint(self, runner: CliRunner, temp_dir: str):
             """When exactly one entrypoint exists, it is auto-resolved."""
