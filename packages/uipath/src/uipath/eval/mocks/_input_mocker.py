@@ -15,7 +15,7 @@ from uipath.platform.chat._llm_gateway_service import ChatModels
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
 from ._mocker import UiPathInputMockingError, format_exception_message
-from ._structured_output import generate_structured_output
+from ._structured_output import coerce_to_schema, generate_structured_output
 from ._types import (
     InputMockingStrategy,
 )
@@ -27,9 +27,11 @@ def _require_object(result: Any) -> dict[str, Any]:
     """Enforce that a simulated input is a JSON object.
 
     ``generate_llm_input`` feeds ``EvaluationItem.inputs``, which must be a
-    dict. Without this guard a stringified object slips through
-    ``model_copy(update=...)`` unvalidated and only fails later as an opaque
-    ``MockingContext`` validation error (SRE-655743).
+    dict. Without this guard a non-dict value would still be caught when the
+    eval runtime re-validates the item, but that ``ValidationError`` would not
+    say *why* the input was malformed. Failing here instead produces an
+    actionable error that names the mocking step as the source and shows the
+    value the model actually returned (SRE-655743).
     """
     if isinstance(result, dict):
         return result
@@ -151,7 +153,27 @@ async def generate_llm_input(
             )
 
             if cached_response is not None:
-                return _require_object(cached_response)
+                # Entries written before stringified objects were unwrapped may
+                # hold a JSON string; coerce them the same way a fresh response
+                # is, and re-cache the fixed value so the entry heals on flush.
+                coerced = coerce_to_schema(cached_response, input_schema)
+                if isinstance(coerced, dict):
+                    if coerced is not cached_response:
+                        cache_manager.set(
+                            mocker_type="input_mocker",
+                            cache_key_data=cache_key_data,
+                            response=coerced,
+                            function_name="generate_llm_input",
+                        )
+                    return coerced
+                # A cached value that cannot become an object can never be
+                # replayed. Regenerate instead of failing on every run; the
+                # write below overwrites the stale entry.
+                logger.warning(
+                    "Ignoring cached simulated input of type %s: it is not a "
+                    "JSON object. Regenerating and replacing the cache entry.",
+                    type(cached_response).__name__,
+                )
 
         result = _require_object(
             await generate_structured_output(

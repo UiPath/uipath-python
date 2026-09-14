@@ -244,21 +244,33 @@ def coerce_to_schema(result: Any, schema: dict[str, Any]) -> Any:
     Models sometimes stringify a nested object inside tool-call arguments, or
     double-encode ``response_format`` content, so the caller receives a ``str``
     holding JSON instead of the object it asked for. Only applies when the
-    schema asks for an object; scalar and array schemas pass through untouched
-    because a string is a legitimate value for them.
+    schema asks for an object, which is the type affected by that
+    stringification bug; other schema types are left untouched to avoid
+    unintended coercion.
 
-    Handles single and double encoding. A string that is not valid JSON is
-    returned unchanged so the caller can report it.
+    Handles single and double encoding. The string is returned unchanged when
+    it is not valid JSON, or when it decodes to something other than an object
+    (e.g. a stringified array), so the caller can report the real value.
     """
-    if schema.get("type") != "object":
+    if schema.get("type") != "object" or not isinstance(result, str):
         return result
-    for _ in range(2):
-        if not isinstance(result, str):
-            break
+    parsed: Any = result
+    for depth in range(1, 3):
         try:
-            result = json.loads(result)
+            parsed = json.loads(parsed)
         except json.JSONDecodeError:
-            break
+            return result
+        if isinstance(parsed, dict):
+            logger.info(
+                "Structured output was returned as a JSON string (encoded %d "
+                "time(s)); unwrapped it to match the object schema.",
+                depth,
+            )
+            return parsed
+        if not isinstance(parsed, str):
+            # Valid JSON, but not an object (e.g. an array): leave it to the
+            # caller to report rather than substituting a wrong type.
+            return result
     return result
 
 

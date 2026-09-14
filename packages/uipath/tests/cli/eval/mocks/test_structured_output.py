@@ -322,6 +322,30 @@ def test_coerce_to_schema_passes_dict_through():
     assert coerce_to_schema({"a": 1}, {"type": "object"}) == {"a": 1}
 
 
+def test_coerce_to_schema_leaves_stringified_non_object_json_unchanged():
+    # Valid JSON that is not an object must not be substituted for one; the
+    # caller reports the original string instead.
+    assert coerce_to_schema("[1, 2, 3]", {"type": "object"}) == "[1, 2, 3]"
+    assert coerce_to_schema("42", {"type": "object"}) == "42"
+    assert coerce_to_schema("null", {"type": "object"}) == "null"
+    # Double-encoded array: the inner decode yields a list, not an object.
+    double_encoded = json.dumps(json.dumps([1, 2]))
+    assert coerce_to_schema(double_encoded, {"type": "object"}) == double_encoded
+
+
+def test_coerce_to_schema_logs_when_it_unwraps(caplog: pytest.LogCaptureFixture):
+    logger_name = "uipath.eval.mocks._structured_output"
+    with caplog.at_level("INFO", logger=logger_name):
+        coerce_to_schema({"a": 1}, {"type": "object"})
+        assert caplog.records == []
+        coerce_to_schema('{"a": 1}', {"type": "object"})
+        coerce_to_schema(json.dumps(json.dumps({"a": 1})), {"type": "object"})
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    assert "encoded 1 time(s)" in messages[0]
+    assert "encoded 2 time(s)" in messages[1]
+
+
 @pytest.mark.asyncio
 async def test_generate_structured_output_unwraps_stringified_tool_call_response():
     # Claude-style path: forced tool call, but the model stringified the nested object.
