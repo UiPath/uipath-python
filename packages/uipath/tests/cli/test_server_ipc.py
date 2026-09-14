@@ -334,29 +334,15 @@ class TestIpcContractFieldTransit:
 
 
 class TestPooledSinks:
-    """Register grabs the handler's callback; RunJob installs the runtime sinks around each job."""
+    """Register is a readiness probe; RunJob derives the callback per request and installs sinks."""
 
-    def test_register_grabs_the_callback(self):
-        from uipath._cli import _job_api
-
-        class _Client:
-            def __init__(self) -> None:
-                self.asked_for: Any = None
-
-            def get_callback(self, contract: Any) -> Any:
-                self.asked_for = contract
-                return "CALLBACK"
-
-        client = _Client()
+    def test_register_is_a_readiness_probe(self):
         service = PythonRuntimeService()
 
         async def scenario() -> None:
-            assert await service.Register(Message(client=client)) is True
+            assert await service.Register(Message(client=object())) is True
 
         asyncio.run(scenario())
-        assert client.asked_for is _job_api.IJobInvocationCommonApi
-        assert service._callback == "CALLBACK"
-        assert service._loop is not None
 
     def test_register_without_a_client_is_a_noop(self):
         service = PythonRuntimeService()
@@ -365,24 +351,44 @@ class TestPooledSinks:
             assert await service.Register(Message()) is True
 
         asyncio.run(scenario())
-        assert service._callback is None
 
-    def test_register_swallows_a_failing_get_callback(self):
-        # A peer that can't hand back a callback must not break registration; the job just keeps
-        # to the file path (callback stays None).
-        class _Client:
-            def get_callback(self, contract: Any) -> Any:
-                raise RuntimeError("no callback available")
+    @pytest.mark.parametrize("mode", ["no-client", "get_callback-raises"])
+    def test_runjob_fails_loud_when_opted_in_but_no_callback(self, monkeypatch, mode):
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        ran: list[bool] = []
+
+        async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            ran.append(True)
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        if mode == "no-client":
+            message = Message()
+        else:
+
+            class _Client:
+                def get_callback(self, contract: Any) -> Any:
+                    raise RuntimeError("no callback available")
+
+            message = Message(client=_Client())
 
         service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey="job-9", Command="run", Args=[], StreamOutputOverIpc=True
+        )
 
-        async def scenario() -> None:
-            assert await service.Register(Message(client=_Client())) is True
+        async def scenario() -> Any:
+            return await service.RunJob(request, message=message)
 
-        asyncio.run(scenario())
-        assert service._callback is None
+        result = asyncio.run(scenario())
+        assert result.ExitCode == 1
+        assert "callback" in (result.Error or "").lower()
+        assert ran == []
 
-    def test_runjob_installs_then_clears_the_sinks(self, monkeypatch):
+    def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
@@ -397,7 +403,6 @@ class TestPooledSinks:
         )
 
         async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
-            # The real core runs the hooks inside its lock, around the job; mirror that here.
             if on_run_start:
                 on_run_start()
             events.append(("run",))
@@ -407,18 +412,19 @@ class TestPooledSinks:
 
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
         service = PythonRuntimeService()
-        service._callback = "CALLBACK"
-        service._loop = asyncio.new_event_loop()
         request = PythonServerRunRequest(
             JobKey="job-9", Command="run", Args=[], StreamOutputOverIpc=True
         )
 
         async def scenario() -> None:
-            await service.RunJob(request)
+            await service.RunJob(request, message=Message(client=_Client()))
 
         asyncio.run(scenario())
-        service._loop.close()
         assert events == [("install", "job-9", "CALLBACK"), ("run",), ("clear",)]
 
     def test_runjob_skips_sinks_when_not_opted_in(self, monkeypatch):
@@ -436,7 +442,6 @@ class TestPooledSinks:
         )
 
         async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
-            # The real core runs the hooks inside its lock, around the job; mirror that here.
             if on_run_start:
                 on_run_start()
             events.append(("run",))
@@ -447,14 +452,10 @@ class TestPooledSinks:
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
         service = PythonRuntimeService()
-        service._callback = "CALLBACK"
-        service._loop = asyncio.new_event_loop()
-        # StreamOutputOverIpc defaults False -> the handler did not opt this job in.
         request = PythonServerRunRequest(JobKey="job-9", Command="run", Args=[])
 
         async def scenario() -> None:
-            await service.RunJob(request)
+            await service.RunJob(request, message=Message(client=None))
 
         asyncio.run(scenario())
-        service._loop.close()
-        assert events == [("run",)]  # no install / clear
+        assert events == [("run",)]

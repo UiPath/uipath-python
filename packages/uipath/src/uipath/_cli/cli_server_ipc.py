@@ -71,27 +71,13 @@ class IPythonRuntimeServer(ABC):
 class PythonRuntimeService(IPythonRuntimeServer):
     """``IPythonRuntimeServer`` implementation backed by run/debug/eval."""
 
-    def __init__(self) -> None:
-        # The caller's callback, grabbed at Register (None until then).
-        self._callback: Any = None
-        self._loop: "asyncio.AbstractEventLoop | None" = None
-
     async def Register(self, message: "Message[None]") -> bool:
-        client = message.client
-        if client is not None:
-            try:
-                from ._job_api import IJobInvocationCommonApi
-
-                self._callback = client.get_callback(IJobInvocationCommonApi)  # type: ignore[type-abstract]
-                self._loop = asyncio.get_running_loop()
-            except Exception:
-                self._callback = (
-                    None  # older runtime / no callback: jobs keep the file path
-                )
         console.info("Runtime client registered.")
         return True
 
-    async def RunJob(self, request: PythonServerRunRequest) -> PythonServerRunJobResult:
+    async def RunJob(
+        self, request: PythonServerRunRequest, *, message: "Message[None] | None" = None
+    ) -> PythonServerRunJobResult:
         command_name = request.Command
         if not isinstance(command_name, str) or not command_name:
             return PythonServerRunJobResult(
@@ -110,14 +96,30 @@ class PythonRuntimeService(IPythonRuntimeServer):
             f"Running job {_run_id(request.JobKey, request.ResumeVersion)}: {command_name} {args}"
         )
 
-        # Only when opted in and a callback exists. Install/clear the sinks INSIDE the job core's lock
-        # (via the hooks) so they're bound only while THIS job runs.
-        callback, loop = self._callback, self._loop
         on_run_start: "Any" = None
         on_run_end: "Any" = None
-        if request.StreamOutputOverIpc and callback is not None and loop is not None:
-            from ._job_api import clear_runtime_sinks, install_runtime_sinks
+        if request.StreamOutputOverIpc:
+            # Derived per request, never stored: a captured callback goes stale on reconnect/restart.
+            from ._job_api import (
+                IJobInvocationCommonApi,
+                clear_runtime_sinks,
+                install_runtime_sinks,
+            )
 
+            callback = None
+            client = message.client if message is not None else None
+            if client is not None:
+                try:
+                    callback = client.get_callback(IJobInvocationCommonApi)  # type: ignore[type-abstract]
+                except Exception:
+                    callback = None
+            if callback is None:
+                return PythonServerRunJobResult(
+                    ExitCode=1,
+                    Error="StreamOutputOverIpc was requested but no IPC callback is available",
+                )
+
+            loop = asyncio.get_running_loop()
             job_key = request.JobKey
             on_run_start = lambda: install_runtime_sinks(job_key, callback, loop)  # noqa: E731
             on_run_end = clear_runtime_sinks
@@ -168,11 +170,5 @@ async def start_ipc_server(pipe_name: str) -> None:
         request_timeout=None,  # jobs are long-running; no server-side timeout
     )
     console.success(f"IPC server listening on pipe '{pipe_name}'")
-    try:
-        async with server:
-            await server.serve_forever()
-    finally:
-        # Drop the sinks so they can't outlive this loop (matters on in-process restart).
-        from ._job_api import clear_runtime_sinks
-
-        clear_runtime_sinks()
+    async with server:
+        await server.serve_forever()

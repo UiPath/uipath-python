@@ -154,9 +154,6 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
 
 
 def test_log_forwarding_failure_does_not_escape_emit(monkeypatch):
-    # A forward failure must not raise out of emit() — the logging framework calls it, so an escape
-    # would break the job's own logging. emit routes to handleError instead. (SendLog raising
-    # synchronously stands in for any forward failure.)
     captured = _fake_output_sinks(monkeypatch)
 
     class _Callback:
@@ -175,9 +172,7 @@ def test_log_forwarding_failure_does_not_escape_emit(monkeypatch):
         loop.close()
 
 
-def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch, caplog):
-    # A SetResult failure is a side channel: it must be logged, not raised — an escape would fault
-    # the job and clobber the already-written output.json.
+def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch):
     captured = _fake_output_sinks(monkeypatch)
 
     class _Callback:
@@ -188,16 +183,38 @@ def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch, caplog):
         status = UiPathRuntimeStatus.SUCCESSFUL
         error = None
 
-    async def scenario() -> None:
-        loop = asyncio.get_running_loop()
+    # Capture on the module logger directly, not via caplog: other tests in the suite mutate root
+    # handlers / propagate, which would silently drop the record from caplog.
+    records: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    api_logger = logging.getLogger("uipath._cli._job_api")
+    handler = _Capture()
+    api_logger.addHandler(handler)
+    prior_level = api_logger.level
+    api_logger.setLevel(logging.ERROR)
+
+    # Ack loop on its own thread so the cross-thread wait is deterministic.
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
         _job_api.install_runtime_sinks("job-9", _Callback(), loop)
         sink = captured["sink"]
-        # The runtime calls the sink synchronously on a worker thread; nothing may escape it.
-        await asyncio.to_thread(sink, _Result(), "out.args")
+        sink(_Result(), "out.args")  # must not raise
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=5)
+        loop.close()
+        api_logger.removeHandler(handler)
+        api_logger.setLevel(prior_level)
 
-    with caplog.at_level(logging.ERROR, logger="uipath._cli._job_api"):
-        asyncio.run(scenario())
-    assert "Failed to deliver job result over IPC" in caplog.text
+    assert any(
+        "Failed to deliver job result over IPC" in r.getMessage() for r in records
+    )
 
 
 def test_install_is_a_noop_without_the_runtime(monkeypatch):

@@ -167,7 +167,7 @@ def install_runtime_sinks(
     deadlocks. No-op if the sinks aren't available.
     """
     try:
-        from uipath.runtime.output_sinks import (  # type: ignore[import-untyped]
+        from uipath.runtime.output_sinks import (
             set_log_handler,
             set_result_sink,
         )
