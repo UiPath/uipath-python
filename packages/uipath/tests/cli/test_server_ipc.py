@@ -30,6 +30,7 @@ from uipath_ipc import (
 )
 
 from uipath._cli import _server_core
+from uipath._cli._job_api import IJobInvocationCommonApi
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
     PythonRuntimeService,
@@ -292,7 +293,9 @@ class TestIpcContractFieldTransit:
             async def Register(self, message: Any) -> bool:
                 return True
 
-            async def RunJob(self, request: Any) -> PythonServerRunJobResult:
+            async def RunJob(
+                self, request: Any, *, message: Any = None
+            ) -> PythonServerRunJobResult:
                 received.append(request)
                 return PythonServerRunJobResult(ExitCode=0)
 
@@ -458,6 +461,62 @@ class TestPooledSinks:
         result = asyncio.run(scenario())
         assert result.ExitCode == 0
         assert ran == [True]
+
+    def test_pooled_streaming_works_over_a_real_pipe(self, monkeypatch):
+        """No hand-fed ``message``: the dispatcher must inject it from the contract."""
+        from uipath._cli import _job_api, cli_server_ipc
+
+        installed: list[Any] = []
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda jid, cb, loop: installed.append(jid),
+        )
+
+        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+            if on_run_start:
+                on_run_start()
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        class _Callback:
+            async def SendLog(self, job_id: str, log: Any) -> None:
+                return None
+
+            async def SetResult(self, job_id: str, result: Any) -> bool:
+                return True
+
+        pipe = _unique_pipe()
+        _serve_in_background(pipe)
+
+        async def scenario() -> Any:
+            client = IpcClient(
+                transport=NamedPipeClientTransport(pipe),
+                callbacks={IJobInvocationCommonApi: _Callback()},
+            )
+            try:
+                proxy = client.get_proxy(IPythonRuntimeServer)  # type: ignore[type-abstract]
+                return await proxy.RunJob(
+                    cast(
+                        Any,
+                        {
+                            "JobKey": JOB_ID,
+                            "Command": "run",
+                            "Args": [],
+                            "StreamOutputOverIpc": True,
+                        },
+                    )
+                )
+            finally:
+                await client.aclose()
+
+        result = asyncio.run(scenario())
+        assert result.Error is None, result.Error
+        assert result.ExitCode == 0
+        assert installed == [JOB_ID]
 
     def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc

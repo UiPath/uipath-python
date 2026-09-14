@@ -58,8 +58,13 @@ class IPythonRuntimeServer(ABC):
         """Prove the connection is up."""
 
     @abstractmethod
-    async def RunJob(self, request: PythonServerRunRequest) -> PythonServerRunJobResult:
-        """Run a job → PythonServerRunJobResult(ExitCode, Error)."""
+    async def RunJob(
+        self, request: PythonServerRunRequest, *, message: "Message[None] | None" = None
+    ) -> PythonServerRunJobResult:
+        """Run a job → PythonServerRunJobResult(ExitCode, Error).
+
+        ``message`` is injected by the dispatcher, which reads this contract — not the impl.
+        """
 
     @abstractmethod
     async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
