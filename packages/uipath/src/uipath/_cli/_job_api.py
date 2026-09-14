@@ -10,6 +10,7 @@ import threading
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from concurrent.futures import Future
+from concurrent.futures import wait as _futures_wait
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
@@ -17,6 +18,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _SET_RESULT_TIMEOUT_S = 30.0
+_LOG_FLUSH_TIMEOUT_S = 5.0
 
 # Loggers whose records must never ride the IPC channel: the transport itself and this module.
 _NO_IPC_LOGGERS = ("uipath_ipc", __name__)
@@ -159,6 +161,8 @@ class _IpcLogHandler(logging.Handler):
         self._job_id = job_id
         self._callback = callback
         self._loop = loop
+        self._pending: set[Future[object]] = set()
+        self._pending_lock = threading.Lock()
 
     def emit(self, record: logging.LogRecord) -> None:
         if record.name.startswith(_NO_IPC_LOGGERS):
@@ -170,14 +174,38 @@ class _IpcLogHandler(logging.Handler):
             future = asyncio.run_coroutine_threadsafe(
                 self._callback.SendLog(self._job_id, dto), self._loop
             )
-            future.add_done_callback(_drain)
+            with self._pending_lock:
+                self._pending.add(future)
+            future.add_done_callback(self._settled)
         except Exception:
             self.handleError(record)
+
+    def _settled(self, future: "Future[object]") -> None:
+        with self._pending_lock:
+            self._pending.discard(future)
+        _drain(future)
+
+    def _snapshot(self) -> "list[Future[object]]":
+        with self._pending_lock:
+            return list(self._pending)
+
+    def flush_pending(self, timeout: float = _LOG_FLUSH_TIMEOUT_S) -> None:
+        # Blocks; only safe off the sink loop's own thread (see _HandlerIpcConnection._shutdown).
+        pending = self._snapshot()
+        if pending:
+            _futures_wait(pending, timeout=timeout)
+
+    async def aflush_pending(self, timeout: float = _LOG_FLUSH_TIMEOUT_S) -> None:
+        # Awaits instead of blocking, so it is safe when the caller shares the sink's loop.
+        pending = self._snapshot()
+        if not pending:
+            return
+        await asyncio.wait([asyncio.wrap_future(f) for f in pending], timeout=timeout)
 
 
 def install_runtime_sinks(
     job_id: str, callback: Any, loop: asyncio.AbstractEventLoop
-) -> None:
+) -> "_IpcLogHandler | None":
     """Install the log + result sinks, forwarding to ``callback`` on ``loop``.
 
     ``loop`` must run on a different thread than the one the sinks are invoked on, or the result ack
@@ -189,7 +217,7 @@ def install_runtime_sinks(
             set_result_sink,
         )
     except ImportError:
-        return
+        return None
 
     handler = _IpcLogHandler(job_id, callback, loop)
     handler.setFormatter(logging.Formatter("%(message)s"))
@@ -207,6 +235,7 @@ def install_runtime_sinks(
 
     set_log_handler(handler)
     set_result_sink(_result_sink)
+    return handler
 
 
 def clear_runtime_sinks() -> None:
@@ -234,13 +263,19 @@ class _HandlerIpcConnection:
         client: Any,
         loop: asyncio.AbstractEventLoop,
         thread: threading.Thread,
+        log_handler: "_IpcLogHandler | None" = None,
     ) -> None:
         self._client = client
         self._loop = loop
         self._thread = thread
+        self._log_handler = log_handler
 
     def _shutdown(self) -> None:
         """Close the client and stop its loop/thread."""
+        # Runs on a worker thread, so blocking here is safe: the sink loop has its own thread and
+        # keeps draining. aclose() would fail whatever is still queued, losing the log tail.
+        if self._log_handler is not None:
+            self._log_handler.flush_pending()
         try:
             asyncio.run_coroutine_threadsafe(self._client.aclose(), self._loop).result(
                 timeout=_SET_RESULT_TIMEOUT_S
@@ -284,8 +319,8 @@ def connect_handler_ipc(pipe: str, job_id: str) -> _HandlerIpcConnection:
         raise
     # Install in the caller's context, not on the IPC thread: the sinks are contextvars, resolved in
     # the job's own context at teardown. The ack still runs on `loop` (a separate thread) — no deadlock.
-    install_runtime_sinks(job_id, proxy, loop)
-    return _HandlerIpcConnection(client, loop, thread)
+    handler = install_runtime_sinks(job_id, proxy, loop)
+    return _HandlerIpcConnection(client, loop, thread, handler)
 
 
 async def disconnect_handler_ipc(conn: _HandlerIpcConnection) -> None:

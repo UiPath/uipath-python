@@ -211,6 +211,32 @@ def test_transport_and_self_logs_never_ride_the_ipc_channel(monkeypatch):
     assert buf.getvalue().count("internal chatter") == 2
 
 
+def test_pending_log_sends_are_flushed_before_teardown(monkeypatch):
+    _fake_output_sinks(monkeypatch)
+    landed: list[str] = []
+
+    class _Callback:
+        async def SendLog(self, jid: str, dto: Any) -> None:
+            await asyncio.sleep(0.2)
+            landed.append(dto.Message)
+
+    class _Client:
+        async def aclose(self) -> None:
+            return None
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    handler = _job_api.install_runtime_sinks("job-7", _Callback(), loop)
+    assert handler is not None
+    handler.emit(logging.LogRecord("j", logging.INFO, "p", 1, "tail line", (), None))
+
+    conn = _job_api._HandlerIpcConnection(_Client(), loop, thread, handler)
+    conn._shutdown()
+
+    assert landed == ["tail line"]
+
+
 def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch):
     captured = _fake_output_sinks(monkeypatch)
 

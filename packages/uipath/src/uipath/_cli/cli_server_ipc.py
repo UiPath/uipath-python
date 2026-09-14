@@ -98,6 +98,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
         on_run_start: "Any" = None
         on_run_end: "Any" = None
+        installed: "list[Any]" = []
         if request.StreamOutputOverIpc:
             # Derived per request, never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
@@ -121,7 +122,11 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
             loop = asyncio.get_running_loop()
             job_key = request.JobKey
-            on_run_start = lambda: install_runtime_sinks(job_key, callback, loop)  # noqa: E731
+
+            def _install() -> None:
+                installed.append(install_runtime_sinks(job_key, callback, loop))
+
+            on_run_start = _install
             on_run_end = clear_runtime_sinks
 
         result = await _run_command_isolated(
@@ -132,6 +137,12 @@ class PythonRuntimeService(IPythonRuntimeServer):
             on_run_start=on_run_start,
             on_run_end=on_run_end,
         )
+
+        # Drain in-flight sends by awaiting: they share this loop, and the peer may unregister the
+        # job the moment this response lands.
+        for handler in installed:
+            if handler is not None:
+                await handler.aflush_pending()
 
         # IPC contract (PythonServerRunJobResult) carries only ExitCode + Error.
         return PythonServerRunJobResult(

@@ -427,6 +427,46 @@ class TestPooledSinks:
         asyncio.run(scenario())
         assert events == [("install", "job-9", "CALLBACK"), ("run",), ("clear",)]
 
+    def test_runjob_drains_pending_sends_before_returning(self, monkeypatch):
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[str] = []
+
+        class _Handler:
+            async def aflush_pending(self, *a: Any, **k: Any) -> None:
+                events.append("flush")
+
+        monkeypatch.setattr(
+            _job_api, "install_runtime_sinks", lambda jid, cb, loop: _Handler()
+        )
+        monkeypatch.setattr(_job_api, "clear_runtime_sinks", lambda: None)
+
+        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+            if on_run_start:
+                on_run_start()
+            events.append("run")
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey="job-7", Command="run", Args=[], StreamOutputOverIpc=True
+        )
+
+        async def scenario() -> None:
+            await service.RunJob(request, message=Message(client=_Client()))
+
+        asyncio.run(scenario())
+        assert events == ["run", "flush"]
+
     def test_runjob_skips_sinks_when_not_opted_in(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
