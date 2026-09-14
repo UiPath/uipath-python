@@ -9,8 +9,7 @@ from ._utils._console import ConsoleLogger
 if TYPE_CHECKING:
     from uipath_ipc import Message
 else:
-    # Optional dependency (uipath[ipc]): the Register annotation stays a string forward-ref so this
-    # placeholder is never subscripted at import — resolved to the real Message only at dispatch.
+    # Optional dep: the annotation stays a string forward-ref, so this placeholder is never subscripted.
     try:
         from uipath_ipc import Message
     except ImportError:  # pragma: no cover - no IPC means Register is never dispatched
@@ -35,7 +34,6 @@ class PythonServerRunRequest:
     Args: str | list[str] | None = None
     WorkingDirectory: str | None = None
     EnvironmentVariables: dict[str, str] = field(default_factory=dict)
-    # Per-job opt-in (default False so it stays off unless explicitly set).
     StreamOutputOverIpc: bool = False
 
 
@@ -100,7 +98,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
         on_run_end: "Any" = None
         installed: "list[Any]" = []
         if request.StreamOutputOverIpc:
-            # Derived per request, never stored: a captured callback goes stale on reconnect/restart.
+            # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
                 IJobInvocationCommonApi,
                 clear_runtime_sinks,
@@ -145,8 +143,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
             on_run_end=on_run_end,
         )
 
-        # Drain in-flight sends by awaiting: they share this loop, and the peer may unregister the
-        # job the moment this response lands.
+        # Await, don't block: these share this loop, and the peer may unregister the job once this returns.
         for handler in installed:
             if handler is not None:
                 await handler.aflush_pending()
@@ -177,7 +174,6 @@ async def start_ipc_server(pipe_name: str) -> None:
 
     _state.init()
 
-    # Register the default runtime factory (idempotent) so the server works when started outside the CLI.
     from uipath._cli import _ensure_runtime_initialized
 
     _ensure_runtime_initialized()

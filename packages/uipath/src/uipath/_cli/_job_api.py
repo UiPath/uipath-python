@@ -22,7 +22,6 @@ _SET_RESULT_TIMEOUT_S = 30.0
 _LOG_FLUSH_TIMEOUT_S = 5.0
 _IPC_REQUEST_TIMEOUT_S = 30.0
 
-# Loggers whose records must never ride the IPC channel: the transport itself and this module.
 _NO_IPC_LOGGERS = ("uipath_ipc", __name__)
 
 
@@ -192,13 +191,12 @@ class _IpcLogHandler(logging.Handler):
             return list(self._pending)
 
     def flush_pending(self, timeout: float = _LOG_FLUSH_TIMEOUT_S) -> None:
-        # Blocks; only safe off the sink loop's own thread (see _HandlerIpcConnection._shutdown).
+        # Blocks; only safe off the sink loop's own thread.
         pending = self._snapshot()
         if pending:
             _futures_wait(pending, timeout=timeout)
 
     async def aflush_pending(self, timeout: float = _LOG_FLUSH_TIMEOUT_S) -> None:
-        # Awaits instead of blocking, so it is safe when the caller shares the sink's loop.
         pending = self._snapshot()
         if not pending:
             return
@@ -235,7 +233,6 @@ def install_runtime_sinks(
                     "The handler rejected the job result (SetResult returned false)"
                 )
         except Exception:
-            # Best-effort — a dropped result must be logged, not swallowed.
             logger.exception("Failed to deliver job result over IPC (SetResult)")
 
     set_log_handler(handler)
@@ -256,8 +253,7 @@ def clear_runtime_sinks() -> None:
 def _stop_loop_thread(
     loop: asyncio.AbstractEventLoop, thread: threading.Thread, timeout: float
 ) -> None:
-    # Teardown must never raise: a wedged thread leaves the loop running, and close() would then
-    # raise and mask the job's own outcome (or the error that got us here).
+    # Never raise here: a wedged thread leaves the loop running, and close() would mask the job's outcome.
     try:
         loop.call_soon_threadsafe(loop.stop)
     except Exception:
@@ -295,8 +291,6 @@ class _HandlerIpcConnection:
 
     def _shutdown(self) -> None:
         """Close the client and stop its loop/thread."""
-        # Runs on a worker thread, so blocking here is safe: the sink loop has its own thread and
-        # keeps draining. aclose() would fail whatever is still queued, losing the log tail.
         if self._log_handler is not None:
             self._log_handler.flush_pending()
         try:
@@ -320,7 +314,6 @@ def is_wire_job_id(job_id: str | None) -> TypeGuard[str]:
 def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
     """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``)."""
     if not is_wire_job_id(job_id):
-        # Every call would fail on the wire, and the file sinks are already suppressed by now.
         raise RuntimeError(
             f"--handler-ipc-pipe needs UIPATH_JOB_KEY to be a job id; got {job_id!r}."
         )
@@ -340,8 +333,7 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
 
     async def _build() -> Any:
         transport = NamedPipeClientTransport(pipe)
-        # The transport dials lazily, and the interceptor has already suppressed execution.log by
-        # the time the first record is sent: an unreachable pipe would lose every line in silence.
+        # Dial now: execution.log is already suppressed, so a dead pipe would lose every line in silence.
         try:
             _, writer = await transport.connect()
         except Exception as e:
@@ -358,11 +350,9 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
             timeout=_SET_RESULT_TIMEOUT_S
         )
     except BaseException:
-        # On failure, don't leak the loop/thread.
         _stop_loop_thread(loop, thread, _SET_RESULT_TIMEOUT_S)
         raise
-    # Install in the caller's context, not on the IPC thread: the sinks are contextvars, resolved in
-    # the job's own context at teardown. The ack still runs on `loop` (a separate thread) — no deadlock.
+    # Install in the caller's context: the sinks are contextvars, read in the job's own context at teardown.
     handler = install_runtime_sinks(job_id, proxy, loop)
     return _HandlerIpcConnection(client, loop, thread, handler)
 
@@ -370,7 +360,6 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
 async def disconnect_handler_ipc(conn: _HandlerIpcConnection) -> None:
     """Clear the sinks and tear down the connection."""
     clear_runtime_sinks()
-    # Off the caller's loop so joining the thread doesn't block it.
     await asyncio.to_thread(conn._shutdown)
 
 
