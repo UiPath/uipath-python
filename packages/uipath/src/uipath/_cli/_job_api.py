@@ -7,13 +7,14 @@ import contextlib
 import logging
 import sys
 import threading
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from concurrent.futures import Future
 from concurrent.futures import wait as _futures_wait
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any
+from typing import Any, TypeGuard
 
 logger = logging.getLogger(__name__)
 
@@ -307,8 +308,23 @@ class _HandlerIpcConnection:
         _stop_loop_thread(self._loop, self._thread, _SET_RESULT_TIMEOUT_S)
 
 
-def connect_handler_ipc(pipe: str, job_id: str) -> _HandlerIpcConnection:
+def is_wire_job_id(job_id: str | None) -> TypeGuard[str]:
+    """The peer types the job id as a Guid, and rejects anything it can't parse as one."""
+    try:
+        uuid.UUID(str(job_id))
+    except ValueError:
+        return False
+    return True
+
+
+def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
     """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``)."""
+    if not is_wire_job_id(job_id):
+        # Every call would fail on the wire, and the file sinks are already suppressed by now.
+        raise RuntimeError(
+            f"--handler-ipc-pipe needs UIPATH_JOB_KEY to be a job id; got {job_id!r}."
+        )
+
     try:
         from uipath_ipc import IpcClient, NamedPipeClientTransport
     except ImportError as e:
@@ -359,7 +375,9 @@ async def disconnect_handler_ipc(conn: _HandlerIpcConnection) -> None:
 
 
 @contextlib.asynccontextmanager
-async def handler_ipc_connection(pipe: str | None, job_id: str) -> AsyncIterator[Any]:
+async def handler_ipc_connection(
+    pipe: str | None, job_id: str | None
+) -> AsyncIterator[Any]:
     """Connect (if ``pipe`` is set) and always disconnect on exit; yields the connection or None."""
     conn = connect_handler_ipc(pipe, job_id) if pipe else None
     try:

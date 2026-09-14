@@ -19,6 +19,9 @@ import pytest
 from uipath._cli import _job_api
 from uipath.runtime.result import UiPathRuntimeStatus
 
+JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+JOB_ID_2 = "9a7b1c22-0e54-4f7d-8c31-6b2f0a5d9e10"
+
 
 def test_to_result_dto_maps_status_error_and_path():
     class _Category:
@@ -370,7 +373,7 @@ def test_connect_installs_sinks_and_disconnect_clears(monkeypatch):
     try:
 
         async def scenario() -> None:
-            conn = _job_api.connect_handler_ipc(pipe, "job-1")
+            conn = _job_api.connect_handler_ipc(pipe, JOB_ID)
             assert captured["handler"] is not None
             assert captured["sink"] is not None
 
@@ -399,7 +402,7 @@ def test_connect_fails_loudly_when_the_pipe_is_unreachable(monkeypatch):
     before = live()
 
     with pytest.raises(RuntimeError, match="Could not reach the handler IPC pipe"):
-        _job_api.connect_handler_ipc("uipath-jobapi-does-not-exist-12345", "job-1")
+        _job_api.connect_handler_ipc("uipath-jobapi-does-not-exist-12345", JOB_ID)
 
     assert live() == before
 
@@ -407,7 +410,32 @@ def test_connect_fails_loudly_when_the_pipe_is_unreachable(monkeypatch):
 def test_connect_without_uipath_ipc_raises(monkeypatch):
     monkeypatch.setitem(sys.modules, "uipath_ipc", None)
     with pytest.raises(RuntimeError, match="uipath-ipc"):
-        _job_api.connect_handler_ipc("pipe", "job-1")
+        _job_api.connect_handler_ipc("pipe", JOB_ID)
+
+
+def _live_ipc_threads() -> int:
+    return len(
+        [
+            t
+            for t in threading.enumerate()
+            if t.name == "uipath-handler-ipc" and t.is_alive()
+        ]
+    )
+
+
+@pytest.mark.parametrize("job_id", [None, "", " ", "job-1", "not-a-guid"])
+def test_connect_without_a_real_job_id_fails_fast(job_id):
+    before = _live_ipc_threads()
+    with pytest.raises(RuntimeError, match="UIPATH_JOB_KEY"):
+        _job_api.connect_handler_ipc("pipe", job_id)
+    assert _live_ipc_threads() == before
+
+
+@pytest.mark.parametrize("job_id", [None, "", "job-1"])
+async def test_handler_ipc_connection_without_a_real_job_id_fails_fast(job_id):
+    with pytest.raises(RuntimeError, match="UIPATH_JOB_KEY"):
+        async with _job_api.handler_ipc_connection("pipe", job_id):
+            pass
 
 
 _jobapi_pipe_counter = 0
@@ -502,7 +530,7 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
     try:
 
         async def scenario() -> None:
-            conn = _job_api.connect_handler_ipc(pipe, "job-77")
+            conn = _job_api.connect_handler_ipc(pipe, JOB_ID_2)
             # Call the sink ON this loop's thread, exactly as the runtime's __exit__ does. Before the
             # fix this deadlocked the loop the ack was scheduled on; now it completes.
             captured["sink"](_Result(), "out.args")
@@ -516,6 +544,6 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
         "SetResult never arrived — the result sink deadlocked/timed out"
     )
     job_id, dto = received["result"]
-    assert job_id == "job-77"
+    assert job_id == JOB_ID_2
     assert dto.outputArgumentsFilePath == "out.args"
     assert dto.status == _job_api.ExecutorJobStatus.SUCCESSFUL.value

@@ -105,7 +105,14 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 IJobInvocationCommonApi,
                 clear_runtime_sinks,
                 install_runtime_sinks,
+                is_wire_job_id,
             )
+
+            if not is_wire_job_id(request.JobKey):
+                return PythonServerRunJobResult(
+                    ExitCode=1,
+                    Error=f"StreamOutputOverIpc needs a 'JobKey' that is a job id; got {request.JobKey!r}",
+                )
 
             callback = None
             client = message.client if message is not None else None

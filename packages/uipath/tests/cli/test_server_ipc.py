@@ -17,7 +17,7 @@ import os
 import sys
 import threading
 import time
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, cast
 
 import click
 import pytest
@@ -124,6 +124,9 @@ def test_start_ipc_server_fails_fast_without_uipath_ipc(monkeypatch):
     coro = start_ipc_server(_unique_pipe())
     with pytest.raises(RuntimeError, match="uipath-ipc"):
         asyncio.run(coro)
+
+
+JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
 
 
 class TestIpcServer:
@@ -340,7 +343,7 @@ class TestPooledSinks:
         service = PythonRuntimeService()
 
         async def scenario() -> None:
-            assert await service.Register(Message(client=object())) is True
+            assert await service.Register(Message(client=cast(Any, object()))) is True
 
         asyncio.run(scenario())
 
@@ -365,6 +368,7 @@ class TestPooledSinks:
 
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
+        message: "Message[None]"
         if mode == "no-client":
             message = Message()
         else:
@@ -373,11 +377,11 @@ class TestPooledSinks:
                 def get_callback(self, contract: Any) -> Any:
                     raise RuntimeError("no callback available")
 
-            message = Message(client=_Client())
+            message = Message(client=cast(Any, _Client()))
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey="job-9", Command="run", Args=[], StreamOutputOverIpc=True
+            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
         )
 
         async def scenario() -> Any:
@@ -387,6 +391,73 @@ class TestPooledSinks:
         assert result.ExitCode == 1
         assert "callback" in (result.Error or "").lower()
         assert ran == []
+
+    @pytest.mark.parametrize(
+        "job_key", ["", "job-9", "00000000-0000-0000-0000-00000000000"]
+    )
+    def test_runjob_without_a_real_job_key_fails_loudly(self, monkeypatch, job_key):
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import (
+            PythonRuntimeService,
+            PythonServerRunRequest,
+        )
+
+        events: list[Any] = []
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda jid, cb, loop: events.append(("install", jid)),
+        )
+
+        async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            events.append("run")
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey=job_key, Command="run", Args=[], StreamOutputOverIpc=True
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(
+                request, message=Message(client=cast(Any, _Client()))
+            )
+
+        result = asyncio.run(scenario())
+        assert result.ExitCode == 1
+        assert "JobKey" in (result.Error or "")
+        assert events == []
+
+    def test_runjob_without_streaming_does_not_need_a_job_key(self, monkeypatch):
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import (
+            PythonRuntimeService,
+            PythonServerRunRequest,
+        )
+
+        ran: list[bool] = []
+
+        async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            ran.append(True)
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(JobKey="", Command="run", Args=[])
+
+        async def scenario() -> Any:
+            return await service.RunJob(request)
+
+        result = asyncio.run(scenario())
+        assert result.ExitCode == 0
+        assert ran == [True]
 
     def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc
@@ -418,14 +489,14 @@ class TestPooledSinks:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey="job-9", Command="run", Args=[], StreamOutputOverIpc=True
+            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
         )
 
         async def scenario() -> None:
             await service.RunJob(request, message=Message(client=_Client()))
 
         asyncio.run(scenario())
-        assert events == [("install", "job-9", "CALLBACK"), ("run",), ("clear",)]
+        assert events == [("install", JOB_ID, "CALLBACK"), ("run",), ("clear",)]
 
     def test_runjob_drains_pending_sends_before_returning(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc
@@ -458,7 +529,7 @@ class TestPooledSinks:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey="job-7", Command="run", Args=[], StreamOutputOverIpc=True
+            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
         )
 
         async def scenario() -> None:

@@ -224,7 +224,7 @@ def run(
                 from ._job_api import handler_ipc_connection
 
                 async with (
-                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id or ""),
+                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id),
                     ResourceOverwritesContext(
                         lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                     ),
