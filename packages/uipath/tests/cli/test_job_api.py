@@ -358,17 +358,50 @@ def test_connect_installs_sinks_and_disconnect_clears(monkeypatch):
     pytest.importorskip("uipath_ipc")
     captured = _fake_output_sinks(monkeypatch)
 
-    async def scenario() -> None:
-        # A named-pipe client connects lazily, so no server is needed to build it.
-        client = _job_api.connect_handler_ipc("some-pipe", "job-1")
-        assert captured["handler"] is not None
-        assert captured["sink"] is not None
+    class _Api(_job_api.IJobInvocationCommonApi):
+        async def SendLog(self, jobId: str, log: Any) -> None:
+            return None
 
-        await _job_api.disconnect_handler_ipc(client)
-        assert captured["handler"] is None
-        assert captured["sink"] is None
+        async def SetResult(self, jobId: str, result: Any) -> bool:
+            return True
 
-    asyncio.run(scenario())
+    pipe = _unique_jobapi_pipe()
+    stop = _serve_jobapi_in_background(pipe, _Api())
+    try:
+
+        async def scenario() -> None:
+            conn = _job_api.connect_handler_ipc(pipe, "job-1")
+            assert captured["handler"] is not None
+            assert captured["sink"] is not None
+
+            await _job_api.disconnect_handler_ipc(conn)
+            assert captured["handler"] is None
+            assert captured["sink"] is None
+
+        asyncio.run(scenario())
+    finally:
+        stop()
+
+
+def test_connect_fails_loudly_when_the_pipe_is_unreachable(monkeypatch):
+    pytest.importorskip("uipath_ipc")
+    _fake_output_sinks(monkeypatch)
+
+    def live() -> int:
+        return len(
+            [
+                t
+                for t in threading.enumerate()
+                if t.name == "uipath-handler-ipc" and t.is_alive()
+            ]
+        )
+
+    before = live()
+
+    with pytest.raises(RuntimeError, match="Could not reach the handler IPC pipe"):
+        _job_api.connect_handler_ipc("uipath-jobapi-does-not-exist-12345", "job-1")
+
+    assert live() == before
 
 
 def test_connect_without_uipath_ipc_raises(monkeypatch):

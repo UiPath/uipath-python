@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 _SET_RESULT_TIMEOUT_S = 30.0
 _LOG_FLUSH_TIMEOUT_S = 5.0
+_IPC_REQUEST_TIMEOUT_S = 30.0
 
 # Loggers whose records must never ride the IPC channel: the transport itself and this module.
 _NO_IPC_LOGGERS = ("uipath_ipc", __name__)
@@ -322,7 +323,17 @@ def connect_handler_ipc(pipe: str, job_id: str) -> _HandlerIpcConnection:
     thread.start()
 
     async def _build() -> Any:
-        client = IpcClient(transport=NamedPipeClientTransport(pipe))
+        transport = NamedPipeClientTransport(pipe)
+        # The transport dials lazily, and the interceptor has already suppressed execution.log by
+        # the time the first record is sent: an unreachable pipe would lose every line in silence.
+        try:
+            _, writer = await transport.connect()
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not reach the handler IPC pipe {pipe!r}: {e}"
+            ) from e
+        writer.close()
+        client = IpcClient(transport=transport, request_timeout=_IPC_REQUEST_TIMEOUT_S)
         proxy = client.get_proxy(IJobInvocationCommonApi)  # type: ignore[type-abstract]
         return client, proxy
 
