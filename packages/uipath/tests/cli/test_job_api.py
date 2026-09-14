@@ -211,6 +211,71 @@ def test_transport_and_self_logs_never_ride_the_ipc_channel(monkeypatch):
     assert buf.getvalue().count("internal chatter") == 2
 
 
+def test_rejected_result_is_reported(monkeypatch):
+    captured = _fake_output_sinks(monkeypatch)
+
+    class _Callback:
+        async def SetResult(self, jid: str, dto: Any) -> bool:
+            return False
+
+    class _Result:
+        status = UiPathRuntimeStatus.SUCCESSFUL
+        error = None
+
+    records: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    api_logger = logging.getLogger("uipath._cli._job_api")
+    handler = _Capture()
+    api_logger.addHandler(handler)
+    prior_level = api_logger.level
+    api_logger.setLevel(logging.ERROR)
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
+        _job_api.install_runtime_sinks("job-8", _Callback(), loop)
+        captured["sink"](_Result(), "out.args")
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=5)
+        loop.close()
+        api_logger.removeHandler(handler)
+        api_logger.setLevel(prior_level)
+
+    assert any("rejected" in r.getMessage().lower() for r in records)
+
+
+def test_teardown_does_not_raise_when_the_loop_thread_is_wedged():
+    loop = asyncio.new_event_loop()
+    started = threading.Event()
+    release = threading.Event()
+
+    def _run() -> None:
+        asyncio.set_event_loop(loop)
+
+        async def _block() -> None:
+            started.set()
+            release.wait(timeout=10)
+
+        loop.run_until_complete(_block())
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    assert started.wait(timeout=5)
+
+    _job_api._stop_loop_thread(loop, thread, 0.2)
+    assert thread.is_alive()
+
+    release.set()
+    thread.join(timeout=5)
+    loop.close()
+
+
 def test_pending_log_sends_are_flushed_before_teardown(monkeypatch):
     _fake_output_sinks(monkeypatch)
     landed: list[str] = []

@@ -228,7 +228,10 @@ def install_runtime_sinks(
             future = asyncio.run_coroutine_threadsafe(
                 callback.SetResult(job_id, dto), loop
             )
-            future.result(timeout=_SET_RESULT_TIMEOUT_S)
+            if future.result(timeout=_SET_RESULT_TIMEOUT_S) is False:
+                logger.error(
+                    "The handler rejected the job result (SetResult returned false)"
+                )
         except Exception:
             # Best-effort — a dropped result must be logged, not swallowed.
             logger.exception("Failed to deliver job result over IPC (SetResult)")
@@ -246,6 +249,24 @@ def clear_runtime_sinks() -> None:
         return
     set_log_handler(None)
     set_result_sink(None)
+
+
+def _stop_loop_thread(
+    loop: asyncio.AbstractEventLoop, thread: threading.Thread, timeout: float
+) -> None:
+    # Teardown must never raise: a wedged thread leaves the loop running, and close() would then
+    # raise and mask the job's own outcome (or the error that got us here).
+    try:
+        loop.call_soon_threadsafe(loop.stop)
+    except Exception:
+        pass
+    thread.join(timeout=timeout)
+    if thread.is_alive():
+        return
+    try:
+        loop.close()
+    except Exception:
+        pass
 
 
 def _new_ipc_event_loop() -> asyncio.AbstractEventLoop:
@@ -282,9 +303,7 @@ class _HandlerIpcConnection:
             )
         except Exception:
             pass
-        self._loop.call_soon_threadsafe(self._loop.stop)
-        self._thread.join(timeout=_SET_RESULT_TIMEOUT_S)
-        self._loop.close()
+        _stop_loop_thread(self._loop, self._thread, _SET_RESULT_TIMEOUT_S)
 
 
 def connect_handler_ipc(pipe: str, job_id: str) -> _HandlerIpcConnection:
@@ -313,9 +332,7 @@ def connect_handler_ipc(pipe: str, job_id: str) -> _HandlerIpcConnection:
         )
     except BaseException:
         # On failure, don't leak the loop/thread.
-        loop.call_soon_threadsafe(loop.stop)
-        thread.join(timeout=_SET_RESULT_TIMEOUT_S)
-        loop.close()
+        _stop_loop_thread(loop, thread, _SET_RESULT_TIMEOUT_S)
         raise
     # Install in the caller's context, not on the IPC thread: the sinks are contextvars, resolved in
     # the job's own context at teardown. The ack still runs on `loop` (a separate thread) — no deadlock.
