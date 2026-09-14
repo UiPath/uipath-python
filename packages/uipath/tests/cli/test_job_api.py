@@ -6,6 +6,7 @@ forwards SendLog, and that the result sink maps the runtime result and calls Set
 """
 
 import asyncio
+import io
 import logging
 import os
 import sys
@@ -170,6 +171,44 @@ def test_log_forwarding_failure_does_not_escape_emit(monkeypatch):
         assert len(handled) == 1
     finally:
         loop.close()
+
+
+def test_transport_and_self_logs_never_ride_the_ipc_channel(monkeypatch):
+    captured = _fake_output_sinks(monkeypatch)
+    sent: list[Any] = []
+    forwarded = threading.Event()
+
+    class _Callback:
+        async def SendLog(self, jid: str, dto: Any) -> None:
+            sent.append((jid, dto))
+            forwarded.set()
+
+    buf = io.StringIO()
+    monkeypatch.setattr(sys, "__stderr__", buf)
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
+        _job_api.install_runtime_sinks("job-6", _Callback(), loop)
+        handler = captured["handler"]
+        for name in ("uipath_ipc.client.connection", _job_api.__name__):
+            handler.emit(
+                logging.LogRecord(
+                    name, logging.WARNING, "p", 1, "internal chatter", (), None
+                )
+            )
+        handler.emit(
+            logging.LogRecord("job.logger", logging.INFO, "p", 1, "job line", (), None)
+        )
+        forwarded.wait(timeout=5)
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=5)
+        loop.close()
+
+    assert [dto.Message for _, dto in sent] == ["job line"]
+    assert buf.getvalue().count("internal chatter") == 2
 
 
 def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch):

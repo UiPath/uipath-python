@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 _SET_RESULT_TIMEOUT_S = 30.0
 
+# Loggers whose records must never ride the IPC channel: the transport itself and this module.
+_NO_IPC_LOGGERS = ("uipath_ipc", __name__)
+
 
 class LogLevel(IntEnum):
     """Log-level wire values."""
@@ -135,6 +138,17 @@ def _drain(future: "Future[object]") -> None:
         pass
 
 
+def _to_original_stderr(handler: logging.Handler, record: logging.LogRecord) -> None:
+    stream = sys.__stderr__
+    if stream is None:
+        return
+    try:
+        stream.write(handler.format(record) + "\n")
+        stream.flush()
+    except Exception:
+        pass
+
+
 class _IpcLogHandler(logging.Handler):
     """Forwards each log record to the callback."""
 
@@ -147,6 +161,9 @@ class _IpcLogHandler(logging.Handler):
         self._loop = loop
 
     def emit(self, record: logging.LogRecord) -> None:
+        if record.name.startswith(_NO_IPC_LOGGERS):
+            _to_original_stderr(self, record)
+            return
         try:
             message = self.format(record)
             dto = JobLogDto(Message=message, LogLevel=_to_log_level(record.levelno))

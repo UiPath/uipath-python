@@ -57,7 +57,7 @@ class IPythonRuntimeServer(ABC):
 
     @abstractmethod
     async def Register(self, message: "Message[None]") -> bool:
-        """Prove the connection is up and grab the caller's callback via ``message.client.get_callback``."""
+        """Prove the connection is up."""
 
     @abstractmethod
     async def RunJob(self, request: PythonServerRunRequest) -> PythonServerRunJobResult:
