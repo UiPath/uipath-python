@@ -23,6 +23,25 @@ from ._types import (
 logger = logging.getLogger(__name__)
 
 
+def _require_object(result: Any) -> dict[str, Any]:
+    """Enforce that a simulated input is a JSON object.
+
+    ``generate_llm_input`` feeds ``EvaluationItem.inputs``, which must be a
+    dict. Without this guard a stringified object slips through
+    ``model_copy(update=...)`` unvalidated and only fails later as an opaque
+    ``MockingContext`` validation error (SRE-655743).
+    """
+    if isinstance(result, dict):
+        return result
+    preview = repr(result)
+    if len(preview) > 200:
+        preview = preview[:200] + "..."
+    raise UiPathInputMockingError(
+        "Simulated input must be a JSON object matching the agent input schema, "
+        f"but the model returned {type(result).__name__}: {preview}"
+    )
+
+
 def get_input_mocking_prompt(
     input_schema: str,
     input_generation_instructions: str,
@@ -132,15 +151,17 @@ async def generate_llm_input(
             )
 
             if cached_response is not None:
-                return cached_response
+                return _require_object(cached_response)
 
-        result = await generate_structured_output(
-            llm,
-            [{"role": "user", "content": prompt}],
-            schema=input_schema,
-            response_format_name="agent_input",
-            description="Return the simulated agent input matching the required schema.",
-            completion_kwargs=completion_kwargs,
+        result = _require_object(
+            await generate_structured_output(
+                llm,
+                [{"role": "user", "content": prompt}],
+                schema=input_schema,
+                response_format_name="agent_input",
+                description="Return the simulated agent input matching the required schema.",
+                completion_kwargs=completion_kwargs,
+            )
         )
 
         if cache_manager is not None:

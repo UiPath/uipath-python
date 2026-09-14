@@ -126,3 +126,82 @@ async def test_generate_llm_input_with_model_settings(
     body = json.loads(chat_completion_requests[0].content.decode("utf-8"))
     assert "response_format" in body
     assert "tools" not in body
+
+
+# --- non-object results are rejected with an actionable error (SRE-655743) --
+
+
+@pytest.mark.asyncio
+async def test_generate_llm_input_rejects_non_object_result(monkeypatch: MonkeyPatch):
+    from uipath.eval.mocks import _input_mocker
+    from uipath.eval.mocks._mocker import UiPathInputMockingError
+
+    monkeypatch.setenv("UIPATH_URL", "https://example.com")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+    monkeypatch.setattr(CacheManager, "get", lambda *args, **kwargs: None)
+
+    cache_writes: list[Any] = []
+    monkeypatch.setattr(
+        CacheManager, "set", lambda *args, **kwargs: cache_writes.append(kwargs)
+    )
+
+    async def _fake_structured_output(*args: Any, **kwargs: Any) -> Any:
+        # A non-JSON string under an object schema cannot be coerced upstream.
+        return "I can't generate that input."
+
+    monkeypatch.setattr(
+        _input_mocker, "generate_structured_output", _fake_structured_output
+    )
+
+    strategy = InputMockingStrategy(
+        prompt="Generate a query", model=ModelSettings(model="gpt-4o-mini-2024-07-18")
+    )
+
+    with pytest.raises(UiPathInputMockingError) as exc_info:
+        await generate_llm_input(
+            strategy,
+            {"type": "object", "properties": {"query": {"type": "string"}}},
+            expected_behavior="",
+            expected_output={},
+        )
+
+    message = str(exc_info.value)
+    assert "must be a JSON object" in message
+    assert "str" in message
+    assert "I can't generate that input." in message
+    # A bad value must never be written to the cache.
+    assert cache_writes == []
+
+
+@pytest.mark.asyncio
+async def test_generate_llm_input_rejects_non_object_cached_result(
+    monkeypatch: MonkeyPatch,
+):
+    from uipath.eval.mocks._mock_context import cache_manager_context
+    from uipath.eval.mocks._mocker import UiPathInputMockingError
+
+    monkeypatch.setenv("UIPATH_URL", "https://example.com")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "test-token")
+    # Simulate a stale cache entry written before the guard existed. The cache
+    # is only consulted when a manager is bound to the context, and a hit
+    # returns before any LLM call is made.
+    monkeypatch.setattr(
+        CacheManager, "get", lambda *args, **kwargs: '{"query": "cached"}'
+    )
+    monkeypatch.setattr(CacheManager, "set", lambda *args, **kwargs: None)
+
+    strategy = InputMockingStrategy(
+        prompt="Generate a query", model=ModelSettings(model="gpt-4o-mini-2024-07-18")
+    )
+
+    token = cache_manager_context.set(CacheManager())
+    try:
+        with pytest.raises(UiPathInputMockingError, match="must be a JSON object"):
+            await generate_llm_input(
+                strategy,
+                {"type": "object", "properties": {"query": {"type": "string"}}},
+                expected_behavior="",
+                expected_output={},
+            )
+    finally:
+        cache_manager_context.reset(token)

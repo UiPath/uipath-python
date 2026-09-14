@@ -238,6 +238,30 @@ def _strategy_for_model(model: str | None) -> ToolCallStructuredOutput:
     return ResponseFormatStructuredOutput()
 
 
+def coerce_to_schema(result: Any, schema: dict[str, Any]) -> Any:
+    """Unwrap a JSON object the model returned as a string.
+
+    Models sometimes stringify a nested object inside tool-call arguments, or
+    double-encode ``response_format`` content, so the caller receives a ``str``
+    holding JSON instead of the object it asked for. Only applies when the
+    schema asks for an object; scalar and array schemas pass through untouched
+    because a string is a legitimate value for them.
+
+    Handles single and double encoding. A string that is not valid JSON is
+    returned unchanged so the caller can report it.
+    """
+    if schema.get("type") != "object":
+        return result
+    for _ in range(2):
+        if not isinstance(result, str):
+            break
+        try:
+            result = json.loads(result)
+        except json.JSONDecodeError:
+            break
+    return result
+
+
 async def generate_structured_output(
     llm: Any,
     messages: list[dict[str, str]],
@@ -249,7 +273,7 @@ async def generate_structured_output(
 ) -> Any:
     """Generate structured output using the strategy for the requested model."""
     strategy = _strategy_for_model(completion_kwargs.get("model"))
-    return await strategy.generate(
+    result = await strategy.generate(
         llm,
         messages,
         schema=schema,
@@ -257,3 +281,4 @@ async def generate_structured_output(
         description=description,
         completion_kwargs=completion_kwargs,
     )
+    return coerce_to_schema(result, schema)
