@@ -413,6 +413,38 @@ def test_connect_without_uipath_ipc_raises(monkeypatch):
         _job_api.connect_handler_ipc("pipe", JOB_ID)
 
 
+def test_a_broken_log_channel_is_reported_once_to_stderr(monkeypatch):
+    _fake_output_sinks(monkeypatch)
+
+    buf = io.StringIO()
+    monkeypatch.setattr(sys, "__stderr__", buf)
+
+    class _Callback:
+        async def SendLog(self, job_id, log):
+            raise RuntimeError("pipe is gone")
+
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
+        handler = _job_api.install_runtime_sinks(JOB_ID, _Callback(), loop)
+        assert handler is not None
+        for i in range(4):
+            handler.emit(
+                logging.LogRecord("job", logging.INFO, __file__, 1, f"m{i}", None, None)
+            )
+        handler.flush_pending(timeout=5.0)
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=5.0)
+        loop.close()
+
+    out = buf.getvalue()
+    assert "no longer reaching the handler" in out, out
+    assert "pipe is gone" in out
+    assert out.count("no longer reaching the handler") == 1, out
+
+
 def _live_ipc_threads() -> int:
     return len(
         [

@@ -134,22 +134,19 @@ def _to_result_dto(
     )
 
 
-def _drain(future: "Future[object]") -> None:
-    try:
-        future.exception()
-    except BaseException:
-        pass
-
-
-def _to_original_stderr(handler: logging.Handler, record: logging.LogRecord) -> None:
+def _write_original_stderr(text: str) -> None:
     stream = sys.__stderr__
     if stream is None:
         return
     try:
-        stream.write(handler.format(record) + "\n")
+        stream.write(text + "\n")
         stream.flush()
     except Exception:
         pass
+
+
+def _to_original_stderr(handler: logging.Handler, record: logging.LogRecord) -> None:
+    _write_original_stderr(handler.format(record))
 
 
 class _IpcLogHandler(logging.Handler):
@@ -164,6 +161,7 @@ class _IpcLogHandler(logging.Handler):
         self._loop = loop
         self._pending: set[Future[object]] = set()
         self._pending_lock = threading.Lock()
+        self._reported_failure = False
 
     def emit(self, record: logging.LogRecord) -> None:
         if record.name.startswith(_NO_IPC_LOGGERS):
@@ -184,7 +182,21 @@ class _IpcLogHandler(logging.Handler):
     def _settled(self, future: "Future[object]") -> None:
         with self._pending_lock:
             self._pending.discard(future)
-        _drain(future)
+        try:
+            error: BaseException | None = future.exception()
+        except BaseException as e:  # cancelled
+            error = e
+        if error is None:
+            return
+        with self._pending_lock:
+            first = not self._reported_failure
+            self._reported_failure = True
+        if first:
+            # Once per handler: a broken channel fails every later send too.
+            _write_original_stderr(
+                f"uipath: job logs are no longer reaching the handler ({error!r}); "
+                "further log-delivery errors for this job are suppressed."
+            )
 
     def _snapshot(self) -> "list[Future[object]]":
         with self._pending_lock:
