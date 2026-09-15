@@ -1,0 +1,130 @@
+# Contributing to UiPath SDK
+
+## Local Development Setup
+
+### Prerequisites
+
+1. **Install Python ≥ 3.11**:
+
+   - Download and install Python 3.11 from the official [Python website](https://www.python.org/downloads/)
+
+   - Verify the installation by running:
+
+     ```
+     python3.11 --version
+     ```
+
+   Alternative: [mise](https://mise.jdx.dev/lang/python.html)
+
+1. **Install [uv](https://docs.astral.sh/uv/)**: Follow the official installation instructions for your operating system.
+
+1. **Create a virtual environment in the current working directory**:
+
+   ```
+   uv venv
+   ```
+
+1. **Activate the virtual environment**:
+
+   - Linux/Mac
+
+     ```
+     source .venv/bin/activate
+     ```
+
+   - Windows Powershell
+
+     ```
+     .venv\Scripts\Activate.ps1
+     ```
+
+   - Windows Bash
+
+     ```
+     source .venv/Scripts/activate
+     ```
+
+1. **Install dependencies**:
+
+   ```
+   uv sync --all-extras --no-cache
+   ```
+
+For additional commands related to linting, formatting, and building, run `just --list`.
+
+### Using the SDK Locally
+
+1. Create a project directory:
+
+   ```
+   mkdir project
+   cd project
+   ```
+
+1. Initialize the Python project:
+
+   ```
+   uv init . --python 3.11
+   ```
+
+1. Set the SDK path:
+
+   ```
+   PATH_TO_SDK=/Users/YOUR_USERNAME/uipath-python
+   ```
+
+1. Install the SDK in editable mode:
+
+   ```
+   uv add --editable ${PATH_TO_SDK}
+   ```
+
+> **Note:** Instead of cloning the project into `.venv/lib/python3.11/site-packages/uipath`, this mode creates a file named `_uipath.pth` inside `.venv/lib/python3.11/site-packages`. This file contains the value of `PATH_TO_SDK`, which is added to `sys.path`—the list of directories where Python searches for packages. To view the entries, run `python -c 'import sys; print(sys.path)'`.
+
+## API Style Guide
+
+### General Rule
+
+- Use `key` instead of `id` for resource identifiers
+- Write well-typed, type-checker-friendly code.
+- Do not use `# type: ignore` comments unless *absolutely* required.
+- NEVER use `# type: ignore` at the start of a file.
+
+### Standard Methods and Naming Conventions
+
+#### Retrieve a Single Resource
+
+- **Method Name:** `retrieve`
+- **Purpose:** Obtain a specific resource instance using its unique identifier (using `key` instead of `id`)
+- **Variations:**
+- `retrieve_by_[field_name]` (for fields other than `key`)
+
+#### List Multiple Resources
+
+- **Method Name:** `list`
+
+- **Purpose:** Fetch a collection of resources, optionally filtered by query parameters
+
+- **Example:**
+
+  ```
+  resources = Resource.list(filters={})
+  ```
+
+#### Create a Resource
+
+- **Method Name:** `create`
+- **Purpose:** Add a new resource to the system
+
+#### Update a Resource
+
+- **Method Name:** `update`
+- **Purpose:** Modify an existing resource
+
+## Pull Requests
+
+### General Rules
+
+- Please write informative description to the PRs for the reviewers to understand the context.
+- If you want to publish a `dev` build, please add a `build:dev` label to your PR.
+- You can then use the published `dev` version from the PR description/comments to use as needed
