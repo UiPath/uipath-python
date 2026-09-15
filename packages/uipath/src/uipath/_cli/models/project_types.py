@@ -1,9 +1,4 @@
-"""Project types scaffolded by `uipath new`.
-
-Framework integrations (uipath-langchain and the packages in
-UiPath/uipath-integrations-python) import this to decide whether a
-`uipath new` invocation is theirs to handle.
-"""
+"""Project types scaffolded by `uipath new`."""
 
 from enum import StrEnum
 

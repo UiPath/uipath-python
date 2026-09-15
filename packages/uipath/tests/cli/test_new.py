@@ -11,10 +11,8 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from uipath._cli import cli
-from uipath._cli.cli_new import (
-    AGENT_FRAMEWORKS_DOCS_URL,
-    _installed_agent_framework_packages,
-)
+from uipath._cli._utils._constants import AGENT_FRAMEWORKS_DOCS_URL
+from uipath._cli.cli_new import _installed_agent_framework_packages
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -125,11 +123,10 @@ class TestNew:
     def test_new_type_function_never_consults_agent_frameworks(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
-        """Regression guard for #1543.
+        """--type function must always produce a function project.
 
-        An installed agent framework used to claim `uipath new` unconditionally,
-        making the base function scaffold unreachable. The chain is now skipped
-        entirely for a function project, so no framework can intercept it.
+        The middleware chain is skipped entirely, so an installed agent
+        framework cannot intercept the scaffold no matter what it claims.
         """
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with patch("uipath._cli.cli_new.Middlewares.next") as mock_middleware:

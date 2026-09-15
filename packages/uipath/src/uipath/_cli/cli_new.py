@@ -10,16 +10,12 @@ from uipath.platform.constants import PYTHON_CONFIGURATION_FILE, UIPATH_CONFIG_F
 
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
+from ._utils._constants import AGENT_FRAMEWORKS_DOCS_URL
 from ._utils._project_files import resolve_existing_project_id
 from .middlewares import Middlewares
 from .models.project_types import ProjectType
 
 console = ConsoleLogger()
-
-# Agent frameworks are documented, not enumerated in code: each integration
-# ships its own `new` middleware, so the CLI knows which ones are installed
-# but cannot know which ones exist.
-AGENT_FRAMEWORKS_DOCS_URL = "https://uipath.github.io/uipath-python/core/agents/"
 
 # The `uipath` minor release that scaffolded projects are pinned to.
 # Deliberately a constant: the guard test in tests/cli/test_new.py fails on
@@ -65,12 +61,7 @@ def generate_uipath_json(target_directory):
 
 
 def _installed_agent_framework_packages() -> list[str]:
-    """Packages of the installed agent frameworks that can scaffold a project.
-
-    Derived from the registered `new` middlewares rather than from a list of
-    known frameworks, so a framework the CLI has never heard of is named
-    correctly and a new one needs no change here.
-    """
+    """Packages of the installed agent frameworks that can scaffold a project."""
     modules = {
         middleware.__module__.split(".")[0] for middleware in Middlewares.get("new")
     }
@@ -111,8 +102,7 @@ def new(name: str, project_type: str):
     scaffold_type = ProjectType(project_type)
 
     # Agent frameworks scaffold through the `new` middleware chain. A function
-    # project never consults them, so an installed framework can no longer make
-    # the base scaffold unreachable (#1543).
+    # project never consults them.
     if scaffold_type is not ProjectType.FUNCTION:
         Middlewares.load_plugins()
         installed = _installed_agent_framework_packages()

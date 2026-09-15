@@ -111,7 +111,6 @@ Resolved 42 packages in 1.2s
 Installed 42 packages in 0.8s
 
 > uipath new my-agent --type agent
-Using the installed 'langchain' agent framework.
 ⠋ Creating new agent my-agent in current directory ...
 ✓  Created 'main.py' file.
 ✓  Created 'langgraph.json' file.
