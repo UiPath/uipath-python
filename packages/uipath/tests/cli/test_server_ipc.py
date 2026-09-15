@@ -358,8 +358,8 @@ class TestPooledSinks:
 
         asyncio.run(scenario())
 
-    @pytest.mark.parametrize("mode", ["no-client", "get_callback-raises"])
-    def test_runjob_fails_loud_when_opted_in_but_no_callback(self, monkeypatch, mode):
+    def test_runjob_fails_loud_when_not_invoked_over_ipc(self, monkeypatch):
+        """Only reachable by a direct call: the dispatcher always injects a Message with a client."""
         from uipath._cli import cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
@@ -372,15 +372,7 @@ class TestPooledSinks:
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
         message: "Message[None]"
-        if mode == "no-client":
-            message = Message()
-        else:
-
-            class _Client:
-                def get_callback(self, contract: Any) -> Any:
-                    raise RuntimeError("no callback available")
-
-            message = Message(client=cast(Any, _Client()))
+        message = Message()
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
@@ -392,11 +384,11 @@ class TestPooledSinks:
 
         result = asyncio.run(scenario())
         assert result.ExitCode == 1
-        assert "callback" in (result.Error or "").lower()
+        assert "over IPC" in (result.Error or "")
         assert ran == []
 
     @pytest.mark.parametrize(
-        "job_key", ["", "job-9", "00000000-0000-0000-0000-00000000000"]
+        "job_key", ["", "job-9", "00000000-0000-0000-0000-000000000000"]
     )
     def test_runjob_without_a_real_job_key_fails_loudly(self, monkeypatch, job_key):
         from uipath._cli import _job_api, cli_server_ipc

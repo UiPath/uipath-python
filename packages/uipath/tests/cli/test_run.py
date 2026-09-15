@@ -213,15 +213,46 @@ class TestRun:
             assert result.exit_code == 0
             assert "Successful execution." in result.output
 
-        def test_a_run_nobody_claimed_reaches_the_pipe(
-            self, runner: CliRunner, temp_dir: str
+        def test_the_flag_is_hidden_but_still_accepted(self, runner: CliRunner):
+            """Handler-only: it must stay out of --help and the published docs, yet keep working."""
+            assert (
+                "handler-ipc-pipe" not in runner.invoke(cli, ["run", "--help"]).output
+            )
+            # Hiding an option must not un-declare it.
+            assert (
+                "No such option"
+                not in runner.invoke(
+                    cli, ["run", "x", "--handler-ipc-pipe", "some-pipe"]
+                ).output
+            )
+
+        def test_the_job_runs_inside_the_open_connection(
+            self, runner: CliRunner, temp_dir: str, monkeypatch
         ):
-            opened: list[str] = []
+            """Dialling the pipe is not enough: the run has to happen while it is open."""
+            job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+            monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
+
+            events: list[str] = []
+            seen: list[tuple[str, str]] = []
 
             @asynccontextmanager
             async def _fake_connection(pipe, job_id):
-                opened.append(pipe)
-                yield None
+                seen.append((pipe, job_id))
+                events.append("open")
+                try:
+                    yield None
+                finally:
+                    events.append("close")
+
+            factory = _make_mock_factory(["my_agent"])
+            runtime = factory.new_runtime.return_value
+
+            async def _execute(*a, **k):
+                events.append("run")
+                return Mock(status="SUCCESSFUL")
+
+            runtime.execute = AsyncMock(side_effect=_execute)
 
             with runner.isolated_filesystem(temp_dir=temp_dir):
                 with (
@@ -231,7 +262,7 @@ class TestRun:
                     ),
                     patch(
                         "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
-                        return_value=_make_mock_factory(["my_agent"]),
+                        return_value=factory,
                     ),
                     patch(
                         "uipath._cli.cli_run.ResourceOverwritesContext",
@@ -245,11 +276,13 @@ class TestRun:
                         cli, ["run", "--handler-ipc-pipe", "some-pipe"]
                     )
 
-            assert opened == ["some-pipe"], f"output: {result.output!r}"
-            assert result.exit_code == 0
+            assert result.exit_code == 0, f"output: {result.output!r}"
+            # The whole point: the connection must still be open when the job runs.
+            assert events == ["open", "run", "close"], events
+            # And it must be told which job, not None.
+            assert seen == [("some-pipe", job_key)]
             assert "took over the run" not in result.output
 
-    class TestMiddleware:
         def test_autodiscover_entrypoint(self, runner: CliRunner, temp_dir: str):
             """When exactly one entrypoint exists, it is auto-resolved."""
             with runner.isolated_filesystem(temp_dir=temp_dir):

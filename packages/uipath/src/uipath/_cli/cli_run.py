@@ -120,6 +120,7 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     "--handler-ipc-pipe",
     required=False,
     default=None,
+    hidden=True,  # set by the job executor, never by a person
     help="Named pipe to stream this job's logs and result over uipath-ipc instead of writing them to files.",
 )
 @track_command("run")

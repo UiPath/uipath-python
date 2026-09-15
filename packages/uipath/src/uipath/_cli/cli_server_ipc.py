@@ -117,18 +117,15 @@ class PythonRuntimeService(IPythonRuntimeServer):
                     Error=f"StreamOutputOverIpc needs a 'JobKey' that is a job id; got {request.JobKey!r}",
                 )
 
-            callback = None
-            client = message.client if message is not None else None
-            if client is not None:
-                try:
-                    callback = client.get_callback(IJobInvocationCommonApi)  # type: ignore[type-abstract]
-                except Exception:
-                    callback = None
-            if callback is None:
+            if message is None or message.client is None:
                 return PythonServerRunJobResult(
                     ExitCode=1,
-                    Error="StreamOutputOverIpc was requested but no IPC callback is available",
+                    Error="StreamOutputOverIpc is only available when RunJob is invoked over IPC",
                 )
+
+            # get_callback only wraps the connection, so this cannot tell us whether the peer
+            # actually hosts the contract; a peer that doesn't shows up as a failing send.
+            callback = message.client.get_callback(IJobInvocationCommonApi)  # type: ignore[type-abstract]
 
             loop = asyncio.get_running_loop()
             job_key = request.JobKey

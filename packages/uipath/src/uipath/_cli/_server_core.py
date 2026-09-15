@@ -55,8 +55,9 @@ async def _run_command_isolated(
 ) -> dict[str, Any]:
     """Run one command with per-job env/cwd isolation (the shared job core).
 
-    ``on_run_start`` / ``on_run_end`` run INSIDE the serialization lock, so any per-job process-global
-    state is visible only while this job runs.
+    ``on_run_start`` / ``on_run_end`` run inside the serialization lock. That orders them against
+    the next job's start, but claims nothing once this task is cancelled: the job runs on a thread
+    that cancellation cannot reach, so it outlives the lock and the globals move under it.
     """
     if _state.lock is None or _state.baseline_env is None:
         raise RuntimeError("Server state not initialized")

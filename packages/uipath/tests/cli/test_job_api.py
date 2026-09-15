@@ -11,7 +11,8 @@ import logging
 import os
 import sys
 import threading
-import types
+from concurrent.futures import Future
+from contextvars import ContextVar
 from typing import Any
 
 import pytest
@@ -32,7 +33,7 @@ def test_to_result_dto_maps_status_error_and_path():
         title = "It broke"
         detail = "stack"
         category = _Category()
-        status = None
+        status = 404
 
     class _Result:
         status = UiPathRuntimeStatus.FAULTED
@@ -45,7 +46,15 @@ def test_to_result_dto_maps_status_error_and_path():
     assert dto.outputArgumentsFilePath == "out.args"
     assert dto.outputArguments is None
     assert dto.error is not None
-    assert (dto.error.Code, dto.error.Category) == ("BOOM", "User")
+    # Every field, so a swapped Title/Detail (a stack trace shown as the error's title in the
+    # job's failure record) cannot pass.
+    assert (
+        dto.error.Code,
+        dto.error.Title,
+        dto.error.Detail,
+        dto.error.Category,
+        dto.error.Status,
+    ) == ("BOOM", "It broke", "stack", "User", 404)
 
 
 def test_to_result_dto_defaults_to_successful_without_error():
@@ -59,6 +68,10 @@ def test_to_result_dto_defaults_to_successful_without_error():
 
 
 def test_to_result_dto_maps_suspended():
+    """Mapping only. Suspend never reaches SetResult -- the runtime delivers SUCCESSFUL/FAULTED
+    alone and the peer resolves a suspended job from output.json. Do not read this as the
+    suspend path being carried over IPC."""
+
     class _Result:
         status = UiPathRuntimeStatus.SUSPENDED
         error = None
@@ -108,17 +121,36 @@ def test_dto_wire_key_sets_are_pinned():
     }
 
 
-def _fake_output_sinks(monkeypatch) -> dict[str, Any]:
-    captured: dict[str, Any] = {}
-    module = types.ModuleType("uipath.runtime.output_sinks")
-    module.set_log_handler = lambda h: captured.__setitem__("handler", h)  # type: ignore[attr-defined]
-    module.set_result_sink = lambda s: captured.__setitem__("sink", s)  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "uipath.runtime.output_sinks", module)
-    return captured
+def _isolated_output_sinks(monkeypatch) -> Any:
+    """Read the sinks back through the REAL ContextVars.
+
+    A dict would record that something was installed but not *where*: installing from the wrong
+    thread or task would keep every test green while the job, looking the value up in its own
+    context, found nothing. Fresh ContextVars per test keep that observable and stop one test's
+    sinks leaking into the next.
+    """
+    from uipath.runtime import output_sinks
+
+    monkeypatch.setattr(
+        output_sinks, "_log_handler", ContextVar("test_log_handler", default=None)
+    )
+    monkeypatch.setattr(
+        output_sinks, "_result_sink", ContextVar("test_result_sink", default=None)
+    )
+
+    class _Installed:
+        def __getitem__(self, key: str) -> Any:
+            if key == "handler":
+                return output_sinks.get_log_handler()
+            if key == "sink":
+                return output_sinks.get_result_sink()
+            raise KeyError(key)
+
+    return _Installed()
 
 
 def test_install_wires_log_handler_and_result_sink(monkeypatch):
-    captured = _fake_output_sinks(monkeypatch)
+    captured = _isolated_output_sinks(monkeypatch)
     logs: list[tuple[str, Any]] = []
     results: list[tuple[str, Any]] = []
 
@@ -134,12 +166,12 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
         loop = asyncio.get_running_loop()
         _job_api.install_runtime_sinks("job-7", _Callback(), loop)
 
-        # The log handler forwards each record as SendLog, tagged with the job id.
+        # The log handler batches records and forwards them tagged with the job id.
         handler = captured["handler"]
         handler.emit(
             logging.LogRecord("n", logging.WARNING, "p", 1, "hi %s", ("there",), None)
         )
-        await asyncio.sleep(0.05)
+        await handler.aflush_pending()
         assert logs[0][0] == "job-7"
         assert logs[0][1].Message == "hi there"
         assert logs[0][1].LogLevel == _job_api.LogLevel.WARNING.value
@@ -157,27 +189,30 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
     asyncio.run(scenario())
 
 
-def test_log_forwarding_failure_does_not_escape_emit(monkeypatch):
-    captured = _fake_output_sinks(monkeypatch)
+def test_an_unformattable_record_does_not_escape_emit(monkeypatch):
+    """A mid-flight send failure is covered by the broken-channel test; this is the sync path."""
+    captured = _isolated_output_sinks(monkeypatch)
 
     class _Callback:
-        def SendLog(self, jid: str, dto: Any) -> None:
-            raise RuntimeError("pipe is gone")
+        async def SendLog(self, jid: str, log: Any) -> None:
+            return None
 
     loop = asyncio.new_event_loop()
     try:
-        _job_api.install_runtime_sinks("job-8", _Callback(), loop)
+        _job_api.install_runtime_sinks(JOB_ID, _Callback(), loop)
         handler = captured["handler"]
         handled: list[Any] = []
         monkeypatch.setattr(handler, "handleError", handled.append)
-        handler.emit(logging.LogRecord("n", logging.INFO, "p", 1, "hi", (), None))
+        # %d against a str: formatting raises inside emit.
+        handler.emit(logging.LogRecord("n", logging.INFO, "p", 1, "%d", ("x",), None))
         assert len(handled) == 1
+        assert handler._snapshot() == []
     finally:
         loop.close()
 
 
 def test_transport_and_self_logs_never_ride_the_ipc_channel(monkeypatch):
-    captured = _fake_output_sinks(monkeypatch)
+    captured = _isolated_output_sinks(monkeypatch)
     sent: list[Any] = []
     forwarded = threading.Event()
 
@@ -215,7 +250,7 @@ def test_transport_and_self_logs_never_ride_the_ipc_channel(monkeypatch):
 
 
 def test_rejected_result_is_reported(monkeypatch):
-    captured = _fake_output_sinks(monkeypatch)
+    captured = _isolated_output_sinks(monkeypatch)
 
     class _Callback:
         async def SetResult(self, jid: str, dto: Any) -> bool:
@@ -280,7 +315,7 @@ def test_teardown_does_not_raise_when_the_loop_thread_is_wedged():
 
 
 def test_pending_log_sends_are_flushed_before_teardown(monkeypatch):
-    _fake_output_sinks(monkeypatch)
+    _isolated_output_sinks(monkeypatch)
     landed: list[str] = []
 
     class _Callback:
@@ -306,7 +341,7 @@ def test_pending_log_sends_are_flushed_before_teardown(monkeypatch):
 
 
 def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch):
-    captured = _fake_output_sinks(monkeypatch)
+    captured = _isolated_output_sinks(monkeypatch)
 
     class _Callback:
         async def SetResult(self, jid: str, dto: Any) -> bool:
@@ -359,7 +394,7 @@ def test_install_is_a_noop_without_the_runtime(monkeypatch):
 
 def test_connect_installs_sinks_and_disconnect_clears(monkeypatch):
     pytest.importorskip("uipath_ipc")
-    captured = _fake_output_sinks(monkeypatch)
+    captured = _isolated_output_sinks(monkeypatch)
 
     class _Api(_job_api.IJobInvocationCommonApi):
         async def SendLog(self, jobId: str, log: Any) -> None:
@@ -388,7 +423,7 @@ def test_connect_installs_sinks_and_disconnect_clears(monkeypatch):
 
 def test_connect_fails_loudly_when_the_pipe_is_unreachable(monkeypatch):
     pytest.importorskip("uipath_ipc")
-    _fake_output_sinks(monkeypatch)
+    _isolated_output_sinks(monkeypatch)
 
     def live() -> int:
         return len(
@@ -414,13 +449,13 @@ def test_connect_without_uipath_ipc_raises(monkeypatch):
 
 
 def test_a_broken_log_channel_is_reported_once_to_stderr(monkeypatch):
-    _fake_output_sinks(monkeypatch)
+    _isolated_output_sinks(monkeypatch)
 
     buf = io.StringIO()
     monkeypatch.setattr(sys, "__stderr__", buf)
 
     class _Callback:
-        async def SendLog(self, job_id, log):
+        async def SendLog(self, job_id: str, log: Any) -> None:
             raise RuntimeError("pipe is gone")
 
     loop = asyncio.new_event_loop()
@@ -445,6 +480,25 @@ def test_a_broken_log_channel_is_reported_once_to_stderr(monkeypatch):
     assert out.count("no longer reaching the handler") == 1, out
 
 
+def test_a_cancelled_send_is_reported_like_any_other_failure(monkeypatch):
+    """`future.exception()` RAISES for a cancelled future, so this arm needs its own case."""
+    _isolated_output_sinks(monkeypatch)
+    buf = io.StringIO()
+    monkeypatch.setattr(sys, "__stderr__", buf)
+
+    loop = asyncio.new_event_loop()
+    try:
+        handler = _job_api._IpcLogHandler(JOB_ID, object(), loop)
+        cancelled: Future[object] = Future()
+        assert cancelled.cancel()
+
+        handler._settled(cancelled)
+    finally:
+        loop.close()
+
+    assert "no longer reaching the handler" in buf.getvalue()
+
+
 def _live_ipc_threads() -> int:
     return len(
         [
@@ -455,7 +509,18 @@ def _live_ipc_threads() -> int:
     )
 
 
-@pytest.mark.parametrize("job_id", [None, "", " ", "job-1", "not-a-guid"])
+@pytest.mark.parametrize(
+    "job_id",
+    [
+        None,
+        "",
+        " ",
+        "job-1",
+        "not-a-guid",
+        "00000000-0000-0000-0000-000000000000",  # Guid.Empty: parses, routes nowhere
+        "00000000-0000-0000-0000-00000000000",  # a digit short: malformed, not empty
+    ],
+)
 def test_connect_without_a_real_job_id_fails_fast(job_id):
     before = _live_ipc_threads()
     with pytest.raises(RuntimeError, match="UIPATH_JOB_KEY"):
@@ -540,7 +605,7 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
     caller's loop thread against a real in-proc server and assert SetResult actually arrived.
     """
     pytest.importorskip("uipath_ipc")
-    captured = _fake_output_sinks(monkeypatch)
+    captured = _isolated_output_sinks(monkeypatch)
     received: dict[str, Any] = {}
 
     class _Api(_job_api.IJobInvocationCommonApi):
@@ -563,6 +628,12 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
 
         async def scenario() -> None:
             conn = _job_api.connect_handler_ipc(pipe, JOB_ID_2)
+            # A log line has to survive the round trip too, not just the result.
+            captured["handler"].emit(
+                logging.LogRecord(
+                    "job", logging.WARNING, "p", 1, "over %s", ("ipc",), None
+                )
+            )
             # Call the sink ON this loop's thread, exactly as the runtime's __exit__ does. Before the
             # fix this deadlocked the loop the ack was scheduled on; now it completes.
             captured["sink"](_Result(), "out.args")
@@ -571,6 +642,13 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
         asyncio.run(scenario())
     finally:
         stop()
+
+    # F: the log half of the contract, asserted on the wire rather than against a fake.
+    assert "logs" in received, "SendLog never arrived over the pipe"
+    log_job_id, entry = received["logs"][0]
+    assert log_job_id == JOB_ID_2
+    assert entry.Message == "over ipc"
+    assert entry.LogLevel == _job_api.LogLevel.WARNING.value
 
     assert "result" in received, (
         "SetResult never arrived — the result sink deadlocked/timed out"

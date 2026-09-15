@@ -107,6 +107,8 @@ def _to_log_level(levelno: int) -> int:
 _EXECUTOR_STATUS: dict[str, int] = {
     "successful": ExecutorJobStatus.SUCCESSFUL.value,
     "faulted": ExecutorJobStatus.FAULTED.value,
+    # Defensive only: the runtime delivers a result for SUCCESSFUL and FAULTED alone, and the peer
+    # resolves a suspended job from output.json (resume triggers never cross the wire).
     "suspended": ExecutorJobStatus.SUSPENDED.value,
 }
 
@@ -168,8 +170,9 @@ class _IpcLogHandler(logging.Handler):
             _to_original_stderr(self, record)
             return
         try:
-            message = self.format(record)
-            dto = JobLogDto(Message=message, LogLevel=_to_log_level(record.levelno))
+            dto = JobLogDto(
+                Message=self.format(record), LogLevel=_to_log_level(record.levelno)
+            )
             future = asyncio.run_coroutine_threadsafe(
                 self._callback.SendLog(self._job_id, dto), self._loop
             )
@@ -315,12 +318,13 @@ class _HandlerIpcConnection:
 
 
 def is_wire_job_id(job_id: str | None) -> TypeGuard[str]:
-    """The peer types the job id as a Guid, and rejects anything it can't parse as one."""
+    """The peer types the job id as a Guid, and routes nothing for one it can't match."""
     try:
-        uuid.UUID(str(job_id))
+        parsed = uuid.UUID(str(job_id))
     except ValueError:
         return False
-    return True
+    # All-zeros is Guid's default, so it is the one unusable value a caller reaches by omission.
+    return parsed.int != 0
 
 
 def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
