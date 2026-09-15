@@ -10,6 +10,7 @@ from uipath.eval.mocks._structured_output import (
     RESPONSE_KEY,
     RESPONSE_TOOL_NAME,
     build_response_tool,
+    coerce_to_schema,
     extract_response,
     generate_structured_output,
 )
@@ -293,3 +294,98 @@ async def test_openai_models_prefer_response_format():
     assert result == {"a": 1}
     assert len(llm.calls) == 1
     assert "response_format" in llm.calls[0]
+
+
+# --- coerce_to_schema: stringified objects (SRE-655743) ---------------------
+
+
+def test_coerce_to_schema_unwraps_stringified_object():
+    assert coerce_to_schema('{"a": 1}', {"type": "object"}) == {"a": 1}
+
+
+def test_coerce_to_schema_unwraps_double_encoded_object():
+    double_encoded = json.dumps(json.dumps({"a": 1}))
+    assert coerce_to_schema(double_encoded, {"type": "object"}) == {"a": 1}
+
+
+def test_coerce_to_schema_leaves_scalar_schema_untouched():
+    # A string is a legitimate value for a string schema; never parse it.
+    assert coerce_to_schema('{"a": 1}', {"type": "string"}) == '{"a": 1}'
+    assert coerce_to_schema("ok", {"type": "string"}) == "ok"
+
+
+def test_coerce_to_schema_returns_non_json_string_unchanged():
+    assert coerce_to_schema("not json", {"type": "object"}) == "not json"
+
+
+def test_coerce_to_schema_passes_dict_through():
+    assert coerce_to_schema({"a": 1}, {"type": "object"}) == {"a": 1}
+
+
+def test_coerce_to_schema_leaves_stringified_non_object_json_unchanged():
+    # Valid JSON that is not an object must not be substituted for one; the
+    # caller reports the original string instead.
+    assert coerce_to_schema("[1, 2, 3]", {"type": "object"}) == "[1, 2, 3]"
+    assert coerce_to_schema("42", {"type": "object"}) == "42"
+    assert coerce_to_schema("null", {"type": "object"}) == "null"
+    # Double-encoded array: the inner decode yields a list, not an object.
+    double_encoded = json.dumps(json.dumps([1, 2]))
+    assert coerce_to_schema(double_encoded, {"type": "object"}) == double_encoded
+
+
+def test_coerce_to_schema_logs_when_it_unwraps(caplog: pytest.LogCaptureFixture):
+    logger_name = "uipath.eval.mocks._structured_output"
+    with caplog.at_level("INFO", logger=logger_name):
+        coerce_to_schema({"a": 1}, {"type": "object"})
+        assert caplog.records == []
+        coerce_to_schema('{"a": 1}', {"type": "object"})
+        coerce_to_schema(json.dumps(json.dumps({"a": 1})), {"type": "object"})
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 2
+    assert "encoded 1 time(s)" in messages[0]
+    assert "encoded 2 time(s)" in messages[1]
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_output_unwraps_stringified_tool_call_response():
+    # Claude-style path: forced tool call, but the model stringified the nested object.
+    llm = _FakeLLM(
+        [
+            _response(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[
+                        SimpleNamespace(
+                            arguments={RESPONSE_KEY: '{"messages": [{"role": "user"}]}'}
+                        )
+                    ],
+                )
+            )
+        ]
+    )
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="agent_input",
+        description="d",
+        completion_kwargs={"model": "claude-sonnet-4-6"},
+    )
+    assert result == {"messages": [{"role": "user"}]}
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_output_unwraps_double_encoded_response_format():
+    # OpenAI-style path: response_format content is a JSON string of a JSON object.
+    content = json.dumps(json.dumps({"messages": []}))
+    llm = _FakeLLM([_response(SimpleNamespace(content=content, tool_calls=None))])
+    result = await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        response_format_name="agent_input",
+        description="d",
+        completion_kwargs={},
+    )
+    assert result == {"messages": []}
+    assert len(llm.calls) == 1

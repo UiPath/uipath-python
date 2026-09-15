@@ -25,7 +25,7 @@ from opentelemetry.trace import (
     TraceFlags,
     use_span,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
@@ -64,6 +64,7 @@ from ..mocks._input_mocker import (
 )
 from ..mocks._mock_context import cache_manager_context
 from ..mocks._mock_runtime import UiPathMockRuntime
+from ..mocks._mocker import UiPathInputMockingError, format_exception_message
 from ..mocks._types import LLMMockingStrategy, MockingContext, ModelSettings
 from ..models import EvaluationResult
 from ..models.evaluation_set import (
@@ -964,7 +965,18 @@ class UiPathEvalRuntime:
             expected_behavior=eval_item.expected_agent_behavior or "",
             expected_output=expected_output,
         )
-        updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
+        # model_copy(update=...) skips validation, so a malformed generated input
+        # would only surface later as an opaque MockingContext error. Re-validate
+        # through the model instead and report it as an input-mocking failure.
+        try:
+            updated_eval_item = type(eval_item).model_validate(
+                {**eval_item.model_dump(by_alias=True), "inputs": generated_input}
+            )
+        except ValidationError as e:
+            raise UiPathInputMockingError(
+                "Simulated input does not match the evaluation item schema: "
+                f"{format_exception_message(e)}"
+            ) from e
         return updated_eval_item
 
     def _get_and_clear_execution_data(

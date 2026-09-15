@@ -238,6 +238,42 @@ def _strategy_for_model(model: str | None) -> ToolCallStructuredOutput:
     return ResponseFormatStructuredOutput()
 
 
+def coerce_to_schema(result: Any, schema: dict[str, Any]) -> Any:
+    """Unwrap a JSON object the model returned as a string.
+
+    Models sometimes stringify a nested object inside tool-call arguments, or
+    double-encode ``response_format`` content, so the caller receives a ``str``
+    holding JSON instead of the object it asked for. Only applies when the
+    schema asks for an object, which is the type affected by that
+    stringification bug; other schema types are left untouched to avoid
+    unintended coercion.
+
+    Handles single and double encoding. The string is returned unchanged when
+    it is not valid JSON, or when it decodes to something other than an object
+    (e.g. a stringified array), so the caller can report the real value.
+    """
+    if schema.get("type") != "object" or not isinstance(result, str):
+        return result
+    parsed: Any = result
+    for depth in range(1, 3):
+        try:
+            parsed = json.loads(parsed)
+        except json.JSONDecodeError:
+            return result
+        if isinstance(parsed, dict):
+            logger.info(
+                "Structured output was returned as a JSON string (encoded %d "
+                "time(s)); unwrapped it to match the object schema.",
+                depth,
+            )
+            return parsed
+        if not isinstance(parsed, str):
+            # Valid JSON, but not an object (e.g. an array): leave it to the
+            # caller to report rather than substituting a wrong type.
+            return result
+    return result
+
+
 async def generate_structured_output(
     llm: Any,
     messages: list[dict[str, str]],
@@ -249,7 +285,7 @@ async def generate_structured_output(
 ) -> Any:
     """Generate structured output using the strategy for the requested model."""
     strategy = _strategy_for_model(completion_kwargs.get("model"))
-    return await strategy.generate(
+    result = await strategy.generate(
         llm,
         messages,
         schema=schema,
@@ -257,3 +293,4 @@ async def generate_structured_output(
         description=description,
         completion_kwargs=completion_kwargs,
     )
+    return coerce_to_schema(result, schema)
