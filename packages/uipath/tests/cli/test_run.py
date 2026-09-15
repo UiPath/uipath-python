@@ -1,5 +1,6 @@
 # type: ignore
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
@@ -177,6 +178,138 @@ class TestRun:
                     )
                     assert result.exit_code == 0
                     assert "Successful execution." in result.output
+
+    class TestHandlerIpcPipe:
+        """``--handler-ipc-pipe`` promises the caller logs + result over a pipe."""
+
+        @staticmethod
+        def _taken_over():
+            return patch(
+                "uipath._cli.cli_run.Middlewares.next",
+                return_value=MiddlewareResult(
+                    should_continue=False,
+                    info_message="Execution succeeded",
+                    error_message=None,
+                    should_include_stacktrace=False,
+                ),
+            )
+
+        @pytest.mark.parametrize("pipe", ["some-pipe", ""])
+        def test_taken_over_run_cannot_honour_the_pipe(
+            self, runner: CliRunner, temp_dir: str, entrypoint: str, pipe: str
+        ):
+            with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
+                result = runner.invoke(
+                    cli, ["run", entrypoint, "--handler-ipc-pipe", pipe]
+                )
+            assert result.exit_code == 1
+            assert "a plugin took over the run" in result.output
+            assert "Successful execution." not in result.output
+
+        def test_taken_over_run_without_the_pipe_is_untouched(
+            self, runner: CliRunner, temp_dir: str, entrypoint: str
+        ):
+            with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
+                result = runner.invoke(cli, ["run", entrypoint])
+            assert result.exit_code == 0
+            assert "Successful execution." in result.output
+
+        def test_the_flag_is_hidden_but_still_accepted(self, runner: CliRunner):
+            """Handler-only: it must stay out of --help and the published docs, yet keep working."""
+            assert (
+                "handler-ipc-pipe" not in runner.invoke(cli, ["run", "--help"]).output
+            )
+            # Hiding an option must not un-declare it.
+            assert (
+                "No such option"
+                not in runner.invoke(
+                    cli, ["run", "x", "--handler-ipc-pipe", "some-pipe"]
+                ).output
+            )
+
+        def test_the_job_runs_inside_the_open_connection(
+            self, runner: CliRunner, temp_dir: str, monkeypatch
+        ):
+            """Dialling the pipe is not enough: the run has to happen while it is open."""
+            job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+            monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
+
+            events: list[str] = []
+            seen: list[tuple[str, str]] = []
+            snapshots: list[object] = []
+
+            from uipath.runtime import context as runtime_context
+            from uipath.runtime import output_sinks
+
+            sentinel = logging.Handler()
+
+            @asynccontextmanager
+            async def _fake_connection(pipe, job_id):
+                seen.append((pipe, job_id))
+                events.append("open")
+                # Install for real: the ordering that matters is against the runtime context's
+                # one-shot snapshot, not against runtime.execute.
+                output_sinks.set_log_handler(sentinel)
+                try:
+                    yield None
+                finally:
+                    output_sinks.set_log_handler(None)
+                    events.append("close")
+
+            # UiPathRuntimeContext.__enter__ reads the sink exactly once; record what it saw.
+            real_get = runtime_context.get_log_handler
+
+            def _spy_get_log_handler():
+                value = real_get()
+                snapshots.append(value)
+                return value
+
+            monkeypatch.setattr(
+                runtime_context, "get_log_handler", _spy_get_log_handler
+            )
+
+            factory = _make_mock_factory(["my_agent"])
+            runtime = factory.new_runtime.return_value
+
+            async def _execute(*a, **k):
+                events.append("run")
+                return Mock(status="SUCCESSFUL")
+
+            runtime.execute = AsyncMock(side_effect=_execute)
+
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                    patch(
+                        "uipath._cli._job_api.handler_ipc_connection", _fake_connection
+                    ),
+                ):
+                    result = runner.invoke(
+                        cli, ["run", "--handler-ipc-pipe", "some-pipe"]
+                    )
+
+            assert result.exit_code == 0, f"output: {result.output!r}"
+            # The whole point: the connection must still be open when the job runs.
+            assert events == ["open", "run", "close"], events
+            # And it must be told which job, not None.
+            assert seen == [("some-pipe", job_key)]
+            # The connection must be open BEFORE the runtime context snapshots the sinks: move it
+            # inside and __enter__ would capture None, losing every log line and the result.
+            assert snapshots == [sentinel], (
+                "the runtime context did not see the installed log sink"
+            )
+            assert "took over the run" not in result.output
 
     class TestMiddleware:
         def test_autodiscover_entrypoint(self, runner: CliRunner, temp_dir: str):

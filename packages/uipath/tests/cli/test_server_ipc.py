@@ -13,24 +13,28 @@ wiring and env isolation without it.
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import threading
 import time
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, cast
 
 import click
 import pytest
 from uipath_ipc import (
     IpcClient,
     IpcServer,
+    Message,
     NamedPipeClientTransport,
     NamedPipeServerTransport,
 )
 
 from uipath._cli import _server_core
+from uipath._cli._job_api import IJobInvocationCommonApi
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
+    PythonRuntimeService,
     PythonServerRunJobResult,
     start_ipc_server,
 )
@@ -122,6 +126,9 @@ def test_start_ipc_server_fails_fast_without_uipath_ipc(monkeypatch):
     coro = start_ipc_server(_unique_pipe())
     with pytest.raises(RuntimeError, match="uipath-ipc"):
         asyncio.run(coro)
+
+
+JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
 
 
 class TestIpcServer:
@@ -284,10 +291,12 @@ class TestIpcContractFieldTransit:
         received: list[Any] = []
 
         class SpyService(IPythonRuntimeServer):
-            async def Register(self) -> bool:
+            async def Register(self, message: Any) -> bool:
                 return True
 
-            async def RunJob(self, request: Any) -> PythonServerRunJobResult:
+            async def RunJob(
+                self, request: Any, *, message: Any = None
+            ) -> PythonServerRunJobResult:
                 received.append(request)
                 return PythonServerRunJobResult(ExitCode=0)
 
@@ -329,3 +338,309 @@ class TestIpcContractFieldTransit:
         assert stop_request.JobKey == job_key
         assert stop_request.ResumeVersion == 5
         assert stop_request.ForceStop is True
+
+
+class TestPooledSinks:
+    """Register is a readiness probe; RunJob derives the callback per request and installs sinks."""
+
+    def test_register_is_a_readiness_probe(self):
+        service = PythonRuntimeService()
+
+        async def scenario() -> None:
+            assert await service.Register(Message(client=cast(Any, object()))) is True
+
+        asyncio.run(scenario())
+
+    def test_register_without_a_client_is_a_noop(self):
+        service = PythonRuntimeService()
+
+        async def scenario() -> None:
+            assert await service.Register(Message()) is True
+
+        asyncio.run(scenario())
+
+    def test_runjob_fails_loud_when_not_invoked_over_ipc(self, monkeypatch):
+        """Only reachable by a direct call: the dispatcher always injects a Message with a client."""
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        ran: list[bool] = []
+
+        async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            ran.append(True)
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        message: "Message[None]"
+        message = Message()
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(request, message=message)
+
+        result = asyncio.run(scenario())
+        assert result.ExitCode == 1
+        assert "over IPC" in (result.Error or "")
+        assert ran == []
+
+    @pytest.mark.parametrize(
+        "job_key", ["", "job-9", "00000000-0000-0000-0000-000000000000"]
+    )
+    def test_runjob_without_a_real_job_key_fails_loudly(self, monkeypatch, job_key):
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import (
+            PythonRuntimeService,
+            PythonServerRunRequest,
+        )
+
+        events: list[Any] = []
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda jid, cb, loop: events.append(("install", jid)),
+        )
+
+        async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            events.append("run")
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey=job_key, Command="run", Args=[], StreamOutputOverIpc=True
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(
+                request, message=Message(client=cast(Any, _Client()))
+            )
+
+        result = asyncio.run(scenario())
+        assert result.ExitCode == 1
+        assert "JobKey" in (result.Error or "")
+        assert events == []
+
+    def test_runjob_without_streaming_does_not_need_a_job_key(self, monkeypatch):
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import (
+            PythonRuntimeService,
+            PythonServerRunRequest,
+        )
+
+        ran: list[bool] = []
+
+        async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            ran.append(True)
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(JobKey="", Command="run", Args=[])
+
+        async def scenario() -> Any:
+            return await service.RunJob(request)
+
+        result = asyncio.run(scenario())
+        assert result.ExitCode == 0
+        assert ran == [True]
+
+    def test_pooled_streaming_works_over_a_real_pipe(self, monkeypatch):
+        """No hand-fed ``message``: the dispatcher must inject it from the contract."""
+        from uipath._cli import _job_api, cli_server_ipc
+
+        installed: list[Any] = []
+        real_install = _job_api.install_runtime_sinks
+
+        def _record(jid, cb, loop):
+            installed.append(jid)
+            # Install for real: patching this away would leave the callback unused, so nothing
+            # would notice if RunJob asked the peer for the wrong contract.
+            return real_install(jid, cb, loop)
+
+        monkeypatch.setattr(_job_api, "install_runtime_sinks", _record)
+
+        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+            if on_run_start:
+                on_run_start()
+            # Emit through the installed sink, so a log line actually crosses the pipe.
+            from uipath.runtime import output_sinks
+
+            handler = cast(Any, output_sinks.get_log_handler())
+            assert handler is not None, "the sinks were not installed for this job"
+            handler.emit(
+                logging.LogRecord(
+                    "job", logging.INFO, "p", 1, "pooled %s", ("line",), None
+                )
+            )
+            handler.flush_pending(timeout=10.0)
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        delivered: list[tuple[str, Any]] = []
+
+        class _Callback:
+            async def SendLog(self, job_id: str, log: Any) -> None:
+                delivered.append((job_id, log))
+
+            async def SetResult(self, job_id: str, result: Any) -> bool:
+                return True
+
+        pipe = _unique_pipe()
+        _serve_in_background(pipe)
+
+        async def scenario() -> Any:
+            client = IpcClient(
+                transport=NamedPipeClientTransport(pipe),
+                callbacks={IJobInvocationCommonApi: _Callback()},
+            )
+            try:
+                proxy = client.get_proxy(IPythonRuntimeServer)  # type: ignore[type-abstract]
+                return await proxy.RunJob(
+                    cast(
+                        Any,
+                        {
+                            "JobKey": JOB_ID,
+                            "Command": "run",
+                            "Args": [],
+                            "StreamOutputOverIpc": True,
+                        },
+                    )
+                )
+            finally:
+                await client.aclose()
+
+        result = asyncio.run(scenario())
+        assert result.Error is None, result.Error
+        assert result.ExitCode == 0
+        assert installed == [JOB_ID]
+        # The contract passed to get_callback IS the endpoint key on the wire: ask for the wrong
+        # one and every send is addressed to something the peer does not host.
+        assert len(delivered) == 1, "no log line crossed the pooled callback"
+        assert delivered[0][0] == JOB_ID
+        assert delivered[0][1].Message == "pooled line"
+
+    def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[tuple[Any, ...]] = []
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda jid, cb, loop: events.append(("install", jid, cb)),
+        )
+        monkeypatch.setattr(
+            _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
+        )
+
+        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+            if on_run_start:
+                on_run_start()
+            events.append(("run",))
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
+        )
+
+        async def scenario() -> None:
+            await service.RunJob(request, message=Message(client=_Client()))
+
+        asyncio.run(scenario())
+        assert events == [("install", JOB_ID, "CALLBACK"), ("run",), ("clear",)]
+
+    def test_runjob_drains_pending_sends_before_returning(self, monkeypatch):
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[str] = []
+
+        class _Handler:
+            async def aflush_pending(self, *a: Any, **k: Any) -> None:
+                events.append("flush")
+
+        monkeypatch.setattr(
+            _job_api, "install_runtime_sinks", lambda jid, cb, loop: _Handler()
+        )
+        monkeypatch.setattr(_job_api, "clear_runtime_sinks", lambda: None)
+
+        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+            if on_run_start:
+                on_run_start()
+            events.append("run")
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
+        )
+
+        async def scenario() -> None:
+            await service.RunJob(request, message=Message(client=_Client()))
+
+        asyncio.run(scenario())
+        assert events == ["run", "flush"]
+
+    def test_runjob_skips_sinks_when_not_opted_in(self, monkeypatch):
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[tuple[Any, ...]] = []
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda jid, cb, loop: events.append(("install",)),
+        )
+        monkeypatch.setattr(
+            _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
+        )
+
+        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+            if on_run_start:
+                on_run_start()
+            events.append(("run",))
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(JobKey="job-9", Command="run", Args=[])
+
+        async def scenario() -> None:
+            await service.RunJob(request, message=Message(client=None))
+
+        asyncio.run(scenario())
+        assert events == [("run",)]

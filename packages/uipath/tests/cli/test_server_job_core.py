@@ -68,6 +68,75 @@ async def test_reports_unexpected_exception(restore_state: Any) -> None:
     assert "boom" in result["Error"]
 
 
+# The pooled channel installs a per-job sink via on_run_start and clears it via
+# on_run_end. The IPC layer's own tests fake this core, so the placement guarantees
+# below (clear-on-raise, install-after-cwd, no hooks on the bad-cwd early return)
+# are pinned here against the real core.
+
+
+@pytest.mark.parametrize("boom", [SystemExit(2), ValueError("kaboom")])
+async def test_on_run_end_fires_even_when_the_job_raises(
+    restore_state: Any, boom: BaseException
+) -> None:
+    _init(restore_state)
+    events: list[str] = []
+    cmd = Mock()
+    cmd.main.side_effect = boom
+    await _server_core._run_command_isolated(
+        cmd,
+        [],
+        {},
+        None,
+        on_run_start=lambda: events.append("start"),
+        on_run_end=lambda: events.append("end"),
+    )
+    # on_run_end is in a finally, so a raising job still clears its sink before the
+    # next job runs — otherwise a stale sink would cross-wire the next job.
+    assert events == ["start", "end"]
+
+
+async def test_on_run_start_sees_the_jobs_cwd_and_env(
+    restore_state: Any, tmp_path: Any
+) -> None:
+    _init(restore_state)
+    seen: dict[str, Any] = {}
+    cmd = Mock()
+
+    def _start() -> None:
+        seen["cwd"] = os.getcwd()
+        seen["env"] = os.environ.get("JOB_VAR")
+
+    await _server_core._run_command_isolated(
+        cmd,
+        [],
+        {"JOB_VAR": "42"},
+        str(tmp_path),
+        on_run_start=_start,
+        on_run_end=lambda: None,
+    )
+    # The hook runs after env/cwd are applied, so it sees exactly what the job sees.
+    assert os.path.samefile(seen["cwd"], str(tmp_path))
+    assert seen["env"] == "42"
+
+
+async def test_hooks_do_not_run_on_bad_working_dir(
+    restore_state: Any, tmp_path: Any
+) -> None:
+    _init(restore_state)
+    events: list[str] = []
+    result = await _server_core._run_command_isolated(
+        Mock(),
+        [],
+        {},
+        str(tmp_path / "does-not-exist"),
+        on_run_start=lambda: events.append("start"),
+        on_run_end=lambda: events.append("end"),
+    )
+    assert result["ClientError"] is True
+    # The early return sits above on_run_start: no install means no clear owed.
+    assert events == []
+
+
 # parse_args accepts what every caller sends: the .NET peer sends a single
 # string (shlex-split), HTTP dicts / tests may send a pre-split list, or None.
 
