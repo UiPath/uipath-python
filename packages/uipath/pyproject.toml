@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
   "uipath-core>=0.5.30, <0.6.0",
   "uipath-runtime>=0.13.5, <0.14.0",
-  "uipath-platform>=0.2.27, <0.3.0",
+  "uipath-platform>=0.2.29, <0.3.0",
   "click>=8.3.3, <9.0.0",
   "httpx>=0.28.1",
   "pyjwt>=2.13.0, <3.0.0",
