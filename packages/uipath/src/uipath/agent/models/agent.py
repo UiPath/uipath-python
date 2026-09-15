@@ -81,6 +81,23 @@ def _case_insensitive_enum_validator(
     return BeforeValidator(normalizer)
 
 
+# solution_folder placeholder needs to be coverted to None so that inline guardrail escalations can be resolved just-in-time
+_SOLUTION_LOCAL_FOLDER_PLACEHOLDERS = frozenset({"solution_folder", ".", ""})
+
+
+def _normalize_solution_local_folder(value: Any) -> Any:
+    """Map a solution-local folder placeholder onto ``None``."""
+    if isinstance(value, str) and value.strip() in _SOLUTION_LOCAL_FOLDER_PLACEHOLDERS:
+        return None
+    return value
+
+
+SolutionLocalFolder = Annotated[
+    Optional[str], BeforeValidator(_normalize_solution_local_folder)
+]
+"""A folder field that may carry the solution-local placeholder; parsed as ``None``."""
+
+
 class CaseInsensitiveEnum(Enum):
     """Base class for case-insensitive enums."""
 
@@ -830,7 +847,7 @@ class AgentEscalationChannelProperties(BaseEscalationChannelProperties):
 
     app_name: str | None = Field(default=None, alias="appName")
     app_version: int = Field(..., alias="appVersion")
-    folder_name: Optional[str] = Field(None, alias="folderName")
+    folder_name: SolutionLocalFolder = Field(None, alias="folderName")
     resource_key: str | None = Field(default=None, alias="resourceKey")
 
 
@@ -1216,7 +1233,7 @@ class AgentGuardrailEscalateActionApp(BaseModel):
     version: int
     name: str
     folder_id: Optional[str] = Field(None, alias="folderId")
-    folder_name: str = Field(alias="folderName")
+    folder_name: SolutionLocalFolder = Field(None, alias="folderName")
     app_process_key: Optional[str] = Field(None, alias="appProcessKey")
     runtime: Optional[str] = None
     model_config = ConfigDict(populate_by_name=True, extra="allow")
