@@ -89,7 +89,7 @@ The example below uses LangChain. Swap `uipath-langchain` for the framework of y
 ////
 
 /// info | Guaranteeing an agent project
-`uipath new` defaults to `--type auto`: the installed framework integration claims the scaffold, which is why the commands above create an agent project. Pass `--type agent` to make that a requirement — it fails with instructions instead of creating a function project when no framework is installed, which is the difference that matters in CI and in scripts:
+`uipath new` defaults to `--type auto`: the installed framework integration claims the scaffold, which is why the commands above create an agent project. Pass `--type agent` to make that a requirement — it fails with instructions instead of creating a function project when no framework is installed:
 
 ```shell
 uipath new agent --type agent
