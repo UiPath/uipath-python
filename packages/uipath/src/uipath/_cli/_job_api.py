@@ -18,9 +18,16 @@ from typing import Any, TypeGuard
 
 logger = logging.getLogger(__name__)
 
-_SET_RESULT_TIMEOUT_S = 30.0
-_LOG_FLUSH_TIMEOUT_S = 5.0
-_IPC_REQUEST_TIMEOUT_S = 30.0
+# Generous on purpose, and a ceiling rather than a delay: a healthy peer acks in under a millisecond,
+# so these only elapse when something is already wrong. Nothing throttles emit, so a chatty job can
+# leave thousands of sends in flight at teardown -- a peer that is merely slow, not dead, still needs
+# time to drain them, and the tail is the part of a log worth having.
+_SET_RESULT_TIMEOUT_S = 120.0
+_LOG_FLUSH_TIMEOUT_S = 120.0
+_IPC_REQUEST_TIMEOUT_S = 120.0
+# Inbound frame cap. uipath-ipc defaults to 2 MB, but every .NET server on this contract already
+# accepts 30 (PythonJobApiServer, IpcServerDefaults), so matching keeps the pair symmetric.
+_MAX_MESSAGE_BYTES = 30 * 1024 * 1024
 
 _NO_IPC_LOGGERS = ("uipath_ipc", __name__)
 
@@ -224,15 +231,20 @@ def install_runtime_sinks(
     """Install the log + result sinks, forwarding to ``callback`` on ``loop``.
 
     ``loop`` must run on a different thread than the one the sinks are invoked on, or the result ack
-    deadlocks. No-op if the sinks aren't available.
+    deadlocks. Raises if this runtime has no sinks to install into.
     """
     try:
         from uipath.runtime.output_sinks import (
             set_log_handler,
             set_result_sink,
         )
-    except ImportError:
-        return None
+    except ImportError as e:
+        # The caller has already stopped watching execution.log on our promise, so falling back to
+        # it would lose the whole job's output in silence.
+        raise RuntimeError(
+            "This uipath-runtime has no output sinks, so job logs cannot be streamed over IPC. "
+            "Install uipath-runtime>=0.13.5."
+        ) from e
 
     handler = _IpcLogHandler(job_id, callback, loop)
     handler.setFormatter(logging.Formatter("%(message)s"))
@@ -357,7 +369,11 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
                 f"Could not reach the handler IPC pipe {pipe!r}: {e}"
             ) from e
         writer.close()
-        client = IpcClient(transport=transport, request_timeout=_IPC_REQUEST_TIMEOUT_S)
+        client = IpcClient(
+            transport=transport,
+            request_timeout=_IPC_REQUEST_TIMEOUT_S,
+            max_message_size=_MAX_MESSAGE_BYTES,
+        )
         proxy = client.get_proxy(IJobInvocationCommonApi)  # type: ignore[type-abstract]
         return client, proxy
 

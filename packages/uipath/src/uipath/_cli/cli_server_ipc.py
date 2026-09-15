@@ -180,10 +180,13 @@ async def start_ipc_server(pipe_name: str) -> None:
 
     _ensure_runtime_initialized()
 
+    from ._job_api import _MAX_MESSAGE_BYTES
+
     server = IpcServer(
         transport=NamedPipeServerTransport(pipe_name),
         services={IPythonRuntimeServer: PythonRuntimeService()},
         request_timeout=None,  # jobs are long-running; no server-side timeout
+        max_message_size=_MAX_MESSAGE_BYTES,
     )
     console.success(f"IPC server listening on pipe '{pipe_name}'")
     async with server:

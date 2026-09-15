@@ -13,6 +13,7 @@ wiring and env isolation without it.
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import threading
@@ -459,24 +460,41 @@ class TestPooledSinks:
         from uipath._cli import _job_api, cli_server_ipc
 
         installed: list[Any] = []
-        monkeypatch.setattr(
-            _job_api,
-            "install_runtime_sinks",
-            lambda jid, cb, loop: installed.append(jid),
-        )
+        real_install = _job_api.install_runtime_sinks
+
+        def _record(jid, cb, loop):
+            installed.append(jid)
+            # Install for real: patching this away would leave the callback unused, so nothing
+            # would notice if RunJob asked the peer for the wrong contract.
+            return real_install(jid, cb, loop)
+
+        monkeypatch.setattr(_job_api, "install_runtime_sinks", _record)
 
         async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
             if on_run_start:
                 on_run_start()
+            # Emit through the installed sink, so a log line actually crosses the pipe.
+            from uipath.runtime import output_sinks
+
+            handler = cast(Any, output_sinks.get_log_handler())
+            assert handler is not None, "the sinks were not installed for this job"
+            handler.emit(
+                logging.LogRecord(
+                    "job", logging.INFO, "p", 1, "pooled %s", ("line",), None
+                )
+            )
+            handler.flush_pending(timeout=10.0)
             if on_run_end:
                 on_run_end()
             return {"ExitCode": 0, "Error": None}
 
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
+        delivered: list[tuple[str, Any]] = []
+
         class _Callback:
             async def SendLog(self, job_id: str, log: Any) -> None:
-                return None
+                delivered.append((job_id, log))
 
             async def SetResult(self, job_id: str, result: Any) -> bool:
                 return True
@@ -509,6 +527,11 @@ class TestPooledSinks:
         assert result.Error is None, result.Error
         assert result.ExitCode == 0
         assert installed == [JOB_ID]
+        # The contract passed to get_callback IS the endpoint key on the wire: ask for the wrong
+        # one and every send is addressed to something the peer does not host.
+        assert len(delivered) == 1, "no log line crossed the pooled callback"
+        assert delivered[0][0] == JOB_ID
+        assert delivered[0][1].Message == "pooled line"
 
     def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc

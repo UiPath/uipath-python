@@ -1,8 +1,8 @@
 """The uipath-python job-api glue: result mapping and the runtime-sink installer.
 
-The runtime side (``uipath.runtime.output_sinks``) is faked here so these tests exercise the wiring
-in isolation — that install points a log handler + result sink at the callback, that the handler
-forwards SendLog, and that the result sink maps the runtime result and calls SetResult.
+The runtime's real ``output_sinks`` ContextVars are used, with a fresh pair per test: a dict would
+record that a sink was installed but not in which context, and the context is the thing that decides
+whether the job ever sees it.
 """
 
 import asyncio
@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from concurrent.futures import Future
 from contextvars import ContextVar
 from typing import Any
@@ -166,7 +167,7 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
         loop = asyncio.get_running_loop()
         _job_api.install_runtime_sinks("job-7", _Callback(), loop)
 
-        # The log handler batches records and forwards them tagged with the job id.
+        # The log handler forwards each record, tagged with the job id.
         handler = captured["handler"]
         handler.emit(
             logging.LogRecord("n", logging.WARNING, "p", 1, "hi %s", ("there",), None)
@@ -385,10 +386,9 @@ def test_result_delivery_failure_is_swallowed_and_logged(monkeypatch):
     )
 
 
-def test_install_is_a_noop_without_the_runtime(monkeypatch):
-    # An older uipath-runtime has no output_sinks module: install/clear must not raise.
+def test_clear_is_a_noop_without_the_runtime(monkeypatch):
+    # Teardown still has to work on an older runtime -- only install refuses (see the test below).
     monkeypatch.setitem(sys.modules, "uipath.runtime.output_sinks", None)
-    _job_api.install_runtime_sinks("j", object(), asyncio.new_event_loop())
     _job_api.clear_runtime_sinks()
 
 
@@ -408,11 +408,12 @@ def test_connect_installs_sinks_and_disconnect_clears(monkeypatch):
     try:
 
         async def scenario() -> None:
-            conn = _job_api.connect_handler_ipc(pipe, JOB_ID)
-            assert captured["handler"] is not None
-            assert captured["sink"] is not None
+            # The context manager, not the two halves: cli_run.py only ever uses this, and a
+            # wiring mistake inside it would leave every assertion below untouched.
+            async with _job_api.handler_ipc_connection(pipe, JOB_ID):
+                assert captured["handler"] is not None
+                assert captured["sink"] is not None
 
-            await _job_api.disconnect_handler_ipc(conn)
             assert captured["handler"] is None
             assert captured["sink"] is None
 
@@ -497,6 +498,22 @@ def test_a_cancelled_send_is_reported_like_any_other_failure(monkeypatch):
         loop.close()
 
     assert "no longer reaching the handler" in buf.getvalue()
+
+
+def test_missing_output_sinks_fails_loudly(monkeypatch):
+    """Silently returning None would lose the job: the peer has already stopped watching the file."""
+    monkeypatch.setitem(sys.modules, "uipath.runtime.output_sinks", None)
+
+    with pytest.raises(RuntimeError, match="uipath-runtime"):
+        _job_api.install_runtime_sinks(JOB_ID, object(), asyncio.new_event_loop())
+
+
+def test_the_frame_cap_matches_the_dotnet_peer():
+    """Both .NET servers on this contract accept 30 MB; uipath-ipc would otherwise default to 2."""
+    from uipath_ipc.wire import MAX_PAYLOAD_BYTES
+
+    assert _job_api._MAX_MESSAGE_BYTES == 30 * 1024 * 1024
+    assert _job_api._MAX_MESSAGE_BYTES > MAX_PAYLOAD_BYTES
 
 
 def _live_ipc_threads() -> int:
@@ -636,14 +653,27 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
             )
             # Call the sink ON this loop's thread, exactly as the runtime's __exit__ does. Before the
             # fix this deadlocked the loop the ack was scheduled on; now it completes.
+            started = time.monotonic()
             captured["sink"](_Result(), "out.args")
+            elapsed = time.monotonic() - started
+
+            # Assert BEFORE any await. Deadlocked, the sink burns _SET_RESULT_TIMEOUT_S and gives
+            # up; the queued ack then completes during the await below and the result shows up
+            # anyway, so anything asserted after an await passes either way.
+            assert "result" in received, (
+                "SetResult did not complete on the caller's loop thread"
+            )
+            assert elapsed < 5, (
+                f"the sink blocked for {elapsed:.1f}s — the ack could not run"
+            )
+
             await _job_api.disconnect_handler_ipc(conn)
 
         asyncio.run(scenario())
     finally:
         stop()
 
-    # F: the log half of the contract, asserted on the wire rather than against a fake.
+    # The log half of the contract, asserted on the wire rather than against a fake.
     assert "logs" in received, "SendLog never arrived over the pipe"
     log_job_id, entry = received["logs"][0]
     assert log_job_id == JOB_ID_2

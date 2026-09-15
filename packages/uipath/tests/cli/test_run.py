@@ -1,5 +1,6 @@
 # type: ignore
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
@@ -235,15 +236,37 @@ class TestRun:
 
             events: list[str] = []
             seen: list[tuple[str, str]] = []
+            snapshots: list[object] = []
+
+            from uipath.runtime import context as runtime_context
+            from uipath.runtime import output_sinks
+
+            sentinel = logging.Handler()
 
             @asynccontextmanager
             async def _fake_connection(pipe, job_id):
                 seen.append((pipe, job_id))
                 events.append("open")
+                # Install for real: the ordering that matters is against the runtime context's
+                # one-shot snapshot, not against runtime.execute.
+                output_sinks.set_log_handler(sentinel)
                 try:
                     yield None
                 finally:
+                    output_sinks.set_log_handler(None)
                     events.append("close")
+
+            # UiPathRuntimeContext.__enter__ reads the sink exactly once; record what it saw.
+            real_get = runtime_context.get_log_handler
+
+            def _spy_get_log_handler():
+                value = real_get()
+                snapshots.append(value)
+                return value
+
+            monkeypatch.setattr(
+                runtime_context, "get_log_handler", _spy_get_log_handler
+            )
 
             factory = _make_mock_factory(["my_agent"])
             runtime = factory.new_runtime.return_value
@@ -281,8 +304,14 @@ class TestRun:
             assert events == ["open", "run", "close"], events
             # And it must be told which job, not None.
             assert seen == [("some-pipe", job_key)]
+            # The connection must be open BEFORE the runtime context snapshots the sinks: move it
+            # inside and __enter__ would capture None, losing every log line and the result.
+            assert snapshots == [sentinel], (
+                "the runtime context did not see the installed log sink"
+            )
             assert "took over the run" not in result.output
 
+    class TestMiddleware:
         def test_autodiscover_entrypoint(self, runner: CliRunner, temp_dir: str):
             """When exactly one entrypoint exists, it is auto-resolved."""
             with runner.isolated_filesystem(temp_dir=temp_dir):
