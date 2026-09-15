@@ -769,7 +769,7 @@ class TestAgentBuilderConfig:
         assert escalate_action.action_type == "escalate"
         assert escalate_action.app.id == "cf4cb73d-7310-49b1-9a9e-e7653dad7f4e"
         assert escalate_action.app.name == "-Guardrail Form"
-        assert escalate_action.app.folder_name == "solution_folder"
+        assert escalate_action.app.folder_name is None
         assert escalate_action.recipient.type == AgentEscalationRecipientType.USER_ID
         assert escalate_action.recipient.value == "5f872639-fc71-4a50-b17d-f68eb357b436"
         assert escalate_action.recipient.display_name == "User Name"
@@ -4811,3 +4811,71 @@ class TestAgentModelSettings:
             self._agent_settings(modelSettings=native)
         )
         assert settings.model_dump(by_alias=True)["modelSettings"] == native
+
+
+class TestSolutionLocalFolderNormalization:
+    """A solution-local resource has no real folder; Studio Web stores a placeholder.
+
+    Forwarding that placeholder as a folder makes Action Center resolve an app in a
+    folder that does not exist, so it is normalized to None at parse time.
+    """
+
+    @staticmethod
+    def _channel(folder_name: Any) -> dict[str, Any]:
+        return {
+            "name": "Channel",
+            "description": "",
+            "inputSchema": {"type": "object", "properties": {}},
+            "type": "actionCenter",
+            "recipients": [],
+            "properties": {
+                "appName": "SimpleApprovalApp",
+                "appVersion": 1,
+                "folderName": folder_name,
+            },
+        }
+
+    @staticmethod
+    def _guardrail_app(folder_name: Any) -> dict[str, Any]:
+        return {
+            "$actionType": "escalate",
+            "app": {
+                "id": "812e9239-4cb9-4bd9-9479-bf4f35731e8f",
+                "version": 1,
+                "name": "Guardrail Escalation Action App 1",
+                "folderId": "d8fa328c-cf2e-fae9-2818-da090419aba3",
+                "folderName": folder_name,
+            },
+            "recipient": {"type": 1, "value": "user-id", "displayName": "user"},
+        }
+
+    @pytest.mark.parametrize("placeholder", ["solution_folder", "", ".", "  "])
+    def test_escalation_channel_placeholder_becomes_none(self, placeholder: str):
+        channel = TypeAdapter(AgentEscalationChannel).validate_python(
+            self._channel(placeholder)
+        )
+        assert channel.properties.folder_name is None
+
+    @pytest.mark.parametrize("placeholder", ["solution_folder", "", ".", "  "])
+    def test_guardrail_escalate_app_placeholder_becomes_none(self, placeholder: str):
+        action = AgentGuardrailEscalateAction.model_validate(
+            self._guardrail_app(placeholder)
+        )
+        assert action.app.folder_name is None
+
+    def test_guardrail_escalate_app_folder_name_is_optional(self):
+        """Definitions written before the placeholder was dropped omit it entirely."""
+        payload = self._guardrail_app("solution_folder")
+        del payload["app"]["folderName"]
+        action = AgentGuardrailEscalateAction.model_validate(payload)
+        assert action.app.folder_name is None
+
+    def test_real_folder_survives(self):
+        channel = TypeAdapter(AgentEscalationChannel).validate_python(
+            self._channel("Shared/Apps")
+        )
+        action = AgentGuardrailEscalateAction.model_validate(
+            self._guardrail_app("Shared")
+        )
+        assert channel.properties.folder_name == "Shared/Apps"
+        assert action.app.folder_name == "Shared"
