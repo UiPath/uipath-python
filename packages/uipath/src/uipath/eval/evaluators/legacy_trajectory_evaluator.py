@@ -101,6 +101,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=workload_execution.expected_agent_behavior,
             agent_run_history=workload_execution.workload_trace,
+            workload_output=workload_execution.workload_output,
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 
@@ -113,6 +114,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         self,
         expected_agent_behavior: Any,
         agent_run_history: Any,
+        workload_output: Any = None,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         # Validate that expected agent behavior is not empty
@@ -142,6 +144,18 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
             agent_run_history = trace_to_str(agent_run_history)
         else:
             agent_run_history = str(agent_run_history)
+
+        # trace_to_str only ever renders tool-call spans, so a tool-free
+        # text-only response leaves agent_run_history empty even though the
+        # agent genuinely answered. Append the actual final output so the
+        # judge always sees what the agent answered (UV-16309).
+        if workload_output:
+            final_output_section = f"Agent Final Response:\n{workload_output}"
+            agent_run_history = (
+                f"{agent_run_history}\n\n{final_output_section}"
+                if agent_run_history
+                else final_output_section
+            )
 
         formatted_prompt = formatted_prompt.replace(
             self.agent_run_history_placeholder,
