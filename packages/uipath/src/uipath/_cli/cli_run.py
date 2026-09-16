@@ -40,6 +40,7 @@ from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
+from .runtimes import requires_runtime
 
 console = ConsoleLogger()
 
@@ -123,6 +124,7 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     hidden=True,  # set by the job executor, never by a person
     help="Named pipe to stream this job's logs and result over uipath-ipc instead of writing them to files.",
 )
+@requires_runtime
 @track_command("run")
 def run(
     entrypoint: str | None,

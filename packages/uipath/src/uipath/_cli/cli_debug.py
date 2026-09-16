@@ -33,6 +33,7 @@ from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from .middlewares import Middlewares
+from .runtimes import requires_runtime
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ logger = logging.getLogger(__name__)
     default=None,
     help="Simulation config as a JSON object (same schema as simulation.json)",
 )
+@requires_runtime
 @track_command("debug")
 def debug(
     entrypoint: str | None,
