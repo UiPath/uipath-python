@@ -1,6 +1,6 @@
 [project]
 name = "uipath"
-version = "2.14.19"
+version = "2.14.20"
 description = "Python SDK and CLI for UiPath Platform, enabling programmatic interaction with automation services, process management, and deployment tools."
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -8,6 +8,7 @@ dependencies = [
   "uipath-core>=0.5.30, <0.6.0",
   "uipath-runtime>=0.13.5, <0.14.0",
   "uipath-platform>=0.2.30, <0.3.0",
+  "uipath-ipc>=2.5.1, <2.6.0",
   "click>=8.3.3, <9.0.0",
   "httpx>=0.28.1",
   "pyjwt>=2.13.0, <3.0.0",
@@ -46,6 +47,7 @@ Documentation = "https://uipath.github.io/uipath-python/"
 [project.scripts]
 uipath = "uipath._cli:cli"
 
+# Kept so an existing `uipath[ipc]` requirement still resolves; uipath-ipc is a base dependency now.
 [project.optional-dependencies]
 ipc = ["uipath-ipc>=2.5.1,<2.6.0"]
 
@@ -82,7 +84,6 @@ dev = [
   "types-PyYAML>=6.0",
   "pytest-timeout>=2.4.0",
   "packaging>=24.0",
-  "uipath-ipc>=2.5.1,<2.6.0",
 ]
 
 [tool.hatch.build.targets.wheel]

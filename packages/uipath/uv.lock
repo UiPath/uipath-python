@@ -2599,7 +2599,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.14.19"
+version = "2.14.20"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2620,6 +2620,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "truststore" },
     { name = "uipath-core" },
+    { name = "uipath-ipc" },
     { name = "uipath-platform" },
     { name = "uipath-runtime" },
 ]
@@ -2657,7 +2658,6 @@ dev = [
     { name = "tomli-w" },
     { name = "types-pyyaml" },
     { name = "types-toml" },
-    { name = "uipath-ipc" },
     { name = "virtualenv" },
 ]
 
@@ -2681,6 +2681,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../uipath-core" },
+    { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-ipc", marker = "extra == 'ipc'", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.13.5,<0.14.0" },
@@ -2715,7 +2716,6 @@ dev = [
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
     { name = "types-toml", specifier = ">=0.10.8" },
-    { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 

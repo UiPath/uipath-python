@@ -350,7 +350,8 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
         from uipath_ipc import IpcClient, NamedPipeClientTransport
     except ImportError as e:
         raise RuntimeError(
-            "--handler-ipc-pipe requires the 'uipath-ipc' package. Install it (pip install 'uipath[ipc]')."
+            "--handler-ipc-pipe requires the 'uipath-ipc' package, which ships with uipath "
+            "but is missing from this environment. Reinstall uipath."
         ) from e
 
     loop = _new_ipc_event_loop()
