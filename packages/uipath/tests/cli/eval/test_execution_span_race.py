@@ -44,23 +44,29 @@ from uipath.eval.runtime.runtime import UiPathEvalRuntime
 EXECUTION_ID = "exec-race-1"
 
 
+def _pin_batch_schedule(processor: ExecutionSpanProcessor) -> None:
+    """Stop the processor's own background worker from auto-exporting.
+
+    `ExecutionSpanProcessor` is a real `BatchSpanProcessor` with its own
+    background worker thread, which auto-flushes every 5s by default (or
+    when its queue fills). Tests asserting "not yet exported at this exact
+    moment" would otherwise flake if that worker thread woke up and exported
+    on its own between a span ending and the assertion running. Pin the
+    schedule delay far beyond any test's runtime so only an explicit
+    `force_flush()`/`flush_spans()` call ever exports anything.
+    """
+    batch_processor = processor._batch_processor
+    batch_processor._schedule_delay_millis = 3600_000
+    batch_processor._schedule_delay = 3600.0
+
+
 def _make_processor() -> tuple[
     ExecutionSpanProcessor, ExecutionSpanExporter, trace.Tracer
 ]:
     exporter = ExecutionSpanExporter()
     collector = ExecutionSpanCollector()
     processor = ExecutionSpanProcessor(exporter, collector)
-
-    # ExecutionSpanProcessor is a real BatchSpanProcessor with its default
-    # 5s periodic auto-flush running on its own background thread. These
-    # tests assert that a span is *not yet* exported at a specific moment,
-    # so that background thread waking up and exporting on its own between
-    # the span ending and the assertion would make the test flaky. Push its
-    # schedule delay far beyond any test's runtime so only the explicit
-    # `force_flush()` calls below ever export anything.
-    batch_processor = processor._batch_processor
-    batch_processor._schedule_delay_millis = 3600_000
-    batch_processor._schedule_delay = 3600.0
+    _pin_batch_schedule(processor)
 
     provider = TracerProvider()
     provider.add_span_processor(processor)
@@ -190,6 +196,7 @@ def test_get_and_clear_execution_data_flushes_before_reading() -> None:
     span_exporter = ExecutionSpanExporter()
     span_collector = ExecutionSpanCollector()
     span_processor = ExecutionSpanProcessor(span_exporter, span_collector)
+    _pin_batch_schedule(span_processor)
     trace_manager.add_span_processor(span_processor)
     logs_exporter = ExecutionLogsExporter()
 
