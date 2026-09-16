@@ -964,6 +964,7 @@ class UiPathResumeTriggerCreator:
                 attachments=value.attachments,
                 folder_path=value.process_folder_path,
                 folder_key=value.process_folder_key,
+                entry_point_path=value.entry_point_path,
             )
             if not job:
                 raise Exception("Failed to invoke process")

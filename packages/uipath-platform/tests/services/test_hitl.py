@@ -1335,6 +1335,39 @@ class TestHitlProcessor:
                 attachments=None,
                 folder_path=invoke_process.process_folder_path,
                 folder_key=None,
+                entry_point_path=None,
+            )
+
+    @pytest.mark.anyio
+    async def test_create_resume_trigger_invoke_process_entry_point_path(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """A suspending caller can pick which entry point of the process it starts."""
+        invoke_process = InvokeProcess(
+            name="TestProcess",
+            process_folder_path="/test/path",
+            input_arguments={"key": "value"},
+            entry_point_path="content/functions/get-purchase-order.ts",
+        )
+
+        mock_job = Job(
+            id=1234,
+            key="test-job-key",
+            folder_key="d0e09040-5997-44e1-93b7-4087689521b7",
+        )
+        mock_invoke = AsyncMock(return_value=mock_job)
+
+        with patch(
+            "uipath.platform.orchestrator._processes_service.ProcessesService.invoke_async",
+            new=mock_invoke,
+        ) as mock_process_invoke_async:
+            processor = UiPathResumeTriggerCreator()
+            await processor.create_trigger(invoke_process)
+
+            assert (
+                mock_process_invoke_async.call_args.kwargs["entry_point_path"]
+                == "content/functions/get-purchase-order.ts"
             )
 
     @pytest.mark.anyio
