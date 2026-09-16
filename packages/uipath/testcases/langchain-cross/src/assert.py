@@ -1,5 +1,7 @@
 import json
 import os
+
+from startup_assert import assert_help_does_not_load_runtime_stack
 from trace_assert import assert_traces
 
 # Check NuGet package
@@ -47,3 +49,9 @@ assert_traces(".uipath/traces.jsonl", "expected_traces.json")
 
 print("Required fields validation passed")
 print(f"Output structure validation passed - report: '{actual_report}'")
+
+# uipath-langchain registers a `uipath.runtime.factories` entry point, so this is
+# the environment where `uipath --help` took 5-7s: resolving a command to read its
+# short help used to load the factories, importing langgraph, langchain_core and
+# openai to print a help page.
+assert_help_does_not_load_runtime_stack()
