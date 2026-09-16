@@ -443,12 +443,6 @@ def test_connect_fails_loudly_when_the_pipe_is_unreachable(monkeypatch):
     assert live() == before
 
 
-def test_connect_without_uipath_ipc_raises(monkeypatch):
-    monkeypatch.setitem(sys.modules, "uipath_ipc", None)
-    with pytest.raises(RuntimeError, match="uipath-ipc"):
-        _job_api.connect_handler_ipc("pipe", JOB_ID)
-
-
 def test_a_broken_log_channel_is_reported_once_to_stderr(monkeypatch):
     _isolated_output_sinks(monkeypatch)
 

@@ -9,7 +9,8 @@ from ._utils._console import ConsoleLogger
 if TYPE_CHECKING:
     from uipath_ipc import Message
 else:
-    # Optional dep: the annotation stays a string forward-ref, so this placeholder is never subscripted.
+    # uipath-ipc is a base dependency, so this only fires on a broken install. The annotation stays a
+    # string forward-ref, so this placeholder is never subscripted.
     try:
         from uipath_ipc import Message
     except ImportError:  # pragma: no cover - no IPC means Register is never dispatched
@@ -165,14 +166,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
 async def start_ipc_server(pipe_name: str) -> None:
     """Serve the Python runtime over a uipath-ipc named pipe until it is closed."""
-    try:
-        from uipath_ipc import IpcServer, NamedPipeServerTransport
-    except ImportError as e:
-        raise RuntimeError(
-            "The uipath-ipc channel was requested (--ipc-pipe) but the 'uipath-ipc' "
-            "package is not installed in this environment. Install it (pip install "
-            "'uipath[ipc]') or omit --ipc-pipe to serve HTTP only."
-        ) from e
+    from uipath_ipc import IpcServer, NamedPipeServerTransport
 
     _state.init()
 

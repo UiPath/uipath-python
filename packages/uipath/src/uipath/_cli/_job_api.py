@@ -346,12 +346,7 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
             f"--handler-ipc-pipe needs UIPATH_JOB_KEY to be a job id; got {job_id!r}."
         )
 
-    try:
-        from uipath_ipc import IpcClient, NamedPipeClientTransport
-    except ImportError as e:
-        raise RuntimeError(
-            "--handler-ipc-pipe requires the 'uipath-ipc' package. Install it (pip install 'uipath[ipc]')."
-        ) from e
+    from uipath_ipc import IpcClient, NamedPipeClientTransport
 
     loop = _new_ipc_event_loop()
     thread = threading.Thread(

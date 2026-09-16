@@ -15,7 +15,6 @@ import asyncio
 import json
 import logging
 import os
-import sys
 import threading
 import time
 from typing import Any, Awaitable, Callable, cast
@@ -118,14 +117,6 @@ class Input:
 def main(input: Input) -> str:
     return (input.message + " ") * input.repeat
 """
-
-
-def test_start_ipc_server_fails_fast_without_uipath_ipc(monkeypatch):
-    """--ipc-pipe with uipath-ipc absent must fail loudly, not silently no-op."""
-    monkeypatch.setitem(sys.modules, "uipath_ipc", None)
-    coro = start_ipc_server(_unique_pipe())
-    with pytest.raises(RuntimeError, match="uipath-ipc"):
-        asyncio.run(coro)
 
 
 JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
