@@ -51,6 +51,17 @@ def _make_processor() -> tuple[
     collector = ExecutionSpanCollector()
     processor = ExecutionSpanProcessor(exporter, collector)
 
+    # ExecutionSpanProcessor is a real BatchSpanProcessor with its default
+    # 5s periodic auto-flush running on its own background thread. These
+    # tests assert that a span is *not yet* exported at a specific moment,
+    # so that background thread waking up and exporting on its own between
+    # the span ending and the assertion would make the test flaky. Push its
+    # schedule delay far beyond any test's runtime so only the explicit
+    # `force_flush()` calls below ever export anything.
+    batch_processor = processor._batch_processor
+    batch_processor._schedule_delay_millis = 3600_000
+    batch_processor._schedule_delay = 3600.0
+
     provider = TracerProvider()
     provider.add_span_processor(processor)
     tracer = provider.get_tracer("test")
