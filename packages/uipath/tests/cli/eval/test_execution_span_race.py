@@ -15,19 +15,38 @@ exported, so a read of `get_spans()` taken between "root span ended" and
 "next flush" sees a real, completed tool call as if it never happened -
 exactly the "history genuinely exists but AgentRunHistory is empty,
 intermittently" symptom.
+
+The fix in `_get_and_clear_execution_data()` adds one more flush right before
+the read, which closes the race for any span that has *already ended* by
+read time - the common case, e.g. a tool call wrapped in a short-lived
+background task. It does NOT close the race for a span belonging to a truly
+detached task that is still running (has no `on_end()` yet) when the read
+happens - there is no handle for the runtime to await in that case, and
+closing it would require tracking/awaiting such tasks, which is a separate,
+larger change than this one-line flush.
 """
+
+import json
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 
+from uipath.core.tracing import UiPathTraceManager
 from uipath.eval._execution_context import ExecutionSpanCollector
 from uipath.eval._helpers.evaluators_helpers import trace_to_str
-from uipath.eval.runtime._exporters import ExecutionSpanExporter, ExecutionSpanProcessor
+from uipath.eval.runtime._exporters import (
+    ExecutionLogsExporter,
+    ExecutionSpanExporter,
+    ExecutionSpanProcessor,
+)
+from uipath.eval.runtime.runtime import UiPathEvalRuntime
 
 EXECUTION_ID = "exec-race-1"
 
 
-def _make_processor() -> tuple[ExecutionSpanProcessor, ExecutionSpanExporter, trace.Tracer]:
+def _make_processor() -> tuple[
+    ExecutionSpanProcessor, ExecutionSpanExporter, trace.Tracer
+]:
     exporter = ExecutionSpanExporter()
     collector = ExecutionSpanCollector()
     processor = ExecutionSpanProcessor(exporter, collector)
@@ -120,7 +139,10 @@ def test_race_produces_empty_agent_run_history_for_a_real_tool_call() -> None:
         attributes={
             "execution.id": EXECUTION_ID,
             "tool.name": "search",
-            "input.value": {"query": "uipath"},
+            # input.value/output.value are OTel span attributes: they must be
+            # primitive/sequence-of-primitive values, so real spans always
+            # carry a JSON-encoded string here, never a raw dict.
+            "input.value": json.dumps({"query": "uipath"}),
             "output.value": "42 results",
         },
     ):
@@ -141,3 +163,53 @@ def test_race_produces_empty_agent_run_history_for_a_real_tool_call() -> None:
     agent_run_history_after_flush = trace_to_str(exporter.get_spans(EXECUTION_ID))
     assert "Tool: search" in agent_run_history_after_flush
     assert "42 results" in agent_run_history_after_flush
+
+
+def test_get_and_clear_execution_data_flushes_before_reading() -> None:
+    """Exercises the actual production method, not just a standalone processor.
+
+    Builds the same trace_manager/span_exporter/span_collector/logs_exporter
+    wiring UiPathEvalRuntime.__init__ sets up, then calls the real
+    `_get_and_clear_execution_data` (unbound, via the class) against it. This
+    fails without the `flush_spans()` line in that method - removing that
+    line reproduces the empty-AgentRunHistory bug here directly, not just in
+    the lower-level exporter tests above.
+    """
+    trace_manager = UiPathTraceManager()
+    span_exporter = ExecutionSpanExporter()
+    span_collector = ExecutionSpanCollector()
+    span_processor = ExecutionSpanProcessor(span_exporter, span_collector)
+    trace_manager.add_span_processor(span_processor)
+    logs_exporter = ExecutionLogsExporter()
+
+    fake_runtime = type(
+        "FakeEvalRuntime",
+        (),
+        {
+            "trace_manager": trace_manager,
+            "span_exporter": span_exporter,
+            "span_collector": span_collector,
+            "logs_exporter": logs_exporter,
+        },
+    )()
+
+    tracer = trace_manager.tracer_provider.get_tracer("test")
+    with tracer.start_as_current_span(
+        "root", attributes={"execution.id": EXECUTION_ID}
+    ):
+        pass
+    # Root span's own flush (mirrors start_execution_span's finally block)
+    # happens before the late tool call below - only the tool call is at risk.
+    trace_manager.flush_spans()
+
+    with tracer.start_as_current_span(
+        "tool_call",
+        attributes={"execution.id": EXECUTION_ID, "tool.name": "search"},
+    ):
+        pass
+
+    spans, _logs = UiPathEvalRuntime._get_and_clear_execution_data(
+        fake_runtime, EXECUTION_ID
+    )
+
+    assert {s.name for s in spans} == {"root", "tool_call"}

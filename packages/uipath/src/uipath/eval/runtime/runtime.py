@@ -973,9 +973,13 @@ class UiPathEvalRuntime:
         # Force a flush right before reading: the flush triggered by the root
         # execution span ending only exports spans whose on_end() had already
         # fired by that moment. A tool-call span that finishes a beat later
-        # (e.g. a detached background task) would otherwise still be sitting
-        # in the batch processor's queue and be silently missing from
-        # AgentRunHistory (UV-16309).
+        # (e.g. a short-lived background task) would otherwise still be
+        # sitting in the batch processor's queue and be silently missing from
+        # AgentRunHistory (UV-16309). This is a snapshot barrier, not a full
+        # closure: a span belonging to a task that is still running (hasn't
+        # called on_end() yet) when this flush runs is still missed - closing
+        # that would require the runtime to track and await such tasks before
+        # this point, which is out of scope for this fix.
         self.trace_manager.flush_spans()
         spans = self.span_exporter.get_spans(execution_id)
         self.span_exporter.clear(execution_id)
