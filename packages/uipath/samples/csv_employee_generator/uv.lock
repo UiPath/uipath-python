@@ -1454,7 +1454,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.14.18"
+version = "2.14.20"
 source = { editable = "../../" }
 dependencies = [
     { name = "applicationinsights" },
@@ -1475,6 +1475,7 @@ dependencies = [
     { name = "tenacity" },
     { name = "truststore" },
     { name = "uipath-core" },
+    { name = "uipath-ipc" },
     { name = "uipath-platform" },
     { name = "uipath-runtime" },
 ]
@@ -1499,6 +1500,7 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
     { name = "uipath-core", editable = "../../../uipath-core" },
+    { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-ipc", marker = "extra == 'ipc'", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../../../uipath-platform" },
     { name = "uipath-runtime", specifier = ">=0.13.5,<0.14.0" },
@@ -1533,7 +1535,6 @@ dev = [
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "types-pyyaml", specifier = ">=6.0" },
     { name = "types-toml", specifier = ">=0.10.8" },
-    { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 
@@ -1570,8 +1571,17 @@ dev = [
 ]
 
 [[package]]
+name = "uipath-ipc"
+version = "2.5.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/ee/182b16ff0cd205cb172def92349e7625e36d5b2ba11bdcb98bee43ccf548/uipath_ipc-2.5.3.tar.gz", hash = "sha256:823cdd1192c72ca786bfd3cbff65f88e2b02c33f450046f13e572022b7e6b870", size = 86363, upload-time = "2026-09-15T15:32:58.24Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/33/eebf6d9b5021d0517d5b7ca0f27bac48dda68530a2322bc04fd3c636e737/uipath_ipc-2.5.3-py3-none-any.whl", hash = "sha256:139852a85c8235f7f98959053a97ed748e9a051ddef952b99e49b6097c36d7ad", size = 50342, upload-time = "2026-09-15T15:32:56.962Z" },
+]
+
+[[package]]
 name = "uipath-platform"
-version = "0.2.29"
+version = "0.2.30"
 source = { editable = "../../../uipath-platform" }
 dependencies = [
     { name = "anyio" },
