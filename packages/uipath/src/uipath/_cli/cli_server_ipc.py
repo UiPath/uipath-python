@@ -166,14 +166,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
 async def start_ipc_server(pipe_name: str) -> None:
     """Serve the Python runtime over a uipath-ipc named pipe until it is closed."""
-    try:
-        from uipath_ipc import IpcServer, NamedPipeServerTransport
-    except ImportError as e:
-        raise RuntimeError(
-            "The uipath-ipc channel was requested (--ipc-pipe) but the 'uipath-ipc' "
-            "package is missing from this environment. It ships with uipath, so reinstall "
-            "uipath, or omit --ipc-pipe to serve HTTP only."
-        ) from e
+    from uipath_ipc import IpcServer, NamedPipeServerTransport
 
     _state.init()
 
