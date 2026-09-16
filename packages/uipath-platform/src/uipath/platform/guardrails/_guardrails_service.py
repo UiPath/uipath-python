@@ -8,11 +8,11 @@ from uipath.core.guardrails import (
 )
 from uipath.core.tracing import traced
 
-from uipath.platform.constants import HEADER_GUARDRAILS_SOURCE
+from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_GUARDRAILS_SOURCE
 
 from ..chat.llm_trace_context import build_trace_context_headers
 from ..common._base_service import BaseService
-from ..common._config import UiPathApiConfig
+from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
@@ -26,25 +26,6 @@ from .guardrails import (
 #: Timeout for a validate call carrying attachments. The backend fetches and decodes each
 #: file inside the request, which the default 30s client timeout does not allow for.
 _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
-
-
-def _redact_attachment_urls(inputs: dict[str, Any]) -> dict[str, Any]:
-    """Strip SAS urls from the traced inputs of ``evaluate_guardrail``.
-
-    ``@traced`` records a function's arguments on the span by default. An attachment
-    ``url`` is a short-lived SAS credential and must never reach telemetry, so replace
-    it and keep the rest (guardrail, input, attachment identity) intact.
-    """
-    attachments = inputs.get("attachments")
-    if not isinstance(attachments, list):
-        return inputs
-    redacted = []
-    for attachment in attachments:
-        if isinstance(attachment, dict) and "url" in attachment:
-            redacted.append({**attachment, "url": "<redacted>"})
-        else:
-            redacted.append(attachment)
-    return {**inputs, "attachments": redacted}
 
 
 # x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
@@ -125,9 +106,7 @@ class GuardrailsService(BaseService):
                 # Fallback to validation_failed if unknown
                 return GuardrailValidationResultType.VALIDATION_FAILED
 
-    @traced(
-        "evaluate_guardrail", run_type="uipath", input_processor=_redact_attachment_urls
-    )
+    @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
         self,
         input_data: str | dict[str, Any],
@@ -179,11 +158,18 @@ class GuardrailsService(BaseService):
         execution_source = self._execution_context.execution_source
         if execution_source:
             source_headers[HEADER_GUARDRAILS_SOURCE] = execution_source
+        # When attachments are present, tell helix which folder the run executed in
+        # so it can resolve each attachment id through Orchestrator's folder-scoped
+        # API. Only sent alongside attachments: it is meaningless otherwise.
+        folder_headers: dict[str, str] = {}
+        if attachments and UiPathConfig.folder_key:
+            folder_headers[HEADER_FOLDER_KEY] = UiPathConfig.folder_key
         request_headers = {
             **(spec.headers or {}),
             **trace_headers,
             **source_headers,
             **header_job_key(),
+            **folder_headers,
         }
         # The default client timeout is 30s (common/_http_config.py). A validate call
         # carrying attachments waits for the backend to fetch and decode each one, so give

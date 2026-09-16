@@ -922,7 +922,6 @@ def _attachment() -> GuardrailAttachment:
         id=_ATTACHMENT_ID,
         file_name="Tickets.csv",
         mime_type="text/csv",
-        url="https://acct.blob.core.windows.net/c/Tickets.csv?sig=x",
     )
 
 
@@ -953,7 +952,6 @@ class TestGuardrailAttachments:
                 "id": _ATTACHMENT_ID,
                 "fileName": "Tickets.csv",
                 "mimeType": "text/csv",
-                "url": "https://acct.blob.core.windows.net/c/Tickets.csv?sig=x",
             }
         ]
 
@@ -1000,7 +998,6 @@ class TestGuardrailAttachments:
             "id": _ATTACHMENT_ID,
             "fileName": "a.csv",
             "mimeType": "text/csv",
-            "url": "https://x/a.csv",
         }
 
         parsed = GuardrailAttachment.model_validate(wire)
@@ -1010,48 +1007,77 @@ class TestGuardrailAttachments:
         assert parsed.model_dump(by_alias=True) == wire
 
 
-class TestGuardrailAttachmentTracing:
-    """The traced span must never carry an attachment's SAS url."""
+class TestGuardrailAttachmentFolderHeader:
+    """evaluate_guardrail tells helix which folder the run executed in so it can
+    resolve each attachment id through Orchestrator's folder-scoped API."""
 
-    def test_input_processor_redacts_urls_and_keeps_identity(self) -> None:
-        from uipath.platform.guardrails._guardrails_service import (
-            _redact_attachment_urls,
+    def test_folder_header_sent_when_folder_key_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-key-123")
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
         )
 
-        inputs = {
-            "input_data": "see attached",
-            "guardrail": {"name": "Injection check"},
-            "attachments": [
-                {
-                    "id": _ATTACHMENT_ID,
-                    "fileName": "Tickets.csv",
-                    "mimeType": "text/csv",
-                    "url": "https://acct.blob.core.windows.net/c/Tickets.csv?sig=SECRET",
-                }
-            ],
-        }
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
 
-        processed = _redact_attachment_urls(inputs)
+        request = httpx_mock.get_requests()[0]
+        assert request.headers["x-uipath-folderkey"] == "folder-key-123"
 
-        assert "SECRET" not in json.dumps(processed)
-        assert processed["attachments"][0]["url"] == "<redacted>"
-        assert processed["attachments"][0]["fileName"] == "Tickets.csv"
-        assert processed["input_data"] == "see attached"
-        # Never mutates the caller's dict.
-        assert "SECRET" in json.dumps(inputs)
-
-    def test_input_processor_is_a_noop_without_attachments(self) -> None:
-        from uipath.platform.guardrails._guardrails_service import (
-            _redact_attachment_urls,
+    def test_folder_header_absent_when_no_folder_key_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
         )
 
-        inputs = {"input_data": "x", "guardrail": {}}
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
 
-        assert _redact_attachment_urls(inputs) == inputs
-        assert _redact_attachment_urls({**inputs, "attachments": None}) == {
-            **inputs,
-            "attachments": None,
-        }
+        request = httpx_mock.get_requests()[0]
+        assert "x-uipath-folderkey" not in request.headers
+
+    def test_folder_header_absent_without_attachments_even_if_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The header is meaningless without attachments, so it is never sent."""
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-key-123")
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        request = httpx_mock.get_requests()[0]
+        assert "x-uipath-folderkey" not in request.headers
+
+
+class TestGuardrailAttachmentTiming:
+    """Attachments still get the longer, file-fetching-aware timeout."""
 
     def test_evaluate_guardrail_forwards_a_longer_timeout_with_attachments(
         self,
