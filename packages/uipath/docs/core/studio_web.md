@@ -224,7 +224,7 @@ Selected tenant: Tenant1
 That's it, your agent should now be visible in Studio Web.
 
 /// info
-`uipath new` defaults to `--type auto`, which lets the installed framework integration claim the scaffold. Pass `--type agent` to require an agent project — it fails rather than creating a function project when no framework is installed. With several integrations installed, keep only the one you want to scaffold with.
+`uipath new` defaults to `--type auto`, which lets the installed framework integration claim the scaffold. Pass `--type agent` to require an agent project — it fails rather than creating a function project when no framework is installed. With several integrations installed, name the one to scaffold with: `uipath new agent --type agent --agent-framework uipath-langchain`.
 ///
 
 #### Coded Function

@@ -12,7 +12,8 @@ from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
 from ._utils._constants import AGENT_FRAMEWORKS_DOCS_URL
 from ._utils._project_files import resolve_existing_project_id
-from .middlewares import Middlewares
+from .middlewares import MiddlewareResult, Middlewares
+from .models.agent_frameworks import AgentFramework
 from .models.project_types import ProjectType
 
 console = ConsoleLogger()
@@ -60,20 +61,62 @@ def generate_uipath_json(target_directory):
         json.dump(uipath_config, f, indent=2)
 
 
-def _installed_agent_framework_packages() -> list[str]:
-    """Packages of the installed agent frameworks that can scaffold a project."""
-    modules = {
-        middleware.__module__.split(".")[0] for middleware in Middlewares.get("new")
-    }
-    packages: set[str] = set()
+def installed_agent_frameworks() -> list[AgentFramework]:
+    """Agent frameworks that can scaffold a project in this environment."""
+    packages: dict[str, str] = {}
     for entry_point in importlib.metadata.entry_points(group="uipath.middlewares"):
-        module = entry_point.module.split(".")[0]
-        if module in modules and entry_point.dist is not None:
-            packages.add(entry_point.dist.name)
-            modules.discard(module)
-    # A middleware registered in-process rather than through an entry point has
-    # no distribution to name; its module is the most accurate thing left.
-    return sorted(packages | modules)
+        if entry_point.dist is not None:
+            packages.setdefault(entry_point.module.split(".")[0], entry_point.dist.name)
+
+    frameworks = []
+    for middleware in Middlewares.get("new"):
+        package = packages.get(middleware.__module__.split(".")[0])
+        if package is not None:
+            frameworks.append(AgentFramework(package=package, scaffold=middleware))
+    return sorted(frameworks, key=lambda framework: framework.package)
+
+
+def _select_agent_framework(
+    frameworks: list[AgentFramework], requested: str
+) -> AgentFramework:
+    """Resolve `--agent-framework` against what is installed."""
+    for framework in frameworks:
+        if requested == framework.package:
+            return framework
+
+    installed = (
+        "Installed: " + ", ".join(framework.package for framework in frameworks) + "."
+        if frameworks
+        else "No agent framework is installed."
+    )
+    console.error(
+        f"No installed agent framework matches '{requested}'.\n"
+        f"{installed}\n"
+        f"See {AGENT_FRAMEWORKS_DOCS_URL} for the supported frameworks and "
+        "their packages."
+    )
+
+
+def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
+    """Offer the scaffold to the installed agent frameworks."""
+    Middlewares.load_plugins()
+    installed = installed_agent_frameworks()
+
+    if agent_framework:
+        # Dispatch to the chosen framework alone, so that another one cannot
+        # claim the scaffold ahead of it.
+        return _select_agent_framework(installed, agent_framework).scaffold(name)
+
+    if len(installed) > 1:
+        console.error(
+            "Multiple agent frameworks are installed: "
+            + ", ".join(framework.package for framework in installed)
+            + f".\nPick one with `uipath new {name} --type agent "
+            "--agent-framework <framework>`, or run "
+            f"`uipath new {name} --type function` to create a function project."
+        )
+
+    return Middlewares.next("new", name)
 
 
 @click.command()
@@ -89,8 +132,16 @@ def _installed_agent_framework_packages() -> list[str]:
     "otherwise; 'function' always scaffolds a function; 'agent' scaffolds an "
     "agent and fails when no agent framework is installed.",
 )
+@click.option(
+    "--agent-framework",
+    "agent_framework",
+    default=None,
+    help="Agent framework to scaffold with, named by its package (e.g. "
+    "`uipath-langchain`). Only valid together with `--type agent`; needed "
+    "when several frameworks are installed, optional otherwise.",
+)
 @track_command("new")
-def new(name: str, project_type: str):
+def new(name: str, project_type: str, agent_framework: str | None):
     """Generate a quick-start project."""
     directory = os.getcwd()
 
@@ -101,21 +152,15 @@ def new(name: str, project_type: str):
 
     scaffold_type = ProjectType(project_type)
 
+    if agent_framework and scaffold_type is not ProjectType.AGENT:
+        console.error(
+            "`--agent-framework` can only be used together with `--type agent`."
+        )
+
     # Agent frameworks scaffold through the `new` middleware chain. A function
     # project never consults them.
     if scaffold_type is not ProjectType.FUNCTION:
-        Middlewares.load_plugins()
-        installed = _installed_agent_framework_packages()
-        if len(installed) > 1:
-            console.error(
-                "Multiple agent frameworks are installed: "
-                + ", ".join(installed)
-                + ".\nKeep the one you want to scaffold with in this environment, "
-                f"or run `uipath new {name} --type function` to create a "
-                "function project."
-            )
-
-        result = Middlewares.next("new", name)
+        result = _scaffold_agent(name, agent_framework)
 
         if result.error_message:
             console.error(

@@ -83,9 +83,15 @@ Scaffolds a project in the current directory. `--type` selects what gets created
 |----------------------------------|------------------------|------------------------------|
 | none | coded function project | error: install an agent framework |
 | one | that framework's coded agent project | that framework's coded agent project |
-| several | error: naming the installed packages | error: naming the installed packages |
+| several | error: pick one with `--agent-framework` | error: pick one with `--agent-framework` |
 
-The framework is never named on the command line — it is whichever integration package the environment has. Install exactly the one you want to build with; with several installed, `uipath new` cannot tell which you meant and says so.
+With one framework installed there is nothing to choose, so `uipath new` uses it. With several, it cannot tell which you meant and asks you to name one:
+
+```shell
+uipath new my-agent --type agent --agent-framework uipath-langchain
+```
+
+`--agent-framework` takes the integration package name, is only valid together with `--type agent`, and scaffolds with that framework alone. The names it accepts are the packages installed in your environment — the same ones the error above lists — so `uipath` keeps no list of its own.
 
 Scaffold a coded function:
 

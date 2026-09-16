@@ -27,7 +27,7 @@ The `uipath` package is always required. Add one framework extension on top:
 | UiPath Agent Framework | `uipath-agent-framework` | UiPath-native agent primitives |
 | Claude Agent SDK | `uipath-claude-sdk` | Claude models, Anthropic-native agent loop |
 
-Installing one of these packages is what makes `uipath new` scaffold an agent: the framework is chosen by what's in your environment, not by a CLI flag. Install exactly the one you intend to build with.
+Installing one of these packages is what makes `uipath new` scaffold an agent. With more than one installed, name the one you want with `--agent-framework`, using the package exactly as it appears above.
 
 ---
 
@@ -95,7 +95,11 @@ The example below uses LangChain. Swap `uipath-langchain` for the framework of y
 uipath new agent --type agent
 ```
 
-With several framework integrations installed in the same environment, `uipath new` cannot tell which one you meant and asks you to keep just one.
+With several framework integrations installed in the same environment, name the one to scaffold with:
+
+```shell
+uipath new agent --type agent --agent-framework uipath-langchain
+```
 ///
 
 ---
