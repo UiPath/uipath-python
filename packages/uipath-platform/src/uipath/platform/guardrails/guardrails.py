@@ -96,6 +96,30 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
+class GuardrailAttachment(BaseModel):
+    """A file attached to the run that a guardrail may inspect.
+
+    Passed to [`GuardrailsService.evaluate_guardrail`][uipath.platform.guardrails.GuardrailsService.evaluate_guardrail]
+    so the guardrails backend can read the file's contents rather than only its metadata.
+
+    Attributes:
+        id: The job attachment id, as a string UUID. Used by the backend as an
+            extraction cache key and for trace correlation.
+        file_name: Original file name, shown to a judge model so it can name the
+            offending file.
+        mime_type: Original mime type. The backend decides what it can inspect.
+        url: A short-lived SAS URL resolved by the runtime. This is a **credential**:
+            never log it, never put it on a span.
+    """
+
+    id: str
+    file_name: str = Field(alias="fileName")
+    mime_type: str = Field(alias="mimeType")
+    url: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class GuardrailType(str, Enum):
     """Guardrail type enumeration."""
 

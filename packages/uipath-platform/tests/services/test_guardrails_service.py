@@ -14,6 +14,7 @@ from uipath.platform.common import ExecutionSourceContext
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
+    GuardrailAttachment,
     GuardrailsService,
     MapEnumParameterValue,
 )
@@ -897,3 +898,197 @@ class TestGuardrailsService:
             assert (
                 GuardrailsService._extract_span_id_from_traceparent("not-valid") is None
             )
+
+
+_VALIDATE_PATH = "/agentsruntime_/api/execution/guardrails/validate"
+_ATTACHMENT_ID = "7f2c1e44-0b3a-4a1e-9d55-2f9a1c3b8e10"
+
+
+def _judge_guardrail() -> BuiltInValidatorGuardrail:
+    return BuiltInValidatorGuardrail(
+        id="g1",
+        name="Injection check",
+        description="Test judge",
+        enabled_for_evals=True,
+        selector=GuardrailSelector(scopes=[GuardrailScope.AGENT]),
+        guardrail_type="builtInValidator",
+        validator_type="llm_as_judge",
+        validator_parameters=[],
+    )
+
+
+def _attachment() -> GuardrailAttachment:
+    return GuardrailAttachment(
+        id=_ATTACHMENT_ID,
+        file_name="Tickets.csv",
+        mime_type="text/csv",
+        url="https://acct.blob.core.windows.net/c/Tickets.csv?sig=x",
+    )
+
+
+class TestGuardrailAttachments:
+    """evaluate_guardrail forwards attachment references to the validate API."""
+
+    def test_attachments_are_sent_with_camel_case_aliases(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail(
+            "see attached", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["attachments"] == [
+            {
+                "id": _ATTACHMENT_ID,
+                "fileName": "Tickets.csv",
+                "mimeType": "text/csv",
+                "url": "https://acct.blob.core.windows.net/c/Tickets.csv?sig=x",
+            }
+        ]
+
+    def test_attachments_key_is_absent_when_not_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend must see a byte-identical body to today."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("no files here", _judge_guardrail())
+
+        assert "attachments" not in json.loads(httpx_mock.get_requests()[0].content)
+
+    def test_attachments_key_is_absent_when_empty_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
+
+        assert "attachments" not in json.loads(httpx_mock.get_requests()[0].content)
+
+    def test_attachment_round_trips_the_wire_shape(self) -> None:
+        """The camelCase body the API emits parses back into the model unchanged."""
+        wire = {
+            "id": _ATTACHMENT_ID,
+            "fileName": "a.csv",
+            "mimeType": "text/csv",
+            "url": "https://x/a.csv",
+        }
+
+        parsed = GuardrailAttachment.model_validate(wire)
+
+        assert parsed.file_name == "a.csv"
+        assert parsed.mime_type == "text/csv"
+        assert parsed.model_dump(by_alias=True) == wire
+
+
+class TestGuardrailAttachmentTracing:
+    """The traced span must never carry an attachment's SAS url."""
+
+    def test_input_processor_redacts_urls_and_keeps_identity(self) -> None:
+        from uipath.platform.guardrails._guardrails_service import (
+            _redact_attachment_urls,
+        )
+
+        inputs = {
+            "input_data": "see attached",
+            "guardrail": {"name": "Injection check"},
+            "attachments": [
+                {
+                    "id": _ATTACHMENT_ID,
+                    "fileName": "Tickets.csv",
+                    "mimeType": "text/csv",
+                    "url": "https://acct.blob.core.windows.net/c/Tickets.csv?sig=SECRET",
+                }
+            ],
+        }
+
+        processed = _redact_attachment_urls(inputs)
+
+        assert "SECRET" not in json.dumps(processed)
+        assert processed["attachments"][0]["url"] == "<redacted>"
+        assert processed["attachments"][0]["fileName"] == "Tickets.csv"
+        assert processed["input_data"] == "see attached"
+        # Never mutates the caller's dict.
+        assert "SECRET" in json.dumps(inputs)
+
+    def test_input_processor_is_a_noop_without_attachments(self) -> None:
+        from uipath.platform.guardrails._guardrails_service import (
+            _redact_attachment_urls,
+        )
+
+        inputs = {"input_data": "x", "guardrail": {}}
+
+        assert _redact_attachment_urls(inputs) == inputs
+        assert _redact_attachment_urls({**inputs, "attachments": None}) == {
+            **inputs,
+            "attachments": None,
+        }
+
+    def test_evaluate_guardrail_forwards_a_longer_timeout_with_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """The default client timeout is 30s; a validate call that waits on the backend
+        fetching files gets 60s. Without this assertion the kwarg could vanish silently."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] == 60.0
+
+    def test_evaluate_guardrail_keeps_default_timeout_without_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] != 60.0
