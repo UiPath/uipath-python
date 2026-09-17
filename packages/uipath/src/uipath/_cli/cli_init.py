@@ -4,6 +4,7 @@ import importlib.resources
 import json
 import logging
 import os
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -28,6 +29,7 @@ from uipath.platform.constants import (
     ENTRY_POINTS_FILE,
     PYTHON_CONFIGURATION_FILE,
     UIPATH_CONFIG_FILE,
+    UIPROJ_FILE,
 )
 from uipath.runtime import (
     UiPathRuntimeContext,
@@ -205,6 +207,47 @@ def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
         json.dump(json_object, entry_points_file, indent=4)
 
     return entry_points_file_path
+
+
+def _to_project_name(raw_name: str) -> str:
+    """Normalize a display name into a valid ``pyproject.toml`` project name.
+
+    Lowercases the name and collapses any run of characters outside
+    ``[a-z0-9._-]`` into a single hyphen (PEP 508 name rules).
+    """
+    normalized = re.sub(r"[^a-z0-9._-]+", "-", raw_name.strip().lower())
+    return normalized.strip("-._")
+
+
+def ensure_project_is_scaffolded(current_directory: str) -> None:
+    """Abort when the directory is still an unscaffolded Studio Web template.
+
+    Studio Web's cloud-workspace flow creates a folder holding only
+    ``project.uiproj``. ``uipath init`` only discovers an existing project, so
+    running it in that state would leave half-initialised config files behind.
+    Instead, stop before writing anything and point the user at ``uipath new``.
+
+    Hidden entries (``.env``, ``.git``, ``.uipath``, ...) are ignored when
+    deciding whether the directory holds anything besides ``project.uiproj``.
+    """
+    visible_entries = [
+        entry for entry in os.listdir(current_directory) if not entry.startswith(".")
+    ]
+    if visible_entries != [UIPROJ_FILE]:
+        return
+
+    project_name = ""
+    try:
+        with open(os.path.join(current_directory, UIPROJ_FILE), "r") as f:
+            project_name = _to_project_name(str(json.load(f).get("Name") or ""))
+    except (OSError, json.JSONDecodeError):
+        pass
+
+    new_command = f"uipath new {project_name or '<name>'}"
+    console.error(
+        f"This project has not been scaffolded yet: '{UIPROJ_FILE}' is the only file in this directory.\n"
+        f"Scaffold it first by running:\n`{new_command}`"
+    )
 
 
 def write_uiproj_file(
@@ -424,6 +467,7 @@ def init(no_agents_md_override: bool) -> None:
     """Initialize the project."""
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
+        ensure_project_is_scaffolded(current_directory)
         generate_env_file(current_directory)
 
         async def initialize() -> list[UiPathRuntimeSchema]:
