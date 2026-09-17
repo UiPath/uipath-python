@@ -1008,8 +1008,7 @@ class TestGuardrailAttachments:
 
 
 class TestGuardrailAttachmentFolderHeader:
-    """evaluate_guardrail tells helix which folder the run executed in so it can
-    resolve each attachment id through Orchestrator's folder-scoped API."""
+    """evaluate_guardrail sends the folder key alongside attachments."""
 
     def test_folder_header_sent_when_folder_key_configured(
         self,
