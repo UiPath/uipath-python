@@ -23,8 +23,6 @@ from .guardrails import (
     GuardrailAttachment,
 )
 
-#: Timeout for a validate call carrying attachments. The backend fetches and decodes each
-#: file inside the request, which the default 30s client timeout does not allow for.
 _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
 
 
@@ -119,10 +117,7 @@ class GuardrailsService(BaseService):
         Args:
             input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
             guardrail: A guardrail instance used for validation.
-            attachments: Files attached to the run that the guardrail may inspect, so a
-                validator can evaluate a file's contents rather than only its metadata.
-                Which validators can use them, and which file types are readable, is
-                decided server-side. Omitted from the request body when empty.
+            attachments: Files attached to the run that the guardrail may inspect.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -158,9 +153,6 @@ class GuardrailsService(BaseService):
         execution_source = self._execution_context.execution_source
         if execution_source:
             source_headers[HEADER_GUARDRAILS_SOURCE] = execution_source
-        # When attachments are present, tell helix which folder the run executed in
-        # so it can resolve each attachment id through Orchestrator's folder-scoped
-        # API. Only sent alongside attachments: it is meaningless otherwise.
         folder_headers: dict[str, str] = {}
         if attachments and UiPathConfig.folder_key:
             folder_headers[HEADER_FOLDER_KEY] = UiPathConfig.folder_key
@@ -171,9 +163,6 @@ class GuardrailsService(BaseService):
             **header_job_key(),
             **folder_headers,
         }
-        # The default client timeout is 30s (common/_http_config.py). A validate call
-        # carrying attachments waits for the backend to fetch and decode each one, so give
-        # it more room. RequestSpec.timeout exists but is never forwarded, so pass it here.
         request_kwargs: dict[str, Any] = {
             "json": spec.json,
             "headers": request_headers,
