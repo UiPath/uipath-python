@@ -170,9 +170,9 @@ async def start_ipc_server(pipe_name: str) -> None:
 
     _state.init()
 
-    from uipath._cli import _ensure_runtime_initialized
+    from uipath._cli.runtimes import ensure_runtime_initialized
 
-    _ensure_runtime_initialized()
+    ensure_runtime_initialized()
 
     from ._job_api import _MAX_MESSAGE_BYTES
 

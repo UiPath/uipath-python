@@ -1,6 +1,8 @@
 import json
 import os
 
+from startup_assert import assert_cli_import_is_lean
+
 # Check NuGet package
 uipath_dir = ".uipath"
 assert os.path.exists(uipath_dir), "NuGet package directory (.uipath) not found"
@@ -30,3 +32,15 @@ print("Agent execution status: successful")
 assert "output" in output_data, "Missing 'output' field in agent response"
 
 print("Required fields validation passed")
+
+# Importing the CLI used to execute `uipath/_utils/__init__.py`, whose
+# `resource_override` re-export pulled in `uipath.platform.common` and with it
+# httpx, pydantic, opentelemetry and the orchestrator services -- 582 modules for
+# a command that only prints a version string. It is 212 now.
+#
+# `--help` is not asserted here: with no plugin installed, which is this
+# testcase, it resolves all 20 command modules either way and is unchanged by the
+# fix (1195 modules before, 1184 after). The help-path guard lives in the
+# langchain-cross testcase, which registers a `uipath.runtime.factories` entry
+# point and is where the 5-7s regression appeared.
+assert_cli_import_is_lean(max_modules=350)

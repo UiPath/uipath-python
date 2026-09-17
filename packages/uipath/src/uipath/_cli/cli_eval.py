@@ -17,6 +17,7 @@ from uipath._cli._utils._folders import get_personal_workspace_key_async
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli._utils._tracing import create_trace_manager
 from uipath._cli.middlewares import Middlewares
+from uipath._cli.runtimes import requires_runtime
 from uipath.core.events import EventBus
 from uipath.eval.helpers import EVAL_SETS_DIRECTORY_NAME, EvalHelpers, get_agent_model
 from uipath.eval.models.evaluation_set import EvaluationSet
@@ -301,6 +302,7 @@ def _discover_eval_sets() -> list[Path]:
     default=False,
     help="Include workload execution output (trace, result) in the output file",
 )
+@requires_runtime
 def eval(
     entrypoint: str | None,
     eval_set: str | None,
