@@ -210,11 +210,7 @@ def write_entry_points_file(entry_points: list[UiPathRuntimeSchema]) -> Path:
 
 
 def _to_project_name(raw_name: str) -> str:
-    """Normalize a display name into a valid ``pyproject.toml`` project name.
-
-    Lowercases the name and collapses any run of characters outside
-    ``[a-z0-9._-]`` into a single hyphen (PEP 508 name rules).
-    """
+    """Normalize a display name into a valid ``pyproject.toml`` project name."""
     normalized = re.sub(r"[^a-z0-9._-]+", "-", raw_name.strip().lower())
     return normalized.strip("-._")
 
