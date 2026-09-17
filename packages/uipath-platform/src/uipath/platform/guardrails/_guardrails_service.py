@@ -8,16 +8,25 @@ from uipath.core.guardrails import (
 )
 from uipath.core.tracing import traced
 
-from uipath.platform.constants import HEADER_GUARDRAILS_SOURCE
+from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_GUARDRAILS_SOURCE
 
 from ..chat.llm_trace_context import build_trace_context_headers
 from ..common._base_service import BaseService
-from ..common._config import UiPathApiConfig
+from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
 from ..errors import EnrichedException
-from .guardrails import BYO_VALIDATOR_TYPE, BuiltInValidatorGuardrail
+from .guardrails import (
+    BYO_VALIDATOR_TYPE,
+    BuiltInValidatorGuardrail,
+    GuardrailAttachment,
+)
+
+#: Timeout for a validate call carrying attachments. The backend fetches and decodes each
+#: file inside the request, which the default 30s client timeout does not allow for.
+_ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
+
 
 # x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
 # Based on W3C traceparent but allows 16- or 32-hex span IDs.
@@ -102,12 +111,18 @@ class GuardrailsService(BaseService):
         self,
         input_data: str | dict[str, Any],
         guardrail: BuiltInValidatorGuardrail,
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
         Args:
             input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
             guardrail: A guardrail instance used for validation.
+            attachments: Files attached to the run that the guardrail may inspect, so a
+                validator can evaluate a file's contents rather than only its metadata.
+                Which validators can use them, and which file types are readable, is
+                decided server-side. Omitted from the request body when empty.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -127,6 +142,8 @@ class GuardrailsService(BaseService):
                     "BYO (Bring Your Own) guardrails require byo_validator_name."
                 )
             payload["byoValidatorName"] = guardrail.byo_validator_name
+        if attachments:
+            payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
@@ -141,19 +158,35 @@ class GuardrailsService(BaseService):
         execution_source = self._execution_context.execution_source
         if execution_source:
             source_headers[HEADER_GUARDRAILS_SOURCE] = execution_source
+        # When attachments are present, tell helix which folder the run executed in
+        # so it can resolve each attachment id through Orchestrator's folder-scoped
+        # API. Only sent alongside attachments: it is meaningless otherwise.
+        folder_headers: dict[str, str] = {}
+        if attachments and UiPathConfig.folder_key:
+            folder_headers[HEADER_FOLDER_KEY] = UiPathConfig.folder_key
         request_headers = {
             **(spec.headers or {}),
             **trace_headers,
             **source_headers,
             **header_job_key(),
+            **folder_headers,
         }
+        # The default client timeout is 30s (common/_http_config.py). A validate call
+        # carrying attachments waits for the backend to fetch and decode each one, so give
+        # it more room. RequestSpec.timeout exists but is never forwarded, so pass it here.
+        request_kwargs: dict[str, Any] = {
+            "json": spec.json,
+            "headers": request_headers,
+        }
+        if attachments:
+            request_kwargs["timeout"] = _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS
+
         span_id = None
         try:
             response = self.request(
                 spec.method,
                 url=spec.endpoint,
-                json=spec.json,
-                headers=request_headers,
+                **request_kwargs,
             )
             span_id = self._extract_span_id_from_traceparent(
                 response.headers.get("x-uipath-traceparent-id")

@@ -2599,7 +2599,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.14.21"
+version = "2.14.22"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2762,7 +2762,7 @@ wheels = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.30"
+version = "0.2.31"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "anyio" },
