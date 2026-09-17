@@ -101,7 +101,12 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=workload_execution.expected_agent_behavior,
             agent_run_history=workload_execution.workload_trace,
-            workload_output=workload_execution.workload_output,
+            # Route through the base class's resolution (target_output_key
+            # extraction, job-attachment URI download) instead of the raw
+            # field - otherwise a trajectory evaluator configured with a
+            # specific target_output_key would get the whole output object
+            # (or an unresolved attachment URI) in AgentRunHistory.
+            workload_output=self._get_actual_output(workload_execution),
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 

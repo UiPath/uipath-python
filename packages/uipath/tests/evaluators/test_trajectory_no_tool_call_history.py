@@ -33,7 +33,9 @@ from uipath.eval.models.models import (
 )
 
 
-def _legacy_trajectory_evaluator() -> LegacyTrajectoryEvaluator:
+def _legacy_trajectory_evaluator(
+    target_output_key: str = "*",
+) -> LegacyTrajectoryEvaluator:
     return LegacyTrajectoryEvaluator(
         id=str(uuid.uuid4()),
         name="Legacy trajectory",
@@ -45,6 +47,7 @@ def _legacy_trajectory_evaluator() -> LegacyTrajectoryEvaluator:
         prompt="History:\n{{AgentRunHistory}}\nExpected:\n{{ExpectedAgentBehavior}}",
         createdAt="2026-05-14T00:00:00Z",
         updatedAt="2026-05-14T00:00:00Z",
+        targetOutputKey=target_output_key,
     )
 
 
@@ -96,3 +99,50 @@ def test_llm_judge_trajectory_history_falls_back_to_final_output_with_no_tool_ca
 
     assert "Agent Final Response:" in actual_output
     assert "The mentor matching program starts on 2026-09-01." in actual_output
+
+
+async def test_legacy_trajectory_evaluate_resolves_target_output_key_for_fallback() -> (
+    None
+):
+    """evaluate() must route the fallback through _get_actual_output().
+
+    Bypassing it (i.e. using workload_execution.workload_output directly)
+    would put the whole output object into AgentRunHistory instead of the
+    key the evaluator is actually configured to look at, and would skip
+    job-attachment URI resolution.
+    """
+    evaluator = _legacy_trajectory_evaluator(target_output_key="result")
+    evaluator._initialize_llm = lambda: None  # avoid the real UiPath/LLM setup
+
+    captured_prompt = {}
+
+    async def fake_get_llm_response(prompt: str):
+        from uipath.eval.models.models import LLMResponse
+
+        captured_prompt["value"] = prompt
+        return LLMResponse(score=100.0, justification="fine")
+
+    evaluator._get_llm_response = fake_get_llm_response
+
+    workload_execution = WorkloadExecution(
+        agent_input={"question": "?"},
+        workload_output={
+            "result": "The mentor matching program starts on 2026-09-01.",
+            "internal_debug_noise": "should never reach the prompt",
+        },
+        workload_trace=[],
+        expected_agent_behavior="The agent should answer the user's question.",
+    )
+
+    await evaluator.evaluate(
+        workload_execution,
+        LegacyEvaluationCriteria(
+            expected_output="irrelevant",
+            expected_agent_behavior="The agent should answer the user's question.",
+        ),
+    )
+
+    prompt = captured_prompt["value"]
+    assert "The mentor matching program starts on 2026-09-01." in prompt
+    assert "internal_debug_noise" not in prompt
+    assert "should never reach the prompt" not in prompt
