@@ -192,42 +192,49 @@ def test_get_and_clear_execution_data_flushes_before_reading() -> None:
     line reproduces the empty-AgentRunHistory bug here directly, not just in
     the lower-level exporter tests above.
     """
+    # UiPathTraceManager() registers a default batch processor on the global
+    # delegating processor and doesn't unregister it on its own - shut it
+    # down in `finally` so its processors (and their background worker
+    # threads) don't leak into other tests/jobs.
     trace_manager = UiPathTraceManager()
-    span_exporter = ExecutionSpanExporter()
-    span_collector = ExecutionSpanCollector()
-    span_processor = ExecutionSpanProcessor(span_exporter, span_collector)
-    _pin_batch_schedule(span_processor)
-    trace_manager.add_span_processor(span_processor)
-    logs_exporter = ExecutionLogsExporter()
+    try:
+        span_exporter = ExecutionSpanExporter()
+        span_collector = ExecutionSpanCollector()
+        span_processor = ExecutionSpanProcessor(span_exporter, span_collector)
+        _pin_batch_schedule(span_processor)
+        trace_manager.add_span_processor(span_processor)
+        logs_exporter = ExecutionLogsExporter()
 
-    fake_runtime = type(
-        "FakeEvalRuntime",
-        (),
-        {
-            "trace_manager": trace_manager,
-            "span_exporter": span_exporter,
-            "span_collector": span_collector,
-            "logs_exporter": logs_exporter,
-        },
-    )()
+        fake_runtime = type(
+            "FakeEvalRuntime",
+            (),
+            {
+                "trace_manager": trace_manager,
+                "span_exporter": span_exporter,
+                "span_collector": span_collector,
+                "logs_exporter": logs_exporter,
+            },
+        )()
 
-    tracer = trace_manager.tracer_provider.get_tracer("test")
-    with tracer.start_as_current_span(
-        "root", attributes={"execution.id": EXECUTION_ID}
-    ):
-        pass
-    # Root span's own flush (mirrors start_execution_span's finally block)
-    # happens before the late tool call below - only the tool call is at risk.
-    trace_manager.flush_spans()
+        tracer = trace_manager.tracer_provider.get_tracer("test")
+        with tracer.start_as_current_span(
+            "root", attributes={"execution.id": EXECUTION_ID}
+        ):
+            pass
+        # Root span's own flush (mirrors start_execution_span's finally block)
+        # happens before the late tool call below - only the tool call is at risk.
+        trace_manager.flush_spans()
 
-    with tracer.start_as_current_span(
-        "tool_call",
-        attributes={"execution.id": EXECUTION_ID, "tool.name": "search"},
-    ):
-        pass
+        with tracer.start_as_current_span(
+            "tool_call",
+            attributes={"execution.id": EXECUTION_ID, "tool.name": "search"},
+        ):
+            pass
 
-    spans, _logs = UiPathEvalRuntime._get_and_clear_execution_data(
-        fake_runtime, EXECUTION_ID
-    )
+        spans, _logs = UiPathEvalRuntime._get_and_clear_execution_data(
+            fake_runtime, EXECUTION_ID
+        )
 
-    assert {s.name for s in spans} == {"root", "tool_call"}
+        assert {s.name for s in spans} == {"root", "tool_call"}
+    finally:
+        trace_manager.shutdown()
