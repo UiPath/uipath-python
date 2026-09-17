@@ -216,16 +216,7 @@ def _to_project_name(raw_name: str) -> str:
 
 
 def ensure_project_is_scaffolded(current_directory: str) -> None:
-    """Abort when the directory is still an unscaffolded Studio Web template.
-
-    Studio Web's cloud-workspace flow creates a folder holding only
-    ``project.uiproj``. ``uipath init`` only discovers an existing project, so
-    running it in that state would leave half-initialised config files behind.
-    Instead, stop before writing anything and point the user at ``uipath new``.
-
-    Hidden entries (``.env``, ``.git``, ``.uipath``, ...) are ignored when
-    deciding whether the directory holds anything besides ``project.uiproj``.
-    """
+    """Abort when the directory is still an unscaffolded Studio Web template."""
     visible_entries = [
         entry for entry in os.listdir(current_directory) if not entry.startswith(".")
     ]
