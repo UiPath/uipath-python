@@ -62,7 +62,7 @@ def generate_uipath_json(target_directory):
 
 
 def installed_agent_frameworks() -> list[AgentFramework]:
-    """Agent frameworks that can scaffold a project in this environment."""
+    """Agent frameworks that can scaffold a project, in discovery order."""
     packages: dict[str, str] = {}
     for entry_point in importlib.metadata.entry_points(group="uipath.middlewares"):
         if entry_point.dist is not None:
@@ -73,7 +73,7 @@ def installed_agent_frameworks() -> list[AgentFramework]:
         package = packages.get(middleware.__module__.split(".")[0])
         if package is not None:
             frameworks.append(AgentFramework(package=package, scaffold=middleware))
-    return sorted(frameworks, key=lambda framework: framework.package)
+    return frameworks
 
 
 def _select_agent_framework(
@@ -85,7 +85,9 @@ def _select_agent_framework(
             return framework
 
     installed = (
-        "Installed: " + ", ".join(framework.package for framework in frameworks) + "."
+        "Installed: "
+        + ", ".join(sorted(framework.package for framework in frameworks))
+        + "."
         if frameworks
         else "No agent framework is installed."
     )
@@ -108,13 +110,15 @@ def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
         return _select_agent_framework(installed, agent_framework).scaffold(name)
 
     if len(installed) > 1:
-        console.error(
+        first = installed[0]
+        console.warning(
             "Multiple agent frameworks are installed: "
             + ", ".join(framework.package for framework in installed)
-            + f".\nPick one with `uipath new {name} --type agent "
-            "--agent-framework <framework>`, or run "
-            f"`uipath new {name} --type function` to create a function project."
+            + f".\nScaffolding with the first one discovered: '{first.package}'. "
+            f"To pick a different one, run `uipath new {name} --type agent "
+            "--agent-framework <framework>`."
         )
+        return first.scaffold(name)
 
     return Middlewares.next("new", name)
 
@@ -137,8 +141,8 @@ def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
     "agent_framework",
     default=None,
     help="Agent framework to scaffold with, named by its package (e.g. "
-    "`uipath-langchain`). Only valid together with `--type agent`; needed "
-    "when several frameworks are installed, optional otherwise.",
+    "`uipath-langchain`). Only valid together with `--type agent`; picks "
+    "which framework scaffolds when several are installed.",
 )
 @track_command("new")
 def new(name: str, project_type: str, agent_framework: str | None):

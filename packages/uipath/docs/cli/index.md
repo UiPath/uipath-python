@@ -83,9 +83,9 @@ Scaffolds a project in the current directory. `--type` selects what gets created
 |----------------------------------|------------------------|------------------------------|
 | none | coded function project | error: install an agent framework |
 | one | that framework's coded agent project | that framework's coded agent project |
-| several | error: pick one with `--agent-framework` | error: pick one with `--agent-framework` |
+| several | warns, scaffolds with the first discovered | warns, scaffolds with the first discovered |
 
-With one framework installed there is nothing to choose, so `uipath new` uses it. With several, it cannot tell which you meant and asks you to name one:
+With one framework installed there is nothing to choose, so `uipath new` uses it. With several, it warns and scaffolds with the first one discovered — pass `--agent-framework` to choose deliberately:
 
 ```shell
 uipath new my-agent --type agent --agent-framework uipath-langchain

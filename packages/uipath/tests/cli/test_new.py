@@ -183,30 +183,38 @@ class TestNew:
                 assert not os.path.exists("main.py")
                 assert not os.path.exists("uipath.json")
 
-    def test_new_multiple_frameworks_installed_require_a_choice(
+    def test_new_multiple_frameworks_warn_and_use_the_first_discovered(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
-        """Several frameworks installed must not resolve by registration order."""
+        """Several frameworks installed: warn, then scaffold with the first.
+
+        Erroring here would break environments that scaffolded fine before
+        `--type` existed, so the old behaviour stays the default and the
+        warning points at `--agent-framework` for choosing explicitly.
+        """
         with runner.isolated_filesystem(temp_dir=temp_dir):
             for extra_args in ([], ["--type", "auto"], ["--type", "agent"]):
+                first = _framework("uipath-llamaindex")
+                other = _framework("uipath-langchain")
                 with (
                     patch("uipath._cli.cli_new.Middlewares.next") as mock_middleware,
                     patch(
                         "uipath._cli.cli_new.installed_agent_frameworks",
-                        return_value=[
-                            _framework("uipath-langchain"),
-                            _framework("uipath-llamaindex"),
-                        ],
+                        return_value=[first, other],
                     ),
                 ):
                     result = runner.invoke(cli, ["new", "my_agent"] + extra_args)
-                    assert result.exit_code == 1
+                    assert result.exit_code == 0
                     assert "Multiple agent frameworks are installed" in result.output
-                    assert "uipath-langchain, uipath-llamaindex" in result.output
+                    # listed in discovery order, so the first named is the pick
+                    assert "uipath-llamaindex, uipath-langchain" in result.output
+                    assert "first one discovered: 'uipath-llamaindex'" in result.output
                     assert "--agent-framework" in result.output
-                    assert "--type function" in result.output
-                    assert not os.path.exists("main.py")
+                    _scaffold_of(first).assert_called_once_with("my_agent")
+                    _scaffold_of(other).assert_not_called()
                     mock_middleware.assert_not_called()
+                    # claimed by the framework: no base function scaffold
+                    assert not os.path.exists("uipath.json")
 
     def test_agent_framework_scaffolds_with_the_chosen_one_only(
         self, runner: CliRunner, temp_dir: str

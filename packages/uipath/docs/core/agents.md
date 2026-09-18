@@ -95,7 +95,7 @@ The example below uses LangChain. Swap `uipath-langchain` for the framework of y
 uipath new agent --type agent
 ```
 
-With several framework integrations installed in the same environment, name the one to scaffold with:
+With several framework integrations installed in the same environment, `uipath new` warns and uses the first one discovered; name the one you want instead with:
 
 ```shell
 uipath new agent --type agent --agent-framework uipath-langchain
