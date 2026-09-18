@@ -35,6 +35,7 @@ class InvokeProcess(BaseModel):
     process_folder_path: str | None = None
     process_folder_key: str | None = None
     input_arguments: dict[str, Any] | None
+    entry_point_path: str | None = None
     attachments: list[Attachment] | None = None
 
 
