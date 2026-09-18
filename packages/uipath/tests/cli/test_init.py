@@ -645,6 +645,32 @@ def main(input: InputModel) -> InputModel: return input""")
             assert "uipath new <name>" in result.output
             assert sorted(os.listdir(".")) == ["project.uiproj"]
 
+    def test_init_aborts_on_empty_directory(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init stops before writing anything in an empty directory."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "this directory is empty" in result.output
+            assert "uipath new <name>" in result.output
+            assert os.listdir(".") == []
+
+    def test_init_aborts_on_unscaffolded_project_with_malformed_uiproj(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that an unreadable project.uiproj still yields the placeholder hint."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("project.uiproj", "w") as f:
+                f.write("{ not json")
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "uipath new <name>" in result.output
+            assert sorted(os.listdir(".")) == ["project.uiproj"]
+
     def test_init_ignores_hidden_entries_when_detecting_unscaffolded_project(
         self, runner: CliRunner, temp_dir: str
     ) -> None:

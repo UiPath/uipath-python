@@ -216,23 +216,27 @@ def _to_project_name(raw_name: str) -> str:
 
 
 def ensure_project_is_scaffolded(current_directory: str) -> None:
-    """Abort when the directory is still an unscaffolded Studio Web template."""
-    visible_entries = [
+    """Abort when the directory is empty or still an unscaffolded Studio Web template."""
+    visible_entries = {
         entry for entry in os.listdir(current_directory) if not entry.startswith(".")
-    ]
-    if visible_entries != [UIPROJ_FILE]:
+    }
+    if not visible_entries <= {UIPROJ_FILE}:
         return
 
     project_name = ""
-    try:
-        with open(os.path.join(current_directory, UIPROJ_FILE), "r") as f:
-            project_name = _to_project_name(str(json.load(f).get("Name") or ""))
-    except (OSError, json.JSONDecodeError):
-        pass
+    if visible_entries:
+        reason = f"'{UIPROJ_FILE}' is the only file in this directory."
+        try:
+            with open(os.path.join(current_directory, UIPROJ_FILE), "r") as f:
+                project_name = _to_project_name(str(json.load(f).get("Name") or ""))
+        except (OSError, json.JSONDecodeError):
+            pass
+    else:
+        reason = "this directory is empty."
 
     new_command = f"uipath new {project_name or '<name>'}"
     console.error(
-        f"This project has not been scaffolded yet: '{UIPROJ_FILE}' is the only file in this directory.\n"
+        f"This project has not been scaffolded yet: {reason}\n"
         f"Scaffold it first by running:\n`{new_command}`"
     )
 
