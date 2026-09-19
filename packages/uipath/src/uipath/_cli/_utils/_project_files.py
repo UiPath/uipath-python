@@ -465,16 +465,38 @@ def files_to_include(
         normalized_root_rel_path = root_rel_path.replace(os.sep, "/")
         is_root_evals_folder = normalized_root_rel_path == LEGACY_EVAL_FOLDER
 
-        # Skip all directories that start with . or are a venv or are excluded
+        # Whether this directory is only being walked because an explicit
+        # `files_included` entry lives under a dot/venv ancestor. In that case
+        # files here must NOT be picked up merely because their extension is on
+        # the allowlist -- that would leak unrelated hidden/venv contents (e.g.
+        # `.config/secrets.json`). Only explicitly-listed files are packed here.
+        root_under_pruned_dir = False
+        ancestor = root
+        while os.path.normpath(ancestor) != os.path.normpath(directory):
+            if os.path.basename(ancestor).startswith(".") or is_venv_dir(ancestor):
+                root_under_pruned_dir = True
+                break
+            ancestor = os.path.dirname(ancestor)
+
+        # Skip directories that start with . or are a venv or are excluded,
+        # unless an explicit `files_included` entry lives under them.
         included_dirs = []
         for d in dirs:
-            if d.startswith(".") or is_venv_dir(os.path.join(root, d)):
-                continue
-
-            # Check if directory should be excluded
             dir_path = os.path.join(root, d)
             dir_rel_path = os.path.relpath(dir_path, directory)
             normalized_dir_rel_path = dir_rel_path.replace(os.sep, "/")
+
+            if d.startswith(".") or is_venv_dir(dir_path):
+                # Dot/venv directories are pruned by default, but still descend
+                # when an always-include path lives under them so that
+                # `packOptions.filesIncluded` entries are honored.
+                has_included_descendant = any(
+                    included == normalized_dir_rel_path
+                    or included.startswith(normalized_dir_rel_path + "/")
+                    for included in files_included
+                )
+                if not has_included_descendant:
+                    continue
 
             # Check exclusion: by dirname (for root level) or by relative path
             should_exclude_dir = (
@@ -494,9 +516,6 @@ def files_to_include(
 
         dirs[:] = included_dirs
         for file in files:
-            if file.startswith("."):
-                continue
-
             file_extension = os.path.splitext(file)[1].lower()
             file_path = os.path.join(root, file)
             file_name = os.path.basename(file_path)
@@ -505,20 +524,31 @@ def files_to_include(
             # Normalize the path
             normalized_rel_path = rel_path.replace(os.sep, "/")
 
+            # A file is explicitly requested when its project-relative path
+            # matches a `files_included` entry. Root-level entries are bare
+            # filenames, which already equal `normalized_rel_path` there, so a
+            # single membership check covers both the base-directory filename
+            # case and the nested relative-path case.
+            explicitly_included = normalized_rel_path in files_included
+
+            # Hidden files are excluded by default, but an explicit
+            # `packOptions.filesIncluded` entry must still be honored.
+            if file.startswith(".") and not explicitly_included:
+                continue
+
             # Skip files in the root evals folder (but allow eval-set and evaluators subdirectories)
             if is_root_evals_folder:
                 skipped_files.append(normalized_rel_path)
                 continue
 
-            # Check inclusion: by extension, by filename (for base directory), or by relative path
+            # Check inclusion: by extension (only for visible files that are not
+            # under a pruned dot/venv directory), or when the file is explicitly
+            # listed by filename / relative path.
             should_include = (
-                file_extension in file_extensions_included
-                or (
-                    file in files_included and normalized_rel_path == file
-                )  # filename match for base directory only
-                or normalized_rel_path
-                in files_included  # path match for subdirectories
-            )
+                not file.startswith(".")
+                and not root_under_pruned_dir
+                and file_extension in file_extensions_included
+            ) or explicitly_included
 
             # Check exclusion: by filename (for base directory only) or by relative path
             should_exclude = (
