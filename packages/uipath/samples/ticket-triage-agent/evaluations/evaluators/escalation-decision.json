@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "id": "EscalationDecisionEvaluator",
+  "name": "EscalationDecisionEvaluator",
+  "description": "Checks whether the agent escalated to a human (Action Center) exactly when it should have",
+  "evaluatorTypeId": "uipath-binary-classification",
+  "evaluatorConfig": {
+    "name": "EscalationDecisionEvaluator",
+    "targetOutputKey": "escalated",
+    "positiveClass": "true",
+    "metricType": "f-score",
+    "defaultEvaluationCriteria": {
+      "expectedClass": "false"
+    }
+  }
+}

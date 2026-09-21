@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "id": "DepartmentRoutingEvaluator",
+  "name": "DepartmentRoutingEvaluator",
+  "description": "Checks whether Tier 1 (Jev) routed the ticket to the expected department",
+  "evaluatorTypeId": "uipath-multiclass-classification",
+  "evaluatorConfig": {
+    "name": "DepartmentRoutingEvaluator",
+    "targetOutputKey": "triage.department",
+    "classes": ["billing", "technical", "sales"],
+    "metricType": "precision",
+    "averaging": "macro",
+    "defaultEvaluationCriteria": {
+      "expectedClass": "technical"
+    }
+  }
+}

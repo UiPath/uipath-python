@@ -1,0 +1,14 @@
+[project]
+name = "ticket-triage-agent"
+version = "0.0.1"
+description = "Two-tier support ticket triage: TypeSafe AI's Jev System One model for fast structured routing, escalating to Action Center HITL or an LLM-drafted auto-reply."
+requires-python = ">=3.11"
+dependencies = [
+    "uipath",
+    "typesafe-sdk>=0.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "uipath-dev",
+]
