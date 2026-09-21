@@ -21,16 +21,16 @@ This sample demonstrates a two-tier triage pattern for support tickets:
 ## About the "Jev" model (important - read this)
 
 This sample calls TypeSafe AI's real `typesafe-sdk` PyPI package, not a
-mock. `typesafe-sdk` is a very recently published package (it went out the
-same day this sample was first written, with several releases in one day),
-so before wiring it in we statically inspected the wheel's source (no
+mock. `typesafe-sdk` is a young package (first published 2026-09-09), so
+before wiring it in we statically inspected the wheel's source (no
 install/execution): it's a normal, apparently auto-generated API client
 (the response schemas reference an OpenAPI spec) with no `eval`/`exec`/
-`subprocess` calls, no exfiltration of environment variables, and a single
-documented API host (`api.typesafe.ai`). Its `httpx2` dependency is a real,
-independent package (also used by the `mcp` SDK) unrelated to TypeSafe AI.
-If you're pulling this into your own project, do your own review before
-trusting a same-day release.
+`subprocess` calls, and no exfiltration of environment variables. Its
+`httpx2` dependency turned out to be an unrelated, independent package
+(the pydantic org's next-generation `httpx`), not something specific to
+TypeSafe AI. If you're pulling a new AI SDK into your own project, reading
+the source before trusting it is a cheap, worthwhile step regardless of how
+long the package has existed.
 
 ```python
 from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
@@ -129,9 +129,17 @@ Two cases (`sales-demo-request-wrong-department`,
 mirroring the pattern in `classification_agent`, to demonstrate the
 evaluators catching a mismatch.
 
-Since `draft_auto_reply` and `escalate_to_human` call real UiPath services
-(LLM Gateway, Action Center), running the full eval set end-to-end requires
-valid credentials in `.env`:
+Every case calls the real Jev API (`TYPESAFE_API_KEY`), and Tier 2 always
+runs too: `draft_auto_reply` and `escalate_to_human` call real UiPath
+services (LLM Gateway, Action Center), so the full eval set requires valid
+credentials in `.env` for all 11 cases, not just the ones the two
+evaluators grade.
+
+**Heads up:** none of the current evaluators grade `auto_reply` or
+`action_task_id`, but the ~3 cases whose triage escalates still create a
+real Action Center QuickForm task each run, and nothing in this sample
+cleans them up. Expect leftover tasks in Action Center after repeated
+`uipath eval` runs.
 
 ```bash
 uipath eval

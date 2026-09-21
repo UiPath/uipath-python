@@ -28,11 +28,46 @@ from uipath.tracing import traced
 
 # --- Tunable escalation thresholds -----------------------------------------
 URGENCY_THRESHOLD = 0.6
-FRUSTRATION_THRESHOLD = 1.0  # out of 2 ("Calm" / "Frustrated" / "Very angry")
+FRUSTRATION_THRESHOLD_FRACTION = 0.5  # fraction of the frustration scale
 ROUTING_CONFIDENCE_THRESHOLD = 0.45
 
 # Fixed schema key for the QuickForm task this sample registers/reuses.
 TRIAGE_TASK_SCHEMA_KEY = "5b6f7e2a-3c9d-4e11-9a2b-6d1f0c9a2e77"
+
+TRIAGE_TASK_SCHEMA = {
+    "id": TRIAGE_TASK_SCHEMA_KEY,
+    "fields": [
+        {"id": "subject", "type": "text", "label": "Subject", "direction": "input"},
+        {"id": "message", "type": "text", "label": "Message", "direction": "input"},
+        {
+            "id": "department",
+            "type": "text",
+            "label": "Suggested department",
+            "direction": "input",
+        },
+        {
+            "id": "urgency",
+            "type": "text",
+            "label": "Urgency score",
+            "direction": "input",
+        },
+        {
+            "id": "frustration",
+            "type": "text",
+            "label": "Frustration score",
+            "direction": "input",
+        },
+        {
+            "id": "reply",
+            "type": "text",
+            "label": "Reviewer reply",
+            "direction": "output",
+        },
+    ],
+    "outcomes": [
+        {"id": "resolve", "name": "Resolve", "type": "string", "isPrimary": True},
+    ],
+}
 
 DEPARTMENT_SYSTEM_PROMPTS = {
     "billing": (
@@ -62,9 +97,16 @@ class TriageDecision(BaseModel):
     """Tier 1 (Jev) structured triage output."""
 
     department: str
-    department_confidence: float
-    is_urgent: float
-    frustration_score: float
+    department_confidence: float = Field(ge=0.0, le=1.0)
+    urgency: float = Field(
+        ge=0.0, le=1.0, description="Calibrated probability that the ticket is urgent"
+    )
+    frustration_score: float = Field(
+        ge=0.0, description="Rubric-weighted frustration level, 0..frustration_scale"
+    )
+    frustration_scale: int = Field(
+        ge=1, description="Maximum value frustration_score can take"
+    )
 
 
 class TicketOutput(BaseModel):
@@ -108,16 +150,18 @@ def triage_ticket(ticket: TicketInput) -> TriageDecision:
     return TriageDecision(
         department=department.choice,
         department_confidence=department.confidence,
-        is_urgent=is_urgent.noul,
+        urgency=is_urgent.noul,
         frustration_score=frustration.score,
+        frustration_scale=len(frustration.probabilities) - 1,
     )
 
 
 def needs_escalation(triage: TriageDecision) -> bool:
     """Decide whether the ticket should go to a human instead of auto-reply."""
     return (
-        triage.is_urgent >= URGENCY_THRESHOLD
-        or triage.frustration_score >= FRUSTRATION_THRESHOLD
+        triage.urgency >= URGENCY_THRESHOLD
+        or (triage.frustration_score / triage.frustration_scale)
+        >= FRUSTRATION_THRESHOLD_FRACTION
         or triage.department_confidence < ROUTING_CONFIDENCE_THRESHOLD
     )
 
@@ -135,52 +179,18 @@ def escalate_to_human(
             ".env.example)."
         )
 
-    schema = {
-        "id": TRIAGE_TASK_SCHEMA_KEY,
-        "fields": [
-            {"id": "subject", "type": "text", "label": "Subject", "direction": "input"},
-            {"id": "message", "type": "text", "label": "Message", "direction": "input"},
-            {
-                "id": "department",
-                "type": "text",
-                "label": "Suggested department",
-                "direction": "input",
-            },
-            {
-                "id": "urgency",
-                "type": "text",
-                "label": "Urgency score",
-                "direction": "input",
-            },
-            {
-                "id": "frustration",
-                "type": "text",
-                "label": "Frustration score",
-                "direction": "input",
-            },
-            {
-                "id": "reply",
-                "type": "text",
-                "label": "Reviewer reply",
-                "direction": "output",
-            },
-        ],
-        "outcomes": [
-            {"id": "resolve", "name": "Resolve", "type": "string", "isPrimary": True},
-        ],
-    }
     task = client.tasks.create_quickform(
         title=f"Review ticket: {ticket.subject}",
         task_schema_key=TRIAGE_TASK_SCHEMA_KEY,
-        schema=schema,
+        schema=TRIAGE_TASK_SCHEMA,
         data={
             "subject": ticket.subject,
             "message": ticket.message,
             "department": f"{triage.department} ({triage.department_confidence:.0%} confidence)",
-            "urgency": f"{triage.is_urgent:.2f}",
-            "frustration": f"{triage.frustration_score:.2f}",
+            "urgency": f"{triage.urgency:.2f}",
+            "frustration": f"{triage.frustration_score:.2f} / {triage.frustration_scale}",
         },
-        priority="High" if triage.is_urgent >= URGENCY_THRESHOLD else "Medium",
+        priority="High" if triage.urgency >= URGENCY_THRESHOLD else "Medium",
         folder_path=folder_path,
     )
     if task.id is None:
@@ -210,7 +220,11 @@ async def draft_auto_reply(
         max_tokens=300,
         temperature=0.3,
     )
-    return result.choices[0].message.content or ""
+    if not result.choices or not (content := result.choices[0].message.content):
+        raise RuntimeError(
+            "LLM Gateway returned no reply text; refusing to auto-resolve this ticket."
+        )
+    return content
 
 
 @traced()
