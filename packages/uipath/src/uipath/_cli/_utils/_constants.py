@@ -61,3 +61,7 @@ BINARY_EXTENSIONS = (
 def is_binary_file(file_extension: str) -> bool:
     """Determine if a file should be treated as binary."""
     return file_extension.lower() in BINARY_EXTENSIONS
+
+
+# Supported agent frameworks and their packages, for `uipath new --type agent`
+AGENT_FRAMEWORKS_DOCS_URL = "https://uipath.github.io/uipath-python/core/agents/"
