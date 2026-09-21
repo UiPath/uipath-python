@@ -4,8 +4,8 @@ This sample demonstrates a two-tier triage pattern for support tickets:
 
 1. **Tier 1 (System 1) - fast structured triage.** A "System One" model
    takes the ticket text and a set of typed questions, and returns
-   calibrated typed answers (a classification, a boolean, and a score)
-   instead of free text - orders of magnitude cheaper and faster than an
+   calibrated typed answers (a classification, a 0-1 probability, and a
+   score) instead of free text - orders of magnitude cheaper and faster than an
    LLM call. This sample uses TypeSafe AI's `Jev` model via the
    `typesafe-sdk` package.
 2. **Tier 2 (System 2) - branch on the triage result.**

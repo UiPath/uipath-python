@@ -126,6 +126,14 @@ def escalate_to_human(
     client: UiPath, ticket: TicketInput, triage: TriageDecision
 ) -> int:
     """Create an Action Center QuickForm task for a human reviewer."""
+    folder_path = os.environ.get("UIPATH_FOLDER_PATH", "").strip()
+    if not folder_path:
+        raise RuntimeError(
+            "UIPATH_FOLDER_PATH is not set. Action Center tasks must be "
+            "created in an Orchestrator folder; set it in .env (see "
+            ".env.example)."
+        )
+
     schema = {
         "id": TRIAGE_TASK_SCHEMA_KEY,
         "fields": [
@@ -172,8 +180,12 @@ def escalate_to_human(
             "frustration": f"{triage.frustration_score:.2f}",
         },
         priority="High" if triage.is_urgent >= URGENCY_THRESHOLD else "Medium",
-        folder_path=os.environ.get("UIPATH_FOLDER_PATH"),
+        folder_path=folder_path,
     )
+    if task.id is None:
+        raise RuntimeError(
+            "Action Center did not return a task id for the created task."
+        )
     return task.id
 
 
