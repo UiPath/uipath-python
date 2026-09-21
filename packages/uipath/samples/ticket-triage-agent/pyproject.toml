@@ -1,0 +1,19 @@
+[project]
+name = "ticket-triage-agent"
+version = "0.0.1"
+description = "Two-tier support ticket triage: a mocked System One model (Jev) for fast structured routing, escalating to Action Center HITL or an LLM-drafted auto-reply."
+requires-python = ">=3.11"
+dependencies = [
+    "uipath",
+]
+
+# Once you have independently vetted TypeSafe AI's real SDK, swap the local
+# jev_client.py stub for the real package by uncommenting the line below
+# and deleting jev_client.py. See jev_client.py for why it isn't wired in
+# as a live dependency here.
+# "typesafe-sdk",
+
+[dependency-groups]
+dev = [
+    "uipath-dev",
+]
