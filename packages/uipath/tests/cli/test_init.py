@@ -609,6 +609,99 @@ def main(input: InputModel) -> InputModel: return input""")
                 assert uiproj["Description"] == "Test"
                 assert uiproj["MainFile"] is None
 
+    def test_init_aborts_on_unscaffolded_studio_web_project(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init stops before writing anything when only project.uiproj exists."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("project.uiproj", "w") as f:
+                json.dump(
+                    {
+                        "Name": "My Function",
+                        "ProjectType": "Function",
+                        "MainFile": None,
+                    },
+                    f,
+                )
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "has not been scaffolded yet" in result.output
+            assert "uipath new my-function" in result.output
+            assert sorted(os.listdir(".")) == ["project.uiproj"]
+
+    def test_init_aborts_on_unscaffolded_project_without_name(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init falls back to a placeholder name when uiproj has none."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("project.uiproj", "w") as f:
+                json.dump({"ProjectType": "Function"}, f)
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "uipath new <name>" in result.output
+            assert sorted(os.listdir(".")) == ["project.uiproj"]
+
+    def test_init_aborts_on_empty_directory(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that init stops before writing anything in an empty directory."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "this directory is empty" in result.output
+            assert "uipath new <name>" in result.output
+            assert os.listdir(".") == []
+
+    def test_init_aborts_on_unscaffolded_project_with_malformed_uiproj(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that an unreadable project.uiproj still yields the placeholder hint."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("project.uiproj", "w") as f:
+                f.write("{ not json")
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "uipath new <name>" in result.output
+            assert sorted(os.listdir(".")) == ["project.uiproj"]
+
+    def test_init_ignores_hidden_entries_when_detecting_unscaffolded_project(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that hidden files do not hide the unscaffolded Studio Web state."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("project.uiproj", "w") as f:
+                json.dump({"Name": "Function", "ProjectType": "Function"}, f)
+            os.makedirs(".uipath")
+            with open(".env", "w") as f:
+                f.write("")
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 1
+            assert "uipath new function" in result.output
+
+    def test_init_proceeds_when_uiproj_has_siblings(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Test that an existing project.uiproj alongside sources does not trigger the guard."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            with open("project.uiproj", "w") as f:
+                json.dump({"Name": "my-project", "ProjectType": "Function"}, f)
+            self._generate_pyproject("my-project")
+
+            result = runner.invoke(cli, ["init"], env={})
+
+            assert result.exit_code == 0
+            assert "has not been scaffolded yet" not in result.output
+            assert "Updated 'project.uiproj' file" in result.output
+
     def test_init_creates_uiproj_with_agent_type(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
