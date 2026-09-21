@@ -16,6 +16,7 @@ Demonstrates a "System 1 / System 2" pattern:
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 from pydantic import BaseModel, Field
@@ -215,11 +216,11 @@ async def draft_auto_reply(
 @traced()
 async def main(input: TicketInput) -> TicketOutput:
     """Triage a ticket and either auto-reply or escalate to a human."""
-    triage = triage_ticket(input)
+    triage = await asyncio.to_thread(triage_ticket, input)
     client = UiPath()
 
     if needs_escalation(triage):
-        task_id = escalate_to_human(client, input, triage)
+        task_id = await asyncio.to_thread(escalate_to_human, client, input, triage)
         return TicketOutput(triage=triage, escalated=True, action_task_id=task_id)
 
     reply = await draft_auto_reply(client, input, triage)
