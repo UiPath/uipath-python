@@ -4,9 +4,8 @@ Demonstrates a "System 1 / System 2" pattern:
 
 1.  Tier 1 (System 1) - a fast, cheap, structured-decision model triages the
     ticket: which department it belongs to, whether it's urgent, and how
-    frustrated the customer sounds. This sample stubs that tier with a mock
-    of TypeSafe AI's "Jev" model (see `jev_client.py` for why it's a stub,
-    not a real dependency).
+    frustrated the customer sounds. Uses TypeSafe AI's `typesafe-sdk` and
+    its "Jev" System One model (requires TYPESAFE_API_KEY; see README.md).
 2.  Tier 2 (System 2) - branches on the triage result:
       * High urgency/frustration, or low routing confidence -> escalate to a
         human via a UiPath Action Center QuickForm task (HITL), with the
@@ -19,8 +18,8 @@ from __future__ import annotations
 
 import os
 
-from jev_client import Choice, Noul, Score, TypeSafeClient
 from pydantic import BaseModel, Field
+from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
 
 from uipath.platform import UiPath
 from uipath.platform.chat import ChatModels
