@@ -1,4 +1,4 @@
-"""The job-invocation IPC contract and the glue that routes a job's logs and result over it."""
+"""The Python job-api IPC contract and the glue that routes a job's logs and result over it."""
 
 from __future__ import annotations
 
@@ -55,9 +55,11 @@ class ExecutorJobStatus(IntEnum):
 
 
 @dataclass
-class JobLogDto:
+class PythonJobLogDto:
     """A log entry; field names are the wire keys (do not rename)."""
 
+    JobKey: str
+    ResumeVersion: int | None = None
     Message: str = ""
     LogLevel: int = LogLevel.INFORMATION.value
 
@@ -74,26 +76,31 @@ class JobExecutorError:
 
 
 @dataclass
-class JobResultDto:
+class PythonJobResultDto:
     """The final result; field names are the wire keys (do not rename)."""
 
-    id: str = ""
-    status: int = ExecutorJobStatus.SUCCESSFUL.value
-    outputArguments: Any = None
-    outputArgumentsFilePath: str | None = None
-    info: str | None = None
-    error: JobExecutorError | None = None
+    JobKey: str
+    ResumeVersion: int | None = None
+    Status: int = ExecutorJobStatus.SUCCESSFUL.value
+    OutputArguments: Any = None
+    OutputArgumentsFilePath: str | None = None
+    Info: str | None = None
+    Error: JobExecutorError | None = None
 
 
-class IJobInvocationCommonApi(ABC):
-    """The job-invocation contract: logs + the final result. The class name is the endpoint key."""
+class IPythonJobApi(ABC):
+    """The Python job-api contract: logs + the final result. The class name is the endpoint key.
+
+    Every message names the run it belongs to (job key + resume version), so the peer can route a
+    pooled callback to the right job and drop a straggler from a previous resume.
+    """
 
     @abstractmethod
-    async def SendLog(self, jobId: str, log: JobLogDto) -> None:
+    async def SendLog(self, log: PythonJobLogDto) -> None:
         """Forward one log entry."""
 
     @abstractmethod
-    async def SetResult(self, jobId: str, result: JobResultDto) -> bool:
+    async def SetResult(self, result: PythonJobResultDto) -> bool:
         """Submit the final result."""
 
 
@@ -121,8 +128,11 @@ _EXECUTOR_STATUS: dict[str, int] = {
 
 
 def _to_result_dto(
-    job_id: str, result: Any, output_arguments_file_path: str
-) -> JobResultDto:
+    job_key: str,
+    resume_version: int | None,
+    result: Any,
+    output_arguments_file_path: str,
+) -> PythonJobResultDto:
     error = None
     if result is not None and getattr(result, "error", None) is not None:
         category = result.error.category
@@ -135,11 +145,12 @@ def _to_result_dto(
         )
     raw_status = getattr(result, "status", None)
     status_key = str(getattr(raw_status, "value", raw_status) or "successful").lower()
-    return JobResultDto(
-        id=job_id,
-        status=_EXECUTOR_STATUS.get(status_key, ExecutorJobStatus.SUCCESSFUL.value),
-        outputArgumentsFilePath=output_arguments_file_path,
-        error=error,
+    return PythonJobResultDto(
+        JobKey=job_key,
+        ResumeVersion=resume_version,
+        Status=_EXECUTOR_STATUS.get(status_key, ExecutorJobStatus.SUCCESSFUL.value),
+        OutputArgumentsFilePath=output_arguments_file_path,
+        Error=error,
     )
 
 
@@ -162,10 +173,15 @@ class _IpcLogHandler(logging.Handler):
     """Forwards each log record to the callback."""
 
     def __init__(
-        self, job_id: str, callback: Any, loop: asyncio.AbstractEventLoop
+        self,
+        job_key: str,
+        resume_version: int | None,
+        callback: Any,
+        loop: asyncio.AbstractEventLoop,
     ) -> None:
         super().__init__()
-        self._job_id = job_id
+        self._job_key = job_key
+        self._resume_version = resume_version
         self._callback = callback
         self._loop = loop
         self._pending: set[Future[object]] = set()
@@ -177,11 +193,14 @@ class _IpcLogHandler(logging.Handler):
             _to_original_stderr(self, record)
             return
         try:
-            dto = JobLogDto(
-                Message=self.format(record), LogLevel=_to_log_level(record.levelno)
+            dto = PythonJobLogDto(
+                JobKey=self._job_key,
+                ResumeVersion=self._resume_version,
+                Message=self.format(record),
+                LogLevel=_to_log_level(record.levelno),
             )
             future = asyncio.run_coroutine_threadsafe(
-                self._callback.SendLog(self._job_id, dto), self._loop
+                self._callback.SendLog(dto), self._loop
             )
             with self._pending_lock:
                 self._pending.add(future)
@@ -226,9 +245,15 @@ class _IpcLogHandler(logging.Handler):
 
 
 def install_runtime_sinks(
-    job_id: str, callback: Any, loop: asyncio.AbstractEventLoop
+    job_key: str,
+    resume_version: int | None,
+    callback: Any,
+    loop: asyncio.AbstractEventLoop,
 ) -> "_IpcLogHandler | None":
-    """Install the log + result sinks, forwarding to ``callback`` on ``loop``.
+    """Install the log + result sinks for the run ``(job_key, resume_version)``, forwarding to ``callback`` on ``loop``.
+
+    The peer routes a pooled callback by that pair exactly, so ``resume_version`` is the caller's
+    decision: the value it was handed, or ``None`` on a lane that has none.
 
     ``loop`` must run on a different thread than the one the sinks are invoked on, or the result ack
     deadlocks. Raises if this runtime has no sinks to install into.
@@ -246,15 +271,15 @@ def install_runtime_sinks(
             "Install uipath-runtime>=0.13.5."
         ) from e
 
-    handler = _IpcLogHandler(job_id, callback, loop)
+    handler = _IpcLogHandler(job_key, resume_version, callback, loop)
     handler.setFormatter(logging.Formatter("%(message)s"))
 
     def _result_sink(result: Any, output_arguments_file_path: str) -> None:
-        dto = _to_result_dto(job_id, result, output_arguments_file_path)
+        dto = _to_result_dto(
+            job_key, resume_version, result, output_arguments_file_path
+        )
         try:
-            future = asyncio.run_coroutine_threadsafe(
-                callback.SetResult(job_id, dto), loop
-            )
+            future = asyncio.run_coroutine_threadsafe(callback.SetResult(dto), loop)
             if future.result(timeout=_SET_RESULT_TIMEOUT_S) is False:
                 logger.error(
                     "The handler rejected the job result (SetResult returned false)"
@@ -329,21 +354,23 @@ class _HandlerIpcConnection:
         _stop_loop_thread(self._loop, self._thread, _SET_RESULT_TIMEOUT_S)
 
 
-def is_wire_job_id(job_id: str | None) -> TypeGuard[str]:
-    """The peer types the job id as a Guid, and routes nothing for one it can't match."""
+def is_wire_job_key(job_key: str | None) -> TypeGuard[str]:
+    """The peer types the job key as a Guid, and routes nothing for one it can't match."""
     try:
-        parsed = uuid.UUID(str(job_id))
+        parsed = uuid.UUID(str(job_key))
     except ValueError:
         return False
     # All-zeros is Guid's default, so it is the one unusable value a caller reaches by omission.
     return parsed.int != 0
 
 
-def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
+def connect_handler_ipc(
+    pipe: str, job_key: str | None, resume_version: int | None
+) -> _HandlerIpcConnection:
     """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``)."""
-    if not is_wire_job_id(job_id):
+    if not is_wire_job_key(job_key):
         raise RuntimeError(
-            f"--handler-ipc-pipe needs UIPATH_JOB_KEY to be a job id; got {job_id!r}."
+            f"--handler-ipc-pipe needs UIPATH_JOB_KEY to be a job key; got {job_key!r}."
         )
 
     from uipath_ipc import IpcClient, NamedPipeClientTransport
@@ -369,7 +396,7 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
             request_timeout=_IPC_REQUEST_TIMEOUT_S,
             max_message_size=_MAX_MESSAGE_BYTES,
         )
-        proxy = client.get_proxy(IJobInvocationCommonApi)  # type: ignore[type-abstract]
+        proxy = client.get_proxy(IPythonJobApi)  # type: ignore[type-abstract]
         return client, proxy
 
     try:
@@ -380,7 +407,7 @@ def connect_handler_ipc(pipe: str, job_id: str | None) -> _HandlerIpcConnection:
         _stop_loop_thread(loop, thread, _SET_RESULT_TIMEOUT_S)
         raise
     # Install in the caller's context: the sinks are contextvars, read in the job's own context at teardown.
-    handler = install_runtime_sinks(job_id, proxy, loop)
+    handler = install_runtime_sinks(job_key, resume_version, proxy, loop)
     return _HandlerIpcConnection(client, loop, thread, handler)
 
 
@@ -392,10 +419,12 @@ async def disconnect_handler_ipc(conn: _HandlerIpcConnection) -> None:
 
 @contextlib.asynccontextmanager
 async def handler_ipc_connection(
-    pipe: str | None, job_id: str | None
+    pipe: str | None, job_key: str | None, resume_version: int | None
 ) -> AsyncIterator[Any]:
     """Connect (if ``pipe`` is set) and always disconnect on exit; yields the connection or None."""
-    conn = connect_handler_ipc(pipe, job_id) if pipe is not None else None
+    conn = (
+        connect_handler_ipc(pipe, job_key, resume_version) if pipe is not None else None
+    )
     try:
         yield conn
     finally:

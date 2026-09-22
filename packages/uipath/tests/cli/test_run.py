@@ -235,7 +235,7 @@ class TestRun:
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
 
             events: list[str] = []
-            seen: list[tuple[str, str]] = []
+            seen: list[tuple[str, str, int | None]] = []
             snapshots: list[object] = []
 
             from uipath.runtime import context as runtime_context
@@ -244,8 +244,8 @@ class TestRun:
             sentinel = logging.Handler()
 
             @asynccontextmanager
-            async def _fake_connection(pipe, job_id):
-                seen.append((pipe, job_id))
+            async def _fake_connection(pipe, job_key, resume_version):
+                seen.append((pipe, job_key, resume_version))
                 events.append("open")
                 # Install for real: the ordering that matters is against the runtime context's
                 # one-shot snapshot, not against runtime.execute.
@@ -303,7 +303,7 @@ class TestRun:
             # The whole point: the connection must still be open when the job runs.
             assert events == ["open", "run", "close"], events
             # And it must be told which job, not None.
-            assert seen == [("some-pipe", job_key)]
+            assert seen == [("some-pipe", job_key, None)]
             # The connection must be open BEFORE the runtime context snapshots the sinks: move it
             # inside and __enter__ would capture None, losing every log line and the result.
             assert snapshots == [sentinel], (

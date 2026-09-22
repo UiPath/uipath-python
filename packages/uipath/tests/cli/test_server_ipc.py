@@ -30,7 +30,7 @@ from uipath_ipc import (
 )
 
 from uipath._cli import _server_core
-from uipath._cli._job_api import IJobInvocationCommonApi
+from uipath._cli._job_api import IPythonJobApi
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
     PythonRuntimeService,
@@ -393,7 +393,7 @@ class TestPooledSinks:
         monkeypatch.setattr(
             _job_api,
             "install_runtime_sinks",
-            lambda jid, cb, loop: events.append(("install", jid)),
+            lambda jid, rv, cb, loop: events.append(("install", jid)),
         )
 
         async def _fake_run(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -450,14 +450,16 @@ class TestPooledSinks:
         """No hand-fed ``message``: the dispatcher must inject it from the contract."""
         from uipath._cli import _job_api, cli_server_ipc
 
-        installed: list[Any] = []
+        installed: list[tuple[str, int | None]] = []
         real_install = _job_api.install_runtime_sinks
 
-        def _record(jid, cb, loop):
-            installed.append(jid)
+        def _record(
+            jid: str, rv: int | None, cb: Any, loop: asyncio.AbstractEventLoop
+        ) -> Any:
+            installed.append((jid, rv))
             # Install for real: patching this away would leave the callback unused, so nothing
             # would notice if RunJob asked the peer for the wrong contract.
-            return real_install(jid, cb, loop)
+            return real_install(jid, rv, cb, loop)
 
         monkeypatch.setattr(_job_api, "install_runtime_sinks", _record)
 
@@ -484,10 +486,10 @@ class TestPooledSinks:
         delivered: list[tuple[str, Any]] = []
 
         class _Callback:
-            async def SendLog(self, job_id: str, log: Any) -> None:
-                delivered.append((job_id, log))
+            async def SendLog(self, log: Any) -> None:
+                delivered.append((log.JobKey, log))
 
-            async def SetResult(self, job_id: str, result: Any) -> bool:
+            async def SetResult(self, result: Any) -> bool:
                 return True
 
         pipe = _unique_pipe()
@@ -496,7 +498,7 @@ class TestPooledSinks:
         async def scenario() -> Any:
             client = IpcClient(
                 transport=NamedPipeClientTransport(pipe),
-                callbacks={IJobInvocationCommonApi: _Callback()},
+                callbacks={IPythonJobApi: _Callback()},
             )
             try:
                 proxy = client.get_proxy(IPythonRuntimeServer)  # type: ignore[type-abstract]
@@ -505,6 +507,7 @@ class TestPooledSinks:
                         Any,
                         {
                             "JobKey": JOB_ID,
+                            "ResumeVersion": 2,
                             "Command": "run",
                             "Args": [],
                             "StreamOutputOverIpc": True,
@@ -517,11 +520,12 @@ class TestPooledSinks:
         result = asyncio.run(scenario())
         assert result.Error is None, result.Error
         assert result.ExitCode == 0
-        assert installed == [JOB_ID]
+        assert installed == [(JOB_ID, 2)]
         # The contract passed to get_callback IS the endpoint key on the wire: ask for the wrong
         # one and every send is addressed to something the peer does not host.
         assert len(delivered) == 1, "no log line crossed the pooled callback"
-        assert delivered[0][0] == JOB_ID
+        # The peer routes by (JobKey, ResumeVersion) exactly; a null here would miss a resumed job.
+        assert (delivered[0][1].JobKey, delivered[0][1].ResumeVersion) == (JOB_ID, 2)
         assert delivered[0][1].Message == "pooled line"
 
     def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
@@ -532,7 +536,7 @@ class TestPooledSinks:
         monkeypatch.setattr(
             _job_api,
             "install_runtime_sinks",
-            lambda jid, cb, loop: events.append(("install", jid, cb)),
+            lambda jid, rv, cb, loop: events.append(("install", jid, cb)),
         )
         monkeypatch.setattr(
             _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
@@ -574,7 +578,7 @@ class TestPooledSinks:
                 events.append("flush")
 
         monkeypatch.setattr(
-            _job_api, "install_runtime_sinks", lambda jid, cb, loop: _Handler()
+            _job_api, "install_runtime_sinks", lambda jid, rv, cb, loop: _Handler()
         )
         monkeypatch.setattr(_job_api, "clear_runtime_sinks", lambda: None)
 
@@ -611,7 +615,7 @@ class TestPooledSinks:
         monkeypatch.setattr(
             _job_api,
             "install_runtime_sinks",
-            lambda jid, cb, loop: events.append(("install",)),
+            lambda jid, rv, cb, loop: events.append(("install",)),
         )
         monkeypatch.setattr(
             _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
