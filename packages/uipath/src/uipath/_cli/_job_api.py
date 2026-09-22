@@ -58,42 +58,38 @@ class ExecutorJobStatus(IntEnum):
 class PythonJobLogDto:
     """A log entry; field names are the wire keys (do not rename)."""
 
-    JobKey: str
-    ResumeVersion: int | None = None
-    Message: str = ""
-    LogLevel: int = LogLevel.INFORMATION.value
+    jobKey: str
+    resumeVersion: int | None = None
+    message: str = ""
+    logLevel: int = LogLevel.INFORMATION.value
 
 
 @dataclass
 class JobExecutorError:
     """A result error; field names are the wire keys (do not rename)."""
 
-    Code: str | None = None
-    Title: str | None = None
-    Detail: str | None = None
-    Category: str | None = None
-    Status: int | None = None
+    code: str | None = None
+    title: str | None = None
+    detail: str | None = None
+    category: str | None = None
+    status: int | None = None
 
 
 @dataclass
 class PythonJobResultDto:
     """The final result; field names are the wire keys (do not rename)."""
 
-    JobKey: str
-    ResumeVersion: int | None = None
-    Status: int = ExecutorJobStatus.SUCCESSFUL.value
-    OutputArguments: Any = None
-    OutputArgumentsFilePath: str | None = None
-    Info: str | None = None
-    Error: JobExecutorError | None = None
+    jobKey: str
+    resumeVersion: int | None = None
+    status: int = ExecutorJobStatus.SUCCESSFUL.value
+    outputArguments: Any = None
+    outputArgumentsFilePath: str | None = None
+    info: str | None = None
+    error: JobExecutorError | None = None
 
 
 class IPythonJobApi(ABC):
-    """The Python job-api contract: logs + the final result. The class name is the endpoint key.
-
-    Every message names the run it belongs to (job key + resume version), so the peer can route a
-    pooled callback to the right job and drop a straggler from a previous resume.
-    """
+    """The Python job-api contract: logs + the final result. The class name is the endpoint key."""
 
     @abstractmethod
     async def SendLog(self, log: PythonJobLogDto) -> None:
@@ -137,20 +133,20 @@ def _to_result_dto(
     if result is not None and getattr(result, "error", None) is not None:
         category = result.error.category
         error = JobExecutorError(
-            Code=result.error.code,
-            Title=result.error.title,
-            Detail=result.error.detail,
-            Category=getattr(category, "value", category),
-            Status=result.error.status,
+            code=result.error.code,
+            title=result.error.title,
+            detail=result.error.detail,
+            category=getattr(category, "value", category),
+            status=result.error.status,
         )
     raw_status = getattr(result, "status", None)
     status_key = str(getattr(raw_status, "value", raw_status) or "successful").lower()
     return PythonJobResultDto(
-        JobKey=job_key,
-        ResumeVersion=resume_version,
-        Status=_EXECUTOR_STATUS.get(status_key, ExecutorJobStatus.SUCCESSFUL.value),
-        OutputArgumentsFilePath=output_arguments_file_path,
-        Error=error,
+        jobKey=job_key,
+        resumeVersion=resume_version,
+        status=_EXECUTOR_STATUS.get(status_key, ExecutorJobStatus.SUCCESSFUL.value),
+        outputArgumentsFilePath=output_arguments_file_path,
+        error=error,
     )
 
 
@@ -194,10 +190,10 @@ class _IpcLogHandler(logging.Handler):
             return
         try:
             dto = PythonJobLogDto(
-                JobKey=self._job_key,
-                ResumeVersion=self._resume_version,
-                Message=self.format(record),
-                LogLevel=_to_log_level(record.levelno),
+                jobKey=self._job_key,
+                resumeVersion=self._resume_version,
+                message=self.format(record),
+                logLevel=_to_log_level(record.levelno),
             )
             future = asyncio.run_coroutine_threadsafe(
                 self._callback.SendLog(dto), self._loop
@@ -250,10 +246,7 @@ def install_runtime_sinks(
     callback: Any,
     loop: asyncio.AbstractEventLoop,
 ) -> "_IpcLogHandler | None":
-    """Install the log + result sinks for the run ``(job_key, resume_version)``, forwarding to ``callback`` on ``loop``.
-
-    The peer routes a pooled callback by that pair exactly, so ``resume_version`` is the caller's
-    decision: the value it was handed, or ``None`` on a lane that has none.
+    """Install the log + result sinks, forwarding to ``callback`` on ``loop``.
 
     ``loop`` must run on a different thread than the one the sinks are invoked on, or the result ack
     deadlocks. Raises if this runtime has no sinks to install into.

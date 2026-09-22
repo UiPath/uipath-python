@@ -42,19 +42,19 @@ def test_to_result_dto_maps_status_error_and_path():
 
     dto = _job_api._to_result_dto("job-1", 3, _Result(), "out.args")
 
-    assert (dto.JobKey, dto.ResumeVersion) == ("job-1", 3)
-    assert dto.Status == _job_api.ExecutorJobStatus.FAULTED.value
-    assert dto.OutputArgumentsFilePath == "out.args"
-    assert dto.OutputArguments is None
-    assert dto.Error is not None
+    assert (dto.jobKey, dto.resumeVersion) == ("job-1", 3)
+    assert dto.status == _job_api.ExecutorJobStatus.FAULTED.value
+    assert dto.outputArgumentsFilePath == "out.args"
+    assert dto.outputArguments is None
+    assert dto.error is not None
     # Every field, so a swapped Title/Detail (a stack trace shown as the error's title in the
     # job's failure record) cannot pass.
     assert (
-        dto.Error.Code,
-        dto.Error.Title,
-        dto.Error.Detail,
-        dto.Error.Category,
-        dto.Error.Status,
+        dto.error.code,
+        dto.error.title,
+        dto.error.detail,
+        dto.error.category,
+        dto.error.status,
     ) == ("BOOM", "It broke", "stack", "User", 404)
 
 
@@ -64,9 +64,9 @@ def test_to_result_dto_defaults_to_successful_without_error():
         error = None
 
     dto = _job_api._to_result_dto("j", None, _Result(), "p.args")
-    assert dto.Status == _job_api.ExecutorJobStatus.SUCCESSFUL.value
-    assert dto.ResumeVersion is None
-    assert dto.Error is None
+    assert dto.status == _job_api.ExecutorJobStatus.SUCCESSFUL.value
+    assert dto.resumeVersion is None
+    assert dto.error is None
 
 
 def test_to_result_dto_maps_suspended():
@@ -79,7 +79,7 @@ def test_to_result_dto_maps_suspended():
         error = None
 
     dto = _job_api._to_result_dto("j", None, _Result(), "p.args")
-    assert dto.Status == _job_api.ExecutorJobStatus.SUSPENDED.value
+    assert dto.status == _job_api.ExecutorJobStatus.SUSPENDED.value
 
 
 def test_to_log_level_maps_python_levels_to_wire_values():
@@ -96,38 +96,37 @@ def test_to_log_level_maps_python_levels_to_wire_values():
 def test_dto_wire_key_sets_are_pinned():
     """Pin each DTO's on-wire JSON keys so an accidental rename is caught on this side.
 
-    Guards our half of the wire contract: every DTO is PascalCase, matching the peer's property
-    names (its base-class camelCase JSON names are matched case-insensitively).
+    Guards our half of the wire contract: every DTO is camelCase, as the peer declares them.
     """
     serialization = pytest.importorskip("uipath_ipc.wire.serialization")
     to_wire = serialization.to_wire
 
     result_keys = set(
         to_wire(
-            _job_api.PythonJobResultDto(JobKey="j", OutputArgumentsFilePath="p.args")
+            _job_api.PythonJobResultDto(jobKey="j", outputArgumentsFilePath="p.args")
         )
     )
     assert result_keys == {
-        "JobKey",
-        "ResumeVersion",
-        "Status",
-        "OutputArguments",
-        "OutputArgumentsFilePath",
-        "Info",
-        "Error",
+        "jobKey",
+        "resumeVersion",
+        "status",
+        "outputArguments",
+        "outputArgumentsFilePath",
+        "info",
+        "error",
     }
-    assert set(to_wire(_job_api.PythonJobLogDto(JobKey="j", Message="m"))) == {
-        "JobKey",
-        "ResumeVersion",
-        "Message",
-        "LogLevel",
+    assert set(to_wire(_job_api.PythonJobLogDto(jobKey="j", message="m"))) == {
+        "jobKey",
+        "resumeVersion",
+        "message",
+        "logLevel",
     }
-    assert set(to_wire(_job_api.JobExecutorError(Code="c"))) == {
-        "Code",
-        "Title",
-        "Detail",
-        "Category",
-        "Status",
+    assert set(to_wire(_job_api.JobExecutorError(code="c"))) == {
+        "code",
+        "title",
+        "detail",
+        "category",
+        "status",
     }
 
 
@@ -182,9 +181,9 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
             logging.LogRecord("n", logging.WARNING, "p", 1, "hi %s", ("there",), None)
         )
         await handler.aflush_pending()
-        assert (logs[0].JobKey, logs[0].ResumeVersion) == ("job-7", 2)
-        assert logs[0].Message == "hi there"
-        assert logs[0].LogLevel == _job_api.LogLevel.WARNING.value
+        assert (logs[0].jobKey, logs[0].resumeVersion) == ("job-7", 2)
+        assert logs[0].message == "hi there"
+        assert logs[0].logLevel == _job_api.LogLevel.WARNING.value
 
         # The result sink maps the result and calls SetResult, off a worker thread, for the ack.
         class _Result:
@@ -193,8 +192,8 @@ def test_install_wires_log_handler_and_result_sink(monkeypatch):
 
         sink = captured["sink"]
         await asyncio.to_thread(sink, _Result(), "out.args")
-        assert (results[0].JobKey, results[0].ResumeVersion) == ("job-7", 2)
-        assert results[0].OutputArgumentsFilePath == "out.args"
+        assert (results[0].jobKey, results[0].resumeVersion) == ("job-7", 2)
+        assert results[0].outputArgumentsFilePath == "out.args"
 
     asyncio.run(scenario())
 
@@ -255,7 +254,7 @@ def test_transport_and_self_logs_never_ride_the_ipc_channel(monkeypatch):
         thread.join(timeout=5)
         loop.close()
 
-    assert [dto.Message for dto in sent] == ["job line"]
+    assert [dto.message for dto in sent] == ["job line"]
     assert buf.getvalue().count("internal chatter") == 2
 
 
@@ -331,7 +330,7 @@ def test_pending_log_sends_are_flushed_before_teardown(monkeypatch):
     class _Callback:
         async def SendLog(self, dto: Any) -> None:
             await asyncio.sleep(0.2)
-            landed.append(dto.Message)
+            landed.append(dto.message)
 
     class _Client:
         async def aclose(self) -> None:
@@ -679,14 +678,14 @@ def test_result_sink_delivers_when_invoked_on_the_caller_loop_thread(monkeypatch
     # The log half of the contract, asserted on the wire rather than against a fake.
     assert "logs" in received, "SendLog never arrived over the pipe"
     entry = received["logs"][0]
-    assert (entry.JobKey, entry.ResumeVersion) == (JOB_ID_2, 1)
-    assert entry.Message == "over ipc"
-    assert entry.LogLevel == _job_api.LogLevel.WARNING.value
+    assert (entry.jobKey, entry.resumeVersion) == (JOB_ID_2, 1)
+    assert entry.message == "over ipc"
+    assert entry.logLevel == _job_api.LogLevel.WARNING.value
 
     assert "result" in received, (
         "SetResult never arrived — the result sink deadlocked/timed out"
     )
     dto = received["result"]
-    assert (dto.JobKey, dto.ResumeVersion) == (JOB_ID_2, 1)
-    assert dto.OutputArgumentsFilePath == "out.args"
-    assert dto.Status == _job_api.ExecutorJobStatus.SUCCESSFUL.value
+    assert (dto.jobKey, dto.resumeVersion) == (JOB_ID_2, 1)
+    assert dto.outputArgumentsFilePath == "out.args"
+    assert dto.status == _job_api.ExecutorJobStatus.SUCCESSFUL.value
