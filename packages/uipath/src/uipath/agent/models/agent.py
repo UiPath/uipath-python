@@ -128,6 +128,7 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     DEEP_RAG = "deep-rag"
     BATCH_TRANSFORM = "batch-transform"
     HTTP_REQUEST = "http-request"
+    JEV_CLASSIFIER = "jev-classifier"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -1066,12 +1067,22 @@ class AgentInternalHttpRequestToolProperties(BaseResourceProperties):
     )
 
 
+class AgentInternalJevClassifierToolProperties(BaseResourceProperties):
+    """Agent internal Jev classifier tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.JEV_CLASSIFIER] = Field(
+        alias="toolType", default=AgentInternalToolType.JEV_CLASSIFIER, frozen=True
+    )
+    settings: AgentInternalJevClassifierSettings = Field(..., alias="settings")
+
+
 AgentInternalToolProperties = Annotated[
     Union[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
         AgentInternalHttpRequestToolProperties,
+        AgentInternalJevClassifierToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
@@ -1105,6 +1116,76 @@ class AgentInternalBatchTransformSettings(BaseCfg):
     web_search_grounding: BatchTransformWebSearchGroundingSetting = Field(
         ..., alias="webSearchGrounding"
     )
+
+
+class JevQuestionType(str, CaseInsensitiveEnum):
+    """Jev question type enumeration (matches TypeSafe's question types)."""
+
+    CHOICE = "choice"
+    SCORE = "score"
+    NOUL = "noul"
+
+
+class JevChoiceOption(BaseCfg):
+    """An option of a Jev choice question."""
+
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class BaseJevQuestion(BaseCfg):
+    """Common fields of a Jev question."""
+
+    name: str = Field(..., pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+    instructions: str = Field(..., min_length=1)
+
+
+class JevChoiceQuestion(BaseJevQuestion):
+    """Jev question selecting one of a set of options."""
+
+    type: Literal[JevQuestionType.CHOICE] = JevQuestionType.CHOICE
+    options: List[JevChoiceOption] = Field(..., min_length=2, max_length=255)
+
+    @model_validator(mode="after")
+    def _unique_option_names(self) -> "JevChoiceQuestion":
+        names = [option.name for option in self.options]
+        if len(names) != len(set(names)):
+            raise ValueError(f"Question '{self.name}' has duplicate option names")
+        return self
+
+
+class JevScoreQuestion(BaseJevQuestion):
+    """Jev question placing the input on an ordered scale of levels."""
+
+    type: Literal[JevQuestionType.SCORE] = JevQuestionType.SCORE
+    levels: List[str] = Field(..., min_length=2, max_length=10)
+
+
+class JevNoulQuestion(BaseJevQuestion):
+    """Jev yes/no question answered with a probability."""
+
+    type: Literal[JevQuestionType.NOUL] = JevQuestionType.NOUL
+
+
+JevQuestion = Annotated[
+    Union[JevChoiceQuestion, JevScoreQuestion, JevNoulQuestion],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", JevQuestionType),
+]
+
+
+class AgentInternalJevClassifierSettings(BaseCfg):
+    """Agent internal Jev classifier tool settings model."""
+
+    model: str = Field("jev-latest")
+    questions: List[JevQuestion] = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def _unique_question_names(self) -> "AgentInternalJevClassifierSettings":
+        names = [question.name for question in self.questions]
+        if len(names) != len(set(names)):
+            raise ValueError("Jev classifier questions must have unique names")
+        return self
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
