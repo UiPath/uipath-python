@@ -106,16 +106,16 @@ class PythonRuntimeService(IPythonRuntimeServer):
         if request.StreamOutputOverIpc:
             # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
-                IJobInvocationCommonApi,
+                IPythonJobApi,
                 clear_runtime_sinks,
                 install_runtime_sinks,
-                is_wire_job_id,
+                is_wire_job_key,
             )
 
-            if not is_wire_job_id(request.JobKey):
+            if not is_wire_job_key(request.JobKey):
                 return PythonServerRunJobResult(
                     ExitCode=1,
-                    Error=f"StreamOutputOverIpc needs a 'JobKey' that is a job id; got {request.JobKey!r}",
+                    Error=f"StreamOutputOverIpc needs a 'JobKey' that is a job key (Guid); got {request.JobKey!r}",
                 )
 
             if message is None or message.client is None:
@@ -126,13 +126,16 @@ class PythonRuntimeService(IPythonRuntimeServer):
 
             # get_callback only wraps the connection, so this cannot tell us whether the peer
             # actually hosts the contract; a peer that doesn't shows up as a failing send.
-            callback = message.client.get_callback(IJobInvocationCommonApi)  # type: ignore[type-abstract]
+            callback = message.client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
 
             loop = asyncio.get_running_loop()
             job_key = request.JobKey
+            resume_version = request.ResumeVersion
 
             def _install() -> None:
-                installed.append(install_runtime_sinks(job_key, callback, loop))
+                installed.append(
+                    install_runtime_sinks(job_key, resume_version, callback, loop)
+                )
 
             on_run_start = _install
             on_run_end = clear_runtime_sinks

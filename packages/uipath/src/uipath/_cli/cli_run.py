@@ -231,7 +231,8 @@ def run(
                 from ._job_api import handler_ipc_connection
 
                 async with (
-                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id),
+                    # No resume version reaches this lane; the per-job pipe already names the run.
+                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id, None),
                     ResourceOverwritesContext(
                         lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                     ),
