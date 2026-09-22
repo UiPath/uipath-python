@@ -14,6 +14,7 @@ from uipath._cli._bindings._registry import (
     build_registry,
 )
 from uipath._cli._bindings._scanner import scan_project, scan_source
+from uipath._cli._push._resource_actions import CreateVirtual
 from uipath._cli.models.runtime_schema import Bindings
 from uipath.platform.common._bindings import (
     ConnectionResourceOverwrite,
@@ -146,6 +147,52 @@ class TestScanner:
         ref = _refs_by_type(result)["connection"]
         assert ref.name == "CONNECTION"
         assert ref.name_is_expression is True
+
+    def test_does_not_fold_constants_changed_by_augmented_assignment(self) -> None:
+        """`X += ...` changes the value the call actually receives."""
+        source = (
+            "CONNECTION = 'first'\n"
+            "CONNECTION += '-suffix'\n"
+            "async def run(sdk):\n"
+            "    await sdk.connections.retrieve_async(CONNECTION)\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        ref = _refs_by_type(result)["connection"]
+        assert ref.name == "CONNECTION"
+        assert ref.name_is_expression is True
+
+    def test_does_not_fold_constants_reassigned_inside_a_branch(self) -> None:
+        """A nested rebind is still a rebind, even though it is not top level."""
+        source = (
+            "NAME = 'a'\n"
+            "if SOMETHING:\n"
+            "    NAME = 'b'\n"
+            "async def run(sdk):\n"
+            "    await sdk.assets.retrieve_async(NAME, folder_path='F')\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        ref = _refs_by_type(result)["asset"]
+        assert ref.name == "NAME"
+        assert ref.name_is_expression is True
+
+    def test_resolves_a_positionally_passed_folder(self) -> None:
+        """context_grounding.retrieve_async takes folder_path at position 2."""
+        registry = build_registry()
+        assert registry[("context_grounding", "retrieve_async")].folder_index == 2
+
+        source = (
+            "async def run(sdk):\n"
+            "    await sdk.context_grounding.retrieve_async('Idx', None, 'Policies')\n"
+        )
+        result = scan_source(source, "main.py", registry)
+        ref = _refs_by_type(result)["index"]
+        assert ref.name == "Idx"
+        assert ref.folder_path == "Policies"
+        assert ref.folder_is_expression is False
+
+        from uipath._cli._bindings._emitter import binding_key
+
+        assert binding_key(ref) == "Idx.Policies"
 
     def test_marks_non_literal_arguments_as_expressions(self) -> None:
         source = (
@@ -302,7 +349,12 @@ class TestEmitter:
                 {t.value for t in ResourceType},
             )
         ]
+        # Pin the side effect rather than just "an action happened": a folderless
+        # binding reaches push as an uncatalogued resource and becomes a virtual
+        # placeholder. Changing that is a product decision, not an accident.
         assert len(actions) == 1
+        assert isinstance(actions[0], CreateVirtual)
+        assert actions[0].request.name == "Solo"
 
     def test_merge_keeps_hand_edited_entries_untouched(self) -> None:
         existing = Bindings.model_validate(

@@ -94,27 +94,46 @@ def iter_project_files(root: Path) -> list[Path]:
     return files
 
 
+def _binding_counts(tree: ast.Module) -> dict[str, int]:
+    """Count every place a name is bound, at any depth.
+
+    Augmented assignment, a rebind inside a branch or loop, a function-local of
+    the same name: all of them mean the value at the call site may not be the
+    literal seen at module level.
+    """
+    counts: dict[str, int] = {}
+
+    def bump(name: str) -> None:
+        counts[name] = counts.get(name, 0) + 1
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            bump(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bump(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                bump(alias.asname or alias.name.split(".")[0])
+    return counts
+
+
 def _module_constants(tree: ast.Module) -> dict[str, str]:
-    """Module-level ``NAME = "literal"`` assignments, minus anything reassigned."""
+    """Module-level ``NAME = "literal"`` assignments that are never rebound."""
+    counts = _binding_counts(tree)
     constants: dict[str, str] = {}
-    reassigned: set[str] = set()
     for node in tree.body:
-        targets: list[ast.expr] = []
-        value: Optional[ast.expr] = None
+        targets: list[ast.expr]
+        value: ast.expr
         if isinstance(node, ast.Assign):
-            targets = list(node.targets)
-            value = node.value
+            targets, value = list(node.targets), node.value
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            targets = [node.target]
-            value = node.value
+            targets, value = [node.target], node.value
+        else:
+            continue
+        if not (isinstance(value, ast.Constant) and isinstance(value.value, str)):
+            continue
         for target in targets:
-            if not isinstance(target, ast.Name):
-                continue
-            if target.id in constants or target.id in reassigned:
-                reassigned.add(target.id)
-                constants.pop(target.id, None)
-                continue
-            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            if isinstance(target, ast.Name) and counts.get(target.id) == 1:
                 constants[target.id] = value.value
     return constants
 

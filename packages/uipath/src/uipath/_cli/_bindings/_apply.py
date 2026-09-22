@@ -45,9 +45,7 @@ def serialize_bindings(bindings: Bindings) -> str:
 def infer_bindings(root: Path, existing: Optional[Bindings]) -> InferOutcome:
     """Scan ``root`` and merge what it finds into ``existing``."""
     result = scan_project(root, build_registry())
-    print(f"======================================\n {result}")
     merged, report = merge_bindings(existing, result.references)
-    print(f"+++++++++++++++++++++++++++++++++MERGED \n {merged}")
     return InferOutcome(merged=merged, report=report, skipped=result.skipped)
 
 
