@@ -118,6 +118,7 @@ class AgentToolType(str, CaseInsensitiveEnum):
     INTERNAL = "Internal"
     IXP = "Ixp"
     CLIENT_SIDE = "ClientSide"
+    GENERIC = "Generic"
     UNKNOWN = "Unknown"  # fallback branch discriminator
 
 
@@ -1140,6 +1141,30 @@ class AgentClientSideToolResourceConfig(BaseAgentToolResourceConfig):
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
+class AgentGenericToolProperties(BaseResourceProperties):
+    """Properties of a generic tool.
+
+    The behaviour is selected by ``sub_type`` and configured by the free-form
+    ``settings`` object, so new subtypes need no model changes.
+    """
+
+    sub_type: str = Field(..., alias="subType", min_length=1)
+    settings: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentGenericToolResourceConfig(BaseAgentToolResourceConfig):
+    """Resource config for generic tools, dispatched by ``properties.sub_type``."""
+
+    type: Literal[AgentToolType.GENERIC] = AgentToolType.GENERIC
+    properties: AgentGenericToolProperties
+    settings: Optional[AgentToolSettings] = Field(None)
+    arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
+
+
 class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
     """Fallback for unknown tool types (parent normalizer sets type='Unknown')."""
 
@@ -1154,6 +1179,7 @@ ToolResourceConfig = Annotated[
         AgentInternalToolResourceConfig,
         AgentIxpExtractionResourceConfig,
         AgentClientSideToolResourceConfig,
+        AgentGenericToolResourceConfig,
         AgentUnknownToolResourceConfig,  # when parent sets type="Unknown"
     ],
     Field(discriminator="type"),
@@ -1549,6 +1575,7 @@ class AgentDefinition(BaseModel):
             "internal": "Internal",
             "ixp": "Ixp",
             "clientside": "ClientSide",
+            "generic": "Generic",
             "unknown": "Unknown",
         }
         CONTEXT_MODE_MAP = {

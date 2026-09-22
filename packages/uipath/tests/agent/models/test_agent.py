@@ -19,6 +19,8 @@ from uipath.agent.models.agent import (
     AgentEscalationRecipient,
     AgentEscalationRecipientType,
     AgentEscalationResourceConfig,
+    AgentGenericToolProperties,
+    AgentGenericToolResourceConfig,
     AgentGuardrailActionType,
     AgentGuardrailBlockAction,
     AgentGuardrailEscalateAction,
@@ -4604,6 +4606,96 @@ class TestArgumentRecipientDeserialization:
         assert tool.output_schema["type"] == "object"
         assert "imageBase64" in tool.output_schema["properties"]
         assert tool.output_schema["required"] == ["imageBase64"]
+
+    @pytest.mark.parametrize("tool_type", ["generic", "Generic", "GENERIC"])
+    def test_agent_with_generic_tool(self, tool_type: str):
+        """Generic tools keep any subType and pass settings through verbatim."""
+
+        settings = {
+            "model": "jev-latest",
+            "questions": [
+                {
+                    "name": "department",
+                    "type": "choice",
+                    "instructions": "Which team should handle this",
+                    "options": [{"name": "billing"}, {"name": "technical"}],
+                }
+            ],
+            "futureField": {"nested": [1, 2, 3]},
+        }
+        json_data = {
+            "version": "1.0.0",
+            "id": "aaaaaaaa-0000-0000-0000-000000000013",
+            "name": "Agent with generic tool",
+            "metadata": {"isConversational": False, "storageVersion": "26.0.0"},
+            "messages": [
+                {"role": "System", "content": "You are an agentic assistant."},
+            ],
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v2",
+            },
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "id": "gen-0001-0000-0000-000000000001",
+                    "name": "Classify ticket",
+                    "description": "Classify a support ticket",
+                    "location": "solution",
+                    "type": tool_type,
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"state": {"type": "string"}},
+                        "required": ["state"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "properties": {"subType": "jev", "settings": settings},
+                    "isEnabled": True,
+                },
+                {
+                    "$resourceType": "tool",
+                    "id": "gen-0002-0000-0000-000000000001",
+                    "name": "Future tool",
+                    "description": "A subtype this SDK has never heard of",
+                    "type": tool_type,
+                    "inputSchema": {"type": "object", "properties": {}},
+                    "properties": {"subType": "some-future-subtype"},
+                    "isEnabled": True,
+                },
+            ],
+            "features": [],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        jev_tool, future_tool = config.resources
+        assert isinstance(jev_tool, AgentGenericToolResourceConfig)
+        assert jev_tool.type == AgentToolType.GENERIC
+        assert isinstance(jev_tool.properties, AgentGenericToolProperties)
+        assert jev_tool.properties.sub_type == "jev"
+        assert jev_tool.properties.settings == settings
+        assert jev_tool.argument_properties == {}
+
+        assert isinstance(future_tool, AgentGenericToolResourceConfig)
+        assert future_tool.properties.sub_type == "some-future-subtype"
+        assert future_tool.properties.settings == {}
+
+        dumped = jev_tool.model_dump(by_alias=True)
+        assert dumped["type"] == "Generic"
+        assert dumped["properties"]["subType"] == "jev"
+        assert dumped["properties"]["settings"] == settings
+
+    def test_generic_tool_requires_sub_type(self):
+        with pytest.raises(ValidationError):
+            AgentGenericToolProperties.model_validate({"settings": {}})
+        with pytest.raises(ValidationError):
+            AgentGenericToolProperties.model_validate({"subType": ""})
 
 
 class TestCustomAssignmentRecipientDeserialization:
