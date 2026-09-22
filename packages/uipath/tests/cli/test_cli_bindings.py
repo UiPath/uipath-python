@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,8 +18,7 @@ from uipath._cli._bindings._scanner import scan_project, scan_source
 from uipath._cli._push._resource_actions import CreateVirtual
 from uipath._cli.models.runtime_schema import Bindings
 from uipath.platform.common._bindings import (
-    ConnectionResourceOverwrite,
-    GenericResourceOverwrite,
+    ResourceOverwriteParser,
     _resource_overwrites,
     resource_override,
 )
@@ -454,20 +454,16 @@ class TestRuntimeKeyAgreement:
 
         probe = _make_probe(spec)
         overwrite_key = f"{ref.resource_type}.{binding.key}"
-        if ref.resource_type == "connection":
-            overwrite = ConnectionResourceOverwrite(
-                resource_type="connection",
-                connectionId="NEW_ID",
-                folderKey="NEW_FOLDER",
-            )
-        else:
-            overwrite = GenericResourceOverwrite(
-                resource_type=ref.resource_type,
-                name="NEW_NAME",
-                folderPath="NEW_FOLDER",
-            )
+        # Built through the same parser the runtime uses on the server's
+        # response, so the test exercises the production construction path.
+        payload: dict[str, Any] = (
+            {"connectionId": "NEW_ID", "folderKey": "NEW_FOLDER"}
+            if ref.resource_type == "connection"
+            else {"name": "NEW_NAME", "folderPath": "NEW_FOLDER"}
+        )
+        overwrite = ResourceOverwriteParser.parse(overwrite_key, payload)
 
-        call_args = {spec.name_param: ref.name}
+        call_args: dict[str, Any] = {spec.name_param: ref.name}
         if spec.folder_param:
             call_args[spec.folder_param] = ref.folder_path
 
@@ -620,7 +616,7 @@ def _make_probe(spec):
     if spec.folder_param:
         params.append(f"{spec.folder_param}=None")
     folder_expr = spec.folder_param if spec.folder_param else "None"
-    namespace: dict = {}
+    namespace: dict[str, Any] = {}
     exec(
         f"def probe({', '.join(params)}):\n"
         f"    return ({spec.name_param}, {folder_expr})\n",
