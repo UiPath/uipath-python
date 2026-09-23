@@ -7,6 +7,8 @@ This module tests:
 - Proper instantiation across all evaluator types
 """
 
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -448,3 +450,134 @@ class TestEvaluatorFactoryPropertyAccess:
 
         assert evaluator.name == "UpdatedName"
         assert evaluator.description == "Updated description"
+
+
+class TestCustomCodedEvaluatorModuleLoading:
+    """Custom-coded evaluators must load their module once, without leaking sys.modules."""
+
+    @staticmethod
+    def _write_evaluator_module(path: Path) -> None:
+        path.write_text(
+            "from uipath.eval.evaluators.exact_match_evaluator import ExactMatchEvaluator\n"
+            "\n"
+            "class MyCustomEvaluator(ExactMatchEvaluator):\n"
+            "    pass\n"
+        )
+
+    @staticmethod
+    def _config(module_path: Path) -> dict[str, Any]:
+        return {
+            "version": "1.0",
+            "id": "TestCustom",
+            "evaluatorTypeId": "uipath-exact-match",
+            "evaluatorSchema": f"file://{module_path}:MyCustomEvaluator",
+            "evaluatorConfig": {
+                "targetOutputKey": "*",
+                "negated": False,
+                "ignoreCase": False,
+            },
+        }
+
+    def test_module_is_cached_and_not_leaked(self, tmp_path: Path) -> None:
+        """Repeated creation from the same file reuses one cached module.
+
+        Regression test: the module name previously embedded ``id(data)`` (a fresh
+        dict per call), so every ``create_evaluator`` call re-executed the module
+        and leaked a new entry into ``sys.modules`` — unbounded growth (and O(n^2)
+        cost) when evaluators are built per datapoint. The module must now load
+        once and be reused.
+        """
+        module_path = tmp_path / "my_custom_eval.py"
+        self._write_evaluator_module(module_path)
+
+        def custom_module_keys() -> set[str]:
+            return {k for k in sys.modules if k.startswith("_custom_evaluator_")}
+
+        before = custom_module_keys()
+        try:
+            first = EvaluatorFactory.create_evaluator(self._config(module_path))
+            after_first = custom_module_keys()
+            second = EvaluatorFactory.create_evaluator(self._config(module_path))
+            third = EvaluatorFactory.create_evaluator(self._config(module_path))
+            after_third = custom_module_keys()
+
+            # Same class object across calls => the module was loaded once and reused.
+            assert type(first) is type(second) is type(third)
+            # Exactly one module added, and no further growth on subsequent calls.
+            assert len(after_first) == len(before) + 1
+            assert after_third == after_first
+        finally:
+            for key in custom_module_keys() - before:
+                del sys.modules[key]
+
+    def test_failed_load_is_not_cached(self, tmp_path: Path) -> None:
+        """A module that raises during import must not be left cached.
+
+        The exec-failure branch pops the half-initialized module from sys.modules
+        so a fixed file can be retried in the same process; without it the broken
+        load would be sticky (the path-keyed cache short-circuits the retry).
+        """
+        module_path = tmp_path / "broken_eval.py"
+        module_path.write_text("raise RuntimeError('boom at import time')\n")
+
+        def custom_module_keys() -> set[str]:
+            return {k for k in sys.modules if k.startswith("_custom_evaluator_")}
+
+        before = custom_module_keys()
+        config = self._config(module_path)
+        try:
+            with pytest.raises(ValueError):
+                EvaluatorFactory.create_evaluator(config)
+            # The failed load left nothing cached, so the same path can be retried.
+            assert custom_module_keys() == before
+
+            # Fix the file; a subsequent create for the same path must now succeed.
+            self._write_evaluator_module(module_path)
+            evaluator = EvaluatorFactory.create_evaluator(self._config(module_path))
+            assert type(evaluator).__name__ == "MyCustomEvaluator"
+        finally:
+            for key in custom_module_keys() - before:
+                del sys.modules[key]
+
+    def test_same_stem_in_different_dirs_do_not_collide(self, tmp_path: Path) -> None:
+        """Two custom-evaluator files sharing a basename load as distinct modules.
+
+        The path hash in the module name is what disambiguates them; a stem-only
+        key would return the first file's class for both.
+        """
+        path_a = tmp_path / "a" / "my_eval.py"
+        path_b = tmp_path / "b" / "my_eval.py"
+        path_a.parent.mkdir()
+        path_b.parent.mkdir()
+        self._write_evaluator_module(path_a)
+        self._write_evaluator_module(path_b)
+
+        def custom_module_keys() -> set[str]:
+            return {k for k in sys.modules if k.startswith("_custom_evaluator_")}
+
+        before = custom_module_keys()
+        try:
+            eval_a = EvaluatorFactory.create_evaluator(self._config(path_a))
+            eval_b = EvaluatorFactory.create_evaluator(self._config(path_b))
+            # Distinct files => distinct cached modules => distinct class objects.
+            assert type(eval_a) is not type(eval_b)
+            assert len(custom_module_keys() - before) == 2
+        finally:
+            for key in custom_module_keys() - before:
+                del sys.modules[key]
+
+    def test_path_traversal_is_rejected(self) -> None:
+        """A schema path with '..' segments is refused before any file load."""
+        config = {
+            "version": "1.0",
+            "id": "TestTraversal",
+            "evaluatorTypeId": "uipath-exact-match",
+            "evaluatorSchema": "file://../../../etc/passwd:MyCustomEvaluator",
+            "evaluatorConfig": {
+                "targetOutputKey": "*",
+                "negated": False,
+                "ignoreCase": False,
+            },
+        }
+        with pytest.raises(ValueError, match="must not contain"):
+            EvaluatorFactory.create_evaluator(config)
