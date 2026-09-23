@@ -25,30 +25,30 @@ def _run_id(job_key: str, resume_version: int | None) -> str:
 
 @dataclass
 class PythonServerRunRequest:
-    """PascalCase fields match the wire keys."""
+    """camelCase fields match the wire keys."""
 
-    JobKey: str = ""
-    ResumeVersion: int | None = None
-    Command: str = ""
+    jobKey: str = ""
+    resumeVersion: int | None = None
+    command: str = ""
     # The peer sends a single string; HTTP callers and tests may pass a
     # pre-split list. parse_args accepts both.
-    Args: str | list[str] | None = None
-    WorkingDirectory: str | None = None
-    EnvironmentVariables: dict[str, str] = field(default_factory=dict)
-    StreamOutputOverIpc: bool = False
+    args: str | list[str] | None = None
+    workingDirectory: str | None = None
+    environmentVariables: dict[str, str] = field(default_factory=dict)
+    streamOutputOverIpc: bool = False
 
 
 @dataclass
 class PythonServerStopJobRequest:
-    JobKey: str = ""
-    ResumeVersion: int | None = None
-    ForceStop: bool = False
+    jobKey: str = ""
+    resumeVersion: int | None = None
+    forceStop: bool = False
 
 
 @dataclass
 class PythonServerRunJobResult:
-    ExitCode: int = 0
-    Error: str | None = None
+    exitCode: int = 0
+    error: str | None = None
 
 
 class IPythonRuntimeServer(ABC):
@@ -62,7 +62,7 @@ class IPythonRuntimeServer(ABC):
     async def RunJob(
         self, request: PythonServerRunRequest, *, message: "Message[None] | None" = None
     ) -> PythonServerRunJobResult:
-        """Run a job → PythonServerRunJobResult(ExitCode, Error).
+        """Run a job → PythonServerRunJobResult(exitCode, error).
 
         ``message`` is injected by the dispatcher, which reads this contract — not the impl.
         """
@@ -82,28 +82,28 @@ class PythonRuntimeService(IPythonRuntimeServer):
     async def RunJob(
         self, request: PythonServerRunRequest, *, message: "Message[None] | None" = None
     ) -> PythonServerRunJobResult:
-        command_name = request.Command
+        command_name = request.command
         if not isinstance(command_name, str) or not command_name:
             return PythonServerRunJobResult(
-                ExitCode=1, Error="Missing or invalid field: 'Command'"
+                exitCode=1, error="Missing or invalid field: 'command'"
             )
 
         cmd = COMMANDS.get(command_name)
         if cmd is None:
             return PythonServerRunJobResult(
-                ExitCode=1, Error=f"Unknown command: {command_name}"
+                exitCode=1, error=f"Unknown command: {command_name}"
             )
 
-        args = parse_args(request.Args)
+        args = parse_args(request.args)
 
         console.info(
-            f"Running job {_run_id(request.JobKey, request.ResumeVersion)}: {command_name} {args}"
+            f"Running job {_run_id(request.jobKey, request.resumeVersion)}: {command_name} {args}"
         )
 
         on_run_start: "Any" = None
         on_run_end: "Any" = None
         installed: "list[Any]" = []
-        if request.StreamOutputOverIpc:
+        if request.streamOutputOverIpc:
             # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
                 IPythonJobApi,
@@ -112,16 +112,16 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 is_wire_job_key,
             )
 
-            if not is_wire_job_key(request.JobKey):
+            if not is_wire_job_key(request.jobKey):
                 return PythonServerRunJobResult(
-                    ExitCode=1,
-                    Error=f"StreamOutputOverIpc needs a 'JobKey' that is a job key (Guid); got {request.JobKey!r}",
+                    exitCode=1,
+                    error=f"streamOutputOverIpc needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}",
                 )
 
             if message is None or message.client is None:
                 return PythonServerRunJobResult(
-                    ExitCode=1,
-                    Error="StreamOutputOverIpc is only available when RunJob is invoked over IPC",
+                    exitCode=1,
+                    error="streamOutputOverIpc is only available when RunJob is invoked over IPC",
                 )
 
             # get_callback only wraps the connection, so this cannot tell us whether the peer
@@ -129,8 +129,8 @@ class PythonRuntimeService(IPythonRuntimeServer):
             callback = message.client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
 
             loop = asyncio.get_running_loop()
-            job_key = request.JobKey
-            resume_version = request.ResumeVersion
+            job_key = request.jobKey
+            resume_version = request.resumeVersion
 
             def _install() -> None:
                 installed.append(
@@ -143,8 +143,8 @@ class PythonRuntimeService(IPythonRuntimeServer):
         result = await _run_command_isolated(
             cmd,
             args,
-            request.EnvironmentVariables,
-            request.WorkingDirectory,
+            request.environmentVariables,
+            request.workingDirectory,
             on_run_start=on_run_start,
             on_run_end=on_run_end,
         )
@@ -154,15 +154,15 @@ class PythonRuntimeService(IPythonRuntimeServer):
             if handler is not None:
                 await handler.aflush_pending()
 
-        # IPC contract (PythonServerRunJobResult) carries only ExitCode + Error.
+        # IPC contract (PythonServerRunJobResult) carries only exitCode + error.
         return PythonServerRunJobResult(
-            ExitCode=result["ExitCode"], Error=result["Error"]
+            exitCode=result["ExitCode"], error=result["Error"]
         )
 
     async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
         console.info(
-            f"StopJob requested for {_run_id(request.JobKey, request.ResumeVersion)} "
-            f"(force={request.ForceStop}) (no-op)"
+            f"StopJob requested for {_run_id(request.jobKey, request.resumeVersion)} "
+            f"(force={request.forceStop}) (no-op)"
         )
         return True
 

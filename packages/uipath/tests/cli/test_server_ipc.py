@@ -145,47 +145,47 @@ class TestIpcServer:
         output_file = os.path.join(temp_dir, "output.json")
 
         request = {
-            "JobKey": "job-123",
-            "Command": "run",
-            "Args": ["main", "--input-file", input_file, "--output-file", output_file],
-            "WorkingDirectory": temp_dir,
-            "EnvironmentVariables": {},
+            "jobKey": "job-123",
+            "command": "run",
+            "args": ["main", "--input-file", input_file, "--output-file", output_file],
+            "workingDirectory": temp_dir,
+            "environmentVariables": {},
         }
         result = asyncio.run(_with_proxy(pipe, lambda p: p.RunJob(request)))
 
-        assert result.ExitCode == 0
-        assert result.Error is None
+        assert result.exitCode == 0
+        assert result.error is None
         assert os.path.exists(output_file)
         with open(output_file, "r") as f:
             assert "Hello" in f.read()
 
     def test_run_job_unknown_command(self, pipe):
-        request = {"JobKey": "job-1", "Command": "does_not_exist"}
+        request = {"jobKey": "job-1", "command": "does_not_exist"}
         result = asyncio.run(_with_proxy(pipe, lambda p: p.RunJob(request)))
-        assert result.ExitCode != 0
-        assert "Unknown command" in (result.Error or "")
+        assert result.exitCode != 0
+        assert "Unknown command" in (result.error or "")
 
     def test_run_job_missing_command(self, pipe):
         """Absent/empty Command is rejected before the job core is touched."""
-        result = asyncio.run(_with_proxy(pipe, lambda p: p.RunJob({"JobKey": "job-1"})))
-        assert result.ExitCode != 0
-        assert "Command" in (result.Error or "")
+        result = asyncio.run(_with_proxy(pipe, lambda p: p.RunJob({"jobKey": "job-1"})))
+        assert result.exitCode != 0
+        assert "command" in (result.error or "")
 
     def test_run_job_accepts_resume_version(self, pipe):
         request = {
-            "JobKey": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
-            "ResumeVersion": 4,
-            "Command": "does_not_exist",
+            "jobKey": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+            "resumeVersion": 4,
+            "command": "does_not_exist",
         }
         result = asyncio.run(_with_proxy(pipe, lambda p: p.RunJob(request)))
 
-        assert "Unknown command" in (result.Error or "")
+        assert "Unknown command" in (result.error or "")
 
     def test_stop_job_accepts_resume_version_and_force_stop(self, pipe):
         request = {
-            "JobKey": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
-            "ResumeVersion": 2,
-            "ForceStop": True,
+            "jobKey": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+            "resumeVersion": 2,
+            "forceStop": True,
         }
         result = asyncio.run(_with_proxy(pipe, lambda p: p.StopJob(request)))
 
@@ -195,7 +195,7 @@ class TestIpcServer:
         """StopJob is a no-op stub today, but must ack (bool) so the call is awaitable."""
         result = asyncio.run(
             _with_proxy(
-                pipe, lambda p: p.StopJob({"JobKey": "job-1", "ForceStop": True})
+                pipe, lambda p: p.StopJob({"jobKey": "job-1", "forceStop": True})
             )
         )
         assert result is True
@@ -229,16 +229,16 @@ class TestIpcServerEnvIsolation:
         async def run_two(proxy: Any) -> None:
             await proxy.RunJob(
                 {
-                    "JobKey": "job-1",
-                    "Command": "spy",
-                    "EnvironmentVariables": {"TEST_VAR_A": "a"},
+                    "jobKey": "job-1",
+                    "command": "spy",
+                    "environmentVariables": {"TEST_VAR_A": "a"},
                 }
             )
             await proxy.RunJob(
                 {
-                    "JobKey": "job-2",
-                    "Command": "spy",
-                    "EnvironmentVariables": {"TEST_VAR_B": "b"},
+                    "jobKey": "job-2",
+                    "command": "spy",
+                    "environmentVariables": {"TEST_VAR_B": "b"},
                 }
             )
 
@@ -289,7 +289,7 @@ class TestIpcContractFieldTransit:
                 self, request: Any, *, message: Any = None
             ) -> PythonServerRunJobResult:
                 received.append(request)
-                return PythonServerRunJobResult(ExitCode=0)
+                return PythonServerRunJobResult(exitCode=0)
 
             async def StopJob(self, request: Any) -> bool:
                 received.append(request)
@@ -304,31 +304,31 @@ class TestIpcContractFieldTransit:
         async def drive(proxy: Any) -> None:
             await proxy.RunJob(
                 {
-                    "JobKey": job_key,
-                    "ResumeVersion": 5,
-                    "Command": "run",
-                    "Args": "main --input-file in.json",
-                    "WorkingDirectory": "/tmp/wd",
-                    "EnvironmentVariables": {"A": "1"},
+                    "jobKey": job_key,
+                    "resumeVersion": 5,
+                    "command": "run",
+                    "args": "main --input-file in.json",
+                    "workingDirectory": "/tmp/wd",
+                    "environmentVariables": {"A": "1"},
                 }
             )
             await proxy.StopJob(
-                {"JobKey": job_key, "ResumeVersion": 5, "ForceStop": True}
+                {"jobKey": job_key, "resumeVersion": 5, "forceStop": True}
             )
 
         asyncio.run(_with_proxy(pipe, drive))
 
         run_request, stop_request = received
-        assert run_request.JobKey == job_key
-        assert run_request.ResumeVersion == 5
-        assert run_request.Command == "run"
-        assert run_request.Args == "main --input-file in.json"
-        assert run_request.WorkingDirectory == "/tmp/wd"
-        assert run_request.EnvironmentVariables == {"A": "1"}
+        assert run_request.jobKey == job_key
+        assert run_request.resumeVersion == 5
+        assert run_request.command == "run"
+        assert run_request.args == "main --input-file in.json"
+        assert run_request.workingDirectory == "/tmp/wd"
+        assert run_request.environmentVariables == {"A": "1"}
 
-        assert stop_request.JobKey == job_key
-        assert stop_request.ResumeVersion == 5
-        assert stop_request.ForceStop is True
+        assert stop_request.jobKey == job_key
+        assert stop_request.resumeVersion == 5
+        assert stop_request.forceStop is True
 
 
 class TestPooledSinks:
@@ -368,15 +368,15 @@ class TestPooledSinks:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
+            jobKey=JOB_ID, command="run", args=[], streamOutputOverIpc=True
         )
 
         async def scenario() -> Any:
             return await service.RunJob(request, message=message)
 
         result = asyncio.run(scenario())
-        assert result.ExitCode == 1
-        assert "over IPC" in (result.Error or "")
+        assert result.exitCode == 1
+        assert "over IPC" in (result.error or "")
         assert ran == []
 
     @pytest.mark.parametrize(
@@ -408,7 +408,7 @@ class TestPooledSinks:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey=job_key, Command="run", Args=[], StreamOutputOverIpc=True
+            jobKey=job_key, command="run", args=[], streamOutputOverIpc=True
         )
 
         async def scenario() -> Any:
@@ -417,8 +417,8 @@ class TestPooledSinks:
             )
 
         result = asyncio.run(scenario())
-        assert result.ExitCode == 1
-        assert "JobKey" in (result.Error or "")
+        assert result.exitCode == 1
+        assert "jobKey" in (result.error or "")
         assert events == []
 
     def test_runjob_without_streaming_does_not_need_a_job_key(self, monkeypatch):
@@ -437,13 +437,13 @@ class TestPooledSinks:
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
         service = PythonRuntimeService()
-        request = PythonServerRunRequest(JobKey="", Command="run", Args=[])
+        request = PythonServerRunRequest(jobKey="", command="run", args=[])
 
         async def scenario() -> Any:
             return await service.RunJob(request)
 
         result = asyncio.run(scenario())
-        assert result.ExitCode == 0
+        assert result.exitCode == 0
         assert ran == [True]
 
     def test_pooled_streaming_works_over_a_real_pipe(self, monkeypatch):
@@ -487,7 +487,7 @@ class TestPooledSinks:
 
         class _Callback:
             async def SendLog(self, log: Any) -> None:
-                delivered.append((log.JobKey, log))
+                delivered.append((log.jobKey, log))
 
             async def SetResult(self, result: Any) -> bool:
                 return True
@@ -506,11 +506,11 @@ class TestPooledSinks:
                     cast(
                         Any,
                         {
-                            "JobKey": JOB_ID,
-                            "ResumeVersion": 2,
-                            "Command": "run",
-                            "Args": [],
-                            "StreamOutputOverIpc": True,
+                            "jobKey": JOB_ID,
+                            "resumeVersion": 2,
+                            "command": "run",
+                            "args": [],
+                            "streamOutputOverIpc": True,
                         },
                     )
                 )
@@ -518,15 +518,14 @@ class TestPooledSinks:
                 await client.aclose()
 
         result = asyncio.run(scenario())
-        assert result.Error is None, result.Error
-        assert result.ExitCode == 0
+        assert result.error is None, result.error
+        assert result.exitCode == 0
         assert installed == [(JOB_ID, 2)]
         # The contract passed to get_callback IS the endpoint key on the wire: ask for the wrong
         # one and every send is addressed to something the peer does not host.
         assert len(delivered) == 1, "no log line crossed the pooled callback"
-        # The peer routes by (JobKey, ResumeVersion) exactly; a null here would miss a resumed job.
-        assert (delivered[0][1].JobKey, delivered[0][1].ResumeVersion) == (JOB_ID, 2)
-        assert delivered[0][1].Message == "pooled line"
+        assert (delivered[0][1].jobKey, delivered[0][1].resumeVersion) == (JOB_ID, 2)
+        assert delivered[0][1].message == "pooled line"
 
     def test_runjob_installs_the_sinks_from_the_request_callback(self, monkeypatch):
         from uipath._cli import _job_api, cli_server_ipc
@@ -558,7 +557,7 @@ class TestPooledSinks:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
+            jobKey=JOB_ID, command="run", args=[], streamOutputOverIpc=True
         )
 
         async def scenario() -> None:
@@ -598,7 +597,7 @@ class TestPooledSinks:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            JobKey=JOB_ID, Command="run", Args=[], StreamOutputOverIpc=True
+            jobKey=JOB_ID, command="run", args=[], streamOutputOverIpc=True
         )
 
         async def scenario() -> None:
@@ -632,7 +631,7 @@ class TestPooledSinks:
         monkeypatch.setattr(cli_server_ipc, "_run_command_isolated", _fake_run)
 
         service = PythonRuntimeService()
-        request = PythonServerRunRequest(JobKey="job-9", Command="run", Args=[])
+        request = PythonServerRunRequest(jobKey="job-9", command="run", args=[])
 
         async def scenario() -> None:
             await service.RunJob(request, message=Message(client=None))
