@@ -359,7 +359,7 @@ class TestRun:
                 ):
                     result = runner.invoke(cli, ["run"])
 
-                assert result.exit_code == 0
+                assert result.exit_code == 1
                 assert "Available entrypoints:" in result.output
                 assert "agent_a" in result.output
                 assert "agent_b" in result.output
@@ -383,7 +383,7 @@ class TestRun:
                 ):
                     result = runner.invoke(cli, ["run"])
 
-                assert result.exit_code == 0
+                assert result.exit_code == 1
                 assert "No entrypoints found" in result.output
                 assert "Usage: uipath run" in result.output
                 mock_factory.new_runtime.assert_not_awaited()

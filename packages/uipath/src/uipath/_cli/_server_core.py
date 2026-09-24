@@ -112,6 +112,15 @@ def parse_args(args: str | list[str] | None) -> list[str]:
     return []
 
 
+def _exit_code_outcome(exit_code: int) -> dict[str, Any]:
+    return {
+        "ExitCode": exit_code,
+        "Error": None if exit_code == 0 else f"Exit code: {exit_code}",
+        "Result": None,
+        "Unexpected": False,
+    }
+
+
 async def _run_command_isolated(
     cmd: Any,
     args: list[str],
@@ -166,6 +175,11 @@ async def _run_command_isolated(
             finally:
                 if on_run_end is not None:
                     on_run_end()
+            # Under standalone_mode=False click returns ctx.exit(N)'s code instead of raising,
+            # and every ConsoleLogger.error path ends in ctx.exit(1). run/debug/eval never
+            # return an int of their own, so an int here is always an exit code.
+            if isinstance(result_value, int) and not isinstance(result_value, bool):
+                return _exit_code_outcome(result_value)
             return {
                 "ExitCode": 0,
                 "Error": None,
@@ -173,13 +187,7 @@ async def _run_command_isolated(
                 "Unexpected": False,
             }
         except SystemExit as e:
-            exit_code = e.code if isinstance(e.code, int) else 1
-            return {
-                "ExitCode": exit_code,
-                "Error": None if exit_code == 0 else f"Exit code: {exit_code}",
-                "Result": None,
-                "Unexpected": False,
-            }
+            return _exit_code_outcome(e.code if isinstance(e.code, int) else 1)
         except Exception as e:  # report any job failure as a result, not a fault
             return {"ExitCode": 1, "Error": str(e), "Result": None, "Unexpected": True}
         finally:
