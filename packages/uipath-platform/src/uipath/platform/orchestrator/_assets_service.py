@@ -317,7 +317,7 @@ class AssetsService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Optional[str]:
-        """Async variant of :meth:`_resolve_robot_key`."""
+        """Async variant of `_resolve_robot_key()`."""
         try:
             robot_key = self._execution_context.robot_key
         except ValueError:

@@ -1,4 +1,4 @@
-"""YAML → :class:`PolicyIndex` compiler.
+"""YAML → `PolicyIndex` compiler.
 
 Lives CLI-side so the runtime layer never has to depend on ``pyyaml``
 or know about the wire policy format — the runtime consumes compiled
@@ -56,11 +56,11 @@ _SEVERITY_MAP: dict[str, Severity] = {
 
 
 def build_policy_index_from_yaml(yaml_text: str) -> PolicyIndex:
-    """Parse YAML policy packs into a :class:`PolicyIndex`.
+    """Parse YAML policy packs into a `PolicyIndex`.
 
     Unknown check types and malformed rules are skipped with a debug log
     (partial packs preferred over failing the whole load); malformed
-    YAML at the document level raises :class:`yaml.YAMLError`.
+    YAML at the document level raises `yaml.YAMLError`.
     """
     index = PolicyIndex()
     documents = list(yaml.safe_load_all(yaml_text))
@@ -189,8 +189,8 @@ def _build_checks(
 # Per-check-type condition builders
 #
 # Each returns ``(conditions, default_message)`` given the YAML entry for
-# one check. The main :func:`_build_check` picks the right builder from
-# :data:`_CHECK_BUILDERS` and layers action / logic / message resolution
+# one check. The main `_build_check()` picks the right builder from
+# `_CHECK_BUILDERS` and layers action / logic / message resolution
 # on top — keeping the dispatch flat instead of one giant if/elif chain.
 # ---------------------------------------------------------------------------
 
@@ -361,7 +361,7 @@ def _gt_conditions_from_keys(
 
 
 # check_type → builder. ``guardrail_fallback`` is handled inline in
-# :func:`_build_check` because it needs the rule-level flags.
+# `_build_check()` because it needs the rule-level flags.
 _CHECK_BUILDERS: dict[str, Callable[[dict[str, Any]], tuple[list[Condition], str]]] = {
     "regex": _build_regex_conditions,
     "budget": _build_budget_conditions,
@@ -462,10 +462,10 @@ def _build_check(
     """Build one Check from a YAML check entry.
 
     Delegates per-check-type condition-building to the small helpers
-    above (dispatched via :data:`_CHECK_BUILDERS`); the ``guardrail_fallback``
+    above (dispatched via `_CHECK_BUILDERS`); the ``guardrail_fallback``
     branch is inline because it needs the rule-level
     ``mapped_to_uipath`` / ``policy_enabled`` flags threaded in from
-    :func:`_build_rule`. Unknown check types are skipped.
+    `_build_rule()`. Unknown check types are skipped.
     """
     raw_conditions = data.get("conditions")
     has_explicit_conditions = _has_explicit_conditions(raw_conditions)

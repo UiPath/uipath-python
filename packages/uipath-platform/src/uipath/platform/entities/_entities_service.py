@@ -1,12 +1,12 @@
 """Public facade for the Data Fabric entities surface.
 
-:class:`EntitiesService` keeps the existing ``sdk.entities.*`` API flat and
+`EntitiesService` keeps the existing ``sdk.entities.*`` API flat and
 unchanged from a caller's perspective while delegating each operation to the
 appropriate underlying service:
 
-* :class:`EntitySchemaService` — entity definitions, choice set listings,
+* `EntitySchemaService` — entity definitions, choice set listings,
   create / delete / update-metadata lifecycle.
-* :class:`EntityDataService` — record CRUD (single and batch), structured
+* `EntityDataService` — record CRUD (single and batch), structured
   queries, attachments, choice-set values, bulk import, and federated SQL
   queries.
 
@@ -147,14 +147,14 @@ class EntitiesService(BaseService):
                 - storage_size_in_mb: Storage size used by the entity
 
         Examples:
-            Basic usage::
+            Basic usage:
 
                 # Retrieve entity metadata
                 entity = entities_service.retrieve("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
                 print(f"Entity: {entity.display_name}")
                 print(f"Records: {entity.record_count}")
 
-            Inspecting entity fields::
+            Inspecting entity fields:
 
                 entity = entities_service.retrieve("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
@@ -171,7 +171,7 @@ class EntitiesService(BaseService):
         """Retrieve an entity by key via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`retrieve` for parameter and return details.
+        `retrieve()` for parameter and return details.
         """
         return self._schema.retrieve(entity_key, use_v3=True)
 
@@ -194,14 +194,14 @@ class EntitiesService(BaseService):
                 - storage_size_in_mb: Storage size used by the entity
 
         Examples:
-            Basic usage::
+            Basic usage:
 
                 # Retrieve entity metadata
                 entity = await entities_service.retrieve_async("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
                 print(f"Entity: {entity.display_name}")
                 print(f"Records: {entity.record_count}")
 
-            Inspecting entity fields::
+            Inspecting entity fields:
 
                 entity = await entities_service.retrieve_async("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
@@ -215,7 +215,7 @@ class EntitiesService(BaseService):
 
     @traced(name="entity_retrieve_v3", run_type="uipath")
     async def retrieve_v3_async(self, entity_key: str) -> Entity:
-        """Async variant of :meth:`retrieve_v3`."""
+        """Async variant of `retrieve_v3()`."""
         return await self._schema.retrieve_async(entity_key, use_v3=True)
 
     @deprecated(
@@ -244,7 +244,7 @@ class EntitiesService(BaseService):
         """Retrieve an entity by name via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`retrieve_by_name` for parameter and return details.
+        `retrieve_by_name()` for parameter and return details.
         """
         return self._schema.retrieve_by_name(
             entity_name, folder_key=folder_key, use_v3=True
@@ -275,7 +275,7 @@ class EntitiesService(BaseService):
     async def retrieve_by_name_v3_async(
         self, entity_name: str, folder_key: Optional[str] = None
     ) -> Entity:
-        """Async variant of :meth:`retrieve_by_name_v3`."""
+        """Async variant of `retrieve_by_name_v3()`."""
         return await self._schema.retrieve_by_name_async(
             entity_name, folder_key=folder_key, use_v3=True
         )
@@ -292,14 +292,14 @@ class EntitiesService(BaseService):
                 Each entity includes name, display name, fields, record count, and storage information.
 
         Examples:
-            List all entities::
+            List all entities:
 
                 # Get all entities in the Data Service
                 entities = entities_service.list_entities()
                 for entity in entities:
                     print(f"{entity.display_name} ({entity.name})")
 
-            Find entities with RBAC enabled::
+            Find entities with RBAC enabled:
 
                 entities = entities_service.list_entities()
 
@@ -309,7 +309,7 @@ class EntitiesService(BaseService):
                     if e.is_rbac_enabled
                 ]
 
-            Summary report::
+            Summary report:
 
                 entities = entities_service.list_entities()
 
@@ -327,7 +327,7 @@ class EntitiesService(BaseService):
         """List all entities via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`list_entities` for parameter and return details.
+        `list_entities()` for parameter and return details.
         """
         return self._schema.list_entities(use_v3=True)
 
@@ -343,14 +343,14 @@ class EntitiesService(BaseService):
                 Each entity includes name, display name, fields, record count, and storage information.
 
         Examples:
-            List all entities::
+            List all entities:
 
                 # Get all entities in the Data Service
                 entities = await entities_service.list_entities_async()
                 for entity in entities:
                     print(f"{entity.display_name} ({entity.name})")
 
-            Find entities with RBAC enabled::
+            Find entities with RBAC enabled:
 
                 entities = await entities_service.list_entities_async()
 
@@ -360,7 +360,7 @@ class EntitiesService(BaseService):
                     if e.is_rbac_enabled
                 ]
 
-            Summary report::
+            Summary report:
 
                 entities = await entities_service.list_entities_async()
 
@@ -375,7 +375,7 @@ class EntitiesService(BaseService):
 
     @traced(name="list_entities_v3", run_type="uipath")
     async def list_entities_v3_async(self) -> List[Entity]:
-        """Async variant of :meth:`list_entities_v3`."""
+        """Async variant of `list_entities_v3()`."""
         return await self._schema.list_entities_async(use_v3=True)
 
     @traced(name="list_choicesets", run_type="uipath")
@@ -386,7 +386,7 @@ class EntitiesService(BaseService):
             List[Entity]: A list of all choice set entities.
 
         Examples:
-            List all choice sets::
+            List all choice sets:
 
                 choicesets = entities_service.list_choicesets()
                 for cs in choicesets:
@@ -436,7 +436,7 @@ class EntitiesService(BaseService):
                 type or is out of range.
 
         Examples:
-            Create a simple entity::
+            Create a simple entity:
 
                 from uipath.platform.entities import (
                     EntityCreateFieldOptions,
@@ -478,7 +478,7 @@ class EntitiesService(BaseService):
         """Create an entity via the v3 API (supports Federated entities).
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`create_entity` for parameter and return details.
+        `create_entity()` for parameter and return details.
         """
         return self._schema.create_entity(name, fields, options, use_v3=True)
 
@@ -495,7 +495,7 @@ class EntitiesService(BaseService):
         """Asynchronously create a new entity with the given schema.
 
         Args:
-            name (str): Entity name; same validation rules as :meth:`create_entity`.
+            name (str): Entity name; same validation rules as `create_entity()`.
             fields (List[EntityCreateFieldOptions]): Field definitions.
             options (Optional[EntityCreateOptions]): Optional entity-level settings.
 
@@ -506,7 +506,7 @@ class EntitiesService(BaseService):
             ValueError: For client-side validation failures.
 
         Examples:
-            Create a simple entity::
+            Create a simple entity:
 
                 from uipath.platform.entities import (
                     EntityCreateFieldOptions,
@@ -533,7 +533,7 @@ class EntitiesService(BaseService):
         fields: List[EntityCreateFieldOptions],
         options: Optional[EntityCreateOptions] = None,
     ) -> str:
-        """Async variant of :meth:`create_entity_v3`."""
+        """Async variant of `create_entity_v3()`."""
         return await self._schema.create_entity_async(
             name, fields, options, use_v3=True
         )
@@ -549,7 +549,7 @@ class EntitiesService(BaseService):
             entity_id (str): The unique identifier of the entity to delete.
 
         Examples:
-            Delete an entity by id::
+            Delete an entity by id:
 
                 entities_service.delete_entity("a1b2c3d4-...")
         """
@@ -560,7 +560,7 @@ class EntitiesService(BaseService):
         """Delete an entity via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`delete_entity` for parameter and return details.
+        `delete_entity()` for parameter and return details.
         """
         self._schema.delete_entity(entity_id, use_v3=True)
 
@@ -575,7 +575,7 @@ class EntitiesService(BaseService):
             entity_id (str): The unique identifier of the entity to delete.
 
         Examples:
-            Delete an entity by id::
+            Delete an entity by id:
 
                 await entities_service.delete_entity_async("a1b2c3d4-...")
         """
@@ -583,7 +583,7 @@ class EntitiesService(BaseService):
 
     @traced(name="entity_delete_v3", run_type="uipath")
     async def delete_entity_v3_async(self, entity_id: str) -> None:
-        """Async variant of :meth:`delete_entity_v3`."""
+        """Async variant of `delete_entity_v3()`."""
         await self._schema.delete_entity_async(entity_id, use_v3=True)
 
     @deprecated(
@@ -600,14 +600,14 @@ class EntitiesService(BaseService):
         Args:
             entity_id (str): The unique identifier of the entity.
             metadata (EntityMetadataUpdateOptions | Dict[str, Any]):
-                An :class:`EntityMetadataUpdateOptions` instance or a dict
+                An `EntityMetadataUpdateOptions` instance or a dict
                 with any of ``display_name``, ``description``,
                 ``is_rbac_enabled``. Dict keys may be snake_case
                 (``display_name``) or camelCase (``displayName``); both
                 serialize correctly to the API.
 
         Examples:
-            Rename and update description::
+            Rename and update description:
 
                 from uipath.platform.entities import EntityMetadataUpdateOptions
 
@@ -619,7 +619,7 @@ class EntitiesService(BaseService):
                     ),
                 )
 
-            From a plain dict::
+            From a plain dict:
 
                 entities_service.update_entity_metadata(
                     "a1b2c3d4-...",
@@ -635,7 +635,7 @@ class EntitiesService(BaseService):
         """Update entity metadata via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`update_entity_metadata` for parameter and return details.
+        `update_entity_metadata()` for parameter and return details.
         """
         self._schema.update_entity_metadata(entity_id, metadata, use_v3=True)
 
@@ -653,12 +653,12 @@ class EntitiesService(BaseService):
         Args:
             entity_id (str): The unique identifier of the entity.
             metadata (EntityMetadataUpdateOptions | Dict[str, Any]):
-                An :class:`EntityMetadataUpdateOptions` instance or a dict
+                An `EntityMetadataUpdateOptions` instance or a dict
                 with any of ``display_name``, ``description``,
                 ``is_rbac_enabled``.
 
         Examples:
-            Rename::
+            Rename:
 
                 from uipath.platform.entities import EntityMetadataUpdateOptions
 
@@ -677,7 +677,7 @@ class EntitiesService(BaseService):
     async def update_entity_metadata_v3_async(
         self, entity_id: str, metadata: EntityMetadataUpdateOptions | Dict[str, Any]
     ) -> None:
-        """Async variant of :meth:`update_entity_metadata_v3`."""
+        """Async variant of `update_entity_metadata_v3()`."""
         await self._schema.update_entity_metadata_async(
             entity_id, metadata, use_v3=True
         )
@@ -701,7 +701,7 @@ class EntitiesService(BaseService):
                 id, name, display_name, and number_id.
 
         Examples:
-            Get all values in a choice set::
+            Get all values in a choice set:
 
                 values = entities_service.get_choiceset_values("choiceset-id")
                 for v in values:
@@ -759,7 +759,7 @@ class EntitiesService(BaseService):
                 - Field names must match the entity's field names (case-sensitive)
                 - The 'Id' field is automatically validated and does not need to be included
 
-                Example schema class::
+                Example schema class:
 
                     class CustomerRecord:
                         name: str  # Required field
@@ -786,21 +786,21 @@ class EntitiesService(BaseService):
             EntityRecordsListResponse: A list-compatible response with
                 ``total_count``, ``has_next_page`` and ``next_cursor`` pagination
                 metadata. Iteration, indexing, and ``len()`` continue to work
-                like a plain list of :class:`EntityRecord`.
+                like a plain list of `EntityRecord`.
 
         Raises:
             ValueError: If schema validation fails for any record, including cases where
                 required fields are missing or field types don't match the schema.
 
         Examples:
-            Basic usage without schema::
+            Basic usage without schema:
 
                 # Retrieve all records from an entity
                 records = entities_service.list_records("Customers")
                 for record in records:
                     print(record.id)
 
-            With pagination::
+            With pagination:
 
                 # Get first 50 records
                 records = entities_service.list_records("Customers", start=0, limit=50)
@@ -810,12 +810,12 @@ class EntitiesService(BaseService):
                         "Customers", start=50, limit=50
                     )
 
-            With foreign-key expansion::
+            With foreign-key expansion:
 
                 records = entities_service.list_records("Customers", expansion_level=1)
 
-            To filter, sort, or project, use :meth:`retrieve_records` — this
-            endpoint only pages::
+            To filter, sort, or project, use `retrieve_records()` — this
+            endpoint only pages:
 
                 result = entities_service.retrieve_records(
                     "Customers",
@@ -831,7 +831,7 @@ class EntitiesService(BaseService):
                     ),
                 )
 
-            With schema validation::
+            With schema validation:
 
                 class CustomerRecord:
                     name: str
@@ -869,7 +869,7 @@ class EntitiesService(BaseService):
         """List entity records via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`list_records` for parameter and return details.
+        `list_records()` for parameter and return details.
         """
         return self._data.list_records(
             entity_key,
@@ -909,7 +909,7 @@ class EntitiesService(BaseService):
                 - Field names must match the entity's field names (case-sensitive)
                 - The 'Id' field is automatically validated and does not need to be included
 
-                Example schema class::
+                Example schema class:
 
                     class CustomerRecord:
                         name: str  # Required field
@@ -936,21 +936,21 @@ class EntitiesService(BaseService):
             EntityRecordsListResponse: A list-compatible response with
                 ``total_count``, ``has_next_page`` and ``next_cursor`` pagination
                 metadata. Iteration, indexing, and ``len()`` continue to work
-                like a plain list of :class:`EntityRecord`.
+                like a plain list of `EntityRecord`.
 
         Raises:
             ValueError: If schema validation fails for any record, including cases where
                 required fields are missing or field types don't match the schema.
 
         Examples:
-            Basic usage without schema::
+            Basic usage without schema:
 
                 # Retrieve all records from an entity
                 records = await entities_service.list_records_async("Customers")
                 for record in records:
                     print(record.id)
 
-            With pagination::
+            With pagination:
 
                 # Get first 50 records
                 records = await entities_service.list_records_async("Customers", start=0, limit=50)
@@ -960,16 +960,16 @@ class EntitiesService(BaseService):
                         "Customers", start=50, limit=50
                     )
 
-            With foreign-key expansion::
+            With foreign-key expansion:
 
                 records = await entities_service.list_records_async(
                     "Customers", expansion_level=1
                 )
 
-            To filter, sort, or project, use :meth:`retrieve_records_async` —
+            To filter, sort, or project, use `retrieve_records_async()` —
             this endpoint only pages.
 
-            With schema validation::
+            With schema validation:
 
                 class CustomerRecord:
                     name: str
@@ -1004,7 +1004,7 @@ class EntitiesService(BaseService):
         limit: Optional[int] = None,
         expansion_level: Optional[int] = None,
     ) -> EntityRecordsListResponse:
-        """Async variant of :meth:`list_records_v3`."""
+        """Async variant of `list_records_v3()`."""
         return await self._data.list_records_async(
             entity_key,
             schema=schema,
@@ -1027,14 +1027,14 @@ class EntitiesService(BaseService):
         """Insert a single record into an entity and return the inserted row.
 
         Note:
-            Unlike :meth:`insert_records` (batch), this single-record endpoint
+            Unlike `insert_records()` (batch), this single-record endpoint
             fires Data Fabric trigger events. Use this method when triggers
             attached to the entity must run.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
             data (Any): Record payload — a dict, a Pydantic model, an
-                :class:`EntityRecord`, or any object exposing ``__dict__``.
+                `EntityRecord`, or any object exposing ``__dict__``.
             expansion_level (Optional[int]): Depth of foreign-key expansion in
                 the response (``0`` means no expansion).
 
@@ -1043,7 +1043,7 @@ class EntitiesService(BaseService):
                 plus any expanded relationships.
 
         Examples:
-            Insert from a dict::
+            Insert from a dict:
 
                 record = entities_service.insert_record(
                     "Customers",
@@ -1051,7 +1051,7 @@ class EntitiesService(BaseService):
                 )
                 print(record.id)
 
-            Insert from a Pydantic model::
+            Insert from a Pydantic model:
 
                 class CustomerInput(BaseModel):
                     name: str
@@ -1074,7 +1074,7 @@ class EntitiesService(BaseService):
         """Insert a single record via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`insert_record` for parameter and return details.
+        `insert_record()` for parameter and return details.
         """
         return self._data.insert_record(
             entity_key, data, expansion_level=expansion_level, use_v3=True
@@ -1093,14 +1093,14 @@ class EntitiesService(BaseService):
         """Asynchronously insert a single record into an entity.
 
         Note:
-            Unlike :meth:`insert_records_async` (batch), this single-record
+            Unlike `insert_records_async()` (batch), this single-record
             endpoint fires Data Fabric trigger events. Use this method when
             triggers attached to the entity must run.
 
         Args:
             entity_key (str): The unique key/identifier of the entity.
             data (Any): Record payload — a dict, a Pydantic model, an
-                :class:`EntityRecord`, or any object exposing ``__dict__``.
+                `EntityRecord`, or any object exposing ``__dict__``.
             expansion_level (Optional[int]): Depth of foreign-key expansion in
                 the response (``0`` means no expansion).
 
@@ -1108,7 +1108,7 @@ class EntitiesService(BaseService):
             EntityRecord: The inserted record with its server-assigned ``Id``.
 
         Examples:
-            Insert from a dict::
+            Insert from a dict:
 
                 record = await entities_service.insert_record_async(
                     "Customers",
@@ -1124,7 +1124,7 @@ class EntitiesService(BaseService):
     async def insert_record_v3_async(
         self, entity_key: str, data: Any, expansion_level: Optional[int] = None
     ) -> EntityRecord:
-        """Async variant of :meth:`insert_record_v3`."""
+        """Async variant of `insert_record_v3()`."""
         return await self._data.insert_record_async(
             entity_key, data, expansion_level=expansion_level, use_v3=True
         )
@@ -1149,12 +1149,12 @@ class EntitiesService(BaseService):
             EntityRecord: The record, with optional expanded relationships.
 
         Examples:
-            Basic usage::
+            Basic usage:
 
                 record = entities_service.get_record("Customers", "rec-1")
                 print(record.id, record.name)
 
-            With FK expansion::
+            With FK expansion:
 
                 # Inline the related Company record on the returned Customer
                 record = entities_service.get_record(
@@ -1172,7 +1172,7 @@ class EntitiesService(BaseService):
         """Fetch a single record by id via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`get_record` for parameter and return details.
+        `get_record()` for parameter and return details.
         """
         return self._data.get_record(
             entity_key, record_id, expansion_level=expansion_level, use_v3=True
@@ -1200,7 +1200,7 @@ class EntitiesService(BaseService):
             EntityRecord: The record.
 
         Examples:
-            Basic usage::
+            Basic usage:
 
                 record = await entities_service.get_record_async("Customers", "rec-1")
                 print(record.id, record.name)
@@ -1213,7 +1213,7 @@ class EntitiesService(BaseService):
     async def get_record_v3_async(
         self, entity_key: str, record_id: str, expansion_level: Optional[int] = None
     ) -> EntityRecord:
-        """Async variant of :meth:`get_record_v3`."""
+        """Async variant of `get_record_v3()`."""
         return await self._data.get_record_async(
             entity_key, record_id, expansion_level=expansion_level, use_v3=True
         )
@@ -1232,7 +1232,7 @@ class EntitiesService(BaseService):
         """Update a single record by id and return the updated row.
 
         Note:
-            Unlike :meth:`update_records` (batch), this single-record endpoint
+            Unlike `update_records()` (batch), this single-record endpoint
             fires Data Fabric trigger events. Use this method when triggers
             attached to the entity must run.
 
@@ -1249,7 +1249,7 @@ class EntitiesService(BaseService):
             EntityRecord: The updated record.
 
         Examples:
-            Partial update from a dict::
+            Partial update from a dict:
 
                 record = entities_service.update_record(
                     "Customers",
@@ -1257,7 +1257,7 @@ class EntitiesService(BaseService):
                     {"email": "alice.new@example.com"},
                 )
 
-            Clear a field by passing an explicit ``None``::
+            Clear a field by passing an explicit ``None``:
 
                 # Note: unset fields are omitted; explicit None values are sent.
                 record = entities_service.update_record(
@@ -1281,7 +1281,7 @@ class EntitiesService(BaseService):
         """Update a single record by id via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`update_record` for parameter and return details.
+        `update_record()` for parameter and return details.
         """
         return self._data.update_record(
             entity_key, record_id, data, expansion_level=expansion_level, use_v3=True
@@ -1301,7 +1301,7 @@ class EntitiesService(BaseService):
         """Asynchronously update a single record by id.
 
         Note:
-            Unlike :meth:`update_records_async` (batch), this single-record
+            Unlike `update_records_async()` (batch), this single-record
             endpoint fires Data Fabric trigger events.
 
         Args:
@@ -1315,7 +1315,7 @@ class EntitiesService(BaseService):
             EntityRecord: The updated record.
 
         Examples:
-            Partial update::
+            Partial update:
 
                 record = await entities_service.update_record_async(
                     "Customers",
@@ -1335,7 +1335,7 @@ class EntitiesService(BaseService):
         data: Any,
         expansion_level: Optional[int] = None,
     ) -> EntityRecord:
-        """Async variant of :meth:`update_record_v3`."""
+        """Async variant of `update_record_v3()`."""
         return await self._data.update_record_async(
             entity_key, record_id, data, expansion_level=expansion_level, use_v3=True
         )
@@ -1348,7 +1348,7 @@ class EntitiesService(BaseService):
         """Delete a single record by id.
 
         Note:
-            Unlike :meth:`delete_records` (batch), this single-record endpoint
+            Unlike `delete_records()` (batch), this single-record endpoint
             fires Data Fabric trigger events. Use this method when triggers
             attached to the entity must run on delete.
 
@@ -1357,7 +1357,7 @@ class EntitiesService(BaseService):
             record_id (str): The unique identifier of the record to delete.
 
         Examples:
-            Delete by id::
+            Delete by id:
 
                 entities_service.delete_record("Customers", "rec-1")
         """
@@ -1368,7 +1368,7 @@ class EntitiesService(BaseService):
         """Delete a single record by id via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`delete_record` for parameter and return details.
+        `delete_record()` for parameter and return details.
         """
         self._data.delete_record(entity_key, record_id, use_v3=True)
 
@@ -1380,7 +1380,7 @@ class EntitiesService(BaseService):
         """Asynchronously delete a single record by id.
 
         Note:
-            Unlike :meth:`delete_records_async` (batch), this single-record
+            Unlike `delete_records_async()` (batch), this single-record
             endpoint fires Data Fabric trigger events.
 
         Args:
@@ -1388,7 +1388,7 @@ class EntitiesService(BaseService):
             record_id (str): The unique identifier of the record to delete.
 
         Examples:
-            Delete by id::
+            Delete by id:
 
                 await entities_service.delete_record_async("Customers", "rec-1")
         """
@@ -1396,7 +1396,7 @@ class EntitiesService(BaseService):
 
     @traced(name="entity_delete_record_v3", run_type="uipath")
     async def delete_record_v3_async(self, entity_key: str, record_id: str) -> None:
-        """Async variant of :meth:`delete_record_v3`."""
+        """Async variant of `delete_record_v3()`."""
         await self._data.delete_record_async(entity_key, record_id, use_v3=True)
 
     async def get_ontology_file_async(
@@ -1439,7 +1439,7 @@ class EntitiesService(BaseService):
         Args:
             entity_key (str): The unique key/identifier of the entity.
             records (List[Any]): List of records to insert. Each record may be
-                a dict, a Pydantic model, an :class:`EntityRecord`, or any
+                a dict, a Pydantic model, an `EntityRecord`, or any
                 object exposing ``__dict__``.
             schema (Optional[Type[Any]]): Optional schema class for validation. When provided,
                 validates that each record in the response matches the schema structure.
@@ -1452,11 +1452,11 @@ class EntitiesService(BaseService):
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
-                - success_records: List of successfully inserted :class:`EntityRecord` objects
-                - failure_records: List of :class:`FailureRecord` describing per-record errors
+                - success_records: List of successfully inserted `EntityRecord` objects
+                - failure_records: List of `FailureRecord` describing per-record errors
 
         Examples:
-            Insert records without schema::
+            Insert records without schema:
 
                 class Customer:
                     def __init__(self, name, email, age):
@@ -1477,7 +1477,7 @@ class EntitiesService(BaseService):
                 print(f"Inserted: {len(response.success_records)}")
                 print(f"Failed: {len(response.failure_records)}")
 
-            Insert with FK expansion and fail-fast::
+            Insert with FK expansion and fail-fast:
 
                 response = entities_service.insert_records(
                     "Orders",
@@ -1486,7 +1486,7 @@ class EntitiesService(BaseService):
                     fail_on_first=True,   # abort the batch at the first error
                 )
 
-            Insert with schema validation::
+            Insert with schema validation:
 
                 class CustomerSchema:
                     name: str
@@ -1531,7 +1531,7 @@ class EntitiesService(BaseService):
         """Batch-insert records via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`insert_records` for parameter and return details.
+        `insert_records()` for parameter and return details.
         """
         return self._data.insert_records(
             entity_key,
@@ -1559,7 +1559,7 @@ class EntitiesService(BaseService):
         Args:
             entity_key (str): The unique key/identifier of the entity.
             records (List[Any]): List of records to insert. Each record may be
-                a dict, a Pydantic model, an :class:`EntityRecord`, or any
+                a dict, a Pydantic model, an `EntityRecord`, or any
                 object exposing ``__dict__``.
             schema (Optional[Type[Any]]): Optional schema class for validation. When provided,
                 validates that each record in the response matches the schema structure.
@@ -1572,11 +1572,11 @@ class EntitiesService(BaseService):
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
-                - success_records: List of successfully inserted :class:`EntityRecord` objects
-                - failure_records: List of :class:`FailureRecord` describing per-record errors
+                - success_records: List of successfully inserted `EntityRecord` objects
+                - failure_records: List of `FailureRecord` describing per-record errors
 
         Examples:
-            Insert records without schema::
+            Insert records without schema:
 
                 class Customer:
                     def __init__(self, name, email, age):
@@ -1597,7 +1597,7 @@ class EntitiesService(BaseService):
                 print(f"Inserted: {len(response.success_records)}")
                 print(f"Failed: {len(response.failure_records)}")
 
-            Insert with schema validation::
+            Insert with schema validation:
 
                 class CustomerSchema:
                     name: str
@@ -1639,7 +1639,7 @@ class EntitiesService(BaseService):
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
     ) -> EntityRecordsBatchResponse:
-        """Async variant of :meth:`insert_records_v3`."""
+        """Async variant of `insert_records_v3()`."""
         return await self._data.insert_records_async(
             entity_key,
             records,
@@ -1667,7 +1667,7 @@ class EntitiesService(BaseService):
             entity_key (str): The unique key/identifier of the entity.
             records (List[Any]): List of records to update. Each record must
                 include its ``Id`` field. A record may be a dict, a Pydantic
-                model, an :class:`EntityRecord`, or any object exposing
+                model, an `EntityRecord`, or any object exposing
                 ``__dict__``.
             schema (Optional[Type[Any]]): Optional schema class for validation. When provided,
                 validates that each record in the request and response matches the schema structure.
@@ -1680,11 +1680,11 @@ class EntitiesService(BaseService):
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
-                - success_records: List of successfully updated :class:`EntityRecord` objects
-                - failure_records: List of :class:`FailureRecord` describing per-record errors
+                - success_records: List of successfully updated `EntityRecord` objects
+                - failure_records: List of `FailureRecord` describing per-record errors
 
         Examples:
-            Update records::
+            Update records:
 
                 # First, retrieve records to update
                 records = entities_service.list_records("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
@@ -1703,7 +1703,7 @@ class EntitiesService(BaseService):
                 print(f"Updated: {len(response.success_records)}")
                 print(f"Failed: {len(response.failure_records)}")
 
-            Update with schema validation::
+            Update with schema validation:
 
                 class CustomerSchema:
                     name: str
@@ -1750,7 +1750,7 @@ class EntitiesService(BaseService):
         """Batch-update records via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`update_records` for parameter and return details.
+        `update_records()` for parameter and return details.
         """
         return self._data.update_records(
             entity_key,
@@ -1779,7 +1779,7 @@ class EntitiesService(BaseService):
             entity_key (str): The unique key/identifier of the entity.
             records (List[Any]): List of records to update. Each record must
                 include its ``Id`` field. A record may be a dict, a Pydantic
-                model, an :class:`EntityRecord`, or any object exposing
+                model, an `EntityRecord`, or any object exposing
                 ``__dict__``.
             schema (Optional[Type[Any]]): Optional schema class for validation. When provided,
                 validates that each record in the request and response matches the schema structure.
@@ -1792,11 +1792,11 @@ class EntitiesService(BaseService):
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
-                - success_records: List of successfully updated :class:`EntityRecord` objects
-                - failure_records: List of :class:`FailureRecord` describing per-record errors
+                - success_records: List of successfully updated `EntityRecord` objects
+                - failure_records: List of `FailureRecord` describing per-record errors
 
         Examples:
-            Update records::
+            Update records:
 
                 # First, retrieve records to update
                 records = await entities_service.list_records_async("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
@@ -1815,7 +1815,7 @@ class EntitiesService(BaseService):
                 print(f"Updated: {len(response.success_records)}")
                 print(f"Failed: {len(response.failure_records)}")
 
-            Update with schema validation::
+            Update with schema validation:
 
                 class CustomerSchema:
                     name: str
@@ -1859,7 +1859,7 @@ class EntitiesService(BaseService):
         expansion_level: Optional[int] = None,
         fail_on_first: Optional[bool] = None,
     ) -> EntityRecordsBatchResponse:
-        """Async variant of :meth:`update_records_v3`."""
+        """Async variant of `update_records_v3()`."""
         return await self._data.update_records_async(
             entity_key,
             records,
@@ -1891,11 +1891,11 @@ class EntitiesService(BaseService):
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
-                - success_records: List of successfully deleted :class:`EntityRecord` objects
-                - failure_records: List of :class:`FailureRecord` describing per-record errors
+                - success_records: List of successfully deleted `EntityRecord` objects
+                - failure_records: List of `FailureRecord` describing per-record errors
 
         Examples:
-            Delete specific records by ID::
+            Delete specific records by ID:
 
                 # Delete records by their IDs
                 record_ids = [
@@ -1911,7 +1911,7 @@ class EntitiesService(BaseService):
                 print(f"Deleted: {len(response.success_records)}")
                 print(f"Failed: {len(response.failure_records)}")
 
-            Delete records matching a condition::
+            Delete records matching a condition:
 
                 # Get all records
                 records = entities_service.list_records("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
@@ -1943,7 +1943,7 @@ class EntitiesService(BaseService):
         """Batch-delete records via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`delete_records` for parameter and return details.
+        `delete_records()` for parameter and return details.
         """
         return self._data.delete_records(
             entity_key, record_ids, fail_on_first=fail_on_first, use_v3=True
@@ -1971,11 +1971,11 @@ class EntitiesService(BaseService):
 
         Returns:
             EntityRecordsBatchResponse: Response containing successful and failed record operations.
-                - success_records: List of successfully deleted :class:`EntityRecord` objects
-                - failure_records: List of :class:`FailureRecord` describing per-record errors
+                - success_records: List of successfully deleted `EntityRecord` objects
+                - failure_records: List of `FailureRecord` describing per-record errors
 
         Examples:
-            Delete specific records by ID::
+            Delete specific records by ID:
 
                 # Delete records by their IDs
                 record_ids = [
@@ -1991,7 +1991,7 @@ class EntitiesService(BaseService):
                 print(f"Deleted: {len(response.success_records)}")
                 print(f"Failed: {len(response.failure_records)}")
 
-            Delete records matching a condition::
+            Delete records matching a condition:
 
                 # Get all records
                 records = await entities_service.list_records_async("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
@@ -2020,7 +2020,7 @@ class EntitiesService(BaseService):
         record_ids: List[str],
         fail_on_first: Optional[bool] = None,
     ) -> EntityRecordsBatchResponse:
-        """Async variant of :meth:`delete_records_v3`."""
+        """Async variant of `delete_records_v3()`."""
         return await self._data.delete_records_async(
             entity_key, record_ids, fail_on_first=fail_on_first, use_v3=True
         )
@@ -2079,14 +2079,14 @@ class EntitiesService(BaseService):
         Returns:
             RetrieveEntityRecordsResponse: A response with ``items``,
                 ``total_count``, ``has_next_page``, and ``next_cursor``.
-                ``items`` is a list of :class:`EntityRecord` for plain
-                queries, or :class:`AggregateRow` when ``aggregates``,
+                ``items`` is a list of `EntityRecord` for plain
+                queries, or `AggregateRow` when ``aggregates``,
                 ``group_by``, or ``binnings`` are used. ``next_cursor`` is
                 populated only when the backend returns one; otherwise
                 paginate by passing the next ``start``.
 
         Examples:
-            Filter + sort + projection::
+            Filter + sort + projection:
 
                 from uipath.platform.entities import (
                     EntityQueryFilter,
@@ -2117,7 +2117,7 @@ class EntitiesService(BaseService):
                 )
                 print(f"Found {result.total_count} customers")
 
-            Aggregates and group-by (counts per status)::
+            Aggregates and group-by (counts per status):
 
                 from uipath.platform.entities import (
                     EntityAggregate,
@@ -2173,7 +2173,7 @@ class EntitiesService(BaseService):
         """Run a structured record query via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        :meth:`retrieve_records` for parameter and return details.
+        `retrieve_records()` for parameter and return details.
         """
         return self._data.retrieve_records(
             entity_key,
@@ -2244,7 +2244,7 @@ class EntitiesService(BaseService):
                 ``total_count``, ``has_next_page``, and ``next_cursor``.
 
         Examples:
-            Filter + sort + pagination::
+            Filter + sort + pagination:
 
                 from uipath.platform.entities import (
                     EntityQueryFilter,
@@ -2299,7 +2299,7 @@ class EntitiesService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> RetrieveEntityRecordsResponse:
-        """Async variant of :meth:`retrieve_records_v3`."""
+        """Async variant of `retrieve_records_v3()`."""
         return await self._data.retrieve_records_async(
             entity_key,
             filter_group=filter_group,
@@ -2433,7 +2433,7 @@ class EntitiesService(BaseService):
                 record), or an empty dict when the response has no body.
 
         Examples:
-            Upload from raw bytes::
+            Upload from raw bytes:
 
                 with open("contract.pdf", "rb") as f:
                     data = f.read()
@@ -2441,7 +2441,7 @@ class EntitiesService(BaseService):
                     "Customers", "rec-1", "Contract", file=data
                 )
 
-            Upload from a path on disk::
+            Upload from a path on disk:
 
                 entities_service.upload_attachment(
                     "Customers", "rec-1", "Contract", file_path="./contract.pdf"
@@ -2487,7 +2487,7 @@ class EntitiesService(BaseService):
             Dict[str, Any]: The decoded JSON response.
 
         Examples:
-            Upload from a path on disk::
+            Upload from a path on disk:
 
                 await entities_service.upload_attachment_async(
                     "Customers", "rec-1", "Contract", file_path="./contract.pdf"
@@ -2518,7 +2518,7 @@ class EntitiesService(BaseService):
             bytes: The raw file content.
 
         Examples:
-            Save the downloaded bytes to disk::
+            Save the downloaded bytes to disk:
 
                 content = entities_service.download_attachment(
                     "Customers", "rec-1", "Contract"
@@ -2544,7 +2544,7 @@ class EntitiesService(BaseService):
             bytes: The raw file content.
 
         Examples:
-            Save the downloaded bytes to disk::
+            Save the downloaded bytes to disk:
 
                 content = await entities_service.download_attachment_async(
                     "Customers", "rec-1", "Contract"
@@ -2579,7 +2579,7 @@ class EntitiesService(BaseService):
                 record), or an empty dict when the response has no body.
 
         Examples:
-            Clear an attachment::
+            Clear an attachment:
 
                 entities_service.delete_attachment(
                     "Customers", "rec-1", "Contract"
@@ -2610,7 +2610,7 @@ class EntitiesService(BaseService):
             Dict[str, Any]: The decoded JSON response.
 
         Examples:
-            Clear an attachment::
+            Clear an attachment:
 
                 await entities_service.delete_attachment_async(
                     "Customers", "rec-1", "Contract"
@@ -2646,7 +2646,7 @@ class EntitiesService(BaseService):
                 failed validation.
 
         Examples:
-            Import from a path on disk::
+            Import from a path on disk:
 
                 result = entities_service.import_records(
                     "Customers", file_path="./customers.csv"
@@ -2682,7 +2682,7 @@ class EntitiesService(BaseService):
                 ``error_file_link`` for failed rows.
 
         Examples:
-            Import from a path on disk::
+            Import from a path on disk:
 
                 result = await entities_service.import_records_async(
                     "Customers", file_path="./customers.csv"
@@ -2707,7 +2707,7 @@ class EntitiesService(BaseService):
     ) -> EntityRecordsBatchResponse:
         """Parse a batch response, optionally validating success records against ``schema``.
 
-        Failure records are returned as :class:`FailureRecord` instances and
+        Failure records are returned as `FailureRecord` instances and
         are not validated against the user schema.
         """
         return self._data.validate_entity_batch(batch_response, schema=schema)
@@ -2799,7 +2799,7 @@ class EntitiesService(BaseService):
     ) -> EntitySetResolution:
         """Resolve an agent entity set via the v3 API (serves Federated entities).
 
-        Experimental v3 surface; behaves like :meth:`resolve_entity_set` but
+        Experimental v3 surface; behaves like `resolve_entity_set()` but
         fetches entity metadata from ``datafabric_/api/v3/entities`` so Federated
         entities resolve with their external field definitions.
         """
@@ -2835,7 +2835,7 @@ class EntitiesService(BaseService):
         self,
         items: List[DataFabricEntityItem],
     ) -> EntitySetResolution:
-        """Async variant of :meth:`resolve_entity_set_v3`."""
+        """Async variant of `resolve_entity_set_v3()`."""
 
         async def _resolve_folder_path(folder_path: str) -> Optional[str]:
             if self._folders_service is None:

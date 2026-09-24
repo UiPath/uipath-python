@@ -2,8 +2,8 @@
 
 Process-level feature-flag gate that decides whether the Python
 governance checker runs at all. The
-:class:`uipath.core.governance.EnforcementMode` value type is defined
-in :mod:`uipath.core.governance.models`; the per-policy runtime state
+`uipath.core.governance.EnforcementMode` value type is defined
+in `uipath.core.governance.models`; the per-policy runtime state
 that selects a mode (backend-supplied via the ``/runtime/policy``
 client) lives outside this package.
 """
@@ -29,7 +29,7 @@ def is_governance_enabled() -> bool:
 
     Resolution order:
 
-    1. :meth:`uipath.core.feature_flags.FeatureFlagsManager.is_flag_enabled` -
+    1. `uipath.core.feature_flags.FeatureFlagsManager.is_flag_enabled()` -
        the in-process programmatic registry (typically populated from
        gitops) and its own ``UIPATH_FEATURE_<name>`` env-var fallback.
     2. Default ``False`` (governance disabled).

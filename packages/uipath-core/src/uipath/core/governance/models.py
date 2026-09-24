@@ -4,11 +4,11 @@ Two groups of types live here, both kept free of policy-input concepts
 (``Rule``/``Check``/``Condition``) so adapter packages don't inherit
 the native policy model:
 
-- **Output types** (:class:`Action`, :class:`LifecycleHook`,
-  :class:`RuleEvaluation`, :class:`AuditRecord`) — cross the adapter
+- **Output types** (`Action`, `LifecycleHook`,
+  `RuleEvaluation`, `AuditRecord`) — cross the adapter
   boundary at evaluation time: every evaluator implementation (native,
   AGT, composite, …) produces them, and every adapter consumes them.
-- **Configuration value types** (:class:`EnforcementMode`) — describe
+- **Configuration value types** (`EnforcementMode`) — describe
   governance configuration shared by core and its consumers. The
   per-policy runtime state that selects a mode lives outside this
   package; only the value type lives here.

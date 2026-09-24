@@ -494,7 +494,7 @@ class DynamicToolsMode(str, CaseInsensitiveEnum):
 
     Deprecated: kept for backwards compatibility with older ``agent.json`` files
     that still serialize the ``dynamicTools`` field. New code should use
-    :class:`ToolsConfiguration` (see ``AgentMcpResourceConfig.tools_configuration``).
+    `ToolsConfiguration` (see ``AgentMcpResourceConfig.tools_configuration``).
     """
 
     NONE = "none"

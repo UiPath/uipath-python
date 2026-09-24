@@ -18,7 +18,7 @@ from .runtime import UiPathFunctionsRuntime
 logger = logging.getLogger(__name__)
 
 # Wire labels this factory advertises via
-# :class:`UiPathRuntimeFactorySettings`. The runtime does not enumerate
+# `UiPathRuntimeFactorySettings`. The runtime does not enumerate
 # valid values -- each factory owns its own vocabulary and hosts
 # forward them verbatim to telemetry / audit consumers.
 _AGENT_TYPE_CODED = "uipath_coded"
