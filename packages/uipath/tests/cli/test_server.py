@@ -132,11 +132,33 @@ class TestServer:
 
             assert response["success"] is True
             assert response["job_key"] == job_key
+            assert response["exitCode"] == 0
             assert os.path.exists(output_file)
 
             with open(output_file, "r") as f:
                 output = f.read()
                 assert "Hello" in output
+
+    def test_failing_job_reports_its_exit_code(self, server, temp_dir):
+        """A job that fails through ConsoleLogger.error must not be reported as a success."""
+        port = server
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.chdir(temp_dir)
+
+            script_file = "entrypoint.py"
+            with open(os.path.join(temp_dir, script_file), "w") as f:
+                f.write("def main(input: dict) -> str:\n    raise ValueError('boom')\n")
+
+            with open(os.path.join(temp_dir, "uipath.json"), "w") as f:
+                json.dump(create_uipath_json(script_file), f)
+
+            response = asyncio.run(
+                start_job(port, "failing-job", "run", ["main", "{}"])
+            )
+
+            assert response["success"] is False
+            assert response["exitCode"] == 1
 
     def test_start_job_unknown_command(self, server):
         """Test starting a job with unknown command."""

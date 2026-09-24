@@ -12,9 +12,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import Mock
 
+import click
 import pytest
 
 from uipath._cli import _server_core
+from uipath._cli._utils._console import ConsoleLogger
 
 
 @pytest.fixture
@@ -59,6 +61,37 @@ async def test_maps_system_exit_code(restore_state: Any) -> None:
     result = await _server_core._run_command_isolated(cmd, [], {}, None)
     assert result["ExitCode"] == 2
     assert result["Unexpected"] is False
+
+
+async def test_maps_a_returned_click_exit_code(restore_state: Any) -> None:
+    _init(restore_state)
+
+    @click.command()
+    def failing() -> None:
+        ConsoleLogger().error("boom")
+
+    result = await _server_core._run_command_isolated(failing, [], {}, None)
+    assert result["ExitCode"] == 1
+    assert result["Error"] == "Exit code: 1"
+    assert result["Unexpected"] is False
+
+
+async def test_a_returned_zero_exit_code_is_success(restore_state: Any) -> None:
+    _init(restore_state)
+    cmd = Mock()
+    cmd.main.return_value = 0
+    result = await _server_core._run_command_isolated(cmd, [], {}, None)
+    assert result["ExitCode"] == 0
+    assert result["Error"] is None
+
+
+async def test_a_non_int_return_value_is_the_result(restore_state: Any) -> None:
+    _init(restore_state)
+    cmd = Mock()
+    cmd.main.return_value = True
+    result = await _server_core._run_command_isolated(cmd, [], {}, None)
+    assert result["ExitCode"] == 0
+    assert result["Result"] is True
 
 
 async def test_reports_unexpected_exception(restore_state: Any) -> None:

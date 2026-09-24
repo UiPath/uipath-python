@@ -188,23 +188,45 @@ async def handle_start(request: web.Request) -> web.Response:
 
     result = await _run_command_isolated(cmd, args, env_vars, working_dir)
 
+    # The .NET peer decides success from ``exitCode`` alone and defaults a missing one to 0.
+    exit_code = result["ExitCode"]
     if result["Unexpected"]:
         return web.json_response(
-            {"success": False, "job_key": job_key, "error": result["Error"]},
+            {
+                "success": False,
+                "job_key": job_key,
+                "exitCode": exit_code,
+                "error": result["Error"],
+            },
             status=500,
         )
     if result.get("ClientError"):
         # Request-shaped failure (e.g. bad working directory) — 4xx, not 200.
         return web.json_response(
-            {"success": False, "job_key": job_key, "error": result["Error"]},
+            {
+                "success": False,
+                "job_key": job_key,
+                "exitCode": exit_code,
+                "error": result["Error"],
+            },
             status=400,
         )
-    if result["ExitCode"] == 0:
+    if exit_code == 0:
         return web.json_response(
-            {"success": True, "job_key": job_key, "result": result["Result"]}
+            {
+                "success": True,
+                "job_key": job_key,
+                "exitCode": exit_code,
+                "result": result["Result"],
+            }
         )
     return web.json_response(
-        {"success": False, "job_key": job_key, "error": result["Error"]}
+        {
+            "success": False,
+            "job_key": job_key,
+            "exitCode": exit_code,
+            "error": result["Error"],
+        }
     )
 
 

@@ -120,6 +120,7 @@ _EXECUTOR_STATUS: dict[str, int] = {
     # Defensive only: the runtime delivers a result for SUCCESSFUL and FAULTED alone, and the peer
     # resolves a suspended job from output.json (resume triggers never cross the wire).
     "suspended": ExecutorJobStatus.SUSPENDED.value,
+    "stopped": ExecutorJobStatus.STOPPED.value,
 }
 
 
@@ -144,7 +145,8 @@ def _to_result_dto(
     return PythonJobResultDto(
         jobKey=job_key,
         resumeVersion=resume_version,
-        status=_EXECUTOR_STATUS.get(status_key, ExecutorJobStatus.SUCCESSFUL.value),
+        # A status this build does not know must not be reported as a success.
+        status=_EXECUTOR_STATUS.get(status_key, ExecutorJobStatus.FAULTED.value),
         outputArgumentsFilePath=output_arguments_file_path,
         error=error,
     )

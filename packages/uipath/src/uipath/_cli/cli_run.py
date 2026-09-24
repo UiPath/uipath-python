@@ -377,7 +377,7 @@ def run(
                     "uipath.json spec:",
                     "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
                 )
-            return
+            click.get_current_context().exit(1)
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")
         except Exception as e:
