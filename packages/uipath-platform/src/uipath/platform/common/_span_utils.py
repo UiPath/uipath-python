@@ -38,6 +38,19 @@ def _inject_reference_hierarchy(span: Span) -> None:
             span.set_attribute("uipath.reference_hierarchy", json.dumps(wire))
 
 
+def _hierarchy_leaf_reference_id(
+    hierarchy: Optional[List[Dict[str, Any]]],
+) -> Optional[str]:
+    """Return the innermost (last) entry's ``referenceId``, if usable."""
+    if not hierarchy:
+        return None
+    leaf = hierarchy[-1]
+    if not isinstance(leaf, dict):
+        return None
+    leaf_id = leaf.get("referenceId")
+    return leaf_id if isinstance(leaf_id, str) and leaf_id else None
+
+
 class ReferenceHierarchySpanProcessor(SpanProcessor):
     """Stamps uipath.reference_hierarchy on every span at creation time.
 
@@ -413,6 +426,14 @@ class _SpanUtils:
         # correct thread/context; BatchSpanProcessor exports in a background thread
         # where ContextVar values are not available).
         ref_hierarchy_json = attributes_dict.pop("uipath.reference_hierarchy", None)
+        reference_hierarchy: Optional[List[Dict[str, Any]]] = None
+        if ref_hierarchy_json:
+            try:
+                parsed_hierarchy = json.loads(ref_hierarchy_json)
+            except (json.JSONDecodeError, TypeError):
+                parsed_hierarchy = None
+            if isinstance(parsed_hierarchy, list) and parsed_hierarchy:
+                reference_hierarchy = parsed_hierarchy
 
         # Map status
         status = SpanStatus.OK
@@ -490,8 +511,16 @@ class _SpanUtils:
             _EXECUTION_TYPE_BY_INT, attributes_dict.get("executionType")
         )
         agent_version = attributes_dict.get("agentVersion")
-        reference_id = attributes_dict.get("agentId") or attributes_dict.get(
-            "referenceId"
+        # ReferenceId must name the same entity as the innermost referenceHierarchy
+        # entry — the backend joins the two to rebuild the call chain. Prefer the
+        # hierarchy leaf, then a referenceId explicitly stamped by the runtime, and
+        # only then the `agentId` set above: resolve_project_id() yields a *project*
+        # id (uipath.json#id / UIPATH_PROJECT_ID), which is not the running agent's
+        # id and would disagree with the hierarchy.
+        reference_id = (
+            _hierarchy_leaf_reference_id(reference_hierarchy)
+            or attributes_dict.get("referenceId")
+            or attributes_dict.get("agentId")
         )
         verbosity_level = _enum_from_raw(
             _VERBOSITY_LEVEL_BY_INT, attributes_dict.get("verbosityLevel")
@@ -531,11 +560,8 @@ class _SpanUtils:
                 logger.warning(f"Error processing attachments: {e}")
 
         context: Optional[Dict[str, Any]] = None
-        if ref_hierarchy_json:
-            try:
-                context = {"referenceHierarchy": json.loads(ref_hierarchy_json)}
-            except (json.JSONDecodeError, TypeError):
-                pass
+        if reference_hierarchy:
+            context = {"referenceHierarchy": reference_hierarchy}
 
         # Create UiPathSpan from OpenTelemetry span
         start_time = datetime.fromtimestamp(

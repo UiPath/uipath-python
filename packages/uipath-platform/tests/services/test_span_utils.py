@@ -321,11 +321,13 @@ class TestOTelToUiPathSpan:
 class TestReferenceIdResolution:
     """`reference_id` resolution chain.
 
-    `reference_id` is derived from the span's resolved `agentId` attribute
-    (which itself goes through `resolve_project_id()`), falling back to the
-    `referenceId` attribute. Falsy values (missing / empty string) at each step
-    fall through to the next source. The `referenceId` fallback exists for
-    backwards compatibility with older producers that only emit that attribute.
+    `reference_id` must name the same entity as the innermost
+    `referenceHierarchy` entry, so the leaf of `uipath.reference_hierarchy` wins
+    when present. It then falls back to a `referenceId` attribute stamped by the
+    runtime, and only then to the resolved `agentId` attribute — which goes
+    through `resolve_project_id()` and therefore carries a *project* id, not the
+    running agent's id. Falsy values at each step fall through to the next
+    source.
     """
 
     @pytest.mark.parametrize(
@@ -333,27 +335,68 @@ class TestReferenceIdResolution:
         [
             pytest.param(
                 "env-agent",
-                {"agentId": "attr-agent", "referenceId": "attr-ref"},
+                {
+                    "agentId": "attr-agent",
+                    "referenceId": "attr-ref",
+                    "uipath.reference_hierarchy": json.dumps(
+                        [
+                            {"serviceType": "maestro", "referenceId": "hier-outer"},
+                            {"serviceType": "agent", "referenceId": "hier-leaf"},
+                        ]
+                    ),
+                },
+                "hier-leaf",
+                id="hierarchy-leaf-wins-over-env-and-attrs",
+            ),
+            pytest.param(
                 "env-agent",
-                id="env-var-overrides-attr",
+                {"agentId": "attr-agent", "referenceId": "attr-ref"},
+                "attr-ref",
+                id="reference-id-attr-beats-resolved-project-id",
             ),
             pytest.param(
                 None,
                 {"agentId": "attr-agent", "referenceId": "attr-ref"},
-                "attr-agent",
-                id="agent-id-attr-when-env-unset",
+                "attr-ref",
+                id="reference-id-attr-beats-agent-id-attr",
             ),
             pytest.param(
                 None,
                 {"referenceId": "attr-ref"},
                 "attr-ref",
-                id="reference-id-fallback-when-agent-id-missing",
+                id="reference-id-when-agent-id-missing",
             ),
             pytest.param(
                 None,
-                {"agentId": "", "referenceId": "attr-ref"},
+                {"agentId": "attr-agent"},
+                "attr-agent",
+                id="agent-id-fallback-when-reference-id-missing",
+            ),
+            pytest.param(
+                None,
+                {"agentId": "attr-agent", "referenceId": ""},
+                "attr-agent",
+                id="agent-id-fallback-when-reference-id-empty",
+            ),
+            pytest.param(
+                "env-agent",
+                {
+                    "referenceId": "attr-ref",
+                    "uipath.reference_hierarchy": "not-json",
+                },
                 "attr-ref",
-                id="reference-id-fallback-when-agent-id-empty",
+                id="malformed-hierarchy-falls-through",
+            ),
+            pytest.param(
+                None,
+                {
+                    "referenceId": "attr-ref",
+                    "uipath.reference_hierarchy": json.dumps(
+                        [{"serviceType": "agent"}]
+                    ),
+                },
+                "attr-ref",
+                id="hierarchy-leaf-without-reference-id-falls-through",
             ),
             pytest.param(
                 None,
