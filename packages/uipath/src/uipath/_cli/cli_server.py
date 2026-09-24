@@ -296,11 +296,6 @@ async def start_tcp_server(host: str, port: int) -> None:
         await runner.cleanup()
 
 
-# The uipath-ipc transport (contract, DTOs, service, ``start_ipc_server``) lives
-# in ``cli_server_ipc`` and is served alongside HTTP when ``--ipc-pipe`` is given.
-# Older servers served HTTP only; the .NET Handler copes.
-
-
 # --------------------------------------------------------------------------- #
 # CLI                                                                         #
 # --------------------------------------------------------------------------- #
@@ -324,8 +319,9 @@ async def start_tcp_server(host: str, port: int) -> None:
     "--ipc-pipe",
     type=str,
     default=None,
-    help="Named pipe for the uipath-ipc channel. IPC is served only when this is "
-    "given; omit it for HTTP-only.",
+    help="Named pipe for the uipath-ipc channel. Given alone, only uipath-ipc is "
+    "served: no HTTP listener and no ready ACK. Given with any HTTP option, HTTP is "
+    "served as well.",
 )
 @click.option(
     "--port",
@@ -346,7 +342,9 @@ def server(
     port: int | None,
     tcp: bool,
 ) -> None:
-    """Serve run/debug/eval over HTTP, plus uipath-ipc when --ipc-pipe is given."""
+    """Serve run/debug/eval over HTTP, uipath-ipc (--ipc-pipe alone), or both."""
+    if ipc_pipe == "":
+        raise click.BadParameter("must not be empty", param_hint="'--ipc-pipe'")
     preload_modules()
     _run_server(client_socket, server_socket, ipc_pipe, port, tcp)
 
@@ -357,8 +355,13 @@ async def _serve(
     ipc_pipe: str | None,
     port: int,
     use_tcp: bool,
+    serve_http: bool = True,
 ) -> None:
-    """Run the HTTP channel, plus the uipath-ipc channel when a pipe name is given."""
+    """Run the requested channels: HTTP, the uipath-ipc pipe, or both."""
+    if not serve_http and ipc_pipe:
+        await start_ipc_server(ipc_pipe)
+        return
+
     _state.init()
 
     tasks: list[Any] = []
@@ -367,9 +370,6 @@ async def _serve(
     else:
         tasks.append(start_unix_server(ack_socket_path, server_socket))
 
-    # IPC is opt-in and independent of the HTTP socket: it is served only when an
-    # explicit pipe name is given, which both sides agree on out of band (the .NET
-    # peer connects to the same name it passed — no derivation from the HTTP socket).
     if ipc_pipe:
         tasks.append(start_ipc_server(ipc_pipe))
 
@@ -384,12 +384,22 @@ def _run_server(
     tcp: bool,
 ) -> None:
     """Drive ``_serve`` on the right event loop for the platform."""
+    # Callers that still pass HTTP options alongside the pipe expect the HTTP channel and
+    # its ready ACK; only a bare --ipc-pipe drops them.
+    serve_http = ipc_pipe is None or any(
+        (client_socket is not None, server_socket is not None, port is not None, tcp)
+    )
     use_tcp = IS_WINDOWS or tcp
     ack_socket_path = (
         client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
     )
     coro = _serve(
-        ack_socket_path, server_socket, ipc_pipe, port or DEFAULT_PORT, use_tcp
+        ack_socket_path,
+        server_socket,
+        ipc_pipe,
+        port or DEFAULT_PORT,
+        use_tcp,
+        serve_http,
     )
     try:
         if sys.platform == "win32":
