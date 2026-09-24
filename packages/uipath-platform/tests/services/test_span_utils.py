@@ -321,13 +321,13 @@ class TestOTelToUiPathSpan:
 class TestReferenceIdResolution:
     """`reference_id` resolution chain.
 
-    `reference_id` must name the same entity as the innermost
-    `referenceHierarchy` entry, so the leaf of `uipath.reference_hierarchy` wins
-    when present. It then falls back to a `referenceId` attribute stamped by the
-    runtime, and only then to the resolved `agentId` attribute — which goes
-    through `resolve_project_id()` and therefore carries a *project* id, not the
-    running agent's id. Falsy values at each step fall through to the next
-    source.
+    The runtime stamps `referenceId` and pushes that same id onto the reference
+    hierarchy, so `referenceId` is the source and the hierarchy leaf is the
+    consequence. `referenceId` therefore wins; the leaf is only a fallback for
+    producers that push onto the hierarchy without stamping the attribute. The
+    resolved `agentId` attribute is last — it goes through `resolve_project_id()`
+    and carries a *project* id, not the running agent's id. Falsy values at each
+    step fall through to the next source.
     """
 
     @pytest.mark.parametrize(
@@ -345,8 +345,34 @@ class TestReferenceIdResolution:
                         ]
                     ),
                 },
+                "attr-ref",
+                id="reference-id-attr-wins-over-hierarchy-leaf",
+            ),
+            pytest.param(
+                None,
+                {
+                    "uipath.reference_hierarchy": json.dumps(
+                        [
+                            {"serviceType": "maestro", "referenceId": "hier-outer"},
+                            {"serviceType": "langgraph", "referenceId": "hier-leaf"},
+                        ]
+                    )
+                },
                 "hier-leaf",
-                id="hierarchy-leaf-wins-over-env-and-attrs",
+                id="hierarchy-leaf-when-reference-id-attr-absent",
+            ),
+            pytest.param(
+                # A service that failed to push its own entry leaves the caller's
+                # id at the leaf. Deriving from it would misattribute the span.
+                None,
+                {
+                    "referenceId": "this-agent",
+                    "uipath.reference_hierarchy": json.dumps(
+                        [{"serviceType": "maestro", "referenceId": "the-caller"}]
+                    ),
+                },
+                "this-agent",
+                id="unpushed-entry-does-not-borrow-callers-id",
             ),
             pytest.param(
                 "env-agent",

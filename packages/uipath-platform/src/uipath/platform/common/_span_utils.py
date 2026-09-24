@@ -515,15 +515,21 @@ class _SpanUtils:
             _EXECUTION_TYPE_BY_INT, attributes_dict.get("executionType")
         )
         agent_version = attributes_dict.get("agentVersion")
-        # ReferenceId must name the same entity as the innermost referenceHierarchy
-        # entry — the backend joins the two to rebuild the call chain. Prefer the
-        # hierarchy leaf, then a referenceId explicitly stamped by the runtime, and
-        # only then the `agentId` set above: resolve_project_id() yields a *project*
-        # id (uipath.json#id / UIPATH_PROJECT_ID), which is not the running agent's
-        # id and would disagree with the hierarchy.
+        # The runtime stamps `referenceId` and then pushes that same id onto the
+        # reference hierarchy, so the hierarchy leaf is a *consequence* of the
+        # reference id — not its source. Read `referenceId` first: when a service
+        # fails to push (non-UUID id), the leaf still holds its *caller's* id, and
+        # deriving from it would attribute the span to the wrong service.
+        #
+        # The leaf is the fallback for producers that push onto the hierarchy
+        # without stamping the attribute (e.g. the langgraph runtime).
+        #
+        # `agentId` is last: resolve_project_id() yields a *project* id
+        # (uipath.json#id / UIPATH_PROJECT_ID), which is not the running agent's id
+        # and would disagree with the hierarchy.
         reference_id = (
-            _hierarchy_leaf_reference_id(reference_hierarchy)
-            or attributes_dict.get("referenceId")
+            attributes_dict.get("referenceId")
+            or _hierarchy_leaf_reference_id(reference_hierarchy)
             or attributes_dict.get("agentId")
         )
         verbosity_level = _enum_from_raw(
