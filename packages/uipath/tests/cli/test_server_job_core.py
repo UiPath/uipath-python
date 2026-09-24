@@ -633,6 +633,63 @@ async def test_telemetry_is_flushed_and_rebuilt_from_the_next_jobs_env(
     clients["key-b"].flush.assert_called()
 
 
+async def test_a_warning_logged_by_the_reset_flush_does_not_pin_the_config_id(
+    restore_state: Any,
+    clean_sdk_state: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """A log handler that resolves the project id, like the OTel event handler, runs
+    during the post-job flush with the server's cwd; the next job must still read its
+    own ``uipath.json`` id."""
+    from uipath.platform.common._span_utils import resolve_project_id
+    from uipath.telemetry import _track
+
+    def _client(instrumentation_key: str, telemetry_channel: Any) -> Mock:
+        client = Mock()
+        client.flush.side_effect = ConnectionError("send failed")
+        return client
+
+    monkeypatch.setattr(_track, "_HAS_APPINSIGHTS", True)
+    monkeypatch.setattr(_track, "AppInsightsTelemetryClient", _client)
+    monkeypatch.setattr(_track, "_DiagnosticSender", Mock())
+    monkeypatch.setattr(_track, "SynchronousQueue", Mock())
+    monkeypatch.setattr(_track, "TelemetryChannel", Mock())
+
+    resolved_during_flush: list[str | None] = []
+
+    class _ResolvesProjectId(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            resolved_during_flush.append(resolve_project_id())
+
+    handler = _ResolvesProjectId(logging.WARNING)
+    _track._logger.addHandler(handler)
+    try:
+        server_cwd = tmp_path / "server"
+        server_cwd.mkdir()
+        monkeypatch.chdir(server_cwd)
+        _init(restore_state)
+        dir_a = _write_project(tmp_path / "a", _ID_A, "ctx-a")
+        dir_b = _write_project(tmp_path / "b", _ID_B, "ctx-b")
+        env = {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=key"}
+        seen: list[dict[str, Any]] = []
+
+        def _job_a(*_args: Any, **_kwargs: Any) -> None:
+            _track._AppInsightsEventClient.track_event("Job.Event")
+
+        job_a = Mock()
+        job_a.main.side_effect = _job_a
+        await _server_core._run_command_isolated(job_a, [], env, dir_a)
+        await _server_core._run_command_isolated(
+            _observe_sdk_state(seen, concurrency=None), [], env, dir_b
+        )
+    finally:
+        _track._logger.removeHandler(handler)
+
+    assert resolved_during_flush
+    assert seen[0]["project_id"] == _ID_B
+
+
 async def test_reset_is_idempotent_with_a_runtime_that_resets_on_dispose(
     restore_state: Any, clean_sdk_state: None, capture_core_logs: Any
 ) -> None:

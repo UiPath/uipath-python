@@ -115,10 +115,12 @@ def _reset_job_derived_state() -> None:
     limit, and keep sending telemetry with the previous job's connection string,
     while the previous job's events sit unsent until the server itself exits.
     """
+    # First: the flush can log through handlers that read the config and project id
+    # with the server's cwd, which would refill the caches if they were already cleared.
+    reset_event_client()
     UiPathConfig.reset()
     _read_config_id.cache_clear()
     reset_llm_concurrency()
-    reset_event_client()
 
 
 def parse_args(args: str | list[str] | None) -> list[str]:
