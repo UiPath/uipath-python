@@ -538,6 +538,7 @@ def eval(
                     "uipath.json spec:",
                     "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
                 )
+            click.get_current_context().exit(1)
         except ValueError as e:
             console.error(str(e))
         except Exception as e:
