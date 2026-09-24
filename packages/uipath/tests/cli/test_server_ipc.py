@@ -189,16 +189,15 @@ class TestIpcServer:
         }
         result = asyncio.run(_with_proxy(pipe, lambda p: p.StopJob(request)))
 
-        assert result is False
+        assert result is True
 
-    def test_stop_job_reports_that_nothing_was_stopped(self, pipe):
-        """This server cannot stop a running job, so it must not claim it did."""
+    def test_stopping_an_unknown_job_reports_it_is_not_running(self, pipe):
         result = asyncio.run(
             _with_proxy(
                 pipe, lambda p: p.StopJob({"jobKey": "job-1", "forceStop": True})
             )
         )
-        assert result is False
+        assert result is True
 
 
 class TestIpcServerEnvIsolation:
@@ -463,7 +462,9 @@ class TestPooledSinks:
 
         monkeypatch.setattr(_job_api, "install_runtime_sinks", _record)
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             # Emit through the installed sink, so a log line actually crosses the pipe.
@@ -541,7 +542,9 @@ class TestPooledSinks:
             _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
         )
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             events.append(("run",))
@@ -581,7 +584,9 @@ class TestPooledSinks:
         )
         monkeypatch.setattr(_job_api, "clear_runtime_sinks", lambda: None)
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             events.append("run")
@@ -620,7 +625,9 @@ class TestPooledSinks:
             _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
         )
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             events.append(("run",))
