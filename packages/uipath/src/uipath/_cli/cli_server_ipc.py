@@ -160,11 +160,11 @@ class PythonRuntimeService(IPythonRuntimeServer):
         )
 
     async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
-        console.info(
+        console.warning(
             f"StopJob requested for {_run_id(request.jobKey, request.resumeVersion)} "
-            f"(force={request.forceStop}) (no-op)"
+            f"(force={request.forceStop}), but this server cannot stop a running job"
         )
-        return True
+        return False
 
 
 async def start_ipc_server(pipe_name: str) -> None:

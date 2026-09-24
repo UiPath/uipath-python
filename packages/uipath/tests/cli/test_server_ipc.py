@@ -189,16 +189,16 @@ class TestIpcServer:
         }
         result = asyncio.run(_with_proxy(pipe, lambda p: p.StopJob(request)))
 
-        assert result is True
+        assert result is False
 
-    def test_stop_job_returns_true(self, pipe):
-        """StopJob is a no-op stub today, but must ack (bool) so the call is awaitable."""
+    def test_stop_job_reports_that_nothing_was_stopped(self, pipe):
+        """This server cannot stop a running job, so it must not claim it did."""
         result = asyncio.run(
             _with_proxy(
                 pipe, lambda p: p.StopJob({"jobKey": "job-1", "forceStop": True})
             )
         )
-        assert result is True
+        assert result is False
 
 
 class TestIpcServerEnvIsolation:

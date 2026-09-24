@@ -83,7 +83,7 @@ class TestEvalDiscoveryMultipleEntrypoints:
             ):
                 result = runner.invoke(cli, ["eval"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "Available entrypoints:" in result.output
             assert "agent_a" in result.output
             assert "agent_b" in result.output
@@ -116,7 +116,7 @@ class TestEvalDiscoveryMultipleEntrypoints:
             ):
                 result = runner.invoke(cli, ["eval"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "Available entrypoints:" in result.output
             assert "a" in result.output
             assert "b" in result.output
@@ -165,7 +165,7 @@ class TestEvalDiscoveryMultipleEvalSets:
             ):
                 result = runner.invoke(cli, ["eval"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "Available entrypoints:" in result.output
             assert "my_agent" in result.output
             assert "Available eval sets:" in result.output
@@ -302,7 +302,7 @@ class TestEvalDiscoveryNoEntrypoints:
             ):
                 result = runner.invoke(cli, ["eval"])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "No entrypoints found" in result.output
             assert "Usage: uipath eval <entrypoint> <eval_set>" in result.output
 
@@ -349,7 +349,7 @@ class TestEvalDiscoveryExplicitArgs:
                 result = runner.invoke(cli, ["eval", "agent_a"])
 
             # Should still show usage help because multiple eval sets
-            assert result.exit_code == 0
+            assert result.exit_code == 1
             assert "Available eval sets:" in result.output
             assert "set-a.json" in result.output
             assert "set-b.json" in result.output
