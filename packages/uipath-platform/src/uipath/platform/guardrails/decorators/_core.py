@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 class GuardrailExclude:
     """Marker to exclude a parameter from guardrail input serialization.
 
-    Use with :data:`typing.Annotated` to prevent a specific function parameter
-    from being collected into the guardrail evaluation payload::
+    Use with `typing.Annotated` to prevent a specific function parameter
+    from being collected into the guardrail evaluation payload:
 
         async def process(
             text: str,
@@ -63,11 +63,11 @@ def _make_evaluator(
     """Return a unified evaluation callable.
 
     Delegates to ``validator.run()`` which each validator subclass implements
-    (:class:`BuiltInGuardrailValidator` hits the UiPath API;
-    :class:`CustomGuardrailValidator` runs a local Python rule).
+    (`BuiltInGuardrailValidator` hits the UiPath API;
+    `CustomGuardrailValidator` runs a local Python rule).
 
     Args:
-        validator: :class:`GuardrailValidatorBase` instance.
+        validator: `GuardrailValidatorBase` instance.
         name: Guardrail name — forwarded to ``validator.run()`` on each call.
         description: Optional description — forwarded to ``validator.run()``.
         enabled_for_evals: Whether active in evaluation scenarios.
@@ -95,7 +95,7 @@ def _make_evaluator(
 
 
 def _get_excluded_params(func: Any) -> set[str]:
-    """Return parameter names annotated with :class:`GuardrailExclude`.
+    """Return parameter names annotated with `GuardrailExclude`.
 
     Args:
         func: Callable to inspect.

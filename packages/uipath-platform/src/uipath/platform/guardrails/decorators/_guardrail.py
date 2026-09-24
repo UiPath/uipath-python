@@ -159,7 +159,7 @@ def guardrail(
 
     When applied to a plain function or async function, the decorator collects
     function parameters (PRE) and return value (POST) and evaluates them against
-    the guardrail. Use :class:`~._core.GuardrailExclude` to opt individual
+    the guardrail. Use `GuardrailExclude` to opt individual
     parameters out of serialization.
 
     When applied to a factory function whose return value is recognised by a
@@ -170,8 +170,8 @@ def guardrail(
 
     Args:
         func: Callable to decorate. Supplied directly when used without parentheses.
-        validator: :class:`~.validators.GuardrailValidatorBase` defining what to check.
-        action: :class:`~._models.GuardrailAction` defining how to respond on violation.
+        validator: `GuardrailValidatorBase` defining what to check.
+        action: `GuardrailAction` defining how to respond on violation.
         name: Human-readable name for this guardrail instance.
         description: Optional description passed to API-based guardrails.
         stage: When to evaluate — ``PRE``, ``POST``, or ``PRE_AND_POST``.
@@ -185,7 +185,7 @@ def guardrail(
     Raises:
         ValueError: If *action* is invalid, or the validator does not support
             the requested stage.
-        GuardrailBlockException: Raised at runtime by :class:`~._actions.BlockAction`
+        GuardrailBlockException: Raised at runtime by `BlockAction`
             when a violation is detected.
     """
     if action is None:

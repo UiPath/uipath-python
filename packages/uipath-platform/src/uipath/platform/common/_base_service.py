@@ -71,7 +71,7 @@ _TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
 def resolve_trace_id(fallback: str | None = None) -> str | None:
     """Resolve the current UiPath trace id as a 32-char hex string.
 
-    Same lookup chain :func:`_inject_trace_context` uses to compose the
+    Same lookup chain `_inject_trace_context()` uses to compose the
     ``x-uipath-traceparent-id`` header, exposed as a public helper so
     callers can capture the value when they need it in a request body
     (e.g. governance compensation) or before hopping to a background
@@ -79,11 +79,11 @@ def resolve_trace_id(fallback: str | None = None) -> str | None:
 
     Resolution order (first hit wins):
 
-    1. :attr:`UiPathConfig.trace_id` (``UIPATH_TRACE_ID`` env var),
-       normalized via :meth:`_SpanUtils.normalize_trace_id`. This is the
+    1. `UiPathConfig.trace_id` (``UIPATH_TRACE_ID`` env var),
+       normalized via `_SpanUtils.normalize_trace_id()`. This is the
        canonical agent trace id the LLMOps exporter binds spans to.
     2. The LLMOps external span trace id, when a provider is registered
-       via :meth:`UiPathSpanUtils.register_current_span_provider`.
+       via `UiPathSpanUtils.register_current_span_provider()`.
     3. The current OpenTelemetry span trace id.
     4. The caller-supplied ``fallback``.
 

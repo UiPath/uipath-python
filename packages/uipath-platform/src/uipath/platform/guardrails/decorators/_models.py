@@ -48,7 +48,7 @@ class GuardrailAction(ABC):
 
     Subclass this to implement custom behaviour on validation failure, such as
     logging, blocking, or content sanitisation. Built-in implementations are
-    :class:`LogAction` and :class:`BlockAction`.
+    `LogAction` and `BlockAction`.
     """
 
     @abstractmethod
