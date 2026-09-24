@@ -8,7 +8,7 @@ import pytest
 from opentelemetry.sdk.trace import Span as OTelSpan
 from opentelemetry.trace import SpanContext, StatusCode
 
-from uipath.platform.common import _SpanUtils
+from uipath.platform.common import UiPathSpan, _SpanUtils
 from uipath.platform.common._reference_context import (
     ReferenceContext,
     ReferenceContextAccessor,
@@ -581,3 +581,73 @@ class TestReferenceHierarchyHook:
             mock_span.set_attribute.assert_not_called()
         finally:
             ReferenceContextAccessor.reset(token)
+
+
+class TestReferenceIdMatchesHierarchyLeaf:
+    """`ReferenceId` and the innermost `referenceHierarchy` entry must agree.
+
+    `resolve_project_id()` yields a *project* id (``uipath.json#id`` /
+    ``UIPATH_PROJECT_ID`` / ``PROJECT_KEY``), which is unrelated to the agent id
+    the runtime pushes onto the reference hierarchy. When it used to win the
+    `ReferenceId` race, every deployed agent span shipped a `ReferenceId` that
+    disagreed with its own hierarchy leaf.
+    """
+
+    AGENT_ID = "550e8400-e29b-41d4-a716-446655440001"
+    PROJECT_ID = "550e8400-e29b-41d4-a716-4466554400ff"
+
+    def _convert(self, monkeypatch: pytest.MonkeyPatch) -> UiPathSpan:
+        from uipath.platform.common._span_utils import _read_config_id
+        from uipath.platform.constants import (
+            ENV_PROJECT_KEY,
+            ENV_UIPATH_AGENT_ID,
+            ENV_UIPATH_PROJECT_ID,
+        )
+
+        _read_config_id.cache_clear()
+        monkeypatch.delenv(ENV_UIPATH_AGENT_ID, raising=False)
+        monkeypatch.delenv(ENV_PROJECT_KEY, raising=False)
+        # Stands in for a populated `uipath.json#id`: a project id that differs
+        # from the agent id on the hierarchy.
+        monkeypatch.setenv(ENV_UIPATH_PROJECT_ID, self.PROJECT_ID)
+
+        ref_ctx = ReferenceContext.Empty.add("agent", self.AGENT_ID, "1.0.0")
+        span = _make_mock_span(
+            {
+                # What AgentRunSpanAttributes / apply_attributes stamp.
+                "agentId": self.AGENT_ID,
+                "referenceId": self.AGENT_ID,
+                "uipath.reference_hierarchy": json.dumps(ref_ctx.to_wire_list()),
+            }
+        )
+        return _SpanUtils.otel_span_to_uipath_span(span)
+
+    def test_reference_id_equals_hierarchy_leaf(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        uipath_span = self._convert(monkeypatch)
+
+        assert uipath_span.context is not None
+        leaf = uipath_span.context["referenceHierarchy"][-1]
+        assert uipath_span.reference_id == leaf["referenceId"]
+
+    def test_reference_id_is_agent_id_not_project_id(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        uipath_span = self._convert(monkeypatch)
+
+        assert uipath_span.reference_id == self.AGENT_ID
+        assert uipath_span.reference_id != self.PROJECT_ID
+
+    def test_hierarchy_still_emitted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        uipath_span = self._convert(monkeypatch)
+
+        assert uipath_span.context == {
+            "referenceHierarchy": [
+                {
+                    "serviceType": "agent",
+                    "referenceId": self.AGENT_ID,
+                    "version": "1.0.0",
+                }
+            ]
+        }
