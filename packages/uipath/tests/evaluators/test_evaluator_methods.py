@@ -1729,6 +1729,70 @@ class TestLlmJudgeTrajectoryEvaluator:
         assert result.score == 0.9
 
     @pytest.mark.asyncio
+    async def test_llm_trajectory_replaces_all_prompt_placeholders(
+        self, sample_agent_execution: AgentExecution, mocker: MockerFixture
+    ) -> None:
+        """Test trajectory prompt interpolation for all built-in placeholders."""
+        captured_prompt = ""
+
+        mock_tool_call = mocker.MagicMock()
+        mock_tool_call.id = "call_1"
+        mock_tool_call.name = "submit_evaluation"
+        mock_tool_call.arguments = {
+            "score": 90,
+            "justification": "The agent followed the expected behavior",
+        }
+
+        mock_response = mocker.MagicMock()
+        mock_response.choices = [
+            mocker.MagicMock(
+                message=mocker.MagicMock(content=None, tool_calls=[mock_tool_call])
+            )
+        ]
+
+        async def mock_chat_completions(*args: Any, **kwargs: Any) -> Any:
+            nonlocal captured_prompt
+            captured_prompt = kwargs["messages"][-1]["content"]
+            return mock_response
+
+        mock_llm_instance = mocker.MagicMock()
+        mock_llm_instance.chat_completions = mock_chat_completions
+
+        mocker.patch("uipath.eval.evaluators.llm_as_judge_evaluator.UiPath")
+        mocker.patch(
+            "uipath.eval.evaluators.llm_as_judge_evaluator.UiPathLlmChatService",
+            return_value=mock_llm_instance,
+        )
+
+        config = {
+            "name": "LlmTrajectoryTest",
+            "prompt": (
+                "input={{UserOrSyntheticInput}}\n"
+                "instructions={{SimulationInstructions}}\n"
+                "expected={{ExpectedAgentBehavior}}\n"
+                "history={{AgentRunHistory}}"
+            ),
+            "model": "gpt-4",
+        }
+        evaluator = LLMJudgeTrajectoryEvaluator.model_validate(
+            {"evaluatorConfig": config, "id": str(uuid.uuid4())}
+        )
+        agent_execution = sample_agent_execution.model_copy(
+            update={"simulation_instructions": "Mock the backend API response"}
+        )
+        criteria = TrajectoryEvaluationCriteria(
+            expected_agent_behavior="Agent should respond helpfully"
+        )
+
+        result = await evaluator.evaluate(agent_execution, criteria)
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert "{{" not in captured_prompt
+        assert "Agent should respond helpfully" in captured_prompt
+        assert "Mock the backend API response" in captured_prompt
+        assert "{'input': 'Test input'}" in captured_prompt
+
+    @pytest.mark.asyncio
     async def test_llm_trajectory_validate_and_evaluate_criteria(
         self, sample_agent_execution: WorkloadExecution, mocker: MockerFixture
     ) -> None:

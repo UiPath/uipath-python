@@ -12,8 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from uipath.eval.evaluators import BaseEvaluator
+from uipath.eval.mocks._types import LLMMockingStrategy
 from uipath.eval.models import NumericEvaluationResult
 from uipath.eval.models.evaluation_set import EvaluationSet
+from uipath.eval.models.models import AgentExecution
 from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.runtime.schema import UiPathRuntimeSchema
 
@@ -401,6 +403,64 @@ class TestEvaluatorSpanCreation:
         assert span["attributes"]["evaluator_id"] == "accuracy-evaluator"
         assert span["attributes"]["evaluator_name"] == "AccuracyEvaluator"
         assert span["attributes"]["eval_item_id"] == "eval-item-456"
+
+    @pytest.mark.asyncio
+    async def test_run_evaluator_passes_simulation_instructions(
+        self,
+        mock_trace_manager: MagicMock,
+        mock_factory: MagicMock,
+        mock_event_bus: MagicMock,
+        mock_execution_output: MagicMock,
+    ) -> None:
+        """Test that trajectory evaluators receive simulation instructions."""
+        context = create_eval_context(
+            eval_set="test.json",
+            entrypoint="main.py:main",
+        )
+
+        runtime = UiPathEvalRuntime(
+            context=context,
+            factory=mock_factory,
+            trace_manager=mock_trace_manager,
+            event_bus=mock_event_bus,
+        )
+
+        eval_item = MagicMock()
+        eval_item.id = "eval-item-with-simulation"
+        eval_item.name = "Simulated item"
+        eval_item.inputs = {"input": "test"}
+        eval_item.expected_agent_behavior = "Agent should use the simulated tool"
+        eval_item.mocking_strategy = LLMMockingStrategy(
+            prompt="Return mocked API responses for the tool calls",
+            tools_to_simulate=[],
+        )
+
+        evaluator = MagicMock(spec=BaseEvaluator)
+        evaluator.id = "trajectory-evaluator"
+        evaluator.name = "TrajectoryEvaluator"
+
+        async def capture_agent_execution(
+            agent_execution: AgentExecution,
+            evaluation_criteria: object,
+        ) -> NumericEvaluationResult:
+            assert (
+                agent_execution.simulation_instructions
+                == "Return mocked API responses for the tool calls"
+            )
+            return NumericEvaluationResult(score=1.0)
+
+        evaluator.validate_and_evaluate_criteria = AsyncMock(
+            side_effect=capture_agent_execution
+        )
+
+        await runtime.run_evaluator(
+            evaluator=evaluator,
+            execution_output=mock_execution_output,
+            eval_item=eval_item,
+            evaluation_criteria=None,
+        )
+
+        evaluator.validate_and_evaluate_criteria.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_multiple_evaluators_create_multiple_spans(
