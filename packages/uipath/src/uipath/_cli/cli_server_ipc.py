@@ -3,7 +3,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from ._server_core import COMMANDS, _run_command_isolated, _state, parse_args
+from ._server_core import (
+    COMMANDS,
+    _run_command_isolated,
+    _state,
+    parse_args,
+    stop_job,
+)
 from ._utils._console import ConsoleLogger
 
 if TYPE_CHECKING:
@@ -69,7 +75,7 @@ class IPythonRuntimeServer(ABC):
 
     @abstractmethod
     async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
-        """Cancel a running job by key (bool return avoids fire-and-forget)."""
+        """Stop a job; True once it no longer runs (bool return avoids fire-and-forget)."""
 
 
 class PythonRuntimeService(IPythonRuntimeServer):
@@ -147,6 +153,8 @@ class PythonRuntimeService(IPythonRuntimeServer):
             request.workingDirectory,
             on_run_start=on_run_start,
             on_run_end=on_run_end,
+            job_key=request.jobKey or None,
+            resume_version=request.resumeVersion,
         )
 
         # Await, don't block: these share this loop, and the peer may unregister the job once this returns.
@@ -160,11 +168,13 @@ class PythonRuntimeService(IPythonRuntimeServer):
         )
 
     async def StopJob(self, request: PythonServerStopJobRequest) -> bool:
-        console.warning(
+        console.info(
             f"StopJob requested for {_run_id(request.jobKey, request.resumeVersion)} "
-            f"(force={request.forceStop}), but this server cannot stop a running job"
+            f"(force={request.forceStop})"
         )
-        return False
+        return await stop_job(
+            request.jobKey, request.resumeVersion, force=request.forceStop
+        )
 
 
 async def start_ipc_server(pipe_name: str) -> None:

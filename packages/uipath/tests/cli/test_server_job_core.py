@@ -460,23 +460,10 @@ async def test_scope_teardown_survives_cancellation(
     await asyncio.wait_for(teardown_finished.wait(), timeout=5)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Teardown is shielded but not awaited, so under cancellation it runs detached "
-    "and observes the restored baseline instead of the job's env. Open review thread on "
-    "the job-scope PR; remove this marker with the fix.",
-)
 async def test_scope_teardown_sees_the_job_env_when_cancelled(
     restore_state: Any, restore_provider: Any
 ) -> None:
-    """Pin the ordering half of the scope contract, which cancellation currently breaks.
-
-    On the normal path the scope exits before the job's env is restored, which is what lets a
-    provider do per-job teardown against the job's own values. Under cancellation that
-    ordering is documented as best-effort and does not hold. This asserts the behaviour worth
-    having, so the gap stays visible and flips loudly if it is ever closed — no other test in
-    this file can observe the difference.
-    """
+    """The scope exits before the job's env is restored, even when the job is cancelled."""
     _init(restore_state)
     teardown_started = asyncio.Event()
     observed: list[str | None] = []

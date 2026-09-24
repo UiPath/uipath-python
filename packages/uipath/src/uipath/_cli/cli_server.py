@@ -17,6 +17,7 @@ from ._server_core import (
     _run_command_isolated,
     _state,
     parse_args,
+    stop_job,
 )
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
@@ -184,9 +185,26 @@ async def handle_start(request: web.Request) -> web.Response:
             status=400,
         )
 
+    resume_version = get_field(message, "resumeVersion", "ResumeVersion")
+    if resume_version is not None and not isinstance(resume_version, int):
+        return web.json_response(
+            {
+                "success": False,
+                "error": "Invalid field: 'resumeVersion' must be an int",
+            },
+            status=400,
+        )
+
     console.info(f"Starting job {job_key}: {command_name} {args}")
 
-    result = await _run_command_isolated(cmd, args, env_vars, working_dir)
+    result = await _run_command_isolated(
+        cmd,
+        args,
+        env_vars,
+        working_dir,
+        job_key=job_key,
+        resume_version=resume_version,
+    )
 
     # The .NET peer decides success from ``exitCode`` alone and defaults a missing one to 0.
     exit_code = result["ExitCode"]
@@ -230,6 +248,43 @@ async def handle_start(request: web.Request) -> web.Response:
     )
 
 
+async def handle_stop(request: web.Request) -> web.Response:
+    """Handle POST /jobs/{job_key}/stop — 200 with whether the job no longer runs."""
+    job_key = request.match_info.get("job_key")
+    if not job_key:
+        return web.json_response(
+            {"success": False, "error": "Missing job_key"}, status=400
+        )
+
+    message: dict[str, Any] = {}
+    if request.can_read_body:
+        try:
+            message = await request.json()
+        except json.JSONDecodeError:
+            return web.json_response(
+                {"success": False, "error": "Invalid JSON"}, status=400
+            )
+    if not isinstance(message, dict):
+        return web.json_response(
+            {"success": False, "error": "Invalid JSON"}, status=400
+        )
+
+    resume_version = get_field(message, "resumeVersion", "ResumeVersion")
+    if resume_version is not None and not isinstance(resume_version, int):
+        return web.json_response(
+            {
+                "success": False,
+                "error": "Invalid field: 'resumeVersion' must be an int",
+            },
+            status=400,
+        )
+    force = get_field(message, "forceStop", "ForceStop") is True
+
+    console.info(f"StopJob requested for {job_key} (force={force})")
+    stopped = await stop_job(job_key, resume_version, force=force)
+    return web.json_response({"success": True, "job_key": job_key, "stopped": stopped})
+
+
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 
@@ -264,6 +319,7 @@ def create_app() -> web.Application:
     app = web.Application(middlewares=[host_validation_middleware])
     app.router.add_get("/health", handle_health)
     app.router.add_post("/jobs/{job_key}/start", handle_start)
+    app.router.add_post("/jobs/{job_key}/stop", handle_stop)
     return app
 
 
