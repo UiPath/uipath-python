@@ -41,13 +41,11 @@ EXCLUDED_DIR_NAMES = frozenset(
 
 @dataclass(frozen=True)
 class ResourceReference:
-    """A resource the agent code refers to."""
+    """A resource the agent code names with a literal value."""
 
     resource_type: str
     name: str
-    name_is_expression: bool
     folder_path: Optional[str]
-    folder_is_expression: bool
     activity_name: str
     source: str
 
@@ -232,31 +230,37 @@ def _record(
     origin: str,
 ) -> None:
     """Turn one matched call into a reference, or a skip with a reason."""
+
+    def skip(reason: str) -> None:
+        result.skipped.append(
+            SkippedReference(resource_type=resource_type, reason=reason, source=source)
+        )
+
     name_node = _argument(node, name_param, name_index)
     if name_node is None:
-        result.skipped.append(
-            SkippedReference(
-                resource_type=resource_type,
-                reason=f"could not determine '{name_param}' for {origin}",
-                source=source,
-            )
-        )
+        skip(f"could not determine '{name_param}' for {origin}")
         return
 
     name, name_is_expression = _resolve(name_node, constants)
+    if name_is_expression:
+        skip(f"{origin}: '{name_param}' is computed at runtime ({name})")
+        return
+
+    # No folder argument is fine — the environment supplies one. A folder built
+    # at runtime is not: half a binding still reaches push as a real request.
+    folder_path: Optional[str] = None
     folder_node = _argument(node, folder_param, folder_index)
-    if folder_node is None:
-        folder_path, folder_is_expression = None, False
-    else:
+    if folder_node is not None:
         folder_path, folder_is_expression = _resolve(folder_node, constants)
+        if folder_is_expression:
+            skip(f"{origin}: '{folder_param}' is computed at runtime ({folder_path})")
+            return
 
     result.references.append(
         ResourceReference(
             resource_type=resource_type,
             name=name,
-            name_is_expression=name_is_expression,
             folder_path=folder_path,
-            folder_is_expression=folder_is_expression,
             activity_name=activity_name,
             source=source,
         )

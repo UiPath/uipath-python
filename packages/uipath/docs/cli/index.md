@@ -199,7 +199,7 @@ Do not change or remove it. Changing it makes the project look like a brand-new,
 
 Records the UiPath resources your code refers to in `bindings.json`, so they can be remapped to different resources per environment when the project is pushed to a solution or published. `uipath init --infer-bindings` does the same thing as part of initialization.
 
-Discovery is static and best effort. A resource named by a literal or a module-level constant is recorded; one whose name is built at runtime is recorded as an expression, and a call whose name cannot be determined at all is reported rather than guessed. Both direct SDK calls and resources reached through an interrupt model (`InvokeProcess`, `CreateTask`, `CreateEscalation`, `CreateDeepRag`, `CreateBatchTransform`) are matched:
+Discovery is static and best effort. Only a resource named by a literal or by a module-level constant is recorded. A name or folder assembled at runtime (a variable, an f-string, `os.getenv(...)`) is reported with its file and line rather than guessed at, because a Python expression is not a resource name and would reach the platform as a request for one. Both direct SDK calls and resources reached through an interrupt model (`InvokeProcess`, `CreateTask`, `CreateEscalation`, `CreateDeepRag`, `CreateBatchTransform`) are matched:
 
 <!-- termynal -->
 

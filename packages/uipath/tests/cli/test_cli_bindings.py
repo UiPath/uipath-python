@@ -134,7 +134,6 @@ class TestScanner:
         result = scan_source(source, "graph.py", build_registry())
         ref = _refs_by_type(result)["connection"]
         assert ref.name == "outlook-key"
-        assert ref.name_is_expression is False
 
     def test_does_not_fold_constants_reassigned_in_the_module(self) -> None:
         source = (
@@ -144,9 +143,8 @@ class TestScanner:
             "    await sdk.connections.retrieve_async(CONNECTION)\n"
         )
         result = scan_source(source, "graph.py", build_registry())
-        ref = _refs_by_type(result)["connection"]
-        assert ref.name == "CONNECTION"
-        assert ref.name_is_expression is True
+        assert result.references == []
+        assert len(result.skipped) == 1
 
     def test_does_not_fold_constants_changed_by_augmented_assignment(self) -> None:
         """`X += ...` changes the value the call actually receives."""
@@ -157,9 +155,8 @@ class TestScanner:
             "    await sdk.connections.retrieve_async(CONNECTION)\n"
         )
         result = scan_source(source, "graph.py", build_registry())
-        ref = _refs_by_type(result)["connection"]
-        assert ref.name == "CONNECTION"
-        assert ref.name_is_expression is True
+        assert result.references == []
+        assert len(result.skipped) == 1
 
     def test_does_not_fold_constants_reassigned_inside_a_branch(self) -> None:
         """A nested rebind is still a rebind, even though it is not top level."""
@@ -171,9 +168,8 @@ class TestScanner:
             "    await sdk.assets.retrieve_async(NAME, folder_path='F')\n"
         )
         result = scan_source(source, "graph.py", build_registry())
-        ref = _refs_by_type(result)["asset"]
-        assert ref.name == "NAME"
-        assert ref.name_is_expression is True
+        assert result.references == []
+        assert len(result.skipped) == 1
 
     def test_resolves_a_positionally_passed_folder(self) -> None:
         """context_grounding.retrieve_async takes folder_path at position 2."""
@@ -188,13 +184,13 @@ class TestScanner:
         ref = _refs_by_type(result)["index"]
         assert ref.name == "Idx"
         assert ref.folder_path == "Policies"
-        assert ref.folder_is_expression is False
 
         from uipath._cli._bindings._emitter import binding_key
 
         assert binding_key(ref) == "Idx.Policies"
 
-    def test_marks_non_literal_arguments_as_expressions(self) -> None:
+    def test_skips_a_name_computed_at_runtime(self) -> None:
+        """A python expression is not a resource name, so never emit one."""
         source = (
             "async def run(sdk, state):\n"
             "    await sdk.context_grounding.add_to_index_async(\n"
@@ -202,11 +198,45 @@ class TestScanner:
             "    )\n"
         )
         result = scan_source(source, "agent.py", build_registry())
-        ref = _refs_by_type(result)["index"]
-        assert ref.name == "state.index_name"
-        assert ref.name_is_expression is True
-        assert ref.folder_path == "state.index_folder_path"
-        assert ref.folder_is_expression is True
+        assert result.references == []
+        assert len(result.skipped) == 1
+        assert "state.index_name" in result.skipped[0].reason
+        assert result.skipped[0].source == "agent.py:2"
+
+    def test_skips_a_literal_name_whose_folder_is_computed(self) -> None:
+        """Half a binding is still a binding push would act on."""
+        source = (
+            "import os\n"
+            "async def run(sdk):\n"
+            "    await sdk.assets.retrieve_async(\n"
+            "        'ApiKey', folder_path=os.getenv('FOLDER')\n"
+            "    )\n"
+        )
+        result = scan_source(source, "agent.py", build_registry())
+        assert result.references == []
+        assert len(result.skipped) == 1
+
+    def test_the_reviewers_wrapper_case_is_skipped(self) -> None:
+        """Parameter names must never reach bindings.json.
+
+        samples/asset-modifier-agent does exactly this; before the change it
+        produced a binding keyed 'name.folder_path'.
+        """
+        source = (
+            "def get_asset(client, name, folder_path):\n"
+            "    return client.assets.retrieve(name=name, folder_path=folder_path)\n"
+        )
+        result = scan_source(source, "helpers.py", build_registry())
+        assert result.references == []
+        assert len(result.skipped) == 1
+        assert result.skipped[0].resource_type == "asset"
+
+    def test_a_missing_folder_is_not_an_expression(self) -> None:
+        """No folder argument at all is fine; the environment supplies it."""
+        source = "async def run(sdk):\n    await sdk.assets.retrieve_async('Solo')\n"
+        result = scan_source(source, "agent.py", build_registry())
+        assert [r.name for r in result.references] == ["Solo"]
+        assert result.skipped == []
 
     def test_skips_calls_whose_resource_name_cannot_be_determined(self) -> None:
         source = (

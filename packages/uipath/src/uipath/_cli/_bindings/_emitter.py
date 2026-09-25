@@ -34,12 +34,11 @@ def binding_key(reference: ResourceReference) -> str:
     return f"{reference.name}.{reference.folder_path}"
 
 
-def _value(
-    default_value: str, is_expression: bool, display_name: str
-) -> BindingResourceValue:
+def _value(default_value: str, display_name: str) -> BindingResourceValue:
+    """Generated values are always literal; see _scanner._record."""
     return BindingResourceValue(
         default_value=default_value,
-        is_expression=is_expression,
+        is_expression=False,
         display_name=display_name,
     )
 
@@ -48,11 +47,7 @@ def _connection_binding(reference: ResourceReference) -> BindingResource:
     return BindingResource(
         resource="connection",
         key=binding_key(reference),
-        value={
-            "ConnectionId": _value(
-                reference.name, reference.name_is_expression, "Connection"
-            )
-        },
+        value={"ConnectionId": _value(reference.name, "Connection")},
         metadata={
             "BindingsVersion": BINDINGS_METADATA_VERSION,
             "Connector": "",
@@ -75,12 +70,8 @@ def build_binding(reference: ResourceReference) -> BindingResource:
         resource=reference.resource_type,
         key=binding_key(reference),
         value={
-            "name": _value(reference.name, reference.name_is_expression, name_label),
-            "folderPath": _value(
-                reference.folder_path or "",
-                reference.folder_is_expression,
-                folder_label,
-            ),
+            "name": _value(reference.name, name_label),
+            "folderPath": _value(reference.folder_path or "", folder_label),
         },
         metadata={
             "ActivityName": reference.activity_name,
