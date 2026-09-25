@@ -37,6 +37,7 @@ from uipath.runtime import (
 )
 from uipath.runtime.schema import UiPathRuntimeGraph, UiPathRuntimeSchema
 
+from ._bindings._apply import infer_bindings_into_file
 from ._telemetry import track_command
 from ._utils._common import determine_project_type
 from ._utils._console import ConsoleLogger
@@ -419,8 +420,15 @@ def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -
     default=False,
     help="Won't override existing .agent files and AGENTS.md file.",
 )
+@click.option(
+    "--infer-bindings",
+    is_flag=True,
+    required=False,
+    default=False,
+    help="Record the resources referenced in your code in bindings.json (best effort).",
+)
 @track_command("initialize")
-def init(no_agents_md_override: bool) -> None:
+def init(no_agents_md_override: bool, infer_bindings: bool) -> None:
     """Initialize the project."""
     with console.spinner("Initializing UiPath project ..."):
         current_directory = os.getcwd()
@@ -461,6 +469,9 @@ def init(no_agents_md_override: bool) -> None:
                     console.success(f"{Action.CREATED.value} '{bindings_path}' file.")
                 else:
                     console.info(f"'{bindings_path}' already exists, skipping.")
+
+                if infer_bindings:
+                    infer_bindings_into_file(Path(current_directory), bindings_path)
 
                 # Always create/update entry-points.json from runtime schemas
                 factory: UiPathRuntimeFactoryProtocol = (

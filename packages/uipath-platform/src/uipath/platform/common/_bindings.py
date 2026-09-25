@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+BINDING_METADATA_ATTRIBUTE = "__uipath_binding__"
+
 
 class ResourceOverwrite(BaseModel, ABC):
     """Abstract base class for resource overwrites.
@@ -304,6 +306,12 @@ def resource_override(
 
             return all_args
 
+        binding_metadata = {
+            "resource_type": resource_type,
+            "resource_identifier": resource_identifier,
+            "folder_identifier": folder_identifier,
+        }
+
         if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
@@ -311,6 +319,7 @@ def resource_override(
                 all_args = process_args(args, kwargs)
                 return await func(**all_args)
 
+            async_wrapper.__dict__[BINDING_METADATA_ATTRIBUTE] = binding_metadata
             return async_wrapper
         else:
 
@@ -319,6 +328,7 @@ def resource_override(
                 all_args = process_args(args, kwargs)
                 return func(**all_args)
 
+            wrapper.__dict__[BINDING_METADATA_ATTRIBUTE] = binding_metadata
             return wrapper
 
     return decorator

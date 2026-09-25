@@ -193,6 +193,36 @@ Do not change or remove it. Changing it makes the project look like a brand-new,
 
 ::: mkdocs-click
     :module: uipath._cli
+    :command: bindings
+    :depth: 1
+    :style: table
+
+Records the UiPath resources your code refers to in `bindings.json`, so they can be remapped to different resources per environment when the project is pushed to a solution or published. `uipath init --infer-bindings` does the same thing as part of initialization.
+
+Discovery is static and best effort. Only a resource named by a literal or by a module-level constant is recorded. A name or folder assembled at runtime (a variable, an f-string, `os.getenv(...)`) is reported with its file and line rather than guessed at, because a Python expression is not a resource name and would reach the platform as a request for one. Both direct SDK calls and resources reached through an interrupt model (`InvokeProcess`, `CreateTask`, `CreateEscalation`, `CreateDeepRag`, `CreateBatchTransform`) are matched:
+
+<!-- termynal -->
+
+```shell
+> uipath bindings generate
+Discovered asset:MyAsset.Shared
+Discovered bucket:Invoices.Finance
+⚠️ storage.py:41: bucket — could not determine 'name' for buckets.download
+✓  Wrote 'bindings.json' with 2 binding(s) (2 new).
+```
+
+Entries already in the file are never rewritten, since they may carry connector metadata or display names that a scan cannot reproduce. Use `--check` in CI to fail when the file is missing bindings, and `--dry-run` to preview.
+
+/// info
+### What is not scanned
+
+Test files (`test_*.py`, `*_test.py`) and directories such as `tests/`, `.venv/` and `node_modules/` are skipped, so a resource referenced only by a test does not become a solution requirement.
+///
+
+---
+
+::: mkdocs-click
+    :module: uipath._cli
     :command: run
     :depth: 1
     :style: table
