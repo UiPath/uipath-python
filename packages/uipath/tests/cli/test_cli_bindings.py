@@ -268,6 +268,130 @@ class TestScanner:
         assert len(result.references) == 1
 
 
+class TestInterruptModels:
+    """Resources reached through `interrupt(...)`, not a direct SDK call.
+
+    LangGraph agents invoke processes and create actions by constructing an
+    interrupt model; the runtime then calls the decorated SDK method. The call
+    site in user code is a constructor, so the decorator registry alone cannot
+    see it.
+    """
+
+    def test_invoke_process_is_discovered(self) -> None:
+        source = (
+            "from uipath.platform.common.interrupt_models import InvokeProcess\n"
+            "from langgraph.types import interrupt\n"
+            "def node(state):\n"
+            "    return interrupt(\n"
+            "        InvokeProcess(name='child-agent', process_folder_path='Shared')\n"
+            "    )\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        ref = _refs_by_type(result)["process"]
+        assert ref.name == "child-agent"
+        assert ref.folder_path == "Shared"
+        assert ref.activity_name == "invoke_async"
+
+    def test_create_task_is_discovered(self) -> None:
+        source = (
+            "from uipath.platform.common.interrupt_models import CreateTask\n"
+            "def node(state):\n"
+            "    return interrupt(CreateTask(\n"
+            "        app_name='escalation_agent_app',\n"
+            "        app_folder_path='Shared',\n"
+            "        title='Review',\n"
+            "    ))\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        ref = _refs_by_type(result)["app"]
+        assert ref.name == "escalation_agent_app"
+        assert ref.folder_path == "Shared"
+
+    def test_escalation_and_module_qualified_form(self) -> None:
+        source = (
+            "from uipath.platform.common import interrupt_models\n"
+            "def node(state):\n"
+            "    return interrupt(interrupt_models.CreateEscalation(\n"
+            "        app_name='approval', app_folder_path='Ops', title='t'\n"
+            "    ))\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        assert _refs_by_type(result)["app"].name == "approval"
+
+    def test_deep_rag_binds_the_index_not_the_task_name(self) -> None:
+        """`name` is the task's own name; `index_name` is the resource."""
+        source = (
+            "from uipath.platform.common.interrupt_models import CreateDeepRag\n"
+            "def node(state):\n"
+            "    return interrupt(CreateDeepRag(\n"
+            "        name='my-research-task',\n"
+            "        index_name='ExpensePolicy',\n"
+            "        index_folder_path='HR',\n"
+            "        prompt='summarise',\n"
+            "    ))\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        ref = _refs_by_type(result)["index"]
+        assert ref.name == "ExpensePolicy"
+        assert ref.folder_path == "HR"
+
+    def test_a_same_named_class_from_elsewhere_is_ignored(self) -> None:
+        """Only constructors imported from uipath count."""
+        source = (
+            "from myapp.jobs import InvokeProcess\n"
+            "def node(state):\n"
+            "    return InvokeProcess(name='not-ours', process_folder_path='X')\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        assert result.references == []
+        assert result.skipped == []
+
+    def test_a_wait_model_binds_nothing(self) -> None:
+        """Wait models reference an already-created job by key."""
+        source = (
+            "from uipath.platform.common.interrupt_models import WaitJob\n"
+            "def node(state):\n"
+            "    return interrupt(WaitJob(job=state.job, process_folder_path='Shared'))\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        assert result.references == []
+
+    def test_an_unresolvable_model_argument_is_reported(self) -> None:
+        source = (
+            "from uipath.platform.common.interrupt_models import InvokeProcess\n"
+            "def node(state, cfg):\n"
+            "    return interrupt(InvokeProcess(**cfg))\n"
+        )
+        result = scan_source(source, "graph.py", build_registry())
+        assert result.references == []
+        assert len(result.skipped) == 1
+        assert result.skipped[0].resource_type == "process"
+
+    def test_every_interrupt_model_is_classified(self) -> None:
+        """A new interrupt model must be mapped or explicitly excluded.
+
+        Same drift guard as the decorator registry: adding a model that names a
+        resource should fail here rather than silently produce no binding.
+        """
+        from pydantic import BaseModel
+
+        from uipath._cli._bindings._interrupts import (
+            INTERRUPT_SPECS,
+            NON_BINDING_INTERRUPT_MODELS,
+        )
+        from uipath.platform.common import interrupt_models
+
+        declared = set(INTERRUPT_SPECS) | set(NON_BINDING_INTERRUPT_MODELS)
+        live = {
+            name
+            for name, obj in vars(interrupt_models).items()
+            if isinstance(obj, type)
+            and issubclass(obj, BaseModel)
+            and obj.__module__ == interrupt_models.__name__
+        }
+        assert live - declared == set()
+
+
 class TestEmitter:
     def test_emitted_entries_satisfy_the_published_json_schema(self) -> None:
         schema = json.loads(

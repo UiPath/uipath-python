@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from ._interrupts import INTERRUPT_SPECS, InterruptSpec
 from ._registry import BindingSpec, service_attributes
 
 EXCLUDED_DIR_NAMES = frozenset(
@@ -163,6 +164,46 @@ def _argument(
     return None
 
 
+def _uipath_imports(tree: ast.Module) -> set[str]:
+    """Local names bound by an import from a ``uipath`` module.
+
+    An interrupt model is matched by class name, which is generic enough
+    (``CreateTask``) to collide with unrelated code, so only names that
+    demonstrably came from the SDK are considered.
+    """
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module == "uipath" or module.startswith("uipath."):
+                for alias in node.names:
+                    names.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "uipath" or alias.name.startswith("uipath."):
+                    names.add(alias.asname or alias.name.split(".")[0])
+    return names
+
+
+def _interrupt_spec_for_call(
+    call: ast.Call, imported: set[str]
+) -> Optional[InterruptSpec]:
+    """Match ``InvokeProcess(...)`` or ``interrupt_models.InvokeProcess(...)``."""
+    if isinstance(call.func, ast.Name):
+        attribute, owner = call.func.id, call.func.id
+    elif isinstance(call.func, ast.Attribute):
+        attribute = call.func.attr
+        owner_node = call.func.value
+        if not isinstance(owner_node, ast.Name):
+            return None
+        owner = owner_node.id
+    else:
+        return None
+    if owner not in imported:
+        return None
+    return INTERRUPT_SPECS.get(attribute)
+
+
 def _spec_for_call(
     call: ast.Call, registry: dict[tuple[str, str], BindingSpec], services: set[str]
 ) -> Optional[BindingSpec]:
@@ -176,53 +217,98 @@ def _spec_for_call(
     return registry.get((owner.attr, call.func.attr))
 
 
+def _record(
+    result: ScanResult,
+    node: ast.Call,
+    source: str,
+    constants: dict[str, str],
+    *,
+    resource_type: str,
+    name_param: str,
+    name_index: Optional[int],
+    folder_param: Optional[str],
+    folder_index: Optional[int],
+    activity_name: str,
+    origin: str,
+) -> None:
+    """Turn one matched call into a reference, or a skip with a reason."""
+    name_node = _argument(node, name_param, name_index)
+    if name_node is None:
+        result.skipped.append(
+            SkippedReference(
+                resource_type=resource_type,
+                reason=f"could not determine '{name_param}' for {origin}",
+                source=source,
+            )
+        )
+        return
+
+    name, name_is_expression = _resolve(name_node, constants)
+    folder_node = _argument(node, folder_param, folder_index)
+    if folder_node is None:
+        folder_path, folder_is_expression = None, False
+    else:
+        folder_path, folder_is_expression = _resolve(folder_node, constants)
+
+    result.references.append(
+        ResourceReference(
+            resource_type=resource_type,
+            name=name,
+            name_is_expression=name_is_expression,
+            folder_path=folder_path,
+            folder_is_expression=folder_is_expression,
+            activity_name=activity_name,
+            source=source,
+        )
+    )
+
+
 def scan_tree(
     tree: ast.Module, path_label: str, registry: dict[tuple[str, str], BindingSpec]
 ) -> ScanResult:
+    """Find resource references in one module, by either matching rule."""
     result = ScanResult()
     services = service_attributes(registry)
     constants = _module_constants(tree)
+    imported = _uipath_imports(tree)
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        spec = _spec_for_call(node, registry, services)
-        if spec is None:
-            continue
-
         source = f"{path_label}:{node.lineno}"
-        name_node = _argument(node, spec.name_param, spec.name_index)
-        if name_node is None:
-            result.skipped.append(
-                SkippedReference(
-                    resource_type=spec.resource_type,
-                    reason=(
-                        f"could not determine '{spec.name_param}' for "
-                        f"{spec.service_attr}.{spec.method}"
-                    ),
-                    source=source,
-                )
+
+        spec = _spec_for_call(node, registry, services)
+        if spec is not None:
+            _record(
+                result,
+                node,
+                source,
+                constants,
+                resource_type=spec.resource_type,
+                name_param=spec.name_param,
+                name_index=spec.name_index,
+                folder_param=spec.folder_param,
+                folder_index=spec.folder_index,
+                activity_name=spec.activity_name,
+                origin=f"{spec.service_attr}.{spec.method}",
             )
             continue
 
-        name, name_is_expression = _resolve(name_node, constants)
-        folder_node = _argument(node, spec.folder_param, spec.folder_index)
-        if folder_node is None:
-            folder_path, folder_is_expression = None, False
-        else:
-            folder_path, folder_is_expression = _resolve(folder_node, constants)
-
-        result.references.append(
-            ResourceReference(
-                resource_type=spec.resource_type,
-                name=name,
-                name_is_expression=name_is_expression,
-                folder_path=folder_path,
-                folder_is_expression=folder_is_expression,
-                activity_name=spec.activity_name,
-                source=source,
+        interrupt = _interrupt_spec_for_call(node, imported)
+        if interrupt is not None:
+            _record(
+                result,
+                node,
+                source,
+                constants,
+                resource_type=interrupt.resource_type,
+                name_param=interrupt.name_field,
+                name_index=None,
+                folder_param=interrupt.folder_field,
+                folder_index=None,
+                activity_name=interrupt.activity_name,
+                origin=interrupt.model,
             )
-        )
     return result
 
 
