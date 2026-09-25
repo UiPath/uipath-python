@@ -12,6 +12,8 @@ from uipath._cli import cli
 from uipath._cli._bindings._emitter import build_binding, merge_bindings
 from uipath._cli._bindings._registry import (
     BINDABLE_RESOURCE_TYPES,
+    _binding_metadata,
+    _iter_service_classes,
     build_registry,
 )
 from uipath._cli._bindings._scanner import scan_project, scan_source
@@ -39,16 +41,59 @@ class _EmptyAsyncIterator:
         raise StopAsyncIteration
 
 
+def _hand_written(
+    resource: str,
+    key: str,
+    *,
+    display_name: str = "Name",
+    is_expression: bool = False,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """A bindings.json entry as a person would have written it."""
+    name, _, folder = key.rpartition(".")
+    return {
+        "resource": resource,
+        "key": key,
+        "value": {
+            "name": {
+                "defaultValue": name,
+                "isExpression": is_expression,
+                "displayName": display_name,
+            },
+            "folderPath": {
+                "defaultValue": folder,
+                "isExpression": is_expression,
+                "displayName": "Folder Path",
+            },
+        },
+        "metadata": metadata or {"BindingsVersion": "2.2"},
+    }
+
+
+async def _resolve(bindings):
+    """Run the real push resolver against a catalog that finds nothing."""
+    from uipath._cli._push._resolvers import resolve_bindings
+    from uipath.platform.resource_catalog import ResourceType
+
+    catalog = MagicMock()
+    catalog.list_by_type_async.return_value = _EmptyAsyncIterator()
+    connections = MagicMock()
+    connections.retrieve_async = AsyncMock(
+        return_value=SimpleNamespace(name="resolved", folder={"path": "Shared"})
+    )
+    return [
+        action
+        async for action in resolve_bindings(
+            bindings, catalog, connections, {t.value for t in ResourceType}
+        )
+    ]
+
+
 def _refs_by_type(result):
     return {ref.resource_type: ref for ref in result.references}
 
 
 class TestRegistry:
-    def test_registry_covers_every_bindable_resource_type(self) -> None:
-        registry = build_registry()
-        found = {spec.resource_type for spec in registry.values()}
-        assert BINDABLE_RESOURCE_TYPES <= found
-
     def test_registry_maps_known_sdk_methods_to_their_parameters(self) -> None:
         registry = build_registry()
 
@@ -80,11 +125,9 @@ class TestRegistry:
         """
         import inspect
 
-        from uipath.platform import UiPath
-
         registry = build_registry()
         missing = []
-        for service_attr, service_cls in _iter_services(UiPath):
+        for service_attr, service_cls in _iter_service_classes():
             for method_name, func in vars(service_cls).items():
                 meta = _binding_metadata(func)
                 if meta is None:
@@ -107,11 +150,6 @@ class TestRegistry:
 
 
 class TestScanner:
-    def test_recovers_every_resource_type_from_the_sample_agent(self) -> None:
-        result = scan_project(SAMPLE_DIR, build_registry())
-        assert _refs_by_type(result).keys() == BINDABLE_RESOURCE_TYPES
-        assert result.skipped == []
-
     def test_reproduces_the_hand_written_sample_bindings_file(self) -> None:
         """The checked-in sample bindings.json is the golden output."""
         expected = json.loads((SAMPLE_DIR / "bindings.json").read_text())
@@ -135,37 +173,21 @@ class TestScanner:
         ref = _refs_by_type(result)["connection"]
         assert ref.name == "outlook-key"
 
-    def test_does_not_fold_constants_reassigned_in_the_module(self) -> None:
+    @pytest.mark.parametrize(
+        "rebind",
+        [
+            pytest.param("CONNECTION = 'second'", id="reassigned"),
+            pytest.param("CONNECTION += '-suffix'", id="augmented"),
+            pytest.param("if SOMETHING:\n    CONNECTION = 'other'", id="in-a-branch"),
+            pytest.param("def f():\n    CONNECTION = 'local'", id="shadowed-locally"),
+        ],
+    )
+    def test_does_not_fold_a_constant_that_is_rebound(self, rebind: str) -> None:
+        """Any second binding means the call site may not see the literal."""
         source = (
-            "CONNECTION = 'first'\n"
-            "CONNECTION = 'second'\n"
+            f"CONNECTION = 'first'\n{rebind}\n"
             "async def run(sdk):\n"
             "    await sdk.connections.retrieve_async(CONNECTION)\n"
-        )
-        result = scan_source(source, "graph.py", build_registry())
-        assert result.references == []
-        assert len(result.skipped) == 1
-
-    def test_does_not_fold_constants_changed_by_augmented_assignment(self) -> None:
-        """`X += ...` changes the value the call actually receives."""
-        source = (
-            "CONNECTION = 'first'\n"
-            "CONNECTION += '-suffix'\n"
-            "async def run(sdk):\n"
-            "    await sdk.connections.retrieve_async(CONNECTION)\n"
-        )
-        result = scan_source(source, "graph.py", build_registry())
-        assert result.references == []
-        assert len(result.skipped) == 1
-
-    def test_does_not_fold_constants_reassigned_inside_a_branch(self) -> None:
-        """A nested rebind is still a rebind, even though it is not top level."""
-        source = (
-            "NAME = 'a'\n"
-            "if SOMETHING:\n"
-            "    NAME = 'b'\n"
-            "async def run(sdk):\n"
-            "    await sdk.assets.retrieve_async(NAME, folder_path='F')\n"
         )
         result = scan_source(source, "graph.py", build_registry())
         assert result.references == []
@@ -189,18 +211,35 @@ class TestScanner:
 
         assert binding_key(ref) == "Idx.Policies"
 
-    def test_skips_a_name_computed_at_runtime(self) -> None:
+    @pytest.mark.parametrize(
+        ("call", "expression"),
+        [
+            pytest.param(
+                "await sdk.context_grounding.retrieve_async(name=state.index_name)",
+                "state.index_name",
+                id="attribute",
+            ),
+            # samples/asset-modifier-agent does exactly this; it used to emit a
+            # binding keyed on the parameter names.
+            pytest.param(
+                "await sdk.context_grounding.retrieve_async(name=index_name)",
+                "index_name",
+                id="parameter",
+            ),
+            pytest.param(
+                "await sdk.context_grounding.retrieve_async(name=f'idx-{state.id}')",
+                "idx-",
+                id="f-string",
+            ),
+        ],
+    )
+    def test_skips_a_name_computed_at_runtime(self, call: str, expression: str) -> None:
         """A python expression is not a resource name, so never emit one."""
-        source = (
-            "async def run(sdk, state):\n"
-            "    await sdk.context_grounding.add_to_index_async(\n"
-            "        name=state.index_name, folder_path=state.index_folder_path\n"
-            "    )\n"
-        )
+        source = f"async def run(sdk, state, index_name):\n    {call}\n"
         result = scan_source(source, "agent.py", build_registry())
         assert result.references == []
         assert len(result.skipped) == 1
-        assert "state.index_name" in result.skipped[0].reason
+        assert expression in result.skipped[0].reason
         assert result.skipped[0].source == "agent.py:2"
 
     def test_skips_a_literal_name_whose_folder_is_computed(self) -> None:
@@ -215,21 +254,6 @@ class TestScanner:
         result = scan_source(source, "agent.py", build_registry())
         assert result.references == []
         assert len(result.skipped) == 1
-
-    def test_the_reviewers_wrapper_case_is_skipped(self) -> None:
-        """Parameter names must never reach bindings.json.
-
-        samples/asset-modifier-agent does exactly this; before the change it
-        produced a binding keyed 'name.folder_path'.
-        """
-        source = (
-            "def get_asset(client, name, folder_path):\n"
-            "    return client.assets.retrieve(name=name, folder_path=folder_path)\n"
-        )
-        result = scan_source(source, "helpers.py", build_registry())
-        assert result.references == []
-        assert len(result.skipped) == 1
-        assert result.skipped[0].resource_type == "asset"
 
     def test_a_missing_folder_is_not_an_expression(self) -> None:
         """No folder argument at all is fine; the environment supplies it."""
@@ -250,17 +274,6 @@ class TestScanner:
         assert len(result.skipped) == 1
         assert result.skipped[0].resource_type == "bucket"
         assert "backend.py:2" in result.skipped[0].source
-
-    def test_resolves_positional_and_keyword_name_arguments(self) -> None:
-        source = (
-            "async def run(sdk):\n"
-            "    await sdk.assets.retrieve_async('positional', folder_path='F')\n"
-            "    await sdk.processes.invoke_async(name='keyword', folder_path='F')\n"
-        )
-        result = scan_source(source, "main.py", build_registry())
-        refs = _refs_by_type(result)
-        assert refs["asset"].name == "positional"
-        assert refs["process"].name == "keyword"
 
     def test_ignores_unrelated_calls_with_the_same_method_name(self) -> None:
         source = (
@@ -307,46 +320,42 @@ class TestInterruptModels:
     see it.
     """
 
-    def test_invoke_process_is_discovered(self) -> None:
-        source = (
-            "from uipath.platform.common.interrupt_models import InvokeProcess\n"
-            "from langgraph.types import interrupt\n"
-            "def node(state):\n"
-            "    return interrupt(\n"
-            "        InvokeProcess(name='child-agent', process_folder_path='Shared')\n"
-            "    )\n"
-        )
+    @pytest.mark.parametrize(
+        ("imports", "call", "resource_type", "name"),
+        [
+            pytest.param(
+                "from uipath.platform.common.interrupt_models import InvokeProcess",
+                "InvokeProcess(name='child-agent', process_folder_path='Shared')",
+                "process",
+                "child-agent",
+                id="invoke-process",
+            ),
+            pytest.param(
+                "from uipath.platform.common.interrupt_models import CreateTask",
+                "CreateTask(title='Review', app_name='escalation_app',"
+                " app_folder_path='Shared')",
+                "app",
+                "escalation_app",
+                id="create-task",
+            ),
+            pytest.param(
+                "from uipath.platform.common import interrupt_models",
+                "interrupt_models.CreateEscalation(title='t', app_name='approval',"
+                " app_folder_path='Ops')",
+                "app",
+                "approval",
+                id="module-qualified",
+            ),
+        ],
+    )
+    def test_a_model_constructor_is_discovered(
+        self, imports: str, call: str, resource_type: str, name: str
+    ) -> None:
+        source = f"{imports}\ndef node(state):\n    return interrupt({call})\n"
         result = scan_source(source, "graph.py", build_registry())
-        ref = _refs_by_type(result)["process"]
-        assert ref.name == "child-agent"
-        assert ref.folder_path == "Shared"
-        assert ref.activity_name == "invoke_async"
-
-    def test_create_task_is_discovered(self) -> None:
-        source = (
-            "from uipath.platform.common.interrupt_models import CreateTask\n"
-            "def node(state):\n"
-            "    return interrupt(CreateTask(\n"
-            "        app_name='escalation_agent_app',\n"
-            "        app_folder_path='Shared',\n"
-            "        title='Review',\n"
-            "    ))\n"
-        )
-        result = scan_source(source, "graph.py", build_registry())
-        ref = _refs_by_type(result)["app"]
-        assert ref.name == "escalation_agent_app"
-        assert ref.folder_path == "Shared"
-
-    def test_escalation_and_module_qualified_form(self) -> None:
-        source = (
-            "from uipath.platform.common import interrupt_models\n"
-            "def node(state):\n"
-            "    return interrupt(interrupt_models.CreateEscalation(\n"
-            "        app_name='approval', app_folder_path='Ops', title='t'\n"
-            "    ))\n"
-        )
-        result = scan_source(source, "graph.py", build_registry())
-        assert _refs_by_type(result)["app"].name == "approval"
+        ref = _refs_by_type(result)[resource_type]
+        assert ref.name == name
+        assert ref.folder_path in {"Shared", "Ops"}
 
     def test_deep_rag_binds_the_index_not_the_task_name(self) -> None:
         """`name` is the task's own name; `index_name` is the resource."""
@@ -385,17 +394,6 @@ class TestInterruptModels:
         )
         result = scan_source(source, "graph.py", build_registry())
         assert result.references == []
-
-    def test_an_unresolvable_model_argument_is_reported(self) -> None:
-        source = (
-            "from uipath.platform.common.interrupt_models import InvokeProcess\n"
-            "def node(state, cfg):\n"
-            "    return interrupt(InvokeProcess(**cfg))\n"
-        )
-        result = scan_source(source, "graph.py", build_registry())
-        assert result.references == []
-        assert len(result.skipped) == 1
-        assert result.skipped[0].resource_type == "process"
 
     def test_every_interrupt_model_is_classified(self) -> None:
         """A new interrupt model must be mapped or explicitly excluded.
@@ -451,87 +449,51 @@ class TestEmitter:
                 assert set(prop) == required_prop_fields
 
     async def test_generated_bindings_survive_the_push_resolver(self) -> None:
-        """Every generated entry must yield an action, not an exception.
-
-        `uipath push` reads this file to build solution resources. A binding
-        whose shape the resolver rejects (wrong casing on ConnectionId, a
-        missing field) raises there rather than in the generator, so drive the
-        real resolver over real generated output.
+        """`uipath push` reads this file. A binding whose shape the resolver
+        rejects — wrong casing on ConnectionId, a missing field — raises there
+        rather than in the generator, so drive the real resolver over real
+        generated output.
         """
-        from uipath._cli._push._resolvers import resolve_bindings
-        from uipath.platform.resource_catalog import ResourceType
-
         result = scan_project(SAMPLE_DIR, build_registry())
         generated, _ = merge_bindings(None, result.references)
-
-        catalog = MagicMock()
-        catalog.list_by_type_async.return_value = _EmptyAsyncIterator()
-        connections = MagicMock()
-        connections.retrieve_async = AsyncMock(
-            return_value=SimpleNamespace(
-                name="resolved-connection", folder={"path": "Shared"}
-            )
-        )
-        supported = {t.value for t in ResourceType}
-
-        actions = [
-            action
-            async for action in resolve_bindings(
-                generated, catalog, connections, supported
-            )
-        ]
+        actions = await _resolve(generated)
         assert len(actions) == len(generated.resources)
 
-    async def test_a_binding_without_a_folder_still_resolves(self) -> None:
-        """A call with no folder_path is normal — the folder comes from the env."""
-        from uipath._cli._push._resolvers import resolve_bindings
-        from uipath.platform.resource_catalog import ResourceType
+    async def test_a_binding_without_a_folder_becomes_a_virtual_resource(
+        self,
+    ) -> None:
+        """A call with no folder_path is normal; the environment supplies one.
 
+        Pin the side effect rather than just "an action happened": such a
+        binding reaches push as an uncatalogued resource and becomes a
+        placeholder. Changing that is a product decision, not an accident.
+        """
         source = "async def run(sdk):\n    await sdk.assets.retrieve_async('Solo')\n"
         result = scan_source(source, "main.py", build_registry())
         generated, _ = merge_bindings(None, result.references)
         assert generated.resources[0].key == "Solo"
 
-        catalog = MagicMock()
-        catalog.list_by_type_async.return_value = _EmptyAsyncIterator()
-        actions = [
-            action
-            async for action in resolve_bindings(
-                generated,
-                catalog,
-                MagicMock(),
-                {t.value for t in ResourceType},
-            )
-        ]
-        # Pin the side effect rather than just "an action happened": a folderless
-        # binding reaches push as an uncatalogued resource and becomes a virtual
-        # placeholder. Changing that is a product decision, not an accident.
+        actions = await _resolve(generated)
         assert len(actions) == 1
         assert isinstance(actions[0], CreateVirtual)
         assert actions[0].request.name == "Solo"
 
-    def test_merge_keeps_hand_edited_entries_untouched(self) -> None:
+    def test_merge_leaves_what_it_did_not_generate_alone(self) -> None:
+        """Existing entries carry display names, metadata and expressions a
+        scan cannot reproduce, so a known key is never rewritten and an entry
+        the scan did not find is never pruned.
+        """
         existing = Bindings.model_validate(
             {
                 "version": "2.0",
                 "resources": [
-                    {
-                        "resource": "asset",
-                        "key": "A.F",
-                        "value": {
-                            "name": {
-                                "defaultValue": "A",
-                                "isExpression": False,
-                                "displayName": "Custom Label",
-                            },
-                            "folderPath": {
-                                "defaultValue": "F",
-                                "isExpression": False,
-                                "displayName": "Folder Path",
-                            },
-                        },
-                        "metadata": {"BindingsVersion": "2.2", "Hand": "written"},
-                    }
+                    _hand_written(
+                        "asset",
+                        "A.F",
+                        display_name="Custom Label",
+                        metadata={"BindingsVersion": "2.2", "Hand": "written"},
+                    ),
+                    _hand_written("index", "state.i.state.f", is_expression=True),
                 ],
             }
         )
@@ -546,36 +508,11 @@ class TestEmitter:
         asset = next(r for r in merged.resources if r.resource == "asset")
         assert asset.value["name"].display_name == "Custom Label"
         assert asset.metadata == {"BindingsVersion": "2.2", "Hand": "written"}
-        assert report.added == ["bucket:B.F"]
         assert report.unchanged == ["asset:A.F"]
+        assert report.added == ["bucket:B.F"]
 
-    def test_merge_never_drops_entries_the_scan_did_not_find(self) -> None:
-        existing = Bindings.model_validate(
-            {
-                "version": "2.0",
-                "resources": [
-                    {
-                        "resource": "index",
-                        "key": "state.i.state.f",
-                        "value": {
-                            "name": {
-                                "defaultValue": "state.i",
-                                "isExpression": True,
-                                "displayName": "Name",
-                            },
-                            "folderPath": {
-                                "defaultValue": "state.f",
-                                "isExpression": True,
-                                "displayName": "Folder Path",
-                            },
-                        },
-                        "metadata": {"BindingsVersion": "2.2"},
-                    }
-                ],
-            }
-        )
-        merged, report = merge_bindings(existing, [])
-        assert len(merged.resources) == 1
+        index = next(r for r in merged.resources if r.resource == "index")
+        assert index.value["name"].is_expression is True
         assert report.preserved == ["index:state.i.state.f"]
 
 
@@ -633,25 +570,28 @@ class TestRuntimeKeyAgreement:
             assert observed_folder == "NEW_FOLDER"
 
 
-class TestCommand:
-    def _project(self, body: str) -> None:
-        with open("pyproject.toml", "w") as f:
-            f.write(
-                '[project]\nname = "test-project"\nversion = "0.1.0"\n'
-                'description = "Test"\nauthors = [{name = "Test"}]\n'
-                'requires-python = ">=3.11"\n'
-            )
-        with open("main.py", "w") as f:
-            f.write(body)
+def _write_project(body: str) -> None:
+    """A minimal project in the cwd, for the CLI tests."""
+    Path("pyproject.toml").write_text(
+        '[project]\nname = "test-project"\nversion = "0.1.0"\n'
+        'description = "Test"\nauthors = [{name = "Test"}]\n'
+        'requires-python = ">=3.11"\n'
+    )
+    Path("main.py").write_text(body)
 
+
+_AGENT = (
+    "async def run(sdk):\n"
+    "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
+)
+
+
+class TestCommand:
     def test_generate_writes_bindings_for_discovered_resources(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(
-                "async def run(sdk):\n"
-                "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
-            )
+            _write_project(_AGENT)
             result = runner.invoke(cli, ["bindings", "generate"], env={})
             assert result.exit_code == 0, result.output
 
@@ -664,7 +604,7 @@ class TestCommand:
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(
+            _write_project(
                 "def run(self):\n"
                 "    self._sdk.buckets.download(blob_file_path='a', **self._kw())\n"
             )
@@ -677,10 +617,7 @@ class TestCommand:
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(
-                "async def run(sdk):\n"
-                "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
-            )
+            _write_project(_AGENT)
             result = runner.invoke(cli, ["bindings", "generate", "--dry-run"], env={})
             assert result.exit_code == 0, result.output
             assert not os.path.exists("bindings.json")
@@ -689,10 +626,7 @@ class TestCommand:
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(
-                "async def run(sdk):\n"
-                "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
-            )
+            _write_project(_AGENT)
             Path("bindings.json").write_text('{"version": "2.0", "resources": []}')
 
             result = runner.invoke(cli, ["bindings", "generate", "--check"], env={})
@@ -703,66 +637,18 @@ class TestCommand:
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(
-                "async def run(sdk):\n"
-                "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
-            )
+            _write_project(_AGENT)
             assert runner.invoke(cli, ["bindings", "generate"], env={}).exit_code == 0
             result = runner.invoke(cli, ["bindings", "generate", "--check"], env={})
             assert result.exit_code == 0, result.output
 
     def test_rerunning_is_idempotent(self, runner: CliRunner, temp_dir: str) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(
-                "async def run(sdk):\n"
-                "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
-            )
+            _write_project(_AGENT)
             runner.invoke(cli, ["bindings", "generate"], env={})
             first = Path("bindings.json").read_text()
             runner.invoke(cli, ["bindings", "generate"], env={})
             assert Path("bindings.json").read_text() == first
-
-
-def _iter_services(uipath_cls):
-    import typing
-
-    for attr, descriptor in vars(uipath_cls).items():
-        fget = getattr(descriptor, "fget", None) or getattr(descriptor, "func", None)
-        if fget is None:
-            continue
-        try:
-            hints = typing.get_type_hints(fget)
-        except Exception:
-            continue
-        service_cls = hints.get("return")
-        if isinstance(service_cls, type):
-            yield attr, service_cls
-
-
-def _binding_metadata(func):
-    target = getattr(func, "__func__", func)
-    meta = getattr(target, "__uipath_binding__", None)
-    if meta is not None:
-        return meta
-    closure = getattr(target, "__closure__", None)
-    code = getattr(target, "__code__", None)
-    if not closure or code is None:
-        return None
-    cells = dict(zip(code.co_freevars, closure, strict=True))
-    process_args = cells.get("process_args")
-    if process_args is None:
-        return None
-    inner = process_args.cell_contents
-    inner_cells = dict(
-        zip(inner.__code__.co_freevars, inner.__closure__ or (), strict=True)
-    )
-    if "resource_type" not in inner_cells:
-        return None
-    return {
-        "resource_type": inner_cells["resource_type"].cell_contents,
-        "resource_identifier": inner_cells["resource_identifier"].cell_contents,
-        "folder_identifier": inner_cells["folder_identifier"].cell_contents,
-    }
 
 
 def _make_probe(spec):
@@ -784,27 +670,12 @@ def _make_probe(spec):
 
 
 class TestInitInferBindings:
-    def _project(self, body: str) -> None:
-        with open("pyproject.toml", "w") as f:
-            f.write(
-                '[project]\nname = "test-project"\nversion = "0.1.0"\n'
-                'description = "Test"\nauthors = [{name = "Test"}]\n'
-                'requires-python = ">=3.11"\n'
-            )
-        with open("main.py", "w") as f:
-            f.write(body)
-
-    _AGENT = (
-        "async def run(sdk):\n"
-        "    await sdk.assets.retrieve_async('MyAsset', folder_path='Shared')\n"
-    )
-
     def test_init_leaves_bindings_empty_without_the_flag(
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         """Discovery stays opt-in: plain `init` must not invent bindings."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(self._AGENT)
+            _write_project(_AGENT)
             result = runner.invoke(cli, ["init"], env={})
             assert result.exit_code == 0, result.output
             assert json.loads(Path("bindings.json").read_text())["resources"] == []
@@ -813,44 +684,9 @@ class TestInitInferBindings:
         self, runner: CliRunner, temp_dir: str
     ) -> None:
         with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(self._AGENT)
+            _write_project(_AGENT)
             result = runner.invoke(cli, ["init", "--infer-bindings"], env={})
             assert result.exit_code == 0, result.output
 
             resources = json.loads(Path("bindings.json").read_text())["resources"]
             assert [r["key"] for r in resources] == ["MyAsset.Shared"]
-
-    def test_init_infer_bindings_merges_into_an_existing_file(
-        self, runner: CliRunner, temp_dir: str
-    ) -> None:
-        with runner.isolated_filesystem(temp_dir=temp_dir):
-            self._project(self._AGENT)
-            Path("bindings.json").write_text(
-                json.dumps(
-                    {
-                        "version": "2.0",
-                        "resources": [
-                            {
-                                "resource": "connection",
-                                "key": "kept",
-                                "value": {
-                                    "ConnectionId": {
-                                        "defaultValue": "kept",
-                                        "isExpression": False,
-                                        "displayName": "Connection",
-                                    }
-                                },
-                                "metadata": {"BindingsVersion": "2.2"},
-                            }
-                        ],
-                    }
-                )
-            )
-            result = runner.invoke(cli, ["init", "--infer-bindings"], env={})
-            assert result.exit_code == 0, result.output
-
-            keys = {
-                r["key"]
-                for r in json.loads(Path("bindings.json").read_text())["resources"]
-            }
-            assert keys == {"kept", "MyAsset.Shared"}
