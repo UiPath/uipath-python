@@ -48,6 +48,7 @@ sdk.agenthub            # AgentHubService
 sdk.mcp                 # McpService
 sdk.resource_catalog    # ResourceCatalogService
 sdk.automation_tracker  # AutomationTrackerService
+sdk.business_rules      # BusinessRulesService
 ```
 
 ### Authentication
@@ -95,6 +96,7 @@ Services provide both sync and async variants (e.g., `.invoke()` and `.invoke_as
 | `action_center/` | Task management for human-in-the-loop workflows |
 | `agenthub/` | System agents and LLM model discovery |
 | `automation_tracker/` | Business Transaction Service (BTS) for Process Mining |
+| `business_rules/` | DMN business rule evaluation for rules deployed to Orchestrator |
 | `chat/` | LLM gateway, conversations, throttling |
 | `connections/` | External connection management |
 | `context_grounding/` | RAG services (DeepRAG, batch RAG, ephemeral indexes) |
