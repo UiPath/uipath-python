@@ -63,7 +63,7 @@ class DataFabricError:
     def is_unsupported_construct(self) -> bool:
         """True when the entity-query subset cannot express this query shape.
 
-        Distinct from :attr:`is_bad_sql`: a bad statement can be fixed by
+        Distinct from `is_bad_sql`: a bad statement can be fixed by
         rewriting the SQL, whereas an unsupported construct means retrying a
         variant of the same approach will fail again.
         """
@@ -155,10 +155,10 @@ class DataFabricSqlValidationError(ValueError):
     """A SQL statement rejected by client-side entity-query validation.
 
     A thin carrier: the classification callers act on is the
-    :class:`DataFabricError` on :attr:`error`, the same type server-side
-    failures produce. Remains a :class:`ValueError` subclass so existing
+    `DataFabricError` on `error`, the same type server-side
+    failures produce. Remains a `ValueError` subclass so existing
     callers catching ``ValueError`` are unaffected; reach the structured form
-    with :meth:`DataFabricError.from_exception`.
+    with `DataFabricError.from_exception()`.
     """
 
     def __init__(self, message: str, *, code: str) -> None:
@@ -167,7 +167,7 @@ class DataFabricSqlValidationError(ValueError):
         Args:
             message: Human-readable rejection reason.
             code: Stable code for this rejection, classified into a
-                :class:`DataFabricErrorCategory` by the shared code table.
+                `DataFabricErrorCategory` by the shared code table.
         """
         super().__init__(message)
         self.error = DataFabricError.from_validation(code=code, message=message)

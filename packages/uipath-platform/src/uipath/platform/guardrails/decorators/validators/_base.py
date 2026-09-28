@@ -14,21 +14,21 @@ class GuardrailValidatorBase:
     """Root base class for guardrail validators.
 
     Concrete validators should subclass either
-    :class:`BuiltInGuardrailValidator` (for UiPath API-backed validation)
-    or :class:`CustomGuardrailValidator` (for in-process Python validation).
+    `BuiltInGuardrailValidator` (for UiPath API-backed validation)
+    or `CustomGuardrailValidator` (for in-process Python validation).
     """
 
     supported_stages: ClassVar[list[GuardrailExecutionStage]] = []
     """Stages this validator supports. Empty list means all stages are allowed."""
 
     def validate_stage(self, stage: GuardrailExecutionStage) -> None:
-        """Raise ``ValueError`` if *stage* is not in :attr:`supported_stages`.
+        """Raise ``ValueError`` if *stage* is not in `supported_stages`.
 
         Args:
             stage: Requested execution stage.
 
         Raises:
-            ValueError: If :attr:`supported_stages` is non-empty and *stage* is absent.
+            ValueError: If `supported_stages` is non-empty and *stage* is absent.
         """
         if self.supported_stages and stage not in self.supported_stages:
             raise ValueError(
@@ -49,8 +49,8 @@ class GuardrailValidatorBase:
         """Execute the guardrail evaluation.
 
         Called by the ``@guardrail`` decorator at each function invocation.
-        Subclasses override this via :class:`BuiltInGuardrailValidator` or
-        :class:`CustomGuardrailValidator`.
+        Subclasses override this via `BuiltInGuardrailValidator` or
+        `CustomGuardrailValidator`.
 
         Raises:
             NotImplementedError: Always — subclass one of the two ABCs instead.
@@ -64,11 +64,11 @@ class GuardrailValidatorBase:
 class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
     """Base for validators that delegate to the UiPath Guardrails API.
 
-    Subclass this and implement :meth:`get_built_in_guardrail` to create an
+    Subclass this and implement `get_built_in_guardrail()` to create an
     API-backed guardrail validator (e.g. PII detection, prompt injection).
 
-    Example::
-
+    Example:
+        ```python
         class MyValidator(BuiltInGuardrailValidator):
             def get_built_in_guardrail(self, name, description, enabled_for_evals):
                 return BuiltInValidatorGuardrail(
@@ -76,6 +76,7 @@ class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
                     name=name,
                     ...
                 )
+        ```
     """
 
     @abstractmethod
@@ -93,7 +94,7 @@ class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            :class:`BuiltInValidatorGuardrail` ready to be sent to the API.
+            `BuiltInValidatorGuardrail` ready to be sent to the API.
         """
         ...
 
@@ -123,11 +124,11 @@ class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
 class CustomGuardrailValidator(GuardrailValidatorBase, ABC):
     """Base for validators that run entirely in-process.
 
-    Subclass this and implement :meth:`evaluate` to create a local guardrail
+    Subclass this and implement `evaluate()` to create a local guardrail
     validator that requires no UiPath API call.
 
-    Example::
-
+    Example:
+        ```python
         class ProfanityValidator(CustomGuardrailValidator):
             BANNED = {"badword"}
 
@@ -139,6 +140,7 @@ class CustomGuardrailValidator(GuardrailValidatorBase, ABC):
                         reason="Profanity detected",
                     )
                 return GuardrailValidationResult(result=GuardrailValidationResultType.PASSED)
+        ```
     """
 
     @abstractmethod
@@ -152,7 +154,7 @@ class CustomGuardrailValidator(GuardrailValidatorBase, ABC):
         """Perform local validation without a UiPath API call.
 
         Return a result with ``VALIDATION_FAILED`` to **trigger** the guardrail
-        (causing the configured :class:`~uipath.platform.guardrails.decorators.GuardrailAction`
+        (causing the configured `GuardrailAction`
         to fire), or ``PASSED`` to let execution continue unchanged.
 
         Args:
@@ -162,7 +164,7 @@ class CustomGuardrailValidator(GuardrailValidatorBase, ABC):
             output_data: Normalised function output dict, or ``None`` at PRE stage.
 
         Returns:
-            :class:`~uipath.core.guardrails.GuardrailValidationResult` —
+            `GuardrailValidationResult` —
             return ``VALIDATION_FAILED`` to activate the guardrail,
             ``PASSED`` to allow execution to continue.
         """
@@ -178,5 +180,5 @@ class CustomGuardrailValidator(GuardrailValidatorBase, ABC):
         input_data: "dict[str, Any] | None",
         output_data: "dict[str, Any] | None",
     ) -> GuardrailValidationResult:
-        """Delegate to :meth:`evaluate`."""
+        """Delegate to `evaluate()`."""
         return self.evaluate(data, stage, input_data, output_data)

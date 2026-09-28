@@ -138,7 +138,7 @@ class BreakpointController:
     def _parse_breakpoints(self, breakpoints: list[str]) -> None:
         """Parse breakpoint strings into *file → line-numbers* mappings.
 
-        Supported formats::
+        Supported formats:
 
             "42"          → line 42 in the entrypoint file
             "main.py:42"  → line 42 in main.py (resolved relative to cwd)

@@ -1,7 +1,7 @@
 """Shared host-side governance bootstrap for ``uipath run`` / ``uipath debug``.
 
 Framework and agent-type labels are forwarded from
-:class:`UiPathRuntimeFactorySettings` — each factory advertises its
+`UiPathRuntimeFactorySettings` — each factory advertises its
 own; the CLI never classifies the runtime.
 """
 
@@ -46,7 +46,7 @@ class GovernanceBootstrap:
     """Governance wiring for one CLI run.
 
     ``dispose`` is idempotent, never raises, and drains the track-event
-    dispatcher; call it from a ``finally``. An :mod:`atexit` fallback
+    dispatcher; call it from a ``finally``. An `atexit` fallback
     covers the case where the caller misses it.
     """
 
@@ -82,13 +82,13 @@ async def resolve_governance(
     """Fetch policy + build the governance stack, or ``None`` when disabled.
 
     ``agent_framework`` and ``agent_type`` are forwarded from
-    :class:`UiPathRuntimeFactorySettings` and stamped on every audit
+    `UiPathRuntimeFactorySettings` and stamped on every audit
     event; ``None`` becomes ``"unknown"``.
 
     ``is_conversational`` is derived by the caller from runtime context
     (``bool(ctx.conversation_id)``): ``True`` for a run inside a CAS
     conversation, ``False`` otherwise. The value is forwarded verbatim
-    to :class:`PolicyContext` so the backend can select the
+    to `PolicyContext` so the backend can select the
     conversational or autonomous policy view.
     """
     if not is_governance_enabled():

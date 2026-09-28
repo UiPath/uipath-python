@@ -8,7 +8,7 @@ The runtime needs two backend interactions to function:
   centralised guardrail and write the per-rule LLMOps audit records.
 
 Both have wire formats owned by the ``agenticgovernance_`` ingress.
-Defining the contracts here — alongside :class:`EvaluatorProtocol` —
+Defining the contracts here — alongside `EvaluatorProtocol` —
 lets runtime consumers depend on stable protocols and receive a
 concrete provider via constructor injection. Concrete providers live
 outside this package; ``uipath-core`` does not import them.
@@ -32,9 +32,9 @@ class PolicyContext(BaseModel):
 
     Wrapping the selectors in a model keeps the protocol surface stable
     when the server grows new selector dimensions — adding a field here
-    doesn't change :meth:`GovernancePolicyProvider.get_policy`.
+    doesn't change `GovernancePolicyProvider.get_policy()`.
 
-    Today carries only :attr:`is_conversational`; future selectors land
+    Today carries only `is_conversational`; future selectors land
     here.
     """
 
@@ -46,7 +46,7 @@ class PolicyContext(BaseModel):
 class PolicyResponse(BaseModel):
     """Parsed governance backend response.
 
-    Wire envelope::
+    Wire envelope:
 
         {
             "mode": "audit" | "enforce" | "disabled",
@@ -150,7 +150,7 @@ class GovernancePolicyProvider(Protocol):
     variant is the preferred entry point for hosts running on an event
     loop (the host can overlap policy fetch with the rest of agent
     setup via ``asyncio.create_task`` and ``await`` the resolved
-    :class:`PolicyResponse` before constructing the governance
+    `PolicyResponse` before constructing the governance
     wrapper). The sync variant is kept for callers outside an event
     loop (CLI tools, integration tests).
 
@@ -164,7 +164,7 @@ class GovernancePolicyProvider(Protocol):
         ...
 
     async def get_policy_async(self, context: PolicyContext) -> PolicyResponse:
-        """Async variant of :meth:`get_policy`.
+        """Async variant of `get_policy()`.
 
         Hosts running on an event loop should use this so the fetch
         doesn't block the loop and can overlap with other startup

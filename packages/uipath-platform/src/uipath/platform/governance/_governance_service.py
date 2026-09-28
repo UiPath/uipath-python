@@ -3,20 +3,20 @@
 Wraps the governance backend endpoints UiPath exposes:
 
 - ``GET  /{org}/agenticgovernance_/api/v1/runtime/policy``  — fetch the
-  tenant-managed policy pack (see :meth:`GovernanceService.retrieve_policy`).
+  tenant-managed policy pack (see `GovernanceService.retrieve_policy()`).
 - ``POST /{org}/agenticgovernance_/api/v1/runtime/govern``  — compensating
   governance call fired when a ``guardrail_fallback`` rule matches
-  (see :meth:`GovernanceService.compensate`).
+  (see `GovernanceService.compensate()`).
 
 A third backend endpoint —
 ``POST /{org}/agenticgovernance_/api/v1/runtime/log`` — emits custom
 telemetry events to App Insights. It's reached only through the
 internal ``_track_event`` helper, which the runtime adapter
-(:class:`UiPathPlatformGovernanceProvider`) calls; not part of the
+(`UiPathPlatformGovernanceProvider`) calls; not part of the
 client-facing service surface.
 
-Org/tenant scoping is read from :class:`UiPathConfig`; auth, retries,
-trace context, and error enrichment come from :class:`BaseService`.
+Org/tenant scoping is read from `UiPathConfig`; auth, retries,
+trace context, and error enrichment come from `BaseService`.
 """
 
 from typing import Any, Optional
@@ -57,13 +57,13 @@ class GovernanceService(BaseService):
 
     Exposes two endpoints:
 
-    - :meth:`retrieve_policy` — GET the tenant-managed policy pack.
-    - :meth:`compensate` — POST a compensating ``/runtime/govern`` call
+    - `retrieve_policy()` — GET the tenant-managed policy pack.
+    - `compensate()` — POST a compensating ``/runtime/govern`` call
       so the server can run a disabled centralized guardrail and write
       the per-rule LLMOps audit records itself.
 
-    Org and tenant scoping come from :attr:`UiPathConfig.organization_id`
-    and :attr:`UiPathConfig.tenant_id`; the tenant travels in the
+    Org and tenant scoping come from `UiPathConfig.organization_id`
+    and `UiPathConfig.tenant_id`; the tenant travels in the
     ``x-uipath-internal-tenantid`` header (the URL is org-scoped only).
 
     !!! info "Version Availability"
@@ -117,7 +117,7 @@ class GovernanceService(BaseService):
     ) -> PolicyResponse:
         """Asynchronously fetch the governance policy pack.
 
-        See :meth:`retrieve_policy` for parameter and return semantics.
+        See `retrieve_policy()` for parameter and return semantics.
         """
         url, headers = self._build_org_scoped_request(POLICY_API_PATH)
         params = self._policy_params(is_conversational)
@@ -129,17 +129,17 @@ class GovernanceService(BaseService):
     # ── Policy provider adapter (GovernancePolicyProvider protocol) ─
 
     def get_policy(self, context: PolicyContext) -> PolicyResponse:
-        """Fetch the policy pack — :class:`GovernancePolicyProvider` adapter.
+        """Fetch the policy pack — `GovernancePolicyProvider` adapter.
 
-        Thin wrapper over :meth:`retrieve_policy` that accepts the
+        Thin wrapper over `retrieve_policy()` that accepts the
         context model the core protocol uses. Lets the runtime consume
-        governance through :class:`uipath.core.governance.GovernancePolicyProvider`
+        governance through `uipath.core.governance.GovernancePolicyProvider`
         without importing this module.
         """
         return self.retrieve_policy(is_conversational=context.is_conversational)
 
     async def get_policy_async(self, context: PolicyContext) -> PolicyResponse:
-        """Async variant of :meth:`get_policy`."""
+        """Async variant of `get_policy()`."""
         return await self.retrieve_policy_async(
             is_conversational=context.is_conversational
         )
@@ -173,7 +173,7 @@ class GovernanceService(BaseService):
 
         Job-context fields (``folder_key`` / ``job_key`` /
         ``process_key`` / ``reference_id`` / ``agent_version``) are
-        auto-populated from :class:`UiPathConfig` when omitted.
+        auto-populated from `UiPathConfig` when omitted.
         Caller-supplied values — including the empty string — take
         precedence.
 
@@ -187,7 +187,7 @@ class GovernanceService(BaseService):
                 centralized guardrail.
             trace_id: Canonical 32-char hex trace id. Optional — when
                 ``None`` (default) the service resolves the value
-                itself at call time via :func:`resolve_trace_id`.
+                itself at call time via `resolve_trace_id()`.
                 Callers that already hold a resolved id (typically
                 captured on the hook thread before a background-pool
                 hop) pass it in to win over the auto-resolve.
@@ -208,7 +208,7 @@ class GovernanceService(BaseService):
         Threading:
             OpenTelemetry context is thread-local; callers that
             background-pool the compensation call must capture the
-            canonical trace id (via :func:`resolve_trace_id`) on the
+            canonical trace id (via `resolve_trace_id()`) on the
             hook thread and pass it in explicitly — the auto-resolve
             on the worker thread will see a detached context.
         """
@@ -249,7 +249,7 @@ class GovernanceService(BaseService):
     ) -> None:
         """Asynchronously POST a compensating ``/runtime/govern`` call.
 
-        See :meth:`compensate` for parameter semantics.
+        See `compensate()` for parameter semantics.
         """
         await self._compensate_async(
             GovernRequest(
@@ -273,16 +273,16 @@ class GovernanceService(BaseService):
 
     @traced(name="governance_compensate", run_type="uipath")
     def _compensate(self, request: GovernRequest) -> None:
-        """Fire a compensation call from a pre-built :class:`GovernRequest`.
+        """Fire a compensation call from a pre-built `GovernRequest`.
 
         Internal helper used by the provider adapter
-        (:class:`uipath.platform.governance.UiPathPlatformGovernanceProvider`)
-        to satisfy :class:`uipath.core.governance.GovernanceCompensationProvider`
+        (`uipath.platform.governance.UiPathPlatformGovernanceProvider`)
+        to satisfy `uipath.core.governance.GovernanceCompensationProvider`
         without unpacking the request. The public ergonomic counterpart
-        is :meth:`compensate`.
+        is `compensate()`.
 
         When ``request.trace_id`` is ``None`` the service resolves the
-        canonical trace id itself via :func:`resolve_trace_id` — same
+        canonical trace id itself via `resolve_trace_id()` — same
         fallback ``track_event`` uses. Callers that have a resolved
         value still pass it in; callers that don't (e.g. the runtime
         layer, which intentionally stays env-free) leave it ``None``
@@ -295,7 +295,7 @@ class GovernanceService(BaseService):
 
     @traced(name="governance_compensate", run_type="uipath")
     async def _compensate_async(self, request: GovernRequest) -> None:
-        """Async variant of :meth:`_compensate`.
+        """Async variant of `_compensate()`.
 
         Same ``trace_id`` self-resolution behavior as the sync variant.
         """
@@ -306,7 +306,7 @@ class GovernanceService(BaseService):
 
     @staticmethod
     def _resolve_request_trace_id(request: GovernRequest) -> GovernRequest:
-        """Fill ``request.trace_id`` from :func:`resolve_trace_id` when absent.
+        """Fill ``request.trace_id`` from `resolve_trace_id()` when absent.
 
         Caller-supplied values (including ``""``) win — the runtime
         captures on the hook thread (via ``contextvars.copy_context``
@@ -324,7 +324,7 @@ class GovernanceService(BaseService):
     #
     # ``_track_event`` / ``_track_event_async`` are intentionally
     # underscore-prefixed: they exist for the runtime adapter
-    # (:class:`UiPathPlatformGovernanceProvider`) to fire telemetry
+    # (`UiPathPlatformGovernanceProvider`) to fire telemetry
     # events through the platform's HTTP stack, not as a client-facing
     # SDK call. Keeping them off the public surface keeps the auto-
     # generated docs (``mkdocs`` + ``mkdocstrings``) focused on the
@@ -341,7 +341,7 @@ class GovernanceService(BaseService):
         """POST a custom telemetry event to ``/runtime/log``.
 
         Internal seam — the runtime adapter
-        (:class:`UiPathPlatformGovernanceProvider`) calls this to emit
+        (`UiPathPlatformGovernanceProvider`) calls this to emit
         governance audit events through the platform's HTTP stack.
         The server forwards the event to App Insights as a
         ``customEvents`` row; account / tenant / organization are
@@ -355,7 +355,7 @@ class GovernanceService(BaseService):
                 values are dropped server-side.
             operation_id: Optional correlation id forwarded as the
                 ``x-uipath-operation-id`` header. When omitted, falls
-                back to :func:`resolve_trace_id` so events emitted from
+                back to `resolve_trace_id()` so events emitted from
                 the same agent trace share an ``operation_Id`` and are
                 queryable together in KQL. When neither is available,
                 the header is omitted and App Insights generates its
@@ -384,7 +384,7 @@ class GovernanceService(BaseService):
         data: dict[str, Any] | None = None,
         operation_id: str | None = None,
     ) -> None:
-        """Async variant of :meth:`_track_event`. Internal seam."""
+        """Async variant of `_track_event()`. Internal seam."""
         self._validate_event_name(event_name)
         url, headers = self._build_org_scoped_request(LOG_API_PATH)
         resolved_op_id = operation_id or resolve_trace_id()

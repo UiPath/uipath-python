@@ -1,6 +1,6 @@
 """Service for managing Remote A2A agents in UiPath AgentHub.
 
-.. warning::
+Warning:
     This module is experimental and subject to change.
     The Remote A2A feature is in preview and its API may change in future releases.
 """
@@ -23,7 +23,7 @@ from .remote_a2a import RemoteA2aAgent
 class RemoteA2aService(FolderContext, BaseService):
     """Service for managing Remote A2A agents in UiPath AgentHub.
 
-    .. warning::
+    Warning:
         This service is experimental and subject to change.
     """
 
@@ -46,7 +46,7 @@ class RemoteA2aService(FolderContext, BaseService):
     ) -> List[RemoteA2aAgent]:
         """List Remote A2A agents.
 
-        .. warning::
+        Warning:
             This method is experimental and subject to change.
 
         When called without folder_path, returns all agents across
@@ -106,7 +106,7 @@ class RemoteA2aService(FolderContext, BaseService):
     ) -> List[RemoteA2aAgent]:
         """Asynchronously list Remote A2A agents.
 
-        .. warning::
+        Warning:
             This method is experimental and subject to change.
 
         Args:
@@ -163,7 +163,7 @@ class RemoteA2aService(FolderContext, BaseService):
     ) -> RemoteA2aAgent:
         """Retrieve a Remote A2A agent by its display name or legacy slug.
 
-        .. warning::
+        Warning:
             This method is experimental and subject to change.
 
         Args:
@@ -209,7 +209,7 @@ class RemoteA2aService(FolderContext, BaseService):
     ) -> RemoteA2aAgent:
         """Asynchronously retrieve a Remote A2A agent by display name or legacy slug.
 
-        .. warning::
+        Warning:
             This method is experimental and subject to change.
 
         Args:

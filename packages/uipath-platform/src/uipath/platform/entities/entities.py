@@ -104,7 +104,7 @@ class EntityClass(str, Enum):
 
 
 class EntityClassId(IntEnum):
-    """Internal numeric discriminator for :class:`EntityClass` on the wire."""
+    """Internal numeric discriminator for `EntityClass` on the wire."""
 
     Native = 9
     Federated = 10
@@ -114,7 +114,7 @@ ENTITY_CLASS_TO_ID_MAP: Dict[EntityClass, EntityClassId] = {
     EntityClass.Native: EntityClassId.Native,
     EntityClass.Federated: EntityClassId.Federated,
 }
-"""Maps a public :class:`EntityClass` to its wire :class:`EntityClassId`."""
+"""Maps a public `EntityClass` to its wire `EntityClassId`."""
 
 
 class EntityFieldMetadata(BaseModel):
@@ -325,9 +325,12 @@ class EntityRecord(BaseModel):
     ) -> "EntityRecord":
         """Create an EntityRecord instance by validating raw data and optionally instantiating a custom model.
 
-        :param data: Raw data dictionary for the entity.
-        :param model: Optional user-defined class for validation.
-        :return: EntityRecord instance
+        Args:
+            data: Raw data dictionary for the entity.
+            model: Optional user-defined class for validation.
+
+        Returns:
+            EntityRecord instance.
         """
         # Validate the "Id" field is mandatory and must be a string
         id_value = data.get("Id", None)
@@ -640,12 +643,12 @@ class AggregateRow(BaseModel):
 
 
 class RetrieveEntityRecordsResponse(BaseModel):
-    """Response from :meth:`EntitiesService.retrieve_records`.
+    """Response from `EntitiesService.retrieve_records()`.
 
-    For plain queries, ``items`` is a list of :class:`EntityRecord`. When the
+    For plain queries, ``items`` is a list of `EntityRecord`. When the
     query uses ``aggregates``, ``group_by``, or ``binnings``, the backend
     returns rows without an ``Id`` field; those rows are parsed as
-    :class:`AggregateRow` instances.
+    `AggregateRow` instances.
     """
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
@@ -893,7 +896,7 @@ class EntityCreateExternalObject(BaseModel):
 class EntityCreateExternalFieldMapping(BaseModel):
     """Maps an internal column to a field on the external source.
 
-    ``direction_type`` is numeric on the wire (see :class:`DataDirectionType`).
+    ``direction_type`` is numeric on the wire (see `DataDirectionType`).
     """
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)

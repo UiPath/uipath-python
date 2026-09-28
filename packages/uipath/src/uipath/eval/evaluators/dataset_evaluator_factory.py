@@ -1,9 +1,9 @@
 """Factory that instantiates dataset-level evaluators from aggregator specs.
 
-Dataset evaluators are built from a self-contained :class:`AggregatorSpec`
+Dataset evaluators are built from a self-contained `AggregatorSpec`
 embedded in a per-datapoint classification evaluator's config, plus the source
 evaluator's name (supplied by the runtime when walking those configs). All
-three aggregator types share a single :class:`ClassificationDatasetEvaluator`
+three aggregator types share a single `ClassificationDatasetEvaluator`
 implementation that dispatches on ``spec.type`` internally.
 """
 
@@ -23,7 +23,7 @@ def build_dataset_evaluator(
     """Build a dataset evaluator instance from an aggregator spec.
 
     Args:
-        spec: A validated :class:`AggregatorSpec` (precision / recall / fscore).
+        spec: A validated `AggregatorSpec` (precision / recall / fscore).
         source_evaluator: Name of the per-datapoint evaluator whose results
             this aggregator consumes.
         classes: The class vocabulary from the parent evaluator's config. Shared
@@ -52,7 +52,7 @@ def dataset_result_key(
 
     ``{source}::{type}``, extended with ``.{averaging}`` (and ``.fb{f_value}``
     for fscore) when the same type appears more than once on one source.
-    Callers must dedupe via :func:`unique_aggregator_specs` first — after that,
+    Callers must dedupe via `unique_aggregator_specs()` first — after that,
     duplicate types always differ in averaging or f_value.
     """
     key = f"{source_evaluator}::{spec.type}"
