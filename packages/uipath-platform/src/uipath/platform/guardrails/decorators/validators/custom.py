@@ -14,7 +14,7 @@ from ._base import CustomGuardrailValidator
 RuleFunction = (
     Callable[[dict[str, Any]], bool] | Callable[[dict[str, Any], dict[str, Any]], bool]
 )
-"""Type alias for custom rule functions passed to :class:`CustomValidator`.
+"""Type alias for custom rule functions passed to `CustomValidator`.
 
 The rule must return ``True`` to **trigger** the guardrail (i.e. signal a
 violation that causes the configured action to fire), or ``False`` to let
@@ -23,7 +23,7 @@ execution continue unchanged.
 It accepts either one parameter (the input or output dict) or two parameters
 (input dict, output dict — POST stage only).
 
-Examples::
+Examples:
 
     # Triggered when "donkey" appears in the joke argument
     CustomValidator(lambda args: "donkey" in args.get("joke", "").lower())
@@ -44,11 +44,11 @@ class CustomValidator(CustomGuardrailValidator):
     The *rule* is called with the collected parameter dict (PRE stage) or the
     serialised return-value dict (POST stage).  It must return ``True`` to
     **activate** the guardrail — i.e. to signal a violation and invoke the
-    configured :class:`~uipath.platform.guardrails.decorators.GuardrailAction`.
+    configured `GuardrailAction`.
     Return ``False`` (or any falsy value) to let execution continue unchanged.
 
     Args:
-        rule: A :data:`RuleFunction` that returns ``True`` to trigger the
+        rule: A `RuleFunction` that returns ``True`` to trigger the
             guardrail.  Must accept 1 or 2 parameters.
 
     Raises:
@@ -86,7 +86,7 @@ class CustomValidator(CustomGuardrailValidator):
             output_data: Collected function output dict, or ``None`` at PRE stage.
 
         Returns:
-            :class:`~uipath.core.guardrails.GuardrailValidationResult` —
+            `GuardrailValidationResult` —
             ``VALIDATION_FAILED`` when the rule returns ``True`` (guardrail
             triggered), ``PASSED`` otherwise.
         """

@@ -13,7 +13,7 @@ class ExecutionSourceContext:
     variable and releases it on exit so it stays correctly scoped in concurrent
     runs. The CLI enters this with ``UiPathRuntimeContext.execution_source`` so
     platform clients can read it via
-    :attr:`UiPathExecutionContext.execution_source`.
+    `UiPathExecutionContext.execution_source`.
     """
 
     def __init__(self, execution_source: str | None) -> None:
@@ -110,6 +110,6 @@ class UiPathExecutionContext:
 
         Identifies the run context (e.g. ``runtime``/``playground``/``eval``),
         derived from the CLI command and carried via
-        :class:`ExecutionSourceContext`. Returns ``None`` when not set.
+        `ExecutionSourceContext`. Returns ``None`` when not set.
         """
         return _execution_source.get()
