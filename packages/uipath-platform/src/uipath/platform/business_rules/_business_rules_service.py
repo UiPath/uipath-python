@@ -3,11 +3,8 @@
 Runs business rules deployed to Orchestrator.
 """
 
-from contextlib import contextmanager
-from contextvars import ContextVar
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from httpx import Request
 from uipath.core.tracing import traced
 
 from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
@@ -36,13 +33,6 @@ _SINGLE_INPUT_ID = "input-1"
 _MAX_INPUT_KEYS = 256
 _MAX_RULE_NAME_LENGTH = 256
 
-# The caller's explicit trace for the run in progress. BaseService always sets
-# the ambient trace header, so a request hook on this service's own clients
-# replaces it just before sending. A ContextVar keeps concurrent runs apart.
-_explicit_traceparent: ContextVar[Optional[str]] = ContextVar(
-    "business_rules_traceparent", default=None
-)
-
 
 class BusinessRulesService(FolderContext, BaseService):
     """Service for running UiPath Business Rules.
@@ -60,15 +50,6 @@ class BusinessRulesService(FolderContext, BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
-        sync_hooks = self._client.event_hooks
-        sync_hooks["request"] = [*sync_hooks.get("request", []), _apply_traceparent]
-        self._client.event_hooks = sync_hooks
-        async_hooks = self._client_async.event_hooks
-        async_hooks["request"] = [
-            *async_hooks.get("request", []),
-            _apply_traceparent_async,
-        ]
-        self._client_async.event_hooks = async_hooks
 
     @resource_override(resource_type="businessRule")
     @traced(name="business_rules_run", run_type="uipath")
@@ -132,14 +113,13 @@ class BusinessRulesService(FolderContext, BaseService):
         if path:
             key = self._folders_service.retrieve_folder_key(path)
         mode, spec = self._run_spec(name, input, version, decision_names, explain, key)
-        with _trace_override(trace_context):
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                json=spec.json,
-                headers=spec.headers,
-                scoped="tenant",
-            )
+        response = self.request(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=_with_trace(spec.headers, trace_context),
+            scoped="tenant",
+        )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
     @resource_override(resource_type="businessRule")
@@ -184,14 +164,13 @@ class BusinessRulesService(FolderContext, BaseService):
         if path:
             key = await self._folders_service.retrieve_folder_key_async(path)
         mode, spec = self._run_spec(name, input, version, decision_names, explain, key)
-        with _trace_override(trace_context):
-            response = await self.request_async(
-                spec.method,
-                url=spec.endpoint,
-                json=spec.json,
-                headers=spec.headers,
-                scoped="tenant",
-            )
+        response = await self.request_async(
+            spec.method,
+            url=spec.endpoint,
+            json=spec.json,
+            headers=_with_trace(spec.headers, trace_context),
+            scoped="tenant",
+        )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
     def _folder_source(
@@ -249,25 +228,27 @@ class BusinessRulesService(FolderContext, BaseService):
         )
 
 
-@contextmanager
-def _trace_override(trace_context: Optional[TraceContext]) -> Iterator[None]:
-    token = _explicit_traceparent.set(
-        trace_context.to_traceparent() if trace_context else None
-    )
-    try:
-        yield
-    finally:
-        _explicit_traceparent.reset(token)
+class _TraceHeaders(Dict[str, str]):
+    """Request headers that keep the caller's explicit trace header.
+
+    BaseService writes the ambient trace header into the headers it is given just
+    before sending; this dict ignores that write when an explicit one is set.
+    """
+
+    def __setitem__(self, key: str, value: str) -> None:
+        if key == _TRACE_PARENT_HEADER and key in self:
+            return
+        super().__setitem__(key, value)
 
 
-def _apply_traceparent(request: Request) -> None:
-    traceparent = _explicit_traceparent.get()
-    if traceparent:
-        request.headers[_TRACE_PARENT_HEADER] = traceparent
-
-
-async def _apply_traceparent_async(request: Request) -> None:
-    _apply_traceparent(request)
+def _with_trace(
+    headers: Dict[str, str], trace_context: Optional[TraceContext]
+) -> Dict[str, str]:
+    if trace_context is None:
+        return headers
+    pinned = _TraceHeaders(headers)
+    dict.__setitem__(pinned, _TRACE_PARENT_HEADER, trace_context.to_traceparent())
+    return pinned
 
 
 def _present(value: Optional[str]) -> bool:

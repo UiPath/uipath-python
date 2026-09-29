@@ -527,6 +527,26 @@ class TestTraceContext:
             == f"00-{EXPLICIT_TRACE_ID}-{EXPLICIT_SPAN_ID}-01"
         )
 
+    def test_explicit_trace_context_survives_a_retry(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        ambient_span: None,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, status_code=503)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        explicit = TraceContext(
+            trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
+        )
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY, trace_context=explicit)
+
+        first, second = httpx_mock.get_requests()
+        expected = f"00-{EXPLICIT_TRACE_ID}-{EXPLICIT_SPAN_ID}-01"
+        assert first.headers[TRACEPARENT] == expected
+        assert second.headers[TRACEPARENT] == expected
+
     def test_trace_id_accepts_uuid_form_and_upper_case(self) -> None:
         context = TraceContext(
             trace_id="4BF92F35-77B3-4DA6-A3CE-929D0E0E4736",
