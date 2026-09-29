@@ -25,7 +25,7 @@ class RunMode(str, Enum):
 
 
 class DebugRunContext(BaseModel):
-    """Run an undeployed DMN from a Studio project instead of the deployed rule.
+    """Run the undeployed rule from a Studio project instead of the deployed one.
 
     With ``project_id`` the project is read as given. Without it, the service
     resolves the project from the running debug job's lineage, which needs
@@ -33,11 +33,11 @@ class DebugRunContext(BaseModel):
     """
 
     project_id: Optional[str] = Field(
-        default=None, description="The Studio project holding the DMN."
+        default=None, description="The Studio project holding the rule."
     )
     file_name: Optional[str] = Field(
         default=None,
-        description="The .dmn file in the project; defaults to the first one.",
+        description="The rule file in the project; defaults to the first one.",
     )
     job_key: Optional[str] = Field(
         default=None,
@@ -146,7 +146,7 @@ class BusinessRuleRunResult(BaseModel):
     )
     file_name: Optional[str] = Field(
         default=None,
-        description="The .dmn file actually read, which may differ from the one asked for. Debug mode only.",
+        description="The rule file actually read, which may differ from the one asked for. Debug mode only.",
     )
 
 
