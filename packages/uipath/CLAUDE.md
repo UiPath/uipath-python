@@ -58,6 +58,7 @@ Uses **click** framework. Commands are organized as `cli_<command>.py` files.
 | `cli_pull.py` | `pull` | Pull from remote storage |
 | `cli_dev.py` | `dev` | Development server mode |
 | `cli_add.py` | `add` | Add resource/dependency |
+| `cli_bindings.py` | `bindings` | Generate bindings.json from resources referenced in code |
 | `cli_server.py` | `server` | Run as server |
 | `cli_register.py` | `register` | Register resource |
 | `cli_debug.py` | `debug` | Debug execution |

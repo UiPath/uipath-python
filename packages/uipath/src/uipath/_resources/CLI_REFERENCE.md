@@ -21,6 +21,7 @@ The UiPath Python SDK provides a comprehensive CLI for managing coded agents and
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--no-agents-md-override` | flag | false | Won't override existing .agent files and AGENTS.md file. |
+| `--infer-bindings` | flag | false | Record the resources referenced in your code in bindings.json (best effort). |
 
 **Usage Examples:**
 
@@ -63,6 +64,8 @@ uv run uipath init --infer-bindings
 | `--debug` | flag | false | Enable debugging with debugpy. The process will wait for a debugger to attach. |
 | `--debug-port` | value | `5678` | Port for the debug server (default: 5678) |
 | `--keep-state-file` | flag | false | Keep the temporary state file even when not resuming and no job id is provided |
+| `--simulation` | value | none | Simulation config as a JSON object (same schema as simulation.json) |
+| `--handler-ipc-pipe` | value | none | Named pipe to stream this job's logs and result over uipath-ipc instead of writing them to files. |
 
 **Usage Examples:**
 
@@ -101,6 +104,7 @@ uv run uipath run --resume
         enable_mocker_cache: Enable caching for LLM mocker responses
         report_coverage: Report evaluation coverage
         model_settings_id: Model settings ID to override agent settings
+        agent_memory_settings_id: Agent memory settings ID to override agent memory settings
         trace_file: File path where traces will be written in JSONL format
         max_llm_concurrency: Maximum concurrent LLM requests
         input_overrides: Input field overrides mapping (direct field override with deep merge)
@@ -125,10 +129,11 @@ uv run uipath run --resume
 | `--enable-mocker-cache` | flag | false | Enable caching for LLM mocker responses |
 | `--report-coverage` | flag | false | Report evaluation coverage |
 | `--model-settings-id` | value | `"default"` | Model settings ID from evaluation set to override agent settings (default: 'default') |
+| `--agent-memory-settings-id` | value | `"default"` | Agent memory settings ID from evaluation set to override agent memory settings (default: 'default') |
 | `--trace-file` | value | `Sentinel.UNSET` | File path where traces will be written in JSONL format |
 | `--max-llm-concurrency` | value | `20` | Maximum concurrent LLM requests (default: 20) |
 | `--resume` | flag | false | Resume execution from a previous suspended state |
-| `--verbose` | flag | false | Include agent execution output (trace, result) in the output file |
+| `--verbose` | flag | false | Include workload execution output (trace, result) in the output file |
 
 **Usage Examples:**
 
@@ -279,6 +284,46 @@ Options:
 - `--folder-key`: Folder key (UUID) (default: `Sentinel.UNSET`)
 - `--format`: Output format (overrides global) (default: `Sentinel.UNSET`)
 - `--output`, `-o`: Output file (overrides global) (default: `Sentinel.UNSET`)
+
+---
+
+### `uipath bindings`
+
+Inspect and generate resource bindings.
+
+    \b
+    Examples:
+        uipath bindings generate
+        uipath bindings generate --dry-run
+        uipath bindings generate --check
+    
+
+**Subcommands:**
+
+**`uipath bindings generate`**
+
+Generate bindings.json from the resources referenced in your code.
+
+    Scans the project's Python sources for UiPath SDK calls that take a
+    resource name, and records each one as a binding so it can be remapped at
+    deployment. Discovery is best effort: a resource whose name is built at
+    runtime is reported rather than guessed, and entries already in the file
+    are never modified.
+
+    Test files and virtual environments are not scanned.
+
+    **Example:**
+
+        $ uipath bindings generate
+        $ uipath bindings generate --check
+    
+
+Arguments:
+- `root`: N/A
+
+Options:
+- `--dry-run`: Show what would change without writing the file.
+- `--check`: Exit non-zero if bindings.json is missing entries. Writes nothing.
 
 ---
 

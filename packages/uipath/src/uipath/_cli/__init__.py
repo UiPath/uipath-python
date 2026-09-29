@@ -42,6 +42,7 @@ _LAZY_COMMANDS = {
     "eval": "cli_eval",
     "dev": "cli_dev",
     "add": "cli_add",
+    "bindings": "cli_bindings",
     "server": "cli_server",
     "register": "cli_register",
     "debug": "cli_debug",
