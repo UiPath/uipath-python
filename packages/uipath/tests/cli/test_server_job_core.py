@@ -575,6 +575,24 @@ async def test_job_derived_sdk_state_does_not_leak_into_the_next_job(
     ]
 
 
+async def test_spans_a_job_registered_are_released_after_it(
+    restore_state: Any, clean_sdk_state: None
+) -> None:
+    from opentelemetry.sdk.trace import TracerProvider
+
+    from uipath.core.tracing.span_utils import _span_registry
+
+    _init(restore_state)
+    span = TracerProvider().get_tracer(__name__).start_span("job-a-node")
+    span_id = span.get_span_context().span_id
+    cmd = Mock()
+    cmd.main.side_effect = lambda *_a, **_k: _span_registry.register_span(span)
+
+    await _server_core._run_command_isolated(cmd, [], {}, None)
+
+    assert _span_registry.get_span(span_id) is None
+
+
 @pytest.mark.parametrize("boom", [SystemExit(1), ValueError("kaboom")])
 async def test_job_derived_sdk_state_is_reset_when_the_job_raises(
     restore_state: Any, clean_sdk_state: None, boom: BaseException

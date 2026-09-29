@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
+from uipath.core.tracing.span_utils import _span_registry
 from uipath.platform.chat.llm_throttle import reset_llm_concurrency
 from uipath.platform.common import UiPathConfig
 from uipath.platform.common._span_utils import _read_config_id
@@ -112,8 +113,10 @@ def _reset_job_derived_state() -> None:
     A ``uipath run`` process discards this state when it exits. The server outlives
     the job, so without this reset the next job would read the previous job's
     ``uipath.json`` id and internal arguments, inherit an eval's LLM concurrency
-    limit, and keep sending telemetry with the previous job's connection string,
-    while the previous job's events sit unsent until the server itself exits.
+    limit, keep sending telemetry with the previous job's connection string,
+    while the previous job's events sit unsent until the server itself exits, and
+    keep every span the job registered, inputs and outputs included, for the
+    server's lifetime.
     """
     # First: the flush can log through handlers that read the config and project id
     # with the server's cwd, which would refill the caches if they were already cleared.
@@ -121,6 +124,7 @@ def _reset_job_derived_state() -> None:
     UiPathConfig.reset()
     _read_config_id.cache_clear()
     reset_llm_concurrency()
+    _span_registry.clear()
 
 
 def parse_args(args: str | list[str] | None) -> list[str]:
