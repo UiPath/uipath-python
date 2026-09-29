@@ -96,7 +96,7 @@ Services provide both sync and async variants (e.g., `.invoke()` and `.invoke_as
 | `action_center/` | Task management for human-in-the-loop workflows |
 | `agenthub/` | System agents and LLM model discovery |
 | `automation_tracker/` | Business Transaction Service (BTS) for Process Mining |
-| `business_rules/` | DMN business rule runs for rules deployed to Orchestrator, behind one `run()` |
+| `business_rules/` | DMN business rule runs: deployed rules or undeployed Studio-project DMNs, behind one `run()` |
 | `chat/` | LLM gateway, conversations, throttling |
 | `connections/` | External connection management |
 | `context_grounding/` | RAG services (DeepRAG, batch RAG, ephemeral indexes) |

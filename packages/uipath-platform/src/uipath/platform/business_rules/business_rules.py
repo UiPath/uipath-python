@@ -18,6 +18,7 @@ class RunMode(str, Enum):
     """Which kind of model ran, and so which service endpoint served the run."""
 
     DEPLOYED = "Deployed"
+    DEBUG = "Debug"
 
 
 class DeployedRunContext(BaseModel):
@@ -27,6 +28,35 @@ class DeployedRunContext(BaseModel):
     version: Optional[str] = Field(
         default=None,
         description="The version to run; defaults to the active version.",
+    )
+
+
+class DebugRunContext(BaseModel):
+    """An undeployed DMN read from a Studio project.
+
+    Name the project with ``project_id``, or name the rule with ``rule_name`` and let
+    the service resolve the project from the job's lineage. The second way also needs
+    ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``organization_unit_id``.
+    """
+
+    project_id: Optional[str] = Field(
+        default=None, description="The Studio project holding the DMN."
+    )
+    rule_name: Optional[str] = Field(
+        default=None,
+        description="The business rule this run stands in for; the alternative to project_id.",
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="The .dmn file in the project; defaults to the first one.",
+    )
+    job_key: Optional[str] = Field(
+        default=None,
+        description="The job this run belongs to; defaults to UIPATH_JOB_KEY.",
+    )
+    organization_unit_id: Optional[str] = Field(
+        default=None,
+        description="The numeric id of the job's folder; required with rule_name.",
     )
 
 
@@ -78,10 +108,17 @@ class BusinessRuleRunResult(BaseModel):
         description="The request-level error code (e.g. BATCH_TIMEOUT), if one was reported.",
     )
     business_rule_name: Optional[str] = Field(
-        default=None, description="The deployed rule that ran."
+        default=None, description="The deployed rule that ran. Deployed mode only."
     )
     version: Optional[str] = Field(
-        default=None, description="The rule version that ran."
+        default=None, description="The rule version that ran. Deployed mode only."
+    )
+    project_id: Optional[str] = Field(
+        default=None, description="The Studio project read. Debug mode only."
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="The .dmn file actually read, which may differ from the one asked for. Debug mode only.",
     )
 
 
@@ -100,5 +137,7 @@ class _WireResponse(BaseModel):
 
     business_rule_name: Optional[str] = Field(default=None, alias="businessRuleName")
     version: Optional[str] = None
+    project_id: Optional[str] = Field(default=None, alias="projectId")
+    file_name: Optional[str] = Field(default=None, alias="fileName")
     error: Optional[BusinessRuleError] = None
     results: Optional[List[_WireResult]] = None
