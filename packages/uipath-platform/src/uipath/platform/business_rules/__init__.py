@@ -1,8 +1,8 @@
 """Business Rules service package.
 
-Provides the ``BusinessRulesService`` client for running DMN decision models
-deployed to Orchestrator as UiPath Business Rules, and the Pydantic models for
-its run context and results.
+Provides the ``BusinessRulesService`` client for running UiPath Business Rules
+deployed to Orchestrator, and the Pydantic models for its results and trace
+context.
 """
 
 from ._business_rules_service import BusinessRulesService

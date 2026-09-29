@@ -1,6 +1,6 @@
 """Business Rules service for UiPath Platform.
 
-Runs DMN decision models deployed to Orchestrator as business rules.
+Runs business rules deployed to Orchestrator.
 """
 
 from contextlib import contextmanager
@@ -45,7 +45,7 @@ _explicit_traceparent: ContextVar[Optional[str]] = ContextVar(
 
 
 class BusinessRulesService(FolderContext, BaseService):
-    """Service for running UiPath Business Rules (DMN decision models).
+    """Service for running UiPath Business Rules.
 
     Each call runs one input against a business rule deployed to Orchestrator,
     named like any other resource, and returns the decisions it produced. The
