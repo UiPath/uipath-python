@@ -1,7 +1,7 @@
 """Business Rules service for UiPath Platform.
 
-Runs DMN decision models: a business rule deployed to Orchestrator, or an
-undeployed DMN read straight from a Studio project.
+Runs business rules: a rule deployed to Orchestrator, or an undeployed rule
+read straight from a Studio project.
 """
 
 from contextlib import contextmanager
@@ -51,11 +51,11 @@ _explicit_traceparent: ContextVar[Optional[str]] = ContextVar(
 
 
 class BusinessRulesService(FolderContext, BaseService):
-    """Service for running UiPath Business Rules (DMN decision models).
+    """Service for running UiPath Business Rules.
 
     Each call runs one input against a business rule, named like any other
     resource, and returns the decisions it produced. By default the rule
-    deployed to Orchestrator runs; pass ``debug`` to run an undeployed DMN from
+    deployed to Orchestrator runs; pass ``debug`` to run an undeployed rule from
     a Studio project instead. The caller never picks a service endpoint.
     """
 
@@ -100,7 +100,7 @@ class BusinessRulesService(FolderContext, BaseService):
                 inputs absent from it bind to null.
             version: The deployed rule version to run; defaults to the active
                 version. Not used with ``debug``.
-            debug: Run an undeployed DMN from a Studio project instead of the
+            debug: Run the undeployed rule from a Studio project instead of the
                 deployed rule.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
@@ -137,7 +137,7 @@ class BusinessRulesService(FolderContext, BaseService):
             for decision in result.decisions:
                 print(decision.decision_name, decision.outputs)
 
-            # An undeployed DMN in a Studio project
+            # An undeployed rule in a Studio project
             from uipath.platform.business_rules import DebugRunContext
 
             result = client.business_rules.run(
@@ -187,7 +187,7 @@ class BusinessRulesService(FolderContext, BaseService):
                 inputs absent from it bind to null.
             version: The deployed rule version to run; defaults to the active
                 version. Not used with ``debug``.
-            debug: Run an undeployed DMN from a Studio project instead of the
+            debug: Run the undeployed rule from a Studio project instead of the
                 deployed rule.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
