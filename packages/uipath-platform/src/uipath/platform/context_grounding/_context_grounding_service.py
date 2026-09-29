@@ -963,6 +963,9 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return BatchTransformCreationResponse.model_validate(response.json())
 
+    @deprecated(
+        "Use start_batch_transform_from_attachment instead — one call, no separate index step."
+    )
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_batch_transform", run_type="uipath")
     async def start_batch_transform_ephemeral(
@@ -1009,6 +1012,9 @@ class ContextGroundingService(FolderContext, BaseService):
         )
         return BatchTransformCreationResponse.model_validate(response.json())
 
+    @deprecated(
+        "Use start_batch_transform_from_attachment_async instead — one call, no separate index step."
+    )
     @resource_override(resource_type="index", resource_identifier="index_name")
     @traced(name="contextgrounding_start_batch_transform_async", run_type="uipath")
     async def start_batch_transform_ephemeral_async(
@@ -1053,6 +1059,115 @@ class ContextGroundingService(FolderContext, BaseService):
             params=spec.params,
             headers=spec.headers,
         )
+        return BatchTransformCreationResponse.model_validate(response.json())
+
+    @traced(
+        name="contextgrounding_start_batch_transform_from_attachment", run_type="uipath"
+    )
+    def start_batch_transform_from_attachment(
+        self,
+        name: str,
+        prompt: Annotated[str, Field(max_length=250000)],
+        output_columns: List[BatchTransformOutputColumn],
+        attachment: str,
+        enable_web_search_grounding: bool = False,
+        exclude_domains: Optional[List[str]] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> BatchTransformCreationResponse:
+        """Starts a Batch Transform task from a single attachment in one server call.
+
+        The server creates the ephemeral index from the attachment and starts the Batch Transform
+        task in one operation; the caller does not need to create the index separately.
+
+        Args:
+            name (str): The name of the Batch Transform task.
+            prompt (str): Describe the task: what to transform and how to output.
+            output_columns (list[BatchTransformOutputColumn]): The output columns to add into the csv.
+            attachment (str): The attachment id to transform. Exactly one attachment is supported today.
+            enable_web_search_grounding (bool): Whether to enable web search. Defaults to False.
+            exclude_domains (list[str], optional): Domains to exclude from web search grounding.
+                Only applies when enable_web_search_grounding is True.
+            folder_key (str, optional): The folder key context. Defaults to None.
+            folder_path (str, optional): The folder path context. Defaults to None.
+
+        Returns:
+            BatchTransformCreationResponse: The Batch Transform task creation response.
+        """
+        spec = self._batch_transform_from_attachment_creation_spec(
+            name=name,
+            prompt=prompt,
+            output_columns=output_columns,
+            attachment=attachment,
+            enable_web_search_grounding=enable_web_search_grounding,
+            exclude_domains=exclude_domains,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return BatchTransformCreationResponse.model_validate(response.json())
+
+    @traced(
+        name="contextgrounding_start_batch_transform_from_attachment_async",
+        run_type="uipath",
+    )
+    async def start_batch_transform_from_attachment_async(
+        self,
+        name: str,
+        prompt: Annotated[str, Field(max_length=250000)],
+        output_columns: List[BatchTransformOutputColumn],
+        attachment: str,
+        enable_web_search_grounding: bool = False,
+        exclude_domains: Optional[List[str]] = None,
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> BatchTransformCreationResponse:
+        """Asynchronously starts a Batch Transform task from a single attachment in one server call.
+
+        The server creates the ephemeral index from the attachment and starts the Batch Transform
+        task in one operation; the caller does not need to create the index separately.
+
+        Args:
+            name (str): The name of the Batch Transform task.
+            prompt (str): Describe the task: what to transform and how to output.
+            output_columns (list[BatchTransformOutputColumn]): The output columns to add into the csv.
+            attachment (str): The attachment id to transform. Exactly one attachment is supported today.
+            enable_web_search_grounding (bool): Whether to enable web search. Defaults to False.
+            exclude_domains (list[str], optional): Domains to exclude from web search grounding.
+                Only applies when enable_web_search_grounding is True.
+            folder_key (str, optional): The folder key context. Defaults to None.
+            folder_path (str, optional): The folder path context. Defaults to None.
+
+        Returns:
+            BatchTransformCreationResponse: The Batch Transform task creation response.
+        """
+        spec = self._batch_transform_from_attachment_creation_spec(
+            name=name,
+            prompt=prompt,
+            output_columns=output_columns,
+            attachment=attachment,
+            enable_web_search_grounding=enable_web_search_grounding,
+            exclude_domains=exclude_domains,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            params=spec.params,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
         return BatchTransformCreationResponse.model_validate(response.json())
 
     @resource_override(resource_type="index", resource_identifier="index_name")
@@ -2631,6 +2746,41 @@ class ContextGroundingService(FolderContext, BaseService):
                 ],
             },
             headers={**header_job_key()},
+        )
+
+    def _batch_transform_from_attachment_creation_spec(
+        self,
+        name: str,
+        prompt: str,
+        output_columns: List[BatchTransformOutputColumn],
+        attachment: str,
+        enable_web_search_grounding: bool,
+        exclude_domains: Optional[List[str]],
+        folder_key: str | None = None,
+        folder_path: str | None = None,
+    ) -> RequestSpec:
+        headers: dict[str, str] = {**header_job_key()}
+        if folder_key is not None or folder_path is not None:
+            folder_key = self._resolve_folder_key(folder_key, folder_path)
+            headers = {**header_folder(folder_key, None), **headers}
+
+        body: dict[str, object] = {
+            "name": name,
+            "prompt": prompt,
+            "useWebSearchGrounding": enable_web_search_grounding,
+            "outputColumns": [
+                column.model_dump(by_alias=True) for column in output_columns
+            ],
+            "attachments": [attachment],
+        }
+        if exclude_domains:
+            body["excludeDomains"] = exclude_domains
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/ecs_/v2/batchrag/create"),
+            json=body,
+            headers=headers,
         )
 
     def _deep_rag_retrieve_spec(
