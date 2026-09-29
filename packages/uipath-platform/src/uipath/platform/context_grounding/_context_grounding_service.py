@@ -689,7 +689,7 @@ class ContextGroundingService(FolderContext, BaseService):
         """Create a new ephemeral context grounding index.
 
         Args:
-            usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
+            usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG, BatchRAG or Semantic). A Semantic index is searched with `unified_search_by_id`.
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
             folder_key (Optional[str]): The folder key to scope the ephemeral index to.
             folder_path (Optional[str]): The folder path to scope the ephemeral index to (resolved to a key if folder_key is not provided).
@@ -726,7 +726,7 @@ class ContextGroundingService(FolderContext, BaseService):
         """Create a new ephemeral context grounding index.
 
         Args:
-            usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG or BatchRAG)
+            usage (EphemeralIndexUsage): The task type for the ephemeral index (DeepRAG, BatchRAG or Semantic). A Semantic index is searched with `unified_search_by_id`.
             attachments (list[str]): The list of attachments ids from which the ephemeral index will be created
             folder_key (Optional[str]): The folder key to scope the ephemeral index to.
             folder_path (Optional[str]): The folder path to scope the ephemeral index to (resolved to a key if folder_key is not provided).
@@ -1911,6 +1911,110 @@ class ContextGroundingService(FolderContext, BaseService):
 
         spec = self._unified_search_spec(
             index_id=index.id,
+            query=query,
+            search_mode=search_mode,
+            number_of_results=number_of_results,
+            threshold=threshold,
+            scope=scope,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return UnifiedQueryResult.model_validate(response.json())
+
+    @traced(name="contextgrounding_unified_search_by_id", run_type="uipath")
+    def unified_search_by_id(
+        self,
+        index_id: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
+        number_of_results: int = 10,
+        threshold: float = 0.0,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> UnifiedQueryResult:
+        """Perform a unified search on a context grounding index identified by its id.
+
+        Use this for indexes that have no name, such as an ephemeral index created
+        with `EphemeralIndexUsage.SEMANTIC`. The index is not looked up first, so
+        poll `retrieve_by_id` until `lastIngestionStatus` is `Successful` before
+        searching.
+
+        Args:
+            index_id (str): The id of the context index to search in.
+            query (str): The search query in natural language.
+            search_mode (SearchMode): The search mode to use. Defaults to SEMANTIC.
+            number_of_results (int): Maximum number of results to return. Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
+            scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Returns:
+            UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+        """
+        spec = self._unified_search_spec(
+            index_id=index_id,
+            query=query,
+            search_mode=search_mode,
+            number_of_results=number_of_results,
+            threshold=threshold,
+            scope=scope,
+            folder_key=folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return UnifiedQueryResult.model_validate(response.json())
+
+    @traced(name="contextgrounding_unified_search_by_id", run_type="uipath")
+    async def unified_search_by_id_async(
+        self,
+        index_id: str,
+        query: str,
+        search_mode: SearchMode = SearchMode.SEMANTIC,
+        number_of_results: int = 10,
+        threshold: float = 0.0,
+        scope: Optional[UnifiedSearchScope] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> UnifiedQueryResult:
+        """Asynchronously perform a unified search on a context grounding index identified by its id.
+
+        Use this for indexes that have no name, such as an ephemeral index created
+        with `EphemeralIndexUsage.SEMANTIC`. The index is not looked up first, so
+        poll `retrieve_by_id_async` until `lastIngestionStatus` is `Successful`
+        before searching.
+
+        Args:
+            index_id (str): The id of the context index to search in.
+            query (str): The search query in natural language.
+            search_mode (SearchMode): The search mode to use. Defaults to SEMANTIC.
+            number_of_results (int): Maximum number of results to return. Defaults to 10.
+            threshold (float): Minimum similarity threshold. Defaults to 0.0.
+            scope (Optional[UnifiedSearchScope]): Optional search scope (folder, extension).
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+
+        Returns:
+            UnifiedQueryResult: The unified search result containing semantic and/or tabular results.
+        """
+        spec = self._unified_search_spec(
+            index_id=index_id,
             query=query,
             search_mode=search_mode,
             number_of_results=number_of_results,

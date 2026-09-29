@@ -268,7 +268,7 @@ def source_schema(source_type: Optional[str]) -> None:
 @click.option(
     "--usage",
     required=True,
-    type=click.Choice(["DeepRAG", "BatchRAG"]),
+    type=click.Choice(["DeepRAG", "BatchRAG", "Semantic"]),
     help="Task type for the ephemeral index",
 )
 @click.option(
@@ -300,11 +300,13 @@ def create_ephemeral(
     Supported file types:
         DeepRAG:  PDF, TXT
         BatchRAG: CSV
+        Semantic: PDF, TXT (search it with 'search --index-id <id>')
 
     \b
     Examples:
         uipath context-grounding create-ephemeral --usage DeepRAG --files doc1.pdf --files doc2.pdf
         uipath context-grounding create-ephemeral --usage BatchRAG --files data.csv
+        uipath context-grounding create-ephemeral --usage Semantic --files chart.pdf
     """
     from pathlib import Path
 
@@ -313,6 +315,7 @@ def create_ephemeral(
     allowed_extensions = {
         "DeepRAG": {".pdf", ".txt"},
         "BatchRAG": {".csv"},
+        "Semantic": {".pdf", ".txt"},
     }
     allowed = allowed_extensions[usage]
     for file_path in files:
@@ -444,7 +447,10 @@ def ingest_index(
 
 
 @context_grounding.command(name="search")
-@click.option("--index-name", required=True, help="Name of the index to search")
+@click.option("--index-name", help="Name of the index to search")
+@click.option(
+    "--index-id", help="ID of the index to search (ephemeral Semantic indexes)"
+)
 @click.option("--query", required=True, help="Search query in natural language")
 @click.option(
     "--limit",
@@ -474,7 +480,8 @@ def ingest_index(
 @service_command
 def search_index(
     ctx: click.Context,
-    index_name: str,
+    index_name: Optional[str],
+    index_id: Optional[str],
     query: str,
     limit: int,
     threshold: float,
@@ -485,16 +492,37 @@ def search_index(
     format: Optional[str],
     output: Optional[str],
 ) -> Any:
-    """Search a context grounding index (regular indexes only).
+    """Search a context grounding index.
+
+    \b
+    Two ways to specify the index:
+        Regular index:   --index-name + --folder-path
+        Ephemeral index: --index-id (created with --usage Semantic)
 
     \b
     Examples:
         uipath context-grounding search --index-name my-index --query "What is the revenue?"
         uipath context-grounding search --index-name my-index --query "results" --limit 5
+        uipath context-grounding search --index-id abc-123 --query "results" --limit 50
     """
     from uipath.platform.context_grounding import SearchMode
 
+    if not index_name and not index_id:
+        raise click.UsageError("Either --index-name or --index-id must be provided.")
+    if index_name and index_id:
+        raise click.UsageError("Provide either --index-name or --index-id, not both.")
+
     client = ServiceCommandBase.get_client(ctx)
+    if index_id:
+        return client.context_grounding.unified_search_by_id(
+            index_id=index_id,
+            query=query,
+            number_of_results=limit,
+            threshold=threshold,
+            search_mode=SearchMode(search_mode),
+            folder_path=folder_path,
+            folder_key=folder_key,
+        )
     return client.context_grounding.unified_search(
         name=index_name,
         query=query,

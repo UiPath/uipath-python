@@ -37,6 +37,7 @@ class EphemeralIndexUsage(str, Enum):
 
     DEEP_RAG = "DeepRAG"
     BATCH_RAG = "BatchRAG"
+    SEMANTIC = "Semantic"
 
 
 class DeepRagStatus(str, Enum):

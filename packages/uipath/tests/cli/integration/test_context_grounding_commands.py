@@ -320,6 +320,36 @@ class TestCreateEphemeralCommand:
         assert result.exit_code == 0
         assert mock_client.attachments.upload.call_count == 2
 
+    def test_create_ephemeral_semantic(
+        self, runner, mock_client, mock_env_vars, tmp_path
+    ):
+        test_file = tmp_path / "chart.pdf"
+        test_file.write_text("test content")
+
+        import uuid
+
+        from uipath.platform.context_grounding import EphemeralIndexUsage
+
+        mock_client.attachments.upload.return_value = uuid.uuid4()
+        mock_client.context_grounding.create_ephemeral_index.return_value = _make_index(
+            name="ephemeral"
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "context-grounding",
+                "create-ephemeral",
+                "--usage",
+                "Semantic",
+                "--files",
+                str(test_file),
+            ],
+        )
+        assert result.exit_code == 0
+        call_kwargs = mock_client.context_grounding.create_ephemeral_index.call_args[1]
+        assert call_kwargs["usage"] == EphemeralIndexUsage.SEMANTIC
+
     def test_create_ephemeral_missing_usage_fails(
         self, runner, mock_env_vars, tmp_path
     ):
@@ -550,6 +580,47 @@ class TestSearchCommand:
         assert result.exit_code == 0
         call_kwargs = mock_client.context_grounding.unified_search.call_args[1]
         assert call_kwargs["number_of_results"] == 3
+
+    def test_search_by_id(self, runner, mock_client, mock_env_vars):
+        mock_client.context_grounding.unified_search_by_id.return_value = []
+        result = runner.invoke(
+            cli,
+            [
+                "context-grounding",
+                "search",
+                "--index-id",
+                "abc-123",
+                "--query",
+                "clinical record",
+                "--limit",
+                "2000",
+            ],
+        )
+        assert result.exit_code == 0
+        mock_client.context_grounding.unified_search.assert_not_called()
+        call_kwargs = mock_client.context_grounding.unified_search_by_id.call_args[1]
+        assert call_kwargs["index_id"] == "abc-123"
+        assert call_kwargs["number_of_results"] == 2000
+
+    def test_search_no_index_fails(self, runner, mock_env_vars):
+        result = runner.invoke(cli, ["context-grounding", "search", "--query", "test"])
+        assert result.exit_code != 0
+
+    def test_search_both_index_fails(self, runner, mock_env_vars):
+        result = runner.invoke(
+            cli,
+            [
+                "context-grounding",
+                "search",
+                "--index-name",
+                "X",
+                "--index-id",
+                "abc-123",
+                "--query",
+                "test",
+            ],
+        )
+        assert result.exit_code != 0
 
     def test_search_missing_query_fails(self, runner, mock_env_vars):
         result = runner.invoke(
