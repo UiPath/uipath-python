@@ -7,11 +7,27 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BusinessRuleStatus(str, Enum):
-    """The overall outcome of evaluating a business rule against one input."""
+    """The overall outcome of running a business rule against one input."""
 
     SUCCESS = "Success"
     PARTIAL_SUCCESS = "PartialSuccess"
     ALL_FAILED = "AllFailed"
+
+
+class RunMode(str, Enum):
+    """Which kind of model ran, and so which service endpoint served the run."""
+
+    DEPLOYED = "Deployed"
+
+
+class DeployedRunContext(BaseModel):
+    """A business rule deployed to Orchestrator."""
+
+    rule_name: str = Field(description="The name of the deployed business rule.")
+    version: Optional[str] = Field(
+        default=None,
+        description="The version to run; defaults to the active version.",
+    )
 
 
 class BusinessRuleError(BaseModel):
@@ -41,8 +57,8 @@ class BusinessRuleDecision(BaseModel):
     error: Optional[BusinessRuleError] = Field(default=None, alias="error")
 
 
-class BusinessRuleEvaluationResult(BaseModel):
-    """The outcome of evaluating a deployed business rule against one input."""
+class BusinessRuleRunResult(BaseModel):
+    """The outcome of running a business rule against one input."""
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -50,6 +66,7 @@ class BusinessRuleEvaluationResult(BaseModel):
         use_enum_values=True,
     )
 
+    mode: RunMode = Field(description="Which kind of model ran.")
     status: BusinessRuleStatus
     decisions: List[BusinessRuleDecision] = Field(default_factory=list)
     errors: List[BusinessRuleError] = Field(
@@ -60,8 +77,12 @@ class BusinessRuleEvaluationResult(BaseModel):
         default=None,
         description="The request-level error code (e.g. BATCH_TIMEOUT), if one was reported.",
     )
-    business_rule_name: Optional[str] = None
-    version: Optional[str] = None
+    business_rule_name: Optional[str] = Field(
+        default=None, description="The deployed rule that ran."
+    )
+    version: Optional[str] = Field(
+        default=None, description="The rule version that ran."
+    )
 
 
 class _WireResult(BaseModel):

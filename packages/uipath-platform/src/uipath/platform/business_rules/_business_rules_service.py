@@ -1,6 +1,6 @@
 """Business Rules service for UiPath Platform.
 
-Evaluates DMN decision models deployed to Orchestrator as business rules.
+Runs DMN decision models deployed to Orchestrator as business rules.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,8 +17,10 @@ from ..orchestrator._folder_service import FolderService
 from .business_rules import (
     BusinessRuleDecision,
     BusinessRuleError,
-    BusinessRuleEvaluationResult,
+    BusinessRuleRunResult,
     BusinessRuleStatus,
+    DeployedRunContext,
+    RunMode,
     _WireResponse,
     _WireResult,
 )
@@ -32,10 +34,11 @@ _MAX_RULE_NAME_LENGTH = 256
 
 
 class BusinessRulesService(FolderContext, BaseService):
-    """Service for evaluating UiPath Business Rules (DMN decision models).
+    """Service for running UiPath Business Rules (DMN decision models).
 
-    Each call evaluates one input and returns the decisions it produced. The rule
-    is resolved from Orchestrator by name within a folder.
+    Each call runs one input and returns the decisions it produced. Which model
+    runs is set by the run context; ``deployed`` names a rule deployed to
+    Orchestrator. The caller never picks a service endpoint.
     """
 
     def __init__(
@@ -47,59 +50,61 @@ class BusinessRulesService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    @traced(name="business_rules_evaluate", run_type="uipath")
-    def evaluate(
+    @traced(name="business_rules_run", run_type="uipath")
+    def run(
         self,
-        rule_name: str,
         input: Dict[str, Any],
         *,
-        version: Optional[str] = None,
+        deployed: DeployedRunContext,
         decision_names: Optional[List[str]] = None,
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> BusinessRuleEvaluationResult:
-        """Evaluate a deployed business rule against one input.
+    ) -> BusinessRuleRunResult:
+        """Run a business rule against one input.
 
         Args:
-            rule_name: The name of the business rule deployed to Orchestrator.
-            input: The input to evaluate, keyed by DMN input name. Declared inputs
-                absent from it bind to null.
-            version: The rule version to evaluate; defaults to the active version.
+            input: The input to run, keyed by DMN input name. Declared inputs absent
+                from it bind to null.
+            deployed: The business rule deployed to Orchestrator to run.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
-            folder_key: The key of the folder the rule is deployed to.
-            folder_path: The path of the folder the rule is deployed to. Resolved to
-                a key, since the service accepts folder keys only.
+            folder_key: The key of the folder to run in.
+            folder_path: The path of the folder to run in. Resolved to a key, since
+                the service accepts folder keys only.
+
+        A folder is required. When neither ``folder_key`` nor ``folder_path`` is given, it falls back to
+        ``UIPATH_FOLDER_KEY`` and then ``UIPATH_FOLDER_PATH``.
 
         Returns:
-            BusinessRuleEvaluationResult: The decisions produced for the input.
+            BusinessRuleRunResult: The decisions produced for the input, and the
+                mode that ran.
 
         Raises:
-            ValueError: If the request is invalid or no folder can be determined.
+            ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
 
         Examples:
             ```python
             from uipath.platform import UiPath
+            from uipath.platform.business_rules import DeployedRunContext
 
             client = UiPath()
 
-            result = client.business_rules.evaluate(
-                "Loan Pricing",
+            result = client.business_rules.run(
                 {"creditScore": 740, "age": 34},
+                deployed=DeployedRunContext(rule_name="Loan Pricing"),
                 folder_path="Finance",
             )
             for decision in result.decisions:
                 print(decision.decision_name, decision.outputs)
             ```
         """
-        _validate_rule_name(rule_name)
-        _validate_input(input)
-        resolved_key = self._resolve_folder_key(folder_key, folder_path)
-        spec = self._evaluate_spec(
-            rule_name, input, version, decision_names, explain, resolved_key
-        )
+        _validate_run(input, deployed)
+        key, path = self._folder_source(folder_key, folder_path)
+        if path:
+            key = self._folders_service.retrieve_folder_key(path)
+        mode, spec = self._run_spec(input, deployed, decision_names, explain, key)
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -107,46 +112,44 @@ class BusinessRulesService(FolderContext, BaseService):
             headers=spec.headers,
             scoped="tenant",
         )
-        return _to_evaluation_result(_WireResponse.model_validate(response.json()))
+        return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
-    @traced(name="business_rules_evaluate", run_type="uipath")
-    async def evaluate_async(
+    @traced(name="business_rules_run", run_type="uipath")
+    async def run_async(
         self,
-        rule_name: str,
         input: Dict[str, Any],
         *,
-        version: Optional[str] = None,
+        deployed: DeployedRunContext,
         decision_names: Optional[List[str]] = None,
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> BusinessRuleEvaluationResult:
-        """Asynchronously evaluate a deployed business rule against one input.
+    ) -> BusinessRuleRunResult:
+        """Asynchronously run a business rule against one input.
 
         Args:
-            rule_name: The name of the business rule deployed to Orchestrator.
-            input: The input to evaluate, keyed by DMN input name. Declared inputs
-                absent from it bind to null.
-            version: The rule version to evaluate; defaults to the active version.
+            input: The input to run, keyed by DMN input name. Declared inputs absent
+                from it bind to null.
+            deployed: The business rule deployed to Orchestrator to run.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
-            folder_key: The key of the folder the rule is deployed to.
-            folder_path: The path of the folder the rule is deployed to. Resolved to
-                a key, since the service accepts folder keys only.
+            folder_key: The key of the folder to run in.
+            folder_path: The path of the folder to run in. Resolved to a key, since
+                the service accepts folder keys only.
 
         Returns:
-            BusinessRuleEvaluationResult: The decisions produced for the input.
+            BusinessRuleRunResult: The decisions produced for the input, and the
+                mode that ran.
 
         Raises:
-            ValueError: If the request is invalid or no folder can be determined.
+            ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
-        _validate_rule_name(rule_name)
-        _validate_input(input)
-        resolved_key = await self._resolve_folder_key_async(folder_key, folder_path)
-        spec = self._evaluate_spec(
-            rule_name, input, version, decision_names, explain, resolved_key
-        )
+        _validate_run(input, deployed)
+        key, path = self._folder_source(folder_key, folder_path)
+        if path:
+            key = await self._folders_service.retrieve_folder_key_async(path)
+        mode, spec = self._run_spec(input, deployed, decision_names, explain, key)
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -154,52 +157,51 @@ class BusinessRulesService(FolderContext, BaseService):
             headers=spec.headers,
             scoped="tenant",
         )
-        return _to_evaluation_result(_WireResponse.model_validate(response.json()))
+        return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
-    def _resolve_folder_key(
+    def _folder_source(
         self, folder_key: Optional[str], folder_path: Optional[str]
-    ) -> str:
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Pick the folder to run in, as a (key, path-still-to-resolve) pair."""
         if folder_key and folder_path:
             raise ValueError("Only one of folder_key or folder_path can be provided")
         if folder_key:
-            return folder_key
-        path = folder_path or (None if self._folder_key else self._folder_path)
-        if path:
-            return self._folders_service.retrieve_folder_key(path)  # type: ignore[return-value]
+            return folder_key, None
+        if folder_path:
+            return None, folder_path
         if self._folder_key:
-            return self._folder_key
-        raise _missing_folder()
+            return self._folder_key, None
+        return None, self._folder_path or None
 
-    async def _resolve_folder_key_async(
-        self, folder_key: Optional[str], folder_path: Optional[str]
-    ) -> str:
-        if folder_key and folder_path:
-            raise ValueError("Only one of folder_key or folder_path can be provided")
-        if folder_key:
-            return folder_key
-        path = folder_path or (None if self._folder_key else self._folder_path)
-        if path:
-            return await self._folders_service.retrieve_folder_key_async(path)  # type: ignore[return-value]
-        if self._folder_key:
-            return self._folder_key
-        raise _missing_folder()
+    def _run_spec(
+        self,
+        input: Dict[str, Any],
+        deployed: DeployedRunContext,
+        decision_names: Optional[List[str]],
+        explain: bool,
+        folder_key: Optional[str],
+    ) -> Tuple[RunMode, RequestSpec]:
+        if not folder_key:
+            raise _missing_folder("a deployed business rule")
+        return RunMode.DEPLOYED, self._evaluate_spec(
+            input, deployed, decision_names, explain, folder_key
+        )
 
     def _evaluate_spec(
         self,
-        rule_name: str,
         input: Dict[str, Any],
-        version: Optional[str],
+        deployed: DeployedRunContext,
         decision_names: Optional[List[str]],
         explain: bool,
         folder_key: str,
     ) -> RequestSpec:
         body: Dict[str, Any] = {
-            "businessRuleName": rule_name,
+            "businessRuleName": deployed.rule_name,
             "explain": explain,
             "inputs": [{"id": _SINGLE_INPUT_ID, "data": input}],
         }
-        if version:
-            body["version"] = version
+        if deployed.version:
+            body["version"] = deployed.version
         if decision_names:
             body["decisionNames"] = decision_names
         return RequestSpec(
@@ -210,25 +212,35 @@ class BusinessRulesService(FolderContext, BaseService):
         )
 
 
-def _missing_folder() -> ValueError:
+def _present(value: Optional[str]) -> bool:
+    # Blank counts as absent, matching how the service reads these fields.
+    return bool(value and value.strip())
+
+
+def _missing_folder(needed_for: str) -> ValueError:
     return ValueError(
-        "A folder is required to evaluate a deployed business rule: pass folder_key "
-        "or folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
+        f"A folder is required for {needed_for}: pass folder_key or folder_path, "
+        "or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
     )
 
 
-def _validate_rule_name(rule_name: str) -> None:
-    if not rule_name or not rule_name.strip():
-        raise ValueError("rule_name must be specified")
+def _validate_run(input: Dict[str, Any], deployed: DeployedRunContext) -> None:
+    if deployed is None:
+        raise ValueError("deployed must be set")
+    _validate_rule_name(deployed.rule_name, "deployed.rule_name")
+    _validate_input(input)
+
+
+def _validate_rule_name(rule_name: str, field: str) -> None:
+    if not _present(rule_name):
+        raise ValueError(f"{field} must be specified")
     if len(rule_name) > _MAX_RULE_NAME_LENGTH:
-        raise ValueError(
-            f"rule_name must not exceed {_MAX_RULE_NAME_LENGTH} characters"
-        )
+        raise ValueError(f"{field} must not exceed {_MAX_RULE_NAME_LENGTH} characters")
     for forbidden in ("/", "\\", "..", "%"):
         if forbidden in rule_name:
-            raise ValueError(f"rule_name must not contain '{forbidden}'")
+            raise ValueError(f"{field} must not contain '{forbidden}'")
     if any(not ch.isprintable() for ch in rule_name):
-        raise ValueError("rule_name must not contain control characters")
+        raise ValueError(f"{field} must not contain control characters")
 
 
 def _validate_input(input: Dict[str, Any]) -> None:
@@ -271,9 +283,10 @@ def _single_result(
     return decisions, errors, status
 
 
-def _to_evaluation_result(response: _WireResponse) -> BusinessRuleEvaluationResult:
+def _to_run_result(mode: RunMode, response: _WireResponse) -> BusinessRuleRunResult:
     decisions, errors, status = _single_result(response)
-    return BusinessRuleEvaluationResult(
+    return BusinessRuleRunResult(
+        mode=mode,
         status=status,
         decisions=decisions,
         errors=errors,

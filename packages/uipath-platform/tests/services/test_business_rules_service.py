@@ -9,11 +9,14 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.business_rules import (
     BusinessRulesService,
     BusinessRuleStatus,
+    DeployedRunContext,
+    RunMode,
 )
 from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.errors import EnrichedException
 
 FOLDER_KEY = "5f1f1b0e-2b8a-4c1e-9b8e-1a2b3c4d5e6f"
+LOAN_PRICING = DeployedRunContext(rule_name="Loan Pricing")
 
 
 @pytest.fixture
@@ -55,7 +58,94 @@ def _response(results: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
     }
 
 
-class TestEvaluate:
+def _one_decision(**outputs: Any) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "input-1",
+            "decisions": [{"decisionName": "RiskGrade", "outputs": outputs}],
+        }
+    ]
+
+
+class TestRunContext:
+    @pytest.mark.parametrize(
+        "rule_name",
+        ["", "   ", "a/b", "a\\b", "a..b", "a%20b", "a\nb", "x" * 257],
+    )
+    def test_rejects_unsafe_rule_names(
+        self, service: BusinessRulesService, rule_name: str
+    ) -> None:
+        with pytest.raises(ValueError, match="deployed.rule_name"):
+            service.run(
+                {},
+                deployed=DeployedRunContext(rule_name=rule_name),
+                folder_key=FOLDER_KEY,
+            )
+
+    def test_rejects_oversized_input(self, service: BusinessRulesService) -> None:
+        with pytest.raises(ValueError, match="256 keys"):
+            service.run(
+                {f"k{i}": i for i in range(257)},
+                deployed=LOAN_PRICING,
+                folder_key=FOLDER_KEY,
+            )
+
+
+class TestFolder:
+    def test_resolves_folder_path_to_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run({}, deployed=LOAN_PRICING, folder_path="Finance/Loans")
+
+        folders_service.retrieve_folder_key.assert_called_once_with("Finance/Loans")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert "x-uipath-folderpath" not in request.headers
+
+    def test_falls_back_to_env_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run({}, deployed=LOAN_PRICING)
+
+        folders_service.retrieve_folder_key.assert_not_called()
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
+
+    def test_deployed_requires_a_folder(self, service: BusinessRulesService) -> None:
+        with pytest.raises(ValueError, match="deployed business rule"):
+            service.run({}, deployed=LOAN_PRICING)
+
+    def test_rejects_both_folder_key_and_path(
+        self, service: BusinessRulesService
+    ) -> None:
+        with pytest.raises(ValueError, match="Only one of"):
+            service.run(
+                {},
+                deployed=LOAN_PRICING,
+                folder_key=FOLDER_KEY,
+                folder_path="Finance",
+            )
+
+
+class TestDeployed:
     def test_sends_single_input_and_maps_decisions(
         self,
         httpx_mock: HTTPXMock,
@@ -67,31 +157,21 @@ class TestEvaluate:
             url=evaluate_url,
             method="POST",
             json=_response(
-                [
-                    {
-                        "id": "input-1",
-                        "decisions": [
-                            {
-                                "decisionName": "RiskGrade",
-                                "outputs": {"Grade": "B", "Rate": 3.5},
-                            }
-                        ],
-                    }
-                ],
+                _one_decision(Grade="B", Rate=3.5),
                 businessRuleName="Loan Pricing",
                 version="1.0.3",
             ),
         )
 
-        result = service.evaluate(
-            "Loan Pricing",
+        result = service.run(
             {"creditScore": 740},
-            version="1.0.3",
+            deployed=DeployedRunContext(rule_name="Loan Pricing", version="1.0.3"),
             decision_names=["RiskGrade"],
             explain=True,
             folder_key=FOLDER_KEY,
         )
 
+        assert result.mode == RunMode.DEPLOYED
         assert result.status == BusinessRuleStatus.SUCCESS
         assert result.decisions[0].decision_name == "RiskGrade"
         assert result.decisions[0].outputs == {"Grade": "B", "Rate": 3.5}
@@ -113,7 +193,7 @@ class TestEvaluate:
         assert request.headers["Authorization"] == "Bearer secret"
         assert (
             request.headers[HEADER_USER_AGENT]
-            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.BusinessRulesService.evaluate/{version}"
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.BusinessRulesService.run/{version}"
         )
 
     def test_omits_optional_fields(
@@ -124,7 +204,7 @@ class TestEvaluate:
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, json=_response([]))
 
-        service.evaluate("Loan Pricing", {}, folder_key=FOLDER_KEY)
+        service.run({}, deployed=LOAN_PRICING, folder_key=FOLDER_KEY)
 
         request = httpx_mock.get_request()
         assert request is not None
@@ -133,73 +213,28 @@ class TestEvaluate:
         assert "decisionNames" not in body
         assert body["explain"] is False
 
-    def test_resolves_folder_path_to_key(
+    async def test_run_async_resolves_folder_path(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
         folders_service: Mock,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response(_one_decision(x=1)))
 
-        service.evaluate("Loan Pricing", {}, folder_path="Finance/Loans")
+        result = await service.run_async(
+            {"a": 1}, deployed=LOAN_PRICING, folder_path="Finance"
+        )
 
-        folders_service.retrieve_folder_key.assert_called_once_with("Finance/Loans")
+        folders_service.retrieve_folder_key_async.assert_awaited_once_with("Finance")
+        assert result.mode == RunMode.DEPLOYED
+        assert result.status == BusinessRuleStatus.SUCCESS
         request = httpx_mock.get_request()
         assert request is not None
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
-        assert "x-uipath-folderpath" not in request.headers
 
-    def test_falls_back_to_env_folder_key(
-        self,
-        httpx_mock: HTTPXMock,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-        folders_service: Mock,
-        evaluate_url: str,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
-        service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
 
-        service.evaluate("Loan Pricing", {})
-
-        folders_service.retrieve_folder_key.assert_not_called()
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
-
-    def test_requires_a_folder(self, service: BusinessRulesService) -> None:
-        with pytest.raises(ValueError, match="folder is required"):
-            service.evaluate("Loan Pricing", {})
-
-    def test_rejects_both_folder_key_and_path(
-        self, service: BusinessRulesService
-    ) -> None:
-        with pytest.raises(ValueError, match="Only one of"):
-            service.evaluate(
-                "Loan Pricing", {}, folder_key=FOLDER_KEY, folder_path="Finance"
-            )
-
-    @pytest.mark.parametrize(
-        "rule_name",
-        ["", "   ", "a/b", "a\\b", "a..b", "a%20b", "a\nb", "x" * 257],
-    )
-    def test_rejects_unsafe_rule_names(
-        self, service: BusinessRulesService, rule_name: str
-    ) -> None:
-        with pytest.raises(ValueError, match="rule_name"):
-            service.evaluate(rule_name, {}, folder_key=FOLDER_KEY)
-
-    def test_rejects_oversized_input(self, service: BusinessRulesService) -> None:
-        with pytest.raises(ValueError, match="256 keys"):
-            service.evaluate(
-                "Loan Pricing",
-                {f"k{i}": i for i in range(257)},
-                folder_key=FOLDER_KEY,
-            )
-
+class TestResult:
     def test_partial_success_on_207(
         self,
         httpx_mock: HTTPXMock,
@@ -228,7 +263,7 @@ class TestEvaluate:
             ),
         )
 
-        result = service.evaluate("Loan Pricing", {}, folder_key=FOLDER_KEY)
+        result = service.run({}, deployed=LOAN_PRICING, folder_key=FOLDER_KEY)
 
         assert result.status == BusinessRuleStatus.PARTIAL_SUCCESS
         assert result.decisions[1].error is not None
@@ -258,7 +293,7 @@ class TestEvaluate:
             ),
         )
 
-        result = service.evaluate("Loan Pricing", {}, folder_key=FOLDER_KEY)
+        result = service.run({}, deployed=LOAN_PRICING, folder_key=FOLDER_KEY)
 
         assert result.status == BusinessRuleStatus.ALL_FAILED
         assert result.errors[0].code == "INPUT_VALIDATION_FAILED"
@@ -279,7 +314,7 @@ class TestEvaluate:
             ),
         )
 
-        result = service.evaluate("Loan Pricing", {}, folder_key=FOLDER_KEY)
+        result = service.run({}, deployed=LOAN_PRICING, folder_key=FOLDER_KEY)
 
         assert result.status == BusinessRuleStatus.ALL_FAILED
         assert result.decisions == []
@@ -302,35 +337,10 @@ class TestEvaluate:
         )
 
         with pytest.raises(EnrichedException) as exc:
-            service.evaluate("Missing", {}, folder_key=FOLDER_KEY)
+            service.run(
+                {},
+                deployed=DeployedRunContext(rule_name="Missing"),
+                folder_key=FOLDER_KEY,
+            )
 
         assert exc.value.status_code == 404
-
-    async def test_evaluate_async_resolves_folder_path(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        folders_service: Mock,
-        evaluate_url: str,
-    ) -> None:
-        httpx_mock.add_response(
-            url=evaluate_url,
-            json=_response(
-                [
-                    {
-                        "id": "input-1",
-                        "decisions": [{"decisionName": "D", "outputs": {"x": 1}}],
-                    }
-                ]
-            ),
-        )
-
-        result = await service.evaluate_async(
-            "Loan Pricing", {"a": 1}, folder_path="Finance"
-        )
-
-        folders_service.retrieve_folder_key_async.assert_awaited_once_with("Finance")
-        assert result.status == BusinessRuleStatus.SUCCESS
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
