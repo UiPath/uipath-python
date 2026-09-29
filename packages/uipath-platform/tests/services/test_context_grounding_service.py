@@ -2494,6 +2494,44 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
         )
 
+    @pytest.mark.anyio
+    async def test_start_batch_transform_async_with_exclude_domains(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """exclude_domains rides on the same wire field as the from-attachment primitive."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "grounded-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = await service.start_batch_transform_async(
+            name="grounded-task",
+            index_id="test-index-id",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            storage_bucket_folder_path_prefix="data",
+            enable_web_search_grounding=True,
+            exclude_domains=["example.com", "blocked.io"],
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "grounded-batch-id"
+        request_data = json.loads(httpx_mock.get_requests()[-1].content)
+        assert request_data["useWebSearchGrounding"] is True
+        assert request_data["excludeDomains"] == ["example.com", "blocked.io"]
+
     def test_start_batch_transform_with_target_file_name(
         self,
         httpx_mock: HTTPXMock,

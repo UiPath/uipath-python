@@ -823,6 +823,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ] = None,
         target_file_name: Annotated[str | None, Field(max_length=512)] = None,
         enable_web_search_grounding: bool = False,
+        exclude_domains: Optional[List[str]] = None,
         index_name: str | None = None,
         index_id: Annotated[str, Field(max_length=512)] | None = None,
         folder_key: str | None = None,
@@ -845,6 +846,8 @@ class ContextGroundingService(FolderContext, BaseService):
                 If only target_file_name is provided, it will be used directly.
                 Only one file can be processed per batch transform job.
             enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
+            exclude_domains (list[str], optional): Domains to exclude from web search grounding.
+                Requires enable_web_search_grounding=True; the server rejects the combination otherwise.
             index_id (str): The id of the context index to search in, used in place of name if present
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -874,6 +877,7 @@ class ContextGroundingService(FolderContext, BaseService):
             prompt=prompt,
             output_columns=output_columns,
             enable_web_search_grounding=enable_web_search_grounding,
+            exclude_domains=exclude_domains,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -899,6 +903,7 @@ class ContextGroundingService(FolderContext, BaseService):
         ] = None,
         target_file_name: Annotated[str | None, Field(max_length=512)] = None,
         enable_web_search_grounding: bool = False,
+        exclude_domains: Optional[List[str]] = None,
         index_name: str | None = None,
         index_id: Annotated[str, Field(max_length=512)] | None = None,
         folder_key: str | None = None,
@@ -921,6 +926,8 @@ class ContextGroundingService(FolderContext, BaseService):
                 If only target_file_name is provided, it will be used directly.
                 Only one file can be processed per batch transform job.
             enable_web_search_grounding (Optional[bool]): Whether to enable web search. Defaults to False.
+            exclude_domains (list[str], optional): Domains to exclude from web search grounding.
+                Requires enable_web_search_grounding=True; the server rejects the combination otherwise.
             index_id (str): The id of the context index to search in, used in place of name if present
             folder_key (str, optional): The folder key where the index resides. Defaults to None.
             folder_path (str, optional): The folder path where the index resides. Defaults to None.
@@ -950,6 +957,7 @@ class ContextGroundingService(FolderContext, BaseService):
             prompt=prompt,
             output_columns=output_columns,
             enable_web_search_grounding=enable_web_search_grounding,
+            exclude_domains=exclude_domains,
             folder_key=folder_key,
             folder_path=folder_path,
         )
@@ -2680,6 +2688,7 @@ class ContextGroundingService(FolderContext, BaseService):
         storage_bucket_folder_path_prefix: str | None,
         target_file_name: str | None,
         prompt: str,
+        exclude_domains: Optional[List[str]] = None,
         folder_key: str | None = None,
         folder_path: str | None = None,
     ) -> RequestSpec:
@@ -2704,18 +2713,22 @@ class ContextGroundingService(FolderContext, BaseService):
         else:
             target_file_glob_pattern = "**"
 
+        body: dict[str, object] = {
+            "name": name,
+            "prompt": prompt,
+            "targetFileGlobPattern": target_file_glob_pattern,
+            "useWebSearchGrounding": enable_web_search_grounding,
+            "outputColumns": [
+                column.model_dump(by_alias=True) for column in output_columns
+            ],
+        }
+        if exclude_domains:
+            body["excludeDomains"] = exclude_domains
+
         return RequestSpec(
             method="POST",
             endpoint=Endpoint(f"/ecs_/v2/indexes/{index_id}/createBatchRag"),
-            json={
-                "name": name,
-                "prompt": prompt,
-                "targetFileGlobPattern": target_file_glob_pattern,
-                "useWebSearchGrounding": enable_web_search_grounding,
-                "outputColumns": [
-                    column.model_dump(by_alias=True) for column in output_columns
-                ],
-            },
+            json=body,
             headers={
                 **header_folder(folder_key, None),
                 **header_job_key(),
