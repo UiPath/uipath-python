@@ -797,7 +797,7 @@ class TasksService(FolderContext, BaseService):
     ) -> Task:
         """Create a new QuickForm task synchronously.
 
-        See :meth:`create_quickform_async` for parameter docs.
+        See `create_quickform_async()` for parameter docs.
         """
         spec = _create_quickform_spec(
             title=title,

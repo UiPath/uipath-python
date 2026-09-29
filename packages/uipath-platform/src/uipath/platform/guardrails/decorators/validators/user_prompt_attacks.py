@@ -23,7 +23,7 @@ class UserPromptAttacksValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build a user prompt attacks :class:`BuiltInValidatorGuardrail`.
+        """Build a user prompt attacks `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -31,7 +31,7 @@ class UserPromptAttacksValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` for user prompt attacks.
+            Configured `BuiltInValidatorGuardrail` for user prompt attacks.
         """
         return BuiltInValidatorGuardrail(
             id=str(uuid4()),

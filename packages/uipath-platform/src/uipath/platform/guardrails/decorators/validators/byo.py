@@ -27,8 +27,8 @@ class ByoValidator(BuiltInGuardrailValidator):
     Supported at all stages — BYO validator capabilities are connector-defined
     and cannot be known statically, so no stage restriction is applied here.
 
-    Example::
-
+    Example:
+        ```python
         from uipath.platform.guardrails.decorators import (
             BlockAction,
             ByoValidator,
@@ -40,6 +40,7 @@ class ByoValidator(BuiltInGuardrailValidator):
         @guardrail(validator=byog_harmful_content, action=BlockAction())
         def summarize(text: str) -> str:
             ...
+        ```
 
     Args:
         validator_name: The BYOG configuration's validator name
@@ -70,7 +71,7 @@ class ByoValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build a BYOG :class:`BuiltInValidatorGuardrail`.
+        """Build a BYOG `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -78,7 +79,7 @@ class ByoValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` referencing the BYOG
+            Configured `BuiltInValidatorGuardrail` referencing the BYOG
             configuration via ``byoValidatorName``.
         """
         return BuiltInValidatorGuardrail(

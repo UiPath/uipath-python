@@ -102,7 +102,7 @@ class LLMAsJudgeValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build an LLM-as-judge :class:`BuiltInValidatorGuardrail`.
+        """Build an LLM-as-judge `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -110,7 +110,7 @@ class LLMAsJudgeValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` for llm_as_judge.
+            Configured `BuiltInValidatorGuardrail` for llm_as_judge.
         """
         validator_parameters: list[Any] = [
             TextParameterValue(

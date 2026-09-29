@@ -96,12 +96,10 @@ class TestRunContext:
     def test_rejects_unsafe_rule_names(
         self, service: BusinessRulesService, rule_name: str
     ) -> None:
+        deployed = DeployedRunContext(rule_name=rule_name)
+
         with pytest.raises(ValueError, match="deployed.rule_name"):
-            service.run(
-                {},
-                deployed=DeployedRunContext(rule_name=rule_name),
-                folder_key=FOLDER_KEY,
-            )
+            service.run({}, deployed=deployed, folder_key=FOLDER_KEY)
 
     def test_rejects_oversized_input(self, service: BusinessRulesService) -> None:
         with pytest.raises(ValueError, match="256 keys"):
@@ -140,6 +138,71 @@ class TestFolder:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run({}, deployed=LOAN_PRICING)
+
+        folders_service.retrieve_folder_key.assert_not_called()
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
+
+    def test_falls_back_to_env_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run({}, deployed=LOAN_PRICING)
+
+        folders_service.retrieve_folder_key.assert_called_once_with("Finance/Loans")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert "x-uipath-folderpath" not in request.headers
+
+    async def test_falls_back_to_env_folder_path_async(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        await service.run_async({}, deployed=LOAN_PRICING)
+
+        folders_service.retrieve_folder_key_async.assert_awaited_once_with(
+            "Finance/Loans"
+        )
+        folders_service.retrieve_folder_key.assert_not_called()
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+    def test_env_folder_key_wins_over_env_folder_path(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
         httpx_mock.add_response(url=evaluate_url, json=_response([]))
 
@@ -508,11 +571,9 @@ class TestResult:
             },
         )
 
+        deployed = DeployedRunContext(rule_name="Missing")
+
         with pytest.raises(EnrichedException) as exc:
-            service.run(
-                {},
-                deployed=DeployedRunContext(rule_name="Missing"),
-                folder_key=FOLDER_KEY,
-            )
+            service.run({}, deployed=deployed, folder_key=FOLDER_KEY)
 
         assert exc.value.status_code == 404

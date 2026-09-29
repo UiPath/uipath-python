@@ -243,7 +243,7 @@ def compute_dataset_evaluator_results(
             set. Their configs may carry ``aggregators`` lists.
 
     Returns:
-        Dict keyed by :func:`dataset_result_key` (same scheme as the platform
+        Dict keyed by `dataset_result_key()` (same scheme as the platform
         worker), with each value's ``details`` dumped to the camelCase wire
         shape. Exact-duplicate specs are deduped; aggregators whose source
         produced no results still emit a zeroed result.
