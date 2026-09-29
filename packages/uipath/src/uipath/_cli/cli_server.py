@@ -28,6 +28,7 @@ from .cli_server_ipc import (
     PythonServerStopJobRequest,
     start_ipc_server,
 )
+from .runtimes import requires_runtime
 
 __all__ = [
     "server",
@@ -338,6 +339,7 @@ async def start_tcp_server(host: str, port: int) -> None:
     is_flag=True,
     help="Force TCP mode even on Unix systems.",
 )
+@requires_runtime
 @track_command("server")
 def server(
     client_socket: str | None,

@@ -45,6 +45,7 @@ from ._utils._project_files import read_toml_project, resolve_existing_project_i
 from .middlewares import Middlewares
 from .models.runtime_schema import Bindings, EntryPoint
 from .models.uipath_json_schema import UiPathJsonConfig
+from .runtimes import requires_runtime
 
 console = ConsoleLogger()
 logger = logging.getLogger(__name__)
@@ -419,6 +420,7 @@ def _display_entrypoint_graphs(entry_point_schemas: list[UiPathRuntimeSchema]) -
     default=False,
     help="Won't override existing .agent files and AGENTS.md file.",
 )
+@requires_runtime
 @track_command("initialize")
 def init(no_agents_md_override: bool) -> None:
     """Initialize the project."""

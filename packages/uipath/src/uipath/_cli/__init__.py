@@ -51,32 +51,11 @@ _LAZY_COMMANDS = {
     "context-grounding": "services.cli_context_grounding",
 }
 
-_RUNTIME_COMMANDS = {"init", "dev", "run", "eval", "debug", "server"}
 
-_runtime_initialized = False
-
-
-def _ensure_runtime_initialized():
-    """Initialize runtime factories once, only when needed."""
-    global _runtime_initialized
-    if _runtime_initialized:
-        return
-    _runtime_initialized = True
-
-    from uipath._cli.runtimes import load_runtime_factories
-    from uipath.functions import register_default_runtime_factory
-
-    register_default_runtime_factory()
-    load_runtime_factories()
-
-
-def _load_command(name: str):
+def _load_command(name: str) -> click.Command:
     """Load a CLI command by name."""
     if name not in _LAZY_COMMANDS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-    if name in _RUNTIME_COMMANDS:
-        _ensure_runtime_initialized()
 
     module_name = _LAZY_COMMANDS[name]
     mod = __import__(f"uipath._cli.{module_name}", fromlist=[name])

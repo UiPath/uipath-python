@@ -12,6 +12,7 @@ from uipath.platform.common import ExecutionSourceContext
 from uipath.runtime import UiPathRuntimeContext, UiPathRuntimeFactoryRegistry
 
 from ._telemetry import track_command
+from .runtimes import requires_runtime
 
 console = ConsoleLogger()
 
@@ -54,6 +55,7 @@ def _check_dev_dependency(interface: str) -> None:
     default=5678,
     help="Port for the debug server (default: 5678)",
 )
+@requires_runtime
 @track_command("dev")
 def dev(interface: str, debug: bool, debug_port: int) -> None:
     """Launch UiPath Developer Console.
