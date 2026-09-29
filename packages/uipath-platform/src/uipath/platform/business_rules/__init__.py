@@ -11,7 +11,6 @@ from .business_rules import (
     BusinessRuleError,
     BusinessRuleRunResult,
     BusinessRuleStatus,
-    DeployedRunContext,
     RunMode,
     TraceContext,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "BusinessRuleRunResult",
     "BusinessRuleStatus",
     "BusinessRulesService",
-    "DeployedRunContext",
     "RunMode",
     "TraceContext",
 ]

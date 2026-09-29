@@ -23,16 +23,6 @@ class RunMode(str, Enum):
     DEPLOYED = "Deployed"
 
 
-class DeployedRunContext(BaseModel):
-    """A business rule deployed to Orchestrator."""
-
-    rule_name: str = Field(description="The name of the deployed business rule.")
-    version: Optional[str] = Field(
-        default=None,
-        description="The version to run; defaults to the active version.",
-    )
-
-
 class TraceContext(BaseModel):
     """An existing trace to file the run's spans under.
 
