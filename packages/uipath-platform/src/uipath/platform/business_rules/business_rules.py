@@ -1,9 +1,12 @@
 """Models for the UiPath Business Rules service."""
 
+import re
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_HEX = re.compile(r"^[0-9a-f]+$")
 
 
 class BusinessRuleStatus(str, Enum):
@@ -59,6 +62,45 @@ class DebugRunContext(BaseModel):
         default=None,
         description="The numeric id of the job's folder; required with rule_name alone.",
     )
+
+
+class TraceContext(BaseModel):
+    """An existing trace to file the run's spans under.
+
+    Optional on ``run()``: when omitted, the SDK takes the trace from
+    ``UIPATH_TRACE_ID`` and the current span, as it does for every service.
+    """
+
+    trace_id: str = Field(
+        description="The trace id: 32 hex characters, or a UUID with dashes."
+    )
+    parent_span_id: str = Field(
+        description="The span the run's spans nest under: 16 hex characters."
+    )
+
+    @field_validator("trace_id")
+    @classmethod
+    def _normalize_trace_id(cls, value: str) -> str:
+        normalized = value.replace("-", "").strip().lower()
+        if len(normalized) != 32 or not _HEX.match(normalized):
+            raise ValueError("trace_id must be 32 hex characters or a UUID")
+        if normalized == "0" * 32:
+            raise ValueError("trace_id must not be all zeros")
+        return normalized
+
+    @field_validator("parent_span_id")
+    @classmethod
+    def _normalize_parent_span_id(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if len(normalized) != 16 or not _HEX.match(normalized):
+            raise ValueError("parent_span_id must be 16 hex characters")
+        if normalized == "0" * 16:
+            raise ValueError("parent_span_id must not be all zeros")
+        return normalized
+
+    def to_traceparent(self) -> str:
+        """Return the W3C traceparent value for this context."""
+        return f"00-{self.trace_id}-{self.parent_span_id}-01"
 
 
 class BusinessRuleError(BaseModel):

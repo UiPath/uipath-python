@@ -14,6 +14,7 @@ from .business_rules import (
     DebugRunContext,
     DeployedRunContext,
     RunMode,
+    TraceContext,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "DebugRunContext",
     "DeployedRunContext",
     "RunMode",
+    "TraceContext",
 ]

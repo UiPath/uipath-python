@@ -4,11 +4,14 @@ Runs DMN decision models: a business rule deployed to Orchestrator, or an
 undeployed DMN read straight from a Studio project.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from httpx import Request
 from uipath.core.tracing import traced
 
-from ..common._base_service import BaseService
+from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
@@ -23,6 +26,7 @@ from .business_rules import (
     DebugRunContext,
     DeployedRunContext,
     RunMode,
+    TraceContext,
     _WireResponse,
     _WireResult,
 )
@@ -37,6 +41,13 @@ _HEADER_JOB_KEY = "x-uipath-jobkey"
 _SINGLE_INPUT_ID = "input-1"
 _MAX_INPUT_KEYS = 256
 _MAX_RULE_NAME_LENGTH = 256
+
+# The caller's explicit trace for the run in progress. BaseService always sets
+# the ambient trace header, so a request hook on this service's own clients
+# replaces it just before sending. A ContextVar keeps concurrent runs apart.
+_explicit_traceparent: ContextVar[Optional[str]] = ContextVar(
+    "business_rules_traceparent", default=None
+)
 
 
 class BusinessRulesService(FolderContext, BaseService):
@@ -56,6 +67,15 @@ class BusinessRulesService(FolderContext, BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
+        sync_hooks = self._client.event_hooks
+        sync_hooks["request"] = [*sync_hooks.get("request", []), _apply_traceparent]
+        self._client.event_hooks = sync_hooks
+        async_hooks = self._client_async.event_hooks
+        async_hooks["request"] = [
+            *async_hooks.get("request", []),
+            _apply_traceparent_async,
+        ]
+        self._client_async.event_hooks = async_hooks
 
     @traced(name="business_rules_run", run_type="uipath")
     def run(
@@ -68,6 +88,7 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        trace_context: Optional[TraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Run a business rule against one input.
 
@@ -85,6 +106,8 @@ class BusinessRulesService(FolderContext, BaseService):
             folder_key: The key of the folder to run in.
             folder_path: The path of the folder to run in. Resolved to a key, since
                 the service accepts folder keys only.
+            trace_context: The trace to file the run's spans under. Defaults to
+                the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
         A folder is required for a deployed rule and whenever ``explain`` is set.
         When neither ``folder_key`` nor ``folder_path`` is given, it falls back to
@@ -131,13 +154,14 @@ class BusinessRulesService(FolderContext, BaseService):
         mode, spec = self._run_spec(
             input, deployed, debug, decision_names, explain, key
         )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=spec.headers,
-            scoped="tenant",
-        )
+        with _trace_override(trace_context):
+            response = self.request(
+                spec.method,
+                url=spec.endpoint,
+                json=spec.json,
+                headers=spec.headers,
+                scoped="tenant",
+            )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
     @traced(name="business_rules_run", run_type="uipath")
@@ -151,6 +175,7 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        trace_context: Optional[TraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Asynchronously run a business rule against one input.
 
@@ -168,6 +193,8 @@ class BusinessRulesService(FolderContext, BaseService):
             folder_key: The key of the folder to run in.
             folder_path: The path of the folder to run in. Resolved to a key, since
                 the service accepts folder keys only.
+            trace_context: The trace to file the run's spans under. Defaults to
+                the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
         Returns:
             BusinessRuleRunResult: The decisions produced for the input, and the
@@ -184,13 +211,14 @@ class BusinessRulesService(FolderContext, BaseService):
         mode, spec = self._run_spec(
             input, deployed, debug, decision_names, explain, key
         )
-        response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=spec.headers,
-            scoped="tenant",
-        )
+        with _trace_override(trace_context):
+            response = await self.request_async(
+                spec.method,
+                url=spec.endpoint,
+                json=spec.json,
+                headers=spec.headers,
+                scoped="tenant",
+            )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
     def _folder_source(
@@ -306,6 +334,27 @@ class BusinessRulesService(FolderContext, BaseService):
             json=body,
             headers=headers,
         )
+
+
+@contextmanager
+def _trace_override(trace_context: Optional[TraceContext]) -> Iterator[None]:
+    token = _explicit_traceparent.set(
+        trace_context.to_traceparent() if trace_context else None
+    )
+    try:
+        yield
+    finally:
+        _explicit_traceparent.reset(token)
+
+
+def _apply_traceparent(request: Request) -> None:
+    traceparent = _explicit_traceparent.get()
+    if traceparent:
+        request.headers[_TRACE_PARENT_HEADER] = traceparent
+
+
+async def _apply_traceparent_async(request: Request) -> None:
+    _apply_traceparent(request)
 
 
 def _present(value: Optional[str]) -> bool:
