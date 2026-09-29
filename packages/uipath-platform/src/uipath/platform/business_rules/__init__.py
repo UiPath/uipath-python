@@ -2,7 +2,7 @@
 
 Provides the ``BusinessRulesService`` client for running DMN decision models,
 either deployed to Orchestrator as UiPath Business Rules or read from a Studio
-project, and the Pydantic models for its run contexts and results.
+project, and the Pydantic models for its debug context and results.
 """
 
 from ._business_rules_service import BusinessRulesService
@@ -12,7 +12,6 @@ from .business_rules import (
     BusinessRuleRunResult,
     BusinessRuleStatus,
     DebugRunContext,
-    DeployedRunContext,
     RunMode,
     TraceContext,
 )
@@ -24,7 +23,6 @@ __all__ = [
     "BusinessRuleStatus",
     "BusinessRulesService",
     "DebugRunContext",
-    "DeployedRunContext",
     "RunMode",
     "TraceContext",
 ]

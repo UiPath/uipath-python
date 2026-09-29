@@ -12,6 +12,7 @@ from httpx import Request
 from uipath.core.tracing import traced
 
 from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
+from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
@@ -24,7 +25,6 @@ from .business_rules import (
     BusinessRuleRunResult,
     BusinessRuleStatus,
     DebugRunContext,
-    DeployedRunContext,
     RunMode,
     TraceContext,
     _WireResponse,
@@ -53,10 +53,10 @@ _explicit_traceparent: ContextVar[Optional[str]] = ContextVar(
 class BusinessRulesService(FolderContext, BaseService):
     """Service for running UiPath Business Rules (DMN decision models).
 
-    Each call runs one input and returns the decisions it produced. Which model
-    runs is set by the run context: ``deployed`` for a rule deployed to
-    Orchestrator, ``debug`` for an undeployed DMN in a Studio project. The caller
-    never picks a service endpoint.
+    Each call runs one input against a business rule, named like any other
+    resource, and returns the decisions it produced. By default the rule
+    deployed to Orchestrator runs; pass ``debug`` to run an undeployed DMN from
+    a Studio project instead. The caller never picks a service endpoint.
     """
 
     def __init__(
@@ -77,12 +77,14 @@ class BusinessRulesService(FolderContext, BaseService):
         ]
         self._client_async.event_hooks = async_hooks
 
+    @resource_override(resource_type="businessRule")
     @traced(name="business_rules_run", run_type="uipath")
     def run(
         self,
+        name: str,
         input: Dict[str, Any],
         *,
-        deployed: Optional[DeployedRunContext] = None,
+        version: Optional[str] = None,
         debug: Optional[DebugRunContext] = None,
         decision_names: Optional[List[str]] = None,
         explain: bool = False,
@@ -92,17 +94,16 @@ class BusinessRulesService(FolderContext, BaseService):
     ) -> BusinessRuleRunResult:
         """Run a business rule against one input.
 
-        Exactly one of ``deployed`` and ``debug`` must be set, and it decides which
-        model runs.
-
         Args:
-            input: The input to run, keyed by DMN input name. Declared inputs absent
-                from it bind to null.
-            deployed: A business rule deployed to Orchestrator.
-            debug: An undeployed DMN in a Studio project.
+            name: The name of the business rule.
+            input: The input to run, keyed by the rule's input names. Declared
+                inputs absent from it bind to null.
+            version: The deployed rule version to run; defaults to the active
+                version. Not used with ``debug``.
+            debug: Run an undeployed DMN from a Studio project instead of the
+                deployed rule.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
-                Requires a folder.
             folder_key: The key of the folder to run in.
             folder_path: The path of the folder to run in. Resolved to a key, since
                 the service accepts folder keys only.
@@ -110,8 +111,9 @@ class BusinessRulesService(FolderContext, BaseService):
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
         A folder is required for a deployed rule and whenever ``explain`` is set.
-        When neither ``folder_key`` nor ``folder_path`` is given, it falls back to
-        ``UIPATH_FOLDER_KEY`` and then ``UIPATH_FOLDER_PATH``.
+        When neither ``folder_key`` nor ``folder_path`` is given, it falls back to ``UIPATH_FOLDER_KEY`` and then
+        ``UIPATH_FOLDER_PATH``. ``name`` and ``folder_path`` can be overridden per
+        environment through the project's ``businessRule`` bindings.
 
         Returns:
             BusinessRuleRunResult: The decisions produced for the input, and the
@@ -124,35 +126,33 @@ class BusinessRulesService(FolderContext, BaseService):
         Examples:
             ```python
             from uipath.platform import UiPath
-            from uipath.platform.business_rules import (
-                DebugRunContext,
-                DeployedRunContext,
-            )
 
             client = UiPath()
 
-            # A rule deployed to Orchestrator
             result = client.business_rules.run(
+                "Loan Pricing",
                 {"creditScore": 740, "age": 34},
-                deployed=DeployedRunContext(rule_name="Loan Pricing"),
                 folder_path="Finance",
             )
             for decision in result.decisions:
                 print(decision.decision_name, decision.outputs)
 
             # An undeployed DMN in a Studio project
+            from uipath.platform.business_rules import DebugRunContext
+
             result = client.business_rules.run(
+                "Loan Pricing",
                 {"creditScore": 740},
                 debug=DebugRunContext(project_id="0a1b2c3d-...", file_name="Loan.dmn"),
             )
             ```
         """
-        _validate_run(input, deployed, debug)
+        _validate_run(name, input, version, debug)
         key, path = self._folder_source(folder_key, folder_path)
         if path:
             key = self._folders_service.retrieve_folder_key(path)
         mode, spec = self._run_spec(
-            input, deployed, debug, decision_names, explain, key
+            name, input, version, debug, decision_names, explain, key
         )
         with _trace_override(trace_context):
             response = self.request(
@@ -164,12 +164,14 @@ class BusinessRulesService(FolderContext, BaseService):
             )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
+    @resource_override(resource_type="businessRule")
     @traced(name="business_rules_run", run_type="uipath")
     async def run_async(
         self,
+        name: str,
         input: Dict[str, Any],
         *,
-        deployed: Optional[DeployedRunContext] = None,
+        version: Optional[str] = None,
         debug: Optional[DebugRunContext] = None,
         decision_names: Optional[List[str]] = None,
         explain: bool = False,
@@ -179,17 +181,16 @@ class BusinessRulesService(FolderContext, BaseService):
     ) -> BusinessRuleRunResult:
         """Asynchronously run a business rule against one input.
 
-        Exactly one of ``deployed`` and ``debug`` must be set, and it decides which
-        model runs.
-
         Args:
-            input: The input to run, keyed by DMN input name. Declared inputs absent
-                from it bind to null.
-            deployed: A business rule deployed to Orchestrator.
-            debug: An undeployed DMN in a Studio project.
+            name: The name of the business rule.
+            input: The input to run, keyed by the rule's input names. Declared
+                inputs absent from it bind to null.
+            version: The deployed rule version to run; defaults to the active
+                version. Not used with ``debug``.
+            debug: Run an undeployed DMN from a Studio project instead of the
+                deployed rule.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
-                Requires a folder.
             folder_key: The key of the folder to run in.
             folder_path: The path of the folder to run in. Resolved to a key, since
                 the service accepts folder keys only.
@@ -204,12 +205,12 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
-        _validate_run(input, deployed, debug)
+        _validate_run(name, input, version, debug)
         key, path = self._folder_source(folder_key, folder_path)
         if path:
             key = await self._folders_service.retrieve_folder_key_async(path)
         mode, spec = self._run_spec(
-            input, deployed, debug, decision_names, explain, key
+            name, input, version, debug, decision_names, explain, key
         )
         with _trace_override(trace_context):
             response = await self.request_async(
@@ -237,8 +238,9 @@ class BusinessRulesService(FolderContext, BaseService):
 
     def _run_spec(
         self,
+        name: str,
         input: Dict[str, Any],
-        deployed: Optional[DeployedRunContext],
+        version: Optional[str],
         debug: Optional[DebugRunContext],
         decision_names: Optional[List[str]],
         explain: bool,
@@ -248,30 +250,30 @@ class BusinessRulesService(FolderContext, BaseService):
             if explain and not folder_key:
                 raise _missing_folder("explain=True")
             return RunMode.DEBUG, self._debug_spec(
-                input, debug, decision_names, explain, folder_key
+                name, input, debug, decision_names, explain, folder_key
             )
-        assert deployed is not None
         if not folder_key:
             raise _missing_folder("a deployed business rule")
         return RunMode.DEPLOYED, self._evaluate_spec(
-            input, deployed, decision_names, explain, folder_key
+            name, input, version, decision_names, explain, folder_key
         )
 
     def _evaluate_spec(
         self,
+        name: str,
         input: Dict[str, Any],
-        deployed: DeployedRunContext,
+        version: Optional[str],
         decision_names: Optional[List[str]],
         explain: bool,
         folder_key: str,
     ) -> RequestSpec:
         body: Dict[str, Any] = {
-            "businessRuleName": deployed.rule_name,
+            "businessRuleName": name,
             "explain": explain,
             "inputs": [{"id": _SINGLE_INPUT_ID, "data": input}],
         }
-        if deployed.version:
-            body["version"] = deployed.version
+        if version:
+            body["version"] = version
         if decision_names:
             body["decisionNames"] = decision_names
         return RequestSpec(
@@ -283,6 +285,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
     def _debug_spec(
         self,
+        name: str,
         input: Dict[str, Any],
         debug: DebugRunContext,
         decision_names: Optional[List[str]],
@@ -290,31 +293,29 @@ class BusinessRulesService(FolderContext, BaseService):
         folder_key: Optional[str],
     ) -> RequestSpec:
         job_key = debug.job_key or UiPathConfig.job_key
-        named = _present(debug.rule_name)
-        # A named project is used as given. Only a run named by rule_name alone
-        # makes the service resolve the project from the job's lineage.
-        if named and not _present(debug.project_id):
+        # A named project is used as given. Without one, the service resolves
+        # the project from the job's lineage, which needs the job and its folder.
+        if not _present(debug.project_id):
             if not _present(job_key):
                 raise ValueError(
-                    "debug.job_key must be specified when the run is named by "
-                    "rule_name without project_id: the service resolves the project "
-                    "from the job's lineage. Set it or UIPATH_JOB_KEY."
+                    "debug.job_key must be specified when debug.project_id is not: "
+                    "the service resolves the project from the job's lineage. "
+                    "Set it or UIPATH_JOB_KEY."
                 )
             if debug.organization_unit_id is None:
                 raise ValueError(
-                    "debug.organization_unit_id must be specified when the run is "
-                    "named by rule_name without project_id: it is the folder the "
-                    "job's lineage is read under"
+                    "debug.organization_unit_id must be specified when "
+                    "debug.project_id is not: it is the folder the job's lineage "
+                    "is read under"
                 )
 
         body: Dict[str, Any] = {
+            "businessRuleName": name,
             "explain": explain,
             "inputs": [{"id": _SINGLE_INPUT_ID, "data": input}],
         }
         if debug.project_id:
             body["projectId"] = debug.project_id
-        if named:
-            body["businessRuleName"] = debug.rule_name
         if debug.file_name:
             body["fileName"] = debug.file_name
         if decision_names:
@@ -370,21 +371,17 @@ def _missing_folder(needed_for: str) -> ValueError:
 
 
 def _validate_run(
+    name: str,
     input: Dict[str, Any],
-    deployed: Optional[DeployedRunContext],
+    version: Optional[str],
     debug: Optional[DebugRunContext],
 ) -> None:
-    if deployed is None and debug is None:
-        raise ValueError("Exactly one of deployed or debug must be set; neither was")
-    if deployed is not None and debug is not None:
-        raise ValueError("Exactly one of deployed or debug must be set; both were")
-    if deployed is not None:
-        _validate_rule_name(deployed.rule_name, "deployed.rule_name")
-    if debug is not None:
-        if not _present(debug.project_id) and not _present(debug.rule_name):
-            raise ValueError("debug.project_id or debug.rule_name must be specified")
-        if _present(debug.rule_name):
-            _validate_rule_name(debug.rule_name, "debug.rule_name")  # type: ignore[arg-type]
+    _validate_rule_name(name, "name")
+    if debug is not None and version:
+        raise ValueError(
+            "version applies to deployed rules only; a debug run reads the "
+            "project as it is"
+        )
     _validate_input(input)
 
 
