@@ -1,8 +1,8 @@
 """Tests for the uipath-ipc runtime server channel.
 
 The server hosts ``IPythonRuntimeServer`` (RunJob / StopJob) on a named pipe
-alongside the HTTP channel when ``--ipc-pipe`` names one (see
-``test_server_transport.py`` for the channel composition). Mirrors
+when ``--ipc-pipe`` names one, and nothing else when it is given alone (see
+``test_server_transport.py`` for the channel selection). Mirrors
 ``test_server.py`` (the HTTP path) but drives the pipe with a Python
 ``uipath-ipc`` client.
 
@@ -15,6 +15,8 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
+import sys
 import threading
 import time
 from typing import Any, Awaitable, Callable, cast
@@ -80,7 +82,11 @@ async def _with_proxy(pipe_name: str, fn: Callable[[Any], Awaitable[Any]]) -> An
         await client.aclose()
 
 
-def _wait_until_ready(pipe_name: str, timeout: float = 10.0) -> None:
+def _wait_until_ready(
+    pipe_name: str,
+    timeout: float = 10.0,
+    process: "subprocess.Popen[str] | None" = None,
+) -> None:
     """Poll the pipe until the IPC server answers, instead of a fixed sleep.
 
     A fixed ``sleep`` races the server's startup under load; this connects a real
@@ -89,6 +95,12 @@ def _wait_until_ready(pipe_name: str, timeout: float = 10.0) -> None:
     deadline = time.monotonic() + timeout
     last_err: Exception | None = None
     while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            output = process.stdout.read() if process.stdout else ""
+            raise AssertionError(
+                f"uipath server exited with code {process.returncode} before "
+                f"serving IPC\n\n{output}"
+            )
         try:
             asyncio.run(_with_proxy(pipe_name, lambda p: p.Register()))
             return
@@ -120,6 +132,85 @@ def main(input: Input) -> str:
 
 
 JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+
+
+class TestIpcServerProcess:
+    """The real ``uipath server --ipc-pipe`` command serves IPC and nothing else."""
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows GitHub runners fail before server startup while loading asyncio.",
+    )
+    def test_ipc_pipe_process_serves_ipc_only_and_runs_job(self, temp_dir):
+        script_file = "entrypoint.py"
+        with open(os.path.join(temp_dir, script_file), "w") as f:
+            f.write(SIMPLE_SCRIPT)
+        with open(os.path.join(temp_dir, "uipath.json"), "w") as f:
+            json.dump(create_uipath_json(script_file), f)
+        input_file = os.path.join(temp_dir, "input.json")
+        with open(input_file, "w") as f:
+            json.dump({"message": "Hello", "repeat": 2}, f)
+        output_file = os.path.join(temp_dir, "output.json")
+
+        src_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "src")
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(
+            part for part in [src_path, env.get("PYTHONPATH")] if part
+        )
+        pipe_name = _unique_pipe()
+
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "from uipath._cli import cli; cli()",
+                "server",
+                "--ipc-pipe",
+                pipe_name,
+            ],
+            cwd=temp_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        try:
+            _wait_until_ready(pipe_name, timeout=20.0, process=process)
+
+            request = {
+                "jobKey": "process-job-123",
+                "command": "run",
+                "args": [
+                    "main",
+                    "--input-file",
+                    input_file,
+                    "--output-file",
+                    output_file,
+                ],
+                "workingDirectory": temp_dir,
+            }
+            result = asyncio.run(_with_proxy(pipe_name, lambda p: p.RunJob(request)))
+
+            assert result.exitCode == 0, result.error
+            assert process.poll() is None
+            with open(output_file, "r") as f:
+                assert "Hello" in f.read()
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+            output = process.stdout.read() if process.stdout else ""
+
+        assert f"IPC server listening on pipe '{pipe_name}'" in output
+        assert "Server listening on" not in output
+        assert "Sent ack" not in output
+        assert "Traceback" not in output
 
 
 class TestIpcServer:

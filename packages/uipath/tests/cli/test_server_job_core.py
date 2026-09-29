@@ -5,6 +5,7 @@ standing up a transport, so they run fast on every OS/Python.
 """
 
 import asyncio
+import json
 import logging
 import os
 from collections.abc import Iterator
@@ -473,3 +474,298 @@ async def test_scope_teardown_sees_the_job_env_when_cancelled(
     # Asserted the moment the job coroutine unwinds: the teardown must already be done,
     # and must have run while the job's env was still in place.
     assert observed == ["job-1"]
+
+
+# ---------------------------------------------------------------------------
+# Per-job reset of SDK state derived from the job's env, cwd or args
+# ---------------------------------------------------------------------------
+
+_ID_A = "00000000-0000-0000-0000-00000000000a"
+_ID_B = "00000000-0000-0000-0000-00000000000b"
+
+
+@pytest.fixture
+def clean_sdk_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    from uipath.platform.common._span_utils import _read_config_id
+    from uipath.telemetry._track import _AppInsightsEventClient
+
+    for var in (
+        "UIPATH_CONFIG_PATH",
+        "UIPATH_AGENT_ID",
+        "UIPATH_PROJECT_ID",
+        "PROJECT_KEY",
+        "TELEMETRY_CONNECTION_STRING",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(_AppInsightsEventClient, "_connection_string_provider", None)
+    _server_core._reset_job_derived_state()
+    try:
+        yield
+    finally:
+        _read_config_id.cache_clear()
+        _server_core._reset_job_derived_state()
+
+
+def _write_project(directory: Any, project_id: str, licensing: str) -> str:
+    directory.mkdir()
+    (directory / "uipath.json").write_text(
+        json.dumps(
+            {
+                "id": project_id,
+                "runtime": {"internalArguments": {"licensingContext": licensing}},
+            }
+        )
+    )
+    return str(directory)
+
+
+def _observe_sdk_state(seen: list[dict[str, Any]], concurrency: int | None) -> Mock:
+    from uipath.platform.chat import llm_throttle
+    from uipath.platform.common import UiPathConfig
+    from uipath.platform.common._span_utils import resolve_project_id
+
+    def _main(*_args: Any, **_kwargs: Any) -> None:
+        seen.append(
+            {
+                "project_id": resolve_project_id(),
+                "licensing": UiPathConfig.licensing_context,
+                "solution_id": UiPathConfig.studio_solution_id,
+                "concurrency": llm_throttle._llm_concurrency_limit,
+            }
+        )
+        UiPathConfig.studio_solution_id = f"solution-of-{resolve_project_id()}"
+        if concurrency is not None:
+            llm_throttle.set_llm_concurrency(concurrency)
+
+    cmd = Mock()
+    cmd.main.side_effect = _main
+    return cmd
+
+
+async def test_job_derived_sdk_state_does_not_leak_into_the_next_job(
+    restore_state: Any, clean_sdk_state: None, tmp_path: Any
+) -> None:
+    from uipath.platform.chat.llm_throttle import DEFAULT_LLM_CONCURRENCY
+
+    _init(restore_state)
+    dir_a = _write_project(tmp_path / "a", _ID_A, "ctx-a")
+    dir_b = _write_project(tmp_path / "b", _ID_B, "ctx-b")
+    seen: list[dict[str, Any]] = []
+
+    await _server_core._run_command_isolated(
+        _observe_sdk_state(seen, concurrency=3), [], {}, dir_a
+    )
+    await _server_core._run_command_isolated(
+        _observe_sdk_state(seen, concurrency=None), [], {}, dir_b
+    )
+
+    assert seen == [
+        {
+            "project_id": _ID_A,
+            "licensing": "ctx-a",
+            "solution_id": None,
+            "concurrency": DEFAULT_LLM_CONCURRENCY,
+        },
+        {
+            "project_id": _ID_B,
+            "licensing": "ctx-b",
+            "solution_id": None,
+            "concurrency": DEFAULT_LLM_CONCURRENCY,
+        },
+    ]
+
+
+async def test_spans_a_job_registered_are_released_after_it(
+    restore_state: Any, clean_sdk_state: None
+) -> None:
+    from opentelemetry.sdk.trace import TracerProvider
+
+    from uipath.core.tracing.span_utils import _span_registry
+
+    _init(restore_state)
+    span = TracerProvider().get_tracer(__name__).start_span("job-a-node")
+    span_id = span.get_span_context().span_id
+    cmd = Mock()
+    cmd.main.side_effect = lambda *_a, **_k: _span_registry.register_span(span)
+
+    await _server_core._run_command_isolated(cmd, [], {}, None)
+
+    assert _span_registry.get_span(span_id) is None
+
+
+@pytest.mark.parametrize("boom", [SystemExit(1), ValueError("kaboom")])
+async def test_job_derived_sdk_state_is_reset_when_the_job_raises(
+    restore_state: Any, clean_sdk_state: None, boom: BaseException
+) -> None:
+    from uipath.platform.common import UiPathConfig
+
+    _init(restore_state)
+    cmd = Mock()
+
+    def _main(*_args: Any, **_kwargs: Any) -> None:
+        UiPathConfig.studio_solution_id = "leaked"
+        raise boom
+
+    cmd.main.side_effect = _main
+    await _server_core._run_command_isolated(cmd, [], {}, None)
+
+    assert UiPathConfig.studio_solution_id is None
+
+
+async def test_telemetry_is_flushed_and_rebuilt_from_the_next_jobs_env(
+    restore_state: Any, clean_sdk_state: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from uipath.telemetry import _track
+
+    clients: dict[str, Mock] = {}
+
+    def _client(instrumentation_key: str, telemetry_channel: Any) -> Mock:
+        client = Mock()
+        clients[instrumentation_key] = client
+        return client
+
+    monkeypatch.setattr(_track, "_HAS_APPINSIGHTS", True)
+    monkeypatch.setattr(_track, "AppInsightsTelemetryClient", _client)
+    monkeypatch.setattr(_track, "_DiagnosticSender", Mock())
+    monkeypatch.setattr(_track, "SynchronousQueue", Mock())
+    monkeypatch.setattr(_track, "TelemetryChannel", Mock())
+
+    _init(restore_state)
+    cmd = Mock()
+    cmd.main.side_effect = lambda *_a, **_k: _track._AppInsightsEventClient.track_event(
+        "Job.Event"
+    )
+
+    await _server_core._run_command_isolated(
+        cmd, [], {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=key-a"}, None
+    )
+    clients["key-a"].flush.assert_called()
+    assert _track._AppInsightsEventClient._client is None
+
+    await _server_core._run_command_isolated(
+        cmd, [], {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=key-b"}, None
+    )
+    assert set(clients) == {"key-a", "key-b"}
+    clients["key-a"].track_event.assert_called_once()
+    clients["key-b"].track_event.assert_called_once()
+    clients["key-b"].flush.assert_called()
+
+
+async def test_a_warning_logged_by_the_reset_flush_does_not_pin_the_config_id(
+    restore_state: Any,
+    clean_sdk_state: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """A log handler that resolves the project id, like the OTel event handler, runs
+    during the post-job flush with the server's cwd; the next job must still read its
+    own ``uipath.json`` id."""
+    from uipath.platform.common._span_utils import resolve_project_id
+    from uipath.telemetry import _track
+
+    def _client(instrumentation_key: str, telemetry_channel: Any) -> Mock:
+        client = Mock()
+        client.flush.side_effect = ConnectionError("send failed")
+        return client
+
+    monkeypatch.setattr(_track, "_HAS_APPINSIGHTS", True)
+    monkeypatch.setattr(_track, "AppInsightsTelemetryClient", _client)
+    monkeypatch.setattr(_track, "_DiagnosticSender", Mock())
+    monkeypatch.setattr(_track, "SynchronousQueue", Mock())
+    monkeypatch.setattr(_track, "TelemetryChannel", Mock())
+
+    resolved_during_flush: list[str | None] = []
+
+    class _ResolvesProjectId(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            resolved_during_flush.append(resolve_project_id())
+
+    handler = _ResolvesProjectId(logging.WARNING)
+    _track._logger.addHandler(handler)
+    try:
+        server_cwd = tmp_path / "server"
+        server_cwd.mkdir()
+        monkeypatch.chdir(server_cwd)
+        _init(restore_state)
+        dir_a = _write_project(tmp_path / "a", _ID_A, "ctx-a")
+        dir_b = _write_project(tmp_path / "b", _ID_B, "ctx-b")
+        env = {"TELEMETRY_CONNECTION_STRING": "InstrumentationKey=key"}
+        seen: list[dict[str, Any]] = []
+
+        def _job_a(*_args: Any, **_kwargs: Any) -> None:
+            _track._AppInsightsEventClient.track_event("Job.Event")
+
+        job_a = Mock()
+        job_a.main.side_effect = _job_a
+        await _server_core._run_command_isolated(job_a, [], env, dir_a)
+        await _server_core._run_command_isolated(
+            _observe_sdk_state(seen, concurrency=None), [], env, dir_b
+        )
+    finally:
+        _track._logger.removeHandler(handler)
+
+    assert resolved_during_flush
+    assert seen[0]["project_id"] == _ID_B
+
+
+async def test_reset_is_idempotent_with_a_runtime_that_resets_on_dispose(
+    restore_state: Any, clean_sdk_state: None, capture_core_logs: Any
+) -> None:
+    from uipath.platform.chat.llm_throttle import reset_llm_concurrency
+    from uipath.platform.common import UiPathConfig
+    from uipath.telemetry import reset_event_client
+
+    _init(restore_state)
+    cmd = Mock()
+
+    def _dispose_like_lowcode(*_args: Any, **_kwargs: Any) -> str:
+        UiPathConfig.reset()
+        reset_llm_concurrency()
+        reset_event_client()
+        return "done"
+
+    cmd.main.side_effect = _dispose_like_lowcode
+    first = await _server_core._run_command_isolated(cmd, [], {}, None)
+    second = await _server_core._run_command_isolated(cmd, [], {}, None)
+
+    assert first["ExitCode"] == second["ExitCode"] == 0
+    assert first["Result"] == second["Result"] == "done"
+    assert "failed to reset" not in capture_core_logs.text
+
+
+async def test_reset_runs_off_the_event_loop_thread(
+    restore_state: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    _init(restore_state)
+    threads: list[int] = []
+    monkeypatch.setattr(
+        _server_core,
+        "_reset_job_derived_state",
+        lambda: threads.append(threading.get_ident()),
+    )
+
+    await _server_core._run_command_isolated(Mock(), [], {}, None)
+
+    assert len(threads) == 1
+    assert threads[0] != threading.get_ident()
+
+
+async def test_a_failing_reset_does_not_change_the_job_result(
+    restore_state: Any, monkeypatch: pytest.MonkeyPatch, capture_core_logs: Any
+) -> None:
+    _init(restore_state)
+
+    def _boom() -> None:
+        raise RuntimeError("reset exploded")
+
+    monkeypatch.setattr(_server_core, "_reset_job_derived_state", _boom)
+    cmd = Mock()
+    cmd.main.return_value = "ok"
+
+    result = await _server_core._run_command_isolated(cmd, [], {}, None)
+
+    assert result["ExitCode"] == 0
+    assert result["Result"] == "ok"
+    assert "failed to reset job-derived SDK state" in capture_core_logs.text

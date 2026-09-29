@@ -8,6 +8,12 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
+from uipath.core.tracing.span_utils import _span_registry
+from uipath.platform.chat.llm_throttle import reset_llm_concurrency
+from uipath.platform.common import UiPathConfig
+from uipath.platform.common._span_utils import _read_config_id
+from uipath.telemetry import reset_event_client
+
 from .cli_debug import debug
 from .cli_eval import eval
 from .cli_run import run
@@ -101,6 +107,26 @@ async def _job_scope() -> AsyncIterator[None]:
                 logger.warning("job scope provider failed to exit", exc_info=True)
 
 
+def _reset_job_derived_state() -> None:
+    """Drop SDK process state a job derived from its env, cwd or args.
+
+    A ``uipath run`` process discards this state when it exits. The server outlives
+    the job, so without this reset the next job would read the previous job's
+    ``uipath.json`` id and internal arguments, inherit an eval's LLM concurrency
+    limit, keep sending telemetry with the previous job's connection string,
+    while the previous job's events sit unsent until the server itself exits, and
+    keep every span the job registered, inputs and outputs included, for the
+    server's lifetime.
+    """
+    # First: the flush can log through handlers that read the config and project id
+    # with the server's cwd, which would refill the caches if they were already cleared.
+    reset_event_client()
+    UiPathConfig.reset()
+    _read_config_id.cache_clear()
+    reset_llm_concurrency()
+    _span_registry.clear()
+
+
 def parse_args(args: str | list[str] | None) -> list[str]:
     """Parse args into a list of strings."""
     if args is None:
@@ -190,3 +216,8 @@ async def _run_command_isolated(
                 pass
             os.environ.clear()
             os.environ.update(_state.baseline_env)
+            try:
+                # Off the loop: flushing telemetry is a blocking network send.
+                await asyncio.to_thread(_reset_job_derived_state)
+            except Exception:
+                logger.warning("failed to reset job-derived SDK state", exc_info=True)
