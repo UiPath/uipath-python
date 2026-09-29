@@ -128,6 +128,7 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     DEEP_RAG = "deep-rag"
     BATCH_TRANSFORM = "batch-transform"
     HTTP_REQUEST = "http-request"
+    GENERATE_FILE = "generate-file"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -1066,12 +1067,21 @@ class AgentInternalHttpRequestToolProperties(BaseResourceProperties):
     )
 
 
+class AgentInternalGenerateFileToolProperties(BaseResourceProperties):
+    """Agent internal generate file tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.GENERATE_FILE] = Field(
+        alias="toolType", default=AgentInternalToolType.GENERATE_FILE, frozen=True
+    )
+
+
 AgentInternalToolProperties = Annotated[
     Union[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
         AgentInternalHttpRequestToolProperties,
+        AgentInternalGenerateFileToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
