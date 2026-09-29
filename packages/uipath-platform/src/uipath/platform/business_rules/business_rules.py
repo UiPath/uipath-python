@@ -24,31 +24,16 @@ class RunMode(str, Enum):
     DEBUG = "Debug"
 
 
-class DeployedRunContext(BaseModel):
-    """A business rule deployed to Orchestrator."""
-
-    rule_name: str = Field(description="The name of the deployed business rule.")
-    version: Optional[str] = Field(
-        default=None,
-        description="The version to run; defaults to the active version.",
-    )
-
-
 class DebugRunContext(BaseModel):
-    """An undeployed DMN read from a Studio project.
+    """Run an undeployed DMN from a Studio project instead of the deployed rule.
 
-    Name the project with ``project_id``, or name the rule with ``rule_name`` and let
-    the service resolve the project from the job's lineage. The second way also needs
-    ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``organization_unit_id``. When
-    ``project_id`` is set, the project is used as given and neither is needed.
+    With ``project_id`` the project is read as given. Without it, the service
+    resolves the project from the running debug job's lineage, which needs
+    ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``organization_unit_id``.
     """
 
     project_id: Optional[str] = Field(
         default=None, description="The Studio project holding the DMN."
-    )
-    rule_name: Optional[str] = Field(
-        default=None,
-        description="The business rule this run stands in for; the alternative to project_id.",
     )
     file_name: Optional[str] = Field(
         default=None,
@@ -56,11 +41,11 @@ class DebugRunContext(BaseModel):
     )
     job_key: Optional[str] = Field(
         default=None,
-        description="The job this run belongs to; defaults to UIPATH_JOB_KEY.",
+        description="The debug job this run belongs to; defaults to UIPATH_JOB_KEY.",
     )
     organization_unit_id: Optional[int] = Field(
         default=None,
-        description="The numeric id of the job's folder; required with rule_name alone.",
+        description="The numeric id of the job's folder; required without project_id.",
     )
 
 
