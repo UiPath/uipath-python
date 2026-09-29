@@ -36,7 +36,8 @@ class DebugRunContext(BaseModel):
 
     Name the project with ``project_id``, or name the rule with ``rule_name`` and let
     the service resolve the project from the job's lineage. The second way also needs
-    ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``organization_unit_id``.
+    ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``organization_unit_id``. When
+    ``project_id`` is set, the project is used as given and neither is needed.
     """
 
     project_id: Optional[str] = Field(
@@ -54,9 +55,9 @@ class DebugRunContext(BaseModel):
         default=None,
         description="The job this run belongs to; defaults to UIPATH_JOB_KEY.",
     )
-    organization_unit_id: Optional[str] = Field(
+    organization_unit_id: Optional[int] = Field(
         default=None,
-        description="The numeric id of the job's folder; required with rule_name.",
+        description="The numeric id of the job's folder; required with rule_name alone.",
     )
 
 

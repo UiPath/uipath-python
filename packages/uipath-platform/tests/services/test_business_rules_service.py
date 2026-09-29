@@ -81,13 +81,10 @@ class TestRunContext:
             service.run({}, folder_key=FOLDER_KEY)
 
     def test_rejects_both_run_contexts(self, service: BusinessRulesService) -> None:
+        debug = DebugRunContext(project_id="proj-1")
+
         with pytest.raises(ValueError, match="both were"):
-            service.run(
-                {},
-                deployed=LOAN_PRICING,
-                debug=DebugRunContext(project_id="proj-1"),
-                folder_key=FOLDER_KEY,
-            )
+            service.run({}, deployed=LOAN_PRICING, debug=debug, folder_key=FOLDER_KEY)
 
     @pytest.mark.parametrize(
         "rule_name",
@@ -371,7 +368,7 @@ class TestDebug:
         service.run(
             {},
             debug=DebugRunContext(
-                rule_name="Loan Pricing", job_key=JOB_KEY, organization_unit_id="42"
+                rule_name="Loan Pricing", job_key=JOB_KEY, organization_unit_id=42
             ),
             folder_key=FOLDER_KEY,
         )
@@ -395,7 +392,7 @@ class TestDebug:
 
         service.run(
             {},
-            debug=DebugRunContext(rule_name="Loan Pricing", organization_unit_id="42"),
+            debug=DebugRunContext(rule_name="Loan Pricing", organization_unit_id=42),
         )
 
         request = httpx_mock.get_request()
@@ -403,8 +400,10 @@ class TestDebug:
         assert request.headers["x-uipath-jobkey"] == JOB_KEY
 
     def test_explain_requires_a_folder(self, service: BusinessRulesService) -> None:
+        debug = DebugRunContext(project_id="proj-1")
+
         with pytest.raises(ValueError, match="explain=True"):
-            service.run({}, debug=DebugRunContext(project_id="proj-1"), explain=True)
+            service.run({}, debug=debug, explain=True)
 
     def test_explain_sends_resolved_folder_key(
         self,
@@ -428,31 +427,77 @@ class TestDebug:
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
 
     def test_requires_project_or_rule_name(self, service: BusinessRulesService) -> None:
+        debug = DebugRunContext(file_name="loan.dmn")
+
         with pytest.raises(ValueError, match="project_id or debug.rule_name"):
-            service.run({}, debug=DebugRunContext(file_name="loan.dmn"))
+            service.run({}, debug=debug)
 
     def test_rule_name_requires_job_key(self, service: BusinessRulesService) -> None:
+        debug = DebugRunContext(rule_name="Loan Pricing", organization_unit_id=42)
+
         with pytest.raises(ValueError, match="job_key"):
-            service.run(
-                {},
-                debug=DebugRunContext(
-                    rule_name="Loan Pricing", organization_unit_id="42"
-                ),
-            )
+            service.run({}, debug=debug)
+
+    def test_accepts_organization_unit_id_as_numeric_string(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        debug = DebugRunContext.model_validate(
+            {
+                "rule_name": "Loan Pricing",
+                "job_key": JOB_KEY,
+                "organization_unit_id": "42",
+            }
+        )
+        assert debug.organization_unit_id == 42
+
+        service.run({}, debug=debug)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_project_id_with_rule_name_needs_no_job_or_folder_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        # The service uses a named project as given; the job lineage is never read.
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(
+            {},
+            debug=DebugRunContext(project_id="proj-1", rule_name="Loan Pricing"),
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["projectId"] == "proj-1"
+        assert body["businessRuleName"] == "Loan Pricing"
+        assert "x-uipath-jobkey" not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
 
     def test_rule_name_requires_organization_unit(
         self, service: BusinessRulesService
     ) -> None:
+        debug = DebugRunContext(rule_name="Loan Pricing", job_key=JOB_KEY)
+
         with pytest.raises(ValueError, match="organization_unit_id"):
-            service.run(
-                {}, debug=DebugRunContext(rule_name="Loan Pricing", job_key=JOB_KEY)
-            )
+            service.run({}, debug=debug)
 
     def test_rejects_unsafe_debug_rule_name(
         self, service: BusinessRulesService
     ) -> None:
+        debug = DebugRunContext(rule_name="a/b", job_key=JOB_KEY)
+
         with pytest.raises(ValueError, match="debug.rule_name"):
-            service.run({}, debug=DebugRunContext(rule_name="a/b", job_key=JOB_KEY))
+            service.run({}, debug=debug)
 
     async def test_run_async_debug(
         self,

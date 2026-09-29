@@ -263,17 +263,21 @@ class BusinessRulesService(FolderContext, BaseService):
     ) -> RequestSpec:
         job_key = debug.job_key or UiPathConfig.job_key
         named = _present(debug.rule_name)
-        if not _present(debug.project_id) and not _present(job_key):
-            raise ValueError(
-                "debug.job_key must be specified when the run is named by rule_name: "
-                "the service resolves the project from the job's lineage. "
-                "Set it or UIPATH_JOB_KEY."
-            )
-        if named and not _present(debug.organization_unit_id):
-            raise ValueError(
-                "debug.organization_unit_id must be specified when the run is named "
-                "by rule_name: it is the folder the job's lineage is read under"
-            )
+        # A named project is used as given. Only a run named by rule_name alone
+        # makes the service resolve the project from the job's lineage.
+        if named and not _present(debug.project_id):
+            if not _present(job_key):
+                raise ValueError(
+                    "debug.job_key must be specified when the run is named by "
+                    "rule_name without project_id: the service resolves the project "
+                    "from the job's lineage. Set it or UIPATH_JOB_KEY."
+                )
+            if debug.organization_unit_id is None:
+                raise ValueError(
+                    "debug.organization_unit_id must be specified when the run is "
+                    "named by rule_name without project_id: it is the folder the "
+                    "job's lineage is read under"
+                )
 
         body: Dict[str, Any] = {
             "explain": explain,
@@ -292,8 +296,8 @@ class BusinessRulesService(FolderContext, BaseService):
         headers: Dict[str, str] = {}
         if folder_key:
             headers[HEADER_FOLDER_KEY] = folder_key
-        if debug.organization_unit_id:
-            headers[_HEADER_ORGANIZATION_UNIT_ID] = debug.organization_unit_id
+        if debug.organization_unit_id is not None:
+            headers[_HEADER_ORGANIZATION_UNIT_ID] = str(debug.organization_unit_id)
         if job_key:
             headers[_HEADER_JOB_KEY] = job_key
         return RequestSpec(
