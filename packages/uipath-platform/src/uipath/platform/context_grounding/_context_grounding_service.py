@@ -1087,7 +1087,7 @@ class ContextGroundingService(FolderContext, BaseService):
             attachment (str): The attachment id to transform. Exactly one attachment is supported today.
             enable_web_search_grounding (bool): Whether to enable web search. Defaults to False.
             exclude_domains (list[str], optional): Domains to exclude from web search grounding.
-                Only applies when enable_web_search_grounding is True.
+                Requires enable_web_search_grounding=True; the server rejects the combination otherwise.
             folder_key (str, optional): The folder key context. Defaults to None.
             folder_path (str, optional): The folder path context. Defaults to None.
 
@@ -1142,7 +1142,7 @@ class ContextGroundingService(FolderContext, BaseService):
             attachment (str): The attachment id to transform. Exactly one attachment is supported today.
             enable_web_search_grounding (bool): Whether to enable web search. Defaults to False.
             exclude_domains (list[str], optional): Domains to exclude from web search grounding.
-                Only applies when enable_web_search_grounding is True.
+                Requires enable_web_search_grounding=True; the server rejects the combination otherwise.
             folder_key (str, optional): The folder key context. Defaults to None.
             folder_path (str, optional): The folder path context. Defaults to None.
 
