@@ -28,6 +28,10 @@ _request_once_async = BaseService.request_async.retry_with(  # type: ignore[attr
     stop=stop_after_attempt(1)
 )
 
+# CEP gives an invoke up to 120s, and a Code operation runs as a job inside that
+# budget. The client default (30s) would give up on a write that later succeeds.
+_INVOKE_TIMEOUT = 150.0
+
 
 class EntityOperationService(BaseService):
     """HTTP service for invoking the operations an entity declares.
@@ -66,7 +70,12 @@ class EntityOperationService(BaseService):
         )
         try:
             response = _request_once(
-                self, spec.method, spec.endpoint, headers=spec.headers, json=spec.json
+                self,
+                spec.method,
+                spec.endpoint,
+                headers=spec.headers,
+                json=spec.json,
+                timeout=_INVOKE_TIMEOUT,
             )
         except EnrichedException as exc:
             refused = self._refused_result(exc)
@@ -92,7 +101,12 @@ class EntityOperationService(BaseService):
         )
         try:
             response = await _request_once_async(
-                self, spec.method, spec.endpoint, headers=spec.headers, json=spec.json
+                self,
+                spec.method,
+                spec.endpoint,
+                headers=spec.headers,
+                json=spec.json,
+                timeout=_INVOKE_TIMEOUT,
             )
         except EnrichedException as exc:
             refused = self._refused_result(exc)
@@ -105,9 +119,16 @@ class EntityOperationService(BaseService):
     def _route(
         entity_name: str, routing: Optional[QueryRoutingOverrideContext]
     ) -> Tuple[str, Optional[str]]:
-        """Return the entity's routed name and folder, or its name and no folder."""
+        """Return the entity's routed name and folder, or its name and no folder.
+
+        Matches the configured name or the overwrite's name, since callers often
+        hold the fetched entity, which carries the overwrite's. Data Fabric names
+        are case-insensitive, so the match is too.
+        """
+        wanted = entity_name.casefold()
         for entry in routing.entity_routings if routing else []:
-            if entry.entity_name == entity_name:
+            names = (entry.entity_name, entry.override_entity_name)
+            if wanted in (name.casefold() for name in names if name):
                 return entry.override_entity_name or entity_name, entry.folder_id
         return entity_name, None
 

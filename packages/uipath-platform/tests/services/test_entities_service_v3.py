@@ -1011,8 +1011,32 @@ class TestEntityOperationsV3:
         assert exc_info.value.status_code == 503
         assert len(httpx_mock.get_requests()) == 1
 
-    def test_invoke_operation_uses_resolved_routing(
+    def test_invoke_operation_waits_past_the_invoke_budget(
         self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/operations/ApproveAll",
+            method="POST",
+            json={"outcome": "Wrote", "rowsAffected": 1},
+        )
+
+        service.invoke_operation("Invoices", "ApproveAll")
+
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert sent.extensions["timeout"]["read"] == 150.0
+
+    # The configured name, the overwrite's name as the fetched entity carries it,
+    # and a different case all route to the overwrite's folder.
+    @pytest.mark.parametrize("invoked_as", ["Invoices", "InvoicesV2", "invoicesv2"])
+    def test_invoke_operation_uses_resolved_routing(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url,
+        org,
+        tenant,
+        invoked_as: str,
     ) -> None:
         root = f"{base_url}{org}{tenant}/datafabric_/api/v3/entities"
         httpx_mock.add_response(
@@ -1034,7 +1058,7 @@ class TestEntityOperationsV3:
         finally:
             _resource_overwrites.reset(token)
 
-        result = resolution.entities_service.invoke_operation("Invoices", "ApproveAll")
+        result = resolution.entities_service.invoke_operation(invoked_as, "ApproveAll")
 
         assert result.outcome == "NoChange"
         invoke = httpx_mock.get_requests()[-1]

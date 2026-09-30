@@ -2736,7 +2736,8 @@ class EntitiesService(BaseService):
             folder_key: Key of the entity's folder; an empty or all-zero key
                 sends no folder header. When omitted, the folder and name
                 overwrite this service routes the entity to are used, as on
-                the service `resolve_entity_set_v3()` returns.
+                the service `resolve_entity_set_v3()` returns. The entity can
+                then be named by its configured name or its overwrite's.
 
         Returns:
             EntityOperationResult: The outcome, with the rows, result, edits,
@@ -2744,6 +2745,10 @@ class EntitiesService(BaseService):
 
         Raises:
             EnrichedException: For any other non-2xx response.
+            httpx.TimeoutException: When no response arrives within 150
+                seconds. The operation may still have run.
+            pydantic.ValidationError: When a 200 response is not an
+                operation result.
 
         Examples:
             Run an operation and check for a refusal:
