@@ -27,14 +27,14 @@ class RunMode(str, Enum):
 class DebugRunContext(BaseModel):
     """Run the undeployed rule from a Studio project instead of the deployed one.
 
-    Two exclusive modes, matching the service:
+    The service finds the project one of two ways:
 
-    - **By project:** set ``project_id`` (and optionally ``file_name``). The project
-      is read as given; ``job_key`` and ``organization_unit_id`` must not be set.
+    - **By project:** set ``project_id`` (and optionally ``file_name``). Nothing
+      else is required; the project is read as given.
     - **By job lineage:** leave ``project_id`` unset. The service finds the project
-      from the running debug job and checks the rule name against it, so
-      ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``organization_unit_id`` are
-      required.
+      from the running debug job and checks the rule name against it, so it needs
+      ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``run()``'s
+      ``organization_unit_id``, the job's numeric folder id.
     """
 
     project_id: Optional[str] = Field(
@@ -46,11 +46,7 @@ class DebugRunContext(BaseModel):
     )
     job_key: Optional[str] = Field(
         default=None,
-        description="Job-lineage mode: the running debug job; defaults to UIPATH_JOB_KEY.",
-    )
-    organization_unit_id: Optional[int] = Field(
-        default=None,
-        description="Job-lineage mode: the numeric id of the job's folder.",
+        description="The running debug job: required by job lineage (defaults to UIPATH_JOB_KEY), optional by project.",
     )
 
 

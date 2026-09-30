@@ -212,6 +212,133 @@ class TestFolder:
         assert request is not None
         assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
 
+    def test_organization_unit_id_alone_is_sent_as_given(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, organization_unit_id=3373422)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-organizationunitid"] == "3373422"
+        assert HEADER_FOLDER_KEY not in request.headers
+
+    def test_folder_key_and_organization_unit_id_are_both_sent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY, organization_unit_id=42)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_folder_path_and_organization_unit_id_are_both_sent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, folder_path="Finance", organization_unit_id=42)
+
+        folders_service.retrieve_folder_key.assert_called_once_with("Finance")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_env_folder_does_not_replace_an_explicit_organization_unit_id(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, organization_unit_id=42)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert HEADER_FOLDER_KEY not in request.headers
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_explain_needs_a_folder_key_not_only_an_organization_unit_id(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService
+    ) -> None:
+        with pytest.raises(ValueError, match="folder key is required for explain"):
+            service.run(RULE, {}, organization_unit_id=42, explain=True)
+
+        assert httpx_mock.get_requests() == []
+
+    def test_explain_with_organization_unit_id_takes_the_env_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, organization_unit_id=42, explain=True)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_explain_with_folder_path_sends_the_looked_up_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, folder_path="Finance", explain=True)
+
+        folders_service.retrieve_folder_key.assert_called_once_with("Finance")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert json.loads(request.content)["explain"] is True
+
+    async def test_organization_unit_id_alone_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        await service.run_async(RULE, {}, organization_unit_id=42)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+        assert HEADER_FOLDER_KEY not in request.headers
+
     def test_deployed_requires_a_folder(self, service: BusinessRulesService) -> None:
         with pytest.raises(ValueError, match="deployed business rule"):
             service.run(RULE, {})
@@ -775,7 +902,8 @@ class TestDebug:
         service.run(
             RULE,
             {},
-            debug=DebugRunContext(job_key=JOB_KEY, organization_unit_id=42),
+            debug=DebugRunContext(job_key=JOB_KEY),
+            organization_unit_id=42,
             folder_key=FOLDER_KEY,
         )
 
@@ -798,29 +926,11 @@ class TestDebug:
         monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
         httpx_mock.add_response(url=debug_url, json=_response([]))
 
-        service.run(RULE, {}, debug=DebugRunContext(organization_unit_id=42))
+        service.run(RULE, {}, debug=DebugRunContext(), organization_unit_id=42)
 
         request = httpx_mock.get_request()
         assert request is not None
         assert request.headers["x-uipath-jobkey"] == JOB_KEY
-
-    def test_accepts_organization_unit_id_as_numeric_string(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        debug_url: str,
-    ) -> None:
-        httpx_mock.add_response(url=debug_url, json=_response([]))
-        debug = DebugRunContext.model_validate(
-            {"job_key": JOB_KEY, "organization_unit_id": "42"}
-        )
-        assert debug.organization_unit_id == 42
-
-        service.run(RULE, {}, debug=debug)
-
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers["x-uipath-organizationunitid"] == "42"
 
     def test_project_mode_sends_no_job_headers_even_with_env_job_key(
         self,
@@ -842,24 +952,43 @@ class TestDebug:
         assert "x-uipath-jobkey" not in request.headers
         assert "x-uipath-organizationunitid" not in request.headers
 
-    @pytest.mark.parametrize(
-        ("fields", "message"),
-        [
-            ({"job_key": JOB_KEY}, "debug.job_key can't be combined"),
-            ({"organization_unit_id": 42}, "debug.organization_unit_id can't be"),
-            (
-                {"job_key": JOB_KEY, "organization_unit_id": 42},
-                "debug.job_key and debug.organization_unit_id can't be",
-            ),
-        ],
-    )
-    def test_project_mode_rejects_job_lineage_fields(
-        self, service: BusinessRulesService, fields: dict[str, Any], message: str
+    def test_project_mode_sends_optional_job_key_and_folder_id_as_given(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
     ) -> None:
-        debug = DebugRunContext(project_id="proj-1", **fields)
+        httpx_mock.add_response(url=debug_url, json=_response([]))
 
-        with pytest.raises(ValueError, match=message):
-            service.run(RULE, {}, debug=debug)
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(project_id="proj-1", job_key=JOB_KEY),
+            organization_unit_id=42,
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["projectId"] == "proj-1"
+        assert "businessRuleName" not in body
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_project_mode_needs_no_folder(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(RULE, {}, debug=DebugRunContext(project_id="proj-1"))
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert HEADER_FOLDER_KEY not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
 
     def test_explain_requires_a_folder(self, service: BusinessRulesService) -> None:
         debug = DebugRunContext(project_id="proj-1")
@@ -890,10 +1019,8 @@ class TestDebug:
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
 
     def test_job_lineage_requires_job_key(self, service: BusinessRulesService) -> None:
-        debug = DebugRunContext(organization_unit_id=42)
-
         with pytest.raises(ValueError, match="job_key"):
-            service.run(RULE, {}, debug=debug)
+            service.run(RULE, {}, debug=DebugRunContext(), organization_unit_id=42)
 
     def test_job_lineage_requires_organization_unit(
         self, service: BusinessRulesService
@@ -903,11 +1030,35 @@ class TestDebug:
         with pytest.raises(ValueError, match="organization_unit_id"):
             service.run(RULE, {}, debug=debug)
 
-    def test_rejects_version_with_debug(self, service: BusinessRulesService) -> None:
-        debug = DebugRunContext(project_id="proj-1")
+    def test_sends_version_with_debug_when_given(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
 
-        with pytest.raises(ValueError, match="version applies to deployed rules"):
-            service.run(RULE, {}, version="1.0.0", debug=debug)
+        service.run(
+            RULE, {}, version="1.0.0", debug=DebugRunContext(project_id="proj-1")
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["version"] == "1.0.0"
+
+    def test_explain_needs_a_folder_key_in_job_lineage_mode(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService
+    ) -> None:
+        with pytest.raises(ValueError, match="folder key is required for explain"):
+            service.run(
+                RULE,
+                {},
+                debug=DebugRunContext(job_key=JOB_KEY),
+                organization_unit_id=42,
+                explain=True,
+            )
+
+        assert httpx_mock.get_requests() == []
 
     def test_rejects_unsafe_rule_name(self, service: BusinessRulesService) -> None:
         debug = DebugRunContext(project_id="proj-1")
@@ -927,7 +1078,8 @@ class TestDebug:
         service.run(
             RULE,
             {},
-            debug=DebugRunContext(job_key=JOB_KEY, organization_unit_id=42),
+            debug=DebugRunContext(job_key=JOB_KEY),
+            organization_unit_id=42,
         )
 
         request = httpx_mock.get_request()
