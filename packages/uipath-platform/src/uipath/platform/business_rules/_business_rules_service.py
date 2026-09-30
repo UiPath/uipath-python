@@ -35,6 +35,8 @@ _DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/eval
 _HEADER_ORGANIZATION_UNIT_ID = "x-uipath-organizationunitid"
 _HEADER_JOB_KEY = "x-uipath-jobkey"
 
+_HEADER_ORGANIZATION_UNIT_ID = "x-uipath-organizationunitid"
+
 # The service's contract is a batch; this SDK submits exactly one input under this id.
 _SINGLE_INPUT_ID = "input-1"
 _MAX_INPUT_KEYS = 256
@@ -71,6 +73,7 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        organization_unit_id: Optional[int] = None,
         trace_context: Optional[TraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Run a business rule against one input.
@@ -79,23 +82,30 @@ class BusinessRulesService(FolderContext, BaseService):
             name: The name of the business rule.
             input: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
-            version: The deployed rule version to run; defaults to the active
-                version. Not used with ``debug``.
+            version: The rule version to run; defaults to the active version.
+                Sent with debug runs too when given.
             debug: Run the undeployed rule from a Studio project instead of the
                 deployed rule.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
             folder_key: The key of the folder to run in.
-            folder_path: The path of the folder to run in. Resolved to a key, since
-                the service accepts folder keys only.
+            folder_path: The path of the folder to run in. Looked up and sent as
+                its key.
+            organization_unit_id: The numeric id of the folder to run in, sent as
+                given. The service prefers the folder key when both are sent.
             trace_context: The trace to file the run's spans under. Defaults to
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
-        A folder is required for a deployed rule and whenever ``explain`` is set.
-        When neither ``folder_key`` nor ``folder_path`` is given, it falls back to
-        ``UIPATH_FOLDER_KEY`` and then ``UIPATH_FOLDER_PATH``. A ``businessRule``
-        binding can remap ``name`` and the folder per environment; its folder then
-        replaces ``folder_key`` or ``folder_path``.
+        The folder can be given as ``folder_key`` (sent as is), ``folder_path``
+        (looked up and sent as its key) or ``organization_unit_id`` (sent as is);
+        ``folder_key`` and ``folder_path`` are exclusive. A deployed rule needs one
+        of them; a debug run by project needs none; a debug run by job lineage
+        needs ``organization_unit_id``. ``explain=True`` always needs a folder key.
+        When the caller gives no folder at all, it falls back to
+        ``UIPATH_FOLDER_KEY`` and then ``UIPATH_FOLDER_PATH``; an explicit folder is
+        never replaced by the environment's. A ``businessRule`` binding can remap
+        ``name`` and the folder per environment; its folder then replaces
+        ``folder_key`` or ``folder_path``.
 
         Returns:
             BusinessRuleRunResult: The decisions produced for the input, and the
@@ -132,12 +142,21 @@ class BusinessRulesService(FolderContext, BaseService):
         name, folder_key, folder_path = self._apply_binding(
             name, folder_key, folder_path
         )
-        _validate_run(name, input, version, debug)
-        key, path = self._folder_source(folder_key, folder_path)
+        _validate_run(name, input)
+        key, path = self._folder_source(
+            folder_key, folder_path, use_env=organization_unit_id is None or explain
+        )
         if path:
             key = self._folders_service.retrieve_folder_key(path)
         mode, spec = self._run_spec(
-            name, input, version, debug, decision_names, explain, key
+            name,
+            input,
+            version,
+            debug,
+            decision_names,
+            explain,
+            key,
+            organization_unit_id,
         )
         response = self.request(
             spec.method,
@@ -160,6 +179,7 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        organization_unit_id: Optional[int] = None,
         trace_context: Optional[TraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Asynchronously run a business rule against one input.
@@ -168,15 +188,17 @@ class BusinessRulesService(FolderContext, BaseService):
             name: The name of the business rule.
             input: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
-            version: The deployed rule version to run; defaults to the active
-                version. Not used with ``debug``.
+            version: The rule version to run; defaults to the active version.
+                Sent with debug runs too when given.
             debug: Run the undeployed rule from a Studio project instead of the
                 deployed rule.
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
             folder_key: The key of the folder to run in.
-            folder_path: The path of the folder to run in. Resolved to a key, since
-                the service accepts folder keys only.
+            folder_path: The path of the folder to run in. Looked up and sent as
+                its key.
+            organization_unit_id: The numeric id of the folder to run in, sent as
+                given. The service prefers the folder key when both are sent.
             trace_context: The trace to file the run's spans under. Defaults to
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
@@ -191,12 +213,21 @@ class BusinessRulesService(FolderContext, BaseService):
         name, folder_key, folder_path = self._apply_binding(
             name, folder_key, folder_path
         )
-        _validate_run(name, input, version, debug)
-        key, path = self._folder_source(folder_key, folder_path)
+        _validate_run(name, input)
+        key, path = self._folder_source(
+            folder_key, folder_path, use_env=organization_unit_id is None or explain
+        )
         if path:
             key = await self._folders_service.retrieve_folder_key_async(path)
         mode, spec = self._run_spec(
-            name, input, version, debug, decision_names, explain, key
+            name,
+            input,
+            version,
+            debug,
+            decision_names,
+            explain,
+            key,
+            organization_unit_id,
         )
         response = await self.request_async(
             spec.method,
@@ -230,15 +261,21 @@ class BusinessRulesService(FolderContext, BaseService):
         return bound_name, folder_key, bound_path
 
     def _folder_source(
-        self, folder_key: Optional[str], folder_path: Optional[str]
+        self, folder_key: Optional[str], folder_path: Optional[str], use_env: bool
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Pick the folder to run in, as a (key, path-still-to-resolve) pair."""
+        """Pick the folder key to send, as a (key, path-still-to-resolve) pair.
+
+        ``use_env`` is false when the caller named the folder another way (by its
+        numeric id), so the environment's folder can't silently replace it.
+        """
         if folder_key and folder_path:
             raise ValueError("Only one of folder_key or folder_path can be provided")
         if folder_key:
             return folder_key, None
         if folder_path:
             return None, folder_path
+        if not use_env:
+            return None, None
         if self._folder_key:
             return self._folder_key, None
         return None, self._folder_path or None
@@ -252,17 +289,31 @@ class BusinessRulesService(FolderContext, BaseService):
         decision_names: Optional[List[str]],
         explain: bool,
         folder_key: Optional[str],
+        organization_unit_id: Optional[int],
     ) -> Tuple[RunMode, RequestSpec]:
+        if explain and not folder_key:
+            raise _missing_folder_key()
         if debug is not None:
-            if explain and not folder_key:
-                raise _missing_folder("explain=True")
             return RunMode.DEBUG, self._debug_spec(
-                name, input, debug, decision_names, explain, folder_key
+                name,
+                input,
+                version,
+                debug,
+                decision_names,
+                explain,
+                folder_key,
+                organization_unit_id,
             )
-        if not folder_key:
+        if not folder_key and organization_unit_id is None:
             raise _missing_folder("a deployed business rule")
         return RunMode.DEPLOYED, self._evaluate_spec(
-            name, input, version, decision_names, explain, folder_key
+            name,
+            input,
+            version,
+            decision_names,
+            explain,
+            folder_key,
+            organization_unit_id,
         )
 
     def _evaluate_spec(
@@ -272,7 +323,8 @@ class BusinessRulesService(FolderContext, BaseService):
         version: Optional[str],
         decision_names: Optional[List[str]],
         explain: bool,
-        folder_key: str,
+        folder_key: Optional[str],
+        organization_unit_id: Optional[int],
     ) -> RequestSpec:
         body: Dict[str, Any] = {
             "businessRuleName": name,
@@ -287,28 +339,33 @@ class BusinessRulesService(FolderContext, BaseService):
             method="POST",
             endpoint=_EVALUATE_ENDPOINT,
             json=body,
-            headers={HEADER_FOLDER_KEY: folder_key},
+            headers=_folder_headers(folder_key, organization_unit_id),
         )
 
     def _debug_spec(
         self,
         name: str,
         input: Dict[str, Any],
+        version: Optional[str],
         debug: DebugRunContext,
         decision_names: Optional[List[str]],
         explain: bool,
         folder_key: Optional[str],
+        organization_unit_id: Optional[int],
     ) -> RequestSpec:
         # The service finds the project one of two ways, documented as
         # alternatives: by projectId, read as given, or by businessRuleName from
-        # the running debug job's lineage. Each request carries one mode only.
+        # the running debug job's lineage. Each request names the project one way
+        # only; optional values the caller passes are sent as given.
         if _present(debug.project_id):
-            body, headers = _project_mode(debug)
+            body, headers = _project_mode(debug, organization_unit_id)
         else:
-            body, headers = _job_lineage_mode(name, debug)
+            body, headers = _job_lineage_mode(name, debug, organization_unit_id)
 
         body["explain"] = explain
         body["inputs"] = [{"id": _SINGLE_INPUT_ID, "data": input}]
+        if version:
+            body["version"] = version
         if debug.file_name:
             body["fileName"] = debug.file_name
         if decision_names:
@@ -324,26 +381,22 @@ class BusinessRulesService(FolderContext, BaseService):
         )
 
 
-def _project_mode(debug: DebugRunContext) -> Tuple[Dict[str, Any], Dict[str, str]]:
-    mixed = [
-        field
-        for field, value in (
-            ("job_key", debug.job_key),
-            ("organization_unit_id", debug.organization_unit_id),
-        )
-        if value is not None
-    ]
-    if mixed:
-        raise ValueError(
-            f"debug.{' and debug.'.join(mixed)} can't be combined with "
-            "debug.project_id: a project is read as given, and the job's lineage "
-            "is only used without one"
-        )
-    return {"projectId": debug.project_id}, {}
+def _project_mode(
+    debug: DebugRunContext, organization_unit_id: Optional[int]
+) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    # Nothing beyond the project is required. A job key or folder id the caller
+    # passes anyway is sent as given; UIPATH_JOB_KEY is not added on its own.
+    headers: Dict[str, str] = {}
+    job_key = debug.job_key
+    if job_key and job_key.strip():
+        headers[_HEADER_JOB_KEY] = job_key
+    if organization_unit_id is not None:
+        headers[_HEADER_ORGANIZATION_UNIT_ID] = str(organization_unit_id)
+    return {"projectId": debug.project_id}, headers
 
 
 def _job_lineage_mode(
-    name: str, debug: DebugRunContext
+    name: str, debug: DebugRunContext, organization_unit_id: Optional[int]
 ) -> Tuple[Dict[str, Any], Dict[str, str]]:
     job_key = debug.job_key or UiPathConfig.job_key
     if not job_key or not job_key.strip():
@@ -352,14 +405,14 @@ def _job_lineage_mode(
             "the service resolves the project from the job's lineage. "
             "Set it or UIPATH_JOB_KEY."
         )
-    if debug.organization_unit_id is None:
+    if organization_unit_id is None:
         raise ValueError(
-            "debug.organization_unit_id must be specified when debug.project_id "
-            "is not: it is the folder the job's lineage is read under"
+            "organization_unit_id must be specified when debug.project_id is not: "
+            "it is the folder the job's lineage is read under"
         )
     headers = {
         _HEADER_JOB_KEY: job_key,
-        _HEADER_ORGANIZATION_UNIT_ID: str(debug.organization_unit_id),
+        _HEADER_ORGANIZATION_UNIT_ID: str(organization_unit_id),
     }
     return {"businessRuleName": name}, headers
 
@@ -392,25 +445,33 @@ def _present(value: Optional[str]) -> bool:
     return bool(value and value.strip())
 
 
+def _folder_headers(
+    folder_key: Optional[str], organization_unit_id: Optional[int]
+) -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    if folder_key:
+        headers[HEADER_FOLDER_KEY] = folder_key
+    if organization_unit_id is not None:
+        headers[_HEADER_ORGANIZATION_UNIT_ID] = str(organization_unit_id)
+    return headers
+
+
 def _missing_folder(needed_for: str) -> ValueError:
     return ValueError(
-        f"A folder is required for {needed_for}: pass folder_key or folder_path, "
-        "or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
+        f"A folder is required for {needed_for}: pass folder_key, folder_path or "
+        "organization_unit_id, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
     )
 
 
-def _validate_run(
-    name: str,
-    input: Dict[str, Any],
-    version: Optional[str],
-    debug: Optional[DebugRunContext],
-) -> None:
+def _missing_folder_key() -> ValueError:
+    return ValueError(
+        "A folder key is required for explain=True: pass folder_key or "
+        "folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
+    )
+
+
+def _validate_run(name: str, input: Dict[str, Any]) -> None:
     _validate_rule_name(name, "name")
-    if debug is not None and version:
-        raise ValueError(
-            "version applies to deployed rules only; a debug run reads the "
-            "project as it is"
-        )
     _validate_input(input)
 
 
