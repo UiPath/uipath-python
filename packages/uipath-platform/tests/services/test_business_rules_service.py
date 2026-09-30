@@ -12,6 +12,7 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.business_rules import (
     BusinessRulesService,
     BusinessRuleStatus,
+    DebugRunContext,
     RunMode,
     TraceContext,
 )
@@ -26,6 +27,7 @@ from uipath.platform.errors import EnrichedException
 FOLDER_KEY = "5f1f1b0e-2b8a-4c1e-9b8e-1a2b3c4d5e6f"
 TRACEPARENT = "x-uipath-traceparent-id"
 RULE = "Loan Pricing"
+JOB_KEY = "9d8c7b6a-5f4e-3d2c-1b0a-9f8e7d6c5b4a"
 
 
 @pytest.fixture
@@ -45,6 +47,7 @@ def service(
 ) -> BusinessRulesService:
     monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
     monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
+    monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
     return BusinessRulesService(
         config=config,
         execution_context=execution_context,
@@ -55,6 +58,11 @@ def service(
 @pytest.fixture
 def evaluate_url(base_url: str, org: str, tenant: str) -> str:
     return f"{base_url}{org}{tenant}/businessrules_/v1/business-rules/evaluate"
+
+
+@pytest.fixture
+def debug_url(base_url: str, org: str, tenant: str) -> str:
+    return f"{base_url}{org}{tenant}/businessrules_/v1/business-rules/debug/evaluate"
 
 
 def _response(results: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
@@ -838,3 +846,284 @@ class TestResourceOverride:
         request = httpx_mock.get_request()
         assert request is not None
         assert json.loads(request.content)["businessRuleName"] == "Risk Tier"
+
+
+class TestDebug:
+    def test_by_project_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=debug_url,
+            method="POST",
+            json=_response(
+                _one_decision(x=1),
+                projectId="proj-1",
+                fileName="Rules/Loan.dmn",
+                traceId="abc123",
+            ),
+        )
+
+        result = service.run(
+            RULE,
+            {"a": 1},
+            debug=DebugRunContext(project_id="proj-1", file_name="loan.dmn"),
+        )
+
+        assert result.mode == RunMode.DEBUG
+        assert result.status == BusinessRuleStatus.SUCCESS
+        assert result.project_id == "proj-1"
+        assert result.file_name == "Rules/Loan.dmn"
+        assert result.business_rule_name is None
+        assert result.version is None
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content) == {
+            "projectId": "proj-1",
+            "fileName": "loan.dmn",
+            "explain": False,
+            "inputs": [{"id": "input-1", "data": {"a": 1}}],
+        }
+        assert "x-uipath-jobkey" not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
+        assert HEADER_FOLDER_KEY not in request.headers
+
+    def test_by_job_lineage_sends_job_and_folder_headers(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(job_key=JOB_KEY),
+            organization_unit_id=42,
+            folder_key=FOLDER_KEY,
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["businessRuleName"] == RULE
+        assert "projectId" not in body
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+    def test_job_key_defaults_from_env(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(RULE, {}, debug=DebugRunContext(), organization_unit_id=42)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
+
+    def test_project_mode_sends_no_job_headers_even_with_env_job_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(RULE, {}, debug=DebugRunContext(project_id="proj-1"))
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["projectId"] == "proj-1"
+        assert "businessRuleName" not in body
+        assert "x-uipath-jobkey" not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
+
+    def test_project_mode_sends_optional_job_key_and_folder_id_as_given(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(project_id="proj-1", job_key=JOB_KEY),
+            organization_unit_id=42,
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["projectId"] == "proj-1"
+        assert "businessRuleName" not in body
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
+        assert request.headers["x-uipath-organizationunitid"] == "42"
+
+    def test_project_mode_needs_no_folder(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(RULE, {}, debug=DebugRunContext(project_id="proj-1"))
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert HEADER_FOLDER_KEY not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
+
+    def test_explain_requires_a_folder(self, service: BusinessRulesService) -> None:
+        debug = DebugRunContext(project_id="proj-1")
+
+        with pytest.raises(ValueError, match="explain=True"):
+            service.run(RULE, {}, debug=debug, explain=True)
+
+    def test_explain_sends_resolved_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(project_id="proj-1"),
+            explain=True,
+            folder_path="Finance",
+        )
+
+        folders_service.retrieve_folder_key.assert_called_once_with("Finance")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+    def test_job_lineage_requires_job_key(self, service: BusinessRulesService) -> None:
+        with pytest.raises(ValueError, match="job_key"):
+            service.run(RULE, {}, debug=DebugRunContext(), organization_unit_id=42)
+
+    def test_job_lineage_requires_organization_unit(
+        self, service: BusinessRulesService
+    ) -> None:
+        debug = DebugRunContext(job_key=JOB_KEY)
+
+        with pytest.raises(ValueError, match="organization_unit_id"):
+            service.run(RULE, {}, debug=debug)
+
+    def test_sends_version_with_debug_when_given(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(
+            RULE, {}, version="1.0.0", debug=DebugRunContext(project_id="proj-1")
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["version"] == "1.0.0"
+
+    def test_explain_needs_a_folder_key_in_job_lineage_mode(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService
+    ) -> None:
+        with pytest.raises(ValueError, match="folder key is required for explain"):
+            service.run(
+                RULE,
+                {},
+                debug=DebugRunContext(job_key=JOB_KEY),
+                organization_unit_id=42,
+                explain=True,
+            )
+
+        assert httpx_mock.get_requests() == []
+
+    def test_rejects_unsafe_rule_name(self, service: BusinessRulesService) -> None:
+        debug = DebugRunContext(project_id="proj-1")
+
+        with pytest.raises(ValueError, match="name"):
+            service.run("a/b", {}, debug=debug)
+
+    def test_override_applies_to_debug_runs(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        rule_override: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(job_key=JOB_KEY),
+            organization_unit_id=42,
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["businessRuleName"] == "Loan Pricing EU"
+
+    def test_explicit_trace_context_on_debug_run(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        ambient_span: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+        explicit = TraceContext(
+            trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
+        )
+
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(project_id="proj-1"),
+            trace_context=explicit,
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert (
+            request.headers[TRACEPARENT]
+            == f"00-{EXPLICIT_TRACE_ID}-{EXPLICIT_SPAN_ID}-01"
+        )
+
+    async def test_run_async_debug(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response([], projectId="proj-1"))
+
+        result = await service.run_async(
+            RULE, {}, debug=DebugRunContext(project_id="proj-1")
+        )
+
+        assert result.mode == RunMode.DEBUG
+        assert result.project_id == "proj-1"
+        assert result.status == BusinessRuleStatus.ALL_FAILED

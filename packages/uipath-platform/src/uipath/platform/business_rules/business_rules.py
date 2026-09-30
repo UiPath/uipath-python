@@ -21,6 +21,33 @@ class RunMode(str, Enum):
     """Which kind of model ran, and so which service endpoint served the run."""
 
     DEPLOYED = "Deployed"
+    DEBUG = "Debug"
+
+
+class DebugRunContext(BaseModel):
+    """Run the undeployed rule from a Studio project instead of the deployed one.
+
+    The service finds the project one of two ways:
+
+    - **By project:** set ``project_id`` (and optionally ``file_name``). Nothing
+      else is required; the project is read as given.
+    - **By job lineage:** leave ``project_id`` unset. The service finds the project
+      from the running debug job and checks the rule name against it, so it needs
+      ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``run()``'s
+      ``organization_unit_id``, the job's numeric folder id.
+    """
+
+    project_id: Optional[str] = Field(
+        default=None, description="Project mode: the Studio project holding the rule."
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="The rule file in the project; defaults to the first one.",
+    )
+    job_key: Optional[str] = Field(
+        default=None,
+        description="The running debug job: required by job lineage (defaults to UIPATH_JOB_KEY), optional by project.",
+    )
 
 
 class TraceContext(BaseModel):
@@ -110,10 +137,17 @@ class BusinessRuleRunResult(BaseModel):
         description="The request-level error code (e.g. BATCH_TIMEOUT), if one was reported.",
     )
     business_rule_name: Optional[str] = Field(
-        default=None, description="The deployed rule that ran."
+        default=None, description="The deployed rule that ran. Deployed mode only."
     )
     version: Optional[str] = Field(
-        default=None, description="The rule version that ran."
+        default=None, description="The rule version that ran. Deployed mode only."
+    )
+    project_id: Optional[str] = Field(
+        default=None, description="The Studio project read. Debug mode only."
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="The rule file actually read, which may differ from the one asked for. Debug mode only.",
     )
 
 
@@ -132,5 +166,7 @@ class _WireResponse(BaseModel):
 
     business_rule_name: Optional[str] = Field(default=None, alias="businessRuleName")
     version: Optional[str] = None
+    project_id: Optional[str] = Field(default=None, alias="projectId")
+    file_name: Optional[str] = Field(default=None, alias="fileName")
     error: Optional[BusinessRuleError] = None
     results: Optional[List[_WireResult]] = None
