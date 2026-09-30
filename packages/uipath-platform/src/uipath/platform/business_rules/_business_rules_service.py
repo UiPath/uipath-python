@@ -29,6 +29,8 @@ from .business_rules import (
 
 _EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/evaluate")
 
+_HEADER_ORGANIZATION_UNIT_ID = "x-uipath-organizationunitid"
+
 # The service's contract is a batch; this SDK submits exactly one input under this id.
 _SINGLE_INPUT_ID = "input-1"
 _MAX_INPUT_KEYS = 256
@@ -63,6 +65,7 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        organization_unit_id: Optional[int] = None,
         trace_context: Optional[TraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Run a business rule against one input.
@@ -75,16 +78,21 @@ class BusinessRulesService(FolderContext, BaseService):
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
             folder_key: The key of the folder to run in.
-            folder_path: The path of the folder to run in. Resolved to a key, since
-                the service accepts folder keys only.
+            folder_path: The path of the folder to run in. Looked up and sent as
+                its key.
+            organization_unit_id: The numeric id of the folder to run in, sent as
+                given. The service prefers the folder key when both are sent.
             trace_context: The trace to file the run's spans under. Defaults to
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
-        A folder is required. When neither ``folder_key`` nor ``folder_path`` is
-        given, it falls back to ``UIPATH_FOLDER_KEY`` and then
-        ``UIPATH_FOLDER_PATH``. A ``businessRule`` binding can remap ``name`` and the
-        folder per environment; its folder then replaces ``folder_key`` or
-        ``folder_path``.
+        A folder is required: ``folder_key``, ``folder_path`` or
+        ``organization_unit_id``, with ``explain=True`` needing a folder key (from
+        ``folder_key`` or ``folder_path``). ``folder_key`` and ``folder_path`` are
+        exclusive. When the caller gives no folder at all, it falls back to
+        ``UIPATH_FOLDER_KEY`` and then ``UIPATH_FOLDER_PATH``; an explicit folder is
+        never replaced by the environment's. A ``businessRule`` binding can remap
+        ``name`` and the folder per environment; its folder then replaces
+        ``folder_key`` or ``folder_path``.
 
         Returns:
             BusinessRuleRunResult: The decisions produced for the input, and the
@@ -113,10 +121,14 @@ class BusinessRulesService(FolderContext, BaseService):
             name, folder_key, folder_path
         )
         _validate_run(name, input)
-        key, path = self._folder_source(folder_key, folder_path)
+        key, path = self._folder_source(
+            folder_key, folder_path, use_env=organization_unit_id is None or explain
+        )
         if path:
             key = self._folders_service.retrieve_folder_key(path)
-        mode, spec = self._run_spec(name, input, version, decision_names, explain, key)
+        mode, spec = self._run_spec(
+            name, input, version, decision_names, explain, key, organization_unit_id
+        )
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -137,6 +149,7 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool = False,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
+        organization_unit_id: Optional[int] = None,
         trace_context: Optional[TraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Asynchronously run a business rule against one input.
@@ -149,8 +162,10 @@ class BusinessRulesService(FolderContext, BaseService):
             decision_names: The decisions to evaluate; defaults to the whole model.
             explain: Whether to record condition-level explanations in the trace.
             folder_key: The key of the folder to run in.
-            folder_path: The path of the folder to run in. Resolved to a key, since
-                the service accepts folder keys only.
+            folder_path: The path of the folder to run in. Looked up and sent as
+                its key.
+            organization_unit_id: The numeric id of the folder to run in, sent as
+                given. The service prefers the folder key when both are sent.
             trace_context: The trace to file the run's spans under. Defaults to
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
@@ -166,10 +181,14 @@ class BusinessRulesService(FolderContext, BaseService):
             name, folder_key, folder_path
         )
         _validate_run(name, input)
-        key, path = self._folder_source(folder_key, folder_path)
+        key, path = self._folder_source(
+            folder_key, folder_path, use_env=organization_unit_id is None or explain
+        )
         if path:
             key = await self._folders_service.retrieve_folder_key_async(path)
-        mode, spec = self._run_spec(name, input, version, decision_names, explain, key)
+        mode, spec = self._run_spec(
+            name, input, version, decision_names, explain, key, organization_unit_id
+        )
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -202,15 +221,21 @@ class BusinessRulesService(FolderContext, BaseService):
         return bound_name, folder_key, bound_path
 
     def _folder_source(
-        self, folder_key: Optional[str], folder_path: Optional[str]
+        self, folder_key: Optional[str], folder_path: Optional[str], use_env: bool
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Pick the folder to run in, as a (key, path-still-to-resolve) pair."""
+        """Pick the folder key to send, as a (key, path-still-to-resolve) pair.
+
+        ``use_env`` is false when the caller named the folder another way (by its
+        numeric id), so the environment's folder can't silently replace it.
+        """
         if folder_key and folder_path:
             raise ValueError("Only one of folder_key or folder_path can be provided")
         if folder_key:
             return folder_key, None
         if folder_path:
             return None, folder_path
+        if not use_env:
+            return None, None
         if self._folder_key:
             return self._folder_key, None
         return None, self._folder_path or None
@@ -223,11 +248,20 @@ class BusinessRulesService(FolderContext, BaseService):
         decision_names: Optional[List[str]],
         explain: bool,
         folder_key: Optional[str],
+        organization_unit_id: Optional[int],
     ) -> Tuple[RunMode, RequestSpec]:
-        if not folder_key:
+        if explain and not folder_key:
+            raise _missing_folder_key()
+        if not folder_key and organization_unit_id is None:
             raise _missing_folder("a deployed business rule")
         return RunMode.DEPLOYED, self._evaluate_spec(
-            name, input, version, decision_names, explain, folder_key
+            name,
+            input,
+            version,
+            decision_names,
+            explain,
+            folder_key,
+            organization_unit_id,
         )
 
     def _evaluate_spec(
@@ -237,7 +271,8 @@ class BusinessRulesService(FolderContext, BaseService):
         version: Optional[str],
         decision_names: Optional[List[str]],
         explain: bool,
-        folder_key: str,
+        folder_key: Optional[str],
+        organization_unit_id: Optional[int],
     ) -> RequestSpec:
         body: Dict[str, Any] = {
             "businessRuleName": name,
@@ -252,7 +287,7 @@ class BusinessRulesService(FolderContext, BaseService):
             method="POST",
             endpoint=_EVALUATE_ENDPOINT,
             json=body,
-            headers={HEADER_FOLDER_KEY: folder_key},
+            headers=_folder_headers(folder_key, organization_unit_id),
         )
 
 
@@ -284,10 +319,28 @@ def _present(value: Optional[str]) -> bool:
     return bool(value and value.strip())
 
 
+def _folder_headers(
+    folder_key: Optional[str], organization_unit_id: Optional[int]
+) -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    if folder_key:
+        headers[HEADER_FOLDER_KEY] = folder_key
+    if organization_unit_id is not None:
+        headers[_HEADER_ORGANIZATION_UNIT_ID] = str(organization_unit_id)
+    return headers
+
+
 def _missing_folder(needed_for: str) -> ValueError:
     return ValueError(
-        f"A folder is required for {needed_for}: pass folder_key or folder_path, "
-        "or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
+        f"A folder is required for {needed_for}: pass folder_key, folder_path or "
+        "organization_unit_id, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
+    )
+
+
+def _missing_folder_key() -> ValueError:
+    return ValueError(
+        "A folder key is required for explain=True: pass folder_key or "
+        "folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
     )
 
 
