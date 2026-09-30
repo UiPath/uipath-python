@@ -3,6 +3,7 @@
 Runs business rules deployed to Orchestrator.
 """
 
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Tuple
 
 from uipath.core.tracing import traced
@@ -51,7 +52,6 @@ class BusinessRulesService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    @resource_override(resource_type="businessRule")
     @traced(name="business_rules_run", run_type="uipath")
     def run(
         self,
@@ -82,8 +82,9 @@ class BusinessRulesService(FolderContext, BaseService):
 
         A folder is required. When neither ``folder_key`` nor ``folder_path`` is
         given, it falls back to ``UIPATH_FOLDER_KEY`` and then
-        ``UIPATH_FOLDER_PATH``. ``name`` and ``folder_path`` can be overridden per
-        environment through the project's ``businessRule`` bindings.
+        ``UIPATH_FOLDER_PATH``. A ``businessRule`` binding can remap ``name`` and the
+        folder per environment; its folder then replaces ``folder_key`` or
+        ``folder_path``.
 
         Returns:
             BusinessRuleRunResult: The decisions produced for the input, and the
@@ -108,6 +109,9 @@ class BusinessRulesService(FolderContext, BaseService):
                 print(decision.decision_name, decision.outputs)
             ```
         """
+        name, folder_key, folder_path = self._apply_binding(
+            name, folder_key, folder_path
+        )
         _validate_run(name, input)
         key, path = self._folder_source(folder_key, folder_path)
         if path:
@@ -122,7 +126,6 @@ class BusinessRulesService(FolderContext, BaseService):
         )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
 
-    @resource_override(resource_type="businessRule")
     @traced(name="business_rules_run", run_type="uipath")
     async def run_async(
         self,
@@ -159,6 +162,9 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
+        name, folder_key, folder_path = self._apply_binding(
+            name, folder_key, folder_path
+        )
         _validate_run(name, input)
         key, path = self._folder_source(folder_key, folder_path)
         if path:
@@ -172,6 +178,28 @@ class BusinessRulesService(FolderContext, BaseService):
             scoped="tenant",
         )
         return _to_run_result(mode, _WireResponse.model_validate(response.json()))
+
+    @resource_override(resource_type="businessRule")
+    def _binding(
+        self, name: str, folder_path: Optional[str] = None
+    ) -> Tuple[str, Optional[str]]:
+        # resource_override swaps these two arguments when the solution's
+        # bindings remap this rule; the method just returns what it was given.
+        return name, folder_path
+
+    def _apply_binding(
+        self, name: str, folder_key: Optional[str], folder_path: Optional[str]
+    ) -> Tuple[str, Optional[str], Optional[str]]:
+        """Apply a businessRule binding, if one remaps this rule.
+
+        The binding names a folder by path. When it applies, that folder
+        replaces whichever folder the caller gave, including a folder_key, which
+        the override decorator alone would leave in place next to the new path.
+        """
+        bound_name, bound_path = self._binding(name, folder_path=folder_path)
+        if (bound_name, bound_path) != (name, folder_path) and bound_path:
+            folder_key = None
+        return bound_name, folder_key, bound_path
 
     def _folder_source(
         self, folder_key: Optional[str], folder_path: Optional[str]
@@ -283,6 +311,11 @@ def _validate_rule_name(rule_name: str, field: str) -> None:
 def _validate_input(input: Dict[str, Any]) -> None:
     if input is None:
         raise ValueError("input must not be None")
+    if not isinstance(input, Mapping):
+        raise ValueError(
+            "input must be a mapping of the rule's input names to values, "
+            f"not {type(input).__name__}"
+        )
     if len(input) > _MAX_INPUT_KEYS:
         raise ValueError(f"input must not exceed {_MAX_INPUT_KEYS} keys")
 

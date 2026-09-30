@@ -87,6 +87,15 @@ class TestRunContext:
         with pytest.raises(ValueError, match="name"):
             service.run(rule_name, {}, folder_key=FOLDER_KEY)
 
+    @pytest.mark.parametrize("value", [["age", 14], "age=14", 14])
+    def test_rejects_non_mapping_input(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService, value: Any
+    ) -> None:
+        with pytest.raises(ValueError, match="input must be a mapping"):
+            service.run(RULE, value, folder_key=FOLDER_KEY)
+
+        assert httpx_mock.get_requests() == []
+
     def test_rejects_oversized_input(self, service: BusinessRulesService) -> None:
         with pytest.raises(ValueError, match="256 keys"):
             service.run(RULE, {f"k{i}": i for i in range(257)}, folder_key=FOLDER_KEY)
@@ -632,6 +641,59 @@ class TestResourceOverride:
         request = httpx_mock.get_request()
         assert request is not None
         assert json.loads(request.content)["businessRuleName"] == "Loan Pricing EU"
+
+    def test_override_folder_replaces_callers_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        evaluate_url: str,
+        rule_override: None,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run(RULE, {}, folder_key="callers-folder-key")
+
+        folders_service.retrieve_folder_key.assert_called_once_with("Finance/EU")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["businessRuleName"] == "Loan Pricing EU"
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+    async def test_override_folder_replaces_callers_folder_key_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        evaluate_url: str,
+        rule_override: None,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        await service.run_async(RULE, {}, folder_key="callers-folder-key")
+
+        folders_service.retrieve_folder_key_async.assert_awaited_once_with("Finance/EU")
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["businessRuleName"] == "Loan Pricing EU"
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+    def test_callers_folder_key_kept_without_a_matching_override(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        evaluate_url: str,
+        rule_override: None,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+
+        service.run("Risk Tier", {}, folder_key="callers-folder-key")
+
+        folders_service.retrieve_folder_key.assert_not_called()
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == "callers-folder-key"
 
     def test_other_rules_are_not_overridden(
         self,
