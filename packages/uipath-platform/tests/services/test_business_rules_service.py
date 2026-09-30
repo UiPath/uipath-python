@@ -693,7 +693,6 @@ class TestDebug:
         request = httpx_mock.get_request()
         assert request is not None
         assert json.loads(request.content) == {
-            "businessRuleName": RULE,
             "projectId": "proj-1",
             "fileName": "loan.dmn",
             "explain": False,
@@ -761,6 +760,45 @@ class TestDebug:
         assert request is not None
         assert request.headers["x-uipath-organizationunitid"] == "42"
 
+    def test_project_mode_sends_no_job_headers_even_with_env_job_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        httpx_mock.add_response(url=debug_url, json=_response([]))
+
+        service.run(RULE, {}, debug=DebugRunContext(project_id="proj-1"))
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert body["projectId"] == "proj-1"
+        assert "businessRuleName" not in body
+        assert "x-uipath-jobkey" not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
+
+    @pytest.mark.parametrize(
+        ("fields", "message"),
+        [
+            ({"job_key": JOB_KEY}, "debug.job_key can't be combined"),
+            ({"organization_unit_id": 42}, "debug.organization_unit_id can't be"),
+            (
+                {"job_key": JOB_KEY, "organization_unit_id": 42},
+                "debug.job_key and debug.organization_unit_id can't be",
+            ),
+        ],
+    )
+    def test_project_mode_rejects_job_lineage_fields(
+        self, service: BusinessRulesService, fields: dict[str, Any], message: str
+    ) -> None:
+        debug = DebugRunContext(project_id="proj-1", **fields)
+
+        with pytest.raises(ValueError, match=message):
+            service.run(RULE, {}, debug=debug)
+
     def test_explain_requires_a_folder(self, service: BusinessRulesService) -> None:
         debug = DebugRunContext(project_id="proj-1")
 
@@ -824,7 +862,11 @@ class TestDebug:
     ) -> None:
         httpx_mock.add_response(url=debug_url, json=_response([]))
 
-        service.run(RULE, {}, debug=DebugRunContext(project_id="proj-1"))
+        service.run(
+            RULE,
+            {},
+            debug=DebugRunContext(job_key=JOB_KEY, organization_unit_id=42),
+        )
 
         request = httpx_mock.get_request()
         assert request is not None
