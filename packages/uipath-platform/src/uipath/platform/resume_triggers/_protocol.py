@@ -799,7 +799,17 @@ class UiPathResumeTriggerCreator:
         elif isinstance(value, CreateBatchTransform):
             uipath = UiPath()
             try:
-                if value.is_ephemeral_index:
+                if value.attachment is not None:
+                    batch_transform = await uipath.context_grounding.start_batch_transform_from_attachment_async(
+                        name=value.name,
+                        prompt=value.prompt,
+                        output_columns=value.output_columns,
+                        attachment=value.attachment,
+                        enable_web_search_grounding=value.enable_web_search_grounding,
+                        folder_path=value.index_folder_path,
+                        folder_key=value.index_folder_key,
+                    )
+                elif value.is_ephemeral_index:
                     batch_transform = await uipath.context_grounding.start_batch_transform_ephemeral_async(
                         name=value.name,
                         index_id=value.index_id,

@@ -2494,6 +2494,44 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
         )
 
+    @pytest.mark.anyio
+    async def test_start_batch_transform_async_with_exclude_domains(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """exclude_domains rides on the same wire field as the from-attachment primitive."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "grounded-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = await service.start_batch_transform_async(
+            name="grounded-task",
+            index_id="test-index-id",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            storage_bucket_folder_path_prefix="data",
+            enable_web_search_grounding=True,
+            exclude_domains=["example.com", "blocked.io"],
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "grounded-batch-id"
+        request_data = json.loads(httpx_mock.get_requests()[-1].content)
+        assert request_data["useWebSearchGrounding"] is True
+        assert request_data["excludeDomains"] == ["example.com", "blocked.io"]
+
     def test_start_batch_transform_with_target_file_name(
         self,
         httpx_mock: HTTPXMock,
@@ -3522,6 +3560,175 @@ class TestContextGroundingService:
             "explicit-folder-key" in (v or "")
             for v in sent_requests[0].headers.values()
         )
+
+    @pytest.mark.anyio
+    async def test_start_batch_transform_from_attachment_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the row",
+            )
+        ]
+
+        response = await service.start_batch_transform_from_attachment_async(
+            name="my-attachments-batch-transform",
+            prompt="Summarize each row",
+            output_columns=output_columns,
+            attachment="attachment-1",
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create" in str(
+            sent_requests[0].url
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-attachments-batch-transform"
+        assert request_data["prompt"] == "Summarize each row"
+        assert request_data["useWebSearchGrounding"] is False
+        assert request_data["attachments"] == ["attachment-1"]
+        assert "targetFileGlobPattern" not in request_data
+        assert "excludeDomains" not in request_data
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_from_attachment_async/{version}"
+        )
+
+    def test_start_batch_transform_from_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "sync-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(name="summary", description="A summary"),
+        ]
+
+        response = service.start_batch_transform_from_attachment(
+            name="sync-attachments-task",
+            prompt="Summarize each row",
+            output_columns=output_columns,
+            attachment="attachment-1",
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "sync-batch-transform-id"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[0].method == "POST"
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["attachments"] == ["attachment-1"]
+
+    def test_start_batch_transform_from_attachment_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When folder_key is provided the folder header is added; no folder lookup."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "folder-scoped-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = service.start_batch_transform_from_attachment(
+            name="folder-scoped-task",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            attachment="attachment-1",
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "folder-scoped-batch-id"
+        sent_requests = httpx_mock.get_requests()
+        assert any(
+            "explicit-folder-key" in (v or "")
+            for v in sent_requests[0].headers.values()
+        )
+
+    def test_start_batch_transform_from_attachment_with_web_search_grounding(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """exclude_domains is forwarded only when enable_web_search_grounding is on."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "grounded-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = service.start_batch_transform_from_attachment(
+            name="grounded-task",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            attachment="attachment-1",
+            enable_web_search_grounding=True,
+            exclude_domains=["example.com", "blocked.io"],
+        )
+
+        assert response.id == "grounded-batch-id"
+        request_data = json.loads(httpx_mock.get_requests()[0].content)
+        assert request_data["useWebSearchGrounding"] is True
+        assert request_data["excludeDomains"] == ["example.com", "blocked.io"]
 
     @pytest.mark.anyio
     async def test_start_deep_rag_ephemeral_async(
