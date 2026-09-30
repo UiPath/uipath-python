@@ -271,49 +271,69 @@ class BusinessRulesService(FolderContext, BaseService):
         explain: bool,
         folder_key: Optional[str],
     ) -> RequestSpec:
-        job_key = debug.job_key or UiPathConfig.job_key
-        # A named project is used as given. Without one, the service resolves
-        # the project from the job's lineage, which needs the job and its folder.
-        if not _present(debug.project_id):
-            if not _present(job_key):
-                raise ValueError(
-                    "debug.job_key must be specified when debug.project_id is not: "
-                    "the service resolves the project from the job's lineage. "
-                    "Set it or UIPATH_JOB_KEY."
-                )
-            if debug.organization_unit_id is None:
-                raise ValueError(
-                    "debug.organization_unit_id must be specified when "
-                    "debug.project_id is not: it is the folder the job's lineage "
-                    "is read under"
-                )
+        # The service finds the project one of two ways, documented as
+        # alternatives: by projectId, read as given, or by businessRuleName from
+        # the running debug job's lineage. Each request carries one mode only.
+        if _present(debug.project_id):
+            body, headers = _project_mode(debug)
+        else:
+            body, headers = _job_lineage_mode(name, debug)
 
-        body: Dict[str, Any] = {
-            "businessRuleName": name,
-            "explain": explain,
-            "inputs": [{"id": _SINGLE_INPUT_ID, "data": input}],
-        }
-        if debug.project_id:
-            body["projectId"] = debug.project_id
+        body["explain"] = explain
+        body["inputs"] = [{"id": _SINGLE_INPUT_ID, "data": input}]
         if debug.file_name:
             body["fileName"] = debug.file_name
         if decision_names:
             body["decisionNames"] = decision_names
-
         # Folder key: the traces service files the run's spans under it.
-        headers: Dict[str, str] = {}
         if folder_key:
             headers[HEADER_FOLDER_KEY] = folder_key
-        if debug.organization_unit_id is not None:
-            headers[_HEADER_ORGANIZATION_UNIT_ID] = str(debug.organization_unit_id)
-        if job_key:
-            headers[_HEADER_JOB_KEY] = job_key
         return RequestSpec(
             method="POST",
             endpoint=_DEBUG_EVALUATE_ENDPOINT,
             json=body,
             headers=headers,
         )
+
+
+def _project_mode(debug: DebugRunContext) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    mixed = [
+        field
+        for field, value in (
+            ("job_key", debug.job_key),
+            ("organization_unit_id", debug.organization_unit_id),
+        )
+        if value is not None
+    ]
+    if mixed:
+        raise ValueError(
+            f"debug.{' and debug.'.join(mixed)} can't be combined with "
+            "debug.project_id: a project is read as given, and the job's lineage "
+            "is only used without one"
+        )
+    return {"projectId": debug.project_id}, {}
+
+
+def _job_lineage_mode(
+    name: str, debug: DebugRunContext
+) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    job_key = debug.job_key or UiPathConfig.job_key
+    if not job_key or not job_key.strip():
+        raise ValueError(
+            "debug.job_key must be specified when debug.project_id is not: "
+            "the service resolves the project from the job's lineage. "
+            "Set it or UIPATH_JOB_KEY."
+        )
+    if debug.organization_unit_id is None:
+        raise ValueError(
+            "debug.organization_unit_id must be specified when debug.project_id "
+            "is not: it is the folder the job's lineage is read under"
+        )
+    headers = {
+        _HEADER_JOB_KEY: job_key,
+        _HEADER_ORGANIZATION_UNIT_ID: str(debug.organization_unit_id),
+    }
+    return {"businessRuleName": name}, headers
 
 
 class _TraceHeaders(Dict[str, str]):
