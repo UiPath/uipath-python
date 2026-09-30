@@ -1966,6 +1966,79 @@ class TestHitlProcessor:
             )
 
     @pytest.mark.anyio
+    async def test_create_resume_trigger_create_batch_transform_from_attachment(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """CreateBatchTransform with attachment routes to the from-attachment SDK method."""
+        batch_transform_id = "test-attachment-batch-transform-id"
+        output_columns = [
+            BatchTransformOutputColumn(name="column1", description="desc1"),
+        ]
+        create_batch_transform = CreateBatchTransform(
+            name="test-batch-transform",
+            prompt="test prompt",
+            output_columns=output_columns,
+            destination_path="/output/path.csv",
+            attachment="attachment-1",
+            index_folder_path="/test/path",
+        )
+
+        mock_batch_transform = BatchTransformCreationResponse(
+            id=batch_transform_id,
+            last_batch_rag_status=DeepRagStatus.QUEUED,
+        )
+        mock_from_attachment = AsyncMock(return_value=mock_batch_transform)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.start_batch_transform_from_attachment_async",
+            new=mock_from_attachment,
+        ):
+            processor = UiPathResumeTriggerCreator()
+            resume_trigger = await processor.create_trigger(create_batch_transform)
+
+            assert resume_trigger is not None
+            assert resume_trigger.trigger_type == UiPathResumeTriggerType.BATCH_RAG
+            assert resume_trigger.item_key == batch_transform_id
+            mock_from_attachment.assert_called_once_with(
+                name=create_batch_transform.name,
+                prompt=create_batch_transform.prompt,
+                output_columns=create_batch_transform.output_columns,
+                attachment="attachment-1",
+                enable_web_search_grounding=create_batch_transform.enable_web_search_grounding,
+                folder_path=create_batch_transform.index_folder_path,
+                folder_key=create_batch_transform.index_folder_key,
+            )
+
+    def test_create_batch_transform_attachment_rejects_index_id(self) -> None:
+        """attachment cannot be combined with index_id / index_name."""
+        with pytest.raises(ValueError, match="attachment cannot be combined"):
+            CreateBatchTransform(
+                name="x",
+                prompt="p",
+                output_columns=[
+                    BatchTransformOutputColumn(name="c", description="d"),
+                ],
+                destination_path="/out.csv",
+                attachment="attachment-1",
+                index_id="some-index-id",
+            )
+
+    def test_create_batch_transform_attachment_rejects_index_name(self) -> None:
+        """The mutual-exclusivity check covers index_name too, not only index_id."""
+        with pytest.raises(ValueError, match="attachment cannot be combined"):
+            CreateBatchTransform(
+                name="x",
+                prompt="p",
+                output_columns=[
+                    BatchTransformOutputColumn(name="c", description="d"),
+                ],
+                destination_path="/out.csv",
+                attachment="attachment-1",
+                index_name="some-index-name",
+            )
+
+    @pytest.mark.anyio
     async def test_missing_batch_transform_index_is_deployment_error(
         self,
         setup_test_env: None,
