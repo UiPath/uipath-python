@@ -312,12 +312,13 @@ class EntityResolutionPlan:
 def create_resolution_draft(
     items: list[DataFabricEntityItem],
     context_overwrites: dict[str, ResourceOverwrite],
+    fetch_by_name: bool = False,
 ) -> EntityResolutionDraft:
     folders_map: dict[str, str] = {}
     effective_entity_names: dict[str, str] = {}
     folder_paths_to_resolve: set[str] = set()
     fetch_by_key: list[EntityFetchByKey] = []
-    fetch_by_name: list[EntityFetchByName] = []
+    name_fetches: list[EntityFetchByName] = []
 
     for item in items:
         overwrite = context_overwrites.get(
@@ -338,7 +339,7 @@ def create_resolution_draft(
             if overwrite.name != item.name or folder_changed:
                 if overwrite.name != item.name:
                     effective_entity_names[item.name] = overwrite.name
-                fetch_by_name.append(
+                name_fetches.append(
                     EntityFetchByName(
                         entity_name=overwrite.name,
                         folder_key=resolved_folder,
@@ -347,12 +348,17 @@ def create_resolution_draft(
                 folders_map[item.name] = resolved_folder
                 continue
 
-        fetch_by_key.append(EntityFetchByKey(entity_key=item.entity_key or item.id))
+        if fetch_by_name:
+            name_fetches.append(
+                EntityFetchByName(entity_name=item.name, folder_key=resolved_folder)
+            )
+        else:
+            fetch_by_key.append(EntityFetchByKey(entity_key=item.entity_key or item.id))
         folders_map[item.name] = resolved_folder
 
     return EntityResolutionDraft(
         fetch_by_key=fetch_by_key,
-        fetch_by_name=fetch_by_name,
+        fetch_by_name=name_fetches,
         folders_map=folders_map,
         effective_entity_names=effective_entity_names,
         folder_paths_to_resolve=folder_paths_to_resolve,
@@ -413,8 +419,9 @@ def create_resolution_plan(
     items: list[DataFabricEntityItem],
     context_overwrites: dict[str, ResourceOverwrite],
     resolve_folder_path: FolderPathResolver,
+    fetch_by_name: bool = False,
 ) -> EntityResolutionPlan:
-    draft = create_resolution_draft(items, context_overwrites)
+    draft = create_resolution_draft(items, context_overwrites, fetch_by_name)
     return finalize_resolution_plan(draft, resolve_folder_path)
 
 
@@ -422,8 +429,9 @@ async def create_resolution_plan_async(
     items: list[DataFabricEntityItem],
     context_overwrites: dict[str, ResourceOverwrite],
     resolve_folder_path: AsyncFolderPathResolver,
+    fetch_by_name: bool = False,
 ) -> EntityResolutionPlan:
-    draft = create_resolution_draft(items, context_overwrites)
+    draft = create_resolution_draft(items, context_overwrites, fetch_by_name)
     folder_paths = list(draft.folder_paths_to_resolve)
     results = await asyncio.gather(*(resolve_folder_path(fp) for fp in folder_paths))
     resolved_paths = {

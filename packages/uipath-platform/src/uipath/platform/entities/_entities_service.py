@@ -9,6 +9,7 @@ appropriate underlying service:
 * `EntityDataService` — record CRUD (single and batch), structured
   queries, attachments, choice-set values, bulk import, and federated SQL
   queries.
+* `EntityOperationService` — invokes of the operations an entity declares.
 
 The facade additionally owns cross-cutting concerns such as agent entity-set
 resolution.
@@ -29,6 +30,7 @@ from ..errors._datafabric_error import attach_datafabric_error_mapping
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
 from ._entity_ontology_service import EntityOntologyService
+from ._entity_operation_service import EntityOperationService
 from ._entity_resolution import (
     build_resolution_service,
     create_resolution_plan,
@@ -37,7 +39,7 @@ from ._entity_resolution import (
     fetch_resolved_entities,
     fetch_resolved_entities_async,
 )
-from ._entity_schema_service import EntitySchemaService
+from ._entity_schema_service import EntitySchemaService, folder_key_or_none
 from .entities import (
     ChoiceSetValue,
     DataFabricEntityItem,
@@ -49,6 +51,7 @@ from .entities import (
     EntityImportRecordsResponse,
     EntityJoin,
     EntityMetadataUpdateOptions,
+    EntityOperationResult,
     EntityQueryFilterGroup,
     EntityQuerySortOption,
     EntityRecord,
@@ -112,6 +115,11 @@ class EntitiesService(BaseService):
             execution_context=execution_context,
             folders_service=folders_service,
         )
+        self._operations = EntityOperationService(
+            config=config,
+            execution_context=execution_context,
+            routing_strategy=self._routing_strategy,
+        )
 
     async def aclose(self) -> None:
         """Close this facade and the services it creates."""
@@ -124,7 +132,10 @@ class EntitiesService(BaseService):
                 try:
                     await self._ontology.aclose()
                 finally:
-                    await super().aclose()
+                    try:
+                        await self._operations.aclose()
+                    finally:
+                        await super().aclose()
 
     # ------------------------------------------------------------------
     # Schema operations — delegate to EntitySchemaService
@@ -2697,6 +2708,70 @@ class EntitiesService(BaseService):
         )
 
     # ------------------------------------------------------------------
+    # Operations — delegate to EntityOperationService
+    # ------------------------------------------------------------------
+
+    @traced(name="entity_invoke_operation", run_type="uipath")
+    def invoke_operation(
+        self,
+        entity_name: str,
+        operation_name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        folder_key: Optional[str] = None,
+    ) -> EntityOperationResult:
+        """Invoke an operation an entity declares, via the v3 API.
+
+        The request is sent once and never retried, so a Mutation cannot be
+        applied twice. A refusal (HTTP 400 whose body carries an ``outcome``)
+        is returned as a result rather than raised.
+
+        !!! warning "Preview Feature"
+            This method is currently experimental. Behavior and parameters are
+            subject to change in future versions.
+
+        Args:
+            entity_name: Name of the entity that declares the operation.
+            operation_name: Name of the operation.
+            arguments: The operation's arguments, keyed by parameter name.
+            folder_key: Key of the entity's folder; an empty or all-zero key
+                sends no folder header. When omitted, the folder and name
+                overwrite this service routes the entity to are used, as on
+                the service `resolve_entity_set_v3()` returns.
+
+        Returns:
+            EntityOperationResult: The outcome, with the rows, result, edits,
+                errors and steps it carries.
+
+        Raises:
+            EnrichedException: For any other non-2xx response.
+
+        Examples:
+            Run an operation and check for a refusal:
+
+                result = entities_service.invoke_operation(
+                    "Invoices", "ApproveInvoice", {"invoiceId": "INV-7"}
+                )
+                if result.outcome == "Refused":
+                    print(result.errors)
+        """
+        return self._operations.invoke(
+            entity_name, operation_name, arguments, folder_key
+        )
+
+    @traced(name="entity_invoke_operation", run_type="uipath")
+    async def invoke_operation_async(
+        self,
+        entity_name: str,
+        operation_name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        folder_key: Optional[str] = None,
+    ) -> EntityOperationResult:
+        """Async variant of `invoke_operation()`."""
+        return await self._operations.invoke_async(
+            entity_name, operation_name, arguments, folder_key
+        )
+
+    # ------------------------------------------------------------------
     # Public helper retained for backward compatibility — tests call this
     # ------------------------------------------------------------------
 
@@ -2796,12 +2871,19 @@ class EntitiesService(BaseService):
     def resolve_entity_set_v3(
         self,
         items: List[DataFabricEntityItem],
+        fetch_by_name: bool = False,
     ) -> EntitySetResolution:
         """Resolve an agent entity set via the v3 API (serves Federated entities).
 
         Experimental v3 surface; behaves like `resolve_entity_set()` but
         fetches entity metadata from ``datafabric_/api/v3/entities`` so Federated
         entities resolve with their external field definitions.
+
+        Args:
+            items: The entity references to resolve.
+            fetch_by_name: Fetch every entity by name (its overwrite's name, or
+                its own) in its resolved folder, instead of by key. An empty or
+                all-zero folder sends no folder header.
         """
         plan = create_resolution_plan(
             items,
@@ -2811,11 +2893,14 @@ class EntitiesService(BaseService):
                 if self._folders_service is not None
                 else None
             ),
+            fetch_by_name,
         )
         entities = fetch_resolved_entities(
             plan,
             self.retrieve_v3,
-            self.retrieve_by_name_v3,
+            self._retrieve_by_name_v3_routed
+            if fetch_by_name
+            else self.retrieve_by_name_v3,
             logger,
         )
         resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]
@@ -2834,6 +2919,7 @@ class EntitiesService(BaseService):
     async def resolve_entity_set_v3_async(
         self,
         items: List[DataFabricEntityItem],
+        fetch_by_name: bool = False,
     ) -> EntitySetResolution:
         """Async variant of `resolve_entity_set_v3()`."""
 
@@ -2848,11 +2934,14 @@ class EntitiesService(BaseService):
             items,
             _resource_overwrites.get() or {},
             _resolve_folder_path,
+            fetch_by_name,
         )
         entities = await fetch_resolved_entities_async(
             plan,
             self.retrieve_v3_async,
-            self.retrieve_by_name_v3_async,
+            self._retrieve_by_name_v3_routed_async
+            if fetch_by_name
+            else self.retrieve_by_name_v3_async,
             logger,
         )
         resolution_service: EntitiesService = build_resolution_service(  # type: ignore[assignment]
@@ -2865,6 +2954,19 @@ class EntitiesService(BaseService):
         return EntitySetResolution(
             entities=entities,
             entities_service=resolution_service,
+        )
+
+    def _retrieve_by_name_v3_routed(
+        self, entity_name: str, folder_key: Optional[str]
+    ) -> Entity:
+        # A tenant-level entity has no folder to name in the header.
+        return self.retrieve_by_name_v3(entity_name, folder_key_or_none(folder_key))
+
+    async def _retrieve_by_name_v3_routed_async(
+        self, entity_name: str, folder_key: Optional[str]
+    ) -> Entity:
+        return await self.retrieve_by_name_v3_async(
+            entity_name, folder_key_or_none(folder_key)
         )
 
 

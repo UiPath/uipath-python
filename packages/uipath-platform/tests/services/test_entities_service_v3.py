@@ -20,6 +20,9 @@ from uipath.platform.common._bindings import (
 )
 from uipath.platform.entities import DataFabricEntityItem, Entity
 from uipath.platform.entities._entities_service import EntitiesService
+from uipath.platform.errors import EnrichedException
+
+TENANT_FOLDER = "00000000-0000-0000-0000-000000000000"
 
 
 @pytest.fixture
@@ -788,3 +791,252 @@ class TestEntitiesServiceV3:
         )
         result = await service.retrieve_records_v3_async(entity_key=str(entity_key))
         assert result.total_count == 1
+
+
+def _entity_json(name: str, **extra: object) -> dict[str, object]:
+    return {
+        "name": name,
+        "displayName": name,
+        "entityType": "Entity",
+        "isRbacEnabled": False,
+        "id": f"{name}-id",
+        **extra,
+    }
+
+
+class TestEntityOperationsV3:
+    def test_v3_metadata_parses_operations(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        operation = {
+            "name": "ApproveInvoice",
+            "displayName": "Approve invoice",
+            "description": "Marks an invoice approved.",
+            "kind": "Mutation",
+            "implementation": "Code",
+            "parameters": [
+                {
+                    "name": "invoiceId",
+                    "sqlType": {"name": "NVARCHAR"},
+                    "isRequired": True,
+                    "isList": False,
+                }
+            ],
+            "query": None,
+        }
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/metadata",
+            json=_entity_json("Invoices", isComposite=False, operations=[operation]),
+        )
+
+        entity = service.retrieve_by_name_v3("Invoices")
+
+        assert entity.operations is not None
+        [parsed] = entity.operations
+        assert (parsed.name, parsed.kind, parsed.implementation) == (
+            "ApproveInvoice",
+            "Mutation",
+            "Code",
+        )
+        assert parsed.display_name == "Approve invoice"
+        [parameter] = parsed.parameters
+        assert parameter.name == "invoiceId"
+        assert parameter.sql_type == "NVARCHAR"
+        assert parameter.is_required is True
+        assert parameter.is_list is False
+        assert parsed.query is None
+
+    def test_v3_metadata_without_operations(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/metadata",
+            json=_entity_json("Invoices"),
+        )
+
+        entity = service.retrieve_by_name_v3("Invoices")
+
+        assert entity.operations is None
+
+    async def test_resolve_v3_fetch_by_name_uses_folder_header(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        root = f"{base_url}{org}{tenant}/datafabric_/api/v3/entities"
+        httpx_mock.add_response(
+            url=f"{root}/Invoices/metadata", json=_entity_json("Invoices")
+        )
+        httpx_mock.add_response(
+            url=f"{root}/Rates/metadata", json=_entity_json("Rates")
+        )
+
+        resolution = await service.resolve_entity_set_v3_async(
+            [
+                DataFabricEntityItem(
+                    id="e1", entity_key="k1", name="Invoices", folder_key="fk-1"
+                ),
+                DataFabricEntityItem(
+                    id="e2", entity_key="k2", name="Rates", folder_key=TENANT_FOLDER
+                ),
+            ],
+            fetch_by_name=True,
+        )
+
+        assert sorted(e.name for e in resolution.entities) == ["Invoices", "Rates"]
+        headers = {
+            request.url.path.split("/")[-2]: request.headers
+            for request in httpx_mock.get_requests()
+        }
+        assert headers["Invoices"]["x-uipath-folderkey"] == "fk-1"
+        assert "x-uipath-folderkey" not in headers["Rates"]
+
+    def test_resolve_v3_default_fetches_by_key(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/k1",
+            json=_entity_json("Invoices"),
+        )
+
+        resolution = service.resolve_entity_set_v3(
+            [
+                DataFabricEntityItem(
+                    id="e1", entity_key="k1", name="Invoices", folder_key="fk-1"
+                )
+            ]
+        )
+
+        assert [e.name for e in resolution.entities] == ["Invoices"]
+
+    def test_invoke_operation_wrote(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/operations/ApproveAll",
+            method="POST",
+            json={
+                "outcome": "Wrote",
+                "rowsAffected": 6,
+                "edits": [{"kind": "update", "id": "1", "fields": {"Status": "OK"}}],
+                "steps": [{"name": "Applying edits", "succeeded": True}],
+                "invocationId": 13,
+                "prints": ["approved 6"],
+                "packageVersion": "1.0.2",
+            },
+        )
+
+        result = service.invoke_operation(
+            "Invoices", "ApproveAll", {"region": "EU"}, folder_key="fk-1"
+        )
+
+        assert result.outcome == "Wrote"
+        assert result.rows_affected == 6
+        assert result.invocation_id == 13
+        assert result.prints == ["approved 6"]
+        assert result.model_extra == {"packageVersion": "1.0.2"}
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert json.loads(sent.content) == {"region": "EU"}
+        assert sent.headers["x-uipath-folderkey"] == "fk-1"
+
+    async def test_invoke_operation_refused_is_returned(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/operations/ApproveAll",
+            method="POST",
+            status_code=400,
+            json={
+                "outcome": "Refused",
+                "rowsAffected": 0,
+                "errors": ["invoiceId is required"],
+                "steps": [
+                    {"name": "Binding parameters", "succeeded": False, "durationMs": 1}
+                ],
+                "invocationId": 12,
+            },
+        )
+
+        result = await service.invoke_operation_async("Invoices", "ApproveAll")
+
+        assert result.outcome == "Refused"
+        assert result.errors == ["invoiceId is required"]
+        assert result.steps[0]["name"] == "Binding parameters"
+        sent = httpx_mock.get_request()
+        assert sent is not None
+        assert json.loads(sent.content) == {}
+        assert "x-uipath-folderkey" not in sent.headers
+
+    def test_invoke_operation_not_found_raises(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/operations/Nope",
+            method="POST",
+            status_code=404,
+            json={"error": "Operation not found"},
+        )
+
+        with pytest.raises(EnrichedException) as exc_info:
+            service.invoke_operation("Invoices", "Nope")
+
+        assert exc_info.value.status_code == 404
+
+    def test_invoke_operation_is_not_retried(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/operations/ApproveAll",
+            method="POST",
+            status_code=503,
+        )
+
+        with pytest.raises(EnrichedException) as exc_info:
+            service.invoke_operation("Invoices", "ApproveAll")
+
+        assert exc_info.value.status_code == 503
+        assert len(httpx_mock.get_requests()) == 1
+
+    async def test_invoke_operation_async_is_not_retried(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/Invoices/operations/ApproveAll",
+            method="POST",
+            status_code=503,
+        )
+
+        with pytest.raises(EnrichedException) as exc_info:
+            await service.invoke_operation_async("Invoices", "ApproveAll")
+
+        assert exc_info.value.status_code == 503
+        assert len(httpx_mock.get_requests()) == 1
+
+    def test_invoke_operation_uses_resolved_routing(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, base_url, org, tenant
+    ) -> None:
+        root = f"{base_url}{org}{tenant}/datafabric_/api/v3/entities"
+        httpx_mock.add_response(
+            url=f"{root}/InvoicesV2/metadata", json=_entity_json("InvoicesV2")
+        )
+        httpx_mock.add_response(
+            url=f"{root}/InvoicesV2/operations/ApproveAll",
+            method="POST",
+            json={"outcome": "NoChange", "rowsAffected": 0},
+        )
+        overwrite = EntityResourceOverwrite(
+            resource_type="entity", name="InvoicesV2", folder_id="fk-2"
+        )
+        token = _resource_overwrites.set({"entity.e1": overwrite})
+        try:
+            resolution = service.resolve_entity_set_v3(
+                [DataFabricEntityItem(id="e1", name="Invoices", folder_key="fk-1")]
+            )
+        finally:
+            _resource_overwrites.reset(token)
+
+        result = resolution.entities_service.invoke_operation("Invoices", "ApproveAll")
+
+        assert result.outcome == "NoChange"
+        invoke = httpx_mock.get_requests()[-1]
+        assert invoke.url.path.endswith("/v3/entities/InvoicesV2/operations/ApproveAll")
+        assert invoke.headers["x-uipath-folderkey"] == "fk-2"

@@ -24,6 +24,7 @@ from pydantic import (
     ConfigDict,
     Field,
     create_model,
+    field_validator,
     model_validator,
 )
 
@@ -383,6 +384,70 @@ class EntityRecord(BaseModel):
         dynamic_model.model_validate(data)
 
 
+class EntityOperationParameter(BaseModel):
+    """A parameter an entity operation declares."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    name: str
+    sql_type: Optional[str] = Field(default=None, alias="sqlType")
+    is_required: bool = Field(default=False, alias="isRequired")
+    is_list: bool = Field(default=False, alias="isList")
+
+    @field_validator("sql_type", mode="before")
+    @classmethod
+    def _sql_type_name(cls, value: Any) -> Any:
+        # The wire nests the type as {"name": ...}; only the name is kept.
+        if isinstance(value, dict):
+            return value.get("name")
+        return value
+
+
+class EntityOperation(BaseModel):
+    """An operation declared on an entity, as its v3 metadata describes it."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+    )
+
+    name: str
+    display_name: Optional[str] = Field(default=None, alias="displayName")
+    description: Optional[str] = None
+    kind: Optional[str] = None
+    implementation: Optional[str] = None
+    parameters: List[EntityOperationParameter] = Field(default_factory=list)
+    query: Optional[Dict[str, Any]] = None
+
+
+class EntityOperationResult(BaseModel):
+    """The answer to one entity-operation invoke.
+
+    ``outcome`` is one of ``Returned``, ``Wrote``, ``NoChange``, ``Refused`` or
+    ``Faulted``. Keys this model does not name are kept as extra attributes.
+    """
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        extra="allow",
+    )
+
+    outcome: str
+    rows_affected: int = Field(default=0, alias="rowsAffected")
+    rows: Optional[List[Dict[str, Any]]] = None
+    result: Any = None
+    edits: Optional[List[Dict[str, Any]]] = None
+    errors: List[str] = Field(default_factory=list)
+    steps: List[Dict[str, Any]] = Field(default_factory=list)
+    invocation_id: Optional[int] = Field(default=None, alias="invocationId")
+    prints: Optional[List[str]] = None
+    withheld: Optional[List[str]] = None
+
+
 class Entity(BaseModel):
     """Model representing an entity in the UiPath platform."""
 
@@ -417,6 +482,9 @@ class Entity(BaseModel):
     )
     is_rbac_enabled: bool = Field(alias="isRbacEnabled")
     id: str
+    operations: Optional[List[EntityOperation]] = Field(
+        default=None, alias="operations"
+    )
 
 
 class FailureRecord(BaseModel):

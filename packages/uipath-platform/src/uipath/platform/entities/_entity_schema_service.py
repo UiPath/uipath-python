@@ -45,6 +45,13 @@ def _schema_base(use_v3: bool) -> str:
     return _V3_ENTITIES if use_v3 else _V1_ENTITIES
 
 
+def folder_key_or_none(folder_key: Optional[str]) -> Optional[str]:
+    """Return ``folder_key``, or None when it names no folder (empty or all zeros)."""
+    if not folder_key or folder_key == DATA_FABRIC_TENANT_FOLDER_ID:
+        return None
+    return folder_key
+
+
 _NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9]*$")
 """Entity and field name pattern: must start with a letter, then letters and digits only.
 
