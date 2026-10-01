@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 from rich.console import Console
+from rich.markup import escape
 from rich.tree import Tree
 
 from uipath.core.serialization import serialize_object
@@ -166,7 +167,7 @@ class ConsoleDebugBridge:
                 output_data = runtime_result.output.model_dump()
             else:
                 output_data = runtime_result.output
-        self._print_json(output_data, label="output")
+        self._print_json(output_data, label="output", truncate=False)
 
     async def emit_execution_suspended(
         self,
@@ -179,11 +180,13 @@ class ConsoleDebugBridge:
 
         if runtime_result.trigger.trigger_type == UiPathResumeTriggerType.API:
             if runtime_result.output is None:
-                self._print_json({}, label="output")
+                self._print_json({}, label="output", truncate=False)
             elif isinstance(runtime_result.output, BaseModel):
-                self._print_json(runtime_result.output.model_dump(), label="output")
+                self._print_json(
+                    runtime_result.output.model_dump(), label="output", truncate=False
+                )
             else:
-                self._print_json(runtime_result.output, label="output")
+                self._print_json(runtime_result.output, label="output", truncate=False)
             self.console.print("[dim]Please provide your input:[/dim]")
 
             self._waiting_for_resume_data = True
@@ -381,8 +384,26 @@ class ConsoleDebugBridge:
         self.console.print("  [yellow]q, quit[/yellow]         Exit debugger")
         self.console.print()
 
-    def _print_json(self, data: dict[str, Any] | str, label: str = "data") -> None:
-        """Print JSON data with enhanced hierarchy."""
+    def _print_json(
+        self,
+        data: dict[str, Any] | str,
+        label: str = "data",
+        truncate: bool = True,
+    ) -> None:
+        """Print JSON data with enhanced hierarchy.
+
+        Args:
+            data: The payload to print.
+            label: The root label of the tree.
+            truncate: Shorten long values and deep nesting. Pass False for a
+                run's output, which is the result itself and must print whole.
+        """
+
+        def shorten(val_str: str) -> str:
+            if truncate and len(val_str) > 250:
+                return val_str[:250] + "..."
+            return val_str
+
         try:
             # Create a tree for nested structure
             tree = Tree(f"[bold cyan]{label}[/bold cyan]")
@@ -405,13 +426,11 @@ class ConsoleDebugBridge:
                     )
                     add_to_tree(branch, value, depth + 1)
                 else:
-                    val_str = str(value)
-                    if len(val_str) > 250:
-                        val_str = val_str[:250] + "..."
+                    val_str = escape(shorten(str(value)))
                     node.add(f"{key_label}: [green]{val_str}[/green]")
 
             def add_to_tree(node: Tree, payload: Any, depth: int = 0):
-                if depth > 10:
+                if truncate and depth > 10:
                     node.add("[dim]...[/dim]")
                     return
 
@@ -424,16 +443,16 @@ class ConsoleDebugBridge:
 
                 elif isinstance(payload, dict):
                     for key, value in payload.items():
-                        process_value(node, value, f"[yellow]{key}[/yellow]", depth)
+                        process_value(
+                            node, value, f"[yellow]{escape(str(key))}[/yellow]", depth
+                        )
 
                 elif isinstance(payload, list):
                     for i, item in enumerate(payload):
                         process_value(node, item, f"[cyan]#{i}[/cyan]", depth)
 
                 else:
-                    val_str = str(payload)
-                    if len(val_str) > 250:
-                        val_str = val_str[:250] + "..."
+                    val_str = escape(shorten(str(payload)))
                     node.add(f"[green]{val_str}[/green]")
 
             add_to_tree(tree, data)
@@ -445,11 +464,18 @@ class ConsoleDebugBridge:
         except Exception:
             try:
                 json_str = json.dumps(data, indent=2, default=str)
-                if len(json_str) > 10000:
+                if truncate and len(json_str) > 10000:
                     json_str = json_str[:10000] + "\n..."
                 from rich.syntax import Syntax
 
-                syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
+                # Syntax crops lines wider than the console unless it wraps.
+                syntax = Syntax(
+                    json_str,
+                    "json",
+                    theme="monokai",
+                    line_numbers=False,
+                    word_wrap=not truncate,
+                )
                 self.console.print(f"\n[dim]{label}:")
                 self.console.print(syntax)
                 self.console.print()
