@@ -220,11 +220,11 @@ def ensure_project_is_scaffolded(current_directory: str) -> None:
     visible_entries = {
         entry for entry in os.listdir(current_directory) if not entry.startswith(".")
     }
-    if not visible_entries <= {UIPROJ_FILE}:
-        return
 
     project_name = ""
-    if visible_entries:
+    if not visible_entries:
+        reason = "this directory is empty."
+    elif visible_entries == {UIPROJ_FILE}:
         reason = f"'{UIPROJ_FILE}' is the only file in this directory."
         try:
             with open(os.path.join(current_directory, UIPROJ_FILE), "r") as f:
@@ -232,7 +232,7 @@ def ensure_project_is_scaffolded(current_directory: str) -> None:
         except (OSError, json.JSONDecodeError):
             pass
     else:
-        reason = "this directory is empty."
+        return
 
     new_command = f"uipath new {project_name or '<name>'}"
     console.error(
