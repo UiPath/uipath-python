@@ -338,6 +338,8 @@ def test_service_command_params_match_sdk(service, command, sdk_class, sdk_metho
     CLI_EXCLUSIONS: dict[str, set[str]] = {
         # retrieve: --index-id routes to retrieve_by_id, not retrieve — exclude from alignment
         "context-grounding_retrieve": {"index_id"},
+        # search: --index-id routes to unified_search_by_id, not unified_search
+        "context-grounding_search": {"index_id"},
         # create: CLI-only options that build the source object internally
         "context-grounding_create": {"source_file", "bucket_source", "file_type"},
         # batch-transform start: --columns-file is CLI-only (reads JSON, builds output_columns)

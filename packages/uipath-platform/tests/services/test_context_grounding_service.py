@@ -25,6 +25,7 @@ from uipath.platform.context_grounding import (
     DeepRagCreationResponse,
     DeepRagResponse,
     DropboxSourceConfig,
+    EphemeralIndexUsage,
     GoogleDriveSourceConfig,
     Indexer,
     OneDriveSourceConfig,
@@ -3963,6 +3964,105 @@ class TestContextGroundingService:
             search_request.headers[HEADER_USER_AGENT]
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.unified_search/{version}"
         )
+
+    def test_create_ephemeral_index_semantic(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/createephemeral",
+            status_code=202,
+            json={"id": "semantic-index-id", "lastIngestionStatus": "InProgress"},
+        )
+
+        index = service.create_ephemeral_index(
+            usage=EphemeralIndexUsage.SEMANTIC, attachments=["attachment-id"]
+        )
+
+        assert index.id == "semantic-index-id"
+        request_data = json.loads(httpx_mock.get_requests()[0].content)
+        assert request_data == {
+            "usage": "Semantic",
+            "dataSource": {"attachments": ["attachment-id"]},
+        }
+
+    def test_unified_search_by_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/semantic-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "values": [
+                        {
+                            "id": "0",
+                            "source": "chart.pdf",
+                            "page_number": 1,
+                            "content": "Page one",
+                            "score": 0.5,
+                        }
+                    ]
+                }
+            },
+        )
+
+        response = service_no_folder.unified_search_by_id(
+            index_id="semantic-index-id",
+            query="clinical record",
+            number_of_results=2000,
+            threshold=0.0,
+        )
+
+        assert response.semantic_results is not None
+        assert response.semantic_results.values[0].source == "chart.pdf"
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 1  # no index lookup by name
+        request_body = json.loads(sent_requests[0].content)
+        assert request_body == {
+            "searchMode": "Semantic",
+            "query": "clinical record",
+            "semanticSearchOptions": {"numberOfResults": 2000, "threshold": 0.0},
+        }
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.unified_search_by_id/{version}"
+        )
+
+    @pytest.mark.anyio
+    async def test_unified_search_by_id_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service_no_folder: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/semantic-index-id",
+            status_code=200,
+            json={"semanticResults": {"values": []}},
+        )
+
+        response = await service_no_folder.unified_search_by_id_async(
+            index_id="semantic-index-id", query="clinical record"
+        )
+
+        assert response.semantic_results is not None
+        assert response.semantic_results.values == []
+        sent_requests = httpx_mock.get_requests()
+        assert len(sent_requests) == 1
+        assert sent_requests[0].method == "POST"
 
     @pytest.mark.anyio
     async def test_unified_search_async(

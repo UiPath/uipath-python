@@ -7,10 +7,10 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
-uipath-core = false
 uipath-ipc = false
-uipath-platform = false
 uipath-runtime = false
+uipath-platform = false
+uipath-core = false
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -2762,7 +2762,7 @@ wheels = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.33"
+version = "0.2.34"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "anyio" },
