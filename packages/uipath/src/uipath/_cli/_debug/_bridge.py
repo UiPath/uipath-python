@@ -468,7 +468,14 @@ class ConsoleDebugBridge:
                     json_str = json_str[:10000] + "\n..."
                 from rich.syntax import Syntax
 
-                syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
+                # Syntax crops lines wider than the console unless it wraps.
+                syntax = Syntax(
+                    json_str,
+                    "json",
+                    theme="monokai",
+                    line_numbers=False,
+                    word_wrap=not truncate,
+                )
                 self.console.print(f"\n[dim]{label}:")
                 self.console.print(syntax)
                 self.console.print()

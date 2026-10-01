@@ -6,6 +6,7 @@ Intermediate state is a progress stream and may still be shortened.
 
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 from rich.console import Console
 
@@ -87,17 +88,70 @@ async def test_completed_output_prints_markup_like_text_literally() -> None:
     assert "output:" not in text
 
 
-async def test_suspended_api_output_prints_long_value_whole() -> None:
+async def _render_suspended(output: Any) -> str:
     bridge = _bridge()
     await bridge.emit_execution_suspended(
         UiPathRuntimeResult(
-            output={"question": LONG},
+            output=output,
             status=UiPathRuntimeStatus.SUSPENDED,
             trigger=UiPathResumeTrigger(trigger_type=UiPathResumeTriggerType.API),
         )
     )
+    return bridge.console.export_text()
 
-    assert LONG in bridge.console.export_text()
+
+async def test_suspended_api_output_prints_long_value_whole() -> None:
+    assert LONG in await _render_suspended({"question": LONG})
+
+
+async def test_suspended_api_output_prints_pydantic_model_whole() -> None:
+    class Question(BaseModel):
+        question: str
+
+    assert LONG in await _render_suspended(Question(question=LONG))
+
+
+async def test_suspended_api_output_without_payload_prints_empty_output() -> None:
+    text = await _render_suspended(None)
+
+    assert "output" in text
+    assert "Please provide your input" in text
+
+
+class _BrokenTree:
+    """Stands in for rich's Tree so the JSON fallback path runs."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("tree rendering failed")
+
+
+async def test_json_fallback_prints_completed_output_whole(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("uipath._cli._debug._bridge.Tree", _BrokenTree)
+    huge = "y" * 20000
+
+    text = await _render_output({"blob": huge})
+
+    # The fallback wraps long lines, so compare with the line breaks removed.
+    assert huge in "".join(text.split())
+
+
+async def test_json_fallback_still_shortens_state_updates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("uipath._cli._debug._bridge.Tree", _BrokenTree)
+    huge = "y" * 20000
+    bridge = _bridge()
+    await bridge.emit_state_update(
+        UiPathRuntimeStateEvent(
+            node_name="node",
+            phase=UiPathRuntimeStatePhase.UPDATED,
+            payload={"blob": huge},
+        )
+    )
+
+    assert huge not in "".join(bridge.console.export_text().split())
 
 
 async def test_state_update_still_shortens_long_values() -> None:
