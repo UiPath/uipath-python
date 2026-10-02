@@ -10,11 +10,11 @@ from opentelemetry import trace
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
-from uipath.platform.chat._llm_gateway_service import ChatModels
 
 from .._execution_context import eval_set_run_id_context
 from ._mock_context import cache_manager_context
 from ._mocker import UiPathInputMockingError, format_exception_message
+from ._simulation_model import simulation_completion_kwargs
 from ._structured_output import coerce_to_schema, generate_structured_output
 from ._types import (
     InputMockingStrategy,
@@ -127,17 +127,12 @@ async def generate_llm_input(
 
         prompt = get_input_mocking_prompt(**prompt_generation_args)
 
-        model_parameters = mocking_strategy.model if mocking_strategy else None
-        completion_kwargs = (
-            model_parameters.model_dump(by_alias=False, exclude_none=True)
-            if model_parameters
-            else {}
+        completion_kwargs = simulation_completion_kwargs(
+            mocking_strategy.model if mocking_strategy else None
         )
-
-        simulation_model = completion_kwargs.get(
-            "model", ChatModels.gpt_4_1_mini_2025_04_14
+        logger.info(
+            f"Simulating input generation using model: {completion_kwargs['model']}"
         )
-        logger.info(f"Simulating input generation using model: {simulation_model}")
 
         if cache_manager is not None:
             cache_key_data = {
