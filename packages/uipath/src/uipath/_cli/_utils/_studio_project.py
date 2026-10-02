@@ -757,11 +757,7 @@ class StudioClient:
         if not force and self._project_structure_cache is not None:
             return self._project_structure_cache
 
-        # Any non-2xx response (including 404) propagates as EnrichedException,
-        # carrying the request URL and status. Studio Web creates project.uiproj
-        # with every new project, so an empty or missing structure is never a
-        # legitimate "fresh project" signal; a 404 means the project or URL is
-        # wrong (e.g. UIPATH_URL without the organization segment).
+        # A 404 propagates: Studio Web now creates project.uiproj with every project.
         response = await self.uipath.api_client.request_async(
             "GET",
             url=f"{self.file_operations_base_url}/Structure",
