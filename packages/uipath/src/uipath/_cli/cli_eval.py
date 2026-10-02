@@ -39,6 +39,7 @@ from uipath.tracing import (
     LlmOpsHttpExporter,
 )
 
+from ._execution_control import run_execution_loop
 from ._utils._console import ConsoleLogger
 
 logger = logging.getLogger(__name__)
@@ -528,7 +529,7 @@ def eval(
                     finally:
                         await runtime_factory.dispose()
 
-            asyncio.run(execute_eval())
+            run_execution_loop(execute_eval())
 
         except _EvalDiscoveryError as e:
             click.echo("\n".join(e.get_usage_help()))
@@ -538,6 +539,7 @@ def eval(
                     "uipath.json spec:",
                     "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
                 )
+            click.get_current_context().exit(1)
         except ValueError as e:
             console.error(str(e))
         except Exception as e:

@@ -82,6 +82,24 @@ def test_to_result_dto_maps_suspended():
     assert dto.status == _job_api.ExecutorJobStatus.SUSPENDED.value
 
 
+def test_to_result_dto_maps_stopped():
+    class _Result:
+        status = "stopped"
+        error = None
+
+    dto = _job_api._to_result_dto("j", None, _Result(), "p.args")
+    assert dto.status == _job_api.ExecutorJobStatus.STOPPED.value
+
+
+def test_to_result_dto_reports_an_unknown_status_as_faulted():
+    class _Result:
+        status = "something-new"
+        error = None
+
+    dto = _job_api._to_result_dto("j", None, _Result(), "p.args")
+    assert dto.status == _job_api.ExecutorJobStatus.FAULTED.value
+
+
 def test_to_log_level_maps_python_levels_to_wire_values():
     assert _job_api._to_log_level(logging.CRITICAL) == _job_api.LogLevel.CRITICAL
     assert _job_api._to_log_level(logging.ERROR) == _job_api.LogLevel.ERROR
