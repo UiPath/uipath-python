@@ -785,6 +785,8 @@ class TestListTargetOutputKey:
         result = await evaluator.evaluate(execution, criteria)
         assert isinstance(result, ErrorEvaluationResult)
         assert result.score == 0.0
+        assert "'missing_key'" in result.details
+        assert "'other'" in result.details
 
     @pytest.mark.asyncio
     async def test_scalar_key_missing_in_expected_raises(self) -> None:
@@ -807,6 +809,9 @@ class TestListTargetOutputKey:
         result = await evaluator.evaluate(execution, criteria)
         assert isinstance(result, ErrorEvaluationResult)
         assert result.score == 0.0
+        assert "'status'" in result.details
+        assert "'other_key'" in result.details
+        assert "Traceback" not in result.details
 
     @pytest.mark.asyncio
     async def test_scalar_key_invalid_json_expected_raises(self) -> None:
