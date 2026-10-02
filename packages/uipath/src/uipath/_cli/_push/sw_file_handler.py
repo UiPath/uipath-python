@@ -529,8 +529,6 @@ class SwFileHandler:
                 not that the project is empty)
             Exception: If any other step in the process fails
         """
-        # A failed structure fetch (including 404) propagates: it means the
-        # project or base URL is wrong, not that the project is empty.
         structure = await self._studio_client.get_project_structure_async()
 
         remote_files = self._get_remote_files(structure)
