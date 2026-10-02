@@ -1,5 +1,6 @@
 """Factory class for creating evaluator instances based on configuration."""
 
+import hashlib
 import importlib.util
 import logging
 import sys
@@ -122,6 +123,14 @@ class EvaluatorFactory:
             ValueError: If file or class cannot be loaded, or if the class is not a BaseEvaluator subclass
         """
         file_path = Path(file_path_str)
+        # The schema path comes from evaluator configuration, so treat it as
+        # untrusted input: reject path-traversal ('..') segments before the path
+        # is resolved and handed to the module loader, so a config value cannot
+        # walk out of its intended location to load an arbitrary file.
+        if ".." in file_path.parts:
+            raise ValueError(
+                f"Custom evaluator path must not contain '..' segments: {file_path_str!r}"
+            )
         if not file_path.is_absolute():
             if not file_path.exists():
                 if evaluators_dir is not None:
@@ -146,19 +155,34 @@ class EvaluatorFactory:
                 f"Make sure the file exists in the evaluators/custom/ directory"
             )
 
-        module_name = f"_custom_evaluator_{file_path.stem}_{id(data)}"
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
-        if spec is None or spec.loader is None:
-            raise ValueError(f"Could not load module from {file_path}")
+        # Cache the module under a name derived from its resolved path so that
+        # sys.modules acts as the cache: repeated creations reuse the already
+        # loaded module instead of re-exec()'ing it. The name previously embedded
+        # id(data) (a fresh dict, so a unique value on every call), which defeated
+        # the cache and leaked a new module into sys.modules on each call —
+        # unbounded growth (and O(n^2) cost) when evaluators are built per
+        # datapoint.
+        resolved_path = file_path.resolve()
+        module_name = (
+            f"_custom_evaluator_{resolved_path.stem}_"
+            f"{hashlib.sha256(str(resolved_path).encode()).hexdigest()[:16]}"
+        )
+        module = sys.modules.get(module_name)
+        if module is None:
+            spec = importlib.util.spec_from_file_location(module_name, resolved_path)
+            if spec is None or spec.loader is None:
+                raise ValueError(f"Could not load module from {resolved_path}")
 
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        try:
-            spec.loader.exec_module(module)
-        except Exception as e:
-            raise ValueError(
-                f"Error executing module from {file_path}: {str(e)}"
-            ) from e
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            try:
+                spec.loader.exec_module(module)
+            except Exception as e:
+                # Don't leave a half-initialized module cached under this name.
+                sys.modules.pop(module_name, None)
+                raise ValueError(
+                    f"Error executing module from {resolved_path}: {str(e)}"
+                ) from e
 
         # Get the class from the module
         if not hasattr(module, class_name):
