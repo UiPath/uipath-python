@@ -27,6 +27,7 @@ from uipath.agent.models.agent import (
     AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
     AgentInternalBatchTransformToolProperties,
+    AgentInternalCreateFileToolProperties,
     AgentInternalDeepRagToolProperties,
     AgentInternalHttpRequestToolProperties,
     AgentInternalToolResourceConfig,
@@ -1756,6 +1757,53 @@ class TestAgentBuilderConfig:
         assert unknown_resource.resource_type == AgentResourceType.UNKNOWN
         assert unknown_resource.name == "Future Resource"
         assert unknown_resource.description == "A resource type that doesn't exist yet"
+
+    def test_agent_with_create_file_tool(self):
+        json_data = {
+            "id": "test-create-file",
+            "name": "Agent with Create File",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "internal",
+                    "referenceKey": None,
+                    "name": "Create File",
+                    "isEnabled": True,
+                    "description": "Create a file and attach it to the job.",
+                    "properties": {"toolType": "create-file"},
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"file_name": {"type": "string"}},
+                        "required": ["file_name"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "settings": {},
+                    "argumentProperties": {},
+                    "guardrail": {"policies": []},
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentInternalToolResourceConfig)
+        assert isinstance(
+            tool_resource.properties, AgentInternalCreateFileToolProperties
+        )
+        assert tool_resource.properties.tool_type == AgentInternalToolType.CREATE_FILE
 
     def test_agent_with_unknown_tool_type(self):
         """Test that AgentDefinition handles unknown tool types gracefully"""
