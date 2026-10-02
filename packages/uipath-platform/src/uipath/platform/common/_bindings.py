@@ -61,6 +61,7 @@ class GenericResourceOverwrite(ResourceOverwrite):
         "queue",
         "remoteA2aAgent",
         "memorySpace",
+        "businessRule",
     ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
