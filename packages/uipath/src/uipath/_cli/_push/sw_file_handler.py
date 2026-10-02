@@ -511,7 +511,7 @@ class SwFileHandler:
         """Main method to upload source files to the UiPath project.
 
         This method:
-        1. Gets project structure (or creates if it doesn't exist)
+        1. Gets the remote project structure
         2. Collects local files to upload
         3. Processes file uploads (yields progress updates)
         4. Performs structural migration
@@ -524,7 +524,10 @@ class SwFileHandler:
             FileOperationUpdate: Progress updates for each file operation
 
         Raises:
-            Exception: If any step in the process fails
+            EnrichedException: If the project structure cannot be fetched
+                (including 404, which means the project id or base URL is wrong,
+                not that the project is empty)
+            Exception: If any other step in the process fails
         """
         # A failed structure fetch (including 404) propagates: it means the
         # project or base URL is wrong, not that the project is empty.
