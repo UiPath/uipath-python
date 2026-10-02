@@ -17,7 +17,6 @@ from uipath.platform.constants import (
     STUDIO_METADATA_FILE,
 )
 
-from ...platform.errors import EnrichedException
 from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
@@ -527,16 +526,9 @@ class SwFileHandler:
         Raises:
             Exception: If any step in the process fails
         """
-        # Get or create project structure
-        try:
-            structure = await self._studio_client.get_project_structure_async()
-        except EnrichedException as e:
-            if e.status_code == 404:
-                # Project structure doesn't exist - create empty structure and lock
-                structure = ProjectStructure(name="", files=[], folders=[])
-                await self._studio_client._put_lock()
-            else:
-                raise
+        # A failed structure fetch (including 404) propagates: it means the
+        # project or base URL is wrong, not that the project is empty.
+        structure = await self._studio_client.get_project_structure_async()
 
         remote_files = self._get_remote_files(structure)
 

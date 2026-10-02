@@ -717,7 +717,7 @@ class TestPush:
                 in result.output
             )
 
-    def test_first_push_to_uninitialized_project(
+    def test_push_fails_when_structure_returns_404(
         self,
         runner: CliRunner,
         temp_dir: str,
@@ -725,45 +725,25 @@ class TestPush:
         mock_env_vars: dict[str, str],
         httpx_mock: HTTPXMock,
     ) -> None:
-        """Test push when the remote file system was never initialized.
+        """Test that a 404 from FileOperations/Structure fails the push.
 
-        The backend returns 404 from FileOperations/Structure for projects
-        whose file system does not exist yet (e.g. a freshly created Function
-        project). The first push should bootstrap the files instead of failing
-        the coded-agent validation.
+        A 404 is not an empty project: Studio Web creates project.uiproj with
+        every new project, so a missing structure means the project id or the
+        base URL is wrong (e.g. UIPATH_URL without the organization segment).
+        It must propagate with the request URL instead of being treated as a
+        never-pushed project that is allowed through.
         """
         base_url = "https://cloud.uipath.com/organization"
         project_id = "test-project-id"
+        structure_url = f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure"
 
-        # Uninitialized file system: Structure returns 404
         httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            url=structure_url,
             status_code=404,
             json={
                 "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
                 "title": "Not Found",
                 "status": 404,
-            },
-        )
-
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
-
-        httpx_mock.add_response(
-            method="POST",
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
-            status_code=200,
-            json={"success": True},
-        )
-
-        # Empty folder cleanup - get structure again after migration
-        httpx_mock.add_response(
-            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
-            json={
-                "id": "root",
-                "name": "root",
-                "folders": [],
-                "files": [],
-                "folderType": "0",
             },
         )
 
@@ -776,20 +756,15 @@ class TestPush:
             with open("main.py", "w") as f:
                 f.write("print('Hello World')")
 
-            with open("uv.lock", "w") as f:
-                f.write('version = 1 \n requires-python = ">=3.11"')
-
             configure_env_vars(mock_env_vars)
             os.environ["UIPATH_PROJECT_ID"] = project_id
 
             result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
-            assert result.exit_code == 0
-            assert "not of type coded agent" not in result.output
-            assert "Uploading 'main.py'" in result.output
-            assert "Uploading 'pyproject.toml'" in result.output
-            assert "Uploading 'uipath.json'" in result.output
-            assert "Uploading 'uv.lock'" in result.output
-            assert "Uploading '.uipath/studio_metadata.json'" in result.output
+            assert result.exit_code == 1
+            assert isinstance(result.exception, EnrichedException)
+            assert result.exception.status_code == 404
+            assert result.exception.url == structure_url
+            assert "Uploading" not in result.output
 
     def test_push_to_scaffolded_function_project(
         self,

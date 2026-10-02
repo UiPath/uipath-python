@@ -749,26 +749,25 @@ class StudioClient:
 
         Returns:
             ProjectStructure: The complete project structure
+
+        Raises:
+            EnrichedException: If the request fails with a non-2xx status,
+                including 404 when the project (or the base URL) is wrong.
         """
         if not force and self._project_structure_cache is not None:
             return self._project_structure_cache
 
-        try:
-            response = await self.uipath.api_client.request_async(
-                "GET",
-                url=f"{self.file_operations_base_url}/Structure",
-                scoped="org",
-            )
-            structure = ProjectStructure.model_validate(response.json())
-        except EnrichedException as e:
-            # The backend returns 404 for projects whose file system was never
-            # initialized (e.g. a freshly created Function project): treat it
-            # as an empty structure so the first push can bootstrap the files.
-            if e.status_code != 404:
-                raise
-            structure = ProjectStructure(name="root", folders=[], files=[])
-
-        self._project_structure_cache = structure
+        # Any non-2xx response (including 404) propagates as EnrichedException,
+        # carrying the request URL and status. Studio Web creates project.uiproj
+        # with every new project, so an empty or missing structure is never a
+        # legitimate "fresh project" signal; a 404 means the project or URL is
+        # wrong (e.g. UIPATH_URL without the organization segment).
+        response = await self.uipath.api_client.request_async(
+            "GET",
+            url=f"{self.file_operations_base_url}/Structure",
+            scoped="org",
+        )
+        self._project_structure_cache = ProjectStructure.model_validate(response.json())
         return self._project_structure_cache
 
     @traced(name="create_folder", run_type="uipath")
