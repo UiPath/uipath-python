@@ -79,8 +79,25 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
         return await super().evaluate(workload_execution, evaluation_criteria)
 
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
-        """Get the actual output from the workload execution."""
-        return trace_to_str(workload_execution.workload_trace)
+        """Get the actual output from the workload execution.
+
+        `trace_to_str` only ever renders tool-call spans, so a run where the
+        agent responded with plain text and made no tool calls at all
+        produces an empty string here - not because nothing happened, but
+        because there was nothing for `trace_to_str` to render. Append the
+        agent's actual final output so the judge always sees what the agent
+        answered, not just which tools it used (UV-16309).
+        """
+        history = trace_to_str(workload_execution.workload_trace)
+        final_output = workload_execution.workload_output
+        if final_output:
+            final_output_section = f"Agent Final Response:\n{final_output}"
+            history = (
+                f"{history}\n\n{final_output_section}"
+                if history
+                else final_output_section
+            )
+        return history
 
     def _get_expected_output(
         self, evaluation_criteria: TrajectoryEvaluationCriteria
