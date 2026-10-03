@@ -92,7 +92,7 @@ def convert_from_class(obj: Any) -> dict[str, Any]:
 
     # Pydantic models
     if isinstance(obj, BaseModel):
-        return obj.model_dump()
+        return obj.model_dump(by_alias=True)
 
     # Dataclasses
     if is_dataclass(obj) and not isinstance(obj, type):
