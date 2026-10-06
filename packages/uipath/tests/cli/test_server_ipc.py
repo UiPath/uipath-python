@@ -191,8 +191,7 @@ class TestIpcServer:
 
         assert result is True
 
-    def test_stop_job_returns_true(self, pipe):
-        """StopJob is a no-op stub today, but must ack (bool) so the call is awaitable."""
+    def test_stop_job_for_an_unknown_key_reports_it_is_not_running(self, pipe):
         result = asyncio.run(
             _with_proxy(
                 pipe, lambda p: p.StopJob({"jobKey": "job-1", "forceStop": True})
@@ -463,7 +462,9 @@ class TestPooledSinks:
 
         monkeypatch.setattr(_job_api, "install_runtime_sinks", _record)
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             # Emit through the installed sink, so a log line actually crosses the pipe.
@@ -541,7 +542,9 @@ class TestPooledSinks:
             _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
         )
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             events.append(("run",))
@@ -581,7 +584,9 @@ class TestPooledSinks:
         )
         monkeypatch.setattr(_job_api, "clear_runtime_sinks", lambda: None)
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             events.append("run")
@@ -620,7 +625,9 @@ class TestPooledSinks:
             _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
         )
 
-        async def _fake_run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def _fake_run(
+            cmd, args, env, wd, on_run_start=None, on_run_end=None, **_: Any
+        ):
             if on_run_start:
                 on_run_start()
             events.append(("run",))

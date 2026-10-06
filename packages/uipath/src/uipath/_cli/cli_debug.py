@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any, cast, get_args
 
@@ -28,6 +27,7 @@ from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
+from ._execution_control import run_execution_loop
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
 from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
@@ -311,7 +311,7 @@ def debug(
                         finally:
                             trace_manager.shutdown()
 
-            asyncio.run(execute_debug_runtime())
+            run_execution_loop(execute_debug_runtime())
         except Exception as e:
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True

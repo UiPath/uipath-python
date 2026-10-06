@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 import click
@@ -35,6 +34,7 @@ from uipath.tracing import (
 )
 
 from ._errors import EntrypointDiscoveryException
+from ._execution_control import run_execution_loop
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
 from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
@@ -367,7 +367,7 @@ def run(
                             finally:
                                 trace_manager.shutdown()
 
-            asyncio.run(execute())
+            run_execution_loop(execute())
 
         except _RunDiscoveryError as e:
             click.echo("\n".join(e.get_usage_help()))
@@ -377,7 +377,7 @@ def run(
                     "uipath.json spec:",
                     "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
                 )
-            return
+            click.get_current_context().exit(1)
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")
         except Exception as e:
