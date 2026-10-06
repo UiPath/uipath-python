@@ -6,6 +6,8 @@ from uipath.core.guardrails import (
     AllFieldsSelector,
     FieldReference,
     FieldSource,
+    GuardrailValidationResult,
+    GuardrailValidationResultType,
 )
 
 if TYPE_CHECKING:
@@ -51,3 +53,53 @@ class TestGuardrailsModelsNormalization:
         )
         assert FieldSource.INPUT in selector.sources
         assert FieldSource.OUTPUT in selector.sources
+
+
+class TestGuardrailValidationResultFlaggedAttachmentIds:
+    """Test GuardrailValidationResult.flagged_attachment_ids."""
+
+    def test_defaults_to_none(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.PASSED, reason=""
+        )
+        assert result.flagged_attachment_ids is None
+
+    def test_populates_from_alias(self) -> None:
+        result = GuardrailValidationResult.model_validate(
+            {
+                "result": "validation_failed",
+                "reason": "PII detected",
+                "flaggedAttachmentIds": ["a", "b"],
+            }
+        )
+        assert result.flagged_attachment_ids == ["a", "b"]
+
+    def test_populates_from_field_name(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.VALIDATION_FAILED,
+            reason="PII detected",
+            flagged_attachment_ids=["a"],
+        )
+        assert result.flagged_attachment_ids == ["a"]
+
+    def test_dumps_by_alias_like_span_id(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.VALIDATION_FAILED,
+            reason="PII detected",
+            span_id="span",
+            flagged_attachment_ids=["a"],
+        )
+        dumped = result.model_dump(by_alias=True)
+        assert dumped["spanId"] == "span"
+        assert dumped["flaggedAttachmentIds"] == ["a"]
+
+    def test_dumps_none_by_alias_like_span_id(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.PASSED, reason=""
+        )
+        dumped = result.model_dump(by_alias=True)
+        assert dumped["spanId"] is None
+        assert dumped["flaggedAttachmentIds"] is None
+        assert "flaggedAttachmentIds" not in result.model_dump(
+            by_alias=True, exclude_none=True
+        )

@@ -223,5 +223,10 @@ class GuardrailsService(BaseService):
         }
         if span_id:
             model_data["spanId"] = span_id
+        flagged_attachment_ids = response_data.get("flaggedAttachmentIds")
+        if isinstance(flagged_attachment_ids, list):
+            model_data["flaggedAttachmentIds"] = [
+                str(attachment_id) for attachment_id in flagged_attachment_ids
+            ]
 
         return GuardrailValidationResult.model_validate(model_data)

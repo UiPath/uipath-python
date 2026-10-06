@@ -1117,3 +1117,170 @@ class TestGuardrailAttachmentTiming:
 
         timeout = httpx_mock.get_requests()[0].extensions["timeout"]
         assert timeout["read"] != 60.0
+
+
+class TestGuardrailFlaggedAttachmentIds:
+    """evaluate_guardrail parses the flagged attachment ids from the response."""
+
+    def test_flagged_ids_are_parsed_when_present(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "PII detected",
+                "flaggedAttachmentIds": [_ATTACHMENT_ID],
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.flagged_attachment_ids == [_ATTACHMENT_ID]
+
+    def test_flagged_ids_items_are_coerced_to_str(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "",
+                "flaggedAttachmentIds": [_ATTACHMENT_ID, 42],
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.flagged_attachment_ids == [_ATTACHMENT_ID, "42"]
+
+    def test_flagged_ids_are_none_when_absent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend never sends the key."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "VALIDATION_FAILED", "details": "PII detected"},
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.flagged_attachment_ids is None
+
+    @pytest.mark.parametrize(
+        ("result_value", "expected"),
+        [
+            ("FEATURE_DISABLED", GuardrailValidationResultType.FEATURE_DISABLED),
+            (
+                "ENTITLEMENTS_MISSING",
+                GuardrailValidationResultType.ENTITLEMENTS_MISSING,
+            ),
+        ],
+    )
+    def test_flagged_ids_are_none_on_403_bodies(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        result_value: str,
+        expected: GuardrailValidationResultType,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=403,
+            json={"result": result_value, "details": "Not available"},
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.result == expected
+        assert result.flagged_attachment_ids is None
+
+    @pytest.mark.parametrize(
+        "value", [None, _ATTACHMENT_ID, {"id": _ATTACHMENT_ID}, 1, True]
+    )
+    def test_flagged_ids_are_none_when_not_a_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        value: object,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "",
+                "flaggedAttachmentIds": value,
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.flagged_attachment_ids is None
+
+    def test_unknown_response_keys_are_ignored(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "PII detected",
+                "flaggedAttachmentIds": [_ATTACHMENT_ID],
+                "inspectedAttachmentIds": [_ATTACHMENT_ID, "other"],
+                "payloadEvaluated": False,
+                "detections": [{"entity": "Email"}],
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.model_dump(by_alias=True) == {
+            "result": GuardrailValidationResultType.VALIDATION_FAILED,
+            "reason": "PII detected",
+            "spanId": None,
+            "flaggedAttachmentIds": [_ATTACHMENT_ID],
+        }

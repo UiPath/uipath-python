@@ -32,6 +32,8 @@ class GuardrailValidationResult(BaseModel):
         reason: Textual explanation describing why the validation passed or failed.
         span_id: Span ID from the guardrail service response, formatted as a GUID
             for trace correlation. None when the response omits the header.
+        flagged_attachment_ids: Ids of the attachments the guardrail service
+            flagged as causing the violation. None when the response omits them.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -46,6 +48,11 @@ class GuardrailValidationResult(BaseModel):
         default=None,
         alias="spanId",
         description="Span ID returned by the guardrail service for trace correlation.",
+    )
+    flagged_attachment_ids: Optional[list[str]] = Field(
+        default=None,
+        alias="flaggedAttachmentIds",
+        description="Ids of the attachments flagged by the guardrail service.",
     )
 
 
