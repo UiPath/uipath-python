@@ -111,6 +111,7 @@ class GuardrailsService(BaseService):
         guardrail: BuiltInValidatorGuardrail,
         *,
         attachments: list[GuardrailAttachment] | None = None,
+        action: str | None = None,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
@@ -118,6 +119,9 @@ class GuardrailsService(BaseService):
             input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
             guardrail: A guardrail instance used for validation.
             attachments: Files attached to the run that the guardrail may inspect.
+            action: The guardrail's action in the agent (``block``, ``log``,
+                ``escalate``, ``filter``). For ``block`` and ``log`` the service stops
+                scanning at the first violation.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -139,6 +143,8 @@ class GuardrailsService(BaseService):
             payload["byoValidatorName"] = guardrail.byo_validator_name
         if attachments:
             payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
+        if action:
+            payload["action"] = action
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
