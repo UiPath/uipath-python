@@ -668,7 +668,7 @@ Guardrails service
 
 ```python
 # Validate input text using the provided guardrail.
-sdk.guardrails.evaluate_guardrail(input_data: str | dict[str, Any], guardrail: uipath.platform.guardrails.guardrails.BuiltInValidatorGuardrail, attachments: list[uipath.platform.guardrails.guardrails.GuardrailAttachment] | None=None, action: str | None=None) -> uipath.core.guardrails.guardrails.GuardrailValidationResult
+sdk.guardrails.evaluate_guardrail(input_data: str | dict[str, Any], guardrail: uipath.platform.guardrails.guardrails.BuiltInValidatorGuardrail, attachments: list[uipath.platform.guardrails.guardrails.GuardrailAttachment] | None=None, termination_mode: uipath.platform.guardrails.guardrails.GuardrailTerminationMode | None=None) -> uipath.core.guardrails.guardrails.GuardrailValidationResult
 
 ```
 

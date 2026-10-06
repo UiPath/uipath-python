@@ -21,6 +21,7 @@ from .guardrails import (
     BYO_VALIDATOR_TYPE,
     BuiltInValidatorGuardrail,
     GuardrailAttachment,
+    GuardrailTerminationMode,
 )
 
 _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
@@ -111,7 +112,7 @@ class GuardrailsService(BaseService):
         guardrail: BuiltInValidatorGuardrail,
         *,
         attachments: list[GuardrailAttachment] | None = None,
-        action: str | None = None,
+        termination_mode: GuardrailTerminationMode | None = None,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
@@ -119,9 +120,8 @@ class GuardrailsService(BaseService):
             input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
             guardrail: A guardrail instance used for validation.
             attachments: Files attached to the run that the guardrail may inspect.
-            action: The guardrail's action in the agent (``block``, ``log``,
-                ``escalate``, ``filter``). For ``block`` and ``log`` the service stops
-                scanning at the first violation.
+            termination_mode: ``FAIL_FAST`` stops scanning at the first violation;
+                ``EVALUATE_ALL`` or ``None`` scans everything.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -143,8 +143,8 @@ class GuardrailsService(BaseService):
             payload["byoValidatorName"] = guardrail.byo_validator_name
         if attachments:
             payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
-        if action:
-            payload["action"] = action
+        if termination_mode is not None:
+            payload["terminationMode"] = termination_mode.value
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),

@@ -16,6 +16,7 @@ from uipath.platform.guardrails import (
     EnumListParameterValue,
     GuardrailAttachment,
     GuardrailsService,
+    GuardrailTerminationMode,
     MapEnumParameterValue,
 )
 
@@ -1007,16 +1008,25 @@ class TestGuardrailAttachments:
         assert parsed.model_dump(by_alias=True) == wire
 
 
-class TestGuardrailAction:
-    """evaluate_guardrail forwards the guardrail's action to the validate API."""
+class TestGuardrailTerminationMode:
+    """evaluate_guardrail forwards the termination mode to the validate API."""
 
-    def test_action_is_sent_when_supplied(
+    @pytest.mark.parametrize(
+        ("mode", "wire"),
+        [
+            (GuardrailTerminationMode.FAIL_FAST, "FailFast"),
+            (GuardrailTerminationMode.EVALUATE_ALL, "EvaluateAll"),
+        ],
+    )
+    def test_termination_mode_is_sent_when_supplied(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
         base_url: str,
         org: str,
         tenant: str,
+        mode: GuardrailTerminationMode,
+        wire: str,
     ) -> None:
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
@@ -1024,19 +1034,18 @@ class TestGuardrailAction:
             json={"result": "PASSED", "details": ""},
         )
 
-        service.evaluate_guardrail("x", _judge_guardrail(), action="block")
+        service.evaluate_guardrail("x", _judge_guardrail(), termination_mode=mode)
 
-        assert json.loads(httpx_mock.get_requests()[0].content)["action"] == "block"
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["terminationMode"] == wire
 
-    @pytest.mark.parametrize("action", [None, ""])
-    def test_action_key_is_absent_when_not_supplied(
+    def test_termination_mode_key_is_absent_when_not_supplied(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
         base_url: str,
         org: str,
         tenant: str,
-        action: str | None,
     ) -> None:
         """An older backend must see a byte-identical body to today."""
         httpx_mock.add_response(
@@ -1045,9 +1054,9 @@ class TestGuardrailAction:
             json={"result": "PASSED", "details": ""},
         )
 
-        service.evaluate_guardrail("x", _judge_guardrail(), action=action)
+        service.evaluate_guardrail("x", _judge_guardrail())
 
-        assert "action" not in json.loads(httpx_mock.get_requests()[0].content)
+        assert "terminationMode" not in json.loads(httpx_mock.get_requests()[0].content)
 
 
 class TestGuardrailAttachmentFolderHeader:
