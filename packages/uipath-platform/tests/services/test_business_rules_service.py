@@ -68,9 +68,12 @@ def evaluate_url(base_url: str, org: str, tenant: str) -> str:
 def _service_response(
     result: dict[str, Any] | None = None, **extra: Any
 ) -> dict[str, Any]:
-    body: dict[str, Any] = {"meta": {"timestamp": "2026-09-28T00:00:00Z"}, **extra}
-    body["result"] = {"decisions": []} if result is None else result
-    return body
+    response_body: dict[str, Any] = {
+        "meta": {"timestamp": "2026-09-28T00:00:00Z"},
+        **extra,
+    }
+    response_body["result"] = {"decisions": []} if result is None else result
+    return response_body
 
 
 def _single_decision_result(**outputs: Any) -> dict[str, Any]:
