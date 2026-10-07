@@ -65,6 +65,15 @@ class PythonJobLogDto:
 
 
 @dataclass
+class PythonUserAccessTokenRequestDto:
+    """A token request; field names are the wire keys (do not rename)."""
+
+    jobKey: str
+    resumeVersion: int | None = None
+    scopes: str | None = None
+
+
+@dataclass
 class JobExecutorError:
     """A result error; field names are the wire keys (do not rename)."""
 
@@ -98,6 +107,11 @@ class IPythonJobApi(ABC):
     @abstractmethod
     async def SetResult(self, result: PythonJobResultDto) -> bool:
         """Submit the final result."""
+
+    # Not abstract, so existing implementers still instantiate; the IPC proxy never runs the body.
+    async def GetUserAccessToken(self, request: PythonUserAccessTokenRequestDto) -> str:
+        """Request a user access token for the job; empty scopes means the job's default scopes."""
+        raise NotImplementedError
 
 
 def _to_log_level(levelno: int) -> int:

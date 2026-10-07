@@ -1,10 +1,10 @@
-"""`uipath server` serves BOTH transports concurrently — never either/or.
+"""`uipath server` serves HTTP, plus uipath-ipc when a pipe is named.
 
-The HTTP channel (aiohttp over a Unix socket, or TCP on Windows / ``--tcp``) is
-ALWAYS started. The uipath-ipc named-pipe channel is opt-in and independent of the
-HTTP socket: it is started alongside HTTP only when ``--ipc-pipe`` names a pipe,
-served verbatim on that name (both sides agree on it out of band). The HTTP channel
-is never torn down.
+The uipath-ipc named-pipe channel is opt-in: it is started when ``--ipc-pipe`` names
+a pipe, served verbatim on that name (both sides agree on it out of band). The HTTP
+channel (aiohttp over a Unix socket, or TCP on Windows / ``--tcp``) is started
+unless ``--ipc-pipe`` is given without any HTTP option (``--client-socket``,
+``--server-socket``, ``--port``, ``--tcp``).
 
 These tests stub the three channel runners (so ``_serve``'s ``asyncio.gather``
 returns at once instead of serving forever) and assert which channels ``_serve``
@@ -15,6 +15,7 @@ through.
 import asyncio
 from typing import Any
 
+import pytest
 from click.testing import CliRunner
 
 import uipath._cli._telemetry as _telemetry
@@ -97,6 +98,14 @@ def test_serve_rides_ipc_alongside_tcp(monkeypatch):
     assert calls["ipc"] == "agent.pipe"  # IPC rides next to TCP too, not only UDS
 
 
+def test_serve_without_http_runs_ipc_only(monkeypatch):
+    calls = _stub_channels(monkeypatch)
+    asyncio.run(
+        cli_server._serve("/tmp/ack.sock", None, "agent.pipe", 8765, True, False)
+    )
+    assert calls == {"ipc": "agent.pipe"}
+
+
 def test_serve_skips_ipc_without_ipc_pipe(monkeypatch):
     """No ``--ipc-pipe`` ⇒ HTTP only, regardless of the HTTP socket."""
     calls = _stub_channels(monkeypatch)
@@ -118,13 +127,16 @@ def _capture_serve(monkeypatch) -> dict[str, Any]:
     Linux) without actually serving anything."""
     seen: dict[str, Any] = {}
 
-    async def _rec_serve(ack_socket_path, server_socket, ipc_pipe, port, use_tcp):
+    async def _rec_serve(
+        ack_socket_path, server_socket, ipc_pipe, port, use_tcp, serve_http=True
+    ):
         seen.update(
             ack=ack_socket_path,
             server_socket=server_socket,
             ipc_pipe=ipc_pipe,
             port=port,
             use_tcp=use_tcp,
+            serve_http=serve_http,
         )
 
     monkeypatch.setattr(cli_server, "_serve", _rec_serve)
@@ -155,6 +167,39 @@ def test_run_server_falls_back_to_default_ack(monkeypatch):
     monkeypatch.delenv(cli_server.SOCKET_ENV_VAR, raising=False)
     cli_server._run_server(None, "/tmp/s.sock", None, None, False)
     assert seen["ack"] == cli_server.DEFAULT_SOCKET_PATH
+
+
+def test_run_server_bare_ipc_pipe_serves_ipc_only(monkeypatch):
+    seen = _capture_serve(monkeypatch)
+    cli_server._run_server(None, None, "agent.pipe", None, False)
+    assert seen["serve_http"] is False
+    assert seen["ipc_pipe"] == "agent.pipe"
+
+
+@pytest.mark.parametrize(
+    "client_socket, server_socket, port, tcp",
+    [
+        ("/tmp/ack.sock", None, None, False),
+        (None, "/tmp/s.sock", None, False),
+        (None, None, 9000, False),
+        (None, None, None, True),
+        ("/tmp/ack.sock", "/tmp/s.sock", None, False),
+    ],
+)
+def test_run_server_any_http_option_keeps_http(
+    monkeypatch, client_socket, server_socket, port, tcp
+):
+    seen = _capture_serve(monkeypatch)
+    cli_server._run_server(client_socket, server_socket, "agent.pipe", port, tcp)
+    assert seen["serve_http"] is True
+    assert seen["ipc_pipe"] == "agent.pipe"
+
+
+@pytest.mark.parametrize("ipc_pipe", [None, ""])
+def test_run_server_without_ipc_pipe_serves_http(monkeypatch, ipc_pipe):
+    seen = _capture_serve(monkeypatch)
+    cli_server._run_server(None, None, ipc_pipe, None, False)
+    assert seen["serve_http"] is True
 
 
 def test_run_server_tcp_flag_forces_tcp(monkeypatch):
