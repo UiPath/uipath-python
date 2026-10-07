@@ -97,35 +97,65 @@ class TestRunContext:
         [
             "",
             "   ",
+            "x" * 257,
+            "a..b",
+            # Outside the service's allowlist
             "a/b",
             "a\\b",
-            "a..b",
             "a%20b",
+            "Loan#1",
+            "Rule?",
+            "Rate*2",
+            "Loan$",
+            'a"b',
+            "a|b",
+            "Loan \U0001f680",
+            "Loan\u00a0Pricing",
+            "Loan\u200bPricing",
             "a\nb",
             "a\x00b",
             "a\x7fb",
-            "x" * 257,
         ],
     )
-    def test_rejects_unsafe_rule_names(
-        self, service: BusinessRulesService, business_rule_name: str
+    def test_rejects_names_the_service_rejects(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        business_rule_name: str,
     ) -> None:
         with pytest.raises(ValueError, match="name"):
             service.run(business_rule_name, {}, folder_key=FOLDER_KEY)
 
+        assert httpx_mock.get_requests() == []
+
+    def test_names_the_disallowed_characters(
+        self, service: BusinessRulesService
+    ) -> None:
+        with pytest.raises(ValueError, match=r"found '#', '\?'"):
+            service.run("Loan#1?", {}, folder_key=FOLDER_KEY)
+
     @pytest.mark.parametrize(
         "business_rule_name",
-        ["Loan\u00a0Pricing", "Loan\u200bPricing", "Préstamo Tarifa", "贷款定价"],
+        [
+            "Loan Pricing",
+            "Loan-Pricing_v2.1",
+            "Loan (EU)",
+            "Rule [v2] {a} +b, c & d @e !f ~g =h :i ;j 'k'",
+            "Préstamo Tarifa",
+            "贷款定价",
+            "Kredit ٣",
+            "x" * 256,
+        ],
     )
-    def test_accepts_names_the_dotnet_client_accepts(
+    def test_accepts_names_the_service_accepts(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
         evaluate_url: str,
         business_rule_name: str,
     ) -> None:
-        # Only control characters are refused, as in the .NET client: a
-        # non-breaking space pasted into a name is not one.
+        # The SDK checks names with the service's own allowlist, so it sends
+        # exactly the names the service accepts.
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(business_rule_name, {}, folder_key=FOLDER_KEY)

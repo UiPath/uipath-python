@@ -32,7 +32,9 @@ _DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/eval
 
 _MAX_INPUT_KEYS = 256
 _MAX_BUSINESS_RULE_NAME_LENGTH = 256
-_FORBIDDEN_BUSINESS_RULE_NAME_PARTS = ("/", "\\", "..", "%")
+# The service's own rule (BusinessRuleNames in the business-rules service): a
+# name may hold letters, numbers and these marks, and never "..".
+_ALLOWED_BUSINESS_RULE_NAME_MARKS = frozenset(" '._()[]{}+,&@!~=:;-")
 
 
 @dataclass(frozen=True)
@@ -498,13 +500,30 @@ def _validate_business_rule_name(business_rule_name: str) -> None:
         raise ValueError(
             f"name must not exceed {_MAX_BUSINESS_RULE_NAME_LENGTH} characters"
         )
-    for forbidden_part in _FORBIDDEN_BUSINESS_RULE_NAME_PARTS:
-        if forbidden_part in business_rule_name:
-            raise ValueError(f"name must not contain '{forbidden_part}'")
-    # Control characters only (Unicode category Cc), as the .NET client checks;
-    # a non-breaking or zero-width space is allowed in a name.
-    if any(unicodedata.category(character) == "Cc" for character in business_rule_name):
-        raise ValueError("name must not contain control characters")
+    disallowed_characters = sorted(
+        {
+            character
+            for character in business_rule_name
+            if not _is_allowed_business_rule_name_character(character)
+        }
+    )
+    if disallowed_characters:
+        raise ValueError(
+            "name may contain only letters, numbers, spaces and "
+            f"{''.join(sorted(_ALLOWED_BUSINESS_RULE_NAME_MARKS - {' '}))}; "
+            f"found {', '.join(repr(character) for character in disallowed_characters)}"
+        )
+    if ".." in business_rule_name:
+        raise ValueError("name must not contain '..'")
+
+
+def _is_allowed_business_rule_name_character(character: str) -> bool:
+    # Letters and numbers in any script (Unicode categories L* and N*), as the
+    # service's \p{L} and \p{N} match them.
+    return (
+        unicodedata.category(character)[0] in ("L", "N")
+        or character in _ALLOWED_BUSINESS_RULE_NAME_MARKS
+    )
 
 
 def _validate_input(input: Dict[str, Any]) -> None:
