@@ -1,0 +1,84 @@
+{
+  "extractionResult": {
+    "DocumentId": "9b1d3c2a-6f1e-4c55-8d0b-2f8a7a1e4c10",
+    "ResultsVersion": 0,
+    "ResultsDocument": {
+      "DocumentTypeId": "00000000-0000-0000-0000-000000000000",
+      "DocumentTypeName": "Default",
+      "DocumentTypeDataVersion": 0,
+      "DataVersion": 0,
+      "DocumentTypeSource": "Automatic",
+      "Fields": [
+        {
+          "FieldId": "Default.Details",
+          "FieldName": "Details",
+          "FieldType": "FieldGroup",
+          "IsMissing": false,
+          "DataSource": "Automatic",
+          "Values": [
+            {
+              "Components": [
+                {
+                  "FieldId": "Default.Details.Total",
+                  "FieldName": "Total",
+                  "FieldType": "MonetaryQuantity",
+                  "IsMissing": false,
+                  "DataSource": "Automatic",
+                  "Values": [
+                    {
+                      "Components": [],
+                      "Value": "66.79 RON",
+                      "UnformattedValue": "66.79 RON",
+                      "Confidence": 0.9975757,
+                      "OcrConfidence": 1.0
+                    }
+                  ]
+                },
+                {
+                  "FieldId": "Default.Details.DueDate",
+                  "FieldName": "Due Date",
+                  "FieldType": "Date",
+                  "IsMissing": true,
+                  "DataSource": "Automatic",
+                  "Values": []
+                }
+              ],
+              "Value": "",
+              "UnformattedValue": "",
+              "Confidence": 0.9975757,
+              "OcrConfidence": 1.0
+            }
+          ]
+        }
+      ],
+      "Tables": []
+    },
+    "ExtractorPayloads": null,
+    "BusinessRulesResults": null
+  },
+  "dataProjection": [
+    {
+      "fieldGroupName": "Details",
+      "fieldValues": [
+        {
+          "id": "Default.Details.Total",
+          "name": "Total",
+          "value": "66.79 RON",
+          "unformattedValue": "66.79 RON",
+          "confidence": 0.9975757,
+          "ocrConfidence": 1.0,
+          "type": "MonetaryQuantity"
+        },
+        {
+          "id": "Default.Details.DueDate",
+          "name": "Due Date",
+          "value": null,
+          "unformattedValue": null,
+          "confidence": null,
+          "ocrConfidence": null,
+          "type": "Date"
+        }
+      ]
+    }
+  ]
+}

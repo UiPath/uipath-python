@@ -4,6 +4,7 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
+from urllib.parse import quote
 from uuid import UUID
 
 from uipath.core.tracing import traced
@@ -31,6 +32,44 @@ from .documents import (
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
+
+API_VERSION = "2.0"
+
+# Response values returned as-is: Document Processing contract payloads are
+# PascalCase in every API version, and the digitization DOM is large and unused.
+_UNNORMALIZED_KEYS = frozenset(
+    {
+        "extractionResult",
+        "classificationResults",
+        "validatedExtractionResults",
+        "validatedClassificationResults",
+        "documentObjectModel",
+    }
+)
+
+
+def _framework_url(*segments: Any) -> Endpoint:
+    path = "/".join(quote(str(segment), safe="") for segment in segments)
+    return Endpoint(f"/du_/api/framework/projects/{path}")
+
+
+def _camel_case_keys(value: Any) -> Any:
+    """Normalizes response keys to camelCase.
+
+    DU Framework v2 returns PascalCase keys for organizations that have the
+    `du-enable-v2-pascal-case-responses` feature flag on, camelCase otherwise.
+    """
+    if isinstance(value, list):
+        return [_camel_case_keys(item) for item in value]
+
+    if not isinstance(value, dict):
+        return value
+
+    normalized = {}
+    for key, item in value.items():
+        key = key[:1].lower() + key[1:]
+        normalized[key] = item if key in _UNNORMALIZED_KEYS else _camel_case_keys(item)
+    return normalized
 
 
 def _must_not_be_provided(**kwargs: Any) -> None:
@@ -147,6 +186,15 @@ class DocumentsService(FolderContext, BaseService):
             "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
         }
 
+    def _request_json(self, method: str, url: Endpoint, **kwargs: Any) -> Any:
+        return _camel_case_keys(self.request(method, url=url, **kwargs).json())
+
+    async def _request_json_async(
+        self, method: str, url: Endpoint, **kwargs: Any
+    ) -> Any:
+        response = await self.request_async(method, url=url, **kwargs)
+        return _camel_case_keys(response.json())
+
     def _get_classifier_id(
         self, project_type: ProjectType, project_id: str, version: Optional[int]
     ) -> Optional[str]:
@@ -156,17 +204,17 @@ class DocumentsService(FolderContext, BaseService):
         if version is None:
             return None
 
-        response = self.request(
+        response = self._request_json(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/classifiers"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "classifiers"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 classifier["id"]
-                for classifier in response.json().get("classifiers", [])
+                for classifier in response.get("classifiers", [])
                 if classifier["projectVersion"] == version
             )
         except StopIteration:
@@ -181,17 +229,17 @@ class DocumentsService(FolderContext, BaseService):
         if version is None:
             return None
 
-        response = await self.request_async(
+        response = await self._request_json_async(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/classifiers"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "classifiers"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 classifier["id"]
-                for classifier in response.json().get("classifiers", [])
+                for classifier in response.get("classifiers", [])
                 if classifier["projectVersion"] == version
             )
         except StopIteration:
@@ -210,17 +258,17 @@ class DocumentsService(FolderContext, BaseService):
         if version is None:
             return None
 
-        response = self.request(
+        response = self._request_json(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/extractors"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "extractors"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 extractor["id"]
-                for extractor in response.json().get("extractors", [])
+                for extractor in response.get("extractors", [])
                 if extractor["projectVersion"] == version
                 and extractor["documentTypeId"] == document_type_id
             )
@@ -242,17 +290,17 @@ class DocumentsService(FolderContext, BaseService):
         if version is None:
             return None
 
-        response = await self.request_async(
+        response = await self._request_json_async(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/extractors"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "extractors"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 extractor["id"]
-                for extractor in response.json().get("extractors", [])
+                for extractor in response.get("extractors", [])
                 if extractor["projectVersion"] == version
                 and extractor["documentTypeId"] == document_type_id
             )
@@ -273,17 +321,17 @@ class DocumentsService(FolderContext, BaseService):
         if classification_result is not None:
             return classification_result.project_id
 
-        response = self.request(
+        response = self._request_json(
             "GET",
-            url=Endpoint("/du_/api/framework/projects"),
-            params={"api-version": 1.1, "type": project_type.value},
+            url=_framework_url(),
+            params={"api-version": API_VERSION, "type": project_type.value},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 project["id"]
-                for project in response.json()["projects"]
+                for project in response["projects"]
                 if project["name"] == project_name
             )
         except StopIteration:
@@ -301,39 +349,39 @@ class DocumentsService(FolderContext, BaseService):
         if classification_result is not None:
             return classification_result.project_id
 
-        response = await self.request_async(
+        response = await self._request_json_async(
             "GET",
-            url=Endpoint("/du_/api/framework/projects"),
-            params={"api-version": 1.1, "type": project_type.value},
+            url=_framework_url(),
+            params={"api-version": API_VERSION, "type": project_type.value},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 project["id"]
-                for project in response.json()["projects"]
+                for project in response["projects"]
                 if project["name"] == project_name
             )
         except StopIteration:
             raise ValueError(f"Project '{project_name}' not found.") from None
 
     def _get_project_tags(self, project_id: str) -> Set[str]:
-        response = self.request(
+        response = self._request_json(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/tags"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "tags"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
-        return {tag["name"] for tag in response.json().get("tags", [])}
+        return {tag["name"] for tag in response.get("tags", [])}
 
     async def _get_project_tags_async(self, project_id: str) -> Set[str]:
-        response = await self.request_async(
+        response = await self._request_json_async(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/tags"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "tags"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
-        return {tag["name"] for tag in response.json().get("tags", [])}
+        return {tag["name"] for tag in response.get("tags", [])}
 
     def _get_document_id(
         self,
@@ -394,14 +442,16 @@ class DocumentsService(FolderContext, BaseService):
         if classification_result is None or classification_result.classifier_id is None:
             return None
 
-        return self.request(
+        return self._request_json(
             "GET",
-            url=Endpoint(
-                f"/du_/api/framework/projects/{classification_result.project_id}/classifiers/{classification_result.classifier_id}"
+            url=_framework_url(
+                classification_result.project_id,
+                "classifiers",
+                classification_result.classifier_id,
             ),
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
-        ).json()["projectVersion"]
+        )["projectVersion"]
 
     async def _get_version_async(
         self,
@@ -419,15 +469,17 @@ class DocumentsService(FolderContext, BaseService):
             return None
 
         return (
-            await self.request_async(
+            await self._request_json_async(
                 "GET",
-                url=Endpoint(
-                    f"/du_/api/framework/projects/{classification_result.project_id}/classifiers/{classification_result.classifier_id}"
+                url=_framework_url(
+                    classification_result.project_id,
+                    "classifiers",
+                    classification_result.classifier_id,
                 ),
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
             )
-        ).json()["projectVersion"]
+        )["projectVersion"]
 
     def _get_tag(
         self,
@@ -488,15 +540,13 @@ class DocumentsService(FolderContext, BaseService):
         file_path: Optional[str] = None,
     ) -> str:
         with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
-            return self.request(
+            return self._request_json(
                 "POST",
-                url=Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/digitization/start"
-                ),
-                params={"api-version": 1.1},
+                url=_framework_url(project_id, "digitization", "start"),
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
                 files={"File": handle},
-            ).json()["documentId"]
+            )["documentId"]
 
     async def _start_digitization_async(
         self,
@@ -506,27 +556,23 @@ class DocumentsService(FolderContext, BaseService):
     ) -> str:
         with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
             return (
-                await self.request_async(
+                await self._request_json_async(
                     "POST",
-                    url=Endpoint(
-                        f"/du_/api/framework/projects/{project_id}/digitization/start"
-                    ),
-                    params={"api-version": 1.1},
+                    url=_framework_url(project_id, "digitization", "start"),
+                    params={"api-version": API_VERSION},
                     headers=self._get_common_headers(),
                     files={"File": handle},
                 )
-            ).json()["documentId"]
+            )["documentId"]
 
     def _wait_for_digitization(self, project_id: str, document_id: str) -> None:
         def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            result = self.request(
+            result = self._request_json(
                 method="GET",
-                url=Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/digitization/result/{document_id}"
-                ),
-                params={"api-version": 1.1},
+                url=_framework_url(project_id, "digitization", "result", document_id),
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
-            ).json()
+            )
             return (
                 result["status"],
                 result.get("error", None),
@@ -543,16 +589,12 @@ class DocumentsService(FolderContext, BaseService):
         self, project_id: str, document_id: str
     ) -> None:
         async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            result = (
-                await self.request_async(
-                    method="GET",
-                    url=Endpoint(
-                        f"/du_/api/framework/projects/{project_id}/digitization/result/{document_id}"
-                    ),
-                    params={"api-version": 1.1},
-                    headers=self._get_common_headers(),
-                )
-            ).json()
+            result = await self._request_json_async(
+                method="GET",
+                url=_framework_url(project_id, "digitization", "result", document_id),
+                params={"api-version": API_VERSION},
+                headers=self._get_common_headers(),
+            )
             return (
                 result["status"],
                 result.get("error", None),
@@ -578,17 +620,17 @@ class DocumentsService(FolderContext, BaseService):
         if classification_result is not None:
             return classification_result.document_type_id
 
-        response = self.request(
+        response = self._request_json(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/document-types"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "document-types"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 extractor["id"]
-                for extractor in response.json().get("documentTypes", [])
+                for extractor in response.get("documentTypes", [])
                 if extractor["name"].lower() == document_type_name.lower()
             )
         except StopIteration:
@@ -609,17 +651,17 @@ class DocumentsService(FolderContext, BaseService):
         if classification_result is not None:
             return classification_result.document_type_id
 
-        response = await self.request_async(
+        response = await self._request_json_async(
             "GET",
-            url=Endpoint(f"/du_/api/framework/projects/{project_id}/document-types"),
-            params={"api-version": 1.1},
+            url=_framework_url(project_id, "document-types"),
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
 
         try:
             return next(
                 extractor["id"]
-                for extractor in response.json().get("documentTypes", [])
+                for extractor in response.get("documentTypes", [])
                 if extractor["name"].lower() == document_type_name.lower()
             )
         except StopIteration:
@@ -636,21 +678,27 @@ class DocumentsService(FolderContext, BaseService):
         document_id: str,
     ) -> StartExtractionResponse:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start"
+            url = _framework_url(
+                project_id, "extractors", extractor_id, "extraction", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/start"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "document-types",
+                document_type_id,
+                "extraction",
+                "start",
             )
 
-        operation_id = self.request(
+        operation_id = self._request_json(
             "POST",
             url=url,
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
             json={"documentId": document_id},
-        ).json()["operationId"]
+        )["operationId"]
 
         return StartExtractionResponse(
             operation_id=operation_id,
@@ -668,23 +716,29 @@ class DocumentsService(FolderContext, BaseService):
         document_id: str,
     ) -> StartExtractionResponse:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start"
+            url = _framework_url(
+                project_id, "extractors", extractor_id, "extraction", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/start"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "document-types",
+                document_type_id,
+                "extraction",
+                "start",
             )
 
         operation_id = (
-            await self.request_async(
+            await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
                 json={"documentId": document_id},
             )
-        ).json()["operationId"]
+        )["operationId"]
 
         return StartExtractionResponse(
             operation_id=operation_id,
@@ -758,20 +812,32 @@ class DocumentsService(FolderContext, BaseService):
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         def result_getter() -> Tuple[str, str, Any]:
             if tag is None:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}"
+                url = _framework_url(
+                    project_id,
+                    "extractors",
+                    extractor_id,
+                    "extraction",
+                    "result",
+                    operation_id,
                 )
             else:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
+                url = _framework_url(
+                    project_id,
+                    "tags",
+                    tag,
+                    "document-types",
+                    document_type_id,
+                    "extraction",
+                    "result",
+                    operation_id,
                 )
 
-            result = self.request(
+            result = self._request_json(
                 method="GET",
                 url=url,
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
-            ).json()
+            )
             return (
                 result["status"],
                 result.get("error", None),
@@ -806,22 +872,32 @@ class DocumentsService(FolderContext, BaseService):
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         async def result_getter() -> Tuple[str, str, Any]:
             if tag is None:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}"
+                url = _framework_url(
+                    project_id,
+                    "extractors",
+                    extractor_id,
+                    "extraction",
+                    "result",
+                    operation_id,
                 )
             else:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
+                url = _framework_url(
+                    project_id,
+                    "tags",
+                    tag,
+                    "document-types",
+                    document_type_id,
+                    "extraction",
+                    "result",
+                    operation_id,
                 )
 
-            result = (
-                await self.request_async(
-                    method="GET",
-                    url=url,
-                    params={"api-version": 1.1},
-                    headers=self._get_common_headers(),
-                )
-            ).json()
+            result = await self._request_json_async(
+                method="GET",
+                url=url,
+                params={"api-version": API_VERSION},
+                headers=self._get_common_headers(),
+            )
             return (
                 result["status"],
                 result.get("error", None),
@@ -853,21 +929,19 @@ class DocumentsService(FolderContext, BaseService):
         document_id: str,
     ) -> str:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/start"
+            url = _framework_url(
+                project_id, "classifiers", classifier_id, "classification", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/classification/start"
-            )
+            url = _framework_url(project_id, "tags", tag, "classification", "start")
 
-        return self.request(
+        return self._request_json(
             "POST",
             url=url,
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
             json={"documentId": document_id},
-        ).json()["operationId"]
+        )["operationId"]
 
     async def _start_classification_async(
         self,
@@ -877,23 +951,21 @@ class DocumentsService(FolderContext, BaseService):
         document_id: str,
     ) -> str:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/start"
+            url = _framework_url(
+                project_id, "classifiers", classifier_id, "classification", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/classification/start"
-            )
+            url = _framework_url(project_id, "tags", tag, "classification", "start")
 
         return (
-            await self.request_async(
+            await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
                 json={"documentId": document_id},
             )
-        ).json()["operationId"]
+        )["operationId"]
 
     def _wait_for_classification(
         self,
@@ -905,20 +977,25 @@ class DocumentsService(FolderContext, BaseService):
     ) -> List[ClassificationResult]:
         def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
             if tag is None:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/result/{operation_id}"
+                url = _framework_url(
+                    project_id,
+                    "classifiers",
+                    classifier_id,
+                    "classification",
+                    "result",
+                    operation_id,
                 )
             else:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/{tag}/classification/result/{operation_id}"
+                url = _framework_url(
+                    project_id, "tags", tag, "classification", "result", operation_id
                 )
 
-            result = self.request(
+            result = self._request_json(
                 method="GET",
                 url=url,
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
-            ).json()
+            )
             return (
                 result["status"],
                 result.get("error", None),
@@ -950,22 +1027,25 @@ class DocumentsService(FolderContext, BaseService):
     ) -> List[ClassificationResult]:
         async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
             if tag is None:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/result/{operation_id}"
+                url = _framework_url(
+                    project_id,
+                    "classifiers",
+                    classifier_id,
+                    "classification",
+                    "result",
+                    operation_id,
                 )
             else:
-                url = Endpoint(
-                    f"/du_/api/framework/projects/{project_id}/{tag}/classification/result/{operation_id}"
+                url = _framework_url(
+                    project_id, "tags", tag, "classification", "result", operation_id
                 )
 
-            result = (
-                await self.request_async(
-                    method="GET",
-                    url=url,
-                    params={"api-version": 1.1},
-                    headers=self._get_common_headers(),
-                )
-            ).json()
+            result = await self._request_json_async(
+                method="GET",
+                url=url,
+                params={"api-version": API_VERSION},
+                headers=self._get_common_headers(),
+            )
             return (
                 result["status"],
                 result.get("error", None),
@@ -1235,12 +1315,12 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
         operation_name: str,
     ) -> Dict:
-        response = self.request(
+        response = self._request_json(
             method="GET",
             url=url,
-            params={"api-version": "1.1"},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
-        ).json()
+        )
 
         status = response.get("status")
         if status in ["NotStarted", "Running"]:
@@ -1265,14 +1345,12 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
         operation_name: str,
     ) -> Dict:
-        response = (
-            await self.request_async(
-                method="GET",
-                url=url,
-                params={"api-version": "1.1"},
-                headers=self._get_common_headers(),
-            )
-        ).json()
+        response = await self._request_json_async(
+            method="GET",
+            url=url,
+            params={"api-version": API_VERSION},
+            headers=self._get_common_headers(),
+        )
 
         status = response.get("status")
         if status in ["NotStarted", "Running"]:
@@ -1328,8 +1406,15 @@ class DocumentsService(FolderContext, BaseService):
         """
         document_type_id = str(UUID(int=0))
 
-        url = Endpoint(
-            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
+        url = _framework_url(
+            project_id,
+            "tags",
+            tag,
+            "document-types",
+            document_type_id,
+            "extraction",
+            "result",
+            operation_id,
         )
 
         extraction_response = self._retrieve_operation_result(
@@ -1356,8 +1441,15 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronous version of the [`retrieve_ixp_extraction_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_result] method."""
         document_type_id = str(UUID(int=0))
 
-        url = Endpoint(
-            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/extraction/result/{operation_id}"
+        url = _framework_url(
+            project_id,
+            "tags",
+            tag,
+            "document-types",
+            document_type_id,
+            "extraction",
+            "result",
+            operation_id,
         )
 
         extraction_response = await self._retrieve_operation_result_async(
@@ -1610,18 +1702,18 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/start"
+            url = _framework_url(
+                project_id, "classifiers", classifier_id, "validation", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/start"
+            url = _framework_url(
+                project_id, "tags", tag, "classifiers", "validation", "start"
             )
 
-        return self.request(
+        return self._request_json(
             "POST",
             url=url,
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
             json={
                 "classificationResults": [
@@ -1635,7 +1727,7 @@ class DocumentsService(FolderContext, BaseService):
                 "storageBucketName": storage_bucket_name,
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
-        ).json()["operationId"]
+        )["operationId"]
 
     async def _start_classification_validation_async(
         self,
@@ -1651,19 +1743,19 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/start"
+            url = _framework_url(
+                project_id, "classifiers", classifier_id, "validation", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/start"
+            url = _framework_url(
+                project_id, "tags", tag, "classifiers", "validation", "start"
             )
 
         return (
-            await self.request_async(
+            await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
                 json={
                     "classificationResults": [
@@ -1678,7 +1770,7 @@ class DocumentsService(FolderContext, BaseService):
                     "storageBucketDirectoryPath": storage_bucket_directory_path,
                 },
             )
-        ).json()["operationId"]
+        )["operationId"]
 
     def _start_extraction_validation(
         self,
@@ -1695,18 +1787,24 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response: ExtractionResponse,
     ) -> StartExtractionValidationResponse:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start"
+            url = _framework_url(
+                project_id, "extractors", extractor_id, "validation", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/start"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "document-types",
+                document_type_id,
+                "validation",
+                "start",
             )
 
-        operation_id = self.request(
+        operation_id = self._request_json(
             "POST",
             url=url,
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
             json={
                 "extractionResult": extraction_response.extraction_result.model_dump(),
@@ -1716,10 +1814,10 @@ class DocumentsService(FolderContext, BaseService):
                 "actionCatalog": action_catalog,
                 "actionFolder": action_folder,
                 "storageBucketName": storage_bucket_name,
-                "allowChangeOfDocumentType": True,
+                "configuration": {"allowChangeOfDocumentType": True},
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
-        ).json()["operationId"]
+        )["operationId"]
 
         return StartExtractionValidationResponse(
             operation_id=operation_id,
@@ -1743,19 +1841,25 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response: ExtractionResponse,
     ) -> StartExtractionValidationResponse:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start"
+            url = _framework_url(
+                project_id, "extractors", extractor_id, "validation", "start"
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/start"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "document-types",
+                document_type_id,
+                "validation",
+                "start",
             )
 
         operation_id = (
-            await self.request_async(
+            await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": 1.1},
+                params={"api-version": API_VERSION},
                 headers=self._get_common_headers(),
                 json={
                     "extractionResult": extraction_response.extraction_result.model_dump(),
@@ -1765,11 +1869,11 @@ class DocumentsService(FolderContext, BaseService):
                     "actionCatalog": action_catalog,
                     "actionFolder": action_folder,
                     "storageBucketName": storage_bucket_name,
-                    "allowChangeOfDocumentType": True,
+                    "configuration": {"allowChangeOfDocumentType": True},
                     "storageBucketDirectoryPath": storage_bucket_directory_path,
                 },
             )
-        ).json()["operationId"]
+        )["operationId"]
 
         return StartExtractionValidationResponse(
             operation_id=operation_id,
@@ -1910,8 +2014,15 @@ class DocumentsService(FolderContext, BaseService):
         """
         document_type_id = str(UUID(int=0))
 
-        url = Endpoint(
-            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}"
+        url = _framework_url(
+            project_id,
+            "tags",
+            tag,
+            "document-types",
+            document_type_id,
+            "validation",
+            "result",
+            operation_id,
         )
 
         result = self._retrieve_operation_result(
@@ -1942,8 +2053,15 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronous version of the [`retrieve_ixp_extraction_validation_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_validation_result] method."""
         document_type_id = str(UUID(int=0))
 
-        url = Endpoint(
-            f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}"
+        url = _framework_url(
+            project_id,
+            "tags",
+            tag,
+            "document-types",
+            document_type_id,
+            "validation",
+            "result",
+            operation_id,
         )
 
         result = await self._retrieve_operation_result_async(
@@ -1969,20 +2087,31 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> Dict:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "classifiers",
+                classifier_id,
+                "validation",
+                "result",
+                operation_id,
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "classifiers",
+                "validation",
+                "result",
+                operation_id,
             )
 
-        return self.request(
+        return self._request_json(
             method="GET",
             url=url,
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
-        ).json()
+        )
 
     async def _get_classification_validation_result_async(
         self,
@@ -1992,22 +2121,31 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> Dict:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "classifiers",
+                classifier_id,
+                "validation",
+                "result",
+                operation_id,
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "classifiers",
+                "validation",
+                "result",
+                operation_id,
             )
 
-        return (
-            await self.request_async(
-                method="GET",
-                url=url,
-                params={"api-version": 1.1},
-                headers=self._get_common_headers(),
-            )
-        ).json()
+        return await self._request_json_async(
+            method="GET",
+            url=url,
+            params={"api-version": API_VERSION},
+            headers=self._get_common_headers(),
+        )
 
     def _get_extraction_validation_result(
         self,
@@ -2018,20 +2156,32 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> Dict:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "extractors",
+                extractor_id,
+                "validation",
+                "result",
+                operation_id,
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "document-types",
+                document_type_id,
+                "validation",
+                "result",
+                operation_id,
             )
 
-        return self.request(
+        return self._request_json(
             method="GET",
             url=url,
-            params={"api-version": 1.1},
+            params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
-        ).json()
+        )
 
     async def _get_extraction_validation_result_async(
         self,
@@ -2042,22 +2192,32 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> Dict:
         if tag is None:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "extractors",
+                extractor_id,
+                "validation",
+                "result",
+                operation_id,
             )
         else:
-            url = Endpoint(
-                f"/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}"
+            url = _framework_url(
+                project_id,
+                "tags",
+                tag,
+                "document-types",
+                document_type_id,
+                "validation",
+                "result",
+                operation_id,
             )
 
-        return (
-            await self.request_async(
-                method="GET",
-                url=url,
-                params={"api-version": 1.1},
-                headers=self._get_common_headers(),
-            )
-        ).json()
+        return await self._request_json_async(
+            method="GET",
+            url=url,
+            params={"api-version": API_VERSION},
+            headers=self._get_common_headers(),
+        )
 
     def _wait_for_create_validate_classification_action(
         self,

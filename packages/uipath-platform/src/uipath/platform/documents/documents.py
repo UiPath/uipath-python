@@ -23,6 +23,8 @@ class FieldType(str, Enum):
     BOOLEAN = "Boolean"
     TABLE = "Table"
     INTERNAL = "Internal"
+    FIELD_GROUP = "FieldGroup"
+    MONETARY_QUANTITY = "MonetaryQuantity"
 
 
 class ActionPriority(str, Enum):
@@ -60,7 +62,12 @@ class ProjectType(str, Enum):
 
 
 class FieldValueProjection(BaseModel):
-    """A model representing a projection of a field value in a document extraction result."""
+    """A model representing a projection of a field value in a document extraction result.
+
+    Attributes:
+        id (str): The field ID, namespaced by its field group (e.g. `Default.Invoice.Total`).
+        name (str): The field display name.
+    """
 
     model_config = ConfigDict(
         serialize_by_alias=True,
@@ -138,7 +145,7 @@ class ExtractionResponseIXP(ExtractionResponse):
     """A model representing the response from a document extraction process for IXP projects.
 
     Attributes:
-        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
+        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data, with one entry per field group.
     """
 
     data_projection: Optional[List[FieldGroupValueProjection]] = Field(
