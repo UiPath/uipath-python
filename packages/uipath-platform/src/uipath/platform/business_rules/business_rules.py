@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-_HEX = re.compile(r"^[0-9a-f]+$")
+_HEX_DIGITS = re.compile(r"^[0-9a-f]+$")
 
 
 class BusinessRuleStatus(str, Enum):
@@ -56,22 +56,22 @@ class TraceContext(BaseModel):
     @field_validator("trace_id")
     @classmethod
     def _normalize_trace_id(cls, value: str) -> str:
-        normalized = value.replace("-", "").strip().lower()
-        if len(normalized) != 32 or not _HEX.match(normalized):
+        normalized_trace_id = value.replace("-", "").strip().lower()
+        if len(normalized_trace_id) != 32 or not _HEX_DIGITS.match(normalized_trace_id):
             raise ValueError("trace_id must be 32 hex characters or a UUID")
-        if normalized == "0" * 32:
+        if normalized_trace_id == "0" * 32:
             raise ValueError("trace_id must not be all zeros")
-        return normalized
+        return normalized_trace_id
 
     @field_validator("parent_span_id")
     @classmethod
     def _normalize_parent_span_id(cls, value: str) -> str:
-        normalized = value.strip().lower()
-        if len(normalized) != 16 or not _HEX.match(normalized):
+        normalized_span_id = value.strip().lower()
+        if len(normalized_span_id) != 16 or not _HEX_DIGITS.match(normalized_span_id):
             raise ValueError("parent_span_id must be 16 hex characters")
-        if normalized == "0" * 16:
+        if normalized_span_id == "0" * 16:
             raise ValueError("parent_span_id must not be all zeros")
-        return normalized
+        return normalized_span_id
 
     def to_traceparent(self) -> str:
         """Return the W3C traceparent value for this context."""

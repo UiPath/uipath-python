@@ -44,7 +44,7 @@ class _RunTarget:
     path still to look up.
     """
 
-    name: str
+    rule_name: str
     folder_key: Optional[str] = None
     folder_path: Optional[str] = None
     debug_job_key: Optional[str] = None
@@ -145,19 +145,21 @@ class BusinessRulesService(FolderContext, BaseService):
             )
             ```
         """
-        target = self._prepare_run(name, input, folder_key, folder_path)
-        spec = self._run_spec(
-            target,
+        run_target = self._prepare_run(name, input, folder_key, folder_path)
+        request_spec = self._run_spec(
+            run_target,
             input,
-            folder_key=self._resolve_folder_key(target),
+            folder_key=self._resolve_folder_key(run_target),
             version=version,
             decision_names=decision_names,
             caller=caller,
         )
         # Called here, not in a helper: BaseService names the user agent after
         # the method that calls request(), which must be the public run().
-        response = self.request(spec.method, **_request_options(spec, trace_context))
-        return _to_run_result(response.json())
+        http_response = self.request(
+            request_spec.method, **_request_options(request_spec, trace_context)
+        )
+        return _to_run_result(http_response.json())
 
     async def run_async(
         self,
@@ -196,24 +198,24 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
-        target = self._prepare_run(name, input, folder_key, folder_path)
-        spec = self._run_spec(
-            target,
+        run_target = self._prepare_run(name, input, folder_key, folder_path)
+        request_spec = self._run_spec(
+            run_target,
             input,
-            folder_key=await self._resolve_folder_key_async(target),
+            folder_key=await self._resolve_folder_key_async(run_target),
             version=version,
             decision_names=decision_names,
             caller=caller,
         )
-        response = await self.request_async(
-            spec.method, **_request_options(spec, trace_context)
+        http_response = await self.request_async(
+            request_spec.method, **_request_options(request_spec, trace_context)
         )
-        return _to_run_result(response.json())
+        return _to_run_result(http_response.json())
 
     def _prepare_run(
         self,
-        name: str,
-        input: Dict[str, Any],
+        rule_name: str,
+        rule_input: Dict[str, Any],
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> _RunTarget:
@@ -225,14 +227,16 @@ class BusinessRulesService(FolderContext, BaseService):
         """
         # Decided on the caller's own folder arguments, before a binding swaps them.
         debug_job_key = _resolve_debug_job_key(folder_key, folder_path)
-        name, folder_key, folder_path = self._apply_binding(
-            name, folder_key, folder_path
+        rule_name, folder_key, folder_path = self._apply_binding(
+            rule_name, folder_key, folder_path
         )
-        _validate_run_arguments(name, input)
+        _validate_run_arguments(rule_name, rule_input)
         if debug_job_key:
-            return _RunTarget(name=name, debug_job_key=debug_job_key)
+            return _RunTarget(rule_name=rule_name, debug_job_key=debug_job_key)
         selected_key, selected_path = self._select_folder(folder_key, folder_path)
-        return _RunTarget(name=name, folder_key=selected_key, folder_path=selected_path)
+        return _RunTarget(
+            rule_name=rule_name, folder_key=selected_key, folder_path=selected_path
+        )
 
     @resource_override(resource_type="businessRule")
     def _overridden_resource(
@@ -243,7 +247,7 @@ class BusinessRulesService(FolderContext, BaseService):
         return name, folder_path
 
     def _apply_binding(
-        self, name: str, folder_key: Optional[str], folder_path: Optional[str]
+        self, rule_name: str, folder_key: Optional[str], folder_path: Optional[str]
     ) -> Tuple[str, Optional[str], Optional[str]]:
         """Apply a businessRule binding, if one remaps this rule.
 
@@ -251,13 +255,13 @@ class BusinessRulesService(FolderContext, BaseService):
         replaces whichever folder the caller gave, including a folder_key, which
         the override decorator alone would leave in place next to the new path.
         """
-        bound_name, bound_folder_path = self._overridden_resource(
-            name, folder_path=folder_path
+        bound_rule_name, bound_folder_path = self._overridden_resource(
+            rule_name, folder_path=folder_path
         )
-        is_remapped = (bound_name, bound_folder_path) != (name, folder_path)
+        is_remapped = (bound_rule_name, bound_folder_path) != (rule_name, folder_path)
         if is_remapped and bound_folder_path:
             folder_key = None
-        return bound_name, folder_key, bound_folder_path
+        return bound_rule_name, folder_key, bound_folder_path
 
     def _select_folder(
         self, folder_key: Optional[str], folder_path: Optional[str]
@@ -285,46 +289,46 @@ class BusinessRulesService(FolderContext, BaseService):
             "folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
         )
 
-    def _resolve_folder_key(self, target: _RunTarget) -> Optional[str]:
+    def _resolve_folder_key(self, run_target: _RunTarget) -> Optional[str]:
         """Return the key of the folder the rule runs in, looking up a path.
 
         None for a debug run, which names no folder, and for a path that
         matches no folder, which _run_spec refuses.
         """
-        if target.folder_path:
-            return self._folders_service.retrieve_folder_key(target.folder_path)
-        return target.folder_key
+        if run_target.folder_path:
+            return self._folders_service.retrieve_folder_key(run_target.folder_path)
+        return run_target.folder_key
 
-    async def _resolve_folder_key_async(self, target: _RunTarget) -> Optional[str]:
+    async def _resolve_folder_key_async(self, run_target: _RunTarget) -> Optional[str]:
         """Asynchronously return the key of the folder the rule runs in."""
-        if target.folder_path:
+        if run_target.folder_path:
             return await self._folders_service.retrieve_folder_key_async(
-                target.folder_path
+                run_target.folder_path
             )
-        return target.folder_key
+        return run_target.folder_key
 
     def _run_spec(
         self,
-        target: _RunTarget,
-        input: Dict[str, Any],
+        run_target: _RunTarget,
+        rule_input: Dict[str, Any],
         *,
         folder_key: Optional[str],
         version: Optional[str] = None,
         decision_names: Optional[List[str]] = None,
         caller: Optional[BusinessRuleCaller] = None,
     ) -> RequestSpec:
-        """Build the request for the endpoint the target names."""
-        if target.debug_job_key:
+        """Build the request for the endpoint the run target names."""
+        if run_target.debug_job_key:
             return self._debug_evaluate_spec(
-                target.name,
-                input,
-                job_key=target.debug_job_key,
+                run_target.rule_name,
+                rule_input,
+                job_key=run_target.debug_job_key,
                 decision_names=decision_names,
             )
         return self._evaluate_spec(
-            target.name,
-            input,
-            folder_key=_require_folder_key(folder_key, target.folder_path),
+            run_target.rule_name,
+            rule_input,
+            folder_key=_require_folder_key(folder_key, run_target.folder_path),
             version=version,
             decision_names=decision_names,
             caller=caller,
@@ -332,8 +336,8 @@ class BusinessRulesService(FolderContext, BaseService):
 
     def _evaluate_spec(
         self,
-        name: str,
-        input: Dict[str, Any],
+        rule_name: str,
+        rule_input: Dict[str, Any],
         *,
         folder_key: str,
         version: Optional[str] = None,
@@ -342,25 +346,28 @@ class BusinessRulesService(FolderContext, BaseService):
     ) -> RequestSpec:
         # The service resolves the rule in this folder and files the run's trace
         # and audit record under it.
-        body: Dict[str, Any] = {"businessRuleName": name, "input": input}
+        request_body: Dict[str, Any] = {
+            "businessRuleName": rule_name,
+            "input": rule_input,
+        }
         if _has_value(version):
-            body["version"] = version
+            request_body["version"] = version
         if decision_names:
-            body["decisionNames"] = decision_names
+            request_body["decisionNames"] = decision_names
         caller_payload = _caller_payload(caller)
         if caller_payload:
-            body["caller"] = caller_payload
+            request_body["caller"] = caller_payload
         return RequestSpec(
             method="POST",
             endpoint=_EVALUATE_ENDPOINT,
-            json=body,
+            json=request_body,
             headers={HEADER_FOLDER_KEY: folder_key},
         )
 
     def _debug_evaluate_spec(
         self,
-        name: str,
-        input: Dict[str, Any],
+        rule_name: str,
+        rule_input: Dict[str, Any],
         *,
         job_key: str,
         decision_names: Optional[List[str]] = None,
@@ -369,13 +376,16 @@ class BusinessRulesService(FolderContext, BaseService):
         # debug job's lineage, and checks the rule name against it. No folder
         # header is sent, and neither is a version or caller: an undeployed rule
         # has no version, and a debug run is not an audited execution.
-        body: Dict[str, Any] = {"businessRuleName": name, "input": input}
+        request_body: Dict[str, Any] = {
+            "businessRuleName": rule_name,
+            "input": rule_input,
+        }
         if decision_names:
-            body["decisionNames"] = decision_names
+            request_body["decisionNames"] = decision_names
         return RequestSpec(
             method="POST",
             endpoint=_DEBUG_EVALUATE_ENDPOINT,
-            json=body,
+            json=request_body,
             headers={HEADER_JOB_KEY: job_key},
         )
 
@@ -393,18 +403,18 @@ def _resolve_debug_job_key(
         return None
     if not (UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job):
         return None
-    job_key = UiPathConfig.job_key
-    return job_key if job_key and job_key.strip() else None
+    debug_job_key = UiPathConfig.job_key
+    return debug_job_key if debug_job_key and debug_job_key.strip() else None
 
 
 def _request_options(
-    spec: RequestSpec, trace_context: Optional[TraceContext]
+    request_spec: RequestSpec, trace_context: Optional[TraceContext]
 ) -> Dict[str, Any]:
     """Return the request() arguments for a spec, besides its method."""
     return {
-        "url": spec.endpoint,
-        "json": spec.json,
-        "headers": _headers_with_trace(spec.headers, trace_context),
+        "url": request_spec.endpoint,
+        "json": request_spec.json,
+        "headers": _headers_with_trace(request_spec.headers, trace_context),
         "scoped": "tenant",
     }
 
@@ -422,17 +432,17 @@ def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, str]:
     Blank fields are left out, and a caller with every field blank is returned
     empty, so the request carries no caller at all.
     """
-    explicit = caller or BusinessRuleCaller()
-    fields = {
-        "resourceKey": explicit.resource_key or UiPathConfig.process_uuid,
-        "runKey": explicit.run_key or UiPathConfig.job_key,
-        "folderKey": explicit.folder_key or UiPathConfig.folder_key,
+    given_caller = caller or BusinessRuleCaller()
+    caller_fields = {
+        "resourceKey": given_caller.resource_key or UiPathConfig.process_uuid,
+        "runKey": given_caller.run_key or UiPathConfig.job_key,
+        "folderKey": given_caller.folder_key or UiPathConfig.folder_key,
     }
-    payload: Dict[str, str] = {}
-    for field_name, value in fields.items():
-        if value and value.strip():
-            payload[field_name] = value
-    return payload
+    non_blank_fields: Dict[str, str] = {}
+    for field_name, field_value in caller_fields.items():
+        if field_value and field_value.strip():
+            non_blank_fields[field_name] = field_value
+    return non_blank_fields
 
 
 class _ExplicitTraceHeaders(Dict[str, str]):
@@ -442,10 +452,10 @@ class _ExplicitTraceHeaders(Dict[str, str]):
     before sending; this dict ignores that write when an explicit one is set.
     """
 
-    def __setitem__(self, key: str, value: str) -> None:
-        if key == _TRACE_PARENT_HEADER and key in self:
+    def __setitem__(self, header_name: str, header_value: str) -> None:
+        if header_name == _TRACE_PARENT_HEADER and header_name in self:
             return
-        super().__setitem__(key, value)
+        super().__setitem__(header_name, header_value)
 
 
 def _headers_with_trace(
@@ -461,39 +471,39 @@ def _headers_with_trace(
     return pinned_headers
 
 
-def _has_value(value: Optional[str]) -> bool:
+def _has_value(text: Optional[str]) -> bool:
     # Blank counts as absent, matching how the service reads these fields.
-    return bool(value and value.strip())
+    return bool(text and text.strip())
 
 
-def _validate_run_arguments(name: str, input: Dict[str, Any]) -> None:
-    _validate_rule_name(name)
-    _validate_input(input)
+def _validate_run_arguments(rule_name: str, rule_input: Dict[str, Any]) -> None:
+    _validate_rule_name(rule_name)
+    _validate_input(rule_input)
 
 
-def _validate_rule_name(name: str) -> None:
-    if not _has_value(name):
+def _validate_rule_name(rule_name: str) -> None:
+    if not _has_value(rule_name):
         raise ValueError("name must be specified")
-    if len(name) > _MAX_RULE_NAME_LENGTH:
+    if len(rule_name) > _MAX_RULE_NAME_LENGTH:
         raise ValueError(f"name must not exceed {_MAX_RULE_NAME_LENGTH} characters")
     for forbidden_part in _FORBIDDEN_RULE_NAME_PARTS:
-        if forbidden_part in name:
+        if forbidden_part in rule_name:
             raise ValueError(f"name must not contain '{forbidden_part}'")
     # Control characters only (Unicode category Cc), as the .NET client checks;
     # a non-breaking or zero-width space is allowed in a name.
-    if any(unicodedata.category(character) == "Cc" for character in name):
+    if any(unicodedata.category(character) == "Cc" for character in rule_name):
         raise ValueError("name must not contain control characters")
 
 
-def _validate_input(input: Dict[str, Any]) -> None:
-    if input is None:
+def _validate_input(rule_input: Dict[str, Any]) -> None:
+    if rule_input is None:
         raise ValueError("input must not be None")
-    if not isinstance(input, Mapping):
+    if not isinstance(rule_input, Mapping):
         raise ValueError(
             "input must be a mapping of the rule's input names to values, "
-            f"not {type(input).__name__}"
+            f"not {type(rule_input).__name__}"
         )
-    if len(input) > _MAX_INPUT_KEYS:
+    if len(rule_input) > _MAX_INPUT_KEYS:
         raise ValueError(f"input must not exceed {_MAX_INPUT_KEYS} keys")
 
 
@@ -512,20 +522,20 @@ def _overall_status(
 
 
 def _to_run_result(response_body: Any) -> BusinessRuleRunResult:
-    response = _WireResponse.model_validate(response_body)
+    wire_response = _WireResponse.model_validate(response_body)
     # A successful response always carries the input's result; one without it is
     # not an answer to report as an evaluation.
-    if response.result is None:
+    if wire_response.result is None:
         raise ValueError("The business rules response did not include a result")
-    decisions = response.result.decisions or []
-    errors = response.result.errors or []
+    decisions = wire_response.result.decisions or []
+    errors = wire_response.result.errors or []
     return BusinessRuleRunResult(
         status=_overall_status(decisions, errors),
         decisions=decisions,
         errors=errors,
-        top_level_error=response.error.code if response.error else None,
-        business_rule_name=response.business_rule_name,
-        version=response.version,
-        project_id=response.project_id,
-        file_name=response.file_name,
+        top_level_error=wire_response.error.code if wire_response.error else None,
+        business_rule_name=wire_response.business_rule_name,
+        version=wire_response.version,
+        project_id=wire_response.project_id,
+        file_name=wire_response.file_name,
     )
