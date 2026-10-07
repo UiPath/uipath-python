@@ -10,9 +10,9 @@ from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.business_rules import (
+    BusinessRuleCaller,
     BusinessRulesService,
     BusinessRuleStatus,
-    RunMode,
     TraceContext,
 )
 from uipath.platform.common._bindings import (
@@ -26,6 +26,7 @@ from uipath.platform.errors import EnrichedException
 FOLDER_KEY = "5f1f1b0e-2b8a-4c1e-9b8e-1a2b3c4d5e6f"
 TRACEPARENT = "x-uipath-traceparent-id"
 RULE = "Loan Pricing"
+JOB_KEY = "9d8c7b6a-5f4e-3d2c-1b0a-9f8e7d6c5b4a"
 
 
 @pytest.fixture
@@ -45,6 +46,8 @@ def service(
 ) -> BusinessRulesService:
     monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
     monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
+    monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
+    monkeypatch.delenv("UIPATH_PROCESS_UUID", raising=False)
     return BusinessRulesService(
         config=config,
         execution_context=execution_context,
@@ -57,23 +60,14 @@ def evaluate_url(base_url: str, org: str, tenant: str) -> str:
     return f"{base_url}{org}{tenant}/businessrules_/v1/business-rules/evaluate"
 
 
-def _response(results: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
-    return {
-        "hasPartialSuccess": False,
-        "stats": {"submitted": 1, "succeeded": 1, "failed": 0, "notEvaluated": 0},
-        "results": results,
-        "meta": {"timestamp": "2026-09-28T00:00:00Z"},
-        **extra,
-    }
+def _response(result: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {"meta": {"timestamp": "2026-09-28T00:00:00Z"}, **extra}
+    body["result"] = {"decisions": []} if result is None else result
+    return body
 
 
-def _one_decision(**outputs: Any) -> list[dict[str, Any]]:
-    return [
-        {
-            "id": "input-1",
-            "decisions": [{"decisionName": "RiskGrade", "outputs": outputs}],
-        }
-    ]
+def _one_decision(**outputs: Any) -> dict[str, Any]:
+    return {"decisions": [{"decisionName": "RiskGrade", "outputs": outputs}]}
 
 
 class TestRunContext:
@@ -109,7 +103,7 @@ class TestFolder:
         folders_service: Mock,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {}, folder_path="Finance/Loans")
 
@@ -130,7 +124,7 @@ class TestFolder:
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {})
 
@@ -150,7 +144,7 @@ class TestFolder:
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {})
 
@@ -171,7 +165,7 @@ class TestFolder:
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         await service.run_async(RULE, {})
 
@@ -195,7 +189,7 @@ class TestFolder:
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {})
 
@@ -204,136 +198,35 @@ class TestFolder:
         assert request is not None
         assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
 
-    def test_organization_unit_id_alone_is_sent_as_given(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        evaluate_url: str,
-    ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        service.run(RULE, {}, organization_unit_id=3373422)
-
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers["x-uipath-organizationunitid"] == "3373422"
-        assert HEADER_FOLDER_KEY not in request.headers
-
-    def test_folder_key_and_organization_unit_id_are_both_sent(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        evaluate_url: str,
-    ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        service.run(RULE, {}, folder_key=FOLDER_KEY, organization_unit_id=42)
-
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
-        assert request.headers["x-uipath-organizationunitid"] == "42"
-
-    def test_folder_path_and_organization_unit_id_are_both_sent(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        folders_service: Mock,
-        evaluate_url: str,
-    ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        service.run(RULE, {}, folder_path="Finance", organization_unit_id=42)
-
-        folders_service.retrieve_folder_key.assert_called_once_with("Finance")
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
-        assert request.headers["x-uipath-organizationunitid"] == "42"
-
-    def test_env_folder_does_not_replace_an_explicit_organization_unit_id(
-        self,
-        httpx_mock: HTTPXMock,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-        folders_service: Mock,
-        evaluate_url: str,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
-        service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        service.run(RULE, {}, organization_unit_id=42)
-
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert HEADER_FOLDER_KEY not in request.headers
-        assert request.headers["x-uipath-organizationunitid"] == "42"
-
-    def test_explain_needs_a_folder_key_not_only_an_organization_unit_id(
+    def test_deployed_requires_a_folder(
         self, httpx_mock: HTTPXMock, service: BusinessRulesService
     ) -> None:
-        with pytest.raises(ValueError, match="folder key is required for explain"):
-            service.run(RULE, {}, organization_unit_id=42, explain=True)
+        with pytest.raises(ValueError, match="deployed business rule"):
+            service.run(RULE, {})
 
         assert httpx_mock.get_requests() == []
 
-    def test_explain_with_organization_unit_id_takes_the_env_folder_key(
-        self,
-        httpx_mock: HTTPXMock,
-        config: UiPathApiConfig,
-        execution_context: UiPathExecutionContext,
-        folders_service: Mock,
-        evaluate_url: str,
-        monkeypatch: pytest.MonkeyPatch,
+    def test_deployed_rejects_a_blank_folder_key(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService
     ) -> None:
-        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
-        service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        service.run(RULE, {}, organization_unit_id=42, explain=True)
-
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
-        assert request.headers["x-uipath-organizationunitid"] == "42"
-
-    def test_explain_with_folder_path_sends_the_looked_up_key(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        folders_service: Mock,
-        evaluate_url: str,
-    ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        service.run(RULE, {}, folder_path="Finance", explain=True)
-
-        folders_service.retrieve_folder_key.assert_called_once_with("Finance")
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
-        assert json.loads(request.content)["explain"] is True
-
-    async def test_organization_unit_id_alone_async(
-        self,
-        httpx_mock: HTTPXMock,
-        service: BusinessRulesService,
-        evaluate_url: str,
-    ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-
-        await service.run_async(RULE, {}, organization_unit_id=42)
-
-        request = httpx_mock.get_request()
-        assert request is not None
-        assert request.headers["x-uipath-organizationunitid"] == "42"
-        assert HEADER_FOLDER_KEY not in request.headers
-
-    def test_deployed_requires_a_folder(self, service: BusinessRulesService) -> None:
         with pytest.raises(ValueError, match="deployed business rule"):
-            service.run(RULE, {})
+            service.run(RULE, {}, folder_key="   ")
+
+        assert httpx_mock.get_requests() == []
+
+    def test_sends_no_organization_unit_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert "x-uipath-organizationunitid" not in request.headers
 
     def test_rejects_both_folder_key_and_path(
         self, service: BusinessRulesService
@@ -365,11 +258,9 @@ class TestDeployed:
             {"creditScore": 740},
             version="1.0.3",
             decision_names=["RiskGrade"],
-            explain=True,
             folder_key=FOLDER_KEY,
         )
 
-        assert result.mode == RunMode.DEPLOYED
         assert result.status == BusinessRuleStatus.SUCCESS
         assert result.decisions[0].decision_name == "RiskGrade"
         assert result.decisions[0].outputs == {"Grade": "B", "Rate": 3.5}
@@ -384,8 +275,7 @@ class TestDeployed:
             "businessRuleName": "Loan Pricing",
             "version": "1.0.3",
             "decisionNames": ["RiskGrade"],
-            "explain": True,
-            "inputs": [{"id": "input-1", "data": {"creditScore": 740}}],
+            "input": {"creditScore": 740},
         }
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
         assert request.headers["Authorization"] == "Bearer secret"
@@ -400,16 +290,30 @@ class TestDeployed:
         service: BusinessRulesService,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
-        service.run(RULE, {}, folder_key=FOLDER_KEY)
+        service.run(RULE, {}, version="  ", folder_key=FOLDER_KEY)
 
         request = httpx_mock.get_request()
         assert request is not None
         body = json.loads(request.content)
-        assert "version" not in body
-        assert "decisionNames" not in body
-        assert body["explain"] is False
+        assert body == {"businessRuleName": RULE, "input": {}}
+
+    def test_sends_no_explain_or_batch(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {"a": 1}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        body = json.loads(request.content)
+        assert "explain" not in body
+        assert "inputs" not in body
 
     async def test_run_async_resolves_folder_path(
         self,
@@ -423,11 +327,95 @@ class TestDeployed:
         result = await service.run_async(RULE, {"a": 1}, folder_path="Finance")
 
         folders_service.retrieve_folder_key_async.assert_awaited_once_with("Finance")
-        assert result.mode == RunMode.DEPLOYED
         assert result.status == BusinessRuleStatus.SUCCESS
         request = httpx_mock.get_request()
         assert request is not None
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+
+class TestCaller:
+    def test_defaults_from_the_environment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "release-key")
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "caller-folder-key")
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {
+            "resourceKey": "release-key",
+            "runKey": JOB_KEY,
+            "folderKey": "caller-folder-key",
+        }
+        # The rule's folder, not the caller's, scopes the run.
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+
+    def test_explicit_fields_win_over_the_environment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "release-key")
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(
+            RULE,
+            {},
+            folder_key=FOLDER_KEY,
+            caller=BusinessRuleCaller(run_key="agent-run", folder_key="agent-folder"),
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {
+            "resourceKey": "release-key",
+            "runKey": "agent-run",
+            "folderKey": "agent-folder",
+        }
+
+    def test_blank_fields_are_left_out(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(
+            RULE,
+            {},
+            folder_key=FOLDER_KEY,
+            caller=BusinessRuleCaller(resource_key="release-key", run_key="  "),
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {"resourceKey": "release-key"}
+
+    def test_no_caller_without_any_value(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert "caller" not in json.loads(request.content)
 
 
 class TestResult:
@@ -441,21 +429,18 @@ class TestResult:
             url=evaluate_url,
             status_code=207,
             json=_response(
-                [
-                    {
-                        "id": "input-1",
-                        "decisions": [
-                            {"decisionName": "RiskGrade", "outputs": {"Grade": "B"}},
-                            {
-                                "decisionName": "Payment",
-                                "error": {
-                                    "code": "DECISION_FAILED",
-                                    "message": "null arithmetic",
-                                },
+                {
+                    "decisions": [
+                        {"decisionName": "RiskGrade", "outputs": {"Grade": "B"}},
+                        {
+                            "decisionName": "Payment",
+                            "error": {
+                                "code": "DECISION_FAILED",
+                                "message": "null arithmetic",
                             },
-                        ],
-                    }
-                ]
+                        },
+                    ],
+                }
             ),
         )
 
@@ -464,6 +449,31 @@ class TestResult:
         assert result.status == BusinessRuleStatus.PARTIAL_SUCCESS
         assert result.decisions[1].error is not None
         assert result.decisions[1].error.code == "DECISION_FAILED"
+
+    def test_every_decision_failing_is_all_failed(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=evaluate_url,
+            status_code=207,
+            json=_response(
+                {
+                    "decisions": [
+                        {
+                            "decisionName": "Payment",
+                            "error": {"code": "DECISION_FAILED", "message": "x"},
+                        }
+                    ]
+                }
+            ),
+        )
+
+        result = service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        assert result.status == BusinessRuleStatus.ALL_FAILED
 
     def test_input_level_error_is_all_failed(
         self,
@@ -475,17 +485,14 @@ class TestResult:
             url=evaluate_url,
             status_code=207,
             json=_response(
-                [
-                    {
-                        "id": "input-1",
-                        "errors": [
-                            {
-                                "code": "INPUT_VALIDATION_FAILED",
-                                "message": "creditScore must be a number",
-                            }
-                        ],
-                    }
-                ]
+                {
+                    "errors": [
+                        {
+                            "code": "INPUT_VALIDATION_FAILED",
+                            "message": "creditScore must be a number",
+                        }
+                    ]
+                }
             ),
         )
 
@@ -494,7 +501,7 @@ class TestResult:
         assert result.status == BusinessRuleStatus.ALL_FAILED
         assert result.errors[0].code == "INPUT_VALIDATION_FAILED"
 
-    def test_not_evaluated_carries_top_level_error(
+    def test_carries_the_top_level_error(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
@@ -504,17 +511,27 @@ class TestResult:
             url=evaluate_url,
             status_code=207,
             json=_response(
-                [],
-                notEvaluatedIds=["input-1"],
-                error={"code": "BATCH_TIMEOUT", "message": "ran out of time"},
+                {"errors": [{"code": "INPUT_FAILED", "message": "x"}]},
+                error={"code": "UPSTREAM_ERROR", "message": "y"},
             ),
         )
 
         result = service.run(RULE, {}, folder_key=FOLDER_KEY)
 
-        assert result.status == BusinessRuleStatus.ALL_FAILED
-        assert result.decisions == []
-        assert result.top_level_error == "BATCH_TIMEOUT"
+        assert result.top_level_error == "UPSTREAM_ERROR"
+
+    def test_raises_when_the_result_is_missing(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=evaluate_url, json={"meta": {"timestamp": "2026-09-28T00:00:00Z"}}
+        )
+
+        with pytest.raises(ValueError, match="did not include a result"):
+            service.run(RULE, {}, folder_key=FOLDER_KEY)
 
     def test_raises_enriched_exception_on_error_envelope(
         self,
@@ -566,7 +583,7 @@ class TestTraceContext:
         evaluate_url: str,
         ambient_span: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -589,7 +606,7 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("UIPATH_TRACE_ID", AMBIENT_TRACE_ID)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -612,7 +629,7 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -629,8 +646,8 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -649,7 +666,7 @@ class TestTraceContext:
         evaluate_url: str,
         ambient_span: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -671,7 +688,7 @@ class TestTraceContext:
         ambient_span: None,
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, status_code=503)
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -742,7 +759,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {}, folder_path="Finance")
 
@@ -760,7 +777,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         await service.run_async(RULE, {}, folder_path="Finance")
 
@@ -777,7 +794,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run(RULE, {}, folder_key="callers-folder-key")
 
@@ -795,7 +812,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         await service.run_async(RULE, {}, folder_key="callers-folder-key")
 
@@ -813,7 +830,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run("Risk Tier", {}, folder_key="callers-folder-key")
 
@@ -830,7 +847,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response([]))
+        httpx_mock.add_response(url=evaluate_url, json=_response())
 
         service.run("Risk Tier", {}, folder_path="Finance")
 
