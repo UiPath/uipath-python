@@ -53,6 +53,61 @@ def _framework_url(*segments: Any) -> Endpoint:
     return Endpoint(f"/du_/api/framework/projects/{path}")
 
 
+def _extractor_url(
+    project_id: str,
+    extractor_id: Optional[str],
+    tag: Optional[str],
+    document_type_id: str,
+    *segments: Any,
+) -> Endpoint:
+    if tag is None:
+        return _framework_url(project_id, "extractors", extractor_id, *segments)
+    return _framework_url(
+        project_id, "tags", tag, "document-types", document_type_id, *segments
+    )
+
+
+def _classifier_url(
+    project_id: str, classifier_id: Optional[str], tag: Optional[str], *segments: Any
+) -> Endpoint:
+    if tag is None:
+        return _framework_url(project_id, "classifiers", classifier_id, *segments)
+    return _framework_url(project_id, "tags", tag, *segments)
+
+
+def _classification_validation_url(
+    project_id: str, classifier_id: Optional[str], tag: Optional[str], *segments: Any
+) -> Endpoint:
+    if tag is None:
+        return _framework_url(
+            project_id, "classifiers", classifier_id, "validation", *segments
+        )
+    return _framework_url(
+        project_id, "tags", tag, "classifiers", "validation", *segments
+    )
+
+
+def _operation_result(
+    response: Dict[str, Any], operation_id: str, operation_name: str
+) -> Dict[str, Any]:
+    status = response.get("status")
+    if status in ["NotStarted", "Running"]:
+        raise OperationNotCompleteException(
+            operation_id=operation_id,
+            status=status,
+            operation_name=operation_name,
+        )
+
+    if status != "Succeeded":
+        raise OperationFailedException(
+            operation_id=operation_id,
+            status=status,
+            error=response.get("error"),
+            operation_name=operation_name,
+        )
+    return response.get("result")
+
+
 def _camel_case_keys(value: Any) -> Any:
     """Normalizes response keys to camelCase.
 
@@ -677,20 +732,9 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         document_id: str,
     ) -> StartExtractionResponse:
-        if tag is None:
-            url = _framework_url(
-                project_id, "extractors", extractor_id, "extraction", "start"
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "document-types",
-                document_type_id,
-                "extraction",
-                "start",
-            )
+        url = _extractor_url(
+            project_id, extractor_id, tag, document_type_id, "extraction", "start"
+        )
 
         operation_id = self._request_json(
             "POST",
@@ -715,20 +759,9 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         document_id: str,
     ) -> StartExtractionResponse:
-        if tag is None:
-            url = _framework_url(
-                project_id, "extractors", extractor_id, "extraction", "start"
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "document-types",
-                document_type_id,
-                "extraction",
-                "start",
-            )
+        url = _extractor_url(
+            project_id, extractor_id, tag, document_type_id, "extraction", "start"
+        )
 
         operation_id = (
             await self._request_json_async(
@@ -811,26 +844,15 @@ class DocumentsService(FolderContext, BaseService):
         project_type: ProjectType,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         def result_getter() -> Tuple[str, str, Any]:
-            if tag is None:
-                url = _framework_url(
-                    project_id,
-                    "extractors",
-                    extractor_id,
-                    "extraction",
-                    "result",
-                    operation_id,
-                )
-            else:
-                url = _framework_url(
-                    project_id,
-                    "tags",
-                    tag,
-                    "document-types",
-                    document_type_id,
-                    "extraction",
-                    "result",
-                    operation_id,
-                )
+            url = _extractor_url(
+                project_id,
+                extractor_id,
+                tag,
+                document_type_id,
+                "extraction",
+                "result",
+                operation_id,
+            )
 
             result = self._request_json(
                 method="GET",
@@ -871,26 +893,15 @@ class DocumentsService(FolderContext, BaseService):
         project_type: ProjectType,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         async def result_getter() -> Tuple[str, str, Any]:
-            if tag is None:
-                url = _framework_url(
-                    project_id,
-                    "extractors",
-                    extractor_id,
-                    "extraction",
-                    "result",
-                    operation_id,
-                )
-            else:
-                url = _framework_url(
-                    project_id,
-                    "tags",
-                    tag,
-                    "document-types",
-                    document_type_id,
-                    "extraction",
-                    "result",
-                    operation_id,
-                )
+            url = _extractor_url(
+                project_id,
+                extractor_id,
+                tag,
+                document_type_id,
+                "extraction",
+                "result",
+                operation_id,
+            )
 
             result = await self._request_json_async(
                 method="GET",
@@ -928,12 +939,7 @@ class DocumentsService(FolderContext, BaseService):
         classifier_id: Optional[str],
         document_id: str,
     ) -> str:
-        if tag is None:
-            url = _framework_url(
-                project_id, "classifiers", classifier_id, "classification", "start"
-            )
-        else:
-            url = _framework_url(project_id, "tags", tag, "classification", "start")
+        url = _classifier_url(project_id, classifier_id, tag, "classification", "start")
 
         return self._request_json(
             "POST",
@@ -950,12 +956,7 @@ class DocumentsService(FolderContext, BaseService):
         classifier_id: Optional[str],
         document_id: str,
     ) -> str:
-        if tag is None:
-            url = _framework_url(
-                project_id, "classifiers", classifier_id, "classification", "start"
-            )
-        else:
-            url = _framework_url(project_id, "tags", tag, "classification", "start")
+        url = _classifier_url(project_id, classifier_id, tag, "classification", "start")
 
         return (
             await self._request_json_async(
@@ -976,19 +977,9 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> List[ClassificationResult]:
         def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            if tag is None:
-                url = _framework_url(
-                    project_id,
-                    "classifiers",
-                    classifier_id,
-                    "classification",
-                    "result",
-                    operation_id,
-                )
-            else:
-                url = _framework_url(
-                    project_id, "tags", tag, "classification", "result", operation_id
-                )
+            url = _classifier_url(
+                project_id, classifier_id, tag, "classification", "result", operation_id
+            )
 
             result = self._request_json(
                 method="GET",
@@ -1026,19 +1017,9 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> List[ClassificationResult]:
         async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            if tag is None:
-                url = _framework_url(
-                    project_id,
-                    "classifiers",
-                    classifier_id,
-                    "classification",
-                    "result",
-                    operation_id,
-                )
-            else:
-                url = _framework_url(
-                    project_id, "tags", tag, "classification", "result", operation_id
-                )
+            url = _classifier_url(
+                project_id, classifier_id, tag, "classification", "result", operation_id
+            )
 
             result = await self._request_json_async(
                 method="GET",
@@ -1321,23 +1302,7 @@ class DocumentsService(FolderContext, BaseService):
             params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
-
-        status = response.get("status")
-        if status in ["NotStarted", "Running"]:
-            raise OperationNotCompleteException(
-                operation_id=operation_id,
-                status=response.get("status"),
-                operation_name=operation_name,
-            )
-
-        if status != "Succeeded":
-            raise OperationFailedException(
-                operation_id=operation_id,
-                status=status,
-                error=response.get("error"),
-                operation_name=operation_name,
-            )
-        return response.get("result")
+        return _operation_result(response, operation_id, operation_name)
 
     async def _retrieve_operation_result_async(
         self,
@@ -1351,23 +1316,7 @@ class DocumentsService(FolderContext, BaseService):
             params={"api-version": API_VERSION},
             headers=self._get_common_headers(),
         )
-
-        status = response.get("status")
-        if status in ["NotStarted", "Running"]:
-            raise OperationNotCompleteException(
-                operation_id=operation_id,
-                status=response.get("status"),
-                operation_name=operation_name,
-            )
-
-        if status != "Succeeded":
-            raise OperationFailedException(
-                operation_id=operation_id,
-                status=status,
-                error=response.get("error"),
-                operation_name=operation_name,
-            )
-        return response.get("result")
+        return _operation_result(response, operation_id, operation_name)
 
     @traced(name="documents_retrieve_ixp_extraction_result", run_type="uipath")
     def retrieve_ixp_extraction_result(
@@ -1701,14 +1650,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
-        if tag is None:
-            url = _framework_url(
-                project_id, "classifiers", classifier_id, "validation", "start"
-            )
-        else:
-            url = _framework_url(
-                project_id, "tags", tag, "classifiers", "validation", "start"
-            )
+        url = _classification_validation_url(project_id, classifier_id, tag, "start")
 
         return self._request_json(
             "POST",
@@ -1742,14 +1684,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
-        if tag is None:
-            url = _framework_url(
-                project_id, "classifiers", classifier_id, "validation", "start"
-            )
-        else:
-            url = _framework_url(
-                project_id, "tags", tag, "classifiers", "validation", "start"
-            )
+        url = _classification_validation_url(project_id, classifier_id, tag, "start")
 
         return (
             await self._request_json_async(
@@ -1786,20 +1721,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartExtractionValidationResponse:
-        if tag is None:
-            url = _framework_url(
-                project_id, "extractors", extractor_id, "validation", "start"
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "document-types",
-                document_type_id,
-                "validation",
-                "start",
-            )
+        url = _extractor_url(
+            project_id, extractor_id, tag, document_type_id, "validation", "start"
+        )
 
         operation_id = self._request_json(
             "POST",
@@ -1840,20 +1764,9 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartExtractionValidationResponse:
-        if tag is None:
-            url = _framework_url(
-                project_id, "extractors", extractor_id, "validation", "start"
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "document-types",
-                document_type_id,
-                "validation",
-                "start",
-            )
+        url = _extractor_url(
+            project_id, extractor_id, tag, document_type_id, "validation", "start"
+        )
 
         operation_id = (
             await self._request_json_async(
@@ -2086,25 +1999,9 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         operation_id: str,
     ) -> Dict:
-        if tag is None:
-            url = _framework_url(
-                project_id,
-                "classifiers",
-                classifier_id,
-                "validation",
-                "result",
-                operation_id,
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "classifiers",
-                "validation",
-                "result",
-                operation_id,
-            )
+        url = _classification_validation_url(
+            project_id, classifier_id, tag, "result", operation_id
+        )
 
         return self._request_json(
             method="GET",
@@ -2120,25 +2017,9 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         operation_id: str,
     ) -> Dict:
-        if tag is None:
-            url = _framework_url(
-                project_id,
-                "classifiers",
-                classifier_id,
-                "validation",
-                "result",
-                operation_id,
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "classifiers",
-                "validation",
-                "result",
-                operation_id,
-            )
+        url = _classification_validation_url(
+            project_id, classifier_id, tag, "result", operation_id
+        )
 
         return await self._request_json_async(
             method="GET",
@@ -2155,26 +2036,15 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         operation_id: str,
     ) -> Dict:
-        if tag is None:
-            url = _framework_url(
-                project_id,
-                "extractors",
-                extractor_id,
-                "validation",
-                "result",
-                operation_id,
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "document-types",
-                document_type_id,
-                "validation",
-                "result",
-                operation_id,
-            )
+        url = _extractor_url(
+            project_id,
+            extractor_id,
+            tag,
+            document_type_id,
+            "validation",
+            "result",
+            operation_id,
+        )
 
         return self._request_json(
             method="GET",
@@ -2191,26 +2061,15 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         operation_id: str,
     ) -> Dict:
-        if tag is None:
-            url = _framework_url(
-                project_id,
-                "extractors",
-                extractor_id,
-                "validation",
-                "result",
-                operation_id,
-            )
-        else:
-            url = _framework_url(
-                project_id,
-                "tags",
-                tag,
-                "document-types",
-                document_type_id,
-                "validation",
-                "result",
-                operation_id,
-            )
+        url = _extractor_url(
+            project_id,
+            extractor_id,
+            tag,
+            document_type_id,
+            "validation",
+            "result",
+            operation_id,
+        )
 
         return await self._request_json_async(
             method="GET",

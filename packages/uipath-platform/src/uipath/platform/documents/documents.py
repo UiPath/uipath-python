@@ -65,7 +65,7 @@ class FieldValueProjection(BaseModel):
     """A model representing a projection of a field value in a document extraction result.
 
     Attributes:
-        id (str): The field ID, namespaced by its field group (e.g. `Default.Invoice.Total`).
+        id (str): The field ID, prefixed by its document type and field group, if any (e.g. `Invoices.name`, `Default.Invoice.Total`).
         name (str): The field display name.
     """
 
