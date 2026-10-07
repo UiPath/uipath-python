@@ -1,28 +1,26 @@
 """Business Rules service package.
 
-Provides the ``BusinessRulesService`` client for running UiPath Business Rules,
-either deployed to Orchestrator or read undeployed from a Studio project, and
-the Pydantic models for its debug context, results and trace context.
+Provides the ``BusinessRulesService`` client for running UiPath Business Rules
+deployed to Orchestrator, and the Pydantic models for its caller, results and
+trace context.
 """
 
 from ._business_rules_service import BusinessRulesService
 from .business_rules import (
+    BusinessRuleCaller,
     BusinessRuleDecision,
     BusinessRuleError,
     BusinessRuleRunResult,
     BusinessRuleStatus,
-    DebugRunContext,
-    RunMode,
     TraceContext,
 )
 
 __all__ = [
+    "BusinessRuleCaller",
     "BusinessRuleDecision",
     "BusinessRuleError",
     "BusinessRuleRunResult",
     "BusinessRuleStatus",
     "BusinessRulesService",
-    "DebugRunContext",
-    "RunMode",
     "TraceContext",
 ]

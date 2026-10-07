@@ -17,36 +17,25 @@ class BusinessRuleStatus(str, Enum):
     ALL_FAILED = "AllFailed"
 
 
-class RunMode(str, Enum):
-    """Which kind of model ran, and so which service endpoint served the run."""
+class BusinessRuleCaller(BaseModel):
+    """Who is running the rule, kept in the deployed run's execution audit.
 
-    DEPLOYED = "Deployed"
-    DEBUG = "Debug"
-
-
-class DebugRunContext(BaseModel):
-    """Run the undeployed rule from a Studio project instead of the deployed one.
-
-    The service finds the project one of two ways:
-
-    - **By project:** set ``project_id`` (and optionally ``file_name``). Nothing
-      else is required; the project is read as given.
-    - **By job lineage:** leave ``project_id`` unset. The service finds the project
-      from the running debug job and checks the rule name against it, so it needs
-      ``job_key`` (defaults to ``UIPATH_JOB_KEY``) and ``run()``'s
-      ``organization_unit_id``, the job's numeric folder id.
+    Each field defaults to the current job's value from the environment. This
+    describes the calling resource, not the rule: ``folder_key`` here is the
+    caller's folder, which can differ from the folder the rule runs in.
     """
 
-    project_id: Optional[str] = Field(
-        default=None, description="Project mode: the Studio project holding the rule."
-    )
-    file_name: Optional[str] = Field(
+    resource_key: Optional[str] = Field(
         default=None,
-        description="The rule file in the project; defaults to the first one.",
+        description="The calling resource's key; for a process, its release key. Defaults to UIPATH_PROCESS_UUID.",
     )
-    job_key: Optional[str] = Field(
+    run_key: Optional[str] = Field(
         default=None,
-        description="The running debug job: required by job lineage (defaults to UIPATH_JOB_KEY), optional by project.",
+        description="The calling run, such as its job key. Defaults to UIPATH_JOB_KEY.",
+    )
+    folder_key: Optional[str] = Field(
+        default=None,
+        description="The folder the calling resource runs in. Defaults to UIPATH_FOLDER_KEY.",
     )
 
 
@@ -125,7 +114,6 @@ class BusinessRuleRunResult(BaseModel):
         use_enum_values=True,
     )
 
-    mode: RunMode = Field(description="Which kind of model ran.")
     status: BusinessRuleStatus
     decisions: List[BusinessRuleDecision] = Field(default_factory=list)
     errors: List[BusinessRuleError] = Field(
@@ -134,27 +122,19 @@ class BusinessRuleRunResult(BaseModel):
     )
     top_level_error: Optional[str] = Field(
         default=None,
-        description="The request-level error code (e.g. BATCH_TIMEOUT), if one was reported.",
+        description="The request-level error code, if one was reported.",
     )
     business_rule_name: Optional[str] = Field(
-        default=None, description="The deployed rule that ran. Deployed mode only."
+        default=None, description="The deployed rule that ran, when reported."
     )
     version: Optional[str] = Field(
-        default=None, description="The rule version that ran. Deployed mode only."
-    )
-    project_id: Optional[str] = Field(
-        default=None, description="The Studio project read. Debug mode only."
-    )
-    file_name: Optional[str] = Field(
-        default=None,
-        description="The rule file actually read, which may differ from the one asked for. Debug mode only.",
+        default=None, description="The rule version that ran, when reported."
     )
 
 
 class _WireResult(BaseModel):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
-    id: Optional[str] = None
     decisions: Optional[List[BusinessRuleDecision]] = None
     errors: Optional[List[BusinessRuleError]] = None
 
@@ -166,7 +146,5 @@ class _WireResponse(BaseModel):
 
     business_rule_name: Optional[str] = Field(default=None, alias="businessRuleName")
     version: Optional[str] = None
-    project_id: Optional[str] = Field(default=None, alias="projectId")
-    file_name: Optional[str] = Field(default=None, alias="fileName")
     error: Optional[BusinessRuleError] = None
-    results: Optional[List[_WireResult]] = None
+    result: Optional[_WireResult] = None
