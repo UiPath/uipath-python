@@ -112,6 +112,16 @@ class GuardrailAttachment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class GuardrailTerminationMode(str, Enum):
+    """When a guardrail evaluation stops scanning.
+
+    ``FAIL_FAST`` stops at the first violation; ``EVALUATE_ALL`` scans everything.
+    """
+
+    FAIL_FAST = "FailFast"
+    EVALUATE_ALL = "EvaluateAll"
+
+
 class GuardrailType(str, Enum):
     """Guardrail type enumeration."""
 

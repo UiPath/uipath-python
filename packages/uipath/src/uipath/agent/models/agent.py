@@ -6,6 +6,7 @@ from enum import Enum
 from typing import (
     Annotated,
     Any,
+    ClassVar,
     Dict,
     Iterable,
     List,
@@ -128,7 +129,8 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     DEEP_RAG = "deep-rag"
     BATCH_TRANSFORM = "batch-transform"
     HTTP_REQUEST = "http-request"
-    GENERATE_FILE = "generate-file"
+    CREATE_FILE = "create-file"
+    JEV_CLASSIFIER = "jev-classifier"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -206,6 +208,7 @@ class AgentToolArgumentPropertiesVariant(str, CaseInsensitiveEnum):
     STATIC = "static"
     TEXT_BUILDER = "textBuilder"
     ARRAY_BUILDER = "arrayBuilder"
+    OBJECT_BUILDER = "objectBuilder"
 
 
 class TextTokenType(str, CaseInsensitiveEnum):
@@ -303,12 +306,26 @@ class AgentToolArrayBuilderArgumentProperties(BaseCfg):
     )
 
 
+class AgentToolObjectBuilderArgumentProperties(BaseCfg):
+    """Agent object builder argument properties model.
+
+    A marker on an object argument: each of its properties carries its own
+    argument properties.
+    """
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.OBJECT_BUILDER] = Field(
+        default=AgentToolArgumentPropertiesVariant.OBJECT_BUILDER,
+        frozen=True,
+    )
+
+
 AgentToolArgumentProperties = Annotated[
     Union[
         AgentToolStaticArgumentProperties,
         AgentToolArgumentArgumentProperties,
         AgentToolTextBuilderArgumentProperties,
         AgentToolArrayBuilderArgumentProperties,
+        AgentToolObjectBuilderArgumentProperties,
     ],
     Field(discriminator="variant"),
     _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
@@ -1067,12 +1084,21 @@ class AgentInternalHttpRequestToolProperties(BaseResourceProperties):
     )
 
 
-class AgentInternalGenerateFileToolProperties(BaseResourceProperties):
-    """Agent internal generate file tool properties model."""
+class AgentInternalCreateFileToolProperties(BaseResourceProperties):
+    """Agent internal create file tool properties model."""
 
-    tool_type: Literal[AgentInternalToolType.GENERATE_FILE] = Field(
-        alias="toolType", default=AgentInternalToolType.GENERATE_FILE, frozen=True
+    tool_type: Literal[AgentInternalToolType.CREATE_FILE] = Field(
+        alias="toolType", default=AgentInternalToolType.CREATE_FILE, frozen=True
     )
+
+
+class AgentInternalJevClassifierToolProperties(BaseResourceProperties):
+    """Agent internal Jev classifier tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.JEV_CLASSIFIER] = Field(
+        alias="toolType", default=AgentInternalToolType.JEV_CLASSIFIER, frozen=True
+    )
+    settings: AgentInternalJevClassifierSettings = Field(..., alias="settings")
 
 
 AgentInternalToolProperties = Annotated[
@@ -1081,7 +1107,8 @@ AgentInternalToolProperties = Annotated[
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
         AgentInternalHttpRequestToolProperties,
-        AgentInternalGenerateFileToolProperties,
+        AgentInternalCreateFileToolProperties,
+        AgentInternalJevClassifierToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
@@ -1115,6 +1142,110 @@ class AgentInternalBatchTransformSettings(BaseCfg):
     web_search_grounding: BatchTransformWebSearchGroundingSetting = Field(
         ..., alias="webSearchGrounding"
     )
+
+
+JEV_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+
+
+class JevQuestionType(str, CaseInsensitiveEnum):
+    """Jev question type enumeration (matches TypeSafe's question types)."""
+
+    CHOICE = "choice"
+    SCORE = "score"
+    NOUL = "noul"
+
+
+class JevChoiceOption(BaseCfg):
+    """An option of a Jev choice question."""
+
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class BaseJevQuestion(BaseCfg):
+    """Common fields of a Jev question.
+
+    A question carries only the fields of its type: ``options`` belong to choice
+    questions, ``levels`` to score questions and ``criteria`` to noul questions.
+    """
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ()
+
+    name: str = Field(..., pattern=JEV_NAME_PATTERN)
+    instructions: str = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def _only_own_fields(self) -> "BaseJevQuestion":
+        extra = self.model_extra or {}
+        present = [f for f in self.foreign_fields if extra.get(f) is not None]
+        if present:
+            raise ValueError(
+                f"Question '{self.name}' cannot have {' or '.join(present)}"
+            )
+        return self
+
+
+class JevChoiceQuestion(BaseJevQuestion):
+    """Jev question selecting one of a set of options."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("levels", "criteria")
+
+    type: Literal[JevQuestionType.CHOICE] = JevQuestionType.CHOICE
+    options: List[JevChoiceOption] = Field(..., min_length=2, max_length=255)
+
+    @model_validator(mode="after")
+    def _unique_option_names(self) -> "JevChoiceQuestion":
+        names = [option.name for option in self.options]
+        if len(names) != len(set(names)):
+            raise ValueError(f"Question '{self.name}' has duplicate option names")
+        return self
+
+
+class JevScoreQuestion(BaseJevQuestion):
+    """Jev question placing the input on an ordered scale of levels."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "criteria")
+
+    type: Literal[JevQuestionType.SCORE] = JevQuestionType.SCORE
+    levels: List[Annotated[str, Field(min_length=1)]] = Field(
+        ..., min_length=2, max_length=10
+    )
+
+
+class JevNoulCriteria(BaseModel):
+    """What counts as a true and as a false answer to a Jev noul question."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    true: Optional[str] = Field(None)
+    false: Optional[str] = Field(None)
+
+
+class JevNoulQuestion(BaseJevQuestion):
+    """Jev yes/no question answered with a probability."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "levels")
+
+    type: Literal[JevQuestionType.NOUL] = JevQuestionType.NOUL
+    criteria: Optional[JevNoulCriteria] = Field(None)
+
+
+JevQuestion = Annotated[
+    Union[JevChoiceQuestion, JevScoreQuestion, JevNoulQuestion],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", JevQuestionType),
+]
+
+
+class AgentInternalJevClassifierSettings(BaseCfg):
+    """Agent internal Jev classifier tool settings model.
+
+    Only the configuration that is never a call argument: the ``state`` and
+    ``questions`` the tool sends to Jev are declared in the resource's
+    ``inputSchema`` and supplied through its ``argumentProperties``.
+    """
+
+    model: str = Field("jev-latest")
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
