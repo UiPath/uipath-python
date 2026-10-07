@@ -1,6 +1,7 @@
 """Business Rules service for UiPath Platform.
 
-Runs business rules deployed to Orchestrator.
+Runs business rules: a rule deployed to Orchestrator, or, inside a debug
+session, the undeployed rule from the Studio project being debugged.
 """
 
 from collections.abc import Mapping
@@ -14,7 +15,7 @@ from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
 from ..common._models import Endpoint, RequestSpec
-from ..constants import HEADER_FOLDER_KEY
+from ..constants import HEADER_FOLDER_KEY, HEADER_JOB_KEY
 from ..orchestrator._folder_service import FolderService
 from .business_rules import (
     BusinessRuleCaller,
@@ -27,6 +28,7 @@ from .business_rules import (
 )
 
 _EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/evaluate")
+_DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/evaluate")
 
 _MAX_INPUT_KEYS = 256
 _MAX_RULE_NAME_LENGTH = 256
@@ -35,8 +37,11 @@ _MAX_RULE_NAME_LENGTH = 256
 class BusinessRulesService(FolderContext, BaseService):
     """Service for running UiPath Business Rules.
 
-    Each call runs one input against a business rule deployed to Orchestrator,
-    named like any other resource, and returns the decisions it produced.
+    Each call runs one input against a business rule, named like any other
+    resource, and returns the decisions it produced. The service picks the
+    endpoint from the run itself, so the caller never chooses one: inside a debug
+    session the undeployed rule from the project being debugged runs, and
+    otherwise the rule deployed to Orchestrator runs.
     """
 
     def __init__(
@@ -68,21 +73,32 @@ class BusinessRulesService(FolderContext, BaseService):
             input: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
             version: The rule version to run; defaults to the active version.
+                Ignored on a debug run.
             decision_names: The decisions to evaluate; defaults to the whole model.
             folder_key: The key of the folder the rule is deployed in.
             folder_path: The path of the folder the rule is deployed in. Looked up
                 and sent as its key.
             caller: Who is running the rule, for the deployed run's audit.
-                Fields left unset default to the current job's values.
+                Fields left unset default to the current job's values. Ignored
+                on a debug run.
             trace_context: The trace to file the run's spans under. Defaults to
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
-        The rule runs in a folder named by its key: ``folder_key`` is sent as is,
-        and ``folder_path`` is looked up and sent as its key; the two are
-        exclusive. When the caller gives neither, it falls back to
-        ``UIPATH_FOLDER_KEY`` and then ``UIPATH_FOLDER_PATH``. A ``businessRule``
-        binding can remap ``name`` and the folder per environment; its folder then
-        replaces ``folder_key`` or ``folder_path``.
+        Which rule runs is decided in this order, first match winning:
+
+        1. ``folder_key`` or ``folder_path`` given: the rule deployed in that
+           folder.
+        2. Inside a debug session (``UIPATH_PROJECT_ID`` is set, or the job is
+           rooted to a debug job) with a job key in ``UIPATH_JOB_KEY``: the
+           undeployed rule from the project being debugged. The service finds the
+           project and its folders from the job's lineage.
+        3. Otherwise: the rule deployed in ``UIPATH_FOLDER_KEY``, or else
+           ``UIPATH_FOLDER_PATH``.
+
+        A deployed run needs a folder key: ``folder_key`` is sent as is, and
+        ``folder_path`` is looked up and sent as its key; the two are exclusive.
+        A ``businessRule`` binding can remap ``name`` and the folder per
+        environment; its folder then replaces ``folder_key`` or ``folder_path``.
 
         Returns:
             BusinessRuleRunResult: The decisions produced for the input.
@@ -97,23 +113,32 @@ class BusinessRulesService(FolderContext, BaseService):
 
             client = UiPath()
 
+            # In a debug session this runs the rule from the project being
+            # debugged; deployed, the rule in the job's folder.
             result = client.business_rules.run(
-                "Loan Pricing",
-                {"creditScore": 740, "age": 34},
-                folder_path="Finance",
+                "Loan Pricing", {"creditScore": 740, "age": 34}
             )
             for decision in result.decisions:
                 print(decision.decision_name, decision.outputs)
+
+            # Always the rule deployed in a given folder
+            result = client.business_rules.run(
+                "Loan Pricing", {"creditScore": 740}, folder_path="Finance"
+            )
             ```
         """
+        debug_job_key = _debug_job_key(folder_key, folder_path)
         name, folder_key, folder_path = self._apply_binding(
             name, folder_key, folder_path
         )
         _validate_run(name, input)
-        key, path = self._folder_source(folder_key, folder_path)
-        if path:
-            key = self._folders_service.retrieve_folder_key(path)
-        spec = _evaluate_spec(name, input, version, decision_names, key, caller)
+        if debug_job_key:
+            spec = _debug_spec(name, input, debug_job_key, decision_names)
+        else:
+            key, path = self._folder_source(folder_key, folder_path)
+            if path:
+                key = self._folders_service.retrieve_folder_key(path)
+            spec = _evaluate_spec(name, input, version, decision_names, key, caller)
         response = self.request(
             spec.method,
             url=spec.endpoint,
@@ -143,12 +168,14 @@ class BusinessRulesService(FolderContext, BaseService):
             input: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
             version: The rule version to run; defaults to the active version.
+                Ignored on a debug run.
             decision_names: The decisions to evaluate; defaults to the whole model.
             folder_key: The key of the folder the rule is deployed in.
             folder_path: The path of the folder the rule is deployed in. Looked up
                 and sent as its key.
             caller: Who is running the rule, for the deployed run's audit.
-                Fields left unset default to the current job's values.
+                Fields left unset default to the current job's values. Ignored
+                on a debug run.
             trace_context: The trace to file the run's spans under. Defaults to
                 the ambient trace: ``UIPATH_TRACE_ID`` and the current span.
 
@@ -159,14 +186,18 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
+        debug_job_key = _debug_job_key(folder_key, folder_path)
         name, folder_key, folder_path = self._apply_binding(
             name, folder_key, folder_path
         )
         _validate_run(name, input)
-        key, path = self._folder_source(folder_key, folder_path)
-        if path:
-            key = await self._folders_service.retrieve_folder_key_async(path)
-        spec = _evaluate_spec(name, input, version, decision_names, key, caller)
+        if debug_job_key:
+            spec = _debug_spec(name, input, debug_job_key, decision_names)
+        else:
+            key, path = self._folder_source(folder_key, folder_path)
+            if path:
+                key = await self._folders_service.retrieve_folder_key_async(path)
+            spec = _evaluate_spec(name, input, version, decision_names, key, caller)
         response = await self.request_async(
             spec.method,
             url=spec.endpoint,
@@ -245,6 +276,44 @@ def _evaluate_spec(
         endpoint=_EVALUATE_ENDPOINT,
         json=body,
         headers={HEADER_FOLDER_KEY: folder_key},
+    )
+
+
+def _debug_job_key(
+    folder_key: Optional[str], folder_path: Optional[str]
+) -> Optional[str]:
+    """Return the debug job's key when this run is a debug run, else None.
+
+    A folder the caller names always means a deployed rule. Otherwise a run in a
+    debug session debugs the project, named by the session's job; without a job
+    key there is no lineage to resolve the project from, so it runs deployed.
+    """
+    if _present(folder_key) or _present(folder_path):
+        return None
+    if not (UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job):
+        return None
+    job_key = UiPathConfig.job_key
+    return job_key if job_key and job_key.strip() else None
+
+
+def _debug_spec(
+    name: str,
+    input: Dict[str, Any],
+    job_key: str,
+    decision_names: Optional[List[str]],
+) -> RequestSpec:
+    # The service finds the project, and the folders the job ran in, from the
+    # debug job's lineage, and checks the rule name against it. No folder header
+    # is sent, and neither is a version or caller: an undeployed rule has no
+    # version, and a debug run is not an audited execution.
+    body: Dict[str, Any] = {"businessRuleName": name, "input": input}
+    if decision_names:
+        body["decisionNames"] = decision_names
+    return RequestSpec(
+        method="POST",
+        endpoint=_DEBUG_EVALUATE_ENDPOINT,
+        json=body,
+        headers={HEADER_JOB_KEY: job_key},
     )
 
 
@@ -348,4 +417,6 @@ def _to_run_result(response: _WireResponse) -> BusinessRuleRunResult:
         top_level_error=response.error.code if response.error else None,
         business_rule_name=response.business_rule_name,
         version=response.version,
+        project_id=response.project_id,
+        file_name=response.file_name,
     )

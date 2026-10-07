@@ -106,7 +106,10 @@ class BusinessRuleDecision(BaseModel):
 
 
 class BusinessRuleRunResult(BaseModel):
-    """The outcome of running a business rule against one input."""
+    """The outcome of running a business rule against one input.
+
+    The shape is the same for deployed and debug runs.
+    """
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -130,6 +133,14 @@ class BusinessRuleRunResult(BaseModel):
     version: Optional[str] = Field(
         default=None, description="The rule version that ran, when reported."
     )
+    project_id: Optional[str] = Field(
+        default=None,
+        description="The Studio project the rule was read from, when it came from one.",
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        description="The rule file read from the project, when it came from one.",
+    )
 
 
 class _WireResult(BaseModel):
@@ -146,5 +157,7 @@ class _WireResponse(BaseModel):
 
     business_rule_name: Optional[str] = Field(default=None, alias="businessRuleName")
     version: Optional[str] = None
+    project_id: Optional[str] = Field(default=None, alias="projectId")
+    file_name: Optional[str] = Field(default=None, alias="fileName")
     error: Optional[BusinessRuleError] = None
     result: Optional[_WireResult] = None

@@ -20,6 +20,7 @@ from uipath.platform.common._bindings import (
     ResourceOverwriteParser,
     _resource_overwrites,
 )
+from uipath.platform.common._config import UiPathConfig
 from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.errors import EnrichedException
 
@@ -48,6 +49,11 @@ def service(
     monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
     monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
     monkeypatch.delenv("UIPATH_PROCESS_UUID", raising=False)
+    monkeypatch.delenv("UIPATH_PROJECT_ID", raising=False)
+    # Not a debug session unless a test says so, whatever uipath.json is nearby.
+    monkeypatch.setattr(
+        type(UiPathConfig), "is_rooted_to_debug_job", property(lambda self: False)
+    )
     return BusinessRulesService(
         config=config,
         execution_context=execution_context,
@@ -58,6 +64,11 @@ def service(
 @pytest.fixture
 def evaluate_url(base_url: str, org: str, tenant: str) -> str:
     return f"{base_url}{org}{tenant}/businessrules_/v1/business-rules/evaluate"
+
+
+@pytest.fixture
+def debug_url(base_url: str, org: str, tenant: str) -> str:
+    return f"{base_url}{org}{tenant}/businessrules_/v1/business-rules/debug/evaluate"
 
 
 def _response(result: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
@@ -268,6 +279,7 @@ class TestDeployed:
         assert result.top_level_error is None
         assert result.business_rule_name == "Loan Pricing"
         assert result.version == "1.0.3"
+        assert result.project_id is None
 
         request = httpx_mock.get_request()
         assert request is not None
@@ -855,3 +867,249 @@ class TestResourceOverride:
         request = httpx_mock.get_request()
         assert request is not None
         assert json.loads(request.content)["businessRuleName"] == "Risk Tier"
+
+
+PROJECT_ID = "041e6279-8a51-4aec-b2fa-6786704eba19"
+
+
+@pytest.fixture
+def studio_debug(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Studio debug session: the project being debugged and its job."""
+    monkeypatch.setenv("UIPATH_PROJECT_ID", PROJECT_ID)
+    monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+
+
+@pytest.fixture
+def rooted_to_debug_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A deployed process running under a debug session (e.g. a solution debug)."""
+    monkeypatch.setattr(
+        type(UiPathConfig), "is_rooted_to_debug_job", property(lambda self: True)
+    )
+    monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+
+
+class TestDebug:
+    def test_studio_session_runs_the_project_rule(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+    ) -> None:
+        httpx_mock.add_response(
+            url=debug_url,
+            method="POST",
+            json=_response(
+                _one_decision(x=1), projectId=PROJECT_ID, fileName="Business rule.dmn"
+            ),
+        )
+
+        result = service.run(RULE, {"a": 1}, decision_names=["RiskGrade"])
+
+        assert result.status == BusinessRuleStatus.SUCCESS
+        assert result.project_id == PROJECT_ID
+        assert result.file_name == "Business rule.dmn"
+        assert result.business_rule_name is None
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content) == {
+            "businessRuleName": RULE,
+            "decisionNames": ["RiskGrade"],
+            "input": {"a": 1},
+        }
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
+
+    def test_job_rooted_to_a_debug_session_runs_the_project_rule(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        rooted_to_debug_job: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response())
+
+        service.run(RULE, {})
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
+
+    def test_sends_no_folder_version_or_caller(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+        debug_url: str,
+        studio_debug: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "release-key")
+        httpx_mock.add_response(url=debug_url, json=_response())
+
+        service.run(
+            RULE,
+            {},
+            version="1.0.0",
+            caller=BusinessRuleCaller(run_key="agent-run"),
+        )
+
+        folders_service.retrieve_folder_key.assert_not_called()
+        request = httpx_mock.get_request()
+        assert request is not None
+        # The service takes the job's folders from its lineage.
+        assert HEADER_FOLDER_KEY not in request.headers
+        assert "x-uipath-organizationunitid" not in request.headers
+        assert "x-uipath-folderpath" not in request.headers
+        body = json.loads(request.content)
+        assert "version" not in body
+        assert "caller" not in body
+
+    @pytest.mark.parametrize(
+        "folder", [{"folder_key": FOLDER_KEY}, {"folder_path": "Finance"}]
+    )
+    def test_a_named_folder_runs_the_deployed_rule(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        studio_debug: None,
+        folder: dict[str, str],
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {}, **folder)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert "x-uipath-jobkey" not in request.headers
+
+    def test_a_blank_folder_does_not_count_as_named(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response())
+
+        service.run(RULE, {}, folder_key="  ")
+
+        assert httpx_mock.get_request() is not None
+
+    def test_a_session_without_a_job_key_runs_deployed(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Running a project locally: no job, so no lineage to read it from.
+        monkeypatch.setenv("UIPATH_PROJECT_ID", PROJECT_ID)
+        monkeypatch.setenv("UIPATH_JOB_KEY", "   ")
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        assert httpx_mock.get_request() is not None
+
+    def test_a_deployed_job_runs_deployed(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        folders_service: Mock,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
+        service = BusinessRulesService(config, execution_context, folders_service)
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {})
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
+        assert "x-uipath-jobkey" not in request.headers
+
+    def test_rejects_unsafe_rule_name(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService, studio_debug: None
+    ) -> None:
+        with pytest.raises(ValueError, match="name"):
+            service.run("a/b", {})
+
+        assert httpx_mock.get_requests() == []
+
+    def test_override_applies_to_debug_runs(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+        rule_override: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response())
+
+        service.run(RULE, {})
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["businessRuleName"] == "Loan Pricing EU"
+        assert HEADER_FOLDER_KEY not in request.headers
+
+    def test_retries_like_any_platform_call(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, status_code=503)
+        httpx_mock.add_response(url=debug_url, json=_response(_one_decision(x=1)))
+
+        result = service.run(RULE, {})
+
+        assert result.status == BusinessRuleStatus.SUCCESS
+        assert len(httpx_mock.get_requests()) == 2
+
+    def test_explicit_trace_context_on_debug_run(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+        ambient_span: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response())
+        explicit = TraceContext(
+            trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
+        )
+
+        service.run(RULE, {}, trace_context=explicit)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert (
+            request.headers[TRACEPARENT]
+            == f"00-{EXPLICIT_TRACE_ID}-{EXPLICIT_SPAN_ID}-01"
+        )
+
+    async def test_run_async_debug(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+    ) -> None:
+        httpx_mock.add_response(url=debug_url, json=_response(projectId=PROJECT_ID))
+
+        result = await service.run_async(RULE, {})
+
+        assert result.project_id == PROJECT_ID
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-jobkey"] == JOB_KEY
