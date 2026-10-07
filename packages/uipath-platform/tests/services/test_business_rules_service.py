@@ -73,13 +73,45 @@ def _one_decision(**outputs: Any) -> dict[str, Any]:
 class TestRunContext:
     @pytest.mark.parametrize(
         "rule_name",
-        ["", "   ", "a/b", "a\\b", "a..b", "a%20b", "a\nb", "x" * 257],
+        [
+            "",
+            "   ",
+            "a/b",
+            "a\\b",
+            "a..b",
+            "a%20b",
+            "a\nb",
+            "a\x00b",
+            "a\x7fb",
+            "x" * 257,
+        ],
     )
     def test_rejects_unsafe_rule_names(
         self, service: BusinessRulesService, rule_name: str
     ) -> None:
         with pytest.raises(ValueError, match="name"):
             service.run(rule_name, {}, folder_key=FOLDER_KEY)
+
+    @pytest.mark.parametrize(
+        "rule_name",
+        ["Loan\u00a0Pricing", "Loan\u200bPricing", "Préstamo Tarifa", "贷款定价"],
+    )
+    def test_accepts_names_the_dotnet_client_accepts(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        rule_name: str,
+    ) -> None:
+        # Only control characters are refused, as in the .NET client: a
+        # non-breaking space pasted into a name is not one.
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(rule_name, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["businessRuleName"] == rule_name
 
     @pytest.mark.parametrize("value", [["age", 14], "age=14", 14])
     def test_rejects_non_mapping_input(
