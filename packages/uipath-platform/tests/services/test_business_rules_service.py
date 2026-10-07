@@ -65,13 +65,15 @@ def evaluate_url(base_url: str, org: str, tenant: str) -> str:
     return f"{base_url}{org}{tenant}/businessrules_/v1/business-rules/evaluate"
 
 
-def _response(result: dict[str, Any] | None = None, **extra: Any) -> dict[str, Any]:
+def _service_response(
+    result: dict[str, Any] | None = None, **extra: Any
+) -> dict[str, Any]:
     body: dict[str, Any] = {"meta": {"timestamp": "2026-09-28T00:00:00Z"}, **extra}
     body["result"] = {"decisions": []} if result is None else result
     return body
 
 
-def _one_decision(**outputs: Any) -> dict[str, Any]:
+def _single_decision_result(**outputs: Any) -> dict[str, Any]:
     return {"decisions": [{"decisionName": "RiskGrade", "outputs": outputs}]}
 
 
@@ -110,7 +112,7 @@ class TestRunContext:
     ) -> None:
         # Only control characters are refused, as in the .NET client: a
         # non-breaking space pasted into a name is not one.
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(rule_name, {}, folder_key=FOLDER_KEY)
 
@@ -140,7 +142,7 @@ class TestFolder:
         folders_service: Mock,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_path="Finance/Loans")
 
@@ -161,7 +163,7 @@ class TestFolder:
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {})
 
@@ -181,7 +183,7 @@ class TestFolder:
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {})
 
@@ -202,7 +204,7 @@ class TestFolder:
     ) -> None:
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         await service.run_async(RULE, {})
 
@@ -226,7 +228,7 @@ class TestFolder:
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "env-folder-key")
         monkeypatch.setenv("UIPATH_FOLDER_PATH", "Finance/Loans")
         service = BusinessRulesService(config, execution_context, folders_service)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {})
 
@@ -257,7 +259,7 @@ class TestFolder:
         service: BusinessRulesService,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -309,8 +311,8 @@ class TestDeployed:
         httpx_mock.add_response(
             url=evaluate_url,
             method="POST",
-            json=_response(
-                _one_decision(Grade="B", Rate=3.5),
+            json=_service_response(
+                _single_decision_result(Grade="B", Rate=3.5),
                 businessRuleName="Loan Pricing",
                 version="1.0.3",
             ),
@@ -353,7 +355,7 @@ class TestDeployed:
         service: BusinessRulesService,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, version="  ", folder_key=FOLDER_KEY)
 
@@ -368,7 +370,7 @@ class TestDeployed:
         service: BusinessRulesService,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {"a": 1}, folder_key=FOLDER_KEY)
 
@@ -385,7 +387,7 @@ class TestDeployed:
         evaluate_url: str,
         version: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         await service.run_async(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -403,7 +405,9 @@ class TestDeployed:
         folders_service: Mock,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response(_one_decision(x=1)))
+        httpx_mock.add_response(
+            url=evaluate_url, json=_service_response(_single_decision_result(x=1))
+        )
 
         result = await service.run_async(RULE, {"a": 1}, folder_path="Finance")
 
@@ -425,7 +429,7 @@ class TestCaller:
         monkeypatch.setenv("UIPATH_PROCESS_UUID", "release-key")
         monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "caller-folder-key")
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -448,7 +452,7 @@ class TestCaller:
     ) -> None:
         monkeypatch.setenv("UIPATH_PROCESS_UUID", "release-key")
         monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(
             RULE,
@@ -471,7 +475,7 @@ class TestCaller:
         service: BusinessRulesService,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(
             RULE,
@@ -490,7 +494,7 @@ class TestCaller:
         service: BusinessRulesService,
         evaluate_url: str,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -509,7 +513,7 @@ class TestResult:
         httpx_mock.add_response(
             url=evaluate_url,
             status_code=207,
-            json=_response(
+            json=_service_response(
                 {
                     "decisions": [
                         {"decisionName": "RiskGrade", "outputs": {"Grade": "B"}},
@@ -540,7 +544,7 @@ class TestResult:
         httpx_mock.add_response(
             url=evaluate_url,
             status_code=207,
-            json=_response(
+            json=_service_response(
                 {
                     "decisions": [
                         {
@@ -565,7 +569,7 @@ class TestResult:
         httpx_mock.add_response(
             url=evaluate_url,
             status_code=207,
-            json=_response(
+            json=_service_response(
                 {
                     "errors": [
                         {
@@ -591,7 +595,7 @@ class TestResult:
         httpx_mock.add_response(
             url=evaluate_url,
             status_code=207,
-            json=_response(
+            json=_service_response(
                 {"errors": [{"code": "INPUT_FAILED", "message": "x"}]},
                 error={"code": "UPSTREAM_ERROR", "message": "y"},
             ),
@@ -675,7 +679,7 @@ class TestTraceContext:
         evaluate_url: str,
         ambient_span: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -698,7 +702,7 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("UIPATH_TRACE_ID", AMBIENT_TRACE_ID)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -721,7 +725,7 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -743,7 +747,7 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         await service.run_async(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -766,7 +770,9 @@ class TestTraceContext:
         # caller's span stays the parent, and the rule's input and outputs are not
         # recorded on the client.
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response(_one_decision(x=1)))
+        httpx_mock.add_response(
+            url=evaluate_url, json=_service_response(_single_decision_result(x=1))
+        )
 
         with trace.get_tracer("test").start_as_current_span("caller") as caller_span:
             service.run(RULE, {"creditScore": 740}, folder_key=FOLDER_KEY)
@@ -788,7 +794,7 @@ class TestTraceContext:
     ) -> None:
         # No current span and no trace_context: the service starts its own trace.
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_key=FOLDER_KEY)
 
@@ -805,8 +811,8 @@ class TestTraceContext:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -825,7 +831,7 @@ class TestTraceContext:
         evaluate_url: str,
         ambient_span: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -847,7 +853,7 @@ class TestTraceContext:
         ambient_span: None,
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, status_code=503)
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
         explicit = TraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
@@ -918,7 +924,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_path="Finance")
 
@@ -936,7 +942,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         await service.run_async(RULE, {}, folder_path="Finance")
 
@@ -953,7 +959,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(RULE, {}, folder_key="callers-folder-key")
 
@@ -971,7 +977,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         await service.run_async(RULE, {}, folder_key="callers-folder-key")
 
@@ -989,7 +995,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run("Risk Tier", {}, folder_key="callers-folder-key")
 
@@ -1006,7 +1012,7 @@ class TestResourceOverride:
         evaluate_url: str,
         rule_override: None,
     ) -> None:
-        httpx_mock.add_response(url=evaluate_url, json=_response())
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run("Risk Tier", {}, folder_path="Finance")
 
