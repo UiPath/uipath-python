@@ -133,10 +133,10 @@ class BusinessRulesService(FolderContext, BaseService):
         )
         # Called here, not in a helper: BaseService names the user agent after
         # the method that calls request(), which must be the public run().
-        http_response = self.request(
+        response = self.request(
             request_spec.method, **_request_options(request_spec, trace_context)
         )
-        return _to_run_result(http_response.json())
+        return _to_run_result(response.json())
 
     async def run_async(
         self,
@@ -182,10 +182,10 @@ class BusinessRulesService(FolderContext, BaseService):
             decision_names=decision_names,
             caller=caller,
         )
-        http_response = await self.request_async(
+        response = await self.request_async(
             request_spec.method, **_request_options(request_spec, trace_context)
         )
-        return _to_run_result(http_response.json())
+        return _to_run_result(response.json())
 
     def _prepare_run(
         self,
