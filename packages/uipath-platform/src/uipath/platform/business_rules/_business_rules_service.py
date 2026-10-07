@@ -6,6 +6,7 @@ session, the undeployed rule from the Studio project being debugged.
 
 import unicodedata
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
@@ -32,6 +33,21 @@ _DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/eval
 _MAX_INPUT_KEYS = 256
 _MAX_RULE_NAME_LENGTH = 256
 _FORBIDDEN_RULE_NAME_PARTS = ("/", "\\", "..", "%")
+
+
+@dataclass(frozen=True)
+class _RunTarget:
+    """Where a run goes, settled before anything is sent.
+
+    A debug run carries ``debug_job_key`` and no folder. A deployed run carries
+    exactly one of ``folder_key`` and ``folder_path``: a key ready to send, or a
+    path still to look up.
+    """
+
+    name: str
+    folder_key: Optional[str] = None
+    folder_path: Optional[str] = None
+    debug_job_key: Optional[str] = None
 
 
 class BusinessRulesService(FolderContext, BaseService):
@@ -129,32 +145,19 @@ class BusinessRulesService(FolderContext, BaseService):
             )
             ```
         """
-        debug_job_key = _resolve_debug_job_key(folder_key, folder_path)
-        name, folder_key, folder_path = self._apply_binding(
-            name, folder_key, folder_path
+        target = self._prepare_run(name, input, folder_key, folder_path)
+        spec = self._run_spec(
+            target,
+            input,
+            folder_key=self._resolve_folder_key(target),
+            version=version,
+            decision_names=decision_names,
+            caller=caller,
         )
-        _validate_run_arguments(name, input)
-        if debug_job_key:
-            spec = self._debug_evaluate_spec(
-                name, input, job_key=debug_job_key, decision_names=decision_names
-            )
-        else:
-            spec = self._evaluate_spec(
-                name,
-                input,
-                folder_key=self._resolve_folder_key(folder_key, folder_path),
-                version=version,
-                decision_names=decision_names,
-                caller=caller,
-            )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=_headers_with_trace(spec.headers, trace_context),
-            scoped="tenant",
-        )
-        return _to_run_result(_WireResponse.model_validate(response.json()))
+        # Called here, not in a helper: BaseService names the user agent after
+        # the method that calls request(), which must be the public run().
+        response = self.request(spec.method, **_request_options(spec, trace_context))
+        return _to_run_result(response.json())
 
     async def run_async(
         self,
@@ -193,34 +196,43 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
+        target = self._prepare_run(name, input, folder_key, folder_path)
+        spec = self._run_spec(
+            target,
+            input,
+            folder_key=await self._resolve_folder_key_async(target),
+            version=version,
+            decision_names=decision_names,
+            caller=caller,
+        )
+        response = await self.request_async(
+            spec.method, **_request_options(spec, trace_context)
+        )
+        return _to_run_result(response.json())
+
+    def _prepare_run(
+        self,
+        name: str,
+        input: Dict[str, Any],
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> _RunTarget:
+        """Do what run() and run_async() share before the first network call.
+
+        Decides between a debug and a deployed run, applies a binding, validates
+        the arguments and, for a deployed run, picks the folder, so only the
+        folder lookup and the request itself differ between the two.
+        """
+        # Decided on the caller's own folder arguments, before a binding swaps them.
         debug_job_key = _resolve_debug_job_key(folder_key, folder_path)
         name, folder_key, folder_path = self._apply_binding(
             name, folder_key, folder_path
         )
         _validate_run_arguments(name, input)
         if debug_job_key:
-            spec = self._debug_evaluate_spec(
-                name, input, job_key=debug_job_key, decision_names=decision_names
-            )
-        else:
-            spec = self._evaluate_spec(
-                name,
-                input,
-                folder_key=await self._resolve_folder_key_async(
-                    folder_key, folder_path
-                ),
-                version=version,
-                decision_names=decision_names,
-                caller=caller,
-            )
-        response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=_headers_with_trace(spec.headers, trace_context),
-            scoped="tenant",
-        )
-        return _to_run_result(_WireResponse.model_validate(response.json()))
+            return _RunTarget(name=name, debug_job_key=debug_job_key)
+        selected_key, selected_path = self._select_folder(folder_key, folder_path)
+        return _RunTarget(name=name, folder_key=selected_key, folder_path=selected_path)
 
     @resource_override(resource_type="businessRule")
     def _overridden_resource(
@@ -273,25 +285,50 @@ class BusinessRulesService(FolderContext, BaseService):
             "folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
         )
 
-    def _resolve_folder_key(
-        self, folder_key: Optional[str], folder_path: Optional[str]
-    ) -> str:
-        """Return the key of the folder the rule runs in, looking up a path."""
-        selected_key, selected_path = self._select_folder(folder_key, folder_path)
-        if selected_path:
-            selected_key = self._folders_service.retrieve_folder_key(selected_path)
-        return _require_folder_key(selected_key, selected_path)
+    def _resolve_folder_key(self, target: _RunTarget) -> Optional[str]:
+        """Return the key of the folder the rule runs in, looking up a path.
 
-    async def _resolve_folder_key_async(
-        self, folder_key: Optional[str], folder_path: Optional[str]
-    ) -> str:
+        None for a debug run, which names no folder, and for a path that
+        matches no folder, which _run_spec refuses.
+        """
+        if target.folder_path:
+            return self._folders_service.retrieve_folder_key(target.folder_path)
+        return target.folder_key
+
+    async def _resolve_folder_key_async(self, target: _RunTarget) -> Optional[str]:
         """Asynchronously return the key of the folder the rule runs in."""
-        selected_key, selected_path = self._select_folder(folder_key, folder_path)
-        if selected_path:
-            selected_key = await self._folders_service.retrieve_folder_key_async(
-                selected_path
+        if target.folder_path:
+            return await self._folders_service.retrieve_folder_key_async(
+                target.folder_path
             )
-        return _require_folder_key(selected_key, selected_path)
+        return target.folder_key
+
+    def _run_spec(
+        self,
+        target: _RunTarget,
+        input: Dict[str, Any],
+        *,
+        folder_key: Optional[str],
+        version: Optional[str] = None,
+        decision_names: Optional[List[str]] = None,
+        caller: Optional[BusinessRuleCaller] = None,
+    ) -> RequestSpec:
+        """Build the request for the endpoint the target names."""
+        if target.debug_job_key:
+            return self._debug_evaluate_spec(
+                target.name,
+                input,
+                job_key=target.debug_job_key,
+                decision_names=decision_names,
+            )
+        return self._evaluate_spec(
+            target.name,
+            input,
+            folder_key=_require_folder_key(folder_key, target.folder_path),
+            version=version,
+            decision_names=decision_names,
+            caller=caller,
+        )
 
     def _evaluate_spec(
         self,
@@ -358,6 +395,18 @@ def _resolve_debug_job_key(
         return None
     job_key = UiPathConfig.job_key
     return job_key if job_key and job_key.strip() else None
+
+
+def _request_options(
+    spec: RequestSpec, trace_context: Optional[TraceContext]
+) -> Dict[str, Any]:
+    """Return the request() arguments for a spec, besides its method."""
+    return {
+        "url": spec.endpoint,
+        "json": spec.json,
+        "headers": _headers_with_trace(spec.headers, trace_context),
+        "scoped": "tenant",
+    }
 
 
 def _require_folder_key(folder_key: Optional[str], folder_path: Optional[str]) -> str:
@@ -462,7 +511,8 @@ def _overall_status(
     return BusinessRuleStatus.PARTIAL_SUCCESS
 
 
-def _to_run_result(response: _WireResponse) -> BusinessRuleRunResult:
+def _to_run_result(response_body: Any) -> BusinessRuleRunResult:
+    response = _WireResponse.model_validate(response_body)
     # A successful response always carries the input's result; one without it is
     # not an answer to report as an evaluation.
     if response.result is None:
