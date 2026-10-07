@@ -378,6 +378,24 @@ class TestDeployed:
         assert "explain" not in body
         assert "inputs" not in body
 
+    async def test_run_async_names_itself_in_the_user_agent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        await service.run_async(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert (
+            request.headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.BusinessRulesService.run_async/{version}"
+        )
+
     async def test_run_async_resolves_folder_path(
         self,
         httpx_mock: HTTPXMock,

@@ -5,6 +5,7 @@ Runs business rules deployed to Orchestrator.
 
 import unicodedata
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
@@ -30,6 +31,19 @@ _EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/evaluate")
 _MAX_INPUT_KEYS = 256
 _MAX_RULE_NAME_LENGTH = 256
 _FORBIDDEN_RULE_NAME_PARTS = ("/", "\\", "..", "%")
+
+
+@dataclass(frozen=True)
+class _RunTarget:
+    """Where a run goes, settled before anything is sent.
+
+    Exactly one of ``folder_key`` and ``folder_path`` is set: a key ready to
+    send, or a path still to look up.
+    """
+
+    name: str
+    folder_key: Optional[str]
+    folder_path: Optional[str]
 
 
 class BusinessRulesService(FolderContext, BaseService):
@@ -108,27 +122,19 @@ class BusinessRulesService(FolderContext, BaseService):
                 print(decision.decision_name, decision.outputs)
             ```
         """
-        name, folder_key, folder_path = self._apply_binding(
-            name, folder_key, folder_path
-        )
-        _validate_run_arguments(name, input)
-        resolved_folder_key = self._resolve_folder_key(folder_key, folder_path)
+        target = self._prepare_run(name, input, folder_key, folder_path)
         spec = self._evaluate_spec(
-            name,
+            target.name,
             input,
-            folder_key=resolved_folder_key,
+            folder_key=self._resolve_folder_key(target),
             version=version,
             decision_names=decision_names,
             caller=caller,
         )
-        response = self.request(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=_headers_with_trace(spec.headers, trace_context),
-            scoped="tenant",
-        )
-        return _to_run_result(_WireResponse.model_validate(response.json()))
+        # Called here, not in a helper: BaseService names the user agent after
+        # the method that calls request(), which must be the public run().
+        response = self.request(spec.method, **_request_options(spec, trace_context))
+        return _to_run_result(response.json())
 
     async def run_async(
         self,
@@ -165,29 +171,38 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
-        name, folder_key, folder_path = self._apply_binding(
-            name, folder_key, folder_path
-        )
-        _validate_run_arguments(name, input)
-        resolved_folder_key = await self._resolve_folder_key_async(
-            folder_key, folder_path
-        )
+        target = self._prepare_run(name, input, folder_key, folder_path)
         spec = self._evaluate_spec(
-            name,
+            target.name,
             input,
-            folder_key=resolved_folder_key,
+            folder_key=await self._resolve_folder_key_async(target),
             version=version,
             decision_names=decision_names,
             caller=caller,
         )
         response = await self.request_async(
-            spec.method,
-            url=spec.endpoint,
-            json=spec.json,
-            headers=_headers_with_trace(spec.headers, trace_context),
-            scoped="tenant",
+            spec.method, **_request_options(spec, trace_context)
         )
-        return _to_run_result(_WireResponse.model_validate(response.json()))
+        return _to_run_result(response.json())
+
+    def _prepare_run(
+        self,
+        name: str,
+        input: Dict[str, Any],
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> _RunTarget:
+        """Do what run() and run_async() share before the first network call.
+
+        Applies a binding, validates the arguments and picks the folder, so only
+        the folder lookup and the request itself differ between the two.
+        """
+        name, folder_key, folder_path = self._apply_binding(
+            name, folder_key, folder_path
+        )
+        _validate_run_arguments(name, input)
+        selected_key, selected_path = self._select_folder(folder_key, folder_path)
+        return _RunTarget(name=name, folder_key=selected_key, folder_path=selected_path)
 
     @resource_override(resource_type="businessRule")
     def _overridden_resource(
@@ -240,25 +255,21 @@ class BusinessRulesService(FolderContext, BaseService):
             "folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
         )
 
-    def _resolve_folder_key(
-        self, folder_key: Optional[str], folder_path: Optional[str]
-    ) -> str:
+    def _resolve_folder_key(self, target: _RunTarget) -> str:
         """Return the key of the folder the rule runs in, looking up a path."""
-        selected_key, selected_path = self._select_folder(folder_key, folder_path)
-        if selected_path:
-            selected_key = self._folders_service.retrieve_folder_key(selected_path)
-        return _require_folder_key(selected_key, selected_path)
+        folder_key = target.folder_key
+        if target.folder_path:
+            folder_key = self._folders_service.retrieve_folder_key(target.folder_path)
+        return _require_folder_key(folder_key, target.folder_path)
 
-    async def _resolve_folder_key_async(
-        self, folder_key: Optional[str], folder_path: Optional[str]
-    ) -> str:
+    async def _resolve_folder_key_async(self, target: _RunTarget) -> str:
         """Asynchronously return the key of the folder the rule runs in."""
-        selected_key, selected_path = self._select_folder(folder_key, folder_path)
-        if selected_path:
-            selected_key = await self._folders_service.retrieve_folder_key_async(
-                selected_path
+        folder_key = target.folder_key
+        if target.folder_path:
+            folder_key = await self._folders_service.retrieve_folder_key_async(
+                target.folder_path
             )
-        return _require_folder_key(selected_key, selected_path)
+        return _require_folder_key(folder_key, target.folder_path)
 
     def _evaluate_spec(
         self,
@@ -286,6 +297,18 @@ class BusinessRulesService(FolderContext, BaseService):
             json=body,
             headers={HEADER_FOLDER_KEY: folder_key},
         )
+
+
+def _request_options(
+    spec: RequestSpec, trace_context: Optional[TraceContext]
+) -> Dict[str, Any]:
+    """Return the request() arguments for a spec, besides its method."""
+    return {
+        "url": spec.endpoint,
+        "json": spec.json,
+        "headers": _headers_with_trace(spec.headers, trace_context),
+        "scoped": "tenant",
+    }
 
 
 def _require_folder_key(folder_key: Optional[str], folder_path: Optional[str]) -> str:
@@ -390,7 +413,8 @@ def _overall_status(
     return BusinessRuleStatus.PARTIAL_SUCCESS
 
 
-def _to_run_result(response: _WireResponse) -> BusinessRuleRunResult:
+def _to_run_result(response_body: Any) -> BusinessRuleRunResult:
+    response = _WireResponse.model_validate(response_body)
     # A successful response always carries the input's result; one without it is
     # not an answer to report as an evaluation.
     if response.result is None:
