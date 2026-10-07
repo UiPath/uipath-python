@@ -9,6 +9,9 @@ _ORCHESTRATOR_URL = "https://cloud.uipath.com/org/tenant/orchestrator_/api/v1"
 _LLM_URL = "https://cloud.uipath.com/org/tenant/orchestrator_/llm/chat"
 _AGENTHUB_URL = "https://cloud.uipath.com/org/tenant/agenthub_/api/v1"
 _APPS_URL = "https://cloud.uipath.com/org/tenant/apps_/api/v1"
+_BUSINESS_RULES_URL = (
+    "https://cloud.uipath.com/org/tenant/businessrules_/v1/business-rules/evaluate"
+)
 _ELEMENTS_URL = "https://cloud.uipath.com/org/tenant/elements_/api/v1"
 _LLMOPS_URL = "https://cloud.uipath.com/org/tenant/llmopstenant_/api/v1"
 _GENERIC_URL = "https://cloud.uipath.com/api/test"
@@ -237,6 +240,39 @@ class TestAppsExtraction:
         exc = EnrichedException(_make_error(400, body=body, url=_APPS_URL))
         assert exc.error_info is not None
         assert exc.error_info.message == "Detailed error"
+
+
+class TestBusinessRulesExtraction:
+    """Business Rules nests the code and message under "error"."""
+
+    def test_nested_error_code_and_message(self):
+        body = json.dumps(
+            {
+                "businessRuleName": "Missing",
+                "error": {"code": "RULE_NOT_FOUND", "message": "no such rule"},
+                "meta": {"timestamp": "2026-10-07T00:00:00Z"},
+            }
+        )
+        exc = EnrichedException(_make_error(404, body=body, url=_BUSINESS_RULES_URL))
+        assert exc.error_info is not None
+        assert exc.error_info.message == "no such rule"
+        assert exc.error_info.error_code == "RULE_NOT_FOUND"
+        assert exc.error_info.trace_id is None
+
+    def test_error_without_message(self):
+        body = json.dumps({"error": {"code": "BATCH_TIMEOUT"}, "meta": {}})
+        exc = EnrichedException(_make_error(504, body=body, url=_BUSINESS_RULES_URL))
+        assert exc.error_info is not None
+        assert exc.error_info.error_code == "BATCH_TIMEOUT"
+        assert exc.error_info.message is None
+
+    def test_other_shapes_fall_back_to_generic(self):
+        # An error answered by the gateway rather than the service.
+        body = json.dumps({"message": "Unauthorized", "errorCode": 1015})
+        exc = EnrichedException(_make_error(401, body=body, url=_BUSINESS_RULES_URL))
+        assert exc.error_info is not None
+        assert exc.error_info.message == "Unauthorized"
+        assert exc.error_info.error_code == "1015"
 
 
 class TestElementsExtraction:
