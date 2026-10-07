@@ -4,6 +4,7 @@ Runs business rules: a rule deployed to Orchestrator, or, inside a debug
 session, the undeployed rule from the Studio project being debugged.
 """
 
+import unicodedata
 from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -373,7 +374,9 @@ def _validate_rule_name(rule_name: str, field: str) -> None:
     for forbidden in ("/", "\\", "..", "%"):
         if forbidden in rule_name:
             raise ValueError(f"{field} must not contain '{forbidden}'")
-    if any(not ch.isprintable() for ch in rule_name):
+    # Control characters only (Unicode category Cc), as the .NET client checks;
+    # a non-breaking or zero-width space is allowed in a name.
+    if any(unicodedata.category(ch) == "Cc" for ch in rule_name):
         raise ValueError(f"{field} must not contain control characters")
 
 
