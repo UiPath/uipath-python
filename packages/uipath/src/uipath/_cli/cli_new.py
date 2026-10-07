@@ -22,7 +22,7 @@ console = ConsoleLogger()
 # Deliberately a constant: the guard test in tests/cli/test_new.py fails on
 # every minor bump so the scaffold (pin, template, hints) gets reviewed
 # alongside the release rather than drifting silently.
-UIPATH_SCAFFOLD_MINOR = "2.15"
+UIPATH_SCAFFOLD_MINOR = "2.14"
 
 
 def generate_script(target_directory):
