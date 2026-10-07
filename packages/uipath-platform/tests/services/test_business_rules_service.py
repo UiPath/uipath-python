@@ -266,6 +266,32 @@ class TestFolder:
         with pytest.raises(ValueError, match="Only one of"):
             service.run(RULE, {}, folder_key=FOLDER_KEY, folder_path="Finance")
 
+    def test_rejects_a_folder_path_that_matches_no_folder(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+    ) -> None:
+        folders_service.retrieve_folder_key.return_value = None
+
+        with pytest.raises(ValueError, match="No folder was found for folder_path"):
+            service.run(RULE, {}, folder_path="Missing/Folder")
+
+        assert httpx_mock.get_requests() == []
+
+    async def test_rejects_a_folder_path_that_matches_no_folder_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        folders_service: Mock,
+    ) -> None:
+        folders_service.retrieve_folder_key_async.return_value = None
+
+        with pytest.raises(ValueError, match="No folder was found for folder_path"):
+            await service.run_async(RULE, {}, folder_path="Missing/Folder")
+
+        assert httpx_mock.get_requests() == []
+
 
 class TestDeployed:
     def test_sends_single_input_and_maps_decisions(
