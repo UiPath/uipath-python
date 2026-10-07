@@ -1,5 +1,5 @@
 import json
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -1108,7 +1108,9 @@ class TestDebug:
         assert "caller" not in body
 
     @pytest.mark.parametrize(
-        "folder", [{"folder_key": FOLDER_KEY}, {"folder_path": "Finance"}]
+        ("folder_key", "folder_path"),
+        [(FOLDER_KEY, None), (None, "Finance")],
+        ids=["folder_key", "folder_path"],
     )
     def test_a_named_folder_runs_the_deployed_rule(
         self,
@@ -1116,11 +1118,12 @@ class TestDebug:
         service: BusinessRulesService,
         evaluate_url: str,
         studio_debug: None,
-        folder: dict[str, str],
+        folder_key: Optional[str],
+        folder_path: Optional[str],
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, json=_response())
 
-        service.run(RULE, {}, **folder)
+        service.run(RULE, {}, folder_key=folder_key, folder_path=folder_path)
 
         request = httpx_mock.get_request()
         assert request is not None
@@ -1216,6 +1219,29 @@ class TestDebug:
 
         assert result.status == BusinessRuleStatus.SUCCESS
         assert len(httpx_mock.get_requests()) == 2
+
+    def test_debug_run_opens_no_span_of_its_own(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        debug_url: str,
+        studio_debug: None,
+        recorded_spans: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+        httpx_mock.add_response(url=debug_url, json=_response(_one_decision(x=1)))
+
+        with trace.get_tracer("test").start_as_current_span("caller") as caller_span:
+            service.run(RULE, {"age": 14})
+            caller_context = caller_span.get_span_context()
+
+        assert [span.name for span in recorded_spans.get_finished_spans()] == ["caller"]
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[TRACEPARENT] == (
+            f"00-{caller_context.trace_id:032x}-{caller_context.span_id:016x}-01"
+        )
 
     def test_explicit_trace_context_on_debug_run(
         self,
