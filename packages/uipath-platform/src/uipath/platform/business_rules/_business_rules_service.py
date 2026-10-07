@@ -215,7 +215,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _prepare_run(
         self,
         business_rule_name: str,
-        rule_input: Dict[str, Any],
+        input: Dict[str, Any],
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> _RunTarget:
@@ -230,7 +230,7 @@ class BusinessRulesService(FolderContext, BaseService):
         business_rule_name, folder_key, folder_path = self._apply_binding(
             business_rule_name, folder_key, folder_path
         )
-        _validate_run_arguments(business_rule_name, rule_input)
+        _validate_run_arguments(business_rule_name, input)
         if debug_job_key:
             return _RunTarget(
                 business_rule_name=business_rule_name, debug_job_key=debug_job_key
@@ -320,7 +320,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _run_spec(
         self,
         run_target: _RunTarget,
-        rule_input: Dict[str, Any],
+        input: Dict[str, Any],
         *,
         folder_key: Optional[str],
         version: Optional[str] = None,
@@ -331,13 +331,13 @@ class BusinessRulesService(FolderContext, BaseService):
         if run_target.debug_job_key:
             return self._debug_evaluate_spec(
                 run_target.business_rule_name,
-                rule_input,
+                input,
                 job_key=run_target.debug_job_key,
                 decision_names=decision_names,
             )
         return self._evaluate_spec(
             run_target.business_rule_name,
-            rule_input,
+            input,
             folder_key=_require_folder_key(folder_key, run_target.folder_path),
             version=version,
             decision_names=decision_names,
@@ -347,7 +347,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _evaluate_spec(
         self,
         business_rule_name: str,
-        rule_input: Dict[str, Any],
+        input: Dict[str, Any],
         *,
         folder_key: str,
         version: Optional[str] = None,
@@ -358,7 +358,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # and audit record under it.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
-            "input": rule_input,
+            "input": input,
         }
         if _has_value(version):
             request_body["version"] = version
@@ -377,7 +377,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _debug_evaluate_spec(
         self,
         business_rule_name: str,
-        rule_input: Dict[str, Any],
+        input: Dict[str, Any],
         *,
         job_key: str,
         decision_names: Optional[List[str]] = None,
@@ -388,7 +388,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # has no version, and a debug run is not an audited execution.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
-            "input": rule_input,
+            "input": input,
         }
         if decision_names:
             request_body["decisionNames"] = decision_names
@@ -486,11 +486,9 @@ def _has_value(text: Optional[str]) -> bool:
     return bool(text and text.strip())
 
 
-def _validate_run_arguments(
-    business_rule_name: str, rule_input: Dict[str, Any]
-) -> None:
+def _validate_run_arguments(business_rule_name: str, input: Dict[str, Any]) -> None:
     _validate_business_rule_name(business_rule_name)
-    _validate_input(rule_input)
+    _validate_input(input)
 
 
 def _validate_business_rule_name(business_rule_name: str) -> None:
@@ -509,15 +507,15 @@ def _validate_business_rule_name(business_rule_name: str) -> None:
         raise ValueError("name must not contain control characters")
 
 
-def _validate_input(rule_input: Dict[str, Any]) -> None:
-    if rule_input is None:
+def _validate_input(input: Dict[str, Any]) -> None:
+    if input is None:
         raise ValueError("input must not be None")
-    if not isinstance(rule_input, Mapping):
+    if not isinstance(input, Mapping):
         raise ValueError(
             "input must be a mapping of the rule's input names to values, "
-            f"not {type(rule_input).__name__}"
+            f"not {type(input).__name__}"
         )
-    if len(rule_input) > _MAX_INPUT_KEYS:
+    if len(input) > _MAX_INPUT_KEYS:
         raise ValueError(f"input must not exceed {_MAX_INPUT_KEYS} keys")
 
 
