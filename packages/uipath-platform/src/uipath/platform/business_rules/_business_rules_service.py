@@ -31,8 +31,8 @@ _EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/evaluate")
 _DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/evaluate")
 
 _MAX_INPUT_KEYS = 256
-_MAX_RULE_NAME_LENGTH = 256
-_FORBIDDEN_RULE_NAME_PARTS = ("/", "\\", "..", "%")
+_MAX_BUSINESS_RULE_NAME_LENGTH = 256
+_FORBIDDEN_BUSINESS_RULE_NAME_PARTS = ("/", "\\", "..", "%")
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ class _RunTarget:
     path still to look up.
     """
 
-    rule_name: str
+    business_rule_name: str
     folder_key: Optional[str] = None
     folder_path: Optional[str] = None
     debug_job_key: Optional[str] = None
@@ -214,7 +214,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
     def _prepare_run(
         self,
-        rule_name: str,
+        business_rule_name: str,
         rule_input: Dict[str, Any],
         folder_key: Optional[str],
         folder_path: Optional[str],
@@ -227,15 +227,19 @@ class BusinessRulesService(FolderContext, BaseService):
         """
         # Decided on the caller's own folder arguments, before a binding swaps them.
         debug_job_key = _resolve_debug_job_key(folder_key, folder_path)
-        rule_name, folder_key, folder_path = self._apply_binding(
-            rule_name, folder_key, folder_path
+        business_rule_name, folder_key, folder_path = self._apply_binding(
+            business_rule_name, folder_key, folder_path
         )
-        _validate_run_arguments(rule_name, rule_input)
+        _validate_run_arguments(business_rule_name, rule_input)
         if debug_job_key:
-            return _RunTarget(rule_name=rule_name, debug_job_key=debug_job_key)
+            return _RunTarget(
+                business_rule_name=business_rule_name, debug_job_key=debug_job_key
+            )
         selected_key, selected_path = self._select_folder(folder_key, folder_path)
         return _RunTarget(
-            rule_name=rule_name, folder_key=selected_key, folder_path=selected_path
+            business_rule_name=business_rule_name,
+            folder_key=selected_key,
+            folder_path=selected_path,
         )
 
     @resource_override(resource_type="businessRule")
@@ -247,7 +251,10 @@ class BusinessRulesService(FolderContext, BaseService):
         return name, folder_path
 
     def _apply_binding(
-        self, rule_name: str, folder_key: Optional[str], folder_path: Optional[str]
+        self,
+        business_rule_name: str,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
     ) -> Tuple[str, Optional[str], Optional[str]]:
         """Apply a businessRule binding, if one remaps this rule.
 
@@ -255,13 +262,16 @@ class BusinessRulesService(FolderContext, BaseService):
         replaces whichever folder the caller gave, including a folder_key, which
         the override decorator alone would leave in place next to the new path.
         """
-        bound_rule_name, bound_folder_path = self._overridden_resource(
-            rule_name, folder_path=folder_path
+        bound_business_rule_name, bound_folder_path = self._overridden_resource(
+            business_rule_name, folder_path=folder_path
         )
-        is_remapped = (bound_rule_name, bound_folder_path) != (rule_name, folder_path)
+        is_remapped = (bound_business_rule_name, bound_folder_path) != (
+            business_rule_name,
+            folder_path,
+        )
         if is_remapped and bound_folder_path:
             folder_key = None
-        return bound_rule_name, folder_key, bound_folder_path
+        return bound_business_rule_name, folder_key, bound_folder_path
 
     def _select_folder(
         self, folder_key: Optional[str], folder_path: Optional[str]
@@ -320,13 +330,13 @@ class BusinessRulesService(FolderContext, BaseService):
         """Build the request for the endpoint the run target names."""
         if run_target.debug_job_key:
             return self._debug_evaluate_spec(
-                run_target.rule_name,
+                run_target.business_rule_name,
                 rule_input,
                 job_key=run_target.debug_job_key,
                 decision_names=decision_names,
             )
         return self._evaluate_spec(
-            run_target.rule_name,
+            run_target.business_rule_name,
             rule_input,
             folder_key=_require_folder_key(folder_key, run_target.folder_path),
             version=version,
@@ -336,7 +346,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
     def _evaluate_spec(
         self,
-        rule_name: str,
+        business_rule_name: str,
         rule_input: Dict[str, Any],
         *,
         folder_key: str,
@@ -347,7 +357,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # The service resolves the rule in this folder and files the run's trace
         # and audit record under it.
         request_body: Dict[str, Any] = {
-            "businessRuleName": rule_name,
+            "businessRuleName": business_rule_name,
             "input": rule_input,
         }
         if _has_value(version):
@@ -366,7 +376,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
     def _debug_evaluate_spec(
         self,
-        rule_name: str,
+        business_rule_name: str,
         rule_input: Dict[str, Any],
         *,
         job_key: str,
@@ -377,7 +387,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # header is sent, and neither is a version or caller: an undeployed rule
         # has no version, and a debug run is not an audited execution.
         request_body: Dict[str, Any] = {
-            "businessRuleName": rule_name,
+            "businessRuleName": business_rule_name,
             "input": rule_input,
         }
         if decision_names:
@@ -476,22 +486,26 @@ def _has_value(text: Optional[str]) -> bool:
     return bool(text and text.strip())
 
 
-def _validate_run_arguments(rule_name: str, rule_input: Dict[str, Any]) -> None:
-    _validate_rule_name(rule_name)
+def _validate_run_arguments(
+    business_rule_name: str, rule_input: Dict[str, Any]
+) -> None:
+    _validate_business_rule_name(business_rule_name)
     _validate_input(rule_input)
 
 
-def _validate_rule_name(rule_name: str) -> None:
-    if not _has_value(rule_name):
+def _validate_business_rule_name(business_rule_name: str) -> None:
+    if not _has_value(business_rule_name):
         raise ValueError("name must be specified")
-    if len(rule_name) > _MAX_RULE_NAME_LENGTH:
-        raise ValueError(f"name must not exceed {_MAX_RULE_NAME_LENGTH} characters")
-    for forbidden_part in _FORBIDDEN_RULE_NAME_PARTS:
-        if forbidden_part in rule_name:
+    if len(business_rule_name) > _MAX_BUSINESS_RULE_NAME_LENGTH:
+        raise ValueError(
+            f"name must not exceed {_MAX_BUSINESS_RULE_NAME_LENGTH} characters"
+        )
+    for forbidden_part in _FORBIDDEN_BUSINESS_RULE_NAME_PARTS:
+        if forbidden_part in business_rule_name:
             raise ValueError(f"name must not contain '{forbidden_part}'")
     # Control characters only (Unicode category Cc), as the .NET client checks;
     # a non-breaking or zero-width space is allowed in a name.
-    if any(unicodedata.category(character) == "Cc" for character in rule_name):
+    if any(unicodedata.category(character) == "Cc" for character in business_rule_name):
         raise ValueError("name must not contain control characters")
 
 
