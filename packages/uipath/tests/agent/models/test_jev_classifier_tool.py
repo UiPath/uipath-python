@@ -83,12 +83,18 @@ def test_settings_hold_only_the_model() -> None:
     assert _settings(resource).model_dump() == {"model": "jev-1.13.0"}
 
 
-def test_model_defaults_to_latest() -> None:
-    assert _settings(_validate(_resource())).model == "jev-latest"
+@pytest.mark.parametrize(
+    "settings",
+    [pytest.param({}, id="missing"), pytest.param({"model": ""}, id="empty")],
+)
+def test_model_is_required(settings: dict[str, Any]) -> None:
+    # No default Jev model: a tool without one fails to load.
+    with pytest.raises(ValidationError, match="model"):
+        _validate(_resource(**settings))
 
 
 def test_tool_type_is_case_insensitive() -> None:
-    data = _resource()
+    data = _resource(model="jev-1.13.0")
     data["properties"]["toolType"] = "Jev-Classifier"
 
     assert isinstance(
@@ -100,11 +106,15 @@ def test_legacy_state_and_questions_settings_are_ignored_extras() -> None:
     # BaseCfg allows extra fields: settings written before questions and state
     # moved to inputSchema still parse, but nothing reads or validates them.
     resource = _validate(
-        _resource(state={"type": "number"}, questions=[{"type": "freeform"}])
+        _resource(
+            model="jev-1.13.0",
+            state={"type": "number"},
+            questions=[{"type": "freeform"}],
+        )
     )
 
     settings = _settings(resource)
-    assert settings.model == "jev-latest"
+    assert settings.model == "jev-1.13.0"
     assert not hasattr(AgentInternalJevClassifierSettings, "questions")
     assert settings.model_extra == {
         "state": {"type": "number"},
@@ -207,7 +217,7 @@ def test_rejects_invalid_question(question: dict[str, Any]) -> None:
 
 
 def test_parses_object_builder_argument_properties() -> None:
-    raw = _resource()
+    raw = _resource(model="jev-1.13.0")
     raw["argumentProperties"] = {
         "$['questions']": {"variant": "ObjectBuilder"},
         "$['questions']['department']": {"variant": "objectBuilder"},
