@@ -4,6 +4,11 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
@@ -633,6 +638,17 @@ def ambient_span() -> Iterator[None]:
         yield
 
 
+@pytest.fixture
+def recorded_spans(monkeypatch: pytest.MonkeyPatch) -> Iterator[InMemorySpanExporter]:
+    """Record every span, including any @traced would open, in memory."""
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(trace, "get_tracer", provider.get_tracer)
+    yield exporter
+    provider.shutdown()
+
+
 class TestTraceContext:
     def test_explicit_trace_context_wins_over_ambient_span(
         self,
@@ -693,7 +709,74 @@ class TestTraceContext:
 
         request = httpx_mock.get_request()
         assert request is not None
-        assert request.headers[TRACEPARENT].startswith(f"00-{AMBIENT_TRACE_ID}-")
+        # The caller's own span is the parent: the SDK opens no span of its own,
+        # so the service's spans nest directly under the caller's.
+        assert (
+            request.headers[TRACEPARENT]
+            == f"00-{AMBIENT_TRACE_ID}-{AMBIENT_SPAN_ID}-01"
+        )
+
+    async def test_ambient_trace_is_used_without_trace_context_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        ambient_span: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        await service.run_async(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert (
+            request.headers[TRACEPARENT]
+            == f"00-{AMBIENT_TRACE_ID}-{AMBIENT_SPAN_ID}-01"
+        )
+
+    def test_opens_no_span_of_its_own(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        recorded_spans: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # The service records the run's spans itself, so the SDK adds none: the
+        # caller's span stays the parent, and the rule's input and outputs are not
+        # recorded on the client.
+        monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+        httpx_mock.add_response(url=evaluate_url, json=_response(_one_decision(x=1)))
+
+        with trace.get_tracer("test").start_as_current_span("caller") as caller_span:
+            service.run(RULE, {"creditScore": 740}, folder_key=FOLDER_KEY)
+            caller_context = caller_span.get_span_context()
+
+        assert [span.name for span in recorded_spans.get_finished_spans()] == ["caller"]
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[TRACEPARENT] == (
+            f"00-{caller_context.trace_id:032x}-{caller_context.span_id:016x}-01"
+        )
+
+    def test_sends_no_trace_header_outside_a_trace(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # No current span and no trace_context: the service starts its own trace.
+        monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+        httpx_mock.add_response(url=evaluate_url, json=_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert TRACEPARENT not in request.headers
 
     def test_override_does_not_leak_into_the_next_call(
         self,

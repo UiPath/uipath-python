@@ -7,8 +7,6 @@ import unicodedata
 from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Tuple
 
-from uipath.core.tracing import traced
-
 from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
@@ -50,7 +48,9 @@ class BusinessRulesService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self._folders_service = folders_service
 
-    @traced(name="business_rules_run", run_type="uipath")
+    # Not @traced: the service records the run's decision spans under the
+    # caller's span, so a client span would only duplicate them and record the
+    # rule's input and outputs, which the .NET client never does either.
     def run(
         self,
         name: str,
@@ -130,7 +130,6 @@ class BusinessRulesService(FolderContext, BaseService):
         )
         return _to_run_result(_WireResponse.model_validate(response.json()))
 
-    @traced(name="business_rules_run", run_type="uipath")
     async def run_async(
         self,
         name: str,
