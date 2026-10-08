@@ -163,7 +163,7 @@ class TestRunContext:
     def test_rejects_non_mapping_input(
         self, httpx_mock: HTTPXMock, service: BusinessRulesService, value: Any
     ) -> None:
-        with pytest.raises(ValueError, match="input must be a mapping"):
+        with pytest.raises(ValueError, match="input_arguments must be a mapping"):
             service.run(RULE, value, folder_key=FOLDER_KEY)
 
         assert httpx_mock.get_requests() == []

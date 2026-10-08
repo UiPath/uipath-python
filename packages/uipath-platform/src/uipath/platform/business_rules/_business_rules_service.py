@@ -70,7 +70,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def run(
         self,
         name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         version: Optional[str] = None,
         decision_names: Optional[List[str]] = None,
@@ -83,7 +83,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
         Args:
             name: The name of the business rule.
-            input: The input to run, keyed by the rule's input names. Declared
+            input_arguments: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
             version: The rule version to run; defaults to the active version.
             decision_names: The decisions to evaluate; defaults to the whole model.
@@ -124,10 +124,10 @@ class BusinessRulesService(FolderContext, BaseService):
                 print(decision.decision_name, decision.outputs)
             ```
         """
-        run_target = self._prepare_run(name, input, folder_key, folder_path)
+        run_target = self._prepare_run(name, input_arguments, folder_key, folder_path)
         request_spec = self._evaluate_spec(
             run_target.business_rule_name,
-            input,
+            input_arguments,
             folder_key=self._resolve_folder_key(run_target),
             version=version,
             decision_names=decision_names,
@@ -143,7 +143,7 @@ class BusinessRulesService(FolderContext, BaseService):
     async def run_async(
         self,
         name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         version: Optional[str] = None,
         decision_names: Optional[List[str]] = None,
@@ -156,7 +156,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
         Args:
             name: The name of the business rule.
-            input: The input to run, keyed by the rule's input names. Declared
+            input_arguments: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
             version: The rule version to run; defaults to the active version.
             decision_names: The decisions to evaluate; defaults to the whole model.
@@ -175,10 +175,10 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
-        run_target = self._prepare_run(name, input, folder_key, folder_path)
+        run_target = self._prepare_run(name, input_arguments, folder_key, folder_path)
         request_spec = self._evaluate_spec(
             run_target.business_rule_name,
-            input,
+            input_arguments,
             folder_key=await self._resolve_folder_key_async(run_target),
             version=version,
             decision_names=decision_names,
@@ -192,7 +192,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _prepare_run(
         self,
         business_rule_name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> _RunTarget:
@@ -204,7 +204,7 @@ class BusinessRulesService(FolderContext, BaseService):
         business_rule_name, folder_key, folder_path = self._apply_binding(
             business_rule_name, folder_key, folder_path
         )
-        _validate_run_arguments(business_rule_name, input)
+        _validate_run_arguments(business_rule_name, input_arguments)
         selected_key, selected_path = self._select_folder(folder_key, folder_path)
         return _RunTarget(
             business_rule_name=business_rule_name,
@@ -290,7 +290,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _evaluate_spec(
         self,
         business_rule_name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         folder_key: str,
         version: Optional[str] = None,
@@ -301,7 +301,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # and audit record under it.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
-            "input": input,
+            "input": input_arguments,
         }
         if _has_value(version):
             request_body["version"] = version
@@ -400,9 +400,11 @@ def _has_value(text: Optional[str]) -> bool:
     return bool(text and text.strip())
 
 
-def _validate_run_arguments(business_rule_name: str, input: Dict[str, Any]) -> None:
+def _validate_run_arguments(
+    business_rule_name: str, input_arguments: Dict[str, Any]
+) -> None:
     _validate_business_rule_name(business_rule_name)
-    _validate_input(input)
+    _validate_input_arguments(input_arguments)
 
 
 def _validate_business_rule_name(business_rule_name: str) -> None:
@@ -438,16 +440,16 @@ def _is_allowed_business_rule_name_character(character: str) -> bool:
     )
 
 
-def _validate_input(input: Dict[str, Any]) -> None:
-    if input is None:
-        raise ValueError("input must not be None")
-    if not isinstance(input, Mapping):
+def _validate_input_arguments(input_arguments: Dict[str, Any]) -> None:
+    if input_arguments is None:
+        raise ValueError("input_arguments must not be None")
+    if not isinstance(input_arguments, Mapping):
         raise ValueError(
-            "input must be a mapping of the rule's input names to values, "
-            f"not {type(input).__name__}"
+            "input_arguments must be a mapping of the rule's input names to values, "
+            f"not {type(input_arguments).__name__}"
         )
-    if len(input) > _MAX_INPUT_KEYS:
-        raise ValueError(f"input must not exceed {_MAX_INPUT_KEYS} keys")
+    if len(input_arguments) > _MAX_INPUT_KEYS:
+        raise ValueError(f"input_arguments must not exceed {_MAX_INPUT_KEYS} keys")
 
 
 def _overall_status(
