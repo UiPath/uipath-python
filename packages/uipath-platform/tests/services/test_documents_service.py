@@ -3916,3 +3916,159 @@ class TestDocumentsService:
         # ASSERT
         assert response.operation_id == operation_id
         assert response.tag == "my tag/../v2"
+
+
+class TestDocumentsServiceFolderModels:
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_model(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response_v2: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        base = f"{base_url}{org}{tenant}/du_/api/framework/models/invoices-ixp"
+        folder_key = str(uuid4())
+        headers = {
+            "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
+            "x-uipath-folderkey": folder_key,
+        }
+        extraction_result = ixp_extraction_response_v2["extractionResult"]
+
+        httpx_mock.add_response(
+            url=f"{base}/digitization/start?api-version=2.0",
+            match_headers=headers,
+            match_files={"File": b"test content"},
+            json={"DocumentId": document_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/digitization/result/{document_id}?api-version=2.0",
+            match_headers=headers,
+            json={"Status": "Succeeded", "Result": {}},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/extraction/start?api-version=2.0",
+            match_headers=headers,
+            match_json={"documentId": document_id},
+            json={"OperationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/extraction/result/{operation_id}?api-version=2.0",
+            match_headers=headers,
+            json={"Status": "Running"},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/extraction/result/{operation_id}?api-version=2.0",
+            match_headers=headers,
+            json={
+                "Status": "Succeeded",
+                "Result": {"ExtractionResult": extraction_result},
+            },
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.extract_with_model_async(
+                model_name="invoices-ixp", file=b"test content", folder_key=folder_key
+            )
+        else:
+            response = service.extract_with_model(
+                model_name="invoices-ixp", file=b"test content", folder_key=folder_key
+            )
+
+        # ASSERT
+        assert response.model_name == "invoices-ixp"
+        assert response.extraction_result.document_id == extraction_result["DocumentId"]
+        assert (
+            response.extraction_result.results_document
+            == extraction_result["ResultsDocument"]
+        )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_model_defaults_to_current_folder(
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        monkeypatch: pytest.MonkeyPatch,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response_v2: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        folder_key = str(uuid4())
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", folder_key)
+        service = DocumentsService(
+            config=config, execution_context=execution_context, polling_interval=0
+        )
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        base = f"{base_url}{org}{tenant}/du_/api/framework/models/my%20model"
+        headers = {"x-uipath-folderkey": folder_key}
+
+        httpx_mock.add_response(
+            url=f"{base}/digitization/start?api-version=2.0",
+            match_headers=headers,
+            json={"DocumentId": document_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/digitization/result/{document_id}?api-version=2.0",
+            match_headers=headers,
+            json={"Status": "Succeeded"},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/extraction/start?api-version=2.0",
+            match_headers=headers,
+            json={"OperationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/extraction/result/{operation_id}?api-version=2.0",
+            match_headers=headers,
+            json={
+                "Status": "Succeeded",
+                "Result": {
+                    "ExtractionResult": ixp_extraction_response_v2["extractionResult"]
+                },
+            },
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.extract_with_model_async(
+                model_name="my model", file=b"test content"
+            )
+        else:
+            response = service.extract_with_model(
+                model_name="my model", file=b"test content"
+            )
+
+        # ASSERT
+        assert response.model_name == "my model"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_with_model_without_folder(
+        self,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ACT & ASSERT
+        with pytest.raises(ValueError, match="`folder_key` must be provided"):
+            if mode == "async":
+                await service.extract_with_model_async(
+                    model_name="invoices-ixp", file=b"test content"
+                )
+            else:
+                service.extract_with_model(
+                    model_name="invoices-ixp", file=b"test content"
+                )
