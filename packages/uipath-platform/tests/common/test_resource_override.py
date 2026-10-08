@@ -38,8 +38,6 @@ def asset_overwrite() -> Iterator[None]:
 
 
 def test_bound_folder_replaces_a_folder_key(asset_overwrite: None) -> None:
-    # Left beside the bound path, the key would name a second folder, which
-    # header_folder() refuses.
     assert retrieve("ApiKey", folder_key="callers-key") == (
         "ApiKey EU",
         None,
@@ -64,8 +62,6 @@ def test_folder_key_kept_without_a_matching_overwrite(asset_overwrite: None) -> 
 
 
 def test_other_folder_parameters_are_left_alone() -> None:
-    # A method whose overwrite targets a differently named folder (as Action
-    # Center's app_folder_path) keeps its own folder_key.
     @resource_override(resource_type="app", folder_identifier="app_folder_path")
     def create(
         name: str,

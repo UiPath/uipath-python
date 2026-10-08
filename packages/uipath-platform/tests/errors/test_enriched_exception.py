@@ -267,7 +267,6 @@ class TestBusinessRulesExtraction:
         assert exc.error_info.message is None
 
     def test_other_shapes_fall_back_to_generic(self):
-        # An error answered by the gateway rather than the service.
         body = json.dumps({"message": "Unauthorized", "errorCode": 1015})
         exc = EnrichedException(_make_error(401, body=body, url=_BUSINESS_RULES_URL))
         assert exc.error_info is not None

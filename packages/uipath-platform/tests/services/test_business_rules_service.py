@@ -115,8 +115,6 @@ class TestRunContext:
         evaluate_url: str,
         business_rule_name: str,
     ) -> None:
-        # The service decides which characters a name may hold, and answers a
-        # name it rejects with INVALID_REQUEST; the SDK sends it as given.
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(business_rule_name, {}, folder_key=FOLDER_KEY)
@@ -335,7 +333,6 @@ class TestDeployed:
             folder_key=FOLDER_KEY,
         )
 
-        # The enum member, as typed, and still equal to the service's text.
         assert result.status is BusinessRuleStatus.SUCCESS
         assert result.status == "Success"
         assert result.model_dump(mode="json")["status"] == "Success"
@@ -454,7 +451,6 @@ class TestCaller:
             "folderKey": "caller-folder-key",
             "isDebugRun": False,
         }
-        # The rule's folder, not the caller's, scopes the run.
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
 
     def test_explicit_fields_win_over_the_environment(
@@ -527,8 +523,6 @@ class TestCaller:
         evaluate_url: str,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # A process debugged in Studio Web has no release, so no resource key;
-        # the flag tells the service the caller is a debug session.
         monkeypatch.setenv("UIPATH_PROJECT_ID", "studio-project-id")
         monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
@@ -837,8 +831,6 @@ class TestTraceContext:
 
         request = httpx_mock.get_request()
         assert request is not None
-        # The caller's own span is the parent: the SDK opens no span of its own,
-        # so the service's spans nest directly under the caller's.
         assert (
             request.headers[TRACEPARENT]
             == f"00-{AMBIENT_TRACE_ID}-{AMBIENT_SPAN_ID}-01"
@@ -872,9 +864,6 @@ class TestTraceContext:
         recorded_spans: InMemorySpanExporter,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # The service records the run's spans itself, so the SDK adds none: the
-        # caller's span stays the parent, and the rule's input and outputs are not
-        # recorded on the client.
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
         httpx_mock.add_response(
             url=evaluate_url, json=_service_response(_single_decision_result(x=1))
@@ -898,7 +887,6 @@ class TestTraceContext:
         evaluate_url: str,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # No current span and no trace_context: the service starts its own trace.
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
@@ -972,7 +960,6 @@ class TestTraceContext:
         assert second.headers[TRACEPARENT] == expected
 
     def test_parent_span_id_accepts_uuid_form(self) -> None:
-        # As _SpanUtils.normalize_span_id reads a UUID: its last 16 hex digits.
         context = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID,
             parent_span_id=f"00000000-0000-0000-{EXPLICIT_SPAN_ID[:4]}-{EXPLICIT_SPAN_ID[4:]}",
@@ -1229,7 +1216,6 @@ class TestDebug:
         folders_service.retrieve_folder_key.assert_not_called()
         request = httpx_mock.get_request()
         assert request is not None
-        # The service takes the job's folders from its lineage.
         assert HEADER_FOLDER_KEY not in request.headers
         assert "x-uipath-organizationunitid" not in request.headers
         assert "x-uipath-folderpath" not in request.headers
@@ -1280,7 +1266,6 @@ class TestDebug:
         evaluate_url: str,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # Running a project locally: no job, so no lineage to read it from.
         monkeypatch.setenv("UIPATH_PROJECT_ID", PROJECT_ID)
         monkeypatch.setenv("UIPATH_JOB_KEY", "   ")
         httpx_mock.add_response(url=evaluate_url, json=_service_response())

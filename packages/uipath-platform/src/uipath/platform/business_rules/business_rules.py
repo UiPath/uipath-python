@@ -95,8 +95,7 @@ class BusinessRuleTraceContext(BaseModel):
 
 
 def _require_nonzero_hex(trace_part: str, field_name: str) -> None:
-    # _SpanUtils normalizes the form; the W3C traceparent also needs hex
-    # digits, and an all-zero id is invalid there.
+    # Checks _SpanUtils leaves out; W3C traceparent requires both.
     if not _HEX_DIGITS.match(trace_part):
         raise ValueError(f"{field_name} must contain only hex characters")
     if not trace_part.strip("0"):

@@ -4433,8 +4433,6 @@ class TestResourceOverride:
         org: str,
         tenant: str,
     ) -> None:
-        # The caller's folder_key used to win over the binding's folder, so the
-        # bound index name was looked up in the caller's folder.
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'eu-index'&$expand=dataSource",
             status_code=200,

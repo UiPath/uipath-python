@@ -240,7 +240,6 @@ class BusinessRulesService(FolderContext, BaseService):
         the arguments and, for a deployed run, picks the folder, so only the
         folder lookup and the request itself differ between the two.
         """
-        # Decided on the caller's own folder arguments, before a binding swaps them.
         is_debug = _is_debug_run(folder_key, folder_path)
         business_rule_name, folder_key, folder_path = self._overridden_resource(
             business_rule_name, folder_key=folder_key, folder_path=folder_path
@@ -255,9 +254,8 @@ class BusinessRulesService(FolderContext, BaseService):
             folder_path=selected_path,
         )
 
-    # On a private helper, not on run(): which endpoint a run takes depends on
-    # whether the caller named a folder, so _prepare_run decides that before a
-    # binding swaps the caller's folder for its own.
+    # Not on run(): routing depends on whether the caller named a folder, so
+    # _prepare_run decides it before a binding swaps the folder.
     @resource_override(resource_type="businessRule")
     def _overridden_resource(
         self,
@@ -265,8 +263,6 @@ class BusinessRulesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> Tuple[str, Optional[str], Optional[str]]:
-        # resource_override swaps these arguments when the solution's bindings
-        # remap this rule; the method just returns what it was given.
         return name, folder_key, folder_path
 
     def _select_folder(
@@ -322,8 +318,6 @@ class BusinessRulesService(FolderContext, BaseService):
         decision_names: Optional[List[str]] = None,
         caller: Optional[BusinessRuleCaller] = None,
     ) -> RequestSpec:
-        # The service resolves the rule in this folder and files the run's trace
-        # and audit record under it.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
             "input": input_arguments,
@@ -349,10 +343,6 @@ class BusinessRulesService(FolderContext, BaseService):
         *,
         decision_names: Optional[List[str]] = None,
     ) -> RequestSpec:
-        # The service finds the project, and the folders the job ran in, from the
-        # debug job's lineage, and checks the rule name against it. No folder
-        # header is sent, and neither is a version or caller: an undeployed rule
-        # has no version, and a debug run is not an audited execution.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
             "input": input_arguments,
@@ -420,8 +410,6 @@ def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, Any]:
 
 
 def _is_debug_session() -> bool:
-    # Studio Web sets the project id when it debugs; a job started from a
-    # solution debug, such as Maestro's, carries isDebug in its arguments.
     return UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job
 
 
@@ -439,7 +427,6 @@ def _headers_with_trace(
 
 
 def _has_value(text: Optional[str]) -> bool:
-    # Blank counts as absent, matching how the service reads these fields.
     return bool(text and text.strip())
 
 
@@ -451,8 +438,7 @@ def _validate_run_arguments(
 
 
 def _validate_business_rule_name(business_rule_name: str) -> None:
-    # Only what a name can never be; which characters a name may hold is the
-    # service's to decide, and it rejects the rest with INVALID_REQUEST.
+    # Character rules are left to the service, which answers INVALID_REQUEST.
     if not _has_value(business_rule_name):
         raise ValueError("name must be specified")
     if len(business_rule_name) > _MAX_BUSINESS_RULE_NAME_LENGTH:
@@ -476,7 +462,6 @@ def _validate_input_arguments(input_arguments: Dict[str, Any]) -> None:
 def _overall_status(
     decisions: List[BusinessRuleDecision], errors: List[BusinessRuleError]
 ) -> BusinessRuleStatus:
-    # An input-level error means the input never evaluated, whatever else came back.
     if errors:
         return BusinessRuleStatus.ALL_FAILED
     failed_count = sum(1 for decision in decisions if decision.error is not None)
@@ -489,8 +474,6 @@ def _overall_status(
 
 def _to_run_result(response_body: Any) -> BusinessRuleRunResult:
     wire_response = _WireResponse.model_validate(response_body)
-    # A successful response always carries the input's result; one without it is
-    # not an answer to report as an evaluation.
     if wire_response.result is None:
         raise ValueError("The business rules response did not include a result")
     decisions = wire_response.result.decisions or []

@@ -216,8 +216,6 @@ class ResourceOverwritesContext:
             _resource_overwrites.reset(self._token)
 
 
-# A method's two ways of naming one folder: an overwrite that sets one clears
-# the other.
 _OTHER_FOLDER_IDENTIFIER = {"folder_path": "folder_key", "folder_key": "folder_path"}
 
 
@@ -289,10 +287,7 @@ def resource_override(
                         all_args[folder_identifier] = (
                             matched_overwrite.folder_identifier
                         )
-                        # The overwrite's folder replaces the caller's: a key
-                        # left beside a bound path (or a path beside a bound
-                        # key) would name two folders, which header_folder()
-                        # refuses.
+                        # Otherwise header_folder() gets both and raises.
                         other_folder_identifier = _OTHER_FOLDER_IDENTIFIER.get(
                             folder_identifier
                         )

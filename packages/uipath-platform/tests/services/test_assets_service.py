@@ -956,8 +956,6 @@ class TestResourceOverride:
         org: str,
         tenant: str,
     ) -> None:
-        # Before resource_override cleared the caller's folder_key, the key and
-        # the bound path both reached header_folder(), which raised.
         import json
 
         httpx_mock.add_response(
