@@ -32,7 +32,7 @@ Repository = "https://github.com/UiPath/uipath-python"
 Documentation = "https://uipath.github.io/uipath-python/"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.32,<2"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
@@ -48,6 +48,7 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
+  "hatchling>=1.32,<2",
 ]
 
 [tool.hatch.build.hooks.custom]
@@ -93,11 +94,6 @@ check_untyped_defs = true
 no_implicit_reexport = true
 
 disallow_untyped_defs = false
-
-[[tool.mypy.overrides]]
-# hatchling is only installed in the isolated build env (used by hatch_build.py).
-module = ["hatchling.*"]
-ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

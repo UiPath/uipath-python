@@ -18,6 +18,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from hatchling.builders.config import BuilderConfig
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 TEMPLATE = '''\
@@ -30,7 +31,7 @@ __commit_id__ = commit_id = {commit_id!r}
 '''
 
 
-class CommitIdBuildHook(BuildHookInterface):
+class CommitIdBuildHook(BuildHookInterface[BuilderConfig]):
     """Generate the version file before each build."""
 
     PLUGIN_NAME = "custom"
