@@ -8,13 +8,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..common._base_service import _TRACE_PARENT_HEADER, BaseService
+from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
 from ..common._models import Endpoint, RequestSpec
-from ..constants import HEADER_FOLDER_KEY
+from ..constants import HEADER_FOLDER_KEY, HEADER_TRACEPARENT_ID
 from ..orchestrator._folder_service import FolderService
 from .business_rules import (
     BusinessRuleCaller,
@@ -363,30 +363,17 @@ def _is_debug_session() -> bool:
     return UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job
 
 
-class _ExplicitTraceHeaders(Dict[str, str]):
-    """Request headers that keep the caller's explicit trace header.
-
-    BaseService writes the ambient trace header into the headers it is given just
-    before sending; this dict ignores that write when an explicit one is set.
-    """
-
-    def __setitem__(self, header_name: str, header_value: str) -> None:
-        if header_name == _TRACE_PARENT_HEADER and header_name in self:
-            return
-        super().__setitem__(header_name, header_value)
-
-
 def _headers_with_trace(
     headers: Dict[str, str], trace_context: Optional[TraceContext]
 ) -> Dict[str, str]:
-    """Return the headers, pinned to ``trace_context`` when the caller gave one."""
+    """Return the headers, pinned to ``trace_context`` when the caller gave one.
+
+    BaseService adds the ambient trace header only when none is set, so an
+    explicit one set here is what gets sent.
+    """
     if trace_context is None:
         return headers
-    pinned_headers = _ExplicitTraceHeaders(headers)
-    dict.__setitem__(
-        pinned_headers, _TRACE_PARENT_HEADER, trace_context.to_traceparent()
-    )
-    return pinned_headers
+    return {**headers, HEADER_TRACEPARENT_ID: trace_context.to_traceparent()}
 
 
 def _has_value(text: Optional[str]) -> bool:
