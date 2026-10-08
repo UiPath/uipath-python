@@ -69,8 +69,8 @@ class BusinessRulesService(FolderContext, BaseService):
         self._folders_service = folders_service
 
     # Not @traced: the service records the run's decision spans under the
-    # caller's span, so a client span would only duplicate them and record the
-    # rule's input and outputs, which the .NET client never does either.
+    # caller's span, so a client span would only wrap them; the .NET client
+    # opens none either.
     def run(
         self,
         name: str,
