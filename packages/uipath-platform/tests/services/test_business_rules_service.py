@@ -27,7 +27,7 @@ from uipath.platform.common._bindings import (
 )
 from uipath.platform.common._config import UiPathConfig
 from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
-from uipath.platform.errors import EnrichedException
+from uipath.platform.errors import EnrichedException, FolderNotFoundException
 
 FOLDER_KEY = "5f1f1b0e-2b8a-4c1e-9b8e-1a2b3c4d5e6f"
 TRACEPARENT = "x-uipath-traceparent-id"
@@ -312,28 +312,32 @@ class TestFolder:
         with pytest.raises(ValueError, match="Only one of"):
             service.run(RULE, {}, folder_key=FOLDER_KEY, folder_path="Finance")
 
-    def test_rejects_a_folder_path_that_matches_no_folder(
+    def test_folder_path_that_matches_no_folder_raises_folder_not_found(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
         folders_service: Mock,
     ) -> None:
-        folders_service.retrieve_folder_key.return_value = None
+        folders_service.retrieve_folder_key.side_effect = FolderNotFoundException(
+            "Missing/Folder"
+        )
 
-        with pytest.raises(ValueError, match="No folder was found for folder_path"):
+        with pytest.raises(FolderNotFoundException):
             service.run(RULE, {}, folder_path="Missing/Folder")
 
         assert httpx_mock.get_requests() == []
 
-    async def test_rejects_a_folder_path_that_matches_no_folder_async(
+    async def test_folder_path_that_matches_no_folder_raises_folder_not_found_async(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
         folders_service: Mock,
     ) -> None:
-        folders_service.retrieve_folder_key_async.return_value = None
+        folders_service.retrieve_folder_key_async.side_effect = FolderNotFoundException(
+            "Missing/Folder"
+        )
 
-        with pytest.raises(ValueError, match="No folder was found for folder_path"):
+        with pytest.raises(FolderNotFoundException):
             await service.run_async(RULE, {}, folder_path="Missing/Folder")
 
         assert httpx_mock.get_requests() == []
