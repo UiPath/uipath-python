@@ -126,6 +126,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
         Raises:
             ValueError: If the request is invalid or a required folder is missing.
+            FolderNotFoundException: If no folder matches ``folder_path``.
             EnrichedException: If the service rejects the request.
 
         Examples:
@@ -149,14 +150,21 @@ class BusinessRulesService(FolderContext, BaseService):
             ```
         """
         run_target = self._prepare_run(name, input_arguments, folder_key, folder_path)
-        request_spec = self._run_spec(
-            run_target,
-            input_arguments,
-            folder_key=self._resolve_folder_key(run_target),
-            version=version,
-            decision_names=decision_names,
-            caller=caller,
-        )
+        if run_target.is_debug:
+            request_spec = self._debug_evaluate_spec(
+                run_target.business_rule_name,
+                input_arguments,
+                decision_names=decision_names,
+            )
+        else:
+            request_spec = self._evaluate_spec(
+                run_target.business_rule_name,
+                input_arguments,
+                folder_key=self._resolve_folder_key(run_target),
+                version=version,
+                decision_names=decision_names,
+                caller=caller,
+            )
         # Called here, not in a helper: BaseService names the user agent after
         # the method that calls request(), which must be the public run().
         response = self.request(
@@ -199,17 +207,25 @@ class BusinessRulesService(FolderContext, BaseService):
 
         Raises:
             ValueError: If the request is invalid or a required folder is missing.
+            FolderNotFoundException: If no folder matches ``folder_path``.
             EnrichedException: If the service rejects the request.
         """
         run_target = self._prepare_run(name, input_arguments, folder_key, folder_path)
-        request_spec = self._run_spec(
-            run_target,
-            input_arguments,
-            folder_key=await self._resolve_folder_key_async(run_target),
-            version=version,
-            decision_names=decision_names,
-            caller=caller,
-        )
+        if run_target.is_debug:
+            request_spec = self._debug_evaluate_spec(
+                run_target.business_rule_name,
+                input_arguments,
+                decision_names=decision_names,
+            )
+        else:
+            request_spec = self._evaluate_spec(
+                run_target.business_rule_name,
+                input_arguments,
+                folder_key=await self._resolve_folder_key_async(run_target),
+                version=version,
+                decision_names=decision_names,
+                caller=caller,
+            )
         response = await self.request_async(
             request_spec.method, **_request_options(request_spec, trace_context)
         )
@@ -300,48 +316,21 @@ class BusinessRulesService(FolderContext, BaseService):
             "folder_path, or set UIPATH_FOLDER_KEY or UIPATH_FOLDER_PATH"
         )
 
-    def _resolve_folder_key(self, run_target: _RunTarget) -> Optional[str]:
+    def _resolve_folder_key(self, run_target: _RunTarget) -> str:
         """Return the key of the folder the rule runs in, looking up a path.
 
-        None for a debug run, which names no folder, and for a path that
-        matches no folder, which _run_spec refuses.
+        A path that matches no folder raises FolderNotFoundException.
         """
-        if run_target.folder_path:
-            return self._folders_service.retrieve_folder_key(run_target.folder_path)
-        return run_target.folder_key
+        if run_target.folder_key:
+            return run_target.folder_key
+        return self._folders_service.retrieve_folder_key(run_target.folder_path)
 
-    async def _resolve_folder_key_async(self, run_target: _RunTarget) -> Optional[str]:
+    async def _resolve_folder_key_async(self, run_target: _RunTarget) -> str:
         """Asynchronously return the key of the folder the rule runs in."""
-        if run_target.folder_path:
-            return await self._folders_service.retrieve_folder_key_async(
-                run_target.folder_path
-            )
-        return run_target.folder_key
-
-    def _run_spec(
-        self,
-        run_target: _RunTarget,
-        input_arguments: Dict[str, Any],
-        *,
-        folder_key: Optional[str],
-        version: Optional[str] = None,
-        decision_names: Optional[List[str]] = None,
-        caller: Optional[BusinessRuleCaller] = None,
-    ) -> RequestSpec:
-        """Build the request for the endpoint the run target names."""
-        if run_target.is_debug:
-            return self._debug_evaluate_spec(
-                run_target.business_rule_name,
-                input_arguments,
-                decision_names=decision_names,
-            )
-        return self._evaluate_spec(
-            run_target.business_rule_name,
-            input_arguments,
-            folder_key=_require_folder_key(folder_key, run_target.folder_path),
-            version=version,
-            decision_names=decision_names,
-            caller=caller,
+        if run_target.folder_key:
+            return run_target.folder_key
+        return await self._folders_service.retrieve_folder_key_async(
+            run_target.folder_path
         )
 
     def _evaluate_spec(
@@ -423,13 +412,6 @@ def _request_options(
         "headers": _headers_with_trace(request_spec.headers, trace_context),
         "scoped": "tenant",
     }
-
-
-def _require_folder_key(folder_key: Optional[str], folder_path: Optional[str]) -> str:
-    # A folder path that matches no folder looks up to None.
-    if folder_key and folder_key.strip():
-        return folder_key
-    raise ValueError(f"No folder was found for folder_path '{folder_path}'")
 
 
 def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, Any]:

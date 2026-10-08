@@ -24,7 +24,7 @@ class FolderService(BaseService):
     ) -> None:
         super().__init__(config=config, execution_context=execution_context)
 
-    def retrieve_folder_key(self, folder_path: str | None) -> str | None:
+    def retrieve_folder_key(self, folder_path: str | None) -> str:
         """Resolve a folder path to its corresponding folder key.
 
         Args:
@@ -34,7 +34,8 @@ class FolderService(BaseService):
             The resolved folder key
 
         Raises:
-            ValueError: If folder_path is None or if folder_path is not found
+            ValueError: If folder_path is None.
+            FolderNotFoundException: If no folder matches folder_path.
         """
         if folder_path is None:
             raise ValueError("Cannot obtain folder_key without providing folder_path")
@@ -44,7 +45,7 @@ class FolderService(BaseService):
             raise FolderNotFoundException(folder_path)
         return resolved_folder_key
 
-    async def retrieve_folder_key_async(self, folder_path: str | None) -> str | None:
+    async def retrieve_folder_key_async(self, folder_path: str | None) -> str:
         """Asynchronously resolve a folder path to its corresponding folder key.
 
         Args:
@@ -54,7 +55,8 @@ class FolderService(BaseService):
             The resolved folder key
 
         Raises:
-            ValueError: If folder_path is None or if folder_path is not found
+            ValueError: If folder_path is None.
+            FolderNotFoundException: If no folder matches folder_path.
         """
         if folder_path is None:
             raise ValueError("Cannot obtain folder_key without providing folder_path")
