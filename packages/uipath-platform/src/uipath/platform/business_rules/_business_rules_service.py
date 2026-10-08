@@ -23,7 +23,7 @@ from .business_rules import (
     BusinessRuleError,
     BusinessRuleRunResult,
     BusinessRuleStatus,
-    TraceContext,
+    BusinessRuleTraceContext,
     _WireResponse,
 )
 
@@ -81,7 +81,7 @@ class BusinessRulesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         caller: Optional[BusinessRuleCaller] = None,
-        trace_context: Optional[TraceContext] = None,
+        trace_context: Optional[BusinessRuleTraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Run a business rule against one input.
 
@@ -178,7 +178,7 @@ class BusinessRulesService(FolderContext, BaseService):
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
         caller: Optional[BusinessRuleCaller] = None,
-        trace_context: Optional[TraceContext] = None,
+        trace_context: Optional[BusinessRuleTraceContext] = None,
     ) -> BusinessRuleRunResult:
         """Asynchronously run a business rule against one input.
 
@@ -399,7 +399,7 @@ def _is_debug_run(folder_key: Optional[str], folder_path: Optional[str]) -> bool
 
 
 def _request_options(
-    request_spec: RequestSpec, trace_context: Optional[TraceContext]
+    request_spec: RequestSpec, trace_context: Optional[BusinessRuleTraceContext]
 ) -> Dict[str, Any]:
     """Return the request() arguments for a spec, besides its method."""
     return {
@@ -443,7 +443,7 @@ def _is_debug_session() -> bool:
 
 
 def _headers_with_trace(
-    headers: Dict[str, str], trace_context: Optional[TraceContext]
+    headers: Dict[str, str], trace_context: Optional[BusinessRuleTraceContext]
 ) -> Dict[str, str]:
     """Return the headers, pinned to ``trace_context`` when the caller gave one.
 

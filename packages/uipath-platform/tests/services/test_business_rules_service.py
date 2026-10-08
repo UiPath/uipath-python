@@ -18,7 +18,7 @@ from uipath.platform.business_rules import (
     BusinessRuleCaller,
     BusinessRulesService,
     BusinessRuleStatus,
-    TraceContext,
+    BusinessRuleTraceContext,
 )
 from uipath.platform.common._bindings import (
     GenericResourceOverwrite,
@@ -783,7 +783,7 @@ class TestTraceContext:
         ambient_span: None,
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
-        explicit = TraceContext(
+        explicit = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
 
@@ -806,7 +806,7 @@ class TestTraceContext:
     ) -> None:
         monkeypatch.setenv("UIPATH_TRACE_ID", AMBIENT_TRACE_ID)
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
-        explicit = TraceContext(
+        explicit = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
 
@@ -916,7 +916,7 @@ class TestTraceContext:
         monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
-        explicit = TraceContext(
+        explicit = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
 
@@ -935,7 +935,7 @@ class TestTraceContext:
         ambient_span: None,
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
-        explicit = TraceContext(
+        explicit = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
 
@@ -957,7 +957,7 @@ class TestTraceContext:
     ) -> None:
         httpx_mock.add_response(url=evaluate_url, status_code=503)
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
-        explicit = TraceContext(
+        explicit = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
 
@@ -968,8 +968,17 @@ class TestTraceContext:
         assert first.headers[TRACEPARENT] == expected
         assert second.headers[TRACEPARENT] == expected
 
+    def test_parent_span_id_accepts_uuid_form(self) -> None:
+        # As _SpanUtils.normalize_span_id reads a UUID: its last 16 hex digits.
+        context = BusinessRuleTraceContext(
+            trace_id=EXPLICIT_TRACE_ID,
+            parent_span_id=f"00000000-0000-0000-{EXPLICIT_SPAN_ID[:4]}-{EXPLICIT_SPAN_ID[4:]}",
+        )
+
+        assert context.parent_span_id == EXPLICIT_SPAN_ID
+
     def test_trace_id_accepts_uuid_form_and_upper_case(self) -> None:
-        context = TraceContext(
+        context = BusinessRuleTraceContext(
             trace_id="4BF92F35-77B3-4DA6-A3CE-929D0E0E4736",
             parent_span_id="00F067AA0BA902B7",
         )
@@ -982,9 +991,10 @@ class TestTraceContext:
         ("trace_id", "parent_span_id", "message"),
         [
             ("abc", EXPLICIT_SPAN_ID, "trace_id must be 32 hex"),
-            ("z" * 32, EXPLICIT_SPAN_ID, "trace_id must be 32 hex"),
+            ("z" * 32, EXPLICIT_SPAN_ID, "trace_id must contain only hex"),
             ("0" * 32, EXPLICIT_SPAN_ID, "trace_id must not be all zeros"),
             (EXPLICIT_TRACE_ID, "abc", "parent_span_id must be 16 hex"),
+            (EXPLICIT_TRACE_ID, "z" * 16, "parent_span_id must contain only hex"),
             (EXPLICIT_TRACE_ID, "0" * 16, "parent_span_id must not be all zeros"),
         ],
     )
@@ -992,7 +1002,7 @@ class TestTraceContext:
         self, trace_id: str, parent_span_id: str, message: str
     ) -> None:
         with pytest.raises(ValidationError, match=message):
-            TraceContext(trace_id=trace_id, parent_span_id=parent_span_id)
+            BusinessRuleTraceContext(trace_id=trace_id, parent_span_id=parent_span_id)
 
 
 @pytest.fixture
@@ -1373,7 +1383,7 @@ class TestDebug:
         ambient_span: None,
     ) -> None:
         httpx_mock.add_response(url=debug_url, json=_service_response())
-        explicit = TraceContext(
+        explicit = BusinessRuleTraceContext(
             trace_id=EXPLICIT_TRACE_ID, parent_span_id=EXPLICIT_SPAN_ID
         )
 

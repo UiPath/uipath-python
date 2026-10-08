@@ -13,7 +13,7 @@ from .business_rules import (
     BusinessRuleError,
     BusinessRuleRunResult,
     BusinessRuleStatus,
-    TraceContext,
+    BusinessRuleTraceContext,
 )
 
 __all__ = [
@@ -23,5 +23,5 @@ __all__ = [
     "BusinessRuleRunResult",
     "BusinessRuleStatus",
     "BusinessRulesService",
-    "TraceContext",
+    "BusinessRuleTraceContext",
 ]

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..common._span_utils import _SpanUtils
+
 _HEX_DIGITS = re.compile(r"^[0-9a-f]+$")
 
 
@@ -48,7 +50,7 @@ class BusinessRuleCaller(BaseModel):
     )
 
 
-class TraceContext(BaseModel):
+class BusinessRuleTraceContext(BaseModel):
     """An existing trace to file the run's spans under.
 
     Optional on ``run()``: when omitted, the SDK takes the trace from
@@ -59,32 +61,46 @@ class TraceContext(BaseModel):
         description="The trace id: 32 hex characters, or a UUID with dashes."
     )
     parent_span_id: str = Field(
-        description="The span the run's spans nest under: 16 hex characters."
+        description=(
+            "The span the run's spans nest under: 16 hex characters, or a UUID "
+            "whose last 16 are used."
+        )
     )
 
     @field_validator("trace_id")
     @classmethod
     def _normalize_trace_id(cls, value: str) -> str:
-        normalized_trace_id = value.replace("-", "").strip().lower()
-        if len(normalized_trace_id) != 32 or not _HEX_DIGITS.match(normalized_trace_id):
-            raise ValueError("trace_id must be 32 hex characters or a UUID")
-        if normalized_trace_id == "0" * 32:
-            raise ValueError("trace_id must not be all zeros")
-        return normalized_trace_id
+        try:
+            trace_id = _SpanUtils.normalize_trace_id(value.strip())
+        except ValueError:
+            raise ValueError("trace_id must be 32 hex characters or a UUID") from None
+        _require_nonzero_hex(trace_id, "trace_id")
+        return trace_id
 
     @field_validator("parent_span_id")
     @classmethod
     def _normalize_parent_span_id(cls, value: str) -> str:
-        normalized_span_id = value.strip().lower()
-        if len(normalized_span_id) != 16 or not _HEX_DIGITS.match(normalized_span_id):
-            raise ValueError("parent_span_id must be 16 hex characters")
-        if normalized_span_id == "0" * 16:
-            raise ValueError("parent_span_id must not be all zeros")
-        return normalized_span_id
+        try:
+            span_id = _SpanUtils.normalize_span_id(value.strip())
+        except ValueError:
+            raise ValueError(
+                "parent_span_id must be 16 hex characters or a UUID"
+            ) from None
+        _require_nonzero_hex(span_id, "parent_span_id")
+        return span_id
 
     def to_traceparent(self) -> str:
         """Return the W3C traceparent value for this context."""
         return f"00-{self.trace_id}-{self.parent_span_id}-01"
+
+
+def _require_nonzero_hex(trace_part: str, field_name: str) -> None:
+    # _SpanUtils normalizes the form; the W3C traceparent also needs hex
+    # digits, and an all-zero id is invalid there.
+    if not _HEX_DIGITS.match(trace_part):
+        raise ValueError(f"{field_name} must contain only hex characters")
+    if not trace_part.strip("0"):
+        raise ValueError(f"{field_name} must not be all zeros")
 
 
 class BusinessRuleError(BaseModel):
