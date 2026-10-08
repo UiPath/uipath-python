@@ -3,7 +3,18 @@ import asyncio
 import time
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
 from urllib.parse import quote
 from uuid import UUID
 
@@ -13,7 +24,7 @@ from ..common._base_service import BaseService
 from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
-from ..common._folder_context import FolderContext
+from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint
 from ..constants import HEADER_FOLDER_KEY
 from ..errors import OperationFailedException, OperationNotCompleteException
@@ -23,14 +34,19 @@ from .documents import (
     ClassificationResult,
     ExtractionResponse,
     ExtractionResponseIXP,
+    ExtractionResult,
     FileContent,
     ModelExtractionResponse,
     ProjectType,
     StartExtractionResponse,
     StartExtractionValidationResponse,
+    StartModelExtractionValidationResponse,
     ValidateClassificationAction,
     ValidateExtractionAction,
 )
+
+if TYPE_CHECKING:
+    from ..action_center.tasks import Task
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
@@ -46,8 +62,12 @@ _UNNORMALIZED_KEYS = frozenset(
         "validatedExtractionResults",
         "validatedClassificationResults",
         "documentObjectModel",
+        "documentTaxonomy",
+        "contentValidationData",
     }
 )
+
+_TASK_CREATE_URL = Endpoint("/orchestrator_/tasks/GenericTasks/CreateTask")
 
 
 def _framework_url(*segments: Any) -> Endpoint:
@@ -58,6 +78,70 @@ def _framework_url(*segments: Any) -> Endpoint:
 def _model_url(model_name: str, *segments: Any) -> Endpoint:
     path = "/".join(quote(str(segment), safe="") for segment in (model_name, *segments))
     return Endpoint(f"/du_/api/framework/models/{path}")
+
+
+def _framework_endpoint(*segments: Any) -> Endpoint:
+    path = "/".join(quote(str(segment), safe="") for segment in segments)
+    return Endpoint(f"/du_/api/framework/{path}")
+
+
+def _content_validation_data_url(operation_id: str) -> Endpoint:
+    return _framework_endpoint(
+        "extraction-validation", "artifacts", "content-validation-data", operation_id
+    )
+
+
+def _validation_result_url(operation_id: str) -> Endpoint:
+    return _framework_endpoint(
+        "extraction-validation", "artifacts", "validation-result", operation_id
+    )
+
+
+def _validation_artifacts_body(
+    extraction_response: ModelExtractionResponse,
+    document_taxonomy: Dict[str, Any],
+    storage_bucket_name: str,
+    storage_bucket_folder_path: str,
+    storage_bucket_directory_path: Optional[str],
+) -> Dict[str, Any]:
+    extraction_result = extraction_response.extraction_result.model_dump()
+    return {
+        "documentId": extraction_result["DocumentId"],
+        "extractionResult": extraction_result,
+        "documentTaxonomy": document_taxonomy,
+        "folderName": storage_bucket_folder_path,
+        "storageBucketName": storage_bucket_name,
+        "storageBucketDirectoryPath": storage_bucket_directory_path,
+    }
+
+
+def _validation_task_body(
+    title: str,
+    content_validation_data: Dict[str, Any],
+    priority: Optional[ActionPriority],
+) -> Dict[str, Any]:
+    body = {
+        "title": title,
+        "type": "DocumentValidationTask",
+        "data": content_validation_data,
+    }
+    if priority is not None:
+        body["priority"] = priority.value
+    return body
+
+
+def _validated_extraction_result(
+    response: Dict[str, Any], operation_id: str
+) -> ExtractionResult:
+    # The result stays empty until the reviewer submits the task.
+    validated = (response.get("result") or {}).get("validatedExtractionResults")
+    if not validated:
+        raise OperationNotCompleteException(
+            operation_id=operation_id,
+            status="Pending",
+            operation_name="Model extraction validation",
+        )
+    return ExtractionResult.model_validate(validated)
 
 
 def _extractor_url(
@@ -1567,6 +1651,218 @@ class DocumentsService(FolderContext, BaseService):
         return ModelExtractionResponse.model_validate(
             {**result, "modelName": model_name}
         )
+
+    @traced(name="documents_start_model_extraction_validation", run_type="uipath")
+    def start_model_extraction_validation(
+        self,
+        extraction_response: ModelExtractionResponse,
+        storage_bucket_name: str,
+        storage_bucket_folder_path: str,
+        storage_bucket_directory_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> StartModelExtractionValidationResponse:
+        """Prepare the validation data for an extraction with a model deployed to a folder.
+
+        The validation data is written to the storage bucket. Pass the returned
+        `content_validation_data` to `create_model_validation_task` to open a validation task.
+
+        Args:
+            extraction_response (ModelExtractionResponse): The extraction response from `extract_with_model`.
+            storage_bucket_name (str): The name of the storage bucket where validation data will be stored.
+            storage_bucket_folder_path (str): The path of the folder that holds the storage bucket.
+            storage_bucket_directory_path (str, optional): The directory path within the storage bucket.
+            folder_key (str, optional): Key of the folder the model is deployed to. Defaults to the current folder.
+
+        Returns:
+            StartModelExtractionValidationResponse: Contains the operation_id and the content_validation_data.
+
+        Examples:
+            ```python
+            validation = uipath.documents.start_model_extraction_validation(
+                extraction_response=extraction_response,
+                storage_bucket_name="my-storage-bucket",
+                storage_bucket_folder_path="Shared/Invoices",
+            )
+            ```
+        """
+        model_name = extraction_response.model_name
+        details = self._request_json(
+            "GET",
+            url=_model_url(model_name),
+            params={"api-version": API_VERSION},
+            headers=self._model_headers(folder_key),
+        )
+        operation_id = self._request_json(
+            "POST",
+            url=_framework_endpoint("extraction-validation", "artifacts", "start"),
+            params={"api-version": API_VERSION},
+            headers=self._get_common_headers(),
+            json=_validation_artifacts_body(
+                extraction_response,
+                details["documentTaxonomy"],
+                storage_bucket_name,
+                storage_bucket_folder_path,
+                storage_bucket_directory_path,
+            ),
+        )["operationId"]
+        content_validation_data = self._wait_for_model_operation(
+            _content_validation_data_url(operation_id),
+            self._get_common_headers(),
+            "contentValidationData",
+        )
+        return StartModelExtractionValidationResponse(
+            operation_id=operation_id, content_validation_data=content_validation_data
+        )
+
+    @traced(name="documents_start_model_extraction_validation_async", run_type="uipath")
+    async def start_model_extraction_validation_async(
+        self,
+        extraction_response: ModelExtractionResponse,
+        storage_bucket_name: str,
+        storage_bucket_folder_path: str,
+        storage_bucket_directory_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> StartModelExtractionValidationResponse:
+        """Asynchronous version of the [`start_model_extraction_validation`][uipath.platform.documents._documents_service.DocumentsService.start_model_extraction_validation] method."""
+        model_name = extraction_response.model_name
+        details = await self._request_json_async(
+            "GET",
+            url=_model_url(model_name),
+            params={"api-version": API_VERSION},
+            headers=self._model_headers(folder_key),
+        )
+        operation_id = (
+            await self._request_json_async(
+                "POST",
+                url=_framework_endpoint("extraction-validation", "artifacts", "start"),
+                params={"api-version": API_VERSION},
+                headers=self._get_common_headers(),
+                json=_validation_artifacts_body(
+                    extraction_response,
+                    details["documentTaxonomy"],
+                    storage_bucket_name,
+                    storage_bucket_folder_path,
+                    storage_bucket_directory_path,
+                ),
+            )
+        )["operationId"]
+        content_validation_data = await self._wait_for_model_operation_async(
+            _content_validation_data_url(operation_id),
+            self._get_common_headers(),
+            "contentValidationData",
+        )
+        return StartModelExtractionValidationResponse(
+            operation_id=operation_id, content_validation_data=content_validation_data
+        )
+
+    @traced(name="documents_create_model_validation_task", run_type="uipath")
+    def create_model_validation_task(
+        self,
+        title: str,
+        content_validation_data: Dict[str, Any],
+        priority: Optional[ActionPriority] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> "Task":
+        """Open an Action Center document validation task over prepared validation data.
+
+        Args:
+            title (str): The title of the validation task.
+            content_validation_data (Dict[str, Any]): The `content_validation_data` returned by `start_model_extraction_validation`.
+            priority (ActionPriority, optional): The priority of the validation task.
+            folder_key (str, optional): Key of the folder to create the task in. Defaults to the current folder.
+            folder_path (str, optional): Path of the folder to create the task in. Defaults to the current folder.
+
+        Returns:
+            Task: The created task. Wait for it to complete, then call `retrieve_model_extraction_validation_result`.
+
+        Examples:
+            ```python
+            task = uipath.documents.create_model_validation_task(
+                title="Validate invoice",
+                content_validation_data=validation.content_validation_data,
+            )
+            ```
+        """
+        response = self.request(
+            "POST",
+            url=_TASK_CREATE_URL,
+            headers=header_folder(folder_key, folder_path) or self.folder_headers,
+            json=_validation_task_body(title, content_validation_data, priority),
+        )
+        # Imported here: action_center imports this module through interrupt_models.
+        from ..action_center.tasks import Task
+
+        return Task.model_validate(response.json())
+
+    @traced(name="documents_create_model_validation_task_async", run_type="uipath")
+    async def create_model_validation_task_async(
+        self,
+        title: str,
+        content_validation_data: Dict[str, Any],
+        priority: Optional[ActionPriority] = None,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> "Task":
+        """Asynchronous version of the [`create_model_validation_task`][uipath.platform.documents._documents_service.DocumentsService.create_model_validation_task] method."""
+        response = await self.request_async(
+            "POST",
+            url=_TASK_CREATE_URL,
+            headers=header_folder(folder_key, folder_path) or self.folder_headers,
+            json=_validation_task_body(title, content_validation_data, priority),
+        )
+        # Imported here: action_center imports this module through interrupt_models.
+        from ..action_center.tasks import Task
+
+        return Task.model_validate(response.json())
+
+    @traced(
+        name="documents_retrieve_model_extraction_validation_result", run_type="uipath"
+    )
+    def retrieve_model_extraction_validation_result(
+        self, operation_id: str
+    ) -> ExtractionResult:
+        """Retrieve the extraction result a reviewer submitted in a validation task (single-shot, non-blocking).
+
+        Args:
+            operation_id (str): The operation ID returned from `start_model_extraction_validation`.
+
+        Returns:
+            ExtractionResult: The validated extraction result.
+
+        Raises:
+            OperationNotCompleteException: If the validation task has not been submitted yet.
+
+        Examples:
+            ```python
+            validated = uipath.documents.retrieve_model_extraction_validation_result(
+                operation_id=validation.operation_id,
+            )
+            ```
+        """
+        response = self._request_json(
+            "GET",
+            url=_validation_result_url(operation_id),
+            params={"api-version": API_VERSION},
+            headers=self._get_common_headers(),
+        )
+        return _validated_extraction_result(response, operation_id)
+
+    @traced(
+        name="documents_retrieve_model_extraction_validation_result_async",
+        run_type="uipath",
+    )
+    async def retrieve_model_extraction_validation_result_async(
+        self, operation_id: str
+    ) -> ExtractionResult:
+        """Asynchronous version of the [`retrieve_model_extraction_validation_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_model_extraction_validation_result] method."""
+        response = await self._request_json_async(
+            "GET",
+            url=_validation_result_url(operation_id),
+            params={"api-version": API_VERSION},
+            headers=self._get_common_headers(),
+        )
+        return _validated_extraction_result(response, operation_id)
 
     @traced(name="documents_extract", run_type="uipath")
     def extract(

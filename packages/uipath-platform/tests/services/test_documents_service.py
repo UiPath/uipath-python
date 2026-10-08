@@ -13,7 +13,9 @@ from uipath.platform.documents import (
     ClassificationResult,
     DocumentsService,
     ExtractionResponse,
+    ExtractionResult,
     FieldType,
+    ModelExtractionResponse,
     ProjectType,
     ValidateClassificationAction,
     ValidateExtractionAction,
@@ -4072,3 +4074,199 @@ class TestDocumentsServiceFolderModels:
                 service.extract_with_model(
                     model_name="invoices-ixp", file=b"test content"
                 )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_model_extraction_validation(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response_v2: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        folder_key = str(uuid4())
+        operation_id = str(uuid4())
+        framework = f"{base_url}{org}{tenant}/du_/api/framework"
+        extraction_result = ExtractionResult.model_validate(
+            ixp_extraction_response_v2["extractionResult"]
+        )
+        extraction_response = ModelExtractionResponse(
+            extraction_result=extraction_result, model_name="invoices-ixp"
+        )
+        taxonomy = {"DocumentTypes": [{"DocumentTypeId": "Default", "Fields": []}]}
+        content_validation_data = {
+            "BucketName": "du-bucket",
+            "FolderKey": folder_key,
+            "ValidatedExtractionResultsPath": f"validation/{operation_id}/output_results.zip",
+        }
+
+        httpx_mock.add_response(
+            url=f"{framework}/models/invoices-ixp?api-version=2.0",
+            match_headers={"x-uipath-folderkey": folder_key},
+            json={"ModelDisplayName": "Invoices IXP", "DocumentTaxonomy": taxonomy},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{framework}/extraction-validation/artifacts/start?api-version=2.0",
+            match_json={
+                "documentId": extraction_result.document_id,
+                "extractionResult": extraction_result.model_dump(),
+                "documentTaxonomy": taxonomy,
+                "folderName": "Shared/Invoices",
+                "storageBucketName": "du-bucket",
+                "storageBucketDirectoryPath": "validation",
+            },
+            json={"OperationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{framework}/extraction-validation/artifacts/content-validation-data/{operation_id}?api-version=2.0",
+            json={"Status": "Running"},
+        )
+        httpx_mock.add_response(
+            url=f"{framework}/extraction-validation/artifacts/content-validation-data/{operation_id}?api-version=2.0",
+            json={
+                "Status": "Succeeded",
+                "ContentValidationData": content_validation_data,
+            },
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.start_model_extraction_validation_async(
+                extraction_response=extraction_response,
+                storage_bucket_name="du-bucket",
+                storage_bucket_folder_path="Shared/Invoices",
+                storage_bucket_directory_path="validation",
+                folder_key=folder_key,
+            )
+        else:
+            response = service.start_model_extraction_validation(
+                extraction_response=extraction_response,
+                storage_bucket_name="du-bucket",
+                storage_bucket_folder_path="Shared/Invoices",
+                storage_bucket_directory_path="validation",
+                folder_key=folder_key,
+            )
+
+        # ASSERT
+        assert response.operation_id == operation_id
+        assert response.content_validation_data == content_validation_data
+        artifacts_request = httpx_mock.get_request(method="POST")
+        assert artifacts_request is not None
+        assert "x-uipath-folderkey" not in artifacts_request.headers
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_model_validation_task(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        folder_key = str(uuid4())
+        content_validation_data = {"BucketName": "du-bucket", "FolderKey": folder_key}
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}{org}{tenant}/orchestrator_/tasks/GenericTasks/CreateTask",
+            match_headers={"x-uipath-folderkey": folder_key},
+            match_json={
+                "title": "Validate invoice",
+                "type": "DocumentValidationTask",
+                "data": content_validation_data,
+                "priority": "High",
+            },
+            json={"id": 42, "key": str(uuid4()), "title": "Validate invoice"},
+        )
+
+        # ACT
+        if mode == "async":
+            task = await service.create_model_validation_task_async(
+                title="Validate invoice",
+                content_validation_data=content_validation_data,
+                priority=ActionPriority.HIGH,
+                folder_key=folder_key,
+            )
+        else:
+            task = service.create_model_validation_task(
+                title="Validate invoice",
+                content_validation_data=content_validation_data,
+                priority=ActionPriority.HIGH,
+                folder_key=folder_key,
+            )
+
+        # ASSERT
+        assert task.id == 42
+        assert task.title == "Validate invoice"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_model_extraction_validation_result(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ixp_extraction_response_v2: dict,  # type: ignore
+        mode: str,
+    ):
+        # ARRANGE
+        operation_id = str(uuid4())
+        validated = ixp_extraction_response_v2["extractionResult"]
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/extraction-validation/artifacts/validation-result/{operation_id}?api-version=2.0",
+            json={"Result": {"ValidatedExtractionResults": validated}},
+        )
+
+        # ACT
+        if mode == "async":
+            result = await service.retrieve_model_extraction_validation_result_async(
+                operation_id=operation_id
+            )
+        else:
+            result = service.retrieve_model_extraction_validation_result(
+                operation_id=operation_id
+            )
+
+        # ASSERT
+        assert result.document_id == validated["DocumentId"]
+        assert result.results_document == validated["ResultsDocument"]
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_model_extraction_validation_result_not_submitted(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        operation_id = str(uuid4())
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/du_/api/framework/extraction-validation/artifacts/validation-result/{operation_id}?api-version=2.0",
+            json={"Result": {}},
+        )
+
+        # ACT & ASSERT
+        with pytest.raises(OperationNotCompleteException) as exc_info:
+            if mode == "async":
+                await service.retrieve_model_extraction_validation_result_async(
+                    operation_id=operation_id
+                )
+            else:
+                service.retrieve_model_extraction_validation_result(
+                    operation_id=operation_id
+                )
+
+        assert exc_info.value.operation_id == operation_id
