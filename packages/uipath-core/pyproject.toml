@@ -46,6 +46,9 @@ dev = [
   "pre-commit>=4.1.0",
 ]
 
+[tool.hatch.build.hooks.custom]
+version-file = "src/uipath/core/_version.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/uipath"]
 
@@ -86,6 +89,11 @@ check_untyped_defs = true
 no_implicit_reexport = true
 
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+# hatchling is only installed in the isolated build env (used by hatch_build.py).
+module = ["hatchling.*"]
+ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
