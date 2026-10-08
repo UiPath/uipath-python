@@ -15,6 +15,7 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
 from ..common._models import Endpoint
+from ..constants import HEADER_FOLDER_KEY
 from ..errors import OperationFailedException, OperationNotCompleteException
 from .documents import (
     ActionPriority,
@@ -23,6 +24,7 @@ from .documents import (
     ExtractionResponse,
     ExtractionResponseIXP,
     FileContent,
+    ModelExtractionResponse,
     ProjectType,
     StartExtractionResponse,
     StartExtractionValidationResponse,
@@ -51,6 +53,11 @@ _UNNORMALIZED_KEYS = frozenset(
 def _framework_url(*segments: Any) -> Endpoint:
     path = "/".join(quote(str(segment), safe="") for segment in segments)
     return Endpoint(f"/du_/api/framework/projects/{path}")
+
+
+def _model_url(model_name: str, *segments: Any) -> Endpoint:
+    path = "/".join(quote(str(segment), safe="") for segment in (model_name, *segments))
+    return Endpoint(f"/du_/api/framework/models/{path}")
 
 
 def _extractor_url(
@@ -1414,6 +1421,152 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["projectType"] = ProjectType.IXP
 
         return ExtractionResponseIXP.model_validate(extraction_response)
+
+    def _model_headers(self, folder_key: Optional[str]) -> Dict[str, str]:
+        # Models deployed to a folder are addressed by folder key only.
+        key = folder_key or self._folder_key
+        if not key:
+            raise ValueError("`folder_key` must be provided outside a job")
+        return {**self._get_common_headers(), HEADER_FOLDER_KEY: key}
+
+    def _wait_for_model_operation(
+        self, url: Endpoint, headers: Dict[str, str], key: str
+    ) -> Dict[str, Any]:
+        def result_getter() -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:
+            result = self._request_json(
+                "GET", url=url, params={"api-version": API_VERSION}, headers=headers
+            )
+            return result["status"], result.get("error"), result.get(key)
+
+        return self._wait_for_operation(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+
+    async def _wait_for_model_operation_async(
+        self, url: Endpoint, headers: Dict[str, str], key: str
+    ) -> Dict[str, Any]:
+        async def result_getter() -> Tuple[
+            str, Optional[str], Optional[Dict[str, Any]]
+        ]:
+            result = await self._request_json_async(
+                "GET", url=url, params={"api-version": API_VERSION}, headers=headers
+            )
+            return result["status"], result.get("error"), result.get(key)
+
+        return await self._wait_for_operation_async(
+            result_getter=result_getter,
+            wait_statuses=["NotStarted", "Running"],
+            success_status="Succeeded",
+        )
+
+    @traced(name="documents_extract_with_model", run_type="uipath")
+    def extract_with_model(
+        self,
+        model_name: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> ModelExtractionResponse:
+        """Extract data from a document with a model deployed to a folder.
+
+        Args:
+            model_name (str): Name of the model deployed to the folder (e.g., "invoices-ixp").
+            file (FileContent, optional): The document file to be processed.
+            file_path (str, optional): Path to the document file to be processed.
+            folder_key (str, optional): Key of the folder the model is deployed to. Defaults to the current folder.
+
+        Note:
+            Either `file` or `file_path` must be provided, but not both.
+
+        Returns:
+            ModelExtractionResponse: The extraction response containing the extracted data.
+
+        Examples:
+            ```python
+            extraction_response = uipath.documents.extract_with_model(
+                model_name="invoices-ixp",
+                file_path="path/to/document.pdf",
+            )
+            ```
+        """
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        headers = self._model_headers(folder_key)
+
+        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
+            document_id = self._request_json(
+                "POST",
+                url=_model_url(model_name, "digitization", "start"),
+                params={"api-version": API_VERSION},
+                headers=headers,
+                files={"File": handle},
+            )["documentId"]
+        self._wait_for_model_operation(
+            _model_url(model_name, "digitization", "result", document_id),
+            headers,
+            "result",
+        )
+        operation_id = self._request_json(
+            "POST",
+            url=_model_url(model_name, "extraction", "start"),
+            params={"api-version": API_VERSION},
+            headers=headers,
+            json={"documentId": document_id},
+        )["operationId"]
+        result = self._wait_for_model_operation(
+            _model_url(model_name, "extraction", "result", operation_id),
+            headers,
+            "result",
+        )
+        return ModelExtractionResponse.model_validate(
+            {**result, "modelName": model_name}
+        )
+
+    @traced(name="documents_extract_with_model_async", run_type="uipath")
+    async def extract_with_model_async(
+        self,
+        model_name: str,
+        file: Optional[FileContent] = None,
+        file_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> ModelExtractionResponse:
+        """Asynchronous version of the [`extract_with_model`][uipath.platform.documents._documents_service.DocumentsService.extract_with_model] method."""
+        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        headers = self._model_headers(folder_key)
+
+        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
+            document_id = (
+                await self._request_json_async(
+                    "POST",
+                    url=_model_url(model_name, "digitization", "start"),
+                    params={"api-version": API_VERSION},
+                    headers=headers,
+                    files={"File": handle},
+                )
+            )["documentId"]
+        await self._wait_for_model_operation_async(
+            _model_url(model_name, "digitization", "result", document_id),
+            headers,
+            "result",
+        )
+        operation_id = (
+            await self._request_json_async(
+                "POST",
+                url=_model_url(model_name, "extraction", "start"),
+                params={"api-version": API_VERSION},
+                headers=headers,
+                json={"documentId": document_id},
+            )
+        )["operationId"]
+        result = await self._wait_for_model_operation_async(
+            _model_url(model_name, "extraction", "result", operation_id),
+            headers,
+            "result",
+        )
+        return ModelExtractionResponse.model_validate(
+            {**result, "modelName": model_name}
+        )
 
     @traced(name="documents_extract", run_type="uipath")
     def extract(
