@@ -25,6 +25,7 @@ from uipath.platform.common._bindings import (
     ResourceOverwriteParser,
     _resource_overwrites,
 )
+from uipath.platform.common._config import UiPathConfig
 from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
 from uipath.platform.errors import EnrichedException
 
@@ -53,6 +54,11 @@ def service(
     monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
     monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
     monkeypatch.delenv("UIPATH_PROCESS_UUID", raising=False)
+    monkeypatch.delenv("UIPATH_PROJECT_ID", raising=False)
+    # Not a debug session unless a test says so, whatever uipath.json is nearby.
+    monkeypatch.setattr(
+        type(UiPathConfig), "is_rooted_to_debug_job", property(lambda self: False)
+    )
     return BusinessRulesService(
         config=config,
         execution_context=execution_context,
@@ -472,6 +478,7 @@ class TestCaller:
             "resourceKey": "release-key",
             "runKey": JOB_KEY,
             "folderKey": "caller-folder-key",
+            "isDebugRun": False,
         }
         # The rule's folder, not the caller's, scopes the run.
         assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
@@ -500,6 +507,7 @@ class TestCaller:
             "resourceKey": "release-key",
             "runKey": "agent-run",
             "folderKey": "agent-folder",
+            "isDebugRun": False,
         }
 
     def test_blank_fields_are_left_out(
@@ -519,7 +527,10 @@ class TestCaller:
 
         request = httpx_mock.get_request()
         assert request is not None
-        assert json.loads(request.content)["caller"] == {"resourceKey": "release-key"}
+        assert json.loads(request.content)["caller"] == {
+            "resourceKey": "release-key",
+            "isDebugRun": False,
+        }
 
     def test_no_caller_without_any_value(
         self,
@@ -534,6 +545,94 @@ class TestCaller:
         request = httpx_mock.get_request()
         assert request is not None
         assert "caller" not in json.loads(request.content)
+
+    def test_studio_web_debug_session_is_a_debug_run(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # A process debugged in Studio Web has no release, so no resource key;
+        # the flag tells the service the caller is a debug session.
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "studio-project-id")
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {
+            "runKey": JOB_KEY,
+            "isDebugRun": True,
+        }
+
+    def test_job_rooted_to_a_debug_session_is_a_debug_run(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            type(UiPathConfig), "is_rooted_to_debug_job", property(lambda self: True)
+        )
+        monkeypatch.setenv("UIPATH_PROCESS_UUID", "release-key")
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
+
+        service.run(RULE, {}, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {
+            "resourceKey": "release-key",
+            "isDebugRun": True,
+        }
+
+    def test_explicit_is_debug_run_wins_over_the_session(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_PROJECT_ID", "studio-project-id")
+        monkeypatch.setenv("UIPATH_JOB_KEY", JOB_KEY)
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
+
+        service.run(
+            RULE,
+            {},
+            folder_key=FOLDER_KEY,
+            caller=BusinessRuleCaller(is_debug_run=False),
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {
+            "runKey": JOB_KEY,
+            "isDebugRun": False,
+        }
+
+    def test_debug_run_alone_is_sent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BusinessRulesService,
+        evaluate_url: str,
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
+
+        service.run(
+            RULE,
+            {},
+            folder_key=FOLDER_KEY,
+            caller=BusinessRuleCaller(is_debug_run=True),
+        )
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["caller"] == {"isDebugRun": True}
 
 
 class TestResult:

@@ -337,23 +337,36 @@ def _require_folder_key(folder_key: Optional[str], folder_path: Optional[str]) -
     raise ValueError(f"No folder was found for folder_path '{folder_path}'")
 
 
-def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, str]:
+def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, Any]:
     """Return the caller as the service names its fields, defaulting from the job.
 
-    Blank fields are left out, and a caller with every field blank is returned
-    empty, so the request carries no caller at all.
+    Blank fields are left out. ``isDebugRun`` goes with every caller, false unless
+    the run is a debug session; a caller with every key blank and no debug run
+    names no one, so it is returned empty and the request carries no caller.
     """
     given_caller = caller or BusinessRuleCaller()
-    caller_fields = {
+    caller_keys = {
         "resourceKey": given_caller.resource_key or UiPathConfig.process_uuid,
         "runKey": given_caller.run_key or UiPathConfig.job_key,
         "folderKey": given_caller.folder_key or UiPathConfig.folder_key,
     }
-    non_blank_fields: Dict[str, str] = {}
-    for field_name, field_value in caller_fields.items():
-        if field_value and field_value.strip():
-            non_blank_fields[field_name] = field_value
-    return non_blank_fields
+    caller_fields: Dict[str, Any] = {}
+    for field_name, field_value in caller_keys.items():
+        if _has_value(field_value):
+            caller_fields[field_name] = field_value
+    is_debug_run = given_caller.is_debug_run
+    if is_debug_run is None:
+        is_debug_run = _is_debug_session()
+    if not caller_fields and not is_debug_run:
+        return {}
+    caller_fields["isDebugRun"] = is_debug_run
+    return caller_fields
+
+
+def _is_debug_session() -> bool:
+    # Studio Web sets the project id when it debugs; a job started from a
+    # solution debug, such as Maestro's, carries isDebug in its arguments.
+    return UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job
 
 
 class _ExplicitTraceHeaders(Dict[str, str]):
