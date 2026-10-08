@@ -4,7 +4,6 @@ Runs business rules: a rule deployed to Orchestrator, or, inside a debug
 session, the undeployed rule from the Studio project being debugged.
 """
 
-import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -33,9 +32,6 @@ _DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/eval
 
 _MAX_INPUT_KEYS = 256
 _MAX_BUSINESS_RULE_NAME_LENGTH = 256
-# The service's own rule (BusinessRuleNames in the business-rules service): a
-# name may hold letters, numbers and these marks, and never "..".
-_ALLOWED_BUSINESS_RULE_NAME_MARKS = frozenset(" '._()[]{}+,&@!~=:;-")
 
 
 @dataclass(frozen=True)
@@ -472,36 +468,14 @@ def _validate_run_arguments(
 
 
 def _validate_business_rule_name(business_rule_name: str) -> None:
+    # Only what a name can never be; which characters a name may hold is the
+    # service's to decide, and it rejects the rest with INVALID_REQUEST.
     if not _has_value(business_rule_name):
         raise ValueError("name must be specified")
     if len(business_rule_name) > _MAX_BUSINESS_RULE_NAME_LENGTH:
         raise ValueError(
             f"name must not exceed {_MAX_BUSINESS_RULE_NAME_LENGTH} characters"
         )
-    disallowed_characters = sorted(
-        {
-            character
-            for character in business_rule_name
-            if not _is_allowed_business_rule_name_character(character)
-        }
-    )
-    if disallowed_characters:
-        raise ValueError(
-            "name may contain only letters, numbers, spaces and "
-            f"{''.join(sorted(_ALLOWED_BUSINESS_RULE_NAME_MARKS - {' '}))}; "
-            f"found {', '.join(repr(character) for character in disallowed_characters)}"
-        )
-    if ".." in business_rule_name:
-        raise ValueError("name must not contain '..'")
-
-
-def _is_allowed_business_rule_name_character(character: str) -> bool:
-    # Letters and numbers in any script (Unicode categories L* and N*), as the
-    # service's \p{L} and \p{N} match them.
-    return (
-        unicodedata.category(character)[0] in ("L", "N")
-        or character in _ALLOWED_BUSINESS_RULE_NAME_MARKS
-    )
 
 
 def _validate_input_arguments(input_arguments: Dict[str, Any]) -> None:

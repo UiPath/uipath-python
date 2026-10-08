@@ -92,32 +92,8 @@ def _single_decision_result(**outputs: Any) -> dict[str, Any]:
 
 
 class TestRunContext:
-    @pytest.mark.parametrize(
-        "business_rule_name",
-        [
-            "",
-            "   ",
-            "x" * 257,
-            "a..b",
-            # Outside the service's allowlist
-            "a/b",
-            "a\\b",
-            "a%20b",
-            "Loan#1",
-            "Rule?",
-            "Rate*2",
-            "Loan$",
-            'a"b',
-            "a|b",
-            "Loan \U0001f680",
-            "Loan\u00a0Pricing",
-            "Loan\u200bPricing",
-            "a\nb",
-            "a\x00b",
-            "a\x7fb",
-        ],
-    )
-    def test_rejects_names_the_service_rejects(
+    @pytest.mark.parametrize("business_rule_name", ["", "   ", "x" * 257])
+    def test_rejects_a_blank_or_too_long_name(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
@@ -128,34 +104,19 @@ class TestRunContext:
 
         assert httpx_mock.get_requests() == []
 
-    def test_names_the_disallowed_characters(
-        self, service: BusinessRulesService
-    ) -> None:
-        with pytest.raises(ValueError, match=r"found '#', '\?'"):
-            service.run("Loan#1?", {}, folder_key=FOLDER_KEY)
-
     @pytest.mark.parametrize(
         "business_rule_name",
-        [
-            "Loan Pricing",
-            "Loan-Pricing_v2.1",
-            "Loan (EU)",
-            "Rule [v2] {a} +b, c & d @e !f ~g =h :i ;j 'k'",
-            "Préstamo Tarifa",
-            "贷款定价",
-            "Kredit ٣",
-            "x" * 256,
-        ],
+        ["Loan Pricing", "Préstamo Tarifa", "贷款定价", "Loan#1", "a/b", "x" * 256],
     )
-    def test_accepts_names_the_service_accepts(
+    def test_leaves_the_name_characters_to_the_service(
         self,
         httpx_mock: HTTPXMock,
         service: BusinessRulesService,
         evaluate_url: str,
         business_rule_name: str,
     ) -> None:
-        # The SDK checks names with the service's own allowlist, so it sends
-        # exactly the names the service accepts.
+        # The service decides which characters a name may hold, and answers a
+        # name it rejects with INVALID_REQUEST; the SDK sends it as given.
         httpx_mock.add_response(url=evaluate_url, json=_service_response())
 
         service.run(business_rule_name, {}, folder_key=FOLDER_KEY)
@@ -1336,11 +1297,11 @@ class TestDebug:
         assert request.headers[HEADER_FOLDER_KEY] == "env-folder-key"
         assert "x-uipath-jobkey" not in request.headers
 
-    def test_rejects_unsafe_rule_name(
+    def test_rejects_too_long_rule_name(
         self, httpx_mock: HTTPXMock, service: BusinessRulesService, studio_debug: None
     ) -> None:
-        with pytest.raises(ValueError, match="name"):
-            service.run("a/b", {})
+        with pytest.raises(ValueError, match="256 characters"):
+            service.run("x" * 257, {})
 
         assert httpx_mock.get_requests() == []
 
