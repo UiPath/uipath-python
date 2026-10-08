@@ -14,8 +14,9 @@ from ..common._bindings import resource_override
 from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
+from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
-from ..constants import HEADER_FOLDER_KEY, HEADER_JOB_KEY
+from ..constants import HEADER_FOLDER_KEY
 from ..orchestrator._folder_service import FolderService
 from .business_rules import (
     BusinessRuleCaller,
@@ -41,7 +42,7 @@ _ALLOWED_BUSINESS_RULE_NAME_MARKS = frozenset(" '._()[]{}+,&@!~=:;-")
 class _RunTarget:
     """Where a run goes, settled before anything is sent.
 
-    A debug run carries ``debug_job_key`` and no folder. A deployed run carries
+    A debug run sets ``is_debug`` and carries no folder. A deployed run carries
     exactly one of ``folder_key`` and ``folder_path``: a key ready to send, or a
     path still to look up.
     """
@@ -49,7 +50,7 @@ class _RunTarget:
     business_rule_name: str
     folder_key: Optional[str] = None
     folder_path: Optional[str] = None
-    debug_job_key: Optional[str] = None
+    is_debug: bool = False
 
 
 class BusinessRulesService(FolderContext, BaseService):
@@ -228,15 +229,13 @@ class BusinessRulesService(FolderContext, BaseService):
         folder lookup and the request itself differ between the two.
         """
         # Decided on the caller's own folder arguments, before a binding swaps them.
-        debug_job_key = _resolve_debug_job_key(folder_key, folder_path)
+        is_debug = _is_debug_run(folder_key, folder_path)
         business_rule_name, folder_key, folder_path = self._apply_binding(
             business_rule_name, folder_key, folder_path
         )
         _validate_run_arguments(business_rule_name, input)
-        if debug_job_key:
-            return _RunTarget(
-                business_rule_name=business_rule_name, debug_job_key=debug_job_key
-            )
+        if is_debug:
+            return _RunTarget(business_rule_name=business_rule_name, is_debug=True)
         selected_key, selected_path = self._select_folder(folder_key, folder_path)
         return _RunTarget(
             business_rule_name=business_rule_name,
@@ -330,11 +329,10 @@ class BusinessRulesService(FolderContext, BaseService):
         caller: Optional[BusinessRuleCaller] = None,
     ) -> RequestSpec:
         """Build the request for the endpoint the run target names."""
-        if run_target.debug_job_key:
+        if run_target.is_debug:
             return self._debug_evaluate_spec(
                 run_target.business_rule_name,
                 input,
-                job_key=run_target.debug_job_key,
                 decision_names=decision_names,
             )
         return self._evaluate_spec(
@@ -381,7 +379,6 @@ class BusinessRulesService(FolderContext, BaseService):
         business_rule_name: str,
         input: Dict[str, Any],
         *,
-        job_key: str,
         decision_names: Optional[List[str]] = None,
     ) -> RequestSpec:
         # The service finds the project, and the folders the job ran in, from the
@@ -398,25 +395,22 @@ class BusinessRulesService(FolderContext, BaseService):
             method="POST",
             endpoint=_DEBUG_EVALUATE_ENDPOINT,
             json=request_body,
-            headers={HEADER_JOB_KEY: job_key},
+            headers=header_job_key(),
         )
 
 
-def _resolve_debug_job_key(
-    folder_key: Optional[str], folder_path: Optional[str]
-) -> Optional[str]:
-    """Return the debug job's key when this run is a debug run, else None.
+def _is_debug_run(folder_key: Optional[str], folder_path: Optional[str]) -> bool:
+    """Return whether this run debugs the project instead of a deployed rule.
 
     A folder the caller names always means a deployed rule. Otherwise a run in a
     debug session debugs the project, named by the session's job; without a job
     key there is no lineage to resolve the project from, so it runs deployed.
     """
     if _has_value(folder_key) or _has_value(folder_path):
-        return None
+        return False
     if not (UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job):
-        return None
-    debug_job_key = UiPathConfig.job_key
-    return debug_job_key if debug_job_key and debug_job_key.strip() else None
+        return False
+    return _has_value(UiPathConfig.job_key)
 
 
 def _request_options(
