@@ -1079,7 +1079,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.8.2" },
-    { name = "hatchling", specifier = ">=1.32,<2" },
+    { name = "hatchling" },
     { name = "mypy", specifier = ">=1.14.1" },
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pytest", specifier = ">=7.4.0" },

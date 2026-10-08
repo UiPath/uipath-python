@@ -28,7 +28,7 @@ Repository = "https://github.com/UiPath/uipath-python"
 Documentation = "https://uipath.github.io/uipath-python/"
 
 [build-system]
-requires = ["hatchling>=1.32,<2"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
@@ -44,7 +44,7 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
-  "hatchling>=1.32,<2",
+  "hatchling",
 ]
 
 [tool.hatch.build.hooks.custom]
