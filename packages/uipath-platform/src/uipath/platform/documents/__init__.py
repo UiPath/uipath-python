@@ -21,6 +21,7 @@ from .documents import (
     Reference,
     StartExtractionResponse,
     StartExtractionValidationResponse,
+    StartModelExtractionValidationResponse,
     StartOperationResponse,
     ValidateClassificationAction,
     ValidateExtractionAction,
@@ -49,4 +50,5 @@ __all__ = [
     "StartOperationResponse",
     "StartExtractionValidationResponse",
     "ModelExtractionResponse",
+    "StartModelExtractionValidationResponse",
 ]
