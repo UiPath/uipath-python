@@ -37,6 +37,15 @@ class BusinessRuleCaller(BaseModel):
         default=None,
         description="The folder the calling resource runs in. Defaults to UIPATH_FOLDER_KEY.",
     )
+    is_debug_run: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Whether the calling run is a debug session, such as a process debugged "
+            "in Studio Web; such a run may have no resource key to send. This is "
+            "about the caller, not the rule: the deployed rule still runs. Defaults "
+            "to whether the current job is a debug session."
+        ),
+    )
 
 
 class TraceContext(BaseModel):

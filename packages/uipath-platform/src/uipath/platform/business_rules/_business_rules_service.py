@@ -78,7 +78,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def run(
         self,
         name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         version: Optional[str] = None,
         decision_names: Optional[List[str]] = None,
@@ -91,7 +91,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
         Args:
             name: The name of the business rule.
-            input: The input to run, keyed by the rule's input names. Declared
+            input_arguments: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
             version: The rule version to run; defaults to the active version.
                 Ignored on a debug run.
@@ -148,10 +148,10 @@ class BusinessRulesService(FolderContext, BaseService):
             )
             ```
         """
-        run_target = self._prepare_run(name, input, folder_key, folder_path)
+        run_target = self._prepare_run(name, input_arguments, folder_key, folder_path)
         request_spec = self._run_spec(
             run_target,
-            input,
+            input_arguments,
             folder_key=self._resolve_folder_key(run_target),
             version=version,
             decision_names=decision_names,
@@ -167,7 +167,7 @@ class BusinessRulesService(FolderContext, BaseService):
     async def run_async(
         self,
         name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         version: Optional[str] = None,
         decision_names: Optional[List[str]] = None,
@@ -180,7 +180,7 @@ class BusinessRulesService(FolderContext, BaseService):
 
         Args:
             name: The name of the business rule.
-            input: The input to run, keyed by the rule's input names. Declared
+            input_arguments: The input to run, keyed by the rule's input names. Declared
                 inputs absent from it bind to null.
             version: The rule version to run; defaults to the active version.
                 Ignored on a debug run.
@@ -201,10 +201,10 @@ class BusinessRulesService(FolderContext, BaseService):
             ValueError: If the request is invalid or a required folder is missing.
             EnrichedException: If the service rejects the request.
         """
-        run_target = self._prepare_run(name, input, folder_key, folder_path)
+        run_target = self._prepare_run(name, input_arguments, folder_key, folder_path)
         request_spec = self._run_spec(
             run_target,
-            input,
+            input_arguments,
             folder_key=await self._resolve_folder_key_async(run_target),
             version=version,
             decision_names=decision_names,
@@ -218,7 +218,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _prepare_run(
         self,
         business_rule_name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> _RunTarget:
@@ -233,7 +233,7 @@ class BusinessRulesService(FolderContext, BaseService):
         business_rule_name, folder_key, folder_path = self._apply_binding(
             business_rule_name, folder_key, folder_path
         )
-        _validate_run_arguments(business_rule_name, input)
+        _validate_run_arguments(business_rule_name, input_arguments)
         if is_debug:
             return _RunTarget(business_rule_name=business_rule_name, is_debug=True)
         selected_key, selected_path = self._select_folder(folder_key, folder_path)
@@ -321,7 +321,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _run_spec(
         self,
         run_target: _RunTarget,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         folder_key: Optional[str],
         version: Optional[str] = None,
@@ -332,12 +332,12 @@ class BusinessRulesService(FolderContext, BaseService):
         if run_target.is_debug:
             return self._debug_evaluate_spec(
                 run_target.business_rule_name,
-                input,
+                input_arguments,
                 decision_names=decision_names,
             )
         return self._evaluate_spec(
             run_target.business_rule_name,
-            input,
+            input_arguments,
             folder_key=_require_folder_key(folder_key, run_target.folder_path),
             version=version,
             decision_names=decision_names,
@@ -347,7 +347,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _evaluate_spec(
         self,
         business_rule_name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         folder_key: str,
         version: Optional[str] = None,
@@ -358,7 +358,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # and audit record under it.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
-            "input": input,
+            "input": input_arguments,
         }
         if _has_value(version):
             request_body["version"] = version
@@ -377,7 +377,7 @@ class BusinessRulesService(FolderContext, BaseService):
     def _debug_evaluate_spec(
         self,
         business_rule_name: str,
-        input: Dict[str, Any],
+        input_arguments: Dict[str, Any],
         *,
         decision_names: Optional[List[str]] = None,
     ) -> RequestSpec:
@@ -387,7 +387,7 @@ class BusinessRulesService(FolderContext, BaseService):
         # has no version, and a debug run is not an audited execution.
         request_body: Dict[str, Any] = {
             "businessRuleName": business_rule_name,
-            "input": input,
+            "input": input_arguments,
         }
         if decision_names:
             request_body["decisionNames"] = decision_names
@@ -408,7 +408,7 @@ def _is_debug_run(folder_key: Optional[str], folder_path: Optional[str]) -> bool
     """
     if _has_value(folder_key) or _has_value(folder_path):
         return False
-    if not (UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job):
+    if not _is_debug_session():
         return False
     return _has_value(UiPathConfig.job_key)
 
@@ -432,23 +432,36 @@ def _require_folder_key(folder_key: Optional[str], folder_path: Optional[str]) -
     raise ValueError(f"No folder was found for folder_path '{folder_path}'")
 
 
-def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, str]:
+def _caller_payload(caller: Optional[BusinessRuleCaller]) -> Dict[str, Any]:
     """Return the caller as the service names its fields, defaulting from the job.
 
-    Blank fields are left out, and a caller with every field blank is returned
-    empty, so the request carries no caller at all.
+    Blank fields are left out. ``isDebugRun`` goes with every caller, false unless
+    the run is a debug session; a caller with every key blank and no debug run
+    names no one, so it is returned empty and the request carries no caller.
     """
     given_caller = caller or BusinessRuleCaller()
-    caller_fields = {
+    caller_keys = {
         "resourceKey": given_caller.resource_key or UiPathConfig.process_uuid,
         "runKey": given_caller.run_key or UiPathConfig.job_key,
         "folderKey": given_caller.folder_key or UiPathConfig.folder_key,
     }
-    non_blank_fields: Dict[str, str] = {}
-    for field_name, field_value in caller_fields.items():
-        if field_value and field_value.strip():
-            non_blank_fields[field_name] = field_value
-    return non_blank_fields
+    caller_fields: Dict[str, Any] = {}
+    for field_name, field_value in caller_keys.items():
+        if _has_value(field_value):
+            caller_fields[field_name] = field_value
+    is_debug_run = given_caller.is_debug_run
+    if is_debug_run is None:
+        is_debug_run = _is_debug_session()
+    if not caller_fields and not is_debug_run:
+        return {}
+    caller_fields["isDebugRun"] = is_debug_run
+    return caller_fields
+
+
+def _is_debug_session() -> bool:
+    # Studio Web sets the project id when it debugs; a job started from a
+    # solution debug, such as Maestro's, carries isDebug in its arguments.
+    return UiPathConfig.is_studio_project or UiPathConfig.is_rooted_to_debug_job
 
 
 class _ExplicitTraceHeaders(Dict[str, str]):
@@ -482,9 +495,11 @@ def _has_value(text: Optional[str]) -> bool:
     return bool(text and text.strip())
 
 
-def _validate_run_arguments(business_rule_name: str, input: Dict[str, Any]) -> None:
+def _validate_run_arguments(
+    business_rule_name: str, input_arguments: Dict[str, Any]
+) -> None:
     _validate_business_rule_name(business_rule_name)
-    _validate_input(input)
+    _validate_input_arguments(input_arguments)
 
 
 def _validate_business_rule_name(business_rule_name: str) -> None:
@@ -520,16 +535,16 @@ def _is_allowed_business_rule_name_character(character: str) -> bool:
     )
 
 
-def _validate_input(input: Dict[str, Any]) -> None:
-    if input is None:
-        raise ValueError("input must not be None")
-    if not isinstance(input, Mapping):
+def _validate_input_arguments(input_arguments: Dict[str, Any]) -> None:
+    if input_arguments is None:
+        raise ValueError("input_arguments must not be None")
+    if not isinstance(input_arguments, Mapping):
         raise ValueError(
-            "input must be a mapping of the rule's input names to values, "
-            f"not {type(input).__name__}"
+            "input_arguments must be a mapping of the rule's input names to values, "
+            f"not {type(input_arguments).__name__}"
         )
-    if len(input) > _MAX_INPUT_KEYS:
-        raise ValueError(f"input must not exceed {_MAX_INPUT_KEYS} keys")
+    if len(input_arguments) > _MAX_INPUT_KEYS:
+        raise ValueError(f"input_arguments must not exceed {_MAX_INPUT_KEYS} keys")
 
 
 def _overall_status(
