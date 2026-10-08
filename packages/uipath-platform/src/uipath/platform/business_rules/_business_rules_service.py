@@ -242,8 +242,8 @@ class BusinessRulesService(FolderContext, BaseService):
         """
         # Decided on the caller's own folder arguments, before a binding swaps them.
         is_debug = _is_debug_run(folder_key, folder_path)
-        business_rule_name, folder_key, folder_path = self._apply_binding(
-            business_rule_name, folder_key, folder_path
+        business_rule_name, folder_key, folder_path = self._overridden_resource(
+            business_rule_name, folder_key=folder_key, folder_path=folder_path
         )
         _validate_run_arguments(business_rule_name, input_arguments)
         if is_debug:
@@ -255,36 +255,19 @@ class BusinessRulesService(FolderContext, BaseService):
             folder_path=selected_path,
         )
 
+    # On a private helper, not on run(): which endpoint a run takes depends on
+    # whether the caller named a folder, so _prepare_run decides that before a
+    # binding swaps the caller's folder for its own.
     @resource_override(resource_type="businessRule")
     def _overridden_resource(
-        self, name: str, folder_path: Optional[str] = None
-    ) -> Tuple[str, Optional[str]]:
-        # resource_override swaps these two arguments when the solution's
-        # bindings remap this rule; the method just returns what it was given.
-        return name, folder_path
-
-    def _apply_binding(
         self,
-        business_rule_name: str,
-        folder_key: Optional[str],
-        folder_path: Optional[str],
+        name: str,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> Tuple[str, Optional[str], Optional[str]]:
-        """Apply a businessRule binding, if one remaps this rule.
-
-        The binding names a folder by path. When it applies, that folder
-        replaces whichever folder the caller gave, including a folder_key, which
-        the override decorator alone would leave in place next to the new path.
-        """
-        bound_business_rule_name, bound_folder_path = self._overridden_resource(
-            business_rule_name, folder_path=folder_path
-        )
-        is_remapped = (bound_business_rule_name, bound_folder_path) != (
-            business_rule_name,
-            folder_path,
-        )
-        if is_remapped and bound_folder_path:
-            folder_key = None
-        return bound_business_rule_name, folder_key, bound_folder_path
+        # resource_override swaps these arguments when the solution's bindings
+        # remap this rule; the method just returns what it was given.
+        return name, folder_key, folder_path
 
     def _select_folder(
         self, folder_key: Optional[str], folder_path: Optional[str]
