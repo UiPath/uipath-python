@@ -335,7 +335,10 @@ class TestDeployed:
             folder_key=FOLDER_KEY,
         )
 
-        assert result.status == BusinessRuleStatus.SUCCESS
+        # The enum member, as typed, and still equal to the service's text.
+        assert result.status is BusinessRuleStatus.SUCCESS
+        assert result.status == "Success"
+        assert result.model_dump(mode="json")["status"] == "Success"
         assert result.decisions[0].decision_name == "RiskGrade"
         assert result.decisions[0].outputs == {"Grade": "B", "Rate": 3.5}
         assert result.errors == []

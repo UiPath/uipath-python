@@ -139,7 +139,6 @@ class BusinessRuleRunResult(BaseModel):
     model_config = ConfigDict(
         validate_by_name=True,
         validate_by_alias=True,
-        use_enum_values=True,
     )
 
     status: BusinessRuleStatus
