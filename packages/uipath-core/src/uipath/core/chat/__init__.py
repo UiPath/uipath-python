@@ -123,6 +123,8 @@ from .voice import (
     UiPathVoiceToolCallMessage,
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
+    UiPathVoiceToolDescriptor,
+    UiPathVoiceToolsReady,
 )
 
 __all__ = [
@@ -195,6 +197,8 @@ __all__ = [
     "UiPathVoiceToolCallRequest",
     "UiPathVoiceToolCallMessage",
     "UiPathVoiceToolCallResult",
+    "UiPathVoiceToolDescriptor",
+    "UiPathVoiceToolsReady",
     # Interrupt (compat shims — deprecated, see interrupt.py)
     "InterruptTypeEnum",
     "UiPathConversationInterruptStartEvent",
