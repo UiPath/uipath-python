@@ -20,6 +20,9 @@ class UiPathEndpoints(Enum):
     AH_VENDOR_COMPLETION_ENDPOINT = (
         "agenthub_/llm/raw/vendor/{vendor}/model/{model}/completions"
     )
+    AH_VENDOR_DECISION_ENDPOINT = (
+        "agenthub_/llm/raw/vendor/{vendor}/model/{model}/decisions"
+    )
     AH_CAPABILITIES_ENDPOINT = "agenthub_/llm/api/capabilities"
     AH_DISCOVERY_ENDPOINT = "agenthub_/llm/api/discovery"
 
@@ -28,6 +31,9 @@ class UiPathEndpoints(Enum):
     OR_EMBEDDING_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/embeddings?api-version={api_version}"
     OR_VENDOR_COMPLETION_ENDPOINT = (
         "orchestrator_/llm/raw/vendor/{vendor}/model/{model}/completions"
+    )
+    OR_VENDOR_DECISION_ENDPOINT = (
+        "orchestrator_/llm/raw/vendor/{vendor}/model/{model}/decisions"
     )
     OR_CAPABILITIES_ENDPOINT = "orchestrator_/llm/api/capabilities"
     OR_DISCOVERY_ENDPOINT = "orchestrator_/llm/api/discovery"
@@ -61,6 +67,7 @@ class EndpointManager:
         get_normalized_endpoint(): Returns the appropriate normalized completion endpoint.
         get_embeddings_endpoint(): Returns the appropriate embeddings endpoint.
         get_vendor_endpoint(): Returns the appropriate vendor completion endpoint.
+        get_vendor_decisions_endpoint(): Returns the appropriate vendor decisions endpoint.
     All endpoint methods automatically select the best available endpoint using the fallback order,
     unless overridden by the UIPATH_LLM_SERVICE environment variable.
     """  # noqa: D205
@@ -209,4 +216,12 @@ class EndpointManager:
         return cls._select_endpoint(
             UiPathEndpoints.AH_VENDOR_COMPLETION_ENDPOINT,
             UiPathEndpoints.OR_VENDOR_COMPLETION_ENDPOINT,
+        )
+
+    @classmethod
+    def get_vendor_decisions_endpoint(cls) -> str:
+        """Get the vendor decisions endpoint (typed classification decisions)."""
+        return cls._select_endpoint(
+            UiPathEndpoints.AH_VENDOR_DECISION_ENDPOINT,
+            UiPathEndpoints.OR_VENDOR_DECISION_ENDPOINT,
         )
