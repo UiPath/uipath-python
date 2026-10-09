@@ -4,13 +4,18 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
-    AgentInternalJevClassifierSettings,
-    AgentInternalJevClassifierToolProperties,
+    AgentInternalClassifierSettings,
+    AgentInternalClassifierToolProperties,
     AgentInternalToolResourceConfig,
     AgentInternalToolType,
     AgentToolArgumentArgumentProperties,
     AgentToolObjectBuilderArgumentProperties,
     AgentToolStaticArgumentProperties,
+    ClassifierProvider,
+    DecisionsChoiceQuestion,
+    DecisionsPredicateQuestion,
+    DecisionsQuestion,
+    DecisionsScoreQuestion,
     JevChoiceQuestion,
     JevNoulCriteria,
     JevNoulQuestion,
@@ -23,7 +28,7 @@ def _resource(**settings: Any) -> dict[str, Any]:
     return {
         "$resourceType": "tool",
         "id": "3f1c2a3e-0000-0000-0000-000000000001",
-        "name": "Jev Classifier",
+        "name": "Classifier",
         "description": "Classify support tickets",
         "type": "Internal",
         "referenceKey": None,
@@ -39,7 +44,7 @@ def _resource(**settings: Any) -> dict[str, Any]:
         "outputSchema": {"type": "object", "properties": {}},
         "settings": {},
         "argumentProperties": {},
-        "properties": {"toolType": "jev-classifier", "settings": settings},
+        "properties": {"toolType": "classifier", "settings": settings},
     }
 
 
@@ -62,6 +67,34 @@ NOUL = {"name": "is_urgent", "type": "noul", "instructions": "Is this urgent?"}
 
 _QUESTION: TypeAdapter[JevQuestion] = TypeAdapter(JevQuestion)
 
+DECISIONS_CHOICE = {
+    "name": "department",
+    "type": "choice",
+    "instructions": "Which department should handle this complaint?",
+    "choices": [
+        {"value": "billing", "description": "Payments, invoices, and refunds."},
+        {"value": "technical", "description": None},
+    ],
+}
+DECISIONS_SCORE = {
+    "name": "frustration",
+    "type": "score",
+    "instructions": "How frustrated the customer appears",
+    "levels": [
+        {"label": "Calm", "description": "No frustration"},
+        {"label": "Very angry"},
+    ],
+}
+DECISIONS_PREDICATE = {
+    "name": "is_urgent",
+    "type": "predicate",
+    "instructions": "The customer needs an answer today.",
+}
+
+_DECISIONS_QUESTION: TypeAdapter[DecisionsQuestion] = TypeAdapter(DecisionsQuestion)
+
+JEV = {"provider": "typesafe", "model": "jev-1.13.0"}
+
 
 def _validate(data: dict[str, Any]) -> AgentInternalToolResourceConfig:
     return AgentInternalToolResourceConfig.model_validate(data)
@@ -69,57 +102,64 @@ def _validate(data: dict[str, Any]) -> AgentInternalToolResourceConfig:
 
 def _settings(
     resource: AgentInternalToolResourceConfig,
-) -> AgentInternalJevClassifierSettings:
-    assert isinstance(resource.properties, AgentInternalJevClassifierToolProperties)
+) -> AgentInternalClassifierSettings:
+    assert isinstance(resource.properties, AgentInternalClassifierToolProperties)
     return resource.properties.settings
 
 
-def test_settings_hold_only_the_model() -> None:
-    resource = _validate(_resource(model="jev-1.13.0"))
+@pytest.mark.parametrize(
+    ("settings", "provider"),
+    [
+        pytest.param(JEV, ClassifierProvider.TYPESAFE, id="typesafe"),
+        pytest.param(
+            {"provider": "openai", "model": "gpt-6-luna"},
+            ClassifierProvider.OPENAI,
+            id="openai",
+        ),
+    ],
+)
+def test_settings_hold_the_provider_and_the_model(
+    settings: dict[str, Any], provider: ClassifierProvider
+) -> None:
+    resource = _validate(_resource(**settings))
 
-    assert isinstance(resource.properties, AgentInternalJevClassifierToolProperties)
-    assert resource.properties.tool_type == AgentInternalToolType.JEV_CLASSIFIER
-    assert _settings(resource).model == "jev-1.13.0"
-    assert _settings(resource).model_dump() == {"model": "jev-1.13.0"}
+    assert isinstance(resource.properties, AgentInternalClassifierToolProperties)
+    assert resource.properties.tool_type == AgentInternalToolType.CLASSIFIER
+    assert _settings(resource).provider is provider
+    assert _settings(resource).model == settings["model"]
 
 
 @pytest.mark.parametrize(
     "settings",
-    [pytest.param({}, id="missing"), pytest.param({"model": ""}, id="empty")],
+    [
+        pytest.param({"provider": "typesafe"}, id="missing-model"),
+        pytest.param({"provider": "typesafe", "model": ""}, id="empty-model"),
+        pytest.param({"model": "jev-1.13.0"}, id="missing-provider"),
+        pytest.param({"provider": "anthropic", "model": "x"}, id="unknown-provider"),
+    ],
 )
-def test_model_is_required(settings: dict[str, Any]) -> None:
-    # No default Jev model: a tool without one fails to load.
-    with pytest.raises(ValidationError, match="model"):
+def test_provider_and_model_are_required(settings: dict[str, Any]) -> None:
+    # No default provider or model: a tool without them fails to load.
+    with pytest.raises(ValidationError):
         _validate(_resource(**settings))
 
 
-def test_tool_type_is_case_insensitive() -> None:
-    data = _resource(model="jev-1.13.0")
-    data["properties"]["toolType"] = "Jev-Classifier"
+def test_tool_type_and_provider_are_case_insensitive() -> None:
+    data = _resource(provider="OpenAI", model="gpt-6-luna")
+    data["properties"]["toolType"] = "Classifier"
 
-    assert isinstance(
-        _validate(data).properties, AgentInternalJevClassifierToolProperties
-    )
+    resource = _validate(data)
+
+    assert isinstance(resource.properties, AgentInternalClassifierToolProperties)
+    assert _settings(resource).provider is ClassifierProvider.OPENAI
 
 
-def test_legacy_state_and_questions_settings_are_ignored_extras() -> None:
-    # BaseCfg allows extra fields: settings written before questions and state
-    # moved to inputSchema still parse, but nothing reads or validates them.
-    resource = _validate(
-        _resource(
-            model="jev-1.13.0",
-            state={"type": "number"},
-            questions=[{"type": "freeform"}],
-        )
-    )
+def test_the_jev_classifier_tool_type_is_gone() -> None:
+    data = _resource(**JEV)
+    data["properties"]["toolType"] = "jev-classifier"
 
-    settings = _settings(resource)
-    assert settings.model == "jev-1.13.0"
-    assert not hasattr(AgentInternalJevClassifierSettings, "questions")
-    assert settings.model_extra == {
-        "state": {"type": "number"},
-        "questions": [{"type": "freeform"}],
-    }
+    with pytest.raises(ValidationError):
+        _validate(data)
 
 
 def test_parses_all_question_types() -> None:
@@ -177,6 +217,8 @@ def test_noul_criteria_serialise_with_true_false_keys() -> None:
 @pytest.mark.parametrize(
     "question",
     [
+        pytest.param({**CHOICE, "choices": [{"value": "a"}]}, id="choices-on-choice"),
+        pytest.param({**NOUL, "type": "predicate"}, id="decisions-type"),
         pytest.param({**NOUL, "name": "has space"}, id="invalid-name"),
         pytest.param({**NOUL, "name": "1st"}, id="name-starts-with-digit"),
         pytest.param({**NOUL, "name": "a" * 65}, id="name-too-long"),
@@ -217,7 +259,7 @@ def test_rejects_invalid_question(question: dict[str, Any]) -> None:
 
 
 def test_parses_object_builder_argument_properties() -> None:
-    raw = _resource(model="jev-1.13.0")
+    raw = _resource(**JEV)
     raw["argumentProperties"] = {
         "$['questions']": {"variant": "ObjectBuilder"},
         "$['questions']['department']": {"variant": "objectBuilder"},
@@ -248,3 +290,62 @@ def test_parses_object_builder_argument_properties() -> None:
         props["$['questions']['is_urgent']['instructions']"],
         AgentToolStaticArgumentProperties,
     )
+
+
+def test_parses_all_decisions_question_types() -> None:
+    choice = _DECISIONS_QUESTION.validate_python(DECISIONS_CHOICE)
+    score = _DECISIONS_QUESTION.validate_python(DECISIONS_SCORE)
+    predicate = _DECISIONS_QUESTION.validate_python(
+        {**DECISIONS_PREDICATE, "type": "PREDICATE"}
+    )
+
+    assert isinstance(choice, DecisionsChoiceQuestion)
+    assert [c.value for c in choice.choices] == ["billing", "technical"]
+    assert isinstance(score, DecisionsScoreQuestion)
+    assert [level.label for level in score.levels] == ["Calm", "Very angry"]
+    assert score.levels[1].description is None
+    assert isinstance(predicate, DecisionsPredicateQuestion)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        pytest.param({**DECISIONS_PREDICATE, "name": "has space"}, id="invalid-name"),
+        pytest.param({**DECISIONS_PREDICATE, "instructions": ""}, id="empty-instr"),
+        pytest.param(
+            {**DECISIONS_CHOICE, "choices": DECISIONS_CHOICE["choices"][:1]},
+            id="one-choice",
+        ),
+        pytest.param(
+            {**DECISIONS_CHOICE, "choices": [{"value": "a"}, {"value": "a"}]},
+            id="duplicate-choices",
+        ),
+        pytest.param(
+            {**DECISIONS_CHOICE, "choices": [{"value": "a"}, {"value": ""}]},
+            id="empty-choice",
+        ),
+        pytest.param(
+            {**DECISIONS_SCORE, "levels": [{"label": "only"}]}, id="one-level"
+        ),
+        pytest.param({**DECISIONS_SCORE, "levels": ["Low", "High"]}, id="jev-levels"),
+        pytest.param(
+            {**DECISIONS_SCORE, "levels": [{"label": "a"}, {}]}, id="no-label"
+        ),
+        pytest.param({**CHOICE, "type": "choice"}, id="jev-options"),
+        pytest.param({**NOUL, "type": "noul"}, id="jev-type"),
+        pytest.param(
+            {**DECISIONS_PREDICATE, "criteria": {"true": "Yes"}}, id="jev-criteria"
+        ),
+        pytest.param(
+            {**DECISIONS_PREDICATE, "choices": DECISIONS_CHOICE["choices"]},
+            id="choices-on-predicate",
+        ),
+        pytest.param(
+            {**DECISIONS_CHOICE, "levels": DECISIONS_SCORE["levels"]},
+            id="levels-on-choice",
+        ),
+    ],
+)
+def test_rejects_invalid_decisions_question(question: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        _DECISIONS_QUESTION.validate_python(question)

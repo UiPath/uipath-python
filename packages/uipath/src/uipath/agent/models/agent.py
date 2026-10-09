@@ -130,7 +130,7 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     BATCH_TRANSFORM = "batch-transform"
     HTTP_REQUEST = "http-request"
     CREATE_FILE = "create-file"
-    JEV_CLASSIFIER = "jev-classifier"
+    CLASSIFIER = "classifier"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -1092,13 +1092,13 @@ class AgentInternalCreateFileToolProperties(BaseResourceProperties):
     )
 
 
-class AgentInternalJevClassifierToolProperties(BaseResourceProperties):
-    """Agent internal Jev classifier tool properties model."""
+class AgentInternalClassifierToolProperties(BaseResourceProperties):
+    """Agent internal classifier tool properties model."""
 
-    tool_type: Literal[AgentInternalToolType.JEV_CLASSIFIER] = Field(
-        alias="toolType", default=AgentInternalToolType.JEV_CLASSIFIER, frozen=True
+    tool_type: Literal[AgentInternalToolType.CLASSIFIER] = Field(
+        alias="toolType", default=AgentInternalToolType.CLASSIFIER, frozen=True
     )
-    settings: AgentInternalJevClassifierSettings = Field(..., alias="settings")
+    settings: AgentInternalClassifierSettings = Field(..., alias="settings")
 
 
 AgentInternalToolProperties = Annotated[
@@ -1108,7 +1108,7 @@ AgentInternalToolProperties = Annotated[
         AgentInternalBatchTransformToolProperties,
         AgentInternalHttpRequestToolProperties,
         AgentInternalCreateFileToolProperties,
-        AgentInternalJevClassifierToolProperties,
+        AgentInternalClassifierToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
@@ -1144,7 +1144,41 @@ class AgentInternalBatchTransformSettings(BaseCfg):
     )
 
 
-JEV_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+# Question names are the keys of the answers in the tool output, for every provider.
+CLASSIFIER_QUESTION_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+
+
+class ClassifierProvider(str, CaseInsensitiveEnum):
+    """The classification API a classifier tool calls, implied by its model."""
+
+    TYPESAFE = "typesafe"  # TypeSafe AI's Jev models
+    OPENAI = "openai"  # OpenAI's Decisions API
+
+
+class BaseClassifierQuestion(BaseCfg):
+    """Common fields of a classifier question.
+
+    A question carries only the fields of its provider and type: ``foreign_fields``
+    lists the fields of the other types (and of the other provider) it rejects.
+    """
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ()
+
+    name: str = Field(..., pattern=CLASSIFIER_QUESTION_NAME_PATTERN)
+    instructions: str = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def _only_own_fields(self) -> "BaseClassifierQuestion":
+        extra = self.model_extra or {}
+        present = [f for f in self.foreign_fields if extra.get(f) is not None]
+        if present:
+            raise ValueError(
+                f"Question '{self.name}' cannot have {' or '.join(present)}"
+            )
+        return self
+
+
+# --- Jev (TypeSafe) questions ---
 
 
 class JevQuestionType(str, CaseInsensitiveEnum):
@@ -1162,33 +1196,10 @@ class JevChoiceOption(BaseCfg):
     description: Optional[str] = Field(None)
 
 
-class BaseJevQuestion(BaseCfg):
-    """Common fields of a Jev question.
-
-    A question carries only the fields of its type: ``options`` belong to choice
-    questions, ``levels`` to score questions and ``criteria`` to noul questions.
-    """
-
-    foreign_fields: ClassVar[tuple[str, ...]] = ()
-
-    name: str = Field(..., pattern=JEV_NAME_PATTERN)
-    instructions: str = Field(..., min_length=1)
-
-    @model_validator(mode="after")
-    def _only_own_fields(self) -> "BaseJevQuestion":
-        extra = self.model_extra or {}
-        present = [f for f in self.foreign_fields if extra.get(f) is not None]
-        if present:
-            raise ValueError(
-                f"Question '{self.name}' cannot have {' or '.join(present)}"
-            )
-        return self
-
-
-class JevChoiceQuestion(BaseJevQuestion):
+class JevChoiceQuestion(BaseClassifierQuestion):
     """Jev question selecting one of a set of options."""
 
-    foreign_fields: ClassVar[tuple[str, ...]] = ("levels", "criteria")
+    foreign_fields: ClassVar[tuple[str, ...]] = ("levels", "criteria", "choices")
 
     type: Literal[JevQuestionType.CHOICE] = JevQuestionType.CHOICE
     options: List[JevChoiceOption] = Field(..., min_length=2, max_length=255)
@@ -1201,10 +1212,10 @@ class JevChoiceQuestion(BaseJevQuestion):
         return self
 
 
-class JevScoreQuestion(BaseJevQuestion):
+class JevScoreQuestion(BaseClassifierQuestion):
     """Jev question placing the input on an ordered scale of levels."""
 
-    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "criteria")
+    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "criteria", "choices")
 
     type: Literal[JevQuestionType.SCORE] = JevQuestionType.SCORE
     levels: List[Annotated[str, Field(min_length=1)]] = Field(
@@ -1221,10 +1232,10 @@ class JevNoulCriteria(BaseModel):
     false: Optional[str] = Field(None)
 
 
-class JevNoulQuestion(BaseJevQuestion):
+class JevNoulQuestion(BaseClassifierQuestion):
     """Jev yes/no question answered with a probability."""
 
-    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "levels")
+    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "levels", "choices")
 
     type: Literal[JevQuestionType.NOUL] = JevQuestionType.NOUL
     criteria: Optional[JevNoulCriteria] = Field(None)
@@ -1237,15 +1248,88 @@ JevQuestion = Annotated[
 ]
 
 
-class AgentInternalJevClassifierSettings(BaseCfg):
-    """Agent internal Jev classifier tool settings model.
+# --- OpenAI Decisions questions (matches the Decisions API request) ---
 
-    Only the configuration that is never a call argument: the ``state`` and
-    ``questions`` the tool sends to Jev are declared in the resource's
-    ``inputSchema`` and supplied through its ``argumentProperties``. The model
-    is required: there is no default Jev model.
+
+class DecisionsQuestionType(str, CaseInsensitiveEnum):
+    """OpenAI Decisions question type enumeration."""
+
+    CHOICE = "choice"
+    SCORE = "score"
+    PREDICATE = "predicate"
+
+
+class DecisionsChoice(BaseCfg):
+    """A choice of a Decisions choice question."""
+
+    value: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class DecisionsScoreLevel(BaseCfg):
+    """A level of a Decisions score question."""
+
+    label: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class DecisionsChoiceQuestion(BaseClassifierQuestion):
+    """Decisions question selecting one of a set of choices."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("levels", "options", "criteria")
+
+    type: Literal[DecisionsQuestionType.CHOICE] = DecisionsQuestionType.CHOICE
+    choices: List[DecisionsChoice] = Field(..., min_length=2)
+
+    @model_validator(mode="after")
+    def _unique_choice_values(self) -> "DecisionsChoiceQuestion":
+        values = [choice.value for choice in self.choices]
+        if len(values) != len(set(values)):
+            raise ValueError(f"Question '{self.name}' has duplicate choice values")
+        return self
+
+
+class DecisionsScoreQuestion(BaseClassifierQuestion):
+    """Decisions question placing the input on levels ordered lowest to highest."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("choices", "options", "criteria")
+
+    type: Literal[DecisionsQuestionType.SCORE] = DecisionsQuestionType.SCORE
+    levels: List[DecisionsScoreLevel] = Field(..., min_length=2)
+
+
+class DecisionsPredicateQuestion(BaseClassifierQuestion):
+    """Decisions question estimating the probability that a condition is true."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = (
+        "choices",
+        "levels",
+        "options",
+        "criteria",
+    )
+
+    type: Literal[DecisionsQuestionType.PREDICATE] = DecisionsQuestionType.PREDICATE
+
+
+DecisionsQuestion = Annotated[
+    Union[DecisionsChoiceQuestion, DecisionsScoreQuestion, DecisionsPredicateQuestion],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", DecisionsQuestionType),
+]
+
+ClassifierQuestion = Union[JevQuestion, DecisionsQuestion]
+
+
+class AgentInternalClassifierSettings(BaseCfg):
+    """Agent internal classifier tool settings model.
+
+    Only the configuration that is never a call argument: the input and the
+    ``questions`` the tool sends are declared in the resource's ``inputSchema``
+    and supplied through its ``argumentProperties``, in the shapes of the
+    provider. The provider and the model are required: there is no default.
     """
 
+    provider: ClassifierProvider = Field(...)
     model: str = Field(..., min_length=1)
 
 
