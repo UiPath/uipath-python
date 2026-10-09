@@ -149,6 +149,14 @@ class TestIsRetryablePlatformException:
         err = httpx.TimeoutException("timed out")
         assert is_retryable_platform_exception(err) is True
 
+    def test_connect_error(self):
+        err = httpx.ConnectError("[Errno 104] Connection reset by peer")
+        assert is_retryable_platform_exception(err) is True
+
+    def test_read_error_not_retryable(self):
+        err = httpx.ReadError("[Errno 104] Connection reset by peer")
+        assert is_retryable_platform_exception(err) is False
+
     def test_enriched_408(self):
         http_err = _make_http_status_error(408)
         err = EnrichedException(http_err)

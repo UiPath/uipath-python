@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -232,6 +233,41 @@ class TestRetryBehavior:
         assert response.status_code == 200
         assert len(httpx_mock.get_requests()) == 2
 
+    def test_connect_error_retried(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        url = self._url(base_url, org, tenant)
+        httpx_mock.add_exception(
+            httpx.ConnectError("[Errno 104] Connection reset by peer"), url=url
+        )
+        httpx_mock.add_response(url=url, status_code=200, json={"ok": True})
+
+        response = service.request("POST", "/endpoint")
+        assert response.status_code == 200
+        assert len(httpx_mock.get_requests()) == 2
+
+    def test_read_error_not_retried(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        url = self._url(base_url, org, tenant)
+        httpx_mock.add_exception(
+            httpx.ReadError("[Errno 104] Connection reset by peer"), url=url
+        )
+
+        with pytest.raises(httpx.ReadError):
+            service.request("POST", "/endpoint")
+        assert len(httpx_mock.get_requests()) == 1
+
     @pytest.mark.anyio
     async def test_429_retried_async(
         self,
@@ -263,6 +299,25 @@ class TestRetryBehavior:
         httpx_mock.add_response(url=url, status_code=200, json={"ok": True})
 
         response = await service.request_async("GET", "/endpoint")
+        assert response.status_code == 200
+        assert len(httpx_mock.get_requests()) == 2
+
+    @pytest.mark.anyio
+    async def test_connect_error_retried_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        url = self._url(base_url, org, tenant)
+        httpx_mock.add_exception(
+            httpx.ConnectError("[Errno 104] Connection reset by peer"), url=url
+        )
+        httpx_mock.add_response(url=url, status_code=200, json={"ok": True})
+
+        response = await service.request_async("POST", "/endpoint")
         assert response.status_code == 200
         assert len(httpx_mock.get_requests()) == 2
 
