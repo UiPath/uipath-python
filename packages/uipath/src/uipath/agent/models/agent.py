@@ -115,6 +115,7 @@ class AgentToolType(str, CaseInsensitiveEnum):
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     FLOW = "Flow"
     FUNCTION = "Function"
+    CONVERSATIONAL_AGENT = "ConversationalAgent"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
     IXP = "Ixp"
@@ -999,6 +1000,31 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentConversationalAgentToolProperties(BaseResourceProperties):
+    """Conversational agent tool properties model."""
+
+    # Optional so a record missing it loads; the runtime reports it at call time.
+    process_name: Optional[str] = Field(None, alias="processName")
+    folder_path: Optional[str] = Field(None, alias="folderPath")
+    cached_agent_card: Optional[Dict[str, Any]] = Field(None, alias="cachedAgentCard")
+
+
+class AgentConversationalAgentToolResourceConfig(BaseAgentToolResourceConfig):
+    """Conversational agent tool resource configuration model.
+
+    Kept separate from ``AgentProcessToolResourceConfig`` so it is never routed to
+    the job-start path; the runtime calls it as an A2A agent.
+    """
+
+    type: Literal[AgentToolType.CONVERSATIONAL_AGENT]
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
+    properties: AgentConversationalAgentToolProperties
+    settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
+    argument_properties: Dict[str, AgentToolArgumentProperties] = Field(
+        {}, alias="argumentProperties"
+    )
+
+
 class AgentIxpExtractionToolProperties(BaseResourceProperties):
     """Agent process tool properties model."""
 
@@ -1292,6 +1318,7 @@ class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
 ToolResourceConfig = Annotated[
     Union[
         AgentProcessToolResourceConfig,
+        AgentConversationalAgentToolResourceConfig,
         AgentIntegrationToolResourceConfig,
         AgentInternalToolResourceConfig,
         AgentIxpExtractionResourceConfig,
@@ -1687,6 +1714,7 @@ class AgentDefinition(BaseModel):
             "processorchestration": "ProcessOrchestration",
             "flow": "Flow",
             "function": "Function",
+            "conversationalagent": "ConversationalAgent",
             "integration": "Integration",
             "internal": "Internal",
             "ixp": "Ixp",

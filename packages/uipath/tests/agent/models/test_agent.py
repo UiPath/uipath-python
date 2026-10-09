@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import pytest
@@ -13,6 +14,7 @@ from uipath.agent.models.agent import (
     AgentContextRetrievalMode,
     AgentContextSettings,
     AgentContextType,
+    AgentConversationalAgentToolResourceConfig,
     AgentCustomGuardrail,
     AgentDefinition,
     AgentEscalationChannel,
@@ -4906,3 +4908,204 @@ class TestSearchDuringIngestion:
         )
         assert resource.settings is not None
         assert resource.settings.search_during_ingestion is True
+
+
+def _conversational_agent_json(*resources: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": "1.0.0",
+        "id": "test-conversational-agent-tool",
+        "name": "Agent with conversational agent tool",
+        "metadata": {"isConversational": False, "storageVersion": "50.0.0"},
+        "messages": [{"role": "System", "content": "You are an assistant."}],
+        "inputSchema": {"type": "object", "properties": {}},
+        "outputSchema": {"type": "object", "properties": {}},
+        "settings": {
+            "model": "gpt-4o-2024-11-20",
+            "maxTokens": 16384,
+            "temperature": 0,
+            "engine": "basic-v2",
+        },
+        "resources": list(resources),
+        "features": [],
+        "guardrails": [],
+    }
+
+
+_AGENT_TOOL = {
+    "$resourceType": "tool",
+    "type": "agent",
+    "id": "agent-1",
+    "name": "Child Agent",
+    "description": "A child agent",
+    "inputSchema": {"type": "object", "properties": {}},
+    "outputSchema": {"type": "object", "properties": {}},
+    "settings": {},
+    "properties": {"processName": "Child", "folderPath": "Shared"},
+    "argumentProperties": {},
+}
+
+_REMOTE_A2A_RESOURCE = {
+    "$resourceType": "a2a",
+    "id": "remote-1",
+    "name": "Remote Agent",
+    "description": "A remote A2A agent",
+    "folderPath": "shared",
+    "slug": "remote-agent",
+    "solutionProperties": {"resourceKey": "key-remote"},
+}
+
+_CONVERSATIONAL_AGENT_TOOL = {
+    "$resourceType": "tool",
+    "type": "conversationalAgent",
+    "id": "conv-1",
+    "name": "Conversational Agent",
+    "description": "A conversational agent",
+    "location": "solution",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "message": {"type": "string", "description": "The message to send."}
+        },
+        "required": ["message"],
+    },
+    "outputSchema": {"type": "object", "properties": {}},
+    "settings": {},
+    "properties": {
+        "processName": "My Conversational Agent",
+        "folderPath": "Shared/Agents",
+        "cachedAgentCard": {"name": "Conversational Agent"},
+        "requireConversationalConfirmation": True,
+    },
+    "argumentProperties": {},
+}
+
+
+_CONTRACT_FIXTURE = (
+    '{"$resourceType":"tool","type":"conversationalAgent","id":"conv-1",'
+    '"name":"Support agent","description":"Answers support questions",'
+    '"location":"solution","isEnabled":true,"inputSchema":{"type":"object",'
+    '"properties":{"message":{"type":"string","description":"The message to send '
+    'to the agent."}},"required":["message"]},"outputSchema":{"type":"object",'
+    '"properties":{}},"settings":{},"properties":{"processName":"SupportAgent",'
+    '"folderPath":"Shared/Support","cachedAgentCard":null,'
+    '"requireConversationalConfirmation":false},"argumentProperties":{},'
+    '"canvasNodeId":"node-1"}'
+)
+
+
+class TestConversationalAgentTool:
+    """Conversational agent resources (tool type 'conversationalAgent')."""
+
+    def test_mixed_agent_json_parses_into_right_classes(self):
+        config = AgentDefinition.model_validate(
+            _conversational_agent_json(
+                _AGENT_TOOL, _REMOTE_A2A_RESOURCE, _CONVERSATIONAL_AGENT_TOOL
+            )
+        )
+
+        agent_tool, remote, conversational = config.resources
+        assert type(agent_tool) is AgentProcessToolResourceConfig
+        assert type(remote) is AgentA2aResourceConfig
+        assert remote.slug == "remote-agent"
+        assert type(conversational) is AgentConversationalAgentToolResourceConfig
+        assert conversational.resource_type == AgentResourceType.TOOL
+        assert conversational.type == AgentToolType.CONVERSATIONAL_AGENT
+        assert conversational.name == "Conversational Agent"
+        assert conversational.properties.process_name == "My Conversational Agent"
+        assert conversational.properties.folder_path == "Shared/Agents"
+        assert conversational.properties.cached_agent_card == {
+            "name": "Conversational Agent"
+        }
+        assert conversational.properties.require_conversational_confirmation is True
+        assert conversational.input_schema["required"] == ["message"]
+
+    @pytest.mark.parametrize(
+        "type_value",
+        ["conversationalAgent", "ConversationalAgent", "conversationalagent"],
+    )
+    def test_type_casing_is_normalized(self, type_value: str):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "type": type_value}
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert type(resource) is AgentConversationalAgentToolResourceConfig
+        assert resource.type == AgentToolType.CONVERSATIONAL_AGENT
+
+    def test_optional_properties_may_be_missing_or_null(self):
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "properties": {"processName": "p", "cachedAgentCard": None},
+        }
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        assert resource.properties.folder_path is None
+        assert resource.properties.cached_agent_card is None
+
+    def test_missing_process_name_still_loads_the_agent(self):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "properties": {"folderPath": "x"}}
+
+        config = AgentDefinition.model_validate(
+            _conversational_agent_json(_AGENT_TOOL, record)
+        )
+
+        agent_tool, conversational = config.resources
+        assert type(agent_tool) is AgentProcessToolResourceConfig
+        assert type(conversational) is AgentConversationalAgentToolResourceConfig
+        assert conversational.properties.process_name is None
+
+    def test_contract_fixture_parses_with_every_field_preserved(self):
+        record = json.loads(_CONTRACT_FIXTURE)
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert type(resource) is AgentConversationalAgentToolResourceConfig
+        assert resource.resource_type == AgentResourceType.TOOL
+        assert resource.type == AgentToolType.CONVERSATIONAL_AGENT
+        assert resource.name == "Support agent"
+        assert resource.description == "Answers support questions"
+        assert resource.is_enabled is True
+        assert resource.input_schema == record["inputSchema"]
+        assert resource.output_schema == record["outputSchema"]
+        assert resource.properties.process_name == "SupportAgent"
+        assert resource.properties.folder_path == "Shared/Support"
+        assert resource.properties.cached_agent_card is None
+        assert resource.properties.require_conversational_confirmation is False
+        assert resource.argument_properties == {}
+        extras = resource.model_extra or {}
+        assert extras["id"] == "conv-1"
+        assert extras["location"] == "solution"
+        assert extras["canvasNodeId"] == "node-1"
+
+    def test_unknown_tool_type_still_goes_to_unknown(self):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "type": "futureKind"}
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentUnknownToolResourceConfig)
+
+    def test_round_trip_by_alias_keeps_type(self):
+        config = AgentDefinition.model_validate(
+            _conversational_agent_json(_CONVERSATIONAL_AGENT_TOOL)
+        )
+
+        dumped = config.model_dump(by_alias=True, mode="json")
+        (resource,) = dumped["resources"]
+        assert resource["$resourceType"] == "tool"
+        assert resource["type"] == "ConversationalAgent"
+        assert resource["properties"]["processName"] == "My Conversational Agent"
+        assert resource["properties"]["folderPath"] == "Shared/Agents"
+
+        reparsed = AgentDefinition.model_validate(dumped)
+        assert isinstance(
+            reparsed.resources[0], AgentConversationalAgentToolResourceConfig
+        )
