@@ -1,6 +1,6 @@
 [project]
 name = "uipath-core"
-version = "0.5.33"
+version = "0.5.34"
 description = "UiPath Core abstractions"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -44,7 +44,11 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
+  "hatchling",
 ]
+
+[tool.hatch.build.hooks.custom]
+version-file = "src/uipath/core/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uipath"]

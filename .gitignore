@@ -43,3 +43,8 @@ samples/**/entry-points.json
 samples/**/uv.lock
 
 testcases/**/uv.lock
+
+# Generated at build time by packages/*/hatch_build.py
+packages/uipath-core/src/uipath/core/_version.py
+packages/uipath-platform/src/uipath/platform/_version.py
+packages/uipath/src/uipath/_version.py

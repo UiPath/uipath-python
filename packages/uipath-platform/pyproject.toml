@@ -48,7 +48,11 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
+  "hatchling",
 ]
+
+[tool.hatch.build.hooks.custom]
+version-file = "src/uipath/platform/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uipath"]
