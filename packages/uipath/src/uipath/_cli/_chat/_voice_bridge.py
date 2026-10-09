@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from copy import deepcopy
 from enum import Enum
 from typing import Any
@@ -17,6 +17,8 @@ from uipath.core.chat import (
     UiPathVoiceToolCallMessage,
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
+    UiPathVoiceToolDescriptor,
+    UiPathVoiceToolsReady,
 )
 from uipath.platform.constants import (
     ENV_BASE_URL,
@@ -65,7 +67,8 @@ class VoiceToolCallSession:
     Receives `voice_tool_call` batches, emits one `voice_tool_result` per
     `callId`, exits on `voice_session_ended` or disconnect. CAS pulls
     agent config from Orchestrator directly; this session carries only
-    tool calls.
+    tool calls, plus the registered tool names announced on
+    `voice_tools_ready` so CAS can dispatch to them.
     """
 
     def __init__(
@@ -74,11 +77,13 @@ class VoiceToolCallSession:
         socketio_path: str,
         headers: dict[str, str],
         tool_handler: ToolHandler,
+        tools: Sequence[UiPathVoiceToolDescriptor] = (),
     ) -> None:
         self._url = url
         self._socketio_path = socketio_path
         self._headers = headers
         self._tool_handler = tool_handler
+        self._tools = list(tools)
         self._client: Any = None
         self._done = asyncio.Event()
         self._in_flight: set[asyncio.Task[None]] = set()
@@ -141,31 +146,42 @@ class VoiceToolCallSession:
         self._done.set()
 
     async def _drain_in_flight(self) -> None:
-        """Wait for in-flight tool tasks to finish, capped by the drain timeout."""
+        """Wait for in-flight tool tasks to finish, capped by the drain timeout.
+
+        On timeout the tasks still running are cancelled, and this returns only
+        once they have finished, so no tool call outlives the session.
+        """
         if not self._in_flight:
             return
+        tasks = list(self._in_flight)
         logger.info(
             "[Voice] Session ended with %d in-flight tool task(s); draining (max %.0fs)",
-            len(self._in_flight),
+            len(tasks),
             _INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS,
         )
         try:
+            # On timeout wait_for cancels the gather, which cancels the tasks
+            # and waits for them to finish.
             await asyncio.wait_for(
-                asyncio.gather(*self._in_flight, return_exceptions=True),
+                asyncio.gather(*tasks, return_exceptions=True),
                 timeout=_INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError:
-            unfinished = sum(1 for t in self._in_flight if not t.done())
             logger.warning(
-                "[Voice] %d tool task(s) did not complete within %.0fs of session end",
-                unfinished,
+                "[Voice] Cancelled %d tool task(s) still running %.0fs after session end",
+                sum(1 for t in tasks if t.cancelled()),
                 _INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS,
             )
 
     async def _handle_connect(self) -> None:
         logger.info("[Voice] Socket.io connected to CAS")
         try:
-            await self._client.emit(VoiceEvent.TOOLS_READY, {})
+            await self._client.emit(
+                VoiceEvent.TOOLS_READY,
+                UiPathVoiceToolsReady(tools=self._tools).model_dump(
+                    by_alias=True, exclude_none=True
+                ),
+            )
         except Exception as exc:
             # CAS gates tool dispatch on this event; without it the session is dead.
             logger.warning("[Voice] emit voice_tools_ready failed: %s", exc)
@@ -240,8 +256,11 @@ class VoiceToolCallSession:
 def get_voice_bridge(
     context: UiPathRuntimeContext,
     tool_handler: ToolHandler,
+    tools: Sequence[UiPathVoiceToolDescriptor] = (),
 ) -> VoiceToolCallSession:
     """Factory for a CAS voice tool-call session.
+
+    ``tools`` are announced to CAS on ``voice_tools_ready``.
 
     Raises:
         RuntimeError: If UIPATH_URL is not set or invalid.
@@ -289,4 +308,5 @@ def get_voice_bridge(
         socketio_path=socketio_path,
         headers=headers,
         tool_handler=tool_handler,
+        tools=tools,
     )

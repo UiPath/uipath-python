@@ -1,10 +1,12 @@
 """Tests for VoiceToolCallSession and get_voice_bridge."""
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from uipath._cli._chat import _voice_bridge as voice_bridge
 from uipath._cli._chat._voice_bridge import (
     VoiceSessionEndReason,
     VoiceToolCallSession,
@@ -13,6 +15,7 @@ from uipath._cli._chat._voice_bridge import (
 from uipath.core.chat import (
     UiPathVoiceToolCallRequest,
     UiPathVoiceToolCallResult,
+    UiPathVoiceToolDescriptor,
 )
 from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
@@ -20,12 +23,15 @@ from uipath.platform.constants import (
 )
 
 
-def _make_session(tool_handler: Any = None) -> VoiceToolCallSession:
+def _make_session(
+    tool_handler: Any = None, tools: list[UiPathVoiceToolDescriptor] | None = None
+) -> VoiceToolCallSession:
     session = VoiceToolCallSession(
         url="wss://example/test",
         socketio_path="/socket.io",
         headers={},
         tool_handler=tool_handler or AsyncMock(),
+        tools=tools or [],
     )
     session._client = MagicMock()
     session._client.emit = AsyncMock()
@@ -114,6 +120,53 @@ class TestEndSession:
         assert session._end_reason == VoiceSessionEndReason.DISCONNECTED
 
 
+class TestToolsReady:
+    async def test_announces_registered_tools(self) -> None:
+        session = _make_session(
+            tools=[
+                UiPathVoiceToolDescriptor(name="Lookup", resource_name="Lookup"),
+                UiPathVoiceToolDescriptor(
+                    name="mcp-crm-tool-get_account",
+                    resource_name="CRM",
+                    mcp_tool_name="get_account",
+                ),
+            ]
+        )
+
+        await session._handle_connect()
+
+        session._client.emit.assert_awaited_once_with(
+            "voice_tools_ready",
+            {
+                "tools": [
+                    {"name": "Lookup", "resourceName": "Lookup"},
+                    {
+                        "name": "mcp-crm-tool-get_account",
+                        "resourceName": "CRM",
+                        "mcpToolName": "get_account",
+                    },
+                ]
+            },
+        )
+
+    async def test_announces_empty_list_without_tools(self) -> None:
+        session = _make_session()
+
+        await session._handle_connect()
+
+        session._client.emit.assert_awaited_once_with(
+            "voice_tools_ready", {"tools": []}
+        )
+
+    async def test_emit_failure_ends_session(self) -> None:
+        session = _make_session()
+        session._client.emit.side_effect = RuntimeError("socket closed")
+
+        await session._handle_connect()
+
+        assert session._end_reason == VoiceSessionEndReason.READY_EMIT_FAILED
+
+
 class TestHandleToolCall:
     async def test_dispatches_handler_and_emits_result(self) -> None:
         handler = AsyncMock(
@@ -177,7 +230,42 @@ class TestHandleToolCall:
         )
 
 
+class TestDrainInFlight:
+    async def test_cancels_tasks_still_running_at_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            voice_bridge, "_INFLIGHT_TOOL_DRAIN_AFTER_AGENT_END_TIMEOUT_SECONDS", 0.01
+        )
+        never_finishes = asyncio.Event()
+
+        async def handler(_: Any) -> UiPathVoiceToolCallResult:
+            await never_finishes.wait()
+            return UiPathVoiceToolCallResult(result="late", is_error=False)
+
+        session = _make_session(handler)
+        await session._handle_tool_call(
+            {"calls": [{"callId": "c1", "toolName": "slow", "args": {}}]}
+        )
+        tasks = list(session._in_flight)
+
+        await session._drain_in_flight()
+
+        # The call is over before run() returns, so callers can release what it used.
+        assert all(task.cancelled() for task in tasks)
+        session._client.emit.assert_not_awaited()
+
+
 class TestGetVoiceBridge:
+    def test_passes_tools_to_session(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com")
+        ctx = MagicMock(conversation_id="conv-1", tenant_id="t", org_id="o")
+        tools = [UiPathVoiceToolDescriptor(name="Lookup", resource_name="Lookup")]
+
+        bridge = get_voice_bridge(ctx, AsyncMock(), tools=tools)
+
+        assert bridge._tools == tools
+
     def test_raises_when_uipath_url_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
