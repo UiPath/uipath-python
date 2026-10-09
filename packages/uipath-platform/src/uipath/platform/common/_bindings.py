@@ -61,6 +61,7 @@ class GenericResourceOverwrite(ResourceOverwrite):
         "queue",
         "remoteA2aAgent",
         "memorySpace",
+        "businessRule",
     ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
@@ -215,6 +216,9 @@ class ResourceOverwritesContext:
             _resource_overwrites.reset(self._token)
 
 
+_OTHER_FOLDER_IDENTIFIER = {"folder_path": "folder_key", "folder_key": "folder_path"}
+
+
 def resource_override(
     resource_type: str,
     resource_identifier: str = "name",
@@ -283,6 +287,16 @@ def resource_override(
                         all_args[folder_identifier] = (
                             matched_overwrite.folder_identifier
                         )
+                        # Otherwise header_folder() gets both and raises.
+                        other_folder_identifier = _OTHER_FOLDER_IDENTIFIER.get(
+                            folder_identifier
+                        )
+                        if (
+                            other_folder_identifier is not None
+                            and other_folder_identifier in sig.parameters
+                            and matched_overwrite.folder_identifier
+                        ):
+                            all_args[other_folder_identifier] = None
                     logger.debug(
                         "Resource overwrite applied for %s on %s: %s='%s' -> '%s', %s='%s' -> '%s'",
                         resource_type,

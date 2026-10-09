@@ -67,6 +67,7 @@ nav:
             - Assets: core/assets.md
             - Attachments: core/attachments.md
             - Buckets: core/buckets.md
+            - Business Rules: core/business_rules.md
             - Connections: core/connections.md
             - Context Grounding: core/context_grounding.md
             - Documents: core/documents.md
@@ -79,6 +80,7 @@ nav:
             - Resource Catalog: core/resource_catalog.md
             - Tasks: core/tasks.md
         - Models:
+            - Business Rules: core/business_rules_models.md
             - Documents: core/documents_models.md
         - Evaluations:
             - Overview: eval/index.md
