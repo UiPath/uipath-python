@@ -28,3 +28,22 @@ class UiPathVoiceToolCallResult(_VoiceWire):
 
     result: str
     is_error: bool = Field(..., alias="isError")
+
+
+class UiPathVoiceToolDescriptor(_VoiceWire):
+    """A tool the runtime registered for a voice session.
+
+    CAS names the tools it offers the voice model itself, then matches each one to
+    ``name`` by its agent-definition resource (and, for MCP, the server's tool name)
+    before dispatching a call, so ``name`` never has to be predicted on the CAS side.
+    """
+
+    name: str
+    resource_name: str = Field(..., alias="resourceName")
+    mcp_tool_name: str | None = Field(None, alias="mcpToolName")
+
+
+class UiPathVoiceToolsReady(_VoiceWire):
+    """Payload of ``voice_tools_ready``: the tools this runtime can execute."""
+
+    tools: list[UiPathVoiceToolDescriptor] = Field(default_factory=list)
