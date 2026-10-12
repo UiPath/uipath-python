@@ -1242,10 +1242,11 @@ class AgentInternalJevClassifierSettings(BaseCfg):
 
     Only the configuration that is never a call argument: the ``state`` and
     ``questions`` the tool sends to Jev are declared in the resource's
-    ``inputSchema`` and supplied through its ``argumentProperties``.
+    ``inputSchema`` and supplied through its ``argumentProperties``. The model
+    is required: there is no default Jev model.
     """
 
-    model: str = Field("jev-latest")
+    model: str = Field(..., min_length=1)
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
