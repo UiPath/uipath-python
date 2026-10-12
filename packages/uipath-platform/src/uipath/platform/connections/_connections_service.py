@@ -32,6 +32,13 @@ HEADER_ACTIVITY_JOB_ID = "x-uipath-job-id"
 _ORIGINATOR_VALUE = "uipath-python"
 
 
+def _to_param_str(value: Any) -> str:
+    """Convert an activity parameter value to its wire string; booleans become lowercase."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return value if isinstance(value, str) else str(value)
+
+
 class ConnectionsService(BaseService):
     """Service for managing UiPath external service connections.
 
@@ -754,7 +761,7 @@ class ConnectionsService(BaseService):
             if value is None:
                 continue
 
-            value_str = str(value) if not isinstance(value, str) else value
+            value_str = _to_param_str(value)
 
             if param_name in activity_metadata.parameter_location_info.query_params:
                 query_params[param_name] = value_str
@@ -812,7 +819,7 @@ class ConnectionsService(BaseService):
                     # Scalar (string/number/etc.) — send as a plain multipart
                     # form field, not a file part. The (None, value) shape tells
                     # httpx to omit `filename=...` from the Content-Disposition.
-                    files[key] = (None, str(val))
+                    files[key] = (None, _to_param_str(val))
 
             files[json_section] = (
                 "",
