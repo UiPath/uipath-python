@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from pytest_httpx import HTTPXMock
+from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.documents import (
@@ -23,18 +24,38 @@ from uipath.platform.errors import (
     OperationNotCompleteException,
 )
 
+FRAMEWORK_V2_FLAG_ENV = "UIPATH_FEATURE_DocumentsFrameworkV2"
 
-@pytest.fixture
-def service(
-    config: UiPathApiConfig,
-    execution_context: UiPathExecutionContext,
-):
+
+def _create_service(
+    config: UiPathApiConfig, execution_context: UiPathExecutionContext
+) -> DocumentsService:
     return DocumentsService(
         config=config,
         execution_context=execution_context,
         polling_interval=0.001,  # 1ms for fast tests
         polling_timeout=10,  # 10 seconds for tests
     )
+
+
+@pytest.fixture
+def service(
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(FRAMEWORK_V2_FLAG_ENV, "true")
+    return _create_service(config, execution_context)
+
+
+@pytest.fixture
+def service_v1(
+    config: UiPathApiConfig,
+    execution_context: UiPathExecutionContext,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv(FRAMEWORK_V2_FLAG_ENV, raising=False)
+    return _create_service(config, execution_context)
 
 
 # Document Processing contract payloads are PascalCase in every API version.
@@ -3916,3 +3937,341 @@ class TestDocumentsService:
         # ASSERT
         assert response.operation_id == operation_id
         assert response.tag == "my tag/../v2"
+
+
+class TestDocumentsServiceFrameworkV1:
+    """Framework API v1.1, used while the DocumentsFrameworkV2 flag is off."""
+
+    @pytest.mark.parametrize(
+        "env_value,configured,expected",
+        [
+            (None, None, "1.1"),
+            ("true", None, "2.0"),
+            ("false", None, "1.1"),
+            (None, True, "2.0"),
+            ("true", False, "1.1"),
+        ],
+    )
+    def test_api_version_follows_feature_flag(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        monkeypatch: pytest.MonkeyPatch,
+        env_value: str | None,
+        configured: bool | None,
+        expected: str,
+    ):
+        # ARRANGE
+        monkeypatch.setattr(FeatureFlags, "_flags", {})
+        if env_value is None:
+            monkeypatch.delenv(FRAMEWORK_V2_FLAG_ENV, raising=False)
+        else:
+            monkeypatch.setenv(FRAMEWORK_V2_FLAG_ENV, env_value)
+        if configured is not None:
+            FeatureFlags.configure_flags({"DocumentsFrameworkV2": configured})
+
+        # ACT
+        service = _create_service(config, execution_context)
+
+        # ASSERT
+        assert service._api_version == expected
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_classify_with_tag(
+        self,
+        httpx_mock: HTTPXMock,
+        service_v1: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+        classification_response: dict,  # type: ignore
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        base = f"{base_url}{org}{tenant}/du_/api/framework/projects"
+
+        httpx_mock.add_response(
+            url=f"{base}?api-version=1.1&type=Modern",
+            json={"projects": [{"id": project_id, "name": "TestProject"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/tags?api-version=1.1",
+            json={"tags": [{"name": "Production"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/digitization/start?api-version=1.1",
+            json={"documentId": document_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": {}},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/Production/classification/start?api-version=1.1",
+            match_json={"documentId": document_id},
+            json={"operationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/Production/classification/result/{operation_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": classification_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service_v1.classify_async(
+                tag="Production",
+                project_name="TestProject",
+                project_type=ProjectType.MODERN,
+                file=b"test content",
+            )
+        else:
+            response = service_v1.classify(
+                tag="Production",
+                project_name="TestProject",
+                project_type=ProjectType.MODERN,
+                file=b"test content",
+            )
+
+        # ASSERT
+        assert response[0].tag == "Production"
+        assert response[0].project_id == project_id
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_extract_ixp_with_tag(
+        self,
+        httpx_mock: HTTPXMock,
+        service_v1: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+        ixp_extraction_response: dict,  # type: ignore
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        base = f"{base_url}{org}{tenant}/du_/api/framework/projects"
+        route = f"{base}/{project_id}/live/document-types/{UUID(int=0)}/extraction"
+
+        httpx_mock.add_response(
+            url=f"{base}?api-version=1.1&type=IXP",
+            json={"projects": [{"id": project_id, "name": "TestProjectIXP"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/tags?api-version=1.1",
+            json={"tags": [{"name": "live"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/digitization/start?api-version=1.1",
+            json={"documentId": document_id},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": {}},
+        )
+        httpx_mock.add_response(
+            url=f"{route}/start?api-version=1.1",
+            match_json={"documentId": document_id},
+            json={"operationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{route}/result/{operation_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": ixp_extraction_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service_v1.extract_async(
+                project_type=ProjectType.IXP,
+                project_name="TestProjectIXP",
+                tag="live",
+                file=b"test content",
+            )
+        else:
+            response = service_v1.extract(
+                project_type=ProjectType.IXP,
+                project_name="TestProjectIXP",
+                tag="live",
+                file=b"test content",
+            )
+
+        # ASSERT
+        assert (
+            response.extraction_result.model_dump()
+            == (ixp_extraction_response["extractionResult"])
+        )
+        assert response.tag == "live"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_validate_classification_action_with_tag(
+        self,
+        httpx_mock: HTTPXMock,
+        service_v1: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+        classification_response: dict,  # type: ignore
+        create_validation_action_response: dict,  # type: ignore
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        route = f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/classifiers/validation"
+        classification_result = ClassificationResult.model_validate(
+            {
+                **classification_response["classificationResults"][0],
+                "ProjectId": project_id,
+                "ProjectType": ProjectType.MODERN,
+                "ClassifierId": None,
+                "Tag": "Production",
+            }
+        )
+
+        httpx_mock.add_response(
+            url=f"{route}/start?api-version=1.1",
+            json={"operationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{route}/result/{operation_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service_v1.create_validate_classification_action_async(
+                classification_results=[classification_result],
+                action_title="TestAction",
+            )
+        else:
+            response = service_v1.create_validate_classification_action(
+                classification_results=[classification_result],
+                action_title="TestAction",
+            )
+
+        # ASSERT
+        assert response.operation_id == operation_id
+        assert response.tag == "Production"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_create_validate_extraction_action_with_tag(
+        self,
+        httpx_mock: HTTPXMock,
+        service_v1: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+        ixp_extraction_response: dict,  # type: ignore
+        create_validation_action_response: dict,  # type: ignore
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        route = f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/validation"
+        extraction_response = ExtractionResponse.model_validate(
+            {
+                **ixp_extraction_response,
+                "projectId": project_id,
+                "projectType": ProjectType.IXP,
+                "extractorId": None,
+                "tag": "live",
+                "documentTypeId": str(UUID(int=0)),
+            }
+        )
+
+        httpx_mock.add_response(
+            url=f"{route}/start?api-version=1.1",
+            match_json={
+                "extractionResult": ixp_extraction_response["extractionResult"],
+                "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
+                "actionTitle": "TestAction",
+                "actionPriority": None,
+                "actionCatalog": None,
+                "actionFolder": None,
+                "storageBucketName": None,
+                "allowChangeOfDocumentType": True,
+                "storageBucketDirectoryPath": None,
+            },
+            json={"operationId": operation_id},
+        )
+        httpx_mock.add_response(
+            url=f"{route}/result/{operation_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": create_validation_action_response},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service_v1.create_validate_extraction_action_async(
+                extraction_response=extraction_response,
+                action_title="TestAction",
+            )
+        else:
+            response = service_v1.create_validate_extraction_action(
+                extraction_response=extraction_response,
+                action_title="TestAction",
+            )
+
+        # ASSERT
+        assert response.operation_id == operation_id
+        assert response.tag == "live"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_results_with_tag(
+        self,
+        httpx_mock: HTTPXMock,
+        service_v1: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+        ixp_extraction_response: dict,  # type: ignore
+        extraction_validation_action_response_completed: dict,  # type: ignore
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        operation_id = str(uuid4())
+        route = f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}"
+
+        httpx_mock.add_response(
+            url=f"{route}/extraction/result/{operation_id}?api-version=1.1",
+            json={"status": "Succeeded", "result": ixp_extraction_response},
+        )
+        httpx_mock.add_response(
+            url=f"{route}/validation/result/{operation_id}?api-version=1.1",
+            json={
+                "status": "Succeeded",
+                "result": extraction_validation_action_response_completed,
+            },
+        )
+
+        # ACT
+        if mode == "async":
+            extraction = await service_v1.retrieve_ixp_extraction_result_async(
+                project_id=project_id, tag="live", operation_id=operation_id
+            )
+            validation = (
+                await service_v1.retrieve_ixp_extraction_validation_result_async(
+                    project_id=project_id, tag="live", operation_id=operation_id
+                )
+            )
+        else:
+            extraction = service_v1.retrieve_ixp_extraction_result(
+                project_id=project_id, tag="live", operation_id=operation_id
+            )
+            validation = service_v1.retrieve_ixp_extraction_validation_result(
+                project_id=project_id, tag="live", operation_id=operation_id
+            )
+
+        # ASSERT
+        assert extraction.tag == "live"
+        assert validation.operation_id == operation_id

@@ -7,6 +7,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, U
 from urllib.parse import quote
 from uuid import UUID
 
+from uipath.core.feature_flags import FeatureFlags
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -33,7 +34,8 @@ from .documents import (
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
 
-API_VERSION = "2.0"
+# Opts in to DU Framework API v2. Otherwise the service calls API v1.1.
+FRAMEWORK_V2_FEATURE_FLAG = "DocumentsFrameworkV2"
 
 # Response values returned as-is: Document Processing contract payloads are
 # PascalCase in every API version, and the digitization DOM is large and unused.
@@ -51,40 +53,6 @@ _UNNORMALIZED_KEYS = frozenset(
 def _framework_url(*segments: Any) -> Endpoint:
     path = "/".join(quote(str(segment), safe="") for segment in segments)
     return Endpoint(f"/du_/api/framework/projects/{path}")
-
-
-def _extractor_url(
-    project_id: str,
-    extractor_id: Optional[str],
-    tag: Optional[str],
-    document_type_id: str,
-    *segments: Any,
-) -> Endpoint:
-    if tag is None:
-        return _framework_url(project_id, "extractors", extractor_id, *segments)
-    return _framework_url(
-        project_id, "tags", tag, "document-types", document_type_id, *segments
-    )
-
-
-def _classifier_url(
-    project_id: str, classifier_id: Optional[str], tag: Optional[str], *segments: Any
-) -> Endpoint:
-    if tag is None:
-        return _framework_url(project_id, "classifiers", classifier_id, *segments)
-    return _framework_url(project_id, "tags", tag, *segments)
-
-
-def _classification_validation_url(
-    project_id: str, classifier_id: Optional[str], tag: Optional[str], *segments: Any
-) -> Endpoint:
-    if tag is None:
-        return _framework_url(
-            project_id, "classifiers", classifier_id, "validation", *segments
-        )
-    return _framework_url(
-        project_id, "tags", tag, "classifiers", "validation", *segments
-    )
 
 
 def _operation_result(
@@ -220,6 +188,9 @@ class DocumentsService(FolderContext, BaseService):
 
     This service provides methods to extract data from documents using UiPath's Document Understanding capabilities.
 
+    The service calls DU Framework API v1.1 by default. Set the `DocumentsFrameworkV2`
+    feature flag to call API v2 instead, e.g. `UIPATH_FEATURE_DocumentsFrameworkV2=true`.
+
     !!! warning "Preview Feature"
         This function is currently experimental.
         Behavior and parameters are subject to change in future versions.
@@ -235,6 +206,10 @@ class DocumentsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self.polling_interval = polling_interval
         self.polling_timeout = polling_timeout
+        self._framework_v2 = FeatureFlags.is_flag_enabled(
+            FRAMEWORK_V2_FEATURE_FLAG, default=False
+        )
+        self._api_version = "2.0" if self._framework_v2 else "1.1"
 
     def _get_common_headers(self) -> Dict[str, str]:
         return {
@@ -250,6 +225,60 @@ class DocumentsService(FolderContext, BaseService):
         response = await self.request_async(method, url=url, **kwargs)
         return _camel_case_keys(response.json())
 
+    def _tag_route(self, tag: str) -> Tuple[str, ...]:
+        # v2 moved tag-scoped routes under a literal `tags` segment.
+        return ("tags", tag) if self._framework_v2 else (tag,)
+
+    def _extractor_url(
+        self,
+        project_id: str,
+        extractor_id: Optional[str],
+        tag: Optional[str],
+        document_type_id: str,
+        *segments: Any,
+    ) -> Endpoint:
+        if tag is None:
+            return _framework_url(project_id, "extractors", extractor_id, *segments)
+        return _framework_url(
+            project_id,
+            *self._tag_route(tag),
+            "document-types",
+            document_type_id,
+            *segments,
+        )
+
+    def _classifier_url(
+        self,
+        project_id: str,
+        classifier_id: Optional[str],
+        tag: Optional[str],
+        *segments: Any,
+    ) -> Endpoint:
+        if tag is None:
+            return _framework_url(project_id, "classifiers", classifier_id, *segments)
+        return _framework_url(project_id, *self._tag_route(tag), *segments)
+
+    def _classification_validation_url(
+        self,
+        project_id: str,
+        classifier_id: Optional[str],
+        tag: Optional[str],
+        *segments: Any,
+    ) -> Endpoint:
+        if tag is None:
+            return _framework_url(
+                project_id, "classifiers", classifier_id, "validation", *segments
+            )
+        return _framework_url(
+            project_id, *self._tag_route(tag), "classifiers", "validation", *segments
+        )
+
+    def _allow_document_type_change(self) -> Dict[str, Any]:
+        # v2 moved this setting into the validation configuration.
+        if self._framework_v2:
+            return {"configuration": {"allowChangeOfDocumentType": True}}
+        return {"allowChangeOfDocumentType": True}
+
     def _get_classifier_id(
         self, project_type: ProjectType, project_id: str, version: Optional[int]
     ) -> Optional[str]:
@@ -262,7 +291,7 @@ class DocumentsService(FolderContext, BaseService):
         response = self._request_json(
             "GET",
             url=_framework_url(project_id, "classifiers"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -287,7 +316,7 @@ class DocumentsService(FolderContext, BaseService):
         response = await self._request_json_async(
             "GET",
             url=_framework_url(project_id, "classifiers"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -316,7 +345,7 @@ class DocumentsService(FolderContext, BaseService):
         response = self._request_json(
             "GET",
             url=_framework_url(project_id, "extractors"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -348,7 +377,7 @@ class DocumentsService(FolderContext, BaseService):
         response = await self._request_json_async(
             "GET",
             url=_framework_url(project_id, "extractors"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -379,7 +408,7 @@ class DocumentsService(FolderContext, BaseService):
         response = self._request_json(
             "GET",
             url=_framework_url(),
-            params={"api-version": API_VERSION, "type": project_type.value},
+            params={"api-version": self._api_version, "type": project_type.value},
             headers=self._get_common_headers(),
         )
 
@@ -407,7 +436,7 @@ class DocumentsService(FolderContext, BaseService):
         response = await self._request_json_async(
             "GET",
             url=_framework_url(),
-            params={"api-version": API_VERSION, "type": project_type.value},
+            params={"api-version": self._api_version, "type": project_type.value},
             headers=self._get_common_headers(),
         )
 
@@ -424,7 +453,7 @@ class DocumentsService(FolderContext, BaseService):
         response = self._request_json(
             "GET",
             url=_framework_url(project_id, "tags"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
         return {tag["name"] for tag in response.get("tags", [])}
@@ -433,7 +462,7 @@ class DocumentsService(FolderContext, BaseService):
         response = await self._request_json_async(
             "GET",
             url=_framework_url(project_id, "tags"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
         return {tag["name"] for tag in response.get("tags", [])}
@@ -504,7 +533,7 @@ class DocumentsService(FolderContext, BaseService):
                 "classifiers",
                 classification_result.classifier_id,
             ),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )["projectVersion"]
 
@@ -531,7 +560,7 @@ class DocumentsService(FolderContext, BaseService):
                     "classifiers",
                     classification_result.classifier_id,
                 ),
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
         )["projectVersion"]
@@ -598,7 +627,7 @@ class DocumentsService(FolderContext, BaseService):
             return self._request_json(
                 "POST",
                 url=_framework_url(project_id, "digitization", "start"),
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
                 files={"File": handle},
             )["documentId"]
@@ -614,7 +643,7 @@ class DocumentsService(FolderContext, BaseService):
                 await self._request_json_async(
                     "POST",
                     url=_framework_url(project_id, "digitization", "start"),
-                    params={"api-version": API_VERSION},
+                    params={"api-version": self._api_version},
                     headers=self._get_common_headers(),
                     files={"File": handle},
                 )
@@ -625,7 +654,7 @@ class DocumentsService(FolderContext, BaseService):
             result = self._request_json(
                 method="GET",
                 url=_framework_url(project_id, "digitization", "result", document_id),
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
             return (
@@ -647,7 +676,7 @@ class DocumentsService(FolderContext, BaseService):
             result = await self._request_json_async(
                 method="GET",
                 url=_framework_url(project_id, "digitization", "result", document_id),
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
             return (
@@ -678,7 +707,7 @@ class DocumentsService(FolderContext, BaseService):
         response = self._request_json(
             "GET",
             url=_framework_url(project_id, "document-types"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -709,7 +738,7 @@ class DocumentsService(FolderContext, BaseService):
         response = await self._request_json_async(
             "GET",
             url=_framework_url(project_id, "document-types"),
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -732,14 +761,14 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         document_id: str,
     ) -> StartExtractionResponse:
-        url = _extractor_url(
+        url = self._extractor_url(
             project_id, extractor_id, tag, document_type_id, "extraction", "start"
         )
 
         operation_id = self._request_json(
             "POST",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
             json={"documentId": document_id},
         )["operationId"]
@@ -759,7 +788,7 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         document_id: str,
     ) -> StartExtractionResponse:
-        url = _extractor_url(
+        url = self._extractor_url(
             project_id, extractor_id, tag, document_type_id, "extraction", "start"
         )
 
@@ -767,7 +796,7 @@ class DocumentsService(FolderContext, BaseService):
             await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
                 json={"documentId": document_id},
             )
@@ -844,7 +873,7 @@ class DocumentsService(FolderContext, BaseService):
         project_type: ProjectType,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         def result_getter() -> Tuple[str, str, Any]:
-            url = _extractor_url(
+            url = self._extractor_url(
                 project_id,
                 extractor_id,
                 tag,
@@ -857,7 +886,7 @@ class DocumentsService(FolderContext, BaseService):
             result = self._request_json(
                 method="GET",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
             return (
@@ -893,7 +922,7 @@ class DocumentsService(FolderContext, BaseService):
         project_type: ProjectType,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         async def result_getter() -> Tuple[str, str, Any]:
-            url = _extractor_url(
+            url = self._extractor_url(
                 project_id,
                 extractor_id,
                 tag,
@@ -906,7 +935,7 @@ class DocumentsService(FolderContext, BaseService):
             result = await self._request_json_async(
                 method="GET",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
             return (
@@ -939,12 +968,14 @@ class DocumentsService(FolderContext, BaseService):
         classifier_id: Optional[str],
         document_id: str,
     ) -> str:
-        url = _classifier_url(project_id, classifier_id, tag, "classification", "start")
+        url = self._classifier_url(
+            project_id, classifier_id, tag, "classification", "start"
+        )
 
         return self._request_json(
             "POST",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
             json={"documentId": document_id},
         )["operationId"]
@@ -956,13 +987,15 @@ class DocumentsService(FolderContext, BaseService):
         classifier_id: Optional[str],
         document_id: str,
     ) -> str:
-        url = _classifier_url(project_id, classifier_id, tag, "classification", "start")
+        url = self._classifier_url(
+            project_id, classifier_id, tag, "classification", "start"
+        )
 
         return (
             await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
                 json={"documentId": document_id},
             )
@@ -977,14 +1010,14 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> List[ClassificationResult]:
         def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            url = _classifier_url(
+            url = self._classifier_url(
                 project_id, classifier_id, tag, "classification", "result", operation_id
             )
 
             result = self._request_json(
                 method="GET",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
             return (
@@ -1017,14 +1050,14 @@ class DocumentsService(FolderContext, BaseService):
         operation_id: str,
     ) -> List[ClassificationResult]:
         async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            url = _classifier_url(
+            url = self._classifier_url(
                 project_id, classifier_id, tag, "classification", "result", operation_id
             )
 
             result = await self._request_json_async(
                 method="GET",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
             )
             return (
@@ -1299,7 +1332,7 @@ class DocumentsService(FolderContext, BaseService):
         response = self._request_json(
             method="GET",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
         return _operation_result(response, operation_id, operation_name)
@@ -1313,7 +1346,7 @@ class DocumentsService(FolderContext, BaseService):
         response = await self._request_json_async(
             method="GET",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
         return _operation_result(response, operation_id, operation_name)
@@ -1355,11 +1388,10 @@ class DocumentsService(FolderContext, BaseService):
         """
         document_type_id = str(UUID(int=0))
 
-        url = _framework_url(
+        url = self._extractor_url(
             project_id,
-            "tags",
+            None,
             tag,
-            "document-types",
             document_type_id,
             "extraction",
             "result",
@@ -1390,11 +1422,10 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronous version of the [`retrieve_ixp_extraction_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_result] method."""
         document_type_id = str(UUID(int=0))
 
-        url = _framework_url(
+        url = self._extractor_url(
             project_id,
-            "tags",
+            None,
             tag,
-            "document-types",
             document_type_id,
             "extraction",
             "result",
@@ -1650,12 +1681,14 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
-        url = _classification_validation_url(project_id, classifier_id, tag, "start")
+        url = self._classification_validation_url(
+            project_id, classifier_id, tag, "start"
+        )
 
         return self._request_json(
             "POST",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
             json={
                 "classificationResults": [
@@ -1684,13 +1717,15 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_name: Optional[str] = None,
         storage_bucket_directory_path: Optional[str] = None,
     ) -> str:
-        url = _classification_validation_url(project_id, classifier_id, tag, "start")
+        url = self._classification_validation_url(
+            project_id, classifier_id, tag, "start"
+        )
 
         return (
             await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
                 json={
                     "classificationResults": [
@@ -1721,14 +1756,14 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartExtractionValidationResponse:
-        url = _extractor_url(
+        url = self._extractor_url(
             project_id, extractor_id, tag, document_type_id, "validation", "start"
         )
 
         operation_id = self._request_json(
             "POST",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
             json={
                 "extractionResult": extraction_response.extraction_result.model_dump(),
@@ -1738,7 +1773,7 @@ class DocumentsService(FolderContext, BaseService):
                 "actionCatalog": action_catalog,
                 "actionFolder": action_folder,
                 "storageBucketName": storage_bucket_name,
-                "configuration": {"allowChangeOfDocumentType": True},
+                **self._allow_document_type_change(),
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
         )["operationId"]
@@ -1764,7 +1799,7 @@ class DocumentsService(FolderContext, BaseService):
         storage_bucket_directory_path: Optional[str],
         extraction_response: ExtractionResponse,
     ) -> StartExtractionValidationResponse:
-        url = _extractor_url(
+        url = self._extractor_url(
             project_id, extractor_id, tag, document_type_id, "validation", "start"
         )
 
@@ -1772,7 +1807,7 @@ class DocumentsService(FolderContext, BaseService):
             await self._request_json_async(
                 "POST",
                 url=url,
-                params={"api-version": API_VERSION},
+                params={"api-version": self._api_version},
                 headers=self._get_common_headers(),
                 json={
                     "extractionResult": extraction_response.extraction_result.model_dump(),
@@ -1782,7 +1817,7 @@ class DocumentsService(FolderContext, BaseService):
                     "actionCatalog": action_catalog,
                     "actionFolder": action_folder,
                     "storageBucketName": storage_bucket_name,
-                    "configuration": {"allowChangeOfDocumentType": True},
+                    **self._allow_document_type_change(),
                     "storageBucketDirectoryPath": storage_bucket_directory_path,
                 },
             )
@@ -1927,11 +1962,10 @@ class DocumentsService(FolderContext, BaseService):
         """
         document_type_id = str(UUID(int=0))
 
-        url = _framework_url(
+        url = self._extractor_url(
             project_id,
-            "tags",
+            None,
             tag,
-            "document-types",
             document_type_id,
             "validation",
             "result",
@@ -1966,11 +2000,10 @@ class DocumentsService(FolderContext, BaseService):
         """Asynchronous version of the [`retrieve_ixp_extraction_validation_result`][uipath.platform.documents._documents_service.DocumentsService.retrieve_ixp_extraction_validation_result] method."""
         document_type_id = str(UUID(int=0))
 
-        url = _framework_url(
+        url = self._extractor_url(
             project_id,
-            "tags",
+            None,
             tag,
-            "document-types",
             document_type_id,
             "validation",
             "result",
@@ -1999,14 +2032,14 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         operation_id: str,
     ) -> Dict:
-        url = _classification_validation_url(
+        url = self._classification_validation_url(
             project_id, classifier_id, tag, "result", operation_id
         )
 
         return self._request_json(
             method="GET",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -2017,14 +2050,14 @@ class DocumentsService(FolderContext, BaseService):
         tag: Optional[str],
         operation_id: str,
     ) -> Dict:
-        url = _classification_validation_url(
+        url = self._classification_validation_url(
             project_id, classifier_id, tag, "result", operation_id
         )
 
         return await self._request_json_async(
             method="GET",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -2036,7 +2069,7 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         operation_id: str,
     ) -> Dict:
-        url = _extractor_url(
+        url = self._extractor_url(
             project_id,
             extractor_id,
             tag,
@@ -2049,7 +2082,7 @@ class DocumentsService(FolderContext, BaseService):
         return self._request_json(
             method="GET",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
@@ -2061,7 +2094,7 @@ class DocumentsService(FolderContext, BaseService):
         document_type_id: str,
         operation_id: str,
     ) -> Dict:
-        url = _extractor_url(
+        url = self._extractor_url(
             project_id,
             extractor_id,
             tag,
@@ -2074,7 +2107,7 @@ class DocumentsService(FolderContext, BaseService):
         return await self._request_json_async(
             method="GET",
             url=url,
-            params={"api-version": API_VERSION},
+            params={"api-version": self._api_version},
             headers=self._get_common_headers(),
         )
 
