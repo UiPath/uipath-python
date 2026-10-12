@@ -975,7 +975,7 @@ class TestGuardrailAttachments:
 
         assert "attachments" not in json.loads(httpx_mock.get_requests()[0].content)
 
-    def test_attachments_key_is_absent_when_empty_list(
+    def test_empty_attachments_list_is_sent_as_empty_list(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
@@ -983,6 +983,7 @@ class TestGuardrailAttachments:
         org: str,
         tenant: str,
     ) -> None:
+        """An empty list tells the backend files apply but none were found."""
         httpx_mock.add_response(
             url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
             status_code=200,
@@ -991,7 +992,8 @@ class TestGuardrailAttachments:
 
         service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
 
-        assert "attachments" not in json.loads(httpx_mock.get_requests()[0].content)
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["attachments"] == []
 
     def test_attachment_round_trips_the_wire_shape(self) -> None:
         """The camelCase body the API emits parses back into the model unchanged."""
@@ -1126,6 +1128,27 @@ class TestGuardrailAttachmentFolderHeader:
         request = httpx_mock.get_requests()[0]
         assert "x-uipath-folderkey" not in request.headers
 
+    def test_folder_header_absent_with_empty_attachments_even_if_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-key-123")
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
+
+        request = httpx_mock.get_requests()[0]
+        assert "x-uipath-folderkey" not in request.headers
+
 
 class TestGuardrailAttachmentTiming:
     """Attachments still get the longer, file-fetching-aware timeout."""
@@ -1166,6 +1189,26 @@ class TestGuardrailAttachmentTiming:
         )
 
         service.evaluate_guardrail("x", _judge_guardrail())
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] != 60.0
+
+    def test_evaluate_guardrail_keeps_default_timeout_with_empty_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """No file is fetched for an empty list, so it needs no longer timeout."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
 
         timeout = httpx_mock.get_requests()[0].extensions["timeout"]
         assert timeout["read"] != 60.0
