@@ -16,6 +16,7 @@ from .documents import (
     FieldType,
     FieldValueProjection,
     FileContent,
+    ModelExtractionResponse,
     ProjectType,
     Reference,
     StartExtractionResponse,
@@ -47,4 +48,5 @@ __all__ = [
     "StartExtractionResponse",
     "StartOperationResponse",
     "StartExtractionValidationResponse",
+    "ModelExtractionResponse",
 ]

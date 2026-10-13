@@ -303,3 +303,21 @@ class StartExtractionResponse(StartOperationResponse):
 
 class StartExtractionValidationResponse(StartOperationResponse):
     """A model representing the response from starting an extraction validation operation."""
+
+
+class ModelExtractionResponse(BaseModel):
+    """A model representing the result of an extraction with a model deployed to a folder.
+
+    Attributes:
+        extraction_result (ExtractionResult): The result of the extraction process.
+        model_name (str): The name of the deployed model.
+    """
+
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
+
+    extraction_result: ExtractionResult = Field(alias="extractionResult")
+    model_name: str = Field(alias="modelName")
