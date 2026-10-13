@@ -321,3 +321,21 @@ class ModelExtractionResponse(BaseModel):
 
     extraction_result: ExtractionResult = Field(alias="extractionResult")
     model_name: str = Field(alias="modelName")
+
+
+class StartModelExtractionValidationResponse(BaseModel):
+    """A model representing prepared validation data for an extraction with a model deployed to a folder.
+
+    Attributes:
+        operation_id (str): The ID of the validation operation, used to retrieve the validated result.
+        content_validation_data (dict): The validation data to open a document validation task with.
+    """
+
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
+
+    operation_id: str = Field(alias="operationId")
+    content_validation_data: dict[str, Any] = Field(alias="contentValidationData")
