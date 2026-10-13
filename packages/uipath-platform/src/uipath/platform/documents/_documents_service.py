@@ -190,6 +190,8 @@ class DocumentsService(FolderContext, BaseService):
 
     The service calls DU Framework API v1.1 by default. Set the `DocumentsFrameworkV2`
     feature flag to call API v2 instead, e.g. `UIPATH_FEATURE_DocumentsFrameworkV2=true`.
+    The flag is read when the service is created, so set it before accessing
+    `UiPath().documents` and keep it set when a suspended job resumes.
 
     !!! warning "Preview Feature"
         This function is currently experimental.

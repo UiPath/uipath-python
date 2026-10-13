@@ -65,7 +65,7 @@ class FieldValueProjection(BaseModel):
     """A model representing a projection of a field value in a document extraction result.
 
     Attributes:
-        id (str): The field ID, prefixed by its document type and field group, if any (e.g. `Invoices.name`, `Default.Invoice.Total`).
+        id (str): The field ID. In API v1.1 it is the plain field ID (e.g. `Total`). In API v2 it is prefixed by its document type and field group, if any (e.g. `Default.Invoice.Total`).
         name (str): The field display name.
     """
 
@@ -145,7 +145,7 @@ class ExtractionResponseIXP(ExtractionResponse):
     """A model representing the response from a document extraction process for IXP projects.
 
     Attributes:
-        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data, with one entry per field group.
+        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data, with one entry per row of each table (API v1.1) or field group (API v2).
     """
 
     data_projection: Optional[List[FieldGroupValueProjection]] = Field(
