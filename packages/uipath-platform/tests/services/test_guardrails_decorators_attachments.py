@@ -175,7 +175,7 @@ def _sent_guardrail(evaluate: MagicMock) -> BuiltInValidatorGuardrail:
 
 
 def _scope(value: str) -> EnumParameterValue:
-    return EnumParameterValue(parameter_type="enum", id="appliesTo", value=value)
+    return EnumParameterValue(parameter_type="enum", id="detectionScope", value=value)
 
 
 def _rejection(status: int) -> EnrichedException:
@@ -305,9 +305,9 @@ class TestDetectionScope:
         assert [p.id for p in parameters] == [
             "entities",
             "entityThresholds",
-            "appliesTo",
+            "detectionScope",
         ]
-        assert [p for p in parameters if p.id == "appliesTo"] == [_scope("Files")]
+        assert [p for p in parameters if p.id == "detectionScope"] == [_scope("Files")]
         assert evaluate.call_args.kwargs == {"attachments": [_reference(cv)]}
 
     def test_text_scope_sends_the_scope_and_no_attachments(self, evaluate: MagicMock):
@@ -322,7 +322,7 @@ class TestDetectionScope:
 
         screen(_attachment(), _QUESTION)
         parameters = _sent_guardrail(evaluate).validator_parameters
-        assert [p for p in parameters if p.id == "appliesTo"] == [_scope("Text")]
+        assert [p for p in parameters if p.id == "detectionScope"] == [_scope("Text")]
         assert evaluate.call_args.kwargs == {}
 
     def test_scope_given_as_wire_string_is_accepted(self, evaluate: MagicMock):
@@ -339,7 +339,7 @@ class TestDetectionScope:
 
         screen(cv)
         parameters = _sent_guardrail(evaluate).validator_parameters
-        assert [p for p in parameters if p.id == "appliesTo"] == [_scope("Both")]
+        assert [p for p in parameters if p.id == "detectionScope"] == [_scope("Both")]
         assert evaluate.call_args.kwargs == {"attachments": [_reference(cv)]}
 
     @pytest.mark.parametrize("detection_scope", ["files", "TEXT", "", 1])
@@ -383,7 +383,7 @@ class TestDetectionScope:
         screen(_attachment(), _QUESTION)
         evaluate.assert_called_once()
         parameters = _sent_guardrail(evaluate).validator_parameters
-        assert [p for p in parameters if p.id == "appliesTo"] == [_scope("Text")]
+        assert [p for p in parameters if p.id == "detectionScope"] == [_scope("Text")]
         assert evaluate.call_args.kwargs == {}
 
 
@@ -591,8 +591,8 @@ class TestValidatorsWithoutFileSupport:
         assert validator.inputs == [{"cv": _dumped(cv)}, {"cv": _dumped(cv)}]
         assert [record.getMessage() for record in caplog.records] == [
             "Validator _LegacyBuiltInValidator overrides run() without the "
-            "attachments/detection_scope parameters; files and scope are ignored for "
-            "guardrail 'CV check'."
+            "attachments/detection_scope parameters; files and the detection scope are "
+            "ignored for guardrail 'CV check'."
         ]
 
     def test_built_in_validator_with_a_kwargs_catch_all_receives_the_files(

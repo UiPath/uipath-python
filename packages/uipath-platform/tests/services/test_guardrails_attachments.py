@@ -1,4 +1,4 @@
-"""Tests for attachment discovery and the appliesTo scope of coded guardrails."""
+"""Tests for attachment discovery and the detection scope of coded guardrails."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ from pydantic import BaseModel
 
 from uipath.platform.attachments import Attachment
 from uipath.platform.guardrails import (
-    APPLIES_TO_PARAMETER_ID,
+    DETECTION_SCOPE_PARAMETER_ID,
     BuiltInValidatorGuardrail,
     DetectionScope,
     GuardrailAttachment,
+    detection_scope_includes_files,
     discover_attachments,
     iter_attachment_mentions,
     mention_id,
     referenced_attachments,
-    scope_includes_files,
     to_references,
     with_detection_scope,
 )
@@ -69,7 +69,7 @@ def _entities() -> EnumListParameterValue:
     )
 
 
-def _scope(value: str, parameter_id: str = "appliesTo") -> EnumParameterValue:
+def _scope(value: str, parameter_id: str = "detectionScope") -> EnumParameterValue:
     return EnumParameterValue(parameter_type="enum", id=parameter_id, value=value)
 
 
@@ -159,7 +159,7 @@ class TestDetectionScope:
     def test_wire_values(self) -> None:
         assert [member.value for member in DetectionScope] == ["Text", "Files", "Both"]
         assert DetectionScope("Files") is DetectionScope.FILES
-        assert APPLIES_TO_PARAMETER_ID == "appliesTo"
+        assert DETECTION_SCOPE_PARAMETER_ID == "detectionScope"
 
 
 class TestWithDetectionScope:
@@ -170,10 +170,14 @@ class TestWithDetectionScope:
 
         assert scoped.validator_parameters == [
             _entities(),
-            EnumParameterValue(parameter_type="enum", id="appliesTo", value="Files"),
+            EnumParameterValue(
+                parameter_type="enum", id="detectionScope", value="Files"
+            ),
         ]
 
-    @pytest.mark.parametrize("parameter_id", ["appliesTo", "appliesto", "AppliesTo"])
+    @pytest.mark.parametrize(
+        "parameter_id", ["detectionScope", "detectionscope", "DetectionScope"]
+    )
     def test_replaces_an_existing_scope_instead_of_duplicating(
         self, parameter_id: str
     ) -> None:
@@ -184,10 +188,10 @@ class TestWithDetectionScope:
         scopes = [
             parameter
             for parameter in scoped.validator_parameters
-            if parameter.id.lower() == "appliesto"
+            if parameter.id.lower() == "detectionscope"
         ]
         assert scopes == [
-            EnumParameterValue(parameter_type="enum", id="appliesTo", value="Both")
+            EnumParameterValue(parameter_type="enum", id="detectionScope", value="Both")
         ]
         assert _entities() in scoped.validator_parameters
 
@@ -206,8 +210,8 @@ class TestWithDetectionScope:
         assert scoped is not guardrail
         assert guardrail.validator_parameters is original
         assert guardrail.validator_parameters == before
-        assert scope_includes_files(guardrail) is False
-        assert scope_includes_files(scoped) is True
+        assert detection_scope_includes_files(guardrail) is False
+        assert detection_scope_includes_files(scoped) is True
 
     def test_an_invalid_scope_leaves_the_guardrail_unchanged(self) -> None:
         guardrail = _guardrail(_entities())
@@ -221,13 +225,13 @@ class TestWithDetectionScope:
 
         assert {
             "$parameterType": "enum",
-            "id": "appliesTo",
+            "id": "detectionScope",
             "value": "Text",
         } in dumped["validatorParameters"]
         assert BuiltInValidatorGuardrail.model_validate(dumped) == scoped
 
 
-class TestScopeIncludesFiles:
+class TestDetectionScopeIncludesFiles:
     @pytest.mark.parametrize(
         "value,includes_files",
         [
@@ -243,13 +247,18 @@ class TestScopeIncludesFiles:
         ],
     )
     def test_matrix(self, value: str, includes_files: bool) -> None:
-        assert scope_includes_files(_guardrail(_scope(value))) is includes_files
+        assert (
+            detection_scope_includes_files(_guardrail(_scope(value))) is includes_files
+        )
 
     def test_absent_parameter_leaves_files_in_scope(self) -> None:
-        assert scope_includes_files(_guardrail(_entities())) is True
+        assert detection_scope_includes_files(_guardrail(_entities())) is True
 
     def test_matches_the_parameter_id_case_insensitively(self) -> None:
-        assert scope_includes_files(_guardrail(_scope("Text", "AppliesTo"))) is False
+        assert (
+            detection_scope_includes_files(_guardrail(_scope("Text", "DetectionScope")))
+            is False
+        )
 
     def test_unreadable_parameters_leave_files_in_scope(self) -> None:
         fields: dict[str, Any] = {
@@ -260,7 +269,7 @@ class TestScopeIncludesFiles:
         }
         guardrail = BuiltInValidatorGuardrail.model_construct(**fields)
 
-        assert scope_includes_files(guardrail) is True
+        assert detection_scope_includes_files(guardrail) is True
 
 
 class TestIterAttachmentMentions:

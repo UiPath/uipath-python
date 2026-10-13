@@ -15,13 +15,13 @@ from uipath.core.guardrails import (
 
 from ._guardrails_service import GuardrailsService
 from .attachments import (
-    APPLIES_TO_PARAMETER_ID,
+    DETECTION_SCOPE_PARAMETER_ID,
     DetectionScope,
+    detection_scope_includes_files,
     discover_attachments,
     iter_attachment_mentions,
     mention_id,
     referenced_attachments,
-    scope_includes_files,
     to_references,
     with_detection_scope,
 )
@@ -83,12 +83,12 @@ __all__ = [
     "MapEnumParameterValue",
     # Attachments
     "DetectionScope",
-    "APPLIES_TO_PARAMETER_ID",
+    "DETECTION_SCOPE_PARAMETER_ID",
     "discover_attachments",
     "referenced_attachments",
     "to_references",
     "with_detection_scope",
-    "scope_includes_files",
+    "detection_scope_includes_files",
     "iter_attachment_mentions",
     "mention_id",
     # Decorator framework

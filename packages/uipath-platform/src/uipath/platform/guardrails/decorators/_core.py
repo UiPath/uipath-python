@@ -13,8 +13,8 @@ from uipath.core.guardrails import (
 
 from ..attachments import (
     DetectionScope,
+    detection_scope_includes_files,
     discover_attachments,
-    scope_includes_files,
     with_detection_scope,
 )
 from ..guardrails import GuardrailAttachment
@@ -87,21 +87,23 @@ def _accepts_files(validator: BuiltInGuardrailValidator) -> bool:
     )
 
 
-def _scope_admits_files(
+def _detection_scope_admits_files(
     validator: BuiltInGuardrailValidator,
     name: str,
     description: str | None,
     enabled_for_evals: bool,
     detection_scope: DetectionScope | None,
 ) -> bool:
-    """Tell whether the guardrail's scope lets files through; unreadable means yes."""
+    """Tell whether the detection scope lets files through; unreadable means yes."""
     if detection_scope == DetectionScope.TEXT:
         return False
     try:
         built_in = validator.get_built_in_guardrail(
             name, description, enabled_for_evals
         )
-        return scope_includes_files(with_detection_scope(built_in, detection_scope))
+        return detection_scope_includes_files(
+            with_detection_scope(built_in, detection_scope)
+        )
     except Exception:
         return True
 
@@ -119,16 +121,17 @@ def _make_evaluator(
     (`BuiltInGuardrailValidator` hits the UiPath API;
     `CustomGuardrailValidator` runs a local Python rule). Only a
     `BuiltInGuardrailValidator` whose ``run`` takes ``attachments`` and
-    ``detection_scope`` (or ``**kwargs``) receives the scope and the attachments;
-    other validators are called with the original positional arguments, and a
-    built-in one that overrides ``run`` without them is warned about once.
+    ``detection_scope`` (or ``**kwargs``) receives the detection scope and the
+    attachments; other validators are called with the original positional
+    arguments, and a built-in one that overrides ``run`` without them is warned
+    about once.
 
     Args:
         validator: `GuardrailValidatorBase` instance.
         name: Guardrail name — forwarded to ``validator.run()`` on each call.
         description: Optional description — forwarded to ``validator.run()``.
         enabled_for_evals: Whether active in evaluation scenarios.
-        detection_scope: Scope sent to the API, or None for the backend default.
+        detection_scope: Sent to the API, or None for the backend default.
 
     Returns:
         Callable with signature
@@ -141,7 +144,7 @@ def _make_evaluator(
     if detection_scope is not None and not built_in:
         logger.warning(
             "Guardrail '%s' sets detection_scope, but %s evaluates locally and "
-            "never reads files; the scope is ignored.",
+            "never reads files; the detection scope is ignored.",
             name,
             type(validator).__name__,
         )
@@ -159,7 +162,8 @@ def _make_evaluator(
             warned = True
             logger.warning(
                 "Validator %s overrides run() without the attachments/detection_scope "
-                "parameters; files and scope are ignored for guardrail '%s'.",
+                "parameters; files and the detection scope are ignored for guardrail "
+                "'%s'.",
                 type(validator).__name__,
                 name,
             )
@@ -183,7 +187,7 @@ def _make_evaluator(
             name, description, enabled_for_evals, data, stage, input_data, output_data
         )
 
-    forwards_attachments = forwards_files and _scope_admits_files(
+    forwards_attachments = forwards_files and _detection_scope_admits_files(
         validator, name, description, enabled_for_evals, detection_scope
     )
     _eval.forwards_attachments = forwards_attachments  # type: ignore[attr-defined]

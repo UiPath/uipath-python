@@ -8,9 +8,9 @@ from uipath.core.guardrails import GuardrailValidationResult
 
 from uipath.platform.errors import EnrichedException
 from uipath.platform.guardrails.attachments import (
-    APPLIES_TO_PARAMETER_ID,
+    DETECTION_SCOPE_PARAMETER_ID,
     DetectionScope,
-    scope_includes_files,
+    detection_scope_includes_files,
     with_detection_scope,
 )
 from uipath.platform.guardrails.guardrails import (
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def _declares_detection_scope(guardrail: BuiltInValidatorGuardrail) -> bool:
     try:
         return any(
-            parameter.id.lower() == APPLIES_TO_PARAMETER_ID.lower()
+            parameter.id.lower() == DETECTION_SCOPE_PARAMETER_ID.lower()
             and isinstance(parameter.value, str)
             and bool(parameter.value.strip())
             for parameter in guardrail.validator_parameters
@@ -155,7 +155,7 @@ class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
                 rejects them (HTTP 400) the data is evaluated again without them.
                 An empty list sent for a guardrail whose scope explicitly includes
                 files tells the backend that files apply and there are none.
-            detection_scope: The ``appliesTo`` scope to send, replacing any the
+            detection_scope: The ``detectionScope`` to send, replacing any the
                 guardrail already carries; ``None`` keeps the backend default.
 
         Returns:
@@ -165,7 +165,7 @@ class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
             self.get_built_in_guardrail(name, description, enabled_for_evals),
             detection_scope,
         )
-        files_apply = scope_includes_files(built_in)
+        files_apply = detection_scope_includes_files(built_in)
         files_requested = files_apply and (
             detection_scope is not None or _declares_detection_scope(built_in)
         )

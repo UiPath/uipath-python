@@ -1,4 +1,4 @@
-"""Discover the files a coded guardrail may inspect and scope it with ``appliesTo``.
+"""Discover the files a coded guardrail may inspect and set its ``detectionScope``.
 
 Two call shapes feed the same reference type, `GuardrailAttachment`:
 
@@ -39,21 +39,21 @@ logger = logging.getLogger(__name__)
 
 
 class DetectionScope(str, Enum):
-    """Which content a guardrail evaluates; the wire values of ``appliesTo``."""
+    """Which content a guardrail evaluates; the wire values of ``detectionScope``."""
 
     TEXT = "Text"
     FILES = "Files"
     BOTH = "Both"
 
 
-APPLIES_TO_PARAMETER_ID = "appliesTo"
+DETECTION_SCOPE_PARAMETER_ID = "detectionScope"
 MAX_ATTACHMENTS = 5
 MAX_FILE_NAME_LENGTH = 260
 MAX_SCAN_DEPTH = 32
 MAX_SCAN_NODES = 10_000
 
-_APPLIES_TO_KEY = APPLIES_TO_PARAMETER_ID.lower()
-_FILE_SCOPES = frozenset(
+_DETECTION_SCOPE_KEY = DETECTION_SCOPE_PARAMETER_ID.lower()
+_FILE_DETECTION_SCOPES = frozenset(
     {DetectionScope.FILES.value.lower(), DetectionScope.BOTH.value.lower()}
 )
 _ID_KEYS = ("ID", "id")
@@ -62,30 +62,31 @@ _MIME_TYPE_KEYS = ("MimeType", "mime_type")
 _CONTAINERS = (BaseModel, Mapping, list, tuple, set, frozenset)
 
 
-def scope_includes_files(guardrail: BuiltInValidatorGuardrail) -> bool:
-    """Tell whether a guardrail's ``appliesTo`` scope lets files through.
+def detection_scope_includes_files(guardrail: BuiltInValidatorGuardrail) -> bool:
+    """Tell whether a guardrail's ``detectionScope`` lets files through.
 
-    ``appliesTo`` is an allow-list: only ``Files`` and ``Both`` (any case) include
+    ``detectionScope`` is an allow-list: only ``Files`` and ``Both`` (any case) include
     files, so an unknown value narrows to text only. An absent or empty value leaves
     the decision to the backend default, as does a parameter list that cannot be read.
 
     Args:
-        guardrail: The guardrail whose validator parameters carry the scope.
+        guardrail: The guardrail whose validator parameters carry the detection scope.
 
     Returns:
         False when the guardrail is scoped to text only, True otherwise.
     """
     try:
         for parameter in guardrail.validator_parameters:
-            if parameter.id.lower() != _APPLIES_TO_KEY:
+            if parameter.id.lower() != _DETECTION_SCOPE_KEY:
                 continue
             if isinstance(parameter.value, str):
                 scope = parameter.value.strip().lower()
                 if scope:
-                    return scope in _FILE_SCOPES
+                    return scope in _FILE_DETECTION_SCOPES
     except Exception:
         logger.debug(
-            "Could not read the guardrail scope; assuming files apply.", exc_info=True
+            "Could not read the guardrail detection scope; assuming files apply.",
+            exc_info=True,
         )
     return True
 
@@ -95,8 +96,8 @@ def with_detection_scope(
 ) -> BuiltInValidatorGuardrail:
     """Return the guardrail scoped to ``detection_scope``.
 
-    Any existing ``appliesTo`` parameter (matched case-insensitively) is replaced, so
-    the backend receives exactly one. The input guardrail is never mutated.
+    Any existing ``detectionScope`` parameter (matched case-insensitively) is replaced,
+    so the backend receives exactly one. The input guardrail is never mutated.
 
     Args:
         guardrail: The guardrail to scope.
@@ -111,13 +112,13 @@ def with_detection_scope(
     try:
         scope = EnumParameterValue(
             parameter_type="enum",
-            id=APPLIES_TO_PARAMETER_ID,
+            id=DETECTION_SCOPE_PARAMETER_ID,
             value=DetectionScope(detection_scope).value,
         )
         parameters = [
             parameter
             for parameter in guardrail.validator_parameters
-            if parameter.id.lower() != _APPLIES_TO_KEY
+            if parameter.id.lower() != _DETECTION_SCOPE_KEY
         ]
         return guardrail.model_copy(
             update={"validator_parameters": [*parameters, scope]}

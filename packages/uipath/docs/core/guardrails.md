@@ -395,9 +395,9 @@ Requires `uipath-platform` 0.2.37 or newer.
 
 API-based validators forward the files a function receives or returns for the Agents backend to inspect. `ByoValidator` forwards them too, but a BYO connector reads them only when it declares document support. `CustomValidator` runs locally and sees text only.
 
-### Scope
+### Detection scope
 
-`detection_scope` sets what an API-based validator evaluates. It is sent to the Agents backend as the guardrail's `appliesTo` parameter, the one the Agents designer shows for low-code guardrails:
+`detection_scope` sets what an API-based validator evaluates. It is sent to the Agents backend as the guardrail's `detectionScope` parameter, the one the Agents designer shows as **Detection scope** for low-code guardrails:
 
 | Value | Evaluates |
 |-------|-----------|
@@ -407,7 +407,7 @@ API-based validators forward the files a function receives or returns for the Ag
 
 The strings are case-sensitive. Any other value raises `ValueError` when the decorator is applied.
 
-The default, `None`, sends no `appliesTo` parameter. The Agents backend then applies its per-validator default: `Both` for `LLMAsJudgeValidator`, `Text` for every other built-in validator.
+The default, `None`, sends no `detectionScope` parameter. The Agents backend then applies its per-validator default: `Both` for `LLMAsJudgeValidator`, `Text` for every other built-in validator.
 
 ### What is forwarded
 
@@ -418,7 +418,7 @@ On a plain or async function, the decorator scans the raw arguments at `PRE` and
 
 The scan looks inside lists, dicts and Pydantic models. The id must be a UUID. A mapping without a name or a mime type is skipped. Parameters marked with `GuardrailExclude` are not scanned. At most 5 references are forwarded per evaluation.
 
-A reference that is not discovered (an excluded parameter, a missing name or mime type, an id that is not a UUID, a reference past the cap of 5) is dropped without a warning. When no reference is discovered and the scope includes files (`DetectionScope.FILES` or `DetectionScope.BOTH`), the request goes out with an empty attachment list: a `Files` guardrail then passes without a provider call, a `Both` guardrail still evaluates the text. When the arguments cannot be scanned at all, the request says nothing about files and the text is evaluated as before.
+A reference that is not discovered (an excluded parameter, a missing name or mime type, an id that is not a UUID, a reference past the cap of 5) is dropped without a warning. When no reference is discovered and the detection scope includes files (`DetectionScope.FILES` or `DetectionScope.BOTH`), the request goes out with an empty attachment list: a `Files` guardrail then passes without a provider call, a `Both` guardrail still evaluates the text. When the arguments cannot be scanned at all, the request says nothing about files and the text is evaluated as before.
 
 Only references travel: `id`, `fileName` and `mimeType`. The Agents backend resolves the id through Orchestrator with the run's own identity. It decodes or extracts the text and evaluates it.
 
@@ -499,7 +499,7 @@ result = sdk.guardrails.evaluate_guardrail(
 print(result.result, result.reason, result.flagged_attachment_ids)
 ```
 
-`id` is the Orchestrator attachment id. `with_detection_scope` adds the files to the scope, since `pii_detection` defaults to text. `result.flagged_attachment_ids` names the files that caused a `VALIDATION_FAILED`.
+`id` is the Orchestrator attachment id. `with_detection_scope` adds the files to the detection scope, since `pii_detection` defaults to text. `result.flagged_attachment_ids` names the files that caused a `VALIDATION_FAILED`.
 
 ---
 
