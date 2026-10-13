@@ -119,7 +119,9 @@ class GuardrailsService(BaseService):
         Args:
             input_data: The text or structured data to validate. Dictionaries will be converted to a string before validation.
             guardrail: A guardrail instance used for validation.
-            attachments: Files attached to the run that the guardrail may inspect.
+            attachments: Files the guardrail may inspect. ``None`` omits the field, so
+                the backend checks only the text. An empty list is sent as ``[]``,
+                meaning files apply but there are none to inspect.
             termination_mode: ``FAIL_FAST`` stops scanning at the first violation;
                 ``EVALUATE_ALL`` or ``None`` scans everything.
 
@@ -141,7 +143,7 @@ class GuardrailsService(BaseService):
                     "BYO (Bring Your Own) guardrails require byo_validator_name."
                 )
             payload["byoValidatorName"] = guardrail.byo_validator_name
-        if attachments:
+        if attachments is not None:
             payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
         if termination_mode is not None:
             payload["terminationMode"] = termination_mode.value
