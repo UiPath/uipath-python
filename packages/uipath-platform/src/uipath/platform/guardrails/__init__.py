@@ -14,6 +14,17 @@ from uipath.core.guardrails import (
 )
 
 from ._guardrails_service import GuardrailsService
+from .attachments import (
+    APPLIES_TO_PARAMETER_ID,
+    DetectionScope,
+    discover_attachments,
+    iter_attachment_mentions,
+    mention_id,
+    referenced_attachments,
+    scope_includes_files,
+    to_references,
+    with_detection_scope,
+)
 from .decorators import (
     BlockAction,
     BuiltInGuardrailValidator,
@@ -70,6 +81,16 @@ __all__ = [
     "GuardrailValidationResult",
     "EnumListParameterValue",
     "MapEnumParameterValue",
+    # Attachments
+    "DetectionScope",
+    "APPLIES_TO_PARAMETER_ID",
+    "discover_attachments",
+    "referenced_attachments",
+    "to_references",
+    "with_detection_scope",
+    "scope_includes_files",
+    "iter_attachment_mentions",
+    "mention_id",
     # Decorator framework
     "guardrail",
     "GuardrailValidatorBase",
