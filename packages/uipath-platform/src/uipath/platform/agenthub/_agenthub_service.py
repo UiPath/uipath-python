@@ -22,14 +22,25 @@ class AgentHubService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
 
     def get_available_llm_models(
-        self, headers: dict[str, Any] | None = None
+        self,
+        headers: dict[str, Any] | None = None,
+        *,
+        include_deprecated_models: bool = False,
     ) -> list[LlmModel]:
         """Fetch available models from LLM Gateway discovery endpoint.
+
+        Args:
+            headers: Extra headers sent with the discovery request.
+            include_deprecated_models: Also return the models already retired for
+                the requested feature, flagged `isDeprecated` and described by the
+                successor LLM Gateway serves them on.
 
         Returns:
            List of available models and their configurations.
         """
-        spec = self._available_models_spec(headers=headers)
+        spec = self._available_models_spec(
+            headers=headers, include_deprecated_models=include_deprecated_models
+        )
 
         response = self.request(
             spec.method,
@@ -43,14 +54,25 @@ class AgentHubService(FolderContext, BaseService):
         ]
 
     async def get_available_llm_models_async(
-        self, headers: dict[str, Any] | None = None
+        self,
+        headers: dict[str, Any] | None = None,
+        *,
+        include_deprecated_models: bool = False,
     ) -> list[LlmModel]:
         """Asynchronously fetch available models from LLM Gateway discovery endpoint.
+
+        Args:
+            headers: Extra headers sent with the discovery request.
+            include_deprecated_models: Also return the models already retired for
+                the requested feature, flagged `isDeprecated` and described by the
+                successor LLM Gateway serves them on.
 
         Returns:
            List of available models and their configurations.
         """
-        spec = self._available_models_spec(headers=headers)
+        spec = self._available_models_spec(
+            headers=headers, include_deprecated_models=include_deprecated_models
+        )
 
         response = await self.request_async(
             spec.method,
@@ -197,9 +219,14 @@ class AgentHubService(FolderContext, BaseService):
 
         return folder_key
 
-    def _available_models_spec(self, headers: dict[str, Any] | None) -> RequestSpec:
+    def _available_models_spec(
+        self, headers: dict[str, Any] | None, include_deprecated_models: bool
+    ) -> RequestSpec:
         return RequestSpec(
             method="GET",
             endpoint=Endpoint("/agenthub_/llm/api/discovery"),
+            params={"includeDeprecatedModels": "true"}
+            if include_deprecated_models
+            else {},
             headers=headers or {},
         )
