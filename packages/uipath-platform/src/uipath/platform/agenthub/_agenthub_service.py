@@ -29,12 +29,6 @@ class AgentHubService(FolderContext, BaseService):
     ) -> list[LlmModel]:
         """Fetch available models from LLM Gateway discovery endpoint.
 
-        Args:
-            headers: Extra headers sent with the discovery request.
-            include_deprecated_models: Also return the models already retired for
-                the requested feature, flagged `isDeprecated` and described by the
-                successor LLM Gateway serves them on.
-
         Returns:
            List of available models and their configurations.
         """
@@ -60,12 +54,6 @@ class AgentHubService(FolderContext, BaseService):
         include_deprecated_models: bool = False,
     ) -> list[LlmModel]:
         """Asynchronously fetch available models from LLM Gateway discovery endpoint.
-
-        Args:
-            headers: Extra headers sent with the discovery request.
-            include_deprecated_models: Also return the models already retired for
-                the requested feature, flagged `isDeprecated` and described by the
-                successor LLM Gateway serves them on.
 
         Returns:
            List of available models and their configurations.
