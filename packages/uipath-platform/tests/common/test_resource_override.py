@@ -1,3 +1,4 @@
+import logging
 from typing import Iterator, Optional, Tuple
 
 import pytest
@@ -51,6 +52,27 @@ async def test_bound_folder_replaces_a_folder_key_async(asset_overwrite: None) -
         None,
         "Finance/EU",
     )
+
+
+def test_cleared_folder_key_is_logged(
+    asset_overwrite: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="uipath.platform.common._bindings"):
+        retrieve("ApiKey", folder_key="callers-key")
+
+    assert (
+        "Resource overwrite cleared folder_key='callers-key' in favour of bound "
+        "folder_path='Finance/EU'"
+    ) in caplog.messages
+
+
+def test_nothing_logged_when_no_folder_key_was_passed(
+    asset_overwrite: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="uipath.platform.common._bindings"):
+        retrieve("ApiKey")
+
+    assert not any("cleared" in message for message in caplog.messages)
 
 
 def test_folder_key_kept_without_a_matching_overwrite(asset_overwrite: None) -> None:
