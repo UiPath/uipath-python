@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [options]
@@ -2762,7 +2762,7 @@ wheels = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.33"
+version = "0.2.33.post1"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "anyio" },
