@@ -3,6 +3,7 @@
 import json
 
 import pytest
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
@@ -296,6 +297,40 @@ class TestMemoryService:
             assert body["settings"]["searchMode"] == "Hybrid"
             assert body["settings"]["fieldMatching"] == "Or"
             assert body["definitionSystemPrompt"] == "You are a helpful assistant."
+
+        @pytest.mark.parametrize(
+            ("raw", "expected"),
+            [
+                ("or", FieldMatching.Or),
+                ("and", FieldMatching.And),
+                ("Or", FieldMatching.Or),
+                ("And", FieldMatching.And),
+                ("AND", FieldMatching.And),
+                (FieldMatching.And, FieldMatching.And),
+            ],
+        )
+        def test_search_settings_parse_field_matching_case_insensitively(
+            self, raw: str | FieldMatching, expected: FieldMatching
+        ) -> None:
+            settings = SearchSettings.model_validate(
+                {"searchMode": "Hybrid", "fieldMatching": raw}
+            )
+
+            assert settings.field_matching is expected
+
+        def test_search_settings_default_field_matching_is_or(self) -> None:
+            settings = SearchSettings.model_validate({"searchMode": "Hybrid"})
+
+            assert settings.field_matching is FieldMatching.Or
+
+        @pytest.mark.parametrize("raw", ["xor", "", 1, None])
+        def test_search_settings_reject_unknown_field_matching(
+            self, raw: object
+        ) -> None:
+            with pytest.raises(ValidationError):
+                SearchSettings.model_validate(
+                    {"searchMode": "Hybrid", "fieldMatching": raw}
+                )
 
         def test_search_sends_configured_field_matching(
             self,
