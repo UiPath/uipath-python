@@ -9,6 +9,7 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.memory import (
     EscalationMemoryIngestRequest,
     EscalationMemorySearchResponse,
+    FieldMatching,
     MemoryMatch,
     MemoryMatchField,
     MemorySearchRequest,
@@ -293,7 +294,40 @@ class TestMemoryService:
             body = json.loads(sent.content)
             assert body["fields"][0]["keyPath"] == ["input"]
             assert body["settings"]["searchMode"] == "Hybrid"
+            assert body["settings"]["fieldMatching"] == "Or"
             assert body["definitionSystemPrompt"] == "You are a helpful assistant."
+
+        def test_search_sends_configured_field_matching(
+            self,
+            httpx_mock: HTTPXMock,
+            service: MemoryService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            memory_space_id = "aaaa-bbbb-cccc-dddd"
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/llmopstenant_/api/Agent/memory/{memory_space_id}/search",
+                status_code=200,
+                json=SAMPLE_SEARCH_RESPONSE,
+            )
+
+            request = MemorySearchRequest(
+                fields=[SearchField(key_path=["input"], value="Northwind")],
+                settings=SearchSettings(
+                    threshold=0.8,
+                    result_count=1,
+                    search_mode=SearchMode.Hybrid,
+                    field_matching=FieldMatching.And,
+                ),
+            )
+
+            service.search(memory_space_id=memory_space_id, request=request)
+
+            sent = httpx_mock.get_request()
+            assert sent is not None
+            body = json.loads(sent.content)
+            assert body["settings"]["fieldMatching"] == "And"
 
         def test_search_sends_folder_header(
             self,
