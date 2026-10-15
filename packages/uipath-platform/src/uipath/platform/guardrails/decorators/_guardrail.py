@@ -3,12 +3,15 @@
 import inspect
 import logging
 from functools import wraps
-from typing import Any
+from typing import Any, Literal
 
+from ..attachments import DetectionScope
 from ._core import (
     _apply_pre_modification,
     _collect_input,
     _collect_output,
+    _discover_input_attachments,
+    _discover_output_attachments,
     _EvaluatorFn,
     _get_excluded_params,
     _make_evaluator,
@@ -26,6 +29,20 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _coerce_detection_scope(detection_scope: Any) -> DetectionScope | None:
+    """Return *detection_scope* as a `DetectionScope` member, or raise ``ValueError``."""
+    if detection_scope is None or isinstance(detection_scope, DetectionScope):
+        return detection_scope
+    if isinstance(detection_scope, str):
+        try:
+            return DetectionScope(detection_scope)
+        except ValueError:
+            pass
+    raise ValueError(
+        "detection_scope must be a DetectionScope member or one of 'Text', 'Files', 'Both'"
+    )
+
+
 def _run_pre(
     evaluator: _EvaluatorFn,
     action: GuardrailAction,
@@ -35,8 +52,24 @@ def _run_pre(
 ) -> None:
     """Evaluate PRE guardrail and apply any modifications to *bound* in-place."""
     input_data = _collect_input(bound, excluded)
+    if not input_data:
+        logger.debug(
+            "Skipping PRE guardrail %r: no non-excluded arguments to evaluate.", name
+        )
+        return
+    attachments = (
+        _discover_input_attachments(bound, excluded)
+        if getattr(evaluator, "forwards_attachments", True)
+        else None
+    )
     try:
-        result = evaluator(input_data, GuardrailExecutionStage.PRE, input_data, None)
+        result = evaluator(
+            input_data,
+            GuardrailExecutionStage.PRE,
+            input_data,
+            None,
+            attachments=attachments,
+        )
     except Exception as exc:
         logger.error("Error evaluating PRE guardrail %r: %s", name, exc, exc_info=True)
         return
@@ -58,9 +91,18 @@ def _run_post(
     """Evaluate POST guardrail and return (possibly modified) return value."""
     input_data = _collect_input(bound, excluded)
     output_data = _collect_output(return_value)
+    attachments = (
+        _discover_output_attachments(return_value)
+        if getattr(evaluator, "forwards_attachments", True)
+        else None
+    )
     try:
         result = evaluator(
-            output_data, GuardrailExecutionStage.POST, input_data, output_data
+            output_data,
+            GuardrailExecutionStage.POST,
+            input_data,
+            output_data,
+            attachments=attachments,
         )
     except Exception as exc:
         logger.error("Error evaluating POST guardrail %r: %s", name, exc, exc_info=True)
@@ -154,19 +196,28 @@ def guardrail(
     description: str | None = None,
     stage: GuardrailExecutionStage = GuardrailExecutionStage.PRE_AND_POST,
     enabled_for_evals: bool = True,
+    detection_scope: DetectionScope | Literal["Text", "Files", "Both"] | None = None,
 ) -> Any:
     """Apply a guardrail to any callable — tool functions, LLM factories, agent nodes.
 
     When applied to a plain function or async function, the decorator collects
     function parameters (PRE) and return value (POST) and evaluates them against
     the guardrail. Use `GuardrailExclude` to opt individual
-    parameters out of serialization.
+    parameters out of serialization. PRE runs only when the callable receives
+    at least one non-excluded argument.
 
     When applied to a factory function whose return value is recognised by a
     registered framework adapter (e.g. a LangChain ``BaseChatModel``), the
     returned object is wrapped so every subsequent ``invoke()`` call is guarded.
 
     Multiple ``@guardrail`` decorators can be stacked on the same callable.
+
+    Files: attachment references are discovered in the raw arguments (PRE) and
+    the raw return value (POST) — `Attachment` instances and mappings shaped
+    ``{"ID", "FullName", "MimeType"}`` or ``{"id", "full_name", "mime_type"}``
+    — and forwarded to API-based validators by reference, never by content.
+    Parameters marked with `GuardrailExclude` are not scanned. A Filter action
+    applies to text only.
 
     Args:
         func: Callable to decorate. Supplied directly when used without parentheses.
@@ -178,13 +229,19 @@ def guardrail(
             Defaults to ``PRE_AND_POST``.
         enabled_for_evals: Whether this guardrail is active in evaluation scenarios.
             Defaults to ``True``.
+        detection_scope: What an API-based validator evaluates: ``TEXT`` the text
+            only, ``FILES`` the attached files only, ``BOTH`` the text and the
+            files. The wire values ``"Text"``, ``"Files"`` and ``"Both"`` are
+            accepted too. ``None`` (the default) leaves it to the backend's
+            per-validator default: ``BOTH`` for LLM-as-judge, ``TEXT`` for the
+            others.
 
     Returns:
         The decorated callable (or framework object).
 
     Raises:
-        ValueError: If *action* is invalid, or the validator does not support
-            the requested stage.
+        ValueError: If *action* or *detection_scope* is invalid, or the validator does
+            not support the requested stage.
         GuardrailBlockException: Raised at runtime by `BlockAction`
             when a violation is detected.
     """
@@ -194,6 +251,7 @@ def guardrail(
         raise ValueError("action must be an instance of GuardrailAction")
     if not isinstance(enabled_for_evals, bool):
         raise ValueError("enabled_for_evals must be a boolean")
+    scope = _coerce_detection_scope(detection_scope)
 
     def _apply(obj: Any) -> Any:
         # ------------------------------------------------------------------
@@ -201,7 +259,9 @@ def guardrail(
         # ------------------------------------------------------------------
         if is_recognized_by_adapter(obj):
             validator.validate_stage(stage)
-            evaluator = _make_evaluator(validator, name, description, enabled_for_evals)
+            evaluator = _make_evaluator(
+                validator, name, description, enabled_for_evals, scope
+            )
             return wrap_with_adapter(obj, evaluator, action, name, stage)
 
         # ------------------------------------------------------------------
@@ -209,7 +269,9 @@ def guardrail(
         # ------------------------------------------------------------------
         if callable(obj):
             validator.validate_stage(stage)
-            evaluator = _make_evaluator(validator, name, description, enabled_for_evals)
+            evaluator = _make_evaluator(
+                validator, name, description, enabled_for_evals, scope
+            )
             excluded = _get_excluded_params(obj)
             return _wrap_function(obj, evaluator, action, name, stage, excluded)
 

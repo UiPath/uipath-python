@@ -5,13 +5,21 @@ import dataclasses
 import inspect
 import json
 import logging
-from typing import Annotated, Any, Callable, get_args, get_origin, get_type_hints
+from typing import Annotated, Any, Protocol, get_args, get_origin, get_type_hints
 
 from uipath.core.guardrails import (
     GuardrailValidationResult,
 )
 
+from ..attachments import (
+    DetectionScope,
+    detection_scope_includes_files,
+    discover_attachments,
+    with_detection_scope,
+)
+from ..guardrails import GuardrailAttachment
 from ._enums import GuardrailExecutionStage
+from .validators._base import BuiltInGuardrailValidator
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +45,29 @@ class GuardrailExclude:
 # Evaluator type alias
 # ---------------------------------------------------------------------------
 
-_EvaluatorFn = Callable[
-    [
-        "str | dict[str, Any]",  # data
-        GuardrailExecutionStage,  # stage
-        "dict[str, Any] | None",  # input_data
-        "dict[str, Any] | None",  # output_data
-    ],
-    GuardrailValidationResult,
-]
-"""Type alias for the unified evaluation callable used by all wrappers."""
+
+class _EvaluatorFn(Protocol):
+    """The unified evaluation callable used by all wrappers.
+
+    ``attachments`` is keyword-only and optional, so adapters that call
+    ``evaluator(data, stage, input_data, output_data)`` keep working.
+
+    Adapters may also read an optional ``forwards_attachments`` attribute, which
+    is not a member of this Protocol. `_make_evaluator` sets it to False when the
+    evaluator drops every attachment (text scope, or a validator that takes no
+    files), so a call with files but no text can be skipped. An evaluator without
+    it counts as forwarding: ``getattr(evaluator, "forwards_attachments", True)``.
+    """
+
+    def __call__(
+        self,
+        data: str | dict[str, Any],
+        stage: GuardrailExecutionStage,
+        input_data: dict[str, Any] | None,
+        output_data: dict[str, Any] | None,
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
+    ) -> GuardrailValidationResult: ...
 
 
 # ---------------------------------------------------------------------------
@@ -54,38 +75,122 @@ _EvaluatorFn = Callable[
 # ---------------------------------------------------------------------------
 
 
+def _accepts_files(validator: BuiltInGuardrailValidator) -> bool:
+    """Tell whether ``run`` takes ``attachments`` and ``detection_scope`` or ``**kwargs``."""
+    try:
+        parameters = inspect.signature(type(validator).run).parameters.values()
+    except (AttributeError, TypeError, ValueError):
+        return False
+    names = {parameter.name for parameter in parameters}
+    return {"attachments", "detection_scope"} <= names or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters
+    )
+
+
+def _detection_scope_admits_files(
+    validator: BuiltInGuardrailValidator,
+    name: str,
+    description: str | None,
+    enabled_for_evals: bool,
+    detection_scope: DetectionScope | None,
+) -> bool:
+    """Tell whether the detection scope lets files through; unreadable means yes."""
+    if detection_scope == DetectionScope.TEXT:
+        return False
+    try:
+        built_in = validator.get_built_in_guardrail(
+            name, description, enabled_for_evals
+        )
+        return detection_scope_includes_files(
+            with_detection_scope(built_in, detection_scope)
+        )
+    except Exception:
+        return True
+
+
 def _make_evaluator(
     validator: Any,
     name: str,
     description: str | None,
     enabled_for_evals: bool,
+    detection_scope: DetectionScope | None = None,
 ) -> _EvaluatorFn:
     """Return a unified evaluation callable.
 
     Delegates to ``validator.run()`` which each validator subclass implements
     (`BuiltInGuardrailValidator` hits the UiPath API;
-    `CustomGuardrailValidator` runs a local Python rule).
+    `CustomGuardrailValidator` runs a local Python rule). Only a
+    `BuiltInGuardrailValidator` whose ``run`` takes ``attachments`` and
+    ``detection_scope`` (or ``**kwargs``) receives the detection scope and the
+    attachments; other validators are called with the original positional
+    arguments, and a built-in one that overrides ``run`` without them is warned
+    about once.
 
     Args:
         validator: `GuardrailValidatorBase` instance.
         name: Guardrail name — forwarded to ``validator.run()`` on each call.
         description: Optional description — forwarded to ``validator.run()``.
         enabled_for_evals: Whether active in evaluation scenarios.
+        detection_scope: Sent to the API, or None for the backend default.
 
     Returns:
-        Callable with signature ``(data, stage, input_data, output_data)``.
+        Callable with signature
+        ``(data, stage, input_data, output_data, *, attachments=None)`` and a
+        ``forwards_attachments`` attribute.
     """
+    built_in = isinstance(validator, BuiltInGuardrailValidator)
+    forwards_files = built_in and _accepts_files(validator)
+    warned = False
+    if detection_scope is not None and not built_in:
+        logger.warning(
+            "Guardrail '%s' sets detection_scope, but %s evaluates locally and "
+            "never reads files; the detection scope is ignored.",
+            name,
+            type(validator).__name__,
+        )
 
     def _eval(
         data: str | dict[str, Any],
         stage: GuardrailExecutionStage,
         input_data: dict[str, Any] | None,
         output_data: dict[str, Any] | None,
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
     ) -> GuardrailValidationResult:
+        nonlocal warned
+        if built_in and not forwards_files and not warned:
+            warned = True
+            logger.warning(
+                "Validator %s overrides run() without the attachments/detection_scope "
+                "parameters; files and the detection scope are ignored for guardrail "
+                "'%s'.",
+                type(validator).__name__,
+                name,
+            )
+        if forwards_files:
+            kwargs: dict[str, Any] = {}
+            if detection_scope is not None:
+                kwargs["detection_scope"] = detection_scope
+            if attachments is not None and detection_scope != DetectionScope.TEXT:
+                kwargs["attachments"] = list(attachments)
+            return validator.run(
+                name,
+                description,
+                enabled_for_evals,
+                data,
+                stage,
+                input_data,
+                output_data,
+                **kwargs,
+            )
         return validator.run(
             name, description, enabled_for_evals, data, stage, input_data, output_data
         )
 
+    forwards_attachments = forwards_files and _detection_scope_admits_files(
+        validator, name, description, enabled_for_evals, detection_scope
+    )
+    _eval.forwards_attachments = forwards_attachments  # type: ignore[attr-defined]
     return _eval
 
 
@@ -124,8 +229,9 @@ def _get_excluded_params(func: Any) -> set[str]:
 def _serialize_value(value: Any) -> Any:
     """Serialize *value* to a JSON-compatible type for guardrail evaluation.
 
-    Pydantic models → ``model_dump()``, dataclasses → ``asdict()``,
-    primitives → as-is, everything else → ``str()``.
+    Pydantic models → ``model_dump(mode="json")`` (the plain ``model_dump()``
+    when a field has no JSON form), dataclasses → ``asdict()``, primitives →
+    as-is, everything else → ``str()``.
     """
     if value is None:
         return None
@@ -137,7 +243,10 @@ def _serialize_value(value: Any) -> Any:
         return [_serialize_value(v) for v in value]
     # Pydantic v2
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        try:
+            return value.model_dump(mode="json")
+        except Exception:
+            return value.model_dump()
     # Pydantic v1
     if hasattr(value, "dict") and callable(value.dict):
         try:
@@ -184,6 +293,54 @@ def _collect_output(return_value: Any) -> dict[str, Any]:
     if isinstance(serialized, dict):
         return serialized
     return {"return": serialized}
+
+
+def _discover_input_attachments(
+    bound: inspect.BoundArguments,
+    excluded: set[str],
+) -> list[GuardrailAttachment] | None:
+    """Return references for the attachments among the non-excluded arguments.
+
+    Args:
+        bound: Bound arguments from ``inspect.Signature.bind()``, scanned raw.
+        excluded: Parameter names to skip.
+
+    Returns:
+        The references to forward; empty when there are none; ``None`` when the
+        arguments cannot be scanned.
+    """
+    try:
+        return discover_attachments(
+            {
+                name: value
+                for name, value in bound.arguments.items()
+                if name not in excluded and name not in ("self", "cls")
+            }
+        )
+    except Exception:
+        logger.warning("Could not scan the arguments for attachments.", exc_info=True)
+        return None
+
+
+def _discover_output_attachments(
+    return_value: Any,
+) -> list[GuardrailAttachment] | None:
+    """Return references for the attachments in a function's return value.
+
+    Args:
+        return_value: The value returned by the wrapped function, scanned raw.
+
+    Returns:
+        The references to forward; empty when there are none; ``None`` when the
+        value cannot be scanned.
+    """
+    try:
+        return discover_attachments(return_value)
+    except Exception:
+        logger.warning(
+            "Could not scan the return value for attachments.", exc_info=True
+        )
+        return None
 
 
 def _reconstruct_output(original: Any, modified: Any) -> Any:

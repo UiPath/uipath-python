@@ -1,13 +1,38 @@
 """Abstract base classes for guardrail validators."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
 from uipath.core.guardrails import GuardrailValidationResult
 
-from uipath.platform.guardrails.guardrails import BuiltInValidatorGuardrail
+from uipath.platform.errors import EnrichedException
+from uipath.platform.guardrails.attachments import (
+    DETECTION_SCOPE_PARAMETER_ID,
+    DetectionScope,
+    detection_scope_includes_files,
+    with_detection_scope,
+)
+from uipath.platform.guardrails.guardrails import (
+    BuiltInValidatorGuardrail,
+    GuardrailAttachment,
+)
 
 from .._enums import GuardrailExecutionStage
+
+logger = logging.getLogger(__name__)
+
+
+def _declares_detection_scope(guardrail: BuiltInValidatorGuardrail) -> bool:
+    try:
+        return any(
+            parameter.id.lower() == DETECTION_SCOPE_PARAMETER_ID.lower()
+            and isinstance(parameter.value, str)
+            and bool(parameter.value.strip())
+            for parameter in guardrail.validator_parameters
+        )
+    except Exception:
+        return False
 
 
 class GuardrailValidatorBase:
@@ -107,18 +132,73 @@ class BuiltInGuardrailValidator(GuardrailValidatorBase, ABC):
         stage: GuardrailExecutionStage,
         input_data: "dict[str, Any] | None",
         output_data: "dict[str, Any] | None",
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
+        detection_scope: DetectionScope | None = None,
     ) -> GuardrailValidationResult:
         """Evaluate via the UiPath Guardrails API.
 
         Lazily initialises the ``UiPath`` client on the first call and reuses
         it for all subsequent invocations.
+
+        Args:
+            name: Name for the guardrail instance.
+            description: Optional description.
+            enabled_for_evals: Whether active in evaluation scenarios.
+            data: Primary data being evaluated.
+            stage: Current execution stage (PRE or POST).
+            input_data: Normalised function input dict, or ``None``.
+            output_data: Normalised function output dict, or ``None``.
+            attachments: File references the backend may inspect, or ``None`` to say
+                nothing about files (the text is evaluated as before). They are
+                dropped when the guardrail is scoped to text, and when the service
+                rejects them (HTTP 400) the data is evaluated again without them.
+                An empty list sent for a guardrail whose scope explicitly includes
+                files tells the backend that files apply and there are none.
+            detection_scope: The ``detectionScope`` to send, replacing any the
+                guardrail already carries; ``None`` keeps the backend default.
+
+        Returns:
+            The outcome of the guardrail evaluation.
         """
-        built_in = self.get_built_in_guardrail(name, description, enabled_for_evals)
+        built_in = with_detection_scope(
+            self.get_built_in_guardrail(name, description, enabled_for_evals),
+            detection_scope,
+        )
+        files_apply = detection_scope_includes_files(built_in)
+        files_requested = files_apply and (
+            detection_scope is not None or _declares_detection_scope(built_in)
+        )
         if not hasattr(self, "_uipath"):
             from uipath.platform import UiPath
 
             self._uipath: Any = UiPath()
-        return self._uipath.guardrails.evaluate_guardrail(data, built_in)
+        guardrails = self._uipath.guardrails
+        if not files_apply or attachments is None:
+            return guardrails.evaluate_guardrail(data, built_in)
+        if not attachments:
+            if files_requested:
+                return guardrails.evaluate_guardrail(data, built_in, attachments=[])
+            return guardrails.evaluate_guardrail(data, built_in)
+        try:
+            return guardrails.evaluate_guardrail(
+                data, built_in, attachments=list(attachments)
+            )
+        except EnrichedException as exc:
+            if exc.status_code != 400:
+                raise
+            logger.warning(
+                "Guardrail '%s' rejected the attachment references (HTTP 400); "
+                "re-evaluating without attachments (%d dropped).",
+                name,
+                len(attachments),
+            )
+            logger.debug(
+                "Guardrail '%s' dropped the attachment ids %s.",
+                name,
+                ", ".join(attachment.id for attachment in attachments),
+            )
+            return guardrails.evaluate_guardrail(data, built_in)
 
 
 class CustomGuardrailValidator(GuardrailValidatorBase, ABC):
