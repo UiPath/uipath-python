@@ -2724,6 +2724,95 @@ class TestEntitiesServiceAsyncCoverage:
         entities = await service.list_entities_async()
         assert len(entities) == 1
 
+    def test_list_entities_v3_includes_fields_by_default(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities",
+            status_code=200,
+            json=[
+                {
+                    "name": "Customers",
+                    "displayName": "Customers",
+                    "entityType": "Entity",
+                    "fields": [],
+                    "isRbacEnabled": False,
+                    "id": "ent-1",
+                }
+            ],
+        )
+        entities = service.list_entities_v3()
+        assert entities[0].fields == []
+
+    def test_list_entities_v3_without_fields_reads_every_page(
+        self,
+        httpx_mock: HTTPXMock,
+        monkeypatch: pytest.MonkeyPatch,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        monkeypatch.setattr(
+            "uipath.platform.entities._entity_schema_service._ENTITY_PAGE_SIZE", 1
+        )
+        for skip, name in enumerate(["Customers", "Orders"]):
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/paginated?skip={skip}&top=1",
+                status_code=200,
+                json={
+                    "totalCount": 2,
+                    "results": [
+                        {
+                            "name": name,
+                            "displayName": name,
+                            "entityType": "Entity",
+                            "isRbacEnabled": False,
+                            "id": f"ent-{skip}",
+                        }
+                    ],
+                },
+            )
+        entities = service.list_entities_v3(include_fields=False)
+        assert [e.name for e in entities] == ["Customers", "Orders"]
+        assert all(e.fields is None for e in entities)
+
+    async def test_list_entities_v3_without_fields_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/paginated?skip=0&top=200",
+            status_code=200,
+            json={
+                "totalCount": 1,
+                "results": [
+                    {
+                        "name": "Customers",
+                        "displayName": "Customers",
+                        "entityType": "Entity",
+                        "isRbacEnabled": False,
+                        "id": "ent-1",
+                    }
+                ],
+            },
+        )
+        entities = await service.list_entities_v3_async(include_fields=False)
+        assert [e.name for e in entities] == ["Customers"]
+        assert entities[0].fields is None
+
     async def test_list_records_async(
         self,
         httpx_mock: HTTPXMock,

@@ -39,6 +39,9 @@ DATA_FABRIC_TENANT_FOLDER_ID = "00000000-0000-0000-0000-000000000000"
 _V1_ENTITIES = "datafabric_/api/Entity"
 _V3_ENTITIES = "datafabric_/api/v3/entities"
 
+_ENTITY_PAGE_SIZE = 200
+"""Largest page the v3 ``paginated`` route accepts."""
+
 
 def _schema_base(use_v3: bool) -> str:
     """Return the entity-schema endpoint root for the requested API version."""
@@ -133,6 +136,26 @@ class EntitySchemaService(BaseService):
         response = await self.request_async(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
+
+    def list_entities_without_fields(self) -> List[Entity]:
+        """Internal implementation; see `EntitiesService.list_entities_v3()`."""
+        entities: List[Entity] = []
+        while True:
+            spec = self._list_entities_page_spec(skip=len(entities))
+            response = self.request(spec.method, spec.endpoint, params=spec.params)
+            if self._extend_with_page(entities, response.json()):
+                return entities
+
+    async def list_entities_without_fields_async(self) -> List[Entity]:
+        """Async variant of `list_entities_without_fields()`."""
+        entities: List[Entity] = []
+        while True:
+            spec = self._list_entities_page_spec(skip=len(entities))
+            response = await self.request_async(
+                spec.method, spec.endpoint, params=spec.params
+            )
+            if self._extend_with_page(entities, response.json()):
+                return entities
 
     def list_choicesets(self) -> List[Entity]:
         """Internal implementation; see `EntitiesService.list_choicesets()`."""
@@ -234,6 +257,27 @@ class EntitySchemaService(BaseService):
             method="GET",
             endpoint=Endpoint(_schema_base(use_v3)),
         )
+
+    @staticmethod
+    def _list_entities_page_spec(skip: int) -> RequestSpec:
+        """Build the GET spec for one page of entities without their fields.
+
+        The v3 ``paginated`` route lists the same entities as ``GET /v3/entities``
+        but never loads the field schemas, so the response stays small on tenants
+        with many entities.
+        """
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"{_V3_ENTITIES}/paginated"),
+            params={"skip": skip, "top": _ENTITY_PAGE_SIZE},
+        )
+
+    @staticmethod
+    def _extend_with_page(entities: List[Entity], page: Dict[str, Any]) -> bool:
+        """Append one ``paginated`` page to ``entities``; True when it was the last."""
+        results = page.get("results") or []
+        entities.extend(Entity.model_validate(entity) for entity in results)
+        return not results or len(entities) >= page.get("totalCount", 0)
 
     @staticmethod
     def _list_choicesets_spec() -> RequestSpec:
