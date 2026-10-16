@@ -4910,6 +4910,50 @@ class TestSearchDuringIngestion:
         assert resource.settings.search_during_ingestion is True
 
 
+class TestReadPagesSetting:
+    """settings.readPages opts a context resource into a page-reading tool."""
+
+    def _context_settings(self, **extra: Any) -> dict[str, Any]:
+        return {
+            "threshold": 0,
+            "resultCount": 3,
+            "retrievalMode": "Semantic",
+            "query": {"description": "The query.", "variant": "Dynamic"},
+            **extra,
+        }
+
+    def test_defaults_to_false_when_absent(self):
+        settings = AgentContextSettings.model_validate(self._context_settings())
+        assert settings.read_pages is False
+
+    @pytest.mark.parametrize("key", ["readPages", "read_pages"])
+    def test_opt_in_parsed_from_alias_and_field_name(self, key: str):
+        settings = AgentContextSettings.model_validate(
+            self._context_settings(**{key: True})
+        )
+        assert settings.read_pages is True
+
+    def test_round_trips_by_alias(self):
+        settings = AgentContextSettings.model_validate(
+            self._context_settings(readPages=True)
+        )
+        assert settings.model_dump(by_alias=True)["readPages"] is True
+
+    def test_reaches_the_resource_config(self):
+        resource = AgentContextResourceConfig.model_validate(
+            {
+                "$resourceType": "context",
+                "folderPath": "TestFolder",
+                "indexName": "Test Index",
+                "name": "Test Context",
+                "description": "Context whose documents the agent may read by page",
+                "settings": self._context_settings(readPages=True),
+            }
+        )
+        assert resource.settings is not None
+        assert resource.settings.read_pages is True
+
+
 def _conversational_agent_json(*resources: dict[str, Any]) -> dict[str, Any]:
     return {
         "version": "1.0.0",

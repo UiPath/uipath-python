@@ -456,6 +456,15 @@ class AgentContextSettings(BaseCfg):
             "False, a search against an ingesting index fails instead."
         ),
     )
+    read_pages: bool = Field(
+        default=False,
+        alias="readPages",
+        description=(
+            "Give the agent a tool to read pages of a document found by this "
+            "context's search, such as pages the user names or the pages around "
+            "a search result."
+        ),
+    )
 
 
 class AgentContextResourceConfig(BaseAgentResourceConfig):
