@@ -61,6 +61,7 @@ class GenericResourceOverwrite(ResourceOverwrite):
         "queue",
         "remoteA2aAgent",
         "memorySpace",
+        "businessRule",
     ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
@@ -215,6 +216,38 @@ class ResourceOverwritesContext:
             _resource_overwrites.reset(self._token)
 
 
+_OTHER_FOLDER_IDENTIFIER = {"folder_path": "folder_key", "folder_key": "folder_path"}
+
+
+def _clear_folder_identifier_replaced_by_binding(
+    all_args: dict[str, Any],
+    sig: inspect.Signature,
+    folder_identifier: str,
+    bound_folder: Optional[str],
+) -> None:
+    """Clear the caller's other folder identifier when a binding names a folder.
+
+    header_folder() rejects a folder_key and a folder_path together.
+    """
+    other_folder_identifier = _OTHER_FOLDER_IDENTIFIER.get(folder_identifier)
+    if (
+        not bound_folder
+        or other_folder_identifier is None
+        or other_folder_identifier not in sig.parameters
+    ):
+        return
+    cleared = all_args.get(other_folder_identifier)
+    all_args[other_folder_identifier] = None
+    if cleared is not None:
+        logger.debug(
+            "Resource overwrite cleared %s='%s' in favour of bound %s='%s'",
+            other_folder_identifier,
+            cleared,
+            folder_identifier,
+            bound_folder,
+        )
+
+
 def resource_override(
     resource_type: str,
     resource_identifier: str = "name",
@@ -282,6 +315,12 @@ def resource_override(
                     if folder_identifier in sig.parameters:
                         all_args[folder_identifier] = (
                             matched_overwrite.folder_identifier
+                        )
+                        _clear_folder_identifier_replaced_by_binding(
+                            all_args,
+                            sig,
+                            folder_identifier,
+                            matched_overwrite.folder_identifier,
                         )
                     logger.debug(
                         "Resource overwrite applied for %s on %s: %s='%s' -> '%s', %s='%s' -> '%s'",

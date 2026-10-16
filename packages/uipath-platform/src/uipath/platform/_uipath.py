@@ -9,6 +9,7 @@ from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
 from .agenthub._remote_a2a_service import RemoteA2aService
 from .automation_ops import AutomationOpsService
+from .business_rules import BusinessRulesService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
@@ -189,6 +190,10 @@ class UiPath:
     @property
     def automation_ops(self) -> AutomationOpsService:
         return AutomationOpsService(self._config, self._execution_context)
+
+    @property
+    def business_rules(self) -> BusinessRulesService:
+        return BusinessRulesService(self._config, self._execution_context, self.folders)
 
     @property
     def pii_detection(self) -> PiiDetectionService:
