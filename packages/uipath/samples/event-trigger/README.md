@@ -10,7 +10,7 @@ UiPath Coded Agents allow you to write automation logic directly in Python while
 
 ### Step 1: Install UiPath Python SDK
 
-1. Open it with your prefered editor
+1. Open it with your preferred editor
 2. In terminal run:
 ```bash
 uv init
