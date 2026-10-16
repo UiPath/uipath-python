@@ -323,12 +323,26 @@ class EntitiesService(BaseService):
         return self._schema.list_entities()
 
     @traced(name="list_entities_v3", run_type="uipath")
-    def list_entities_v3(self) -> List[Entity]:
+    def list_entities_v3(self, include_fields: bool = True) -> List[Entity]:
         """List all entities via the v3 API.
 
         Experimental v3 surface (serves Federated entities); see
-        `list_entities()` for parameter and return details.
+        `list_entities()` for return details.
+
+        Args:
+            include_fields (bool): When `False`, list the same entities without
+                their field schemas, which keeps the response and the traced span
+                small on tenants with many entities. `Entity.fields`,
+                `record_count` and the storage sizes are then `None`.
+
+        Examples:
+            Resolve an entity id by name::
+
+                entities = entities_service.list_entities_v3(include_fields=False)
+                ids = {entity.name: entity.id for entity in entities}
         """
+        if not include_fields:
+            return self._schema.list_entities_without_fields()
         return self._schema.list_entities(use_v3=True)
 
     @deprecated(
@@ -374,8 +388,10 @@ class EntitiesService(BaseService):
         return await self._schema.list_entities_async()
 
     @traced(name="list_entities_v3", run_type="uipath")
-    async def list_entities_v3_async(self) -> List[Entity]:
+    async def list_entities_v3_async(self, include_fields: bool = True) -> List[Entity]:
         """Async variant of `list_entities_v3()`."""
+        if not include_fields:
+            return await self._schema.list_entities_without_fields_async()
         return await self._schema.list_entities_async(use_v3=True)
 
     @traced(name="list_choicesets", run_type="uipath")
