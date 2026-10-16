@@ -6,7 +6,7 @@ and platform-specific retry strategy for BaseService.
 
 import random
 
-from httpx import ConnectTimeout, HTTPStatusError, Response, TimeoutException
+from httpx import ConnectError, HTTPStatusError, Response, TimeoutException
 from tenacity import RetryCallState
 
 from ..errors import EnrichedException
@@ -67,7 +67,8 @@ _INITIAL_BACKOFF: float = 1.0
 
 def is_retryable_platform_exception(exception: BaseException) -> bool:
     """Return True if the exception is transient and should be retried."""
-    if isinstance(exception, (ConnectTimeout, TimeoutException)):
+    # A failed connect never sent the request, so any method is safe to retry.
+    if isinstance(exception, (ConnectError, TimeoutException)):
         return True
     if isinstance(exception, EnrichedException):
         return exception.status_code in RETRYABLE_STATUS_CODES
