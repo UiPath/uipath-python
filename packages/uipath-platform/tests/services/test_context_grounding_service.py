@@ -21,6 +21,7 @@ from uipath.platform.context_grounding import (
     CitationMode,
     ConfluenceSourceConfig,
     ContextGroundingIndex,
+    ContextGroundingPageRange,
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
     DeepRagResponse,
@@ -37,6 +38,7 @@ from uipath.platform.context_grounding._context_grounding_service import (
 )
 from uipath.platform.errors import (
     ContextGroundingIndexNotFoundError,
+    EnrichedException,
     IngestionInProgressException,
 )
 from uipath.platform.orchestrator._buckets_service import BucketsService
@@ -4418,3 +4420,174 @@ class TestJobKeyHeader:
 
         headers = mock_request.call_args[1]["headers"]
         assert HEADER_JOB_KEY not in headers
+
+
+class TestReadPages:
+    """read_pages(_async) looks the index up by name and posts the range to ReadPages."""
+
+    _DOC_ID = "1d01be8d-280b-45e7-b532-d1f8f8f36ead"
+
+    def _mock_index_lookup(
+        self, httpx_mock: HTTPXMock, base_url: str, org: str, tenant: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+            status_code=200,
+            json={
+                "PageItems": [
+                    {"Key": "test-folder-key", "FullyQualifiedName": "test-folder-path"}
+                ]
+            },
+        )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "folderKey": "index-folder-key",
+                        "lastIngestionStatus": "Completed",
+                    }
+                ]
+            },
+        )
+
+    def _mock_read_pages(
+        self, httpx_mock: HTTPXMock, base_url: str, org: str, tenant: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/ReadPages",
+            status_code=200,
+            json={
+                "sourceDocumentId": self._DOC_ID,
+                "source": "report.pdf",
+                "reference": "ref",
+                "pages": [
+                    {"pageNumber": 304, "content": "Page 304"},
+                    {"pageNumber": 305, "content": "Page 305"},
+                ],
+                "missingPages": [306],
+                "hasPrevious": True,
+                "hasNext": False,
+            },
+        )
+
+    def _assert_read_pages(
+        self,
+        httpx_mock: HTTPXMock,
+        response: ContextGroundingPageRange,
+        url: str,
+        user_agent: str,
+    ) -> None:
+        assert isinstance(response, ContextGroundingPageRange)
+        assert response.source_document_id == self._DOC_ID
+        assert response.source == "report.pdf"
+        assert [p.page_number for p in response.pages] == [304, 305]
+        assert response.pages[0].content == "Page 304"
+        assert response.missing_pages == [306]
+        assert response.has_previous is True
+        assert response.has_next is False
+
+        read_request = httpx_mock.get_requests()[-1]
+        assert read_request.method == "POST"
+        assert str(read_request.url) == url
+        assert json.loads(read_request.content) == {
+            "sourceDocumentId": self._DOC_ID,
+            "range": {"from": 304, "to": 306},
+        }
+        assert read_request.headers["x-uipath-folderkey"] == "index-folder-key"
+        assert read_request.headers[HEADER_JOB_KEY] == "job-key-read"
+        assert read_request.headers[HEADER_USER_AGENT] == user_agent
+
+    def test_read_pages(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-read")
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant)
+        self._mock_read_pages(httpx_mock, base_url, org, tenant)
+
+        response = service.read_pages(
+            name="test-index",
+            source_document_id=self._DOC_ID,
+            start_page=304,
+            end_page=306,
+        )
+
+        self._assert_read_pages(
+            httpx_mock,
+            response,
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/ReadPages",
+            f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.read_pages/{version}",
+        )
+
+    @pytest.mark.anyio
+    async def test_read_pages_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(ENV_JOB_KEY, "job-key-read")
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant)
+        self._mock_read_pages(httpx_mock, base_url, org, tenant)
+
+        response = await service.read_pages_async(
+            name="test-index",
+            source_document_id=self._DOC_ID,
+            start_page=304,
+            end_page=306,
+        )
+
+        self._assert_read_pages(
+            httpx_mock,
+            response,
+            f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/ReadPages",
+            f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.read_pages_async/{version}",
+        )
+
+    @pytest.mark.anyio
+    async def test_read_pages_async_raises_on_invalid_document_id(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/ReadPages",
+            status_code=400,
+            json={
+                "message": "One or more validation errors occurred.",
+                "errors": {
+                    "SourceDocumentId": [
+                        "SourceDocumentId 'report.pdf' is not a document id."
+                    ]
+                },
+            },
+        )
+
+        with pytest.raises(EnrichedException) as exc:
+            await service.read_pages_async(
+                name="test-index",
+                source_document_id="report.pdf",
+                start_page=1,
+                end_page=3,
+            )
+
+        assert exc.value.status_code == 400
+        assert "is not a document id" in str(exc.value)
