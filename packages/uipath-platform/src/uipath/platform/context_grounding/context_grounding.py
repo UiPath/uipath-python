@@ -304,3 +304,38 @@ class UnifiedQueryResult(BaseModel):
         default=None, alias="semanticResults"
     )
     explanation: Optional[str] = Field(default=None)
+
+
+class ContextGroundingPage(BaseModel):
+    """Model representing one page of an indexed document."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    page_number: int = Field(alias="pageNumber")
+    content: str = Field(default="", alias="content")
+
+
+class ContextGroundingPageRange(BaseModel):
+    """Model representing a range of pages read from an indexed document."""
+
+    model_config = ConfigDict(
+        validate_by_name=True,
+        validate_by_alias=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+    source_document_id: str = Field(alias="sourceDocumentId")
+    source: str = Field(default="", alias="source")
+    reference: Optional[str] = Field(default=None, alias="reference")
+    pages: list[ContextGroundingPage] = Field(default_factory=list, alias="pages")
+    missing_pages: list[int] = Field(default_factory=list, alias="missingPages")
+    has_previous: bool = Field(default=False, alias="hasPrevious")
+    has_next: bool = Field(default=False, alias="hasNext")
