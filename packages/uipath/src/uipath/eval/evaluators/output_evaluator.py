@@ -128,6 +128,19 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             return float(obj)
         return obj
 
+    def _describe_key_lookup_failure(
+        self, error: Exception, source: Any, key: "str | list[str]"
+    ) -> str:
+        """Describe which target output key(s) failed to resolve and what was available."""
+        requested = (
+            ", ".join(f"'{k}'" for k in key) if isinstance(key, list) else f"'{key}'"
+        )
+        message = f"Could not resolve target output key {requested}: {error}"
+        if isinstance(source, dict):
+            available = ", ".join(f"'{k}'" for k in source.keys()) or "none"
+            message += f". Available top-level keys: {available}"
+        return message
+
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
         """Get the actual output from the workload execution.
 
@@ -153,7 +166,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
                     title="One or more target output keys not found in actual output",
-                    detail=f"Error: {e}",
+                    detail=self._describe_key_lookup_failure(
+                        e, workload_execution.workload_output, key
+                    ),
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
             for k, v in list_result.items():
@@ -168,7 +183,9 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
                 raise UiPathEvaluationError(
                     code="TARGET_OUTPUT_KEY_NOT_FOUND",
                     title="Target output key not found in actual output",
-                    detail=f"Error: {e}",
+                    detail=self._describe_key_lookup_failure(
+                        e, workload_execution.workload_output, key
+                    ),
                     category=UiPathEvaluationErrorCategory.USER,
                 ) from e
         else:
@@ -216,7 +233,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             raise UiPathEvaluationError(
                 code="TARGET_OUTPUT_KEY_NOT_FOUND",
                 title="One or more target output keys not found in expected output",
-                detail=f"Error: {e}",
+                detail=self._describe_key_lookup_failure(e, expected_output, keys),
                 category=UiPathEvaluationErrorCategory.USER,
             ) from e
 
@@ -238,7 +255,7 @@ class BaseOutputEvaluator(BaseEvaluator[T, C, J]):
             raise UiPathEvaluationError(
                 code="TARGET_OUTPUT_KEY_NOT_FOUND",
                 title="Target output key not found in expected output",
-                detail=f"Error: {e}",
+                detail=self._describe_key_lookup_failure(e, expected_output, key),
                 category=UiPathEvaluationErrorCategory.USER,
             ) from e
 
