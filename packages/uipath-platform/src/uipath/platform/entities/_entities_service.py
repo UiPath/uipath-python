@@ -1405,7 +1405,7 @@ class EntitiesService(BaseService):
         file_type: str = "owl",
         folder_key: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Fetch one file of an ontology from Data Fabric.
+        """Fetch one file of an ontology from the Ontology service.
 
         !!! warning "Preview Feature"
             This method is currently experimental. Behavior and parameters are
@@ -1413,14 +1413,46 @@ class EntitiesService(BaseService):
 
         Args:
             ontology_name (str): Name of the ontology.
-            file_type (str): The ontology file to fetch — one of owl, r2rml,
-                shacl, summary, context.
+            file_type (str): The artifact type to fetch — ``schema`` (alias
+                ``owl``), ``mapping`` (alias ``r2rml``), ``constraints`` (alias
+                ``shacl``), ``functions``, ``actions``, ``business-rules``,
+                ``summary`` or ``context``.
             folder_key (Optional[str]): Key of the folder the ontology lives in.
 
         Returns:
-            Dict[str, Any]: The file record (e.g. ``content``, ``mediaType``).
+            Dict[str, Any]: ``content`` (the raw text; several artifacts of one
+            type are joined) and ``mediaType``.
+
+        Raises:
+            ValueError: If the ontology has no artifact of that type.
         """
         return await self._ontology.get_file_async(ontology_name, file_type, folder_key)
+
+    async def list_ontology_artifacts_async(
+        self,
+        ontology_name: str,
+        artifact_type: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List an ontology's artifacts (metadata only, no content).
+
+        !!! warning "Preview Feature"
+            This method is currently experimental. Behavior and parameters are
+            subject to change in future versions.
+
+        Args:
+            ontology_name (str): Name of the ontology.
+            artifact_type (Optional[str]): Restrict to one artifact type
+                (e.g. ``schema``, ``mapping``); all types when omitted.
+            folder_key (Optional[str]): Key of the folder the ontology lives in.
+
+        Returns:
+            List[Dict[str, Any]]: One record per artifact (``fileName``,
+            ``type``, ``mediaType``, ``sizeBytes``, ``checksum``, ...).
+        """
+        return await self._ontology.list_artifacts_async(
+            ontology_name, artifact_type, folder_key
+        )
 
     @deprecated(
         "Deprecated; use insert_records_v3 (v3 API, supports Federated entities)."

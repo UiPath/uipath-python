@@ -2917,79 +2917,131 @@ class TestEntitiesServiceAsyncCoverage:
 
 
 class TestGetOntologyFileAsync:
-    """Tests for EntitiesService.get_ontology_file_async (delegates to
-    EntityOntologyService). The HTTP call goes through ``service._ontology``,
-    so the sub-service's ``request_async`` is what gets patched."""
+    """Tests for EntitiesService ontology artifact retrieval (delegates to
+    EntityOntologyService, which calls the Ontology service)."""
+
+    @pytest.fixture
+    def artifact_url(self, base_url: str, org: str, tenant: str) -> str:
+        return f"{base_url}{org}{tenant}/ontology_/api/v1/ontology/library/artifact"
 
     @pytest.mark.anyio
-    async def test_builds_endpoint_and_folder_header(
-        self, service: EntitiesService
+    async def test_lists_then_downloads_with_folder_header(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, artifact_url: str
     ) -> None:
-        response = MagicMock()
-        response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
-        service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+        httpx_mock.add_response(
+            url=f"{artifact_url}?type=schema",
+            method="GET",
+            json=[{"fileName": "library.ofn", "type": "schema"}],
+            match_headers={"x-uipath-folderkey": "folder-1"},
+        )
+        httpx_mock.add_response(
+            url=f"{artifact_url}/library.ofn",
+            method="GET",
+            text="Ontology(<urn:library>)",
+            headers={"content-type": "text/owl-functional"},
+            match_headers={"x-uipath-folderkey": "folder-1"},
+        )
 
         result = await service.get_ontology_file_async(
             "library", "owl", folder_key="folder-1"
         )
 
-        assert result == {"content": "OWL", "mediaType": "text/plain"}
-        service._ontology.request_async.assert_called_once()
-        call = service._ontology.request_async.call_args
-        method, endpoint = call.args[0], call.args[1]
-        headers = call.kwargs["headers"]
-        assert method == "GET"
-        assert str(endpoint) == "/datafabric_/api/ontologies/library/files/owl"
-        # Accept is added centrally by BaseService, not per-call.
-        assert headers["x-uipath-folderkey"] == "folder-1"
+        assert result == {
+            "content": "Ontology(<urn:library>)",
+            "mediaType": "text/owl-functional",
+        }
 
     @pytest.mark.anyio
     async def test_no_folder_header_when_folder_key_none(
-        self, service: EntitiesService
+        self, httpx_mock: HTTPXMock, service: EntitiesService, artifact_url: str
     ) -> None:
-        response = MagicMock()
-        response.json.return_value = {"content": "OWL", "mediaType": "text/plain"}
-        service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
+        httpx_mock.add_response(
+            url=f"{artifact_url}?type=schema",
+            json=[{"fileName": "a.ofn"}],
+        )
+        httpx_mock.add_response(url=f"{artifact_url}/a.ofn", text="x")
 
         await service.get_ontology_file_async("library")
 
-        headers = service._ontology.request_async.call_args.kwargs["headers"]
-        assert "x-uipath-folderkey" not in headers
+        for request in httpx_mock.get_requests():
+            assert "x-uipath-folderkey" not in request.headers
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "file_type", ["owl", "r2rml", "shacl", "summary", "context"]
+        ("file_type", "artifact_type"),
+        [
+            ("owl", "schema"),
+            ("r2rml", "mapping"),
+            ("shacl", "constraints"),
+            ("mapping", "mapping"),
+            ("summary", "summary"),
+            ("context", "context"),
+        ],
     )
-    async def test_accepts_allowed_file_types(
-        self, service: EntitiesService, file_type: str
-    ) -> None:
-        response = MagicMock()
-        response.json.return_value = {"content": "x"}
-        service._ontology.request_async = AsyncMock(return_value=response)  # type: ignore[method-assign]
-
-        await service.get_ontology_file_async("library", file_type)
-
-        endpoint = service._ontology.request_async.call_args.args[1]
-        assert str(endpoint) == f"/datafabric_/api/ontologies/library/files/{file_type}"
-
-    @pytest.mark.anyio
-    async def test_rejects_unsupported_file_type(
+    async def test_maps_legacy_file_types(
         self,
         httpx_mock: HTTPXMock,
         service: EntitiesService,
-        base_url: str,
-        org: str,
-        tenant: str,
-        version: str,
+        artifact_url: str,
+        file_type: str,
+        artifact_type: str,
     ) -> None:
-        """File-type validation is server-side (the ontology API), not in the
-        client. The SDK forwards the requested type and must surface the API's
-        rejection of an unsupported one as ``EnrichedException`` rather than
-        swallowing it."""
-        api_message = "Unsupported ontology file type: exe"
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/datafabric_/api/ontologies/library/files/exe",
-            method="GET",
+            url=f"{artifact_url}?type={artifact_type}",
+            json=[{"fileName": "f"}],
+        )
+        httpx_mock.add_response(url=f"{artifact_url}/f", text="x")
+
+        result = await service.get_ontology_file_async("library", file_type)
+
+        assert result["content"] == "x"
+
+    @pytest.mark.anyio
+    async def test_joins_several_artifacts_and_encodes_file_names(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, artifact_url: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{artifact_url}?type=mapping",
+            json=[{"fileName": "a b.ttl"}, {"fileName": "c.ttl"}],
+        )
+        httpx_mock.add_response(
+            url=f"{artifact_url}/a%20b.ttl",
+            text="A",
+            headers={"content-type": "text/turtle"},
+        )
+        httpx_mock.add_response(url=f"{artifact_url}/c.ttl", text="C")
+
+        result = await service.get_ontology_file_async("library", "r2rml")
+
+        assert result == {"content": "A\n\nC", "mediaType": "text/turtle"}
+
+    @pytest.mark.anyio
+    async def test_raises_when_no_artifact_of_type(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, artifact_url: str
+    ) -> None:
+        httpx_mock.add_response(url=f"{artifact_url}?type=mapping", json=[])
+
+        with pytest.raises(ValueError, match="no 'mapping' artifact"):
+            await service.get_ontology_file_async("library", "r2rml")
+
+    @pytest.mark.anyio
+    async def test_list_artifacts_without_type(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, artifact_url: str
+    ) -> None:
+        listing = [{"fileName": "a.ofn", "type": "schema"}]
+        httpx_mock.add_response(url=artifact_url, json=listing)
+
+        assert await service.list_ontology_artifacts_async("library") == listing
+
+    @pytest.mark.anyio
+    async def test_surfaces_api_rejection(
+        self, httpx_mock: HTTPXMock, service: EntitiesService, artifact_url: str
+    ) -> None:
+        """Type validation is server-side; the SDK must surface the API's
+        rejection as ``EnrichedException`` rather than swallowing it."""
+        api_message = "Unknown artifact type: exe"
+        httpx_mock.add_response(
+            url=f"{artifact_url}?type=exe",
             status_code=400,
             json={"message": api_message},
         )
@@ -2997,8 +3049,6 @@ class TestGetOntologyFileAsync:
         with pytest.raises(EnrichedException) as exc_info:
             await service.get_ontology_file_async("library", "exe")
 
-        # The SDK surfaces the API's rejection verbatim — status code, response
-        # body, and the extracted message — rather than masking it.
         exc = exc_info.value
         assert exc.status_code == 400
         assert api_message in exc.response_content
