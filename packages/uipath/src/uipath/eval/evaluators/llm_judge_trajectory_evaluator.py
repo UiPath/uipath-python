@@ -4,6 +4,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
+from .._helpers.agent_output import append_agent_output
 from .._helpers.evaluators_helpers import trace_to_str
 from ..models import (
     EvaluationResult,
@@ -80,7 +81,11 @@ class BaseLLMTrajectoryEvaluator(LLMJudgeMixin[TrajectoryEvaluationCriteria, TC]
 
     def _get_actual_output(self, workload_execution: WorkloadExecution) -> Any:
         """Get the actual output from the workload execution."""
-        return trace_to_str(workload_execution.workload_trace)
+        # trace_to_str only renders tool spans; the agent's own answer lives in the output.
+        return append_agent_output(
+            trace_to_str(workload_execution.workload_trace),
+            workload_execution.workload_output,
+        )
 
     def _get_expected_output(
         self, evaluation_criteria: TrajectoryEvaluationCriteria
