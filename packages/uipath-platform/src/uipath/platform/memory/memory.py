@@ -20,6 +20,21 @@ class SearchMode(str, Enum):
     Semantic = "Semantic"
 
 
+class FieldMatching(str, Enum):
+    """How per-field matches combine: any field passes (Or) or every field passes (And)."""
+
+    Or = "Or"
+    And = "And"
+
+    @classmethod
+    def _missing_(cls, value: object) -> Optional["FieldMatching"]:
+        if isinstance(value, str):
+            for member in cls:
+                if member.value.lower() == value.lower():
+                    return member
+        return None
+
+
 # ── Shared field models (used by both ECS and LLMOps) ─────────────────
 
 
@@ -51,6 +66,9 @@ class SearchSettings(BaseModel):
     threshold: float = Field(default=0.0, alias="threshold", ge=0.0, le=1.0)
     result_count: int = Field(default=1, alias="resultCount", ge=1, le=10)
     search_mode: SearchMode = Field(..., alias="searchMode")
+    field_matching: FieldMatching = Field(
+        default=FieldMatching.Or, alias="fieldMatching"
+    )
 
 
 class MemoryMatchField(BaseModel):
