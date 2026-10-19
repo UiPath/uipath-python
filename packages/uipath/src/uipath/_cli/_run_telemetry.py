@@ -112,12 +112,14 @@ class RunTelemetry:
         self,
         *,
         kind: RunKind,
+        agent_framework: str | None,
         entrypoint: str | None,
         execution_source: str | None,
         is_conversational: bool,
     ) -> None:
         """Key the run on its job so a suspend/resume pair stays one run."""
         self._kind = kind
+        self._agent_framework = agent_framework
         self._entrypoint = entrypoint
         self._execution_source = execution_source
         self._is_conversational = is_conversational
@@ -147,6 +149,7 @@ class RunTelemetry:
 
         instance = cls(
             kind=kind,
+            agent_framework=agent_framework,
             entrypoint=entrypoint,
             execution_source=execution_source,
             is_conversational=is_conversational,
@@ -194,6 +197,7 @@ class RunTelemetry:
             properties: dict[str, Any] = {
                 "AgentRunId": self._run_id,
                 "AgentType": "Coded",
+                "AgentFramework": self._agent_framework,
                 "AgentRunSource": self._execution_source,
                 "Entrypoint": self._entrypoint,
                 "IsConversational": self._is_conversational,
