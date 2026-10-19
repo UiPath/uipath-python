@@ -785,6 +785,7 @@ class TestListTargetOutputKey:
         result = await evaluator.evaluate(execution, criteria)
         assert isinstance(result, ErrorEvaluationResult)
         assert result.score == 0.0
+        assert isinstance(result.details, str)
         assert "'missing_key'" in result.details
         assert "'other'" in result.details
 
@@ -809,6 +810,7 @@ class TestListTargetOutputKey:
         result = await evaluator.evaluate(execution, criteria)
         assert isinstance(result, ErrorEvaluationResult)
         assert result.score == 0.0
+        assert isinstance(result.details, str)
         assert "'status'" in result.details
         assert "'other_key'" in result.details
         assert "Traceback" not in result.details
