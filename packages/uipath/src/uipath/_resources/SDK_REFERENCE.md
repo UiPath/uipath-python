@@ -22,10 +22,10 @@ Agenthub service
 
 ```python
 # Fetch available models from LLM Gateway discovery endpoint.
-sdk.agenthub.get_available_llm_models(headers: dict[str, Any] | None=None) -> list[uipath.platform.agenthub.agenthub.LlmModel]
+sdk.agenthub.get_available_llm_models(headers: dict[str, Any] | None=None, include_deprecated_models: bool=False) -> list[uipath.platform.agenthub.agenthub.LlmModel]
 
 # Asynchronously fetch available models from LLM Gateway discovery endpoint.
-sdk.agenthub.get_available_llm_models_async(headers: dict[str, Any] | None=None) -> list[uipath.platform.agenthub.agenthub.LlmModel]
+sdk.agenthub.get_available_llm_models_async(headers: dict[str, Any] | None=None, include_deprecated_models: bool=False) -> list[uipath.platform.agenthub.agenthub.LlmModel]
 
 # Start a system agent job.
 sdk.agenthub.invoke_system_agent(agent_name: str, entrypoint: str, input_arguments: dict[str, Any] | None=None, folder_key: str | None=None, folder_path: str | None=None, headers: dict[str, Any] | None=None) -> str

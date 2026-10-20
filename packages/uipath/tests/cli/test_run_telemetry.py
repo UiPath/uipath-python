@@ -111,6 +111,25 @@ class TestClassification:
         assert names(emitted) == ["CodedAgentRun.Start"]
 
 
+class TestAgentFramework:
+    def test_framework_is_reported_on_every_event(self, emitted):
+        completed = start(agent_framework="llamaindex")
+        assert completed is not None
+        completed.finished(successful())
+        crashed = start(agent_framework="llamaindex")
+        assert crashed is not None
+        crashed.failed(RuntimeError("boom"))
+
+        assert names(emitted) == [
+            "CodedAgentRun.Start",
+            "CodedAgentRun.End",
+            "CodedAgentRun.Start",
+            "CodedAgentRun.Failed",
+        ]
+        for name, properties in emitted:
+            assert properties.get("AgentFramework") == "llamaindex", name
+
+
 class TestScopeBlock:
     def test_scope_is_present_on_start_and_terminal_events(self, emitted):
         started().finished(successful())

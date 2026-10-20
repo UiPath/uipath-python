@@ -20,9 +20,16 @@ class UiPathEndpoints(Enum):
     AH_VENDOR_COMPLETION_ENDPOINT = (
         "agenthub_/llm/raw/vendor/{vendor}/model/{model}/completions"
     )
+    AH_VENDOR_DECISION_ENDPOINT = (
+        "agenthub_/llm/raw/vendor/{vendor}/model/{model}/decisions"
+    )
     AH_CAPABILITIES_ENDPOINT = "agenthub_/llm/api/capabilities"
     AH_DISCOVERY_ENDPOINT = "agenthub_/llm/api/discovery"
 
+    # Deprecated: the orchestrator_/llm routes are no longer used. They were a temporary
+    # fallback for when AgentHub is unavailable and remain only for existing callers.
+    # New LLM endpoints are AgentHub-only: add an AH_ constant and return it directly,
+    # never an orchestrator_ variant or a _select_endpoint() pair.
     OR_NORMALIZED_COMPLETION_ENDPOINT = "orchestrator_/llm/api/chat/completions"
     OR_PASSTHROUGH_COMPLETION_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/chat/completions?api-version={api_version}"
     OR_EMBEDDING_ENDPOINT = "orchestrator_/llm/openai/deployments/{model}/embeddings?api-version={api_version}"
@@ -61,8 +68,10 @@ class EndpointManager:
         get_normalized_endpoint(): Returns the appropriate normalized completion endpoint.
         get_embeddings_endpoint(): Returns the appropriate embeddings endpoint.
         get_vendor_endpoint(): Returns the appropriate vendor completion endpoint.
-    All endpoint methods automatically select the best available endpoint using the fallback order,
-    unless overridden by the UIPATH_LLM_SERVICE environment variable.
+        get_vendor_decisions_endpoint(): Returns the AgentHub vendor decisions endpoint.
+    All endpoint methods except get_vendor_decisions_endpoint() automatically select the best
+    available endpoint using the fallback order, unless overridden by the UIPATH_LLM_SERVICE
+    environment variable.
     """  # noqa: D205
 
     _base_url = UiPathConfig.base_url or ""
@@ -210,3 +219,11 @@ class EndpointManager:
             UiPathEndpoints.AH_VENDOR_COMPLETION_ENDPOINT,
             UiPathEndpoints.OR_VENDOR_COMPLETION_ENDPOINT,
         )
+
+    @classmethod
+    def get_vendor_decisions_endpoint(cls) -> str:
+        """Get the vendor decisions endpoint (typed classification decisions).
+
+        AgentHub only: the orchestrator_/llm routes are no longer used (see UiPathEndpoints).
+        """
+        return UiPathEndpoints.AH_VENDOR_DECISION_ENDPOINT.value
