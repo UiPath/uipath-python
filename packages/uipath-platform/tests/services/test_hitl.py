@@ -2451,9 +2451,6 @@ class TestDocumentExtractionModels:
         assert "not both or neither" in str(exc_info.value)
 
 
-SERVICE_MODULE = "uipath.platform.documents._documents_service"
-
-
 @pytest.mark.parametrize(
     "api_version,service_class,other_class",
     [
@@ -2465,7 +2462,7 @@ class TestIxpTriggersApiVersion:
     """IXP triggers run on the DU Framework API version that started the operation."""
 
     def _patch(self, service_class: type, method: str, mock: AsyncMock) -> Any:
-        return patch(f"{SERVICE_MODULE}.{service_class.__name__}.{method}", new=mock)
+        return patch.object(service_class, method, new=mock)
 
     def _extraction_response(
         self, api_version: DocumentsApiVersion
@@ -2715,13 +2712,11 @@ async def test_read_ixp_extraction_trigger_without_api_version(
     v2_retrieve = AsyncMock()
 
     with (
-        patch(
-            f"{SERVICE_MODULE}.DocumentsService.retrieve_ixp_extraction_result_async",
-            new=retrieve,
+        patch.object(
+            DocumentsService, "retrieve_ixp_extraction_result_async", new=retrieve
         ),
-        patch(
-            f"{SERVICE_MODULE}.DocumentsServiceV2.retrieve_ixp_extraction_result_async",
-            new=v2_retrieve,
+        patch.object(
+            DocumentsServiceV2, "retrieve_ixp_extraction_result_async", new=v2_retrieve
         ),
     ):
         await UiPathResumeTriggerReader().read_trigger(
@@ -2733,4 +2728,39 @@ async def test_read_ixp_extraction_trigger_without_api_version(
         )
 
     retrieve.assert_called_once()
+    v2_retrieve.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_read_ixp_extraction_trigger_with_unsupported_api_version(
+    setup_test_env: None,
+) -> None:
+    retrieve = AsyncMock()
+    v2_retrieve = AsyncMock()
+
+    with (
+        patch.object(
+            DocumentsService, "retrieve_ixp_extraction_result_async", new=retrieve
+        ),
+        patch.object(
+            DocumentsServiceV2, "retrieve_ixp_extraction_result_async", new=v2_retrieve
+        ),
+        pytest.raises(
+            UiPathFaultedTriggerError,
+            match="Unsupported DU Framework API version: 3.0",
+        ),
+    ):
+        await UiPathResumeTriggerReader().read_trigger(
+            UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.IXP_EXTRACTION,
+                item_key="test-operation-id",
+                payload={
+                    "project_id": "test-project-id",
+                    "tag": "test-tag",
+                    "api_version": "3.0",
+                },
+            )
+        )
+
+    retrieve.assert_not_called()
     v2_retrieve.assert_not_called()

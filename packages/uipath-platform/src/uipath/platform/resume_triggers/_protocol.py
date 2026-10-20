@@ -80,7 +80,14 @@ def _documents_service(
 
     Triggers created before API v2 support have no version: they ran on API v1.1.
     """
-    return uipath.documents_v2 if api_version == "2.0" else uipath.documents
+    if api_version is None or api_version == "1.1":
+        return uipath.documents
+    if api_version == "2.0":
+        return uipath.documents_v2
+    raise UiPathFaultedTriggerError(
+        ErrorCategory.SYSTEM,
+        f"Unsupported DU Framework API version: {api_version}",
+    )
 
 
 def _try_convert_to_json_format(value: str | None) -> Any:
