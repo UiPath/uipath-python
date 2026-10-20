@@ -1106,13 +1106,14 @@ class TestPack:
             # the dataset would change these bytes.
             eval_set_json = '{\n  "name": "smoke",\n  "rows": [{ "x": 1 }]\n}\n'
 
-            # Where Studio Web's Evaluations panel writes datasets: ships, files
-            # directly in evals/ included.
+            # Where Studio Web's Evaluations panel writes datasets: ships.
             os.makedirs("evals/default/eval-sets")
             with open("evals/default/eval-sets/x.json", "w") as f:
                 f.write(eval_set_json)
-            with open("evals/root.json", "w") as f:
-                f.write('{"at": "root"}')
+            # A stray file directly in evals/ breaks Studio Web's project
+            # migration (SRE-522088), so it stays out, as it does on push.
+            with open("evals/stray.json", "w") as f:
+                f.write("{}")
             # The folder `uipath eval` reads, and local-only state: none of it ships.
             os.makedirs("evaluations/eval-sets")
             with open("evaluations/eval-sets/legacy.json", "w") as f:
@@ -1146,7 +1147,7 @@ class TestPack:
                     z.read("content/evals/default/eval-sets/x.json").decode("utf-8")
                     == eval_set_json
                 )
-                assert "content/evals/root.json" in z.namelist()
+                assert "content/evals/stray.json" not in z.namelist()
                 assert "content/other_dir/included.json" in z.namelist()
 
                 excluded_folders = (

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from uipath._cli.models.uipath_json_schema import PackOptions, UiPathJsonConfig
 from uipath.platform.common import UiPathConfig
 from uipath.platform.constants import (
+    LEGACY_EVAL_FOLDER,
     PYTHON_CONFIGURATION_FILE,
     UIPATH_CONFIG_FILE,
 )
@@ -406,7 +407,7 @@ def files_to_include(
     directory: str,
     include_uv_lock: bool = True,
     directories_to_ignore: list[str] | None = None,
-) -> list[FileInfo]:
+) -> tuple[list[FileInfo], list[str]]:
     """Get list of files to include in the project based on configuration.
 
     Walks through the directory tree and identifies files to include based on extensions
@@ -419,7 +420,7 @@ def files_to_include(
         directories_to_ignore: List of directories to ignore
 
     Returns:
-        list[FileInfo]: Files to include
+        tuple[list[FileInfo], list[str]]: Tuple of (included files, skipped file paths)
     """
     file_extensions_included = [".py", ".mermaid", ".json", ".yaml", ".yml", ".md"]
     files_included = [PYTHON_CONFIGURATION_FILE]
@@ -455,9 +456,15 @@ def files_to_include(
         )
 
     extra_files: list[FileInfo] = []
+    skipped_files: list[str] = []
 
     # Walk through directory and return all files in the allowlist
     for root, dirs, files in os.walk(directory):
+        # Determine if we're in the root evals folder
+        root_rel_path = os.path.relpath(root, directory)
+        normalized_root_rel_path = root_rel_path.replace(os.sep, "/")
+        is_root_evals_folder = normalized_root_rel_path == LEGACY_EVAL_FOLDER
+
         # Skip all directories that start with . or are a venv or are excluded
         included_dirs = []
         for d in dirs:
@@ -498,6 +505,11 @@ def files_to_include(
             # Normalize the path
             normalized_rel_path = rel_path.replace(os.sep, "/")
 
+            # Skip files in the root evals folder (but allow eval-set and evaluators subdirectories)
+            if is_root_evals_folder:
+                skipped_files.append(normalized_rel_path)
+                continue
+
             # Check inclusion: by extension, by filename (for base directory), or by relative path
             should_include = (
                 file_extension in file_extensions_included
@@ -526,7 +538,7 @@ def files_to_include(
                         is_binary=is_binary_file(file_extension),
                     )
                 )
-    return extra_files
+    return extra_files, skipped_files
 
 
 def compute_normalized_hash(content: str) -> str:

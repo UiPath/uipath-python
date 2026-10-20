@@ -10,7 +10,7 @@ class TestFilesToIncludeHiddenFiles:
         open(os.path.join(project_dir, ".hidden_file.py"), "w").close()
         open(os.path.join(project_dir, ".env"), "w").close()
 
-        included = files_to_include(None, project_dir, include_uv_lock=False)
+        included, _ = files_to_include(None, project_dir, include_uv_lock=False)
         included_names = [f.file_name for f in included]
 
         assert "main.py" in included_names
@@ -24,7 +24,7 @@ class TestFilesToIncludeHiddenFiles:
         open(os.path.join(sub_dir, "app.py"), "w").close()
         open(os.path.join(sub_dir, ".secret.json"), "w").close()
 
-        included = files_to_include(None, project_dir, include_uv_lock=False)
+        included, _ = files_to_include(None, project_dir, include_uv_lock=False)
         included_names = [f.file_name for f in included]
 
         assert "app.py" in included_names
