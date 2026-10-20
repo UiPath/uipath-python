@@ -3,10 +3,8 @@
 This module contains models related to UiPath Document Understanding service.
 """
 
-from ._documents_service import (  # type: ignore[attr-defined]
-    DocumentsService,
-    DocumentsServiceV2,
-)
+from ._documents_service import DocumentsService  # type: ignore[attr-defined]
+from ._documents_service_v2 import DocumentsServiceV2
 from .documents import (
     ActionPriority,
     ClassificationResponse,

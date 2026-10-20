@@ -1,4 +1,5 @@
 import importlib
+import json
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,27 @@ def execution_context(monkeypatch: pytest.MonkeyPatch) -> UiPathExecutionContext
 @pytest.fixture
 def tests_data_path() -> Path:
     return Path(__file__).resolve().parent / "tests_data"
+
+
+@pytest.fixture
+def documents_tests_data_path(tests_data_path: Path) -> Path:
+    return tests_data_path / "documents_service"
+
+
+@pytest.fixture
+def classification_response(documents_tests_data_path: Path) -> dict:  # type: ignore
+    with open(documents_tests_data_path / "classification_response.json", "r") as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def create_validation_action_response(documents_tests_data_path: Path) -> dict:  # type: ignore
+    with open(
+        documents_tests_data_path
+        / "extraction_validation_action_response_unassigned.json",
+        "r",
+    ) as f:
+        return json.load(f)
 
 
 @pytest.fixture
