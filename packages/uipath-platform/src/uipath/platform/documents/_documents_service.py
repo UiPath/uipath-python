@@ -47,7 +47,13 @@ _UNNORMALIZED_KEYS = frozenset(
 
 
 def _framework_url(*segments: Any) -> Endpoint:
-    path = "/".join(quote(str(segment), safe="") for segment in segments)
+    parts = [str(segment) for segment in segments]
+    for part in parts:
+        # Percent-encoding leaves these unchanged, and URL normalization would
+        # resolve them, moving the request to another route.
+        if part in ("", ".", ".."):
+            raise ValueError(f"Invalid URL path segment: {part!r}")
+    path = "/".join(quote(part, safe="") for part in parts)
     return Endpoint(f"/du_/api/framework/projects/{path}")
 
 

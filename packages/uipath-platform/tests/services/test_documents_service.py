@@ -3707,6 +3707,40 @@ class TestDocumentsService:
         assert response.operation_id == operation_id
         assert response.tag == "my tag/../v2"
 
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize(
+        "project_id,tag",
+        [
+            ("test-project-id", ".."),
+            ("test-project-id", "."),
+            ("test-project-id", ""),
+            ("..", "live"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_result_rejects_dot_and_empty_segments(
+        self,
+        service: DocumentsService,
+        mode: str,
+        project_id: str,
+        tag: str,
+    ):
+        # Percent-encoding leaves `.` and `..` unchanged, and httpx would resolve them.
+        # ACT & ASSERT
+        with pytest.raises(ValueError, match="Invalid URL path segment"):
+            if mode == "async":
+                await service.retrieve_ixp_extraction_result_async(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=str(uuid4()),
+                )
+            else:
+                service.retrieve_ixp_extraction_result(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=str(uuid4()),
+                )
+
 
 @pytest.mark.parametrize(
     "property_name,service_class,expected_version",
