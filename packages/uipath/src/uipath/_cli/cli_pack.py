@@ -319,9 +319,9 @@ def pack_fn(
     metadata_files["_rels/.rels"] = rels_content
 
     # Studio Web's Evaluations panel stores a project's datasets under `evals/`,
-    # so that folder ships with the package. `evaluations/`, the folder
-    # `uipath eval` reads, stays out of it.
-    files, skipped_files = files_to_include(
+    # so that whole folder ships with the package, as `uip solution pack` does.
+    # `evaluations/`, the folder `uipath eval` reads, stays out of it.
+    files = files_to_include(
         config_data.pack_options,
         directory,
         include_uv_lock,
