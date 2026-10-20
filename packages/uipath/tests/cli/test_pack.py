@@ -1087,13 +1087,13 @@ class TestPack:
                 assert bindings_v2_data["resources"][0]["resource"] == "asset"
                 assert bindings_v2_data["resources"][0]["key"] == "test-asset"
 
-    def test_evals_and_evaluations_directories_excluded(
+    def test_evals_directory_ships_and_evaluations_directory_excluded(
         self,
         runner: CliRunner,
         temp_dir: str,
         project_details: ProjectDetails,
     ) -> None:
-        """Test that evals and evaluations directories are excluded from the nupkg."""
+        """Test that evals/ ships byte-identical while evaluations/ stays out of the nupkg."""
         with runner.isolated_filesystem(temp_dir=temp_dir):
             with open("uipath.json", "w") as f:
                 json.dump(create_uipath_json(), f)
@@ -1102,14 +1102,25 @@ class TestPack:
             with open("main.py", "w") as f:
                 f.write("def main(input): return input")
 
-            os.makedirs("evals")
-            os.makedirs("evaluations")
-            os.makedirs("other_dir")
+            # Hand-formatted on purpose: a packager that parsed and re-serialized
+            # the dataset would change these bytes.
+            eval_set_json = '{\n  "name": "smoke",\n  "rows": [{ "x": 1 }]\n}\n'
 
-            with open("evals/test_eval.json", "w") as f:
-                f.write('{"eval": "data"}')
-            with open("evaluations/test_evaluation.json", "w") as f:
-                f.write('{"evaluation": "data"}')
+            # Where Studio Web's Evaluations panel writes datasets: ships.
+            os.makedirs("evals/default/eval-sets")
+            with open("evals/default/eval-sets/x.json", "w") as f:
+                f.write(eval_set_json)
+            # The folder `uipath eval` reads, and local-only state: none of it ships.
+            os.makedirs("evaluations/eval-sets")
+            with open("evaluations/eval-sets/legacy.json", "w") as f:
+                f.write("{}")
+            os.makedirs(".local")
+            with open(".local/state.json", "w") as f:
+                f.write("{}")
+            os.makedirs(".venv")
+            with open(".venv/pyvenv.cfg", "w") as f:
+                f.write("home = /usr/bin\n")
+            os.makedirs("other_dir")
             with open("other_dir/included.json", "w") as f:
                 f.write('{"should": "be included"}')
 
@@ -1128,9 +1139,22 @@ class TestPack:
             assert os.path.exists(nupkg_path)
 
             with zipfile.ZipFile(nupkg_path, "r") as z:
-                assert "content/evals/test_eval.json" not in z.namelist()
-                assert "content/evaluations/test_evaluation.json" not in z.namelist()
+                assert (
+                    z.read("content/evals/default/eval-sets/x.json").decode("utf-8")
+                    == eval_set_json
+                )
                 assert "content/other_dir/included.json" in z.namelist()
+
+                excluded_folders = (
+                    "content/evaluations/",
+                    "content/.local/",
+                    "content/.venv/",
+                )
+                assert [
+                    entry
+                    for entry in z.namelist()
+                    if entry.startswith(excluded_folders)
+                ] == []
 
     def test_generate_operate_file(self, runner: CliRunner, temp_dir: str) -> None:
         """Test generating operate.json from entry-points."""

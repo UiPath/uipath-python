@@ -9,7 +9,7 @@ from pydantic import TypeAdapter
 
 from uipath._cli.models.runtime_schema import Bindings, EntryPoint, EntryPoints
 from uipath._cli.models.uipath_json_schema import UiPathJsonConfig
-from uipath.eval.constants import EVALS_FOLDER, LEGACY_EVAL_FOLDER
+from uipath.eval.constants import EVALS_FOLDER
 from uipath.platform.common import UiPathConfig
 from uipath.platform.constants import (
     ENTRY_POINTS_FILE,
@@ -318,11 +318,14 @@ def pack_fn(
     metadata_files[f"{project_name}.nuspec"] = nuspec_content
     metadata_files["_rels/.rels"] = rels_content
 
+    # Studio Web's Evaluations panel stores a project's datasets under `evals/`,
+    # so that folder ships with the package. `evaluations/`, the folder
+    # `uipath eval` reads, stays out of it.
     files, skipped_files = files_to_include(
         config_data.pack_options,
         directory,
         include_uv_lock,
-        directories_to_ignore=[LEGACY_EVAL_FOLDER, EVALS_FOLDER],
+        directories_to_ignore=[EVALS_FOLDER],
     )
 
     raise_on_metadata_conflicts(metadata_files, files)
