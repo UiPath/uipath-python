@@ -7,7 +7,6 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, U
 from urllib.parse import quote
 from uuid import UUID
 
-from uipath.core.feature_flags import FeatureFlags
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -33,9 +32,6 @@ from .documents import (
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
-
-# Opts in to DU Framework API v2. Otherwise the service calls API v1.1.
-FRAMEWORK_V2_FEATURE_FLAG = "DocumentsFrameworkV2"
 
 # Response values returned as-is: Document Processing contract payloads are
 # PascalCase in every API version, and the digitization DOM is large and unused.
@@ -183,20 +179,14 @@ def _validate_extract_params_and_get_project_type(
     return project_type
 
 
-class DocumentsService(FolderContext, BaseService):
-    """Service for managing UiPath DocumentUnderstanding Document Operations.
+class _DocumentsServiceBase(FolderContext, BaseService):
+    """Document Understanding operations shared by both DU Framework API versions.
 
-    This service provides methods to extract data from documents using UiPath's Document Understanding capabilities.
-
-    The service calls DU Framework API v1.1 by default. Set the `DocumentsFrameworkV2`
-    feature flag to call API v2 instead, e.g. `UIPATH_FEATURE_DocumentsFrameworkV2=true`.
-    The flag is read when the service is created, so set it before accessing
-    `UiPath().documents` and keep it set when a suspended job resumes.
-
-    !!! warning "Preview Feature"
-        This function is currently experimental.
-        Behavior and parameters are subject to change in future versions.
+    `DocumentsService` and `DocumentsServiceV2` set the API version, and the routes
+    and request bodies that differ between versions.
     """
+
+    _api_version: str
 
     def __init__(
         self,
@@ -208,10 +198,6 @@ class DocumentsService(FolderContext, BaseService):
         super().__init__(config=config, execution_context=execution_context)
         self.polling_interval = polling_interval
         self.polling_timeout = polling_timeout
-        self._framework_v2 = FeatureFlags.is_flag_enabled(
-            FRAMEWORK_V2_FEATURE_FLAG, default=False
-        )
-        self._api_version = "2.0" if self._framework_v2 else "1.1"
 
     def _get_common_headers(self) -> Dict[str, str]:
         return {
@@ -228,8 +214,7 @@ class DocumentsService(FolderContext, BaseService):
         return _camel_case_keys(response.json())
 
     def _tag_route(self, tag: str) -> Tuple[str, ...]:
-        # v2 moved tag-scoped routes under a literal `tags` segment.
-        return ("tags", tag) if self._framework_v2 else (tag,)
+        raise NotImplementedError
 
     def _extractor_url(
         self,
@@ -276,10 +261,7 @@ class DocumentsService(FolderContext, BaseService):
         )
 
     def _allow_document_type_change(self) -> Dict[str, Any]:
-        # v2 moved this setting into the validation configuration.
-        if self._framework_v2:
-            return {"configuration": {"allowChangeOfDocumentType": True}}
-        return {"allowChangeOfDocumentType": True}
+        raise NotImplementedError
 
     def _get_classifier_id(
         self, project_type: ProjectType, project_id: str, version: Optional[int]
@@ -780,6 +762,7 @@ class DocumentsService(FolderContext, BaseService):
             document_id=document_id,
             project_id=project_id,
             tag=tag,
+            api_version=self._api_version,
         )
 
     async def _start_extraction_async(
@@ -809,6 +792,7 @@ class DocumentsService(FolderContext, BaseService):
             document_id=document_id,
             project_id=project_id,
             tag=tag,
+            api_version=self._api_version,
         )
 
     def _wait_for_operation(
@@ -908,6 +892,7 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = project_type
+        extraction_response["apiVersion"] = self._api_version
 
         if project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(extraction_response)
@@ -957,6 +942,7 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = project_type
+        extraction_response["apiVersion"] = self._api_version
 
         if project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(extraction_response)
@@ -1411,6 +1397,7 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = ProjectType.IXP
+        extraction_response["apiVersion"] = self._api_version
 
         return ExtractionResponseIXP.model_validate(extraction_response)
 
@@ -1445,6 +1432,7 @@ class DocumentsService(FolderContext, BaseService):
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
         extraction_response["projectType"] = ProjectType.IXP
+        extraction_response["apiVersion"] = self._api_version
 
         return ExtractionResponseIXP.model_validate(extraction_response)
 
@@ -1785,6 +1773,7 @@ class DocumentsService(FolderContext, BaseService):
             document_id=extraction_response.extraction_result.document_id,
             project_id=project_id,
             tag=tag,
+            api_version=self._api_version,
         )
 
     async def _start_extraction_validation_async(
@@ -1830,6 +1819,7 @@ class DocumentsService(FolderContext, BaseService):
             document_id=extraction_response.extraction_result.document_id,
             project_id=project_id,
             tag=tag,
+            api_version=self._api_version,
         )
 
     @traced(name="documents_start_ixp_extraction_validation", run_type="uipath")
@@ -2580,6 +2570,7 @@ class DocumentsService(FolderContext, BaseService):
         response["tag"] = validation_action.tag
         response["documentTypeId"] = validation_action.document_type_id
         response["projectType"] = validation_action.project_type
+        response["apiVersion"] = self._api_version
 
         if validation_action.project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(response)
@@ -2613,8 +2604,55 @@ class DocumentsService(FolderContext, BaseService):
         response["tag"] = validation_action.tag
         response["documentTypeId"] = validation_action.document_type_id
         response["projectType"] = validation_action.project_type
+        response["apiVersion"] = self._api_version
 
         if validation_action.project_type == ProjectType.IXP:
             return ExtractionResponseIXP.model_validate(response)
 
         return ExtractionResponse.model_validate(response)
+
+
+class DocumentsService(_DocumentsServiceBase):
+    """Service for managing UiPath DocumentUnderstanding Document Operations.
+
+    This service provides methods to extract data from documents using UiPath's Document Understanding capabilities.
+
+    It calls DU Framework API v1.1. `DocumentsServiceV2` has the same methods and calls API v2.
+
+    !!! warning "Preview Feature"
+        This function is currently experimental.
+        Behavior and parameters are subject to change in future versions.
+    """
+
+    _api_version = "1.1"
+
+    def _tag_route(self, tag: str) -> Tuple[str, ...]:
+        return (tag,)
+
+    def _allow_document_type_change(self) -> Dict[str, Any]:
+        return {"allowChangeOfDocumentType": True}
+
+
+class DocumentsServiceV2(_DocumentsServiceBase):
+    """Service for managing UiPath DocumentUnderstanding Document Operations on DU Framework API v2.
+
+    It has the same methods as `DocumentsService`, which calls API v1.1. API v2 results differ:
+
+    - field IDs are prefixed with their document type and field group, e.g. `Default.Invoice.Total`
+    - IXP results group fields in `FieldGroup` fields instead of `Table` fields, and their fields are typed, e.g. `MonetaryQuantity`
+    - validation tasks open in the Compact view
+
+    !!! warning "Preview Feature"
+        This function is currently experimental.
+        Behavior and parameters are subject to change in future versions.
+    """
+
+    _api_version = "2.0"
+
+    def _tag_route(self, tag: str) -> Tuple[str, ...]:
+        # v2 moved tag-scoped routes under a literal `tags` segment.
+        return ("tags", tag)
+
+    def _allow_document_type_change(self) -> Dict[str, Any]:
+        # v2 moved this setting into the validation configuration.
+        return {"configuration": {"allowChangeOfDocumentType": True}}

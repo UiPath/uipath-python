@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import IO, Any, List, Optional, Union
+from typing import IO, Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 FileContent = Union[IO[bytes], bytes, str]
+
+# DU Framework API version: `DocumentsService` calls 1.1, `DocumentsServiceV2` calls 2.0.
+DocumentsApiVersion = Literal["1.1", "2.0"]
 
 
 class FieldType(str, Enum):
@@ -125,6 +128,7 @@ class ExtractionResponse(BaseModel):
         project_id (str): The ID of the project associated with the extraction.
         tag (str): The tag associated with the published model version.
         document_type_id (str): The ID of the document type associated with the extraction.
+        api_version (str): The DU Framework API version that produced the result, `1.1` or `2.0`.
     """
 
     model_config = ConfigDict(
@@ -139,6 +143,7 @@ class ExtractionResponse(BaseModel):
     extractor_id: Optional[str] = Field(alias="extractorId", default=None)
     tag: Optional[str]
     document_type_id: str = Field(alias="documentTypeId")
+    api_version: DocumentsApiVersion = Field(alias="apiVersion", default="1.1")
 
 
 class ExtractionResponseIXP(ExtractionResponse):
@@ -283,6 +288,7 @@ class StartOperationResponse(BaseModel):
         document_id (str): The ID of the digitized document.
         project_id (str): The ID of the project.
         tag (str): The tag of the published project version.
+        api_version (str): The DU Framework API version that started the operation, `1.1` or `2.0`.
     """
 
     model_config = ConfigDict(
@@ -295,6 +301,7 @@ class StartOperationResponse(BaseModel):
     document_id: str = Field(alias="documentId")
     project_id: str = Field(alias="projectId")
     tag: str | None = Field(default=None)
+    api_version: DocumentsApiVersion = Field(alias="apiVersion", default="1.1")
 
 
 class StartExtractionResponse(StartOperationResponse):

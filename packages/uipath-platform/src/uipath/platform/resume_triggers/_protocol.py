@@ -57,6 +57,7 @@ from uipath.platform.context_grounding import DeepRagStatus, IndexStatus
 from uipath.platform.context_grounding.context_grounding_index import (
     ContextGroundingIndex,
 )
+from uipath.platform.documents import DocumentsService, DocumentsServiceV2
 from uipath.platform.errors import (
     BatchTransformFailedException,
     BatchTransformNotCompleteException,
@@ -70,6 +71,16 @@ from uipath.platform.resume_triggers._enums import (
     PropertyName,
     TriggerMarker,
 )
+
+
+def _documents_service(
+    uipath: UiPath, api_version: str | None
+) -> DocumentsService | DocumentsServiceV2:
+    """Returns the documents service for a DU Framework API version.
+
+    Triggers created before API v2 support have no version: they ran on API v1.1.
+    """
+    return uipath.documents_v2 if api_version == "2.0" else uipath.documents
 
 
 def _try_convert_to_json_format(value: str | None) -> Any:
@@ -361,9 +372,15 @@ class UiPathResumeTriggerReader:
                     assert project_id is not None
                     assert tag is not None
 
+                    documents = _documents_service(
+                        get_uipath(),
+                        self._extract_field("api_version", trigger.payload),
+                    )
                     try:
-                        extraction_response = await get_uipath().documents.retrieve_ixp_extraction_result_async(
-                            project_id, tag, trigger.item_key
+                        extraction_response = (
+                            await documents.retrieve_ixp_extraction_result_async(
+                                project_id, tag, trigger.item_key
+                            )
                         )
                     except OperationNotCompleteException as e:
                         raise UiPathPendingTriggerError(
@@ -380,8 +397,12 @@ class UiPathResumeTriggerReader:
 
                     assert project_id is not None
                     assert tag is not None
+                    documents = _documents_service(
+                        get_uipath(),
+                        self._extract_field("api_version", trigger.payload),
+                    )
                     try:
-                        escalation_response = await get_uipath().documents.retrieve_ixp_extraction_validation_result_async(
+                        escalation_response = await documents.retrieve_ixp_extraction_validation_result_async(
                             project_id, tag, trigger.item_key
                         )
                     except OperationNotCompleteException as e:
@@ -866,9 +887,12 @@ class UiPathResumeTriggerCreator:
             assert isinstance(resume_trigger.payload, dict)
             resume_trigger.payload.setdefault("project_id", value.extraction.project_id)
             resume_trigger.payload.setdefault("tag", value.extraction.tag)
+            resume_trigger.payload.setdefault(
+                "api_version", value.extraction.api_version
+            )
         elif isinstance(value, DocumentExtraction):
-            uipath = UiPath()
-            document_extraction = await uipath.documents.start_ixp_extraction_async(
+            documents = _documents_service(UiPath(), value.api_version)
+            document_extraction = await documents.start_ixp_extraction_async(
                 project_name=value.project_name,
                 tag=value.tag,
                 file=value.file,
@@ -885,6 +909,9 @@ class UiPathResumeTriggerCreator:
                 "project_id", document_extraction.project_id
             )
             resume_trigger.payload.setdefault("tag", document_extraction.tag)
+            resume_trigger.payload.setdefault(
+                "api_version", document_extraction.api_version
+            )
 
         assert resume_trigger.item_key
         await self._create_external_trigger(
@@ -914,10 +941,15 @@ class UiPathResumeTriggerCreator:
                 "project_id", value.extraction_validation.project_id
             )
             resume_trigger.payload.setdefault("tag", value.extraction_validation.tag)
+            resume_trigger.payload.setdefault(
+                "api_version", value.extraction_validation.api_version
+            )
         elif isinstance(value, DocumentExtractionValidation):
-            uipath = UiPath()
+            documents = _documents_service(
+                UiPath(), value.extraction_response.api_version
+            )
             extraction_validation = (
-                await uipath.documents.start_ixp_extraction_validation_async(
+                await documents.start_ixp_extraction_validation_async(
                     extraction_response=value.extraction_response,
                     action_title=value.action_title,
                     action_priority=value.action_priority,
@@ -937,6 +969,9 @@ class UiPathResumeTriggerCreator:
                 "project_id", extraction_validation.project_id
             )
             resume_trigger.payload.setdefault("tag", extraction_validation.tag)
+            resume_trigger.payload.setdefault(
+                "api_version", extraction_validation.api_version
+            )
 
         assert resume_trigger.item_key
         await self._create_external_trigger(

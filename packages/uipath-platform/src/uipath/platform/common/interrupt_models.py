@@ -24,7 +24,10 @@ from ..documents import (
     FileContent,
     StartExtractionResponse,
 )
-from ..documents.documents import StartExtractionValidationResponse
+from ..documents.documents import (
+    DocumentsApiVersion,
+    StartExtractionValidationResponse,
+)
 from ..orchestrator.job import Job
 
 
@@ -244,12 +247,17 @@ class WaitSystemAgent(BaseModel):
 
 
 class DocumentExtraction(BaseModel):
-    """Model representing a document extraction task creation."""
+    """Model representing a document extraction task creation.
+
+    `api_version` selects the DU Framework API version: `1.1` runs the extraction with
+    `UiPath().documents`, `2.0` with `UiPath().documents_v2`.
+    """
 
     project_name: str
     tag: str
     file: FileContent | None = None
     file_path: str | None = None
+    api_version: DocumentsApiVersion = "1.1"
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,

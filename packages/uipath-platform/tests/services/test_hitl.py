@@ -33,6 +33,7 @@ from uipath.platform.common import (
     WaitBatchTransform,
     WaitDeepRag,
     WaitDeepRagRaw,
+    WaitDocumentExtraction,
     WaitDocumentExtractionValidation,
     WaitEphemeralIndex,
     WaitEphemeralIndexRaw,
@@ -58,15 +59,19 @@ from uipath.platform.context_grounding.context_grounding_index import (
     ContextGroundingIndex,
 )
 from uipath.platform.documents import (
+    DocumentsService,
+    DocumentsServiceV2,
     ExtractionResponseIXP,
     ExtractionResult,
     FieldGroupValueProjection,
     FieldType,
     FieldValueProjection,
     ProjectType,
+    StartExtractionResponse,
     StartExtractionValidationResponse,
     ValidateExtractionAction,
 )
+from uipath.platform.documents.documents import DocumentsApiVersion
 from uipath.platform.errors import ContextGroundingIndexNotFoundError
 from uipath.platform.orchestrator import Job, JobErrorInfo
 from uipath.platform.orchestrator.job import JobState
@@ -2444,3 +2449,288 @@ class TestDocumentExtractionModels:
             )
 
         assert "not both or neither" in str(exc_info.value)
+
+
+SERVICE_MODULE = "uipath.platform.documents._documents_service"
+
+
+@pytest.mark.parametrize(
+    "api_version,service_class,other_class",
+    [
+        ("1.1", DocumentsService, DocumentsServiceV2),
+        ("2.0", DocumentsServiceV2, DocumentsService),
+    ],
+)
+class TestIxpTriggersApiVersion:
+    """IXP triggers run on the DU Framework API version that started the operation."""
+
+    def _patch(self, service_class: type, method: str, mock: AsyncMock) -> Any:
+        return patch(f"{SERVICE_MODULE}.{service_class.__name__}.{method}", new=mock)
+
+    def _extraction_response(
+        self, api_version: DocumentsApiVersion
+    ) -> ExtractionResponseIXP:
+        return ExtractionResponseIXP(
+            extraction_result=ExtractionResult(
+                document_id="doc-123", results_version=1, results_document={}
+            ),
+            project_id="test-project-id",
+            project_type=ProjectType.IXP,
+            extractor_id=None,
+            tag="test-tag",
+            document_type_id="doc-type-123",
+            api_version=api_version,
+        )
+
+    @pytest.mark.anyio
+    async def test_read_ixp_extraction_trigger(
+        self,
+        setup_test_env: None,
+        api_version: DocumentsApiVersion,
+        service_class: type,
+        other_class: type,
+    ) -> None:
+        extraction_response = self._extraction_response(api_version)
+        retrieve = AsyncMock(return_value=extraction_response)
+        other_retrieve = AsyncMock()
+
+        with (
+            self._patch(
+                service_class, "retrieve_ixp_extraction_result_async", retrieve
+            ),
+            self._patch(
+                other_class, "retrieve_ixp_extraction_result_async", other_retrieve
+            ),
+        ):
+            result = await UiPathResumeTriggerReader().read_trigger(
+                UiPathResumeTrigger(
+                    trigger_type=UiPathResumeTriggerType.IXP_EXTRACTION,
+                    item_key="test-operation-id",
+                    payload={
+                        "project_id": "test-project-id",
+                        "tag": "test-tag",
+                        "api_version": api_version,
+                    },
+                )
+            )
+
+        assert result == extraction_response.model_dump()
+        retrieve.assert_called_once_with(
+            "test-project-id", "test-tag", "test-operation-id"
+        )
+        other_retrieve.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_read_ixp_vs_escalation_trigger(
+        self,
+        setup_test_env: None,
+        api_version: DocumentsApiVersion,
+        service_class: type,
+        other_class: type,
+    ) -> None:
+        escalation = ValidateExtractionAction(
+            action_data={"status": TaskStatus.COMPLETED.name.lower()},
+            action_status=TaskStatus.COMPLETED.name,
+            project_id="test-project-id",
+            project_type=ProjectType.IXP,
+            extractor_id=None,
+            tag="test-tag",
+            operation_id="test-operation-id",
+            document_type_id="doc-type-123",
+        )
+        retrieve = AsyncMock(return_value=escalation)
+        other_retrieve = AsyncMock()
+
+        with (
+            self._patch(
+                service_class,
+                "retrieve_ixp_extraction_validation_result_async",
+                retrieve,
+            ),
+            self._patch(
+                other_class,
+                "retrieve_ixp_extraction_validation_result_async",
+                other_retrieve,
+            ),
+        ):
+            result = await UiPathResumeTriggerReader().read_trigger(
+                UiPathResumeTrigger(
+                    trigger_type=UiPathResumeTriggerType.IXP_VS_ESCALATION,
+                    item_key="test-operation-id",
+                    payload={
+                        "project_id": "test-project-id",
+                        "tag": "test-tag",
+                        "api_version": api_version,
+                    },
+                )
+            )
+
+        assert result == escalation.model_dump()
+        retrieve.assert_called_once()
+        other_retrieve.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_create_document_extraction_trigger(
+        self,
+        setup_test_env: None,
+        api_version: DocumentsApiVersion,
+        service_class: type,
+        other_class: type,
+    ) -> None:
+        start = AsyncMock(
+            return_value=StartExtractionResponse(
+                operation_id="test-operation-id",
+                document_id="doc-123",
+                project_id="test-project-id",
+                tag="test-tag",
+                api_version=api_version,
+            )
+        )
+        other_start = AsyncMock()
+
+        with (
+            self._patch(service_class, "start_ixp_extraction_async", start),
+            self._patch(other_class, "start_ixp_extraction_async", other_start),
+        ):
+            resume_trigger = await UiPathResumeTriggerCreator().create_trigger(
+                DocumentExtraction(
+                    project_name="test-project",
+                    tag="test-tag",
+                    file=b"test content",
+                    api_version=api_version,
+                )
+            )
+
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.IXP_EXTRACTION
+        assert resume_trigger.item_key == "test-operation-id"
+        assert isinstance(resume_trigger.payload, dict)
+        assert resume_trigger.payload["api_version"] == api_version
+        start.assert_called_once()
+        other_start.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_create_wait_document_extraction_trigger(
+        self,
+        setup_test_env: None,
+        api_version: DocumentsApiVersion,
+        service_class: type,
+        other_class: type,
+    ) -> None:
+        resume_trigger = await UiPathResumeTriggerCreator().create_trigger(
+            WaitDocumentExtraction(
+                extraction=StartExtractionResponse(
+                    operation_id="test-operation-id",
+                    document_id="doc-123",
+                    project_id="test-project-id",
+                    tag="test-tag",
+                    api_version=api_version,
+                )
+            )
+        )
+
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.IXP_EXTRACTION
+        assert isinstance(resume_trigger.payload, dict)
+        assert resume_trigger.payload["api_version"] == api_version
+
+    @pytest.mark.anyio
+    async def test_create_document_extraction_validation_trigger(
+        self,
+        setup_test_env: None,
+        api_version: DocumentsApiVersion,
+        service_class: type,
+        other_class: type,
+    ) -> None:
+        start = AsyncMock(
+            return_value=StartExtractionValidationResponse(
+                operation_id="test-operation-id",
+                document_id="doc-123",
+                project_id="test-project-id",
+                tag="test-tag",
+                api_version=api_version,
+            )
+        )
+        other_start = AsyncMock()
+
+        with (
+            self._patch(service_class, "start_ixp_extraction_validation_async", start),
+            self._patch(
+                other_class, "start_ixp_extraction_validation_async", other_start
+            ),
+        ):
+            resume_trigger = await UiPathResumeTriggerCreator().create_trigger(
+                DocumentExtractionValidation(
+                    extraction_response=self._extraction_response(api_version),
+                    action_title="Test Validation",
+                )
+            )
+
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.IXP_VS_ESCALATION
+        assert isinstance(resume_trigger.payload, dict)
+        assert resume_trigger.payload["api_version"] == api_version
+        start.assert_called_once()
+        other_start.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_create_wait_document_extraction_validation_trigger(
+        self,
+        setup_test_env: None,
+        api_version: DocumentsApiVersion,
+        service_class: type,
+        other_class: type,
+    ) -> None:
+        resume_trigger = await UiPathResumeTriggerCreator().create_trigger(
+            WaitDocumentExtractionValidation(
+                extraction_validation=StartExtractionValidationResponse(
+                    operation_id="test-operation-id",
+                    document_id="doc-123",
+                    project_id="test-project-id",
+                    tag="test-tag",
+                    api_version=api_version,
+                )
+            )
+        )
+
+        assert resume_trigger.trigger_type == UiPathResumeTriggerType.IXP_VS_ESCALATION
+        assert isinstance(resume_trigger.payload, dict)
+        assert resume_trigger.payload["api_version"] == api_version
+
+
+@pytest.mark.anyio
+async def test_read_ixp_extraction_trigger_without_api_version(
+    setup_test_env: None,
+) -> None:
+    """Triggers created before API v2 support have no version and ran on API v1.1."""
+    retrieve = AsyncMock(
+        return_value=ExtractionResponseIXP(
+            extraction_result=ExtractionResult(
+                document_id="doc-123", results_version=1, results_document={}
+            ),
+            project_id="test-project-id",
+            project_type=ProjectType.IXP,
+            extractor_id=None,
+            tag="test-tag",
+            document_type_id="doc-type-123",
+        )
+    )
+    v2_retrieve = AsyncMock()
+
+    with (
+        patch(
+            f"{SERVICE_MODULE}.DocumentsService.retrieve_ixp_extraction_result_async",
+            new=retrieve,
+        ),
+        patch(
+            f"{SERVICE_MODULE}.DocumentsServiceV2.retrieve_ixp_extraction_result_async",
+            new=v2_retrieve,
+        ),
+    ):
+        await UiPathResumeTriggerReader().read_trigger(
+            UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.IXP_EXTRACTION,
+                item_key="test-operation-id",
+                payload={"project_id": "test-project-id", "tag": "test-tag"},
+            )
+        )
+
+    retrieve.assert_called_once()
+    v2_retrieve.assert_not_called()
