@@ -42,11 +42,15 @@ from .semantic_proxy import SemanticProxyService
 
 
 def _has_valid_client_credentials(
-    client_id: Optional[str], client_secret: Optional[str]
+    client_id: str | None, client_secret: str | None, client_assertion: str | None
 ) -> bool:
-    if bool(client_id) != bool(client_secret):
-        raise ValueError("Both client_id and client_secret must be provided together.")
-    return bool(client_id and client_secret)
+    if client_secret and client_assertion:
+        raise ValueError("Provide either client_secret or client_assertion, not both.")
+    if bool(client_id) != bool(client_secret or client_assertion):
+        raise ValueError(
+            "client_id must be provided together with client_secret or client_assertion."
+        )
+    return bool(client_id)
 
 
 class UiPath:
@@ -57,14 +61,19 @@ class UiPath:
         secret: Optional[str] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
+        client_assertion: str | None = None,
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
         try:
-            if _has_valid_client_credentials(client_id, client_secret):
-                assert client_id and client_secret
+            if _has_valid_client_credentials(
+                client_id, client_secret, client_assertion
+            ):
+                assert client_id
                 service = ExternalApplicationService(base_url)
-                token_data = service.get_token_data(client_id, client_secret, scope)
+                token_data = service.get_token_data(
+                    client_id, client_secret, scope, client_assertion=client_assertion
+                )
                 base_url, secret = service._base_url, token_data.access_token
             else:
                 base_url, secret = resolve_config_from_env(base_url, secret)

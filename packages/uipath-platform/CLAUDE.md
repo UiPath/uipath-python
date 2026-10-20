@@ -55,7 +55,7 @@ sdk.automation_tracker  # AutomationTrackerService
 Credentials can be provided via constructor parameters or environment variables (`UIPATH_URL`, `UIPATH_ACCESS_TOKEN`). Two auth modes are supported:
 
 - **User authentication** — provide `base_url` and `secret` (access token), or set them via env vars
-- **S2S (service-to-service)** — provide `client_id` and `client_secret` (both required together), optionally with `scope`; uses `ExternalApplicationService` internally to exchange for an access token
+- **S2S (service-to-service)** — provide `client_id` with either `client_secret` or `client_assertion` (an OIDC token for federated credentials), optionally with `scope`; uses `ExternalApplicationService` internally to exchange for an access token
 
 Configuration is validated with Pydantic; missing `base_url` raises `BaseUrlMissingError`, missing `secret` raises `SecretMissingError`.
 
