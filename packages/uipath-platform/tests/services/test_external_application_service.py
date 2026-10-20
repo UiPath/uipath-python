@@ -181,6 +181,7 @@ class TestExternalApplicationServiceDelegation:
                 client_id="my-id",
                 client_secret="my-secret",
                 scope="OR.Execution",
+                client_assertion=None,
             )
         else:
             with patch.object(
@@ -196,6 +197,7 @@ class TestExternalApplicationServiceDelegation:
                 client_id="my-id",
                 client_secret="my-secret",
                 scope="OR.Execution",
+                client_assertion=None,
             )
         assert result.access_token == "delegated-token"
 
