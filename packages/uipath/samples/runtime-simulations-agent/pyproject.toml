@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Code review agent demonstrating runtime simulation"
 authors = [{ name = "UiPath", email = "python-sdk@uipath.com" }]
 dependencies = [
-    "uipath",
+    "uipath>=2.14.41",
 ]
 requires-python = ">=3.11"
 
