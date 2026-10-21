@@ -5,6 +5,7 @@ adapter registry that framework integrations (e.g. *uipath-langchain*) use to
 teach the decorator how to wrap their specific object types.
 """
 
+from ..attachments import DetectionScope
 from ._actions import BlockAction, LogAction, LoggingSeverityLevel
 from ._core import GuardrailExclude
 from ._enums import (
@@ -49,6 +50,7 @@ __all__ = [
     "CustomValidator",
     "RuleFunction",
     # Models & enums
+    "DetectionScope",
     "HarmfulContentEntity",
     "HarmfulContentEntityType",
     "IntellectualPropertyEntityType",
