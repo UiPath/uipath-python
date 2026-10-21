@@ -181,6 +181,7 @@ def debug(
                             entrypoint=entrypoint,
                             execution_source=ctx.execution_source,
                             is_conversational=ctx.conversation_id is not None,
+                            factory=factory,
                         )
 
                         governance_bootstrap = await resolve_governance(

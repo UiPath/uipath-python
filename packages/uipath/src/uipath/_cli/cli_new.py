@@ -18,10 +18,13 @@ from .models.project_types import ProjectType
 
 console = ConsoleLogger()
 
-# The `uipath` minor release that scaffolded projects are pinned to.
+# The `uipath` minor release that scaffolded projects are capped to.
 # Deliberately a constant: the guard test in tests/cli/test_new.py fails on
 # every minor bump so the scaffold (pin, template, hints) gets reviewed
-# alongside the release rather than drifting silently.
+# alongside the release rather than drifting silently. The floor is the
+# installed release itself: a Robot refuses a project on an older `uipath`
+# than it supports, so a scaffold must never ask for less than the CLI that
+# wrote it.
 UIPATH_SCAFFOLD_MINOR = "2.14"
 
 
@@ -37,13 +40,14 @@ def generate_script(target_directory):
 def generate_pyproject(target_directory, project_name):
     project_toml_path = os.path.join(target_directory, PYTHON_CONFIGURATION_FILE)
     major, minor = (int(part) for part in UIPATH_SCAFFOLD_MINOR.split("."))
+    floor = importlib.metadata.version("uipath")
     toml_content = f"""[project]
 name = "{project_name}"
 version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "uipath>={major}.{minor}.0, <{major}.{minor + 1}.0"
+    "uipath>={floor}, <{major}.{minor + 1}.0"
 ]
 requires-python = ">=3.11"
 """

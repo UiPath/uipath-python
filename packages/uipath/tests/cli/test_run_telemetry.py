@@ -1,5 +1,6 @@
 """Tests for coded run lifecycle telemetry."""
 
+from importlib.metadata import version
 from typing import Any
 from unittest.mock import patch
 
@@ -71,6 +72,7 @@ def start(
         entrypoint=kwargs.pop("entrypoint", "main"),
         execution_source=kwargs.pop("execution_source", "runtime"),
         is_conversational=kwargs.pop("is_conversational", False),
+        factory=kwargs.pop("factory", None),
     )
 
 
@@ -109,6 +111,45 @@ class TestClassification:
         start(agent_type=None, agent_framework=None)
 
         assert names(emitted) == ["CodedAgentRun.Start"]
+
+
+class TestAgentFramework:
+    def test_framework_is_reported_on_every_event(self, emitted):
+        completed = start(agent_framework="llamaindex")
+        assert completed is not None
+        completed.finished(successful())
+        crashed = start(agent_framework="llamaindex")
+        assert crashed is not None
+        crashed.failed(RuntimeError("boom"))
+
+        assert names(emitted) == [
+            "CodedAgentRun.Start",
+            "CodedAgentRun.End",
+            "CodedAgentRun.Start",
+            "CodedAgentRun.Failed",
+        ]
+        for name, properties in emitted:
+            assert properties.get("AgentFramework") == "llamaindex", name
+
+
+class TestIntegrationVersion:
+    def test_version_of_the_factory_package_is_reported_on_every_event(self, emitted):
+        factory_cls = type("Factory", (), {"__module__": "pluggy._factory"})
+        handle = start(factory=factory_cls())
+        assert handle is not None
+        handle.finished(successful())
+
+        assert names(emitted) == ["CodedAgentRun.Start", "CodedAgentRun.End"]
+        for name, properties in emitted:
+            assert properties.get("IntegrationVersion") == version("pluggy"), name
+
+    def test_factory_outside_an_installed_package_reports_no_version(self, emitted):
+        factory_cls = type("Factory", (), {"__module__": "main"})
+
+        start(factory=factory_cls())
+
+        assert names(emitted) == ["CodedAgentRun.Start"]
+        assert "IntegrationVersion" not in emitted[0][1]
 
 
 class TestScopeBlock:
