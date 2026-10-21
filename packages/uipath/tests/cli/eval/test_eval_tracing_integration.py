@@ -47,7 +47,7 @@ class SpanCapturingTracer:
 
     @contextmanager
     def start_as_current_span(
-        self, name: str, attributes: dict[str, Any] | None = None
+        self, name: str, attributes: dict[str, Any] | None = None, **kwargs: Any
     ):
         """Capture span creation and yield a mock span."""
         # Create MockSpan first so we can reference its attributes
