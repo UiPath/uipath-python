@@ -435,3 +435,8 @@ class TestUipathScaffoldPin:
             assert pin.contains(installed, prereleases=True), (
                 f"scaffolded pin '{pin}' does not contain installed uipath {installed}"
             )
+            floors = {str(s.version) for s in pin if s.operator == ">="}
+            assert floors == {installed}, (
+                f"scaffolded pin '{pin}' must floor at the installed uipath {installed}: "
+                "a Robot refuses a project on an older uipath than it supports"
+            )
