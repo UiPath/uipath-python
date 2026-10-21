@@ -344,6 +344,12 @@ sdk.context_grounding.list_indexes(folder_key: Optional[str]=None, folder_path: 
 # Asynchronously list all context grounding indexes in a folder.
 sdk.context_grounding.list_indexes_async(folder_key: Optional[str]=None, folder_path: Optional[str]=None) -> typing.List[uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex]
 
+# Read a range of pages of one document in a context grounding index.
+sdk.context_grounding.read_pages(name: str, source_document_id: str, start_page: int, end_page: int, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding.ContextGroundingPageRange
+
+# Asynchronously read a range of pages of one document in a context grounding index.
+sdk.context_grounding.read_pages_async(name: str, source_document_id: str, start_page: int, end_page: int, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding.ContextGroundingPageRange
+
 # Retrieve context grounding index information by its name.
 sdk.context_grounding.retrieve(name: str, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding_index.ContextGroundingIndex
 

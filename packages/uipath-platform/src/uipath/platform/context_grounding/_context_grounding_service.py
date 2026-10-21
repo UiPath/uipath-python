@@ -34,6 +34,7 @@ from .context_grounding import (
     BatchTransformResponse,
     BatchTransformStatus,
     CitationMode,
+    ContextGroundingPageRange,
     ContextGroundingQueryResponse,
     DeepRagCreationResponse,
     DeepRagResponse,
@@ -1929,6 +1930,122 @@ class ContextGroundingService(FolderContext, BaseService):
 
         return UnifiedQueryResult.model_validate(response.json())
 
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_read_pages", run_type="uipath")
+    def read_pages(
+        self,
+        name: str,
+        source_document_id: str,
+        start_page: int,
+        end_page: int,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        include_system_indexes: bool = False,
+    ) -> ContextGroundingPageRange:
+        """Read a range of pages of one document in a context grounding index.
+
+        Pages are read as stored, not searched: use it for pages a user names, or
+        to continue a search result onto the pages around it.
+
+        Args:
+            name (str): The name of the context index the document is in.
+            source_document_id (str): The document's id, as returned in search
+                results' `source_document_id`.
+            start_page (int): The first page to read (1-based, as in search results).
+            end_page (int): The last page to read; at most 20 pages per call.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+            include_system_indexes (bool): If True, fall back to tenant-wide
+                system indexes when the index is not found in folder or
+                across-folders listings. Defaults to False.
+
+        Returns:
+            ContextGroundingPageRange: The pages found, the pages past the end of
+                the document, and whether a page exists just before and after the range.
+        """
+        index = self.retrieve(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            include_system_indexes=include_system_indexes,
+        )
+
+        spec = self._read_pages_spec(
+            index_id=index.id,
+            source_document_id=source_document_id,
+            start_page=start_page,
+            end_page=end_page,
+            folder_key=folder_key or index.folder_key,
+            folder_path=folder_path,
+        )
+
+        response = self.request(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return ContextGroundingPageRange.model_validate(response.json())
+
+    @resource_override(resource_type="index")
+    @traced(name="contextgrounding_read_pages", run_type="uipath")
+    async def read_pages_async(
+        self,
+        name: str,
+        source_document_id: str,
+        start_page: int,
+        end_page: int,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+        include_system_indexes: bool = False,
+    ) -> ContextGroundingPageRange:
+        """Asynchronously read a range of pages of one document in a context grounding index.
+
+        Pages are read as stored, not searched: use it for pages a user names, or
+        to continue a search result onto the pages around it.
+
+        Args:
+            name (str): The name of the context index the document is in.
+            source_document_id (str): The document's id, as returned in search
+                results' `source_document_id`.
+            start_page (int): The first page to read (1-based, as in search results).
+            end_page (int): The last page to read; at most 20 pages per call.
+            folder_key (Optional[str]): The key of the folder where the index resides.
+            folder_path (Optional[str]): The path of the folder where the index resides.
+            include_system_indexes (bool): If True, fall back to tenant-wide
+                system indexes when the index is not found in folder or
+                across-folders listings. Defaults to False.
+
+        Returns:
+            ContextGroundingPageRange: The pages found, the pages past the end of
+                the document, and whether a page exists just before and after the range.
+        """
+        index = await self.retrieve_async(
+            name,
+            folder_key=folder_key,
+            folder_path=folder_path,
+            include_system_indexes=include_system_indexes,
+        )
+
+        spec = self._read_pages_spec(
+            index_id=index.id,
+            source_document_id=source_document_id,
+            start_page=start_page,
+            end_page=end_page,
+            folder_key=folder_key or index.folder_key,
+            folder_path=folder_path,
+        )
+
+        response = await self.request_async(
+            spec.method,
+            spec.endpoint,
+            json=spec.json,
+            headers=spec.headers,
+        )
+
+        return ContextGroundingPageRange.model_validate(response.json())
+
     @traced(name="contextgrounding_ingest_data", run_type="uipath")
     def ingest_data(
         self,
@@ -2591,6 +2708,30 @@ class ContextGroundingService(FolderContext, BaseService):
             method="POST",
             endpoint=Endpoint(f"/ecs_/v1.2/search/{index_id}"),
             json=json_body,
+            headers={
+                **header_folder(folder_key, None),
+                **header_job_key(),
+            },
+        )
+
+    def _read_pages_spec(
+        self,
+        index_id: str,
+        source_document_id: str,
+        start_page: int,
+        end_page: int,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> RequestSpec:
+        folder_key = self._resolve_folder_key(folder_key, folder_path)
+
+        return RequestSpec(
+            method="POST",
+            endpoint=Endpoint(f"/ecs_/v2/indexes/{index_id}/ReadPages"),
+            json={
+                "sourceDocumentId": source_document_id,
+                "range": {"from": start_page, "to": end_page},
+            },
             headers={
                 **header_folder(folder_key, None),
                 **header_job_key(),
