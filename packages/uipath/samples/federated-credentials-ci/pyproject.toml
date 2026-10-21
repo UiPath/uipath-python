@@ -1,0 +1,14 @@
+[project]
+name = "federated-credentials-ci"
+version = "0.0.1"
+description = "Run tests against UiPath Orchestrator from CI with federated credentials, no stored secret."
+authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
+dependencies = [
+    "uipath",
+]
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "pytest",
+]

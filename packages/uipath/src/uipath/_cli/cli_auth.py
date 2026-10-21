@@ -30,6 +30,12 @@ console = ConsoleLogger()
     help="Client secret for client credentials authentication (unattended mode)",
 )
 @click.option(
+    "--client-assertion",
+    required=False,
+    envvar="UIPATH_CLIENT_ASSERTION",
+    help="OIDC token from a federated identity provider (e.g. GitHub Actions), used instead of `--client-secret`. Can also be set via `UIPATH_CLIENT_ASSERTION`",
+)
+@click.option(
     "--base-url",
     required=False,
     help="Base URL for the UiPath tenant instance (required for client credentials)",
@@ -50,6 +56,7 @@ def auth(
     force: bool = False,
     client_id: str | None = None,
     client_secret: str | None = None,
+    client_assertion: str | None = None,
     base_url: str | None = None,
     tenant: str | None = None,
     scope: str | None = None,
@@ -66,6 +73,8 @@ def auth(
     - Interactive (default): Opens a browser window for OAuth authentication.
     - Unattended: Uses the client credentials flow. Requires ``--client-id``,
       ``--client-secret``, ``--base-url``, and ``--scope``.
+    - Federated (workload identity): like unattended, but ``--client-assertion``
+      (an OIDC token from the CI provider) replaces ``--client-secret``.
 
     **Environment Variables:**
 
@@ -83,12 +92,21 @@ def auth(
 
         $ uipath auth --base-url https://cloud.uipath.com/organization/tenant --client-id 00000000-0000-0000-0000-000000000000 --client-secret 'secret_value_here'
 
+        Federated login using an OIDC token from the CI provider:
+
+        $ uipath auth --base-url https://cloud.uipath.com/organization/tenant --client-id 00000000-0000-0000-0000-000000000000 --client-assertion "$OIDC_TOKEN"
+
     """
+    if (client_secret or client_assertion) and not client_id:
+        raise click.UsageError(
+            "--client-id is required with --client-secret or --client-assertion."
+        )
     auth_service = AuthService(
         environment=environment,
         force=force,
         client_id=client_id,
         client_secret=client_secret,
+        client_assertion=client_assertion,
         base_url=base_url,
         tenant=tenant,
         scope=scope,
