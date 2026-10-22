@@ -274,6 +274,7 @@ def _create_quickform_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
+    task_source_metadata: Optional[Dict[str, Any]] = None,
 ) -> RequestSpec:
     """Build the RequestSpec for Orchestrator's GenericTasks/CreateTask endpoint.
 
@@ -304,7 +305,7 @@ def _create_quickform_spec(
     )
     if actionable_message_metadata is not None:
         json_payload["actionableMessageMetaData"] = actionable_message_metadata
-    _apply_task_source(json_payload, source_name)
+    _apply_task_source(json_payload, source_name, custom_metadata=task_source_metadata)
 
     return RequestSpec(
         method="POST",
@@ -704,6 +705,7 @@ class TasksService(FolderContext, BaseService):
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         creator_job_key: Optional[str] = None,
         source_name: str = "Agent",
+        task_source_metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Creates a new QuickForm task asynchronously.
 
@@ -737,6 +739,8 @@ class TasksService(FolderContext, BaseService):
             creator_job_key: Optional. Identifies the job that triggered the
                 inline schema creation/upsert.
             source_name: Source name on TaskSource. Defaults to 'Agent'.
+            task_source_metadata: Optional extra keys merged into
+                taskSource.taskSourceMetadata, same as in `create_async()`.
 
         Returns:
             Task: The created task object.
@@ -754,6 +758,7 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
+            task_source_metadata=task_source_metadata,
         )
 
         response = await self.request_async(
