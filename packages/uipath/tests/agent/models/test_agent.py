@@ -15,6 +15,7 @@ from uipath.agent.models.agent import (
     AgentContextSettings,
     AgentContextType,
     AgentConversationalAgentToolResourceConfig,
+    AgentConversationalAgentToolSettings,
     AgentCustomGuardrail,
     AgentDefinition,
     AgentEscalationChannel,
@@ -5121,3 +5122,101 @@ class TestConversationalAgentTool:
         assert isinstance(
             reparsed.resources[0], AgentConversationalAgentToolResourceConfig
         )
+
+
+class TestConversationalAgentToolSettings:
+    """Settings of the conversational agent tool: conversation mode, background."""
+
+    @staticmethod
+    def _parse_settings(settings: dict[str, Any]):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "settings": settings}
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        return resource.settings
+
+    @pytest.mark.parametrize("mode", ["single", "multiple"])
+    def test_conversation_mode_parses(self, mode: str):
+        settings = self._parse_settings({"conversationMode": mode})
+
+        assert isinstance(settings, AgentConversationalAgentToolSettings)
+        assert settings.conversation_mode == mode
+
+    def test_conversation_mode_absent_is_none(self):
+        settings = self._parse_settings({})
+
+        assert settings.conversation_mode is None
+        assert settings.run_in_background is None
+
+    def test_conversation_mode_null_is_none(self):
+        settings = self._parse_settings({"conversationMode": None})
+
+        assert settings.conversation_mode is None
+
+    @pytest.mark.parametrize("bad", ["Single", "both", "", 1])
+    def test_invalid_conversation_mode_is_rejected(self, bad: Any):
+        with pytest.raises(ValidationError):
+            AgentConversationalAgentToolSettings.model_validate(
+                {"conversationMode": bad}
+            )
+
+    def test_invalid_conversation_mode_is_rejected_in_a_full_definition(self):
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "settings": {"conversationMode": "bogus"},
+        }
+
+        with pytest.raises(ValidationError):
+            AgentDefinition.model_validate(_conversational_agent_json(record))
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_run_in_background_parses(self, value: bool):
+        settings = self._parse_settings({"runInBackground": value})
+
+        assert settings.run_in_background is value
+
+    def test_both_settings_together_keep_base_settings_and_extras(self):
+        settings = self._parse_settings(
+            {
+                "conversationMode": "multiple",
+                "runInBackground": True,
+                "timeout": 30,
+                "maxAttempts": 2,
+                "futureSetting": "x",
+            }
+        )
+
+        assert settings.conversation_mode == "multiple"
+        assert settings.run_in_background is True
+        assert settings.timeout == 30
+        assert settings.max_attempts == 2
+        assert (settings.model_extra or {})["futureSetting"] == "x"
+
+    def test_record_without_settings_key_still_parses(self):
+        record = {
+            k: v for k, v in _CONVERSATIONAL_AGENT_TOOL.items() if k != "settings"
+        }
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        assert resource.settings.conversation_mode is None
+
+    def test_round_trip_by_alias_keeps_conversation_mode(self):
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "settings": {"conversationMode": "multiple", "runInBackground": False},
+        }
+        config = AgentDefinition.model_validate(_conversational_agent_json(record))
+
+        dumped = config.model_dump(by_alias=True, mode="json")
+        (resource,) = dumped["resources"]
+        assert resource["settings"]["conversationMode"] == "multiple"
+        assert resource["settings"]["runInBackground"] is False
+
+        (reparsed,) = AgentDefinition.model_validate(dumped).resources
+        assert isinstance(reparsed, AgentConversationalAgentToolResourceConfig)
+        assert reparsed.settings.conversation_mode == "multiple"

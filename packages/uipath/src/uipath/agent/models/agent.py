@@ -1009,6 +1009,16 @@ class AgentConversationalAgentToolProperties(BaseResourceProperties):
     cached_agent_card: Optional[Dict[str, Any]] = Field(None, alias="cachedAgentCard")
 
 
+class AgentConversationalAgentToolSettings(AgentToolSettings):
+    """Conversational agent tool settings model."""
+
+    # Absent (None) means "single": the tool keeps one ongoing conversation.
+    conversation_mode: Literal["single", "multiple"] | None = Field(
+        None, alias="conversationMode"
+    )
+    run_in_background: bool | None = Field(None, alias="runInBackground")
+
+
 class AgentConversationalAgentToolResourceConfig(BaseAgentToolResourceConfig):
     """Conversational agent tool resource configuration model.
 
@@ -1019,7 +1029,9 @@ class AgentConversationalAgentToolResourceConfig(BaseAgentToolResourceConfig):
     type: Literal[AgentToolType.CONVERSATIONAL_AGENT]
     output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
     properties: AgentConversationalAgentToolProperties
-    settings: AgentToolSettings = Field(default_factory=AgentToolSettings)
+    settings: AgentConversationalAgentToolSettings = Field(
+        default_factory=AgentConversationalAgentToolSettings
+    )
 
 
 class AgentIxpExtractionToolProperties(BaseResourceProperties):
