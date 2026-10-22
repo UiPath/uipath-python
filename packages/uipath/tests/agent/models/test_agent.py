@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -5154,21 +5155,55 @@ class TestConversationalAgentToolSettings:
 
         assert settings.conversation_mode is None
 
-    @pytest.mark.parametrize("bad", ["Single", "both", "", 1])
-    def test_invalid_conversation_mode_is_rejected(self, bad: Any):
+    @pytest.mark.parametrize("unknown", ["Single", "both", "", "parallel"])
+    def test_unknown_conversation_mode_becomes_none_with_a_warning(
+        self, unknown: str, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING, logger="uipath.agent.models.agent"):
+            settings = AgentConversationalAgentToolSettings.model_validate(
+                {"conversationMode": unknown}
+            )
+
+        assert settings.conversation_mode is None
+        assert [r.levelno for r in caplog.records] == [logging.WARNING]
+        assert repr(unknown) in caplog.records[0].getMessage()
+
+    @pytest.mark.parametrize("mode", ["single", "multiple", None])
+    def test_known_or_null_conversation_mode_does_not_warn(
+        self, mode: str | None, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING, logger="uipath.agent.models.agent"):
+            AgentConversationalAgentToolSettings.model_validate(
+                {"conversationMode": mode}
+            )
+
+        assert caplog.records == []
+
+    @pytest.mark.parametrize("bad", [1, True, ["single"], {"mode": "single"}])
+    def test_non_string_conversation_mode_is_still_rejected(self, bad: Any):
         with pytest.raises(ValidationError):
             AgentConversationalAgentToolSettings.model_validate(
                 {"conversationMode": bad}
             )
 
-    def test_invalid_conversation_mode_is_rejected_in_a_full_definition(self):
+    def test_unknown_conversation_mode_does_not_fail_the_agent_definition(self):
         record = {
             **_CONVERSATIONAL_AGENT_TOOL,
-            "settings": {"conversationMode": "bogus"},
+            "settings": {
+                "conversationMode": "bogus",
+                "runInBackground": True,
+                "timeout": 30,
+            },
         }
 
-        with pytest.raises(ValidationError):
-            AgentDefinition.model_validate(_conversational_agent_json(record))
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        assert resource.settings.conversation_mode is None
+        assert resource.settings.run_in_background is True
+        assert resource.settings.timeout == 30
 
     @pytest.mark.parametrize("value", [True, False])
     def test_run_in_background_parses(self, value: bool):

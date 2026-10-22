@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from typing import (
     Annotated,
@@ -24,6 +25,7 @@ from pydantic import (
     Discriminator,
     Field,
     Tag,
+    field_validator,
     model_validator,
 )
 
@@ -40,6 +42,8 @@ from uipath.platform.entities import DataFabricEntityItem, DataFabricOntologyIte
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
+
+logger = logging.getLogger(__name__)
 
 EMPTY_SCHEMA = {"type": "object", "properties": {}}
 
@@ -1017,6 +1021,15 @@ class AgentConversationalAgentToolSettings(AgentToolSettings):
         None, alias="conversationMode"
     )
     run_in_background: bool | None = Field(None, alias="runInBackground")
+
+    @field_validator("conversation_mode", mode="before")
+    @classmethod
+    def _ignore_unknown_conversation_mode(cls, value: Any) -> Any:
+        """Read a mode this version does not know as absent, like an unknown tool type."""
+        if isinstance(value, str) and value not in ("single", "multiple"):
+            logger.warning("Ignoring unknown conversationMode %r", value)
+            return None
+        return value
 
 
 class AgentConversationalAgentToolResourceConfig(BaseAgentToolResourceConfig):
