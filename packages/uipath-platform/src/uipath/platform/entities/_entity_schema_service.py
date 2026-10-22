@@ -134,6 +134,38 @@ class EntitySchemaService(BaseService):
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
 
+    def list_entities_without_fields(self) -> List[Entity]:
+        """Internal implementation; see `EntitiesService.list_entities_v3()`."""
+        entities: List[Entity] = []
+        skip = 0
+        top = 200
+
+        while True:
+            spec = self._list_entities_page_spec(skip=skip, top=top)
+            response = self.request(spec.method, spec.endpoint, params=spec.params)
+            page = response.json()["results"]
+            entities.extend(Entity.model_validate(entity) for entity in page)
+            if len(page) < top:
+                return entities
+            skip += top
+
+    async def list_entities_without_fields_async(self) -> List[Entity]:
+        """Async variant of `list_entities_without_fields()`."""
+        entities: List[Entity] = []
+        skip = 0
+        top = 200
+
+        while True:
+            spec = self._list_entities_page_spec(skip=skip, top=top)
+            response = await self.request_async(
+                spec.method, spec.endpoint, params=spec.params
+            )
+            page = response.json()["results"]
+            entities.extend(Entity.model_validate(entity) for entity in page)
+            if len(page) < top:
+                return entities
+            skip += top
+
     def list_choicesets(self) -> List[Entity]:
         """Internal implementation; see `EntitiesService.list_choicesets()`."""
         spec = self._list_choicesets_spec()
@@ -233,6 +265,19 @@ class EntitySchemaService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(_schema_base(use_v3)),
+        )
+
+    @staticmethod
+    def _list_entities_page_spec(skip: int, top: int) -> RequestSpec:
+        """Build the GET spec for one page of entities without their fields.
+
+        The v3 `paginated` route lists the same entities as `GET /v3/entities`
+        but never loads the field schemas. It accepts at most 200 per page.
+        """
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"{_V3_ENTITIES}/paginated"),
+            params={"skip": skip, "top": top},
         )
 
     @staticmethod
