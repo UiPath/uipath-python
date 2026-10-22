@@ -1071,26 +1071,16 @@ async def test_create_async_merges_task_source_metadata(
     assert task_source_metadata["InstanceId"] == "trace-1"
 
 
-def _assert_quickform_task_source(body: dict[str, Any]) -> None:
-    task_source_metadata = body["taskSource"]["taskSourceMetadata"]
-    assert task_source_metadata["ParentSpanId"] == "a3c27222815e80ca"
-    assert task_source_metadata["InstanceId"] == "trace-1"
-
-
-def test_create_quickform_merges_task_source_metadata(
-    qf_runner: Any, jit_debug_env: None
-) -> None:
-    _, body = qf_runner(task_source_metadata={"ParentSpanId": "a3c27222815e80ca"})
-    _assert_quickform_task_source(body)
-
-
 async def test_create_quickform_async_merges_task_source_metadata(
     qf_runner_async: Any, jit_debug_env: None
 ) -> None:
     _, body = await qf_runner_async(
         task_source_metadata={"ParentSpanId": "a3c27222815e80ca"}
     )
-    _assert_quickform_task_source(body)
+
+    task_source_metadata = body["taskSource"]["taskSourceMetadata"]
+    assert task_source_metadata["ParentSpanId"] == "a3c27222815e80ca"
+    assert task_source_metadata["InstanceId"] == "trace-1"
 
 
 def test_create_omits_extra_task_source_metadata_when_unset(

@@ -799,7 +799,6 @@ class TasksService(FolderContext, BaseService):
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         creator_job_key: Optional[str] = None,
         source_name: str = "Agent",
-        task_source_metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Create a new QuickForm task synchronously.
 
@@ -818,7 +817,6 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
-            task_source_metadata=task_source_metadata,
         )
 
         response = self.request(
