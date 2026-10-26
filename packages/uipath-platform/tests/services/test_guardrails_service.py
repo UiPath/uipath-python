@@ -1,4 +1,5 @@
 import json
+import logging
 
 import httpx
 import pytest
@@ -6,6 +7,7 @@ from pytest_httpx import HTTPXMock
 from uipath.core.guardrails import (
     GuardrailScope,
     GuardrailSelector,
+    GuardrailValidationErrorType,
     GuardrailValidationResultType,
 )
 
@@ -1378,4 +1380,113 @@ class TestGuardrailFlaggedAttachmentIds:
             "reason": "PII detected",
             "spanId": None,
             "flaggedAttachmentIds": [_ATTACHMENT_ID],
+            "errorType": None,
         }
+
+
+_SERVICE_LOGGER = "uipath.platform.guardrails._guardrails_service"
+
+
+class TestGuardrailErrorType:
+    """evaluate_guardrail fails closed and reports why validation did not complete."""
+
+    @pytest.mark.parametrize(
+        ("result_value", "expected"),
+        [
+            ("PROVIDER_ERROR", GuardrailValidationErrorType.PROVIDER_ERROR),
+            ("INTERNAL_ERROR", GuardrailValidationErrorType.INTERNAL_ERROR),
+            (
+                "RATE_LIMIT_EXCEEDED",
+                GuardrailValidationErrorType.RATE_LIMIT_EXCEEDED,
+            ),
+            ("provider_error", GuardrailValidationErrorType.PROVIDER_ERROR),
+        ],
+    )
+    def test_error_results_fail_closed_with_error_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+        result_value: str,
+        expected: GuardrailValidationErrorType,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": result_value,
+                "details": "`temperature` is deprecated for this model.",
+            },
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.error_type == expected
+        assert result.reason == "`temperature` is deprecated for this model."
+        assert any(
+            record.levelno == logging.WARNING and result_value in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_unknown_result_fails_closed_without_error_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "SOMETHING_NEW", "details": "Unexpected"},
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.error_type is None
+        assert result.reason == "Unexpected"
+        assert any(
+            record.levelno == logging.WARNING and "SOMETHING_NEW" in record.getMessage()
+            for record in caplog.records
+        )
+
+    @pytest.mark.parametrize(
+        ("result_value", "expected"),
+        [
+            ("PASSED", GuardrailValidationResultType.PASSED),
+            ("VALIDATION_FAILED", GuardrailValidationResultType.VALIDATION_FAILED),
+        ],
+    )
+    def test_evaluated_results_have_no_error_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+        result_value: str,
+        expected: GuardrailValidationResultType,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": result_value, "details": "Evaluated"},
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.result == expected
+        assert result.error_type is None
+        assert result.reason == "Evaluated"
+        assert not [r for r in caplog.records if r.name == _SERVICE_LOGGER]
