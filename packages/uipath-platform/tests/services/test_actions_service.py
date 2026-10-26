@@ -2,7 +2,9 @@ import json
 from typing import Any
 
 import pytest
+from opentelemetry.trace import NonRecordingSpan, SpanContext
 from pytest_httpx import HTTPXMock
+from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
@@ -1071,16 +1073,19 @@ async def test_create_async_merges_task_source_metadata(
     assert task_source_metadata["InstanceId"] == "trace-1"
 
 
-async def test_create_quickform_async_merges_task_source_metadata(
-    qf_runner_async: Any, jit_debug_env: None
+async def test_create_quickform_async_sends_the_current_span_as_parent_span_id(
+    qf_runner_async: Any, jit_debug_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _, body = await qf_runner_async(
-        task_source_metadata={"ParentSpanId": "a3c27222815e80ca"}
+    span = NonRecordingSpan(
+        SpanContext(trace_id=1, span_id=0xA3C27222815E80CA, is_remote=False)
     )
+    monkeypatch.setattr(UiPathSpanUtils, "get_external_current_span", lambda: span)
+    monkeypatch.setenv("UIPATH_TRACE_ID", "4bf92f3577b34da6a3ce929d0e0e4736")
+
+    _, body = await qf_runner_async()
 
     task_source_metadata = body["taskSource"]["taskSourceMetadata"]
     assert task_source_metadata["ParentSpanId"] == "a3c27222815e80ca"
-    assert task_source_metadata["InstanceId"] == "trace-1"
 
 
 def test_create_omits_extra_task_source_metadata_when_unset(
