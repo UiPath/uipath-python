@@ -3,11 +3,14 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional
 
+from opentelemetry import trace
+from opentelemetry.trace import format_span_id
 from uipath.core.feature_flags import (
     JIT_ESCALATION_APPS_FEATURE_FLAG,
     FeatureFlags,
 )
 from uipath.core.tracing import traced
+from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from uipath.platform.constants import (
     ENV_TENANT_ID,
@@ -210,6 +213,8 @@ def _apply_task_source(
     trace_id = UiPathConfig.trace_id
     if not (project_id and trace_id):
         return
+    span = UiPathSpanUtils.get_external_current_span() or trace.get_current_span()
+    span_id = span.get_span_context().span_id
     payload["taskSource"] = {
         "sourceName": source_name,
         "sourceId": project_id,
@@ -218,6 +223,7 @@ def _apply_task_source(
             "FolderKey": UiPathConfig.folder_key,
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
+            **({"ParentSpanId": format_span_id(span_id)} if span_id else {}),
             **(custom_metadata or {}),
         },
         "jobId": UiPathConfig.job_key,
@@ -274,7 +280,6 @@ def _create_quickform_spec(
     is_actionable_message_enabled: Optional[bool] = None,
     actionable_message_metadata: Optional[Dict[str, Any]] = None,
     source_name: str = "Agent",
-    task_source_metadata: Optional[Dict[str, Any]] = None,
 ) -> RequestSpec:
     """Build the RequestSpec for Orchestrator's GenericTasks/CreateTask endpoint.
 
@@ -305,7 +310,7 @@ def _create_quickform_spec(
     )
     if actionable_message_metadata is not None:
         json_payload["actionableMessageMetaData"] = actionable_message_metadata
-    _apply_task_source(json_payload, source_name, custom_metadata=task_source_metadata)
+    _apply_task_source(json_payload, source_name)
 
     return RequestSpec(
         method="POST",
@@ -705,7 +710,6 @@ class TasksService(FolderContext, BaseService):
         actionable_message_metadata: Optional[Dict[str, Any]] = None,
         creator_job_key: Optional[str] = None,
         source_name: str = "Agent",
-        task_source_metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """Creates a new QuickForm task asynchronously.
 
@@ -739,8 +743,6 @@ class TasksService(FolderContext, BaseService):
             creator_job_key: Optional. Identifies the job that triggered the
                 inline schema creation/upsert.
             source_name: Source name on TaskSource. Defaults to 'Agent'.
-            task_source_metadata: Optional extra keys merged into
-                taskSource.taskSourceMetadata, same as in `create_async()`.
 
         Returns:
             Task: The created task object.
@@ -758,7 +760,6 @@ class TasksService(FolderContext, BaseService):
             is_actionable_message_enabled=is_actionable_message_enabled,
             actionable_message_metadata=actionable_message_metadata,
             source_name=source_name,
-            task_source_metadata=task_source_metadata,
         )
 
         response = await self.request_async(
