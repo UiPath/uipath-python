@@ -5,7 +5,11 @@ from typing import Any
 
 from pydantic import TypeAdapter, ValidationError
 
-from uipath.core.chat import UiPathConversationMessageData, UiPathInlineValue
+from uipath.core.chat import (
+    UiPathConversationContentPartData,
+    UiPathConversationMessageData,
+    UiPathExternalValue,
+)
 
 AGENT_RESPONSE_MESSAGES_KEY = "uipath__agent_response_messages"
 FINAL_RESPONSE_HEADER = "Agent Final Response:"
@@ -38,15 +42,13 @@ def _render_conversational_output(output: dict[str, Any]) -> str:
     except ValidationError:
         return ""
 
-    lines: list[str] = []
-    for message in messages:
-        for part in message.content_parts:
-            if isinstance(part.data, UiPathInlineValue) and part.data.inline:
-                lines.append(f"[{message.role}] {part.data.inline}")
-        for call in message.tool_calls:
-            lines.append(
-                f"[{message.role}] Tool call {call.name}: {_to_json(call.input)}"
-            )
+    # toolCalls are skipped: trace_to_str already renders the executed calls from spans.
+    lines = [
+        f"[{message.role}] {rendered}"
+        for message in messages
+        for part in message.content_parts
+        if (rendered := _render_content_part(part))
+    ]
 
     structured_fields = {
         k: v for k, v in output.items() if k != AGENT_RESPONSE_MESSAGES_KEY
@@ -54,6 +56,15 @@ def _render_conversational_output(output: dict[str, Any]) -> str:
     if structured_fields:
         lines.append(_to_json(structured_fields))
     return "\n".join(lines)
+
+
+def _render_content_part(part: UiPathConversationContentPartData) -> str:
+    if isinstance(part.data, UiPathExternalValue):
+        return f"Attachment ({part.mime_type}): {part.data.uri}"
+    inline = part.data.inline
+    if inline is None or inline == "":
+        return ""
+    return inline if isinstance(inline, str) else _to_json(inline)
 
 
 def _to_json(value: Any) -> str:

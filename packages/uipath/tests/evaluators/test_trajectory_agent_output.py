@@ -92,7 +92,7 @@ class TestRenderAgentOutput:
 
         assert rendered == f"[assistant] {ANSWER}"
 
-    def test_snake_case_conversational_output_renders_message_text(self) -> None:
+    def test_snake_case_output_renders_text_without_tool_calls(self) -> None:
         output = {
             "uipath__agent_response_messages": [
                 {
@@ -105,10 +105,37 @@ class TestRenderAgentOutput:
             ]
         }
 
-        rendered = render_agent_output(output)
+        assert render_agent_output(output) == f"[assistant] {ANSWER}"
 
-        assert f"[assistant] {ANSWER}" in rendered
-        assert '[assistant] Tool call Escalate: {\n  "reason": "x"\n}' in rendered
+    def test_external_and_falsy_parts_are_kept(self) -> None:
+        output = {
+            "uipath__agent_response_messages": [
+                {
+                    "role": "assistant",
+                    "contentParts": [
+                        {
+                            "mimeType": "text/plain",
+                            "data": {"inline": "Report attached."},
+                        },
+                        {
+                            "mimeType": "application/pdf",
+                            "data": {"uri": "urn:uipath:cas:file:orchestrator:abc"},
+                        },
+                        {"mimeType": "application/json", "data": {"inline": False}},
+                        {"mimeType": "application/json", "data": {"inline": 0}},
+                        {"mimeType": "text/plain", "data": {"inline": ""}},
+                    ],
+                }
+            ]
+        }
+
+        assert render_agent_output(output) == (
+            "[assistant] Report attached.\n"
+            "[assistant] Attachment (application/pdf): "
+            "urn:uipath:cas:file:orchestrator:abc\n"
+            "[assistant] false\n"
+            "[assistant] 0"
+        )
 
     def test_structured_fields_next_to_messages_are_kept(self) -> None:
         output = {**CONVERSATIONAL_OUTPUT, "category": "privacy"}
@@ -175,6 +202,24 @@ class TestLLMJudgeTrajectoryHistory:
 
         assert "Tool: GetUserContext" in history
         assert history.endswith(f"{FINAL_RESPONSE_HEADER}\n[assistant] {ANSWER}")
+
+    def test_attachment_output_is_downloaded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        attachment_id = "0b9e4f3a-1c2d-4e5f-8a9b-0c1d2e3f4a5b"
+        monkeypatch.setattr(
+            "uipath.eval.evaluators.llm_judge_trajectory_evaluator.download_attachment_as_string",
+            lambda key: ANSWER if key == attachment_id else "wrong id",
+        )
+        execution = WorkloadExecution(
+            agent_input={},
+            workload_output=f"urn:uipath:cas:file:orchestrator:{attachment_id}",
+            workload_trace=[],
+        )
+
+        history = _llm_judge_evaluator()._get_actual_output(execution)
+
+        assert history == f"{FINAL_RESPONSE_HEADER}\n{ANSWER}"
 
 
 class TestLegacyTrajectoryHistory:
