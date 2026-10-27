@@ -1,12 +1,18 @@
 import json
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
+from opentelemetry.trace import INVALID_SPAN, NonRecordingSpan, SpanContext
 from pytest_httpx import HTTPXMock
+from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
-from uipath.platform.action_center._tasks_service import TasksService
+from uipath.platform.action_center._tasks_service import (
+    TasksService,
+    _apply_task_source,
+)
 from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
 from uipath.platform.constants import HEADER_USER_AGENT
 
@@ -1069,6 +1075,60 @@ async def test_create_async_merges_task_source_metadata(
     ]
     assert task_source_metadata["ConversationalAgentId"] == "agent-1"
     assert task_source_metadata["InstanceId"] == "trace-1"
+
+
+async def test_create_quickform_async_sends_the_current_span_as_parent_span_id(
+    qf_runner_async: Any, jit_debug_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    span = NonRecordingSpan(
+        SpanContext(trace_id=1, span_id=0xA3C27222815E80CA, is_remote=False)
+    )
+    monkeypatch.setattr(UiPathSpanUtils, "get_external_current_span", lambda: span)
+    monkeypatch.setenv("UIPATH_TRACE_ID", "4bf92f3577b34da6a3ce929d0e0e4736")
+
+    _, body = await qf_runner_async()
+
+    task_source_metadata = body["taskSource"]["taskSourceMetadata"]
+    assert task_source_metadata["ParentSpanId"] == "a3c27222815e80ca"
+
+
+class _BrokenSpan:
+    def get_span_context(self) -> Any:
+        raise RuntimeError("span broke")
+
+
+def _span_with_id(span_id: Any) -> Any:
+    span = MagicMock()
+    span.get_span_context.return_value.span_id = span_id
+    span.get_span_context.return_value.is_valid = True
+    return span
+
+
+@pytest.mark.parametrize(
+    "span",
+    [
+        INVALID_SPAN,
+        _BrokenSpan(),
+        _span_with_id(0),
+        _span_with_id(None),
+        _span_with_id(""),
+        _span_with_id("abc"),
+        _span_with_id(1.5),
+        NonRecordingSpan(SpanContext(trace_id=1, span_id=-1, is_remote=False)),
+        NonRecordingSpan(SpanContext(trace_id=1, span_id=2**64, is_remote=False)),
+    ],
+)
+def test_apply_task_source_without_a_valid_span_omits_parent_span_id(
+    jit_debug_env: None, monkeypatch: pytest.MonkeyPatch, span: Any
+) -> None:
+    monkeypatch.setattr(UiPathSpanUtils, "get_external_current_span", lambda: span)
+    payload: dict[str, Any] = {}
+
+    _apply_task_source(payload, "Agent")
+
+    task_source_metadata = payload["taskSource"]["taskSourceMetadata"]
+    assert task_source_metadata["InstanceId"] == "trace-1"
+    assert "ParentSpanId" not in task_source_metadata
 
 
 def test_create_omits_extra_task_source_metadata_when_unset(

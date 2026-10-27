@@ -1,13 +1,17 @@
 import asyncio
+import logging
 import os
 import uuid
 from typing import Any, Dict, List, Optional
 
+from opentelemetry import trace
+from opentelemetry.trace import format_span_id
 from uipath.core.feature_flags import (
     JIT_ESCALATION_APPS_FEATURE_FLAG,
     FeatureFlags,
 )
 from uipath.core.tracing import traced
+from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from uipath.platform.constants import (
     ENV_TENANT_ID,
@@ -22,6 +26,8 @@ from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_string_value(value: Any) -> str:
@@ -190,6 +196,17 @@ def _apply_priority_labels_and_actionable_toggle(
         payload["isActionableMessageEnabled"] = is_actionable_message_enabled
 
 
+def _current_span_id() -> Optional[str]:
+    try:
+        span = UiPathSpanUtils.get_external_current_span() or trace.get_current_span()
+        span_context = span.get_span_context()
+        if span_context.is_valid and span_context.span_id:
+            return format_span_id(span_context.span_id)
+    except Exception:
+        logger.debug("Could not read the current span id", exc_info=True)
+    return None
+
+
 def _apply_task_source(
     payload: Dict[str, Any],
     source_name: str,
@@ -210,6 +227,7 @@ def _apply_task_source(
     trace_id = UiPathConfig.trace_id
     if not (project_id and trace_id):
         return
+    parent_span_id = _current_span_id()
     payload["taskSource"] = {
         "sourceName": source_name,
         "sourceId": project_id,
@@ -218,6 +236,7 @@ def _apply_task_source(
             "FolderKey": UiPathConfig.folder_key,
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
+            **({"ParentSpanId": parent_span_id} if parent_span_id else {}),
             **(custom_metadata or {}),
         },
         "jobId": UiPathConfig.job_key,
