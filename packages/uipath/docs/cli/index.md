@@ -65,6 +65,30 @@ Treat `--client-secret` as a credential. In CI, prefer reading it from a secret 
 
 ///
 
+/// info | Unattended Authentication (Federated Credentials)
+
+CI providers such as GitHub Actions and Azure DevOps issue a short-lived OIDC token to each job. Pass it with `--client-assertion` instead of `--client-secret` and no long-lived secret has to be stored in the pipeline. The token can also be read from the `UIPATH_CLIENT_ASSERTION` environment variable.
+
+**Setup:**
+
+1. Create an External Application without a secret and grant it the scopes you need.
+2. Register a federated credential on it whose issuer, audience and subject exactly match the claims of your CI provider's token. For GitHub Actions the issuer is `https://token.actions.githubusercontent.com` and the subject looks like `repo:<owner>/<repo>:ref:refs/heads/main`. See the [uip CLI authentication docs](https://docs.uipath.com/uipath-cli/standalone/latest/user-guide/authentication#flow-3-%E2%80%94-federated-credentials-(workload-identity)) for the commands.
+
+**Example:**
+
+<!-- termynal -->
+```shell
+> uipath auth --client-id 12345678-c4c5-4f1f-93ff-4f5ab47d57ea \
+              --client-assertion "$OIDC_TOKEN" \
+              --base-url https://cloud.uipath.com/your-org/your-tenant \
+              --scope OR.Folders.Read
+✓  Authentication successful.
+```
+
+**Configuring the same flow in code:** pass `client_assertion` instead of `client_secret` to `UiPath(...)`. The [`federated-credentials-ci` sample](https://github.com/UiPath/uipath-python/tree/main/packages/uipath/samples/federated-credentials-ci) runs pytest against Orchestrator from a GitHub Actions workflow.
+
+///
+
 ---
 
 ::: mkdocs-click
