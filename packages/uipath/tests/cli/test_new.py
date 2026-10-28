@@ -73,6 +73,131 @@ class TestNew:
             assert result.exit_code == 0
             assert "Created 'main.py' file." in result.output
 
+    def test_new_dir_scaffolds_into_that_directory(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """--dir creates the directory and writes the project there, not in cwd."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(
+                cli, ["new", "my_project", "--dir", "my_project", "--type", "function"]
+            )
+            assert result.exit_code == 0, result.output
+            for file in ("main.py", "pyproject.toml", "uipath.json"):
+                assert os.path.exists(os.path.join("my_project", file))
+                assert not os.path.exists(file)
+            with open(os.path.join("my_project", "pyproject.toml")) as f:
+                assert 'name = "my_project"' in f.read()
+            # The hints point into the directory the project landed in.
+            assert "Creating new project my_project in 'my_project'" in result.output
+            assert "cd my_project && uipath init" in result.output
+
+    def test_new_dir_creates_nested_directories(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """A --dir several levels deep is created whole, like `mkdir -p`."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            result = runner.invoke(
+                cli, ["new", "demo", "--dir", os.path.join("a", "b", "demo")]
+            )
+            assert result.exit_code == 0, result.output
+            assert os.path.exists(os.path.join("a", "b", "demo", "uipath.json"))
+
+    def test_new_dir_accepts_an_existing_directory(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """An existing --dir is scaffolded into, matching the in-place overwrite."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            os.makedirs("existing")
+            with open(os.path.join("existing", "notes.txt"), "w") as f:
+                f.write("keep me")
+
+            result = runner.invoke(cli, ["new", "demo", "--dir", "existing"])
+            assert result.exit_code == 0, result.output
+            assert os.path.exists(os.path.join("existing", "main.py"))
+            assert os.path.exists(os.path.join("existing", "notes.txt"))
+
+    def test_new_dir_is_the_cwd_while_agent_frameworks_scaffold(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """Agent frameworks scaffold into cwd, so --dir becomes cwd for them.
+
+        The frameworks live in their own packages and know nothing about
+        `--dir`; the base CLI switches into the directory around the chain
+        and switches back afterwards.
+        """
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            outer = os.getcwd()
+            seen: list[str] = []
+
+            def scaffold(*_args: object, **_kwargs: object) -> MiddlewareResult:
+                seen.append(os.getcwd())
+                with open("langgraph.json", "w") as f:
+                    f.write("{}")
+                return MiddlewareResult(should_continue=False)
+
+            with patch(
+                "uipath._cli.cli_new.Middlewares.next", side_effect=scaffold
+            ) as mock_middleware:
+                result = runner.invoke(cli, ["new", "my_agent", "--dir", "my_agent"])
+                assert result.exit_code == 0, result.output
+                # Still the name alone: the frameworks are not told about --dir.
+                mock_middleware.assert_called_once_with("new", "my_agent")
+
+            assert seen == [os.path.join(outer, "my_agent")]
+            assert os.getcwd() == outer
+            assert os.path.exists(os.path.join("my_agent", "langgraph.json"))
+            assert not os.path.exists("langgraph.json")
+
+    def test_new_dir_cwd_is_restored_when_a_framework_fails(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """A framework error inside --dir must not leave the process moved."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            outer = os.getcwd()
+            with patch(
+                "uipath._cli.cli_new.Middlewares.next",
+                side_effect=RuntimeError("scaffold exploded"),
+            ):
+                result = runner.invoke(cli, ["new", "my_agent", "--dir", "my_agent"])
+                assert result.exit_code != 0
+            assert os.getcwd() == outer
+
+    def test_new_dir_with_the_chosen_agent_framework(
+        self, runner: CliRunner, temp_dir: str
+    ) -> None:
+        """--agent-framework dispatch also runs inside --dir."""
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            outer = os.getcwd()
+            seen: list[str] = []
+
+            def scaffold(_name: str) -> MiddlewareResult:
+                seen.append(os.getcwd())
+                return MiddlewareResult(should_continue=False)
+
+            framework = AgentFramework(
+                package="uipath-langchain", scaffold=MagicMock(side_effect=scaffold)
+            )
+            with patch(
+                "uipath._cli.cli_new.installed_agent_frameworks",
+                return_value=[framework],
+            ):
+                result = runner.invoke(
+                    cli,
+                    [
+                        "new",
+                        "my_agent",
+                        "--dir",
+                        "agents/my_agent",
+                        "--type",
+                        "agent",
+                        "--agent-framework",
+                        "uipath-langchain",
+                    ],
+                )
+                assert result.exit_code == 0, result.output
+            assert seen == [os.path.join(outer, "agents", "my_agent")]
+            assert os.getcwd() == outer
+
     def test_new_project_middleware_interaction(
         self, runner: CliRunner, temp_dir: str
     ) -> None:

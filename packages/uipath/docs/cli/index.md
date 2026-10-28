@@ -107,6 +107,12 @@ Scaffold a coded function:
 💡 Run project: uipath run main '{"message": "Hello World!"}'
 ```
 
+Both scaffold into the current directory. Pass `--dir` to scaffold into another directory instead; it is created when missing:
+
+```shell
+uipath new my-function --type function --dir my-function
+```
+
 Scaffold a coded agent — requires the framework's integration package in the environment:
 
 <!-- termynal -->
