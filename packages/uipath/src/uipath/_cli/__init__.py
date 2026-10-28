@@ -6,6 +6,7 @@ import click
 from dotenv import load_dotenv
 
 from uipath._cli._utils._context import CliContext
+from uipath._cli._utils._httpx_no_proxy_patch import remove_unsupported_no_proxy_entries
 from uipath._utils._logs import setup_logging
 from uipath.platform.constants import DOTENV_FILE
 
@@ -102,6 +103,7 @@ def load_environment_variables():
 
 
 load_environment_variables()
+remove_unsupported_no_proxy_entries()
 add_cwd_to_path()
 
 
