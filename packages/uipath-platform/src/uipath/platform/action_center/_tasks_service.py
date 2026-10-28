@@ -20,6 +20,7 @@ from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
+from ..errors import OperationFailedException
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 
@@ -324,6 +325,62 @@ def _retrieve_action_spec(
         endpoint=Endpoint("/orchestrator_/tasks/GenericTasks/GetTaskDataByKey"),
         params={"taskKey": action_key},
         headers=header_folder(app_folder_key, app_folder_path),
+    )
+
+
+_COMPLETE_ENDPOINTS = {
+    "AppTask": "/orchestrator_/tasks/AppTasks/CompleteAppTask",
+    "FormTask": "/orchestrator_/forms/TaskForms/CompleteTask",
+}
+
+
+def _assign_by_user_spec(
+    task_id: int, user_id: Optional[int], user_name_or_email: Optional[str]
+) -> RequestSpec:
+    if (user_id is None) == (user_name_or_email is None):
+        raise ValueError("Provide exactly one of user_id or user_name_or_email")
+    assignment: Dict[str, Any] = {"taskId": task_id}
+    if user_id is not None:
+        assignment["userId"] = user_id
+    else:
+        assignment["userNameOrEmail"] = user_name_or_email
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint(
+            "/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks"
+        ),
+        json={"taskAssignments": [assignment]},
+    )
+
+
+def _raise_on_assignment_errors(task_id: int, body: Dict[str, Any]) -> None:
+    # AssignTasks answers 200 and lists per-task failures in "value".
+    for error in body.get("value") or []:
+        raise OperationFailedException(
+            operation_id=str(error.get("TaskId", task_id)),
+            status=str(error.get("ErrorCode")),
+            error=str(error.get("ErrorMessage")),
+            operation_name="Task assignment",
+        )
+
+
+def _complete_spec(
+    task_id: int,
+    action: Optional[str],
+    data: Optional[Dict[str, Any]],
+    task_type: str,
+    folder_key: Optional[str],
+    folder_path: Optional[str],
+) -> RequestSpec:
+    return RequestSpec(
+        method="POST",
+        endpoint=Endpoint(
+            _COMPLETE_ENDPOINTS.get(
+                task_type, "/orchestrator_/tasks/GenericTasks/CompleteTask"
+            )
+        ),
+        json={"taskId": task_id, "action": action, "data": data or {}},
+        headers=header_folder(folder_key, folder_path),
     )
 
 
@@ -901,6 +958,106 @@ class TasksService(FolderContext, BaseService):
         )
 
         return Task.model_validate(response.json())
+
+    @traced(name="tasks_assign", run_type="uipath")
+    def assign(
+        self,
+        task_id: int,
+        *,
+        user_id: Optional[int] = None,
+        user_name_or_email: Optional[str] = None,
+    ) -> None:
+        """Assigns a task to a single user synchronously.
+
+        Args:
+            task_id: The id of the task to assign
+            user_id: The Orchestrator id of the assignee
+            user_name_or_email: The user name or email of the assignee
+
+        Raises:
+            ValueError: If not exactly one of user_id or user_name_or_email is given
+            OperationFailedException: If Action Center rejects the assignment
+        """
+        spec = _assign_by_user_spec(task_id, user_id, user_name_or_email)
+        response = self.request(spec.method, spec.endpoint, json=spec.json)
+        _raise_on_assignment_errors(task_id, response.json())
+
+    @traced(name="tasks_assign", run_type="uipath")
+    async def assign_async(
+        self,
+        task_id: int,
+        *,
+        user_id: Optional[int] = None,
+        user_name_or_email: Optional[str] = None,
+    ) -> None:
+        """Assigns a task to a single user asynchronously.
+
+        Args:
+            task_id: The id of the task to assign
+            user_id: The Orchestrator id of the assignee
+            user_name_or_email: The user name or email of the assignee
+
+        Raises:
+            ValueError: If not exactly one of user_id or user_name_or_email is given
+            OperationFailedException: If Action Center rejects the assignment
+        """
+        spec = _assign_by_user_spec(task_id, user_id, user_name_or_email)
+        response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
+        _raise_on_assignment_errors(task_id, response.json())
+
+    @traced(name="tasks_complete", run_type="uipath")
+    def complete(
+        self,
+        task_id: int,
+        action: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        task_type: str = "AppTask",
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Completes a task synchronously, which resumes a job waiting on it.
+
+        Only the current assignee can complete a task, so assign it first.
+
+        Args:
+            task_id: The id of the task to complete
+            action: The outcome to submit, for example "Approve"
+            data: The task data to submit
+            task_type: "AppTask", "FormTask", or any other task type
+            folder_path: Optional folder path of the task
+            folder_key: Optional folder key of the task
+        """
+        spec = _complete_spec(task_id, action, data, task_type, folder_key, folder_path)
+        self.request(spec.method, spec.endpoint, json=spec.json, headers=spec.headers)
+
+    @traced(name="tasks_complete", run_type="uipath")
+    async def complete_async(
+        self,
+        task_id: int,
+        action: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
+        *,
+        task_type: str = "AppTask",
+        folder_path: Optional[str] = None,
+        folder_key: Optional[str] = None,
+    ) -> None:
+        """Completes a task asynchronously, which resumes a job waiting on it.
+
+        Only the current assignee can complete a task, so assign it first.
+
+        Args:
+            task_id: The id of the task to complete
+            action: The outcome to submit, for example "Approve"
+            data: The task data to submit
+            task_type: "AppTask", "FormTask", or any other task type
+            folder_path: Optional folder path of the task
+            folder_key: Optional folder key of the task
+        """
+        spec = _complete_spec(task_id, action, data, task_type, folder_key, folder_path)
+        await self.request_async(
+            spec.method, spec.endpoint, json=spec.json, headers=spec.headers
+        )
 
     async def _get_app_key_and_schema_async(
         self,
