@@ -8,7 +8,8 @@ from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.action_center import Task
 from uipath.platform.action_center._tasks_service import TasksService
 from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
-from uipath.platform.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_USER_AGENT
+from uipath.platform.errors import OperationFailedException
 
 
 @pytest.fixture
@@ -1109,3 +1110,124 @@ def test_create_task_source_metadata_overrides_a_built_in_key_on_collision(
     # jit_debug_env sets UIPATH_TRACE_ID=trace-1, which _apply_task_source uses to
     # build the built-in InstanceId; the caller-supplied key wins on collision.
     assert task_source_metadata["InstanceId"] == "caller-supplied-instance-id"
+
+
+ASSIGN_TASKS = (
+    "/orchestrator_/odata/Tasks/UiPath.Server.Configuration.OData.AssignTasks"
+)
+
+
+@pytest.fixture
+def api(base_url: str, org: str, tenant: str) -> str:
+    return f"{base_url}{org}{tenant}"
+
+
+def test_assign_to_a_user_id(
+    httpx_mock: HTTPXMock, service: TasksService, api: str
+) -> None:
+    httpx_mock.add_response(url=f"{api}{ASSIGN_TASKS}", json={"value": []})
+
+    service.assign(555, user_id=42)
+
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert json.loads(request.content) == {
+        "taskAssignments": [{"taskId": 555, "userId": 42}]
+    }
+
+
+async def test_assign_async_to_a_user_name(
+    httpx_mock: HTTPXMock, service: TasksService, api: str
+) -> None:
+    httpx_mock.add_response(url=f"{api}{ASSIGN_TASKS}", json={"value": []})
+
+    await service.assign_async(555, user_name_or_email="reviewer@example.com")
+
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert json.loads(request.content) == {
+        "taskAssignments": [{"taskId": 555, "userNameOrEmail": "reviewer@example.com"}]
+    }
+
+
+async def test_assign_async_raises_on_a_failure_reported_under_http_200(
+    httpx_mock: HTTPXMock, service: TasksService, api: str
+) -> None:
+    httpx_mock.add_response(
+        url=f"{api}{ASSIGN_TASKS}",
+        json={
+            "value": [
+                {
+                    "TaskId": 555,
+                    "ErrorCode": 1002,
+                    "ErrorMessage": "Action does not exist",
+                }
+            ]
+        },
+    )
+
+    with pytest.raises(OperationFailedException, match="Action does not exist"):
+        await service.assign_async(555, user_id=42)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{}, {"user_id": 42, "user_name_or_email": "reviewer@example.com"}]
+)
+def test_assign_needs_exactly_one_assignee(
+    service: TasksService, kwargs: dict[str, Any]
+) -> None:
+    with pytest.raises(ValueError, match="exactly one"):
+        service.assign(555, **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("task_type", "endpoint"),
+    [
+        ("AppTask", "/orchestrator_/tasks/AppTasks/CompleteAppTask"),
+        ("FormTask", "/orchestrator_/forms/TaskForms/CompleteTask"),
+        ("ExternalTask", "/orchestrator_/tasks/GenericTasks/CompleteTask"),
+    ],
+)
+async def test_complete_async_posts_to_the_endpoint_of_the_task_type(
+    httpx_mock: HTTPXMock,
+    service: TasksService,
+    api: str,
+    task_type: str,
+    endpoint: str,
+) -> None:
+    httpx_mock.add_response(url=f"{api}{endpoint}", status_code=204)
+
+    await service.complete_async(
+        555,
+        "Approve",
+        {"comment": "ok"},
+        task_type=task_type,
+        folder_key="folder-key",
+    )
+
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert request.headers[HEADER_FOLDER_KEY] == "folder-key"
+    assert json.loads(request.content) == {
+        "taskId": 555,
+        "action": "Approve",
+        "data": {"comment": "ok"},
+    }
+
+
+def test_complete_an_app_task(
+    httpx_mock: HTTPXMock, service: TasksService, api: str
+) -> None:
+    httpx_mock.add_response(
+        url=f"{api}/orchestrator_/tasks/AppTasks/CompleteAppTask", status_code=204
+    )
+
+    service.complete(555, "Approve")
+
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert json.loads(request.content) == {
+        "taskId": 555,
+        "action": "Approve",
+        "data": {},
+    }
