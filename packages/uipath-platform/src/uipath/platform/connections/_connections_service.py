@@ -3,7 +3,8 @@ import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qsl, quote, urlsplit
 
-from httpx import Response
+from httpx import ReadTimeout, Response, Timeout
+from tenacity import retry_if_exception, retry_if_result
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -12,6 +13,7 @@ from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import header_folder
 from ..common._models import Endpoint, RequestSpec
+from ..common.retry import is_retryable_platform_exception, is_retryable_response
 from ..orchestrator._folder_service import FolderService
 from .connections import (
     ActivityMetadata,
@@ -30,6 +32,30 @@ HEADER_SOURCE = "x-uipath-source"
 # can be stitched back to the parent job for licensing attribution.
 HEADER_ACTIVITY_JOB_ID = "x-uipath-job-id"
 _ORIGINATOR_VALUE = "uipath-python"
+
+# Integration Service waits up to ~120 s on the vendor behind an activity (a customer's
+# Kusto query, a web read), so the default 30 s client timeout hangs up while it is still
+# working. Wait longer than Integration Service does for the response.
+_ACTIVITY_TIMEOUT = Timeout(30.0, read=150.0)
+
+
+def _is_retryable_activity_exception(exception: BaseException) -> bool:
+    """Like `is_retryable_platform_exception`, but never retry a read timeout.
+
+    A read timeout means Integration Service received the activity and may still run
+    it: sending it again would run a non-idempotent activity twice.
+    """
+    if isinstance(exception, ReadTimeout):
+        return False
+    return is_retryable_platform_exception(exception)
+
+
+_ACTIVITY_RETRY = retry_if_exception(
+    _is_retryable_activity_exception
+) | retry_if_result(is_retryable_response)
+# BaseService.request with its wait and stop strategies, retrying `_ACTIVITY_RETRY` only.
+_request_activity = BaseService.request.retry_with(retry=_ACTIVITY_RETRY)  # type: ignore[attr-defined]
+_request_activity_async = BaseService.request_async.retry_with(retry=_ACTIVITY_RETRY)  # type: ignore[attr-defined]
 
 
 def _to_param_str(value: Any) -> str:
@@ -678,6 +704,8 @@ class ConnectionsService(BaseService):
         Raises:
             ValueError: If required parameters are missing or invalid
             RuntimeError: If the HTTP request fails or returns an error status
+            httpx.ReadTimeout: If Integration Service does not answer within 150 s.
+                It is not retried: Integration Service may still be running the activity.
         """
         connection = self.retrieve(connection_id)
         folder_key = connection.folder.get("key") if connection.folder else None
@@ -686,13 +714,15 @@ class ConnectionsService(BaseService):
             activity_metadata, connection.id, activity_input, folder_key
         )
 
-        response = self.request(
+        response = _request_activity(
+            self,
             spec.method,
             url=spec.endpoint,
             headers=spec.headers,
             params=spec.params,
             json=spec.json,
             files=spec.files,
+            timeout=_ACTIVITY_TIMEOUT,
         )
 
         return response.json()
@@ -720,6 +750,8 @@ class ConnectionsService(BaseService):
         Raises:
             ValueError: If required parameters are missing or invalid
             RuntimeError: If the HTTP request fails or returns an error status
+            httpx.ReadTimeout: If Integration Service does not answer within 150 s.
+                It is not retried: Integration Service may still be running the activity.
         """
         connection = await self.retrieve_async(connection_id)
         folder_key = connection.folder.get("key") if connection.folder else None
@@ -728,13 +760,15 @@ class ConnectionsService(BaseService):
             activity_metadata, connection.id, activity_input, folder_key
         )
 
-        response = await self.request_async(
+        response = await _request_activity_async(
+            self,
             spec.method,
             url=spec.endpoint,
             headers=spec.headers,
             params=spec.params,
             json=spec.json,
             files=spec.files,
+            timeout=_ACTIVITY_TIMEOUT,
         )
 
         return response.json()
