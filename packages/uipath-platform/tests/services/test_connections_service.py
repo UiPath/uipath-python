@@ -2,6 +2,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import unquote_plus
 
+import httpx
 import pytest
 from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
@@ -1477,6 +1478,123 @@ class TestConnectorActivityInvocation:
 
         sent_request = httpx_mock.get_requests()[1]
         assert HEADER_ACTIVITY_JOB_ID not in sent_request.headers
+
+    def _add_connection_response(
+        self, httpx_mock: HTTPXMock, connection_id: str
+    ) -> None:
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+
+    def test_invoke_activity_waits_longer_than_integration_service(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """The activity call waits past Integration Service's ~120 s vendor budget, not the 30 s default."""
+        connection_id = "test-connection-123"
+        self._add_connection_response(httpx_mock, connection_id)
+        httpx_mock.add_response(method="POST", status_code=200, json={})
+
+        service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input={"body_field1": "x"},
+        )
+
+        connection_request, activity_request = httpx_mock.get_requests()
+        assert activity_request.extensions["timeout"]["read"] == 150.0
+        assert activity_request.extensions["timeout"]["connect"] == 30.0
+        assert connection_request.extensions["timeout"]["read"] == 30.0
+
+    def test_invoke_activity_read_timeout_not_retried(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """A read timeout means Integration Service got the activity: it is not sent again."""
+        connection_id = "test-connection-123"
+        self._add_connection_response(httpx_mock, connection_id)
+        httpx_mock.add_exception(httpx.ReadTimeout("timed out"), method="POST")
+
+        with pytest.raises(httpx.ReadTimeout):
+            service.invoke_activity(
+                activity_metadata=simple_activity_metadata,
+                connection_id=connection_id,
+                activity_input={"body_field1": "x"},
+            )
+
+        assert [r.method for r in httpx_mock.get_requests()] == ["GET", "POST"]
+
+    @pytest.mark.anyio
+    async def test_invoke_activity_async_read_timeout_not_retried(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        connection_id = "test-connection-123"
+        self._add_connection_response(httpx_mock, connection_id)
+        httpx_mock.add_exception(httpx.ReadTimeout("timed out"), method="POST")
+
+        with pytest.raises(httpx.ReadTimeout):
+            await service.invoke_activity_async(
+                activity_metadata=simple_activity_metadata,
+                connection_id=connection_id,
+                activity_input={"body_field1": "x"},
+            )
+
+        activity_requests = [r for r in httpx_mock.get_requests() if r.method == "POST"]
+        assert len(activity_requests) == 1
+        assert activity_requests[0].extensions["timeout"]["read"] == 150.0
+
+    @pytest.mark.anyio
+    async def test_invoke_activity_async_connect_error_still_retried(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """A failed connect never reached Integration Service, so it is still retried."""
+        connection_id = "test-connection-123"
+        self._add_connection_response(httpx_mock, connection_id)
+        httpx_mock.add_exception(httpx.ConnectTimeout("timed out"), method="POST")
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        result = await service.invoke_activity_async(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input={"body_field1": "x"},
+        )
+
+        assert result == {"ok": True}
+        assert len([r for r in httpx_mock.get_requests() if r.method == "POST"]) == 2
+
+    def test_invoke_activity_retryable_status_still_retried(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        connection_id = "test-connection-123"
+        self._add_connection_response(httpx_mock, connection_id)
+        httpx_mock.add_response(
+            method="POST", status_code=429, headers={"retry-after": "0"}
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        result = service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input={"body_field1": "x"},
+        )
+
+        assert result == {"ok": True}
+        assert len([r for r in httpx_mock.get_requests() if r.method == "POST"]) == 2
 
     def test_invoke_activity_with_body_fields(
         self,
