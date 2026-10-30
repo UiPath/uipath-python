@@ -720,6 +720,48 @@ class TestHitlReader:
                 reader = UiPathResumeTriggerReader()
                 await reader.read_trigger(resume_trigger)
             assert exc_info.value.category == ErrorCategory.USER
+            assert exc_info.value.message == (
+                "DeepRag 'test-deep-rag' did not finish successfully. "
+                "Reason: An error ocurred during the deepRAG processing"
+            )
+
+    @pytest.mark.anyio
+    async def test_read_deep_rag_trigger_failed_without_reason(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """Test a failed deep rag without a failure reason keeps the plain message."""
+        from uipath.platform.context_grounding import DeepRagResponse
+
+        task_id = "test-deep-rag-id"
+        mock_deep_rag = DeepRagResponse(
+            id=task_id,
+            name="test-deep-rag",
+            created_date="2024-01-01",
+            last_deep_rag_status=DeepRagStatus.FAILED,
+            content=None,
+        )
+        mock_retrieve_async = AsyncMock(return_value=mock_deep_rag)
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.retrieve_deep_rag_async",
+            new=mock_retrieve_async,
+        ):
+            resume_trigger = UiPathResumeTrigger(
+                trigger_type=UiPathResumeTriggerType.DEEP_RAG,
+                item_key=task_id,
+                folder_key="test-folder",
+                folder_path="test-path",
+            )
+
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                reader = UiPathResumeTriggerReader()
+                await reader.read_trigger(resume_trigger)
+            assert exc_info.value.category == ErrorCategory.USER
+            assert (
+                exc_info.value.message
+                == "DeepRag 'test-deep-rag' did not finish successfully."
+            )
 
     @pytest.mark.anyio
     async def test_read_deep_rag_trigger_empty_response(
