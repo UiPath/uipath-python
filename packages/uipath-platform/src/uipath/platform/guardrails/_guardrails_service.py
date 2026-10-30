@@ -1,7 +1,8 @@
 import re
 from typing import Any, Optional
 
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, Timeout
+from tenacity import retry_if_exception, retry_if_result
 from uipath.core.guardrails import (
     GuardrailValidationResult,
     GuardrailValidationResultType,
@@ -16,6 +17,10 @@ from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
+from ..common.retry import (
+    is_retryable_platform_exception_except_read_timeout,
+    is_retryable_response,
+)
 from ..errors import EnrichedException
 from .guardrails import (
     BYO_VALIDATOR_TYPE,
@@ -24,7 +29,19 @@ from .guardrails import (
     GuardrailTerminationMode,
 )
 
-_ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
+# The server may take up to 120 s on a validation (e.g. while PII detection is
+# throttled), so the client waits longer than that for the response instead of
+# the default 30 s. Connecting keeps the default budget.
+_VALIDATE_TIMEOUT = Timeout(30.0, read=150.0)
+
+# Same retries as `BaseService.request`, except a read timeout: the server is
+# still validating, and resending the same input starts the work over.
+_request_without_read_timeout_retry = BaseService.request.retry_with(  # type: ignore[attr-defined]
+    retry=(
+        retry_if_exception(is_retryable_platform_exception_except_read_timeout)
+        | retry_if_result(is_retryable_response)
+    )
+)
 
 
 # x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
@@ -171,19 +188,16 @@ class GuardrailsService(BaseService):
             **header_job_key(),
             **folder_headers,
         }
-        request_kwargs: dict[str, Any] = {
-            "json": spec.json,
-            "headers": request_headers,
-        }
-        if attachments:
-            request_kwargs["timeout"] = _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS
 
         span_id = None
         try:
-            response = self.request(
+            response = _request_without_read_timeout_retry(
+                self,
                 spec.method,
                 url=spec.endpoint,
-                **request_kwargs,
+                json=spec.json,
+                headers=request_headers,
+                timeout=_VALIDATE_TIMEOUT,
             )
             span_id = self._extract_span_id_from_traceparent(
                 response.headers.get("x-uipath-traceparent-id")

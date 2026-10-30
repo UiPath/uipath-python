@@ -6,7 +6,13 @@ and platform-specific retry strategy for BaseService.
 
 import random
 
-from httpx import ConnectError, HTTPStatusError, Response, TimeoutException
+from httpx import (
+    ConnectError,
+    HTTPStatusError,
+    ReadTimeout,
+    Response,
+    TimeoutException,
+)
 from tenacity import RetryCallState
 
 from ..errors import EnrichedException
@@ -73,6 +79,20 @@ def is_retryable_platform_exception(exception: BaseException) -> bool:
     if isinstance(exception, EnrichedException):
         return exception.status_code in RETRYABLE_STATUS_CODES
     return False
+
+
+def is_retryable_platform_exception_except_read_timeout(
+    exception: BaseException,
+) -> bool:
+    """Like `is_retryable_platform_exception`, but never retries a read timeout.
+
+    A read timeout means the request was sent and the server is still working on
+    it. For slow, non-idempotent calls, resending the same input only starts the
+    same slow work again on the server.
+    """
+    if isinstance(exception, ReadTimeout):
+        return False
+    return is_retryable_platform_exception(exception)
 
 
 def is_retryable_response(response: Response) -> bool:
