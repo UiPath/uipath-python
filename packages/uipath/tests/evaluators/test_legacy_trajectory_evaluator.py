@@ -1,6 +1,8 @@
 import uuid
 
+import pytest
 from opentelemetry.sdk.trace import ReadableSpan
+from pydantic import ValidationError
 
 from uipath.eval.evaluators import LegacyTrajectoryEvaluator
 from uipath.eval.evaluators.base_legacy_evaluator import LegacyEvaluationCriteria
@@ -62,3 +64,31 @@ def test_legacy_trajectory_prompt_uses_compact_tool_history() -> None:
     assert '{"query": "mentor"}' in prompt
     assert "found mentor profile" in prompt
     assert "agent_llm_call" not in prompt
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "History:\n{{AgentRunHistory}}\nExpected:\n{{ExpectedBehavior}}",
+        "Expected:\n{{ExpectedAgentBehavior}}",
+    ],
+)
+def test_legacy_trajectory_prompt_error_names_double_brace_placeholders(
+    prompt: str,
+) -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        LegacyTrajectoryEvaluator(
+            id=str(uuid.uuid4()),
+            name="Legacy trajectory",
+            config_type=LegacyTrajectoryEvaluatorConfig,
+            evaluation_criteria_type=LegacyEvaluationCriteria,
+            justification_type=str,
+            category=LegacyEvaluatorCategory.Trajectory,
+            type=LegacyEvaluatorType.Trajectory,
+            prompt=prompt,
+            createdAt="2026-05-14T00:00:00Z",
+            updatedAt="2026-05-14T00:00:00Z",
+        )
+
+    message = str(exc_info.value)
+    assert "{{ExpectedAgentBehavior}} and {{AgentRunHistory}}" in message

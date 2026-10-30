@@ -52,7 +52,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         """Validate that prompt contains required placeholders."""
         if "{{ExpectedAgentBehavior}}" not in v or "{{AgentRunHistory}}" not in v:
             raise ValueError(
-                "Prompt must contain {ExpectedAgentBehavior} and {{AgentRunHistory}} placeholders"
+                "Prompt must contain {{ExpectedAgentBehavior}} and {{AgentRunHistory}} placeholders"
             )
         return v
 
