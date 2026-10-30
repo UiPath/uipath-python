@@ -22,7 +22,7 @@ class PromptUserSettings(BaseModel):
 
 
 _AGENT_SYSTEM_PROMPT_PREFIX_TEMPLATE = """You are {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_agentName}}.
-The current date is: {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_currentDate}}.
+Current date and time (UTC, rounded down to the hour): {{CONVERSATIONAL_AGENT_SERVICE_PREFIX_currentDate}}
 Understand user goals through conversation and use appropriate tools to fulfill requests.
 
 =====================================================================
@@ -162,8 +162,9 @@ def get_chat_system_prompt(
     Returns:
         The complete system prompt string
     """
-    # Format date as ISO 8601 (yyyy-MM-ddTHH:mmZ)
-    formatted_date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    # Truncated to the hour to increase prompt-caching hits
+    now = datetime.now(timezone.utc)
+    formatted_date = f"{now:%A, %B} {now.day}, {now:%Y}, {now:%H}:00 UTC"
 
     prompt = _AGENT_SYSTEM_PROMPT_PREFIX_TEMPLATE
     prompt = prompt.replace(
