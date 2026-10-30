@@ -75,7 +75,7 @@ def build_mocking_context(
     model = (
         ModelSettings(model=config.model)
         if config.model
-        else ModelSettings(model=agent_model, max_tokens=agent_max_tokens)
+        else ModelSettings(model=agent_model, maxTokens=agent_max_tokens)
         if agent_model
         else None
     )

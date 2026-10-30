@@ -665,7 +665,7 @@ class UiPathEvalRuntime:
                                 update={
                                     "model": ModelSettings(
                                         model=mocking_model,
-                                        max_tokens=get_agent_max_tokens(
+                                        maxTokens=get_agent_max_tokens(
                                             self.context.runtime_schema
                                         ),
                                     )
