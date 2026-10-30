@@ -1150,10 +1150,38 @@ class TestGuardrailAttachmentFolderHeader:
         assert "x-uipath-folderkey" not in request.headers
 
 
-class TestGuardrailAttachmentTiming:
-    """Attachments still get the longer, file-fetching-aware timeout."""
+class TestGuardrailValidateTiming:
+    """Validate waits past the server's 120 s budget and does not resend on a read timeout."""
 
-    def test_evaluate_guardrail_forwards_a_longer_timeout_with_attachments(
+    @pytest.mark.parametrize(
+        "attachments",
+        [None, [], [_attachment()]],
+        ids=["text-only", "empty-attachments", "attachments"],
+    )
+    def test_evaluate_guardrail_waits_longer_than_the_server_budget(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        attachments: list[GuardrailAttachment] | None,
+    ) -> None:
+        """The default client timeout is 30s, but the server may take up to 120s
+        (e.g. while PII detection is throttled), text-only checks included."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=attachments)
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] == 150.0
+        assert timeout["connect"] == 30.0
+
+    def test_evaluate_guardrail_does_not_resend_after_a_read_timeout(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
@@ -1161,57 +1189,38 @@ class TestGuardrailAttachmentTiming:
         org: str,
         tenant: str,
     ) -> None:
-        """The default client timeout is 30s; a validate call that waits on the backend
-        fetching files gets 60s. Without this assertion the kwarg could vanish silently."""
-        httpx_mock.add_response(
+        """The server is still validating; resending the same input restarts its work."""
+        httpx_mock.add_exception(
+            httpx.ReadTimeout("The read operation timed out"),
             url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
-            status_code=200,
-            json={"result": "PASSED", "details": ""},
         )
 
-        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
+        with pytest.raises(httpx.ReadTimeout):
+            service.evaluate_guardrail("x", _judge_guardrail())
 
-        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
-        assert timeout["read"] == 60.0
+        assert len(httpx_mock.get_requests()) == 1
 
-    def test_evaluate_guardrail_keeps_default_timeout_without_attachments(
+    def test_evaluate_guardrail_still_retries_a_failed_connect(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
         base_url: str,
         org: str,
         tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        """A connect failure never reached the server, so it is retried as before."""
+        monkeypatch.setattr("time.sleep", lambda _seconds: None)
+        url = f"{base_url}{org}{tenant}{_VALIDATE_PATH}"
+        httpx_mock.add_exception(httpx.ConnectError("connection reset"), url=url)
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
-            status_code=200,
-            json={"result": "PASSED", "details": ""},
+            url=url, status_code=200, json={"result": "PASSED", "details": ""}
         )
 
-        service.evaluate_guardrail("x", _judge_guardrail())
+        result = service.evaluate_guardrail("x", _judge_guardrail())
 
-        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
-        assert timeout["read"] != 60.0
-
-    def test_evaluate_guardrail_keeps_default_timeout_with_empty_attachments(
-        self,
-        httpx_mock: HTTPXMock,
-        service: GuardrailsService,
-        base_url: str,
-        org: str,
-        tenant: str,
-    ) -> None:
-        """No file is fetched for an empty list, so it needs no longer timeout."""
-        httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
-            status_code=200,
-            json={"result": "PASSED", "details": ""},
-        )
-
-        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
-
-        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
-        assert timeout["read"] != 60.0
+        assert result.result == GuardrailValidationResultType.PASSED
+        assert len(httpx_mock.get_requests()) == 2
 
 
 class TestGuardrailFlaggedAttachmentIds:

@@ -7,6 +7,7 @@ from uipath.platform.common.retry import (
     exponential_backoff_with_jitter,
     extract_retry_after_from_chain,
     is_retryable_platform_exception,
+    is_retryable_platform_exception_except_read_timeout,
     is_retryable_response,
     parse_retry_after,
     platform_wait_strategy,
@@ -199,6 +200,28 @@ class TestIsRetryablePlatformException:
 
     def test_unrelated_exception_not_retryable(self):
         assert is_retryable_platform_exception(ValueError("nope")) is False
+
+
+class TestIsRetryablePlatformExceptionExceptReadTimeout:
+    def test_read_timeout_not_retryable(self):
+        err = httpx.ReadTimeout("The read operation timed out")
+        assert is_retryable_platform_exception_except_read_timeout(err) is False
+
+    def test_connect_timeout_still_retryable(self):
+        err = httpx.ConnectTimeout("timed out")
+        assert is_retryable_platform_exception_except_read_timeout(err) is True
+
+    def test_connect_error_still_retryable(self):
+        err = httpx.ConnectError("[Errno 104] Connection reset by peer")
+        assert is_retryable_platform_exception_except_read_timeout(err) is True
+
+    def test_enriched_429_still_retryable(self):
+        err = EnrichedException(_make_http_status_error(429))
+        assert is_retryable_platform_exception_except_read_timeout(err) is True
+
+    def test_enriched_400_not_retryable(self):
+        err = EnrichedException(_make_http_status_error(400))
+        assert is_retryable_platform_exception_except_read_timeout(err) is False
 
 
 class TestIsRetryableResponse:
