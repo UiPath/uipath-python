@@ -302,3 +302,24 @@ def get_agent_model(schema: UiPathRuntimeSchema) -> str | None:
         return None
     except Exception:
         return None
+
+
+def get_agent_max_tokens(schema: UiPathRuntimeSchema) -> int | None:
+    """Get the agent's max output tokens from the runtime schema metadata.
+
+    Read from schema.metadata["settings"], populated by the low-code agents
+    runtime from agent.json (``max_tokens``, or ``maxTokens`` when dumped by
+    alias).
+
+    Returns:
+        The agent's max tokens, or None if not found.
+    """
+    try:
+        if schema.metadata and "settings" in schema.metadata:
+            settings = schema.metadata["settings"]
+            max_tokens = settings.get("max_tokens", settings.get("maxTokens"))
+            if isinstance(max_tokens, int) and not isinstance(max_tokens, bool):
+                return max_tokens if max_tokens > 0 else None
+        return None
+    except Exception:
+        return None

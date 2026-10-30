@@ -57,7 +57,7 @@ from ..evaluators.dataset_evaluator_factory import (
 )
 from ..evaluators.exact_match_evaluator import ExactMatchEvaluatorConfig
 from ..evaluators.output_evaluator import OutputEvaluationCriteria
-from ..helpers import get_agent_model
+from ..helpers import get_agent_max_tokens, get_agent_model
 from ..mocks._cache_manager import CacheManager
 from ..mocks._input_mocker import (
     generate_llm_input,
@@ -662,7 +662,14 @@ class UiPathEvalRuntime:
                         mocking_model = get_agent_model(self.context.runtime_schema)
                         if mocking_model:
                             mocking_strategy = mocking_strategy.model_copy(
-                                update={"model": ModelSettings(model=mocking_model)}
+                                update={
+                                    "model": ModelSettings(
+                                        model=mocking_model,
+                                        max_tokens=get_agent_max_tokens(
+                                            self.context.runtime_schema
+                                        ),
+                                    )
+                                }
                             )
 
                     agent_execution_output = await self.execute_runtime(

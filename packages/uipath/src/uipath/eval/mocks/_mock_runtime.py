@@ -35,9 +35,16 @@ logger = logging.getLogger(__name__)
 
 
 def build_mocking_context(
-    config: SimulationConfig, agent_model: str | None = None
+    config: SimulationConfig,
+    agent_model: str | None = None,
+    agent_max_tokens: int | None = None,
 ) -> MockingContext | None:
-    """Build a MockingContext from a validated SimulationConfig."""
+    """Build a MockingContext from a validated SimulationConfig.
+
+    When the simulation falls back to the agent's model, the agent's max tokens
+    go with it, so the simulated tool output is not cut off at the chat
+    service's default.
+    """
     if not config.enabled:
         return None
 
@@ -68,7 +75,7 @@ def build_mocking_context(
     model = (
         ModelSettings(model=config.model)
         if config.model
-        else ModelSettings(model=agent_model)
+        else ModelSettings(model=agent_model, max_tokens=agent_max_tokens)
         if agent_model
         else None
     )
@@ -91,7 +98,9 @@ def build_mocking_context(
 
 
 def build_mocking_context_from_dict(
-    simulation_data: dict[str, Any], agent_model: str | None = None
+    simulation_data: dict[str, Any],
+    agent_model: str | None = None,
+    agent_max_tokens: int | None = None,
 ) -> MockingContext | None:
     """Build a MockingContext from a simulation config dictionary.
 
@@ -100,15 +109,18 @@ def build_mocking_context_from_dict(
     Args:
         simulation_data: Parsed simulation config (same schema as simulation.json).
         agent_model: Optional agent model name to use as fallback.
+        agent_max_tokens: Optional agent max tokens, used with agent_model.
 
     Returns:
         MockingContext if valid and enabled, None otherwise.
     """
     config = SimulationConfig.model_validate(simulation_data)
-    return build_mocking_context(config, agent_model)
+    return build_mocking_context(config, agent_model, agent_max_tokens)
 
 
-def load_simulation_config(agent_model: str | None = None) -> MockingContext | None:
+def load_simulation_config(
+    agent_model: str | None = None, agent_max_tokens: int | None = None
+) -> MockingContext | None:
     """Load simulation.json from current directory and convert to MockingContext.
 
     Returns:
@@ -124,7 +136,7 @@ def load_simulation_config(agent_model: str | None = None) -> MockingContext | N
         config = SimulationConfig.model_validate_json(
             simulation_path.read_text(encoding="utf-8")
         )
-        return build_mocking_context(config, agent_model)
+        return build_mocking_context(config, agent_model, agent_max_tokens)
 
     except Exception as e:
         logger.warning(f"Failed to load simulation.json: {e}")
