@@ -9,6 +9,7 @@ from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._tracing import create_trace_manager
+from uipath.eval.helpers import get_agent_max_tokens
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.platform.common import (
     ExecutionSourceContext,
@@ -316,7 +317,9 @@ def run(
                                         "model"
                                     )
                                 mocking_context = build_mocking_context(
-                                    simulation_config, agent_model
+                                    simulation_config,
+                                    agent_model,
+                                    get_agent_max_tokens(schema),
                                 )
                                 if mocking_context:
                                     runtime = UiPathMockRuntime(

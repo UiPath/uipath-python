@@ -111,7 +111,8 @@ def extract_response(response: Any) -> Any:
 
     Raises:
         ValueError: if the response carries no usable tool call or is missing the
-            wrapped ``response`` key.
+            wrapped ``response`` key (reported as a truncation when the model
+            stopped at its max_tokens limit).
     """
     choices = getattr(response, "choices", None)
     if not choices:
@@ -126,6 +127,12 @@ def extract_response(response: Any) -> Any:
 
     arguments = tool_calls[0].arguments
     if RESPONSE_KEY not in arguments:
+        if getattr(choices[0], "finish_reason", None) == "length":
+            raise ValueError(
+                "LLM response was truncated at the max_tokens limit "
+                "(finish_reason='length') before the simulated tool output was "
+                f"complete; increase the model's max tokens. Arguments: {arguments}"
+            )
         raise ValueError(
             f"Tool call arguments missing '{RESPONSE_KEY}' key: {arguments}"
         )
@@ -193,6 +200,11 @@ class ResponseFormatStructuredOutput(ToolCallStructuredOutput):
             choices = getattr(response, "choices", None)
             if choices:
                 content = choices[0].message.content
+                if getattr(choices[0], "finish_reason", None) == "length":
+                    logger.warning(
+                        "response_format output was truncated at the max_tokens "
+                        "limit; falling back to tools"
+                    )
         except Exception as e:
             logger.info("response_format path failed, falling back to tools: %s", e)
 
