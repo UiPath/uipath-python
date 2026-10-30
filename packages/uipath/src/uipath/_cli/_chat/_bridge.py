@@ -143,6 +143,7 @@ class SocketIOChatBridge:
         self.auth = auth
         self.headers = headers
         self.end_exchange = end_exchange
+        self._exchange_ended = False
         self._client: Any | None = None
         self._connected_event = asyncio.Event()
 
@@ -352,12 +353,16 @@ class SocketIOChatBridge:
 
         When end_exchange is False the exchange is left open — the event is not
         sent to CAS so a downstream consumer can continue and end it later.
+        The event is sent at most once per exchange.
 
         Raises:
            RuntimeError: If client is not connected
         """
         if not self.end_exchange:
             logger.info("end_exchange is False; leaving the exchange open.")
+            return
+
+        if self._exchange_ended:
             return
 
         client = self._require_client()
@@ -382,6 +387,8 @@ class SocketIOChatBridge:
             else:
                 await client.emit("ConversationEvent", event_data)
 
+            self._exchange_ended = True
+
         except Exception as e:
             logger.error(f"Error sending conversation event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send conversation event: {e}") from e
@@ -391,7 +398,10 @@ class SocketIOChatBridge:
 
         Extracts error information from the exception and maps it to
         CAS-specific error IDs and messages matching the Temporal backend
-        for frontend consistency.
+        for frontend consistency, then ends the exchange: an error is terminal
+        for the exchange, and the chat UI only leaves its generating state
+        (Stop button, "Generating...") on the exchange-end event. Without it,
+        the user cannot send the next message the error tells them to send.
 
         Args:
             error: The exception that caused the error.
@@ -429,6 +439,8 @@ class SocketIOChatBridge:
         except Exception as e:
             logger.error(f"Error sending exchange error event to WebSocket: {e}")
             raise RuntimeError(f"Failed to send exchange error event: {e}") from e
+
+        await self.emit_exchange_end_event()
 
     async def emit_interrupt_event(self, resume_trigger: UiPathResumeTrigger):
         """Register the trigger's tool_call_id for the upcoming wait_for_resume().
