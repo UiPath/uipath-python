@@ -7,6 +7,7 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import click
+from pydantic import ValidationError
 
 from uipath.platform.common import (
     ResourceOverwrite,
@@ -199,6 +200,20 @@ async def may_override_files(
     )
 
 
+def describe_overwrite_error(error: Exception) -> str:
+    """Describe a failed ``ResourceOverwriteParser.parse`` in one line.
+
+    A pydantic ``ValidationError`` against the overwrite union stringifies to a
+    multi-line dump of every union member; its first error message is what
+    actually went wrong (usually an unknown kind).
+    """
+    if isinstance(error, ValidationError):
+        errors = error.errors()
+        if errors:
+            return errors[0]["msg"]
+    return f"{type(error).__name__}: {error}"
+
+
 async def read_resource_overwrites_from_file(
     directory_path: str | None = None,
 ) -> dict[str, ResourceOverwrite]:
@@ -234,7 +249,7 @@ async def read_resource_overwrites_from_file(
                     logger.warning(
                         "Skipping unrecognized resource overwrite '%s': %s",
                         key,
-                        e,
+                        describe_overwrite_error(e),
                     )
 
     # Return empty dict if file doesn't exist or invalid json
