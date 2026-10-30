@@ -2599,7 +2599,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.14.44"
+version = "2.14.45"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2762,12 +2762,13 @@ wheels = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.41"
+version = "0.2.42"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "anyio" },
     { name = "httpx" },
     { name = "pydantic-function-models" },
+    { name = "pyyaml" },
     { name = "sqlparse" },
     { name = "tenacity" },
     { name = "truststore" },
@@ -2779,6 +2780,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlparse", specifier = ">=0.6.0,<0.7.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
@@ -2798,6 +2800,7 @@ dev = [
     { name = "pytest-trio", specifier = ">=0.8.0" },
     { name = "ruff", specifier = ">=0.9.4" },
     { name = "rust-just", specifier = ">=1.39.0" },
+    { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 
 [[package]]

@@ -78,6 +78,7 @@ nav:
             - Queues: core/queues.md
             - Processes: core/processes.md
             - Resource Catalog: core/resource_catalog.md
+            - Skills: core/skills.md
             - Tasks: core/tasks.md
         - Models:
             - Business Rules: core/business_rules_models.md

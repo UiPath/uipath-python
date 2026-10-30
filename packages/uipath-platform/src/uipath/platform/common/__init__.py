@@ -14,6 +14,7 @@ from ._bindings import (
     ResourceOverwrite,
     ResourceOverwriteParser,
     ResourceOverwritesContext,
+    SkillBundleResourceOverwrite,
     resource_override,
 )
 from ._config import UiPathApiConfig, UiPathConfig, resolve_coded_agenthub_config
@@ -132,6 +133,7 @@ __all__ = [
     "ResourceOverwrite",
     "ResourceOverwriteParser",
     "ResourceOverwritesContext",
+    "SkillBundleResourceOverwrite",
     "ReferenceEntry",
     "ReferenceContext",
     "ReferenceContextAccessor",
