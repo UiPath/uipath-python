@@ -969,6 +969,28 @@ sdk.semantic_proxy.detect_pii_async(request: uipath.platform.semantic_proxy.sema
 
 ```
 
+### Skills
+
+Skills service
+
+```python
+# Close the HTTP clients owned by this service.
+sdk.skills.aclose() -> None
+
+# Resolve and download one bundle; see ``load_async``.
+sdk.skills.load(name: str, folder_path: str | None=None, version_mode: str | VersionMode="latest", version: str | None=None, destination: Path | None=None) -> SkillSet
+
+# Resolve and download ``refs``; see ``load_all_async``.
+sdk.skills.load_all(refs: Sequence[SkillBundleRef], destination: Path | None=None, source: SkillBundleSource | None=None) -> SkillSet
+
+# Resolve ``refs`` in order, write each bundle under ``<root>/<name>/`` and describe the set.
+sdk.skills.load_all_async(refs: Sequence[SkillBundleRef], destination: Path | None=None, source: SkillBundleSource | None=None) -> SkillSet
+
+# Resolve and download one bundle, raising when it cannot be.
+sdk.skills.load_async(name: str, folder_path: str | None=None, version_mode: str | VersionMode="latest", version: str | None=None, destination: Path | None=None) -> SkillSet
+
+```
+
 ### Tasks
 
 Tasks service
