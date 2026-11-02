@@ -12,7 +12,7 @@ import pytest
 
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
-from uipath.eval.helpers import get_agent_model
+from uipath.eval.helpers import get_agent_max_tokens, get_agent_model
 from uipath.eval.runtime import UiPathEvalContext, UiPathEvalRuntime
 from uipath.runtime import (
     UiPathExecuteOptions,
@@ -147,6 +147,35 @@ class TestGetAgentModel:
         model2 = get_agent_model(schema)
 
         assert model1 == model2 == "consistent-model"
+
+
+class TestGetAgentMaxTokens:
+    """Tests for get_agent_max_tokens function."""
+
+    def test_returns_snake_case_max_tokens(self):
+        """The agents runtime dumps settings by field name (max_tokens)."""
+        schema = MockRuntimeSchema()
+        schema.metadata = {"settings": {"model": "gpt-4.1", "max_tokens": 16384}}
+
+        assert get_agent_max_tokens(schema) == 16384
+
+    def test_returns_aliased_max_tokens(self):
+        schema = MockRuntimeSchema()
+        schema.metadata = {"settings": {"model": "gpt-4.1", "maxTokens": 8192}}
+
+        assert get_agent_max_tokens(schema) == 8192
+
+    def test_returns_none_when_missing(self):
+        schema = MockRuntimeSchema()
+
+        assert get_agent_max_tokens(schema) is None
+
+    @pytest.mark.parametrize("value", [0, -1, "16384", True, None])
+    def test_returns_none_for_unusable_values(self, value: Any):
+        schema = MockRuntimeSchema()
+        schema.metadata = {"settings": {"max_tokens": value}}
+
+        assert get_agent_max_tokens(schema) is None
 
 
 class TestGetSchema:

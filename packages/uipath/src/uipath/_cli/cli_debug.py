@@ -10,6 +10,7 @@ from uipath._cli._debug._bridge import DebugAttachMode, get_debug_bridge
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli._utils._tracing import create_trace_manager
+from uipath.eval.helpers import get_agent_max_tokens
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.eval.mocks._mock_runtime import load_simulation_config
 from uipath.platform.common import (
@@ -249,13 +250,14 @@ def debug(
                             agent_model = None
                             if schema.metadata and "settings" in schema.metadata:
                                 agent_model = schema.metadata["settings"].get("model")
+                            agent_max_tokens = get_agent_max_tokens(schema)
 
                             delegate_runtime: UiPathDebugRuntime | UiPathMockRuntime = (
                                 debug_runtime
                             )
                             if simulation_config:
                                 mocking_context = build_mocking_context(
-                                    simulation_config, agent_model
+                                    simulation_config, agent_model, agent_max_tokens
                                 )
                                 if mocking_context:
                                     delegate_runtime = UiPathMockRuntime(
@@ -264,7 +266,8 @@ def debug(
                                     )
                             else:
                                 mocking_context = load_simulation_config(
-                                    agent_model=agent_model
+                                    agent_model=agent_model,
+                                    agent_max_tokens=agent_max_tokens,
                                 )
                                 delegate_runtime = UiPathMockRuntime(
                                     delegate=debug_runtime,

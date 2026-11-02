@@ -16,8 +16,14 @@ from uipath.eval.mocks._structured_output import (
 )
 
 
-def _response(message: SimpleNamespace | None) -> SimpleNamespace:
-    choices = [] if message is None else [SimpleNamespace(message=message)]
+def _response(
+    message: SimpleNamespace | None, finish_reason: str | None = None
+) -> SimpleNamespace:
+    choices = (
+        []
+        if message is None
+        else [SimpleNamespace(message=message, finish_reason=finish_reason)]
+    )
     return SimpleNamespace(choices=choices)
 
 
@@ -122,6 +128,48 @@ def test_extract_response_raises_when_response_key_missing():
     )
     with pytest.raises(ValueError, match=RESPONSE_KEY):
         extract_response(_response(message))
+
+
+def test_extract_response_reports_truncation_at_max_tokens():
+    # A forced tool call cut off at max_tokens comes back with empty arguments.
+    message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(arguments={})])
+    with pytest.raises(ValueError, match="truncated at the max_tokens limit"):
+        extract_response(_response(message, finish_reason="length"))
+
+
+def test_extract_response_returns_value_when_finish_reason_is_length():
+    # Complete arguments are still returned; only a missing key is a truncation.
+    message = SimpleNamespace(
+        content=None,
+        tool_calls=[SimpleNamespace(arguments={RESPONSE_KEY: {"a": 1}})],
+    )
+    assert extract_response(_response(message, finish_reason="length")) == {"a": 1}
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_output_reports_truncation_on_both_paths():
+    truncated_content = SimpleNamespace(content='{"records": [{"id": 1}, {"id"')
+    truncated_tool_call = SimpleNamespace(
+        content=None, tool_calls=[SimpleNamespace(arguments={})]
+    )
+    llm = _FakeLLM(
+        [
+            _response(truncated_content, finish_reason="length"),
+            _response(truncated_tool_call, finish_reason="length"),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="truncated at the max_tokens limit"):
+        await generate_structured_output(
+            llm,
+            [{"role": "user", "content": "hi"}],
+            schema={"type": "object"},
+            response_format_name="OutputSchema",
+            description="desc",
+            completion_kwargs={"model": "gpt-4.1-2025-04-14", "max_tokens": 4096},
+        )
+    assert len(llm.calls) == 2
+    assert all(call["max_tokens"] == 4096 for call in llm.calls)
 
 
 @pytest.mark.asyncio
