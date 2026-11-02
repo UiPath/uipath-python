@@ -11,6 +11,7 @@ from uipath.platform.chat import UiPathLlmChatService
 from uipath.platform.chat.llm_gateway import RequiredToolChoice
 
 from .._execution_context import eval_set_run_id_context
+from .._helpers.agent_output import append_agent_output
 from .._helpers.evaluators_helpers import trace_to_str
 from .._helpers.helpers import is_empty_value
 from ..models import EvaluationResult
@@ -101,6 +102,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         evaluation_prompt = self._create_evaluation_prompt(
             expected_agent_behavior=workload_execution.expected_agent_behavior,
             agent_run_history=workload_execution.workload_trace,
+            agent_output=self._get_actual_output(workload_execution),
         )
         llm_response = await self._get_llm_response(evaluation_prompt)
 
@@ -113,6 +115,7 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         self,
         expected_agent_behavior: Any,
         agent_run_history: Any,
+        agent_output: Any = None,
     ) -> str:
         """Create the evaluation prompt for the LLM."""
         # Validate that expected agent behavior is not empty
@@ -134,18 +137,17 @@ class LegacyTrajectoryEvaluator(BaseLegacyEvaluator[LegacyTrajectoryEvaluatorCon
         )
 
         # Trim extra properties from the spans (such as timestamps which are not relevant to the eval)
-        if (
-            isinstance(agent_run_history, list)
-            and agent_run_history
-            and isinstance(agent_run_history[0], ReadableSpan)
+        if isinstance(agent_run_history, list) and all(
+            isinstance(span, ReadableSpan) for span in agent_run_history
         ):
             agent_run_history = trace_to_str(agent_run_history)
         else:
             agent_run_history = str(agent_run_history)
 
+        # trace_to_str only renders tool spans; the agent's own answer lives in the output.
         formatted_prompt = formatted_prompt.replace(
             self.agent_run_history_placeholder,
-            agent_run_history,
+            append_agent_output(agent_run_history, agent_output),
         )
 
         return formatted_prompt
