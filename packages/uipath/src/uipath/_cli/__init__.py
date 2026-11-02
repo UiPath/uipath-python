@@ -1,13 +1,14 @@
 import importlib.metadata
+import logging
 import os
 import sys
 
 import click
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from uipath._cli._utils._context import CliContext
 from uipath._utils._logs import setup_logging
-from uipath.platform.constants import DOTENV_FILE
+from uipath.platform.constants import DOTENV_FILE, ENV_JOB_KEY
 
 # Windows console uses codepages (e.g. cp1252) that can't encode Unicode
 # characters used by Rich spinners (Braille) and emoji output.
@@ -98,7 +99,36 @@ def add_cwd_to_path():
 
 
 def load_environment_variables():
-    load_dotenv(dotenv_path=os.path.join(os.getcwd(), DOTENV_FILE), override=True)
+    """Load the project's .env into the process environment.
+
+    Locally the .env wins over the shell, so a fresh `uipath auth` takes effect.
+    In a job (the robot or Serverless sets UIPATH_JOB_KEY) the injected values
+    win: a .env shipped in the package must not replace the job's identity.
+    """
+    dotenv_path = os.path.join(os.getcwd(), DOTENV_FILE)
+    in_job = bool(os.environ.get(ENV_JOB_KEY))
+    if in_job:
+        _warn_dotenv_conflicts(dotenv_path)
+    load_dotenv(dotenv_path=dotenv_path, override=not in_job)
+
+
+def _warn_dotenv_conflicts(dotenv_path: str) -> None:
+    """Name the .env keys that differ from the job's injected values (not the values)."""
+    if not os.path.isfile(dotenv_path):
+        return
+    conflicts = sorted(
+        key
+        for key, value in dotenv_values(dotenv_path).items()
+        if value is not None and key in os.environ and os.environ[key] != value
+    )
+    if conflicts:
+        logging.getLogger(__name__).warning(
+            "Ignoring %s values in %s that differ from the job's environment: %s. "
+            "Remove the .env from the package.",
+            len(conflicts),
+            dotenv_path,
+            ", ".join(conflicts),
+        )
 
 
 load_environment_variables()
