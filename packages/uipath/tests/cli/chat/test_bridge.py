@@ -395,7 +395,8 @@ class TestSocketIOChatBridgeConnectionStates:
 
         await bridge.emit_exchange_error_event(ValueError("failed"))
 
-        bridge._client.emit.assert_awaited_once()
+        # The error event, then the exchange-end event.
+        assert bridge._client.emit.await_count == 2
 
     @pytest.mark.anyio
     async def test_emit_meta_event_sends_exchange_scoped_event(self) -> None:
@@ -569,6 +570,153 @@ class TestSocketIOChatBridgeEndExchange:
         bridge = cast(SocketIOChatBridge, get_chat_bridge(cast(Any, context)))
 
         assert bridge.end_exchange is True
+
+
+class TestSocketIOChatBridgeErrorEndsExchange:
+    """An exchange error ends the exchange, so the chat UI leaves its generating state.
+
+    The CAS chat UI only drops the Stop button and "Generating..." on endExchange;
+    an exchangeError alone shows the error banner but leaves the input unusable
+    (PC-4990: "Maximum number of sequential steps reached. You may send a new
+    message..." with no way to send one).
+    """
+
+    def _make_connected_bridge(self, end_exchange: bool = True) -> SocketIOChatBridge:
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={},
+            end_exchange=end_exchange,
+        )
+        bridge._websocket_disabled = False
+        bridge._client = AsyncMock()
+        bridge._connected_event.set()
+        return bridge
+
+    @staticmethod
+    def _sent_events(bridge: SocketIOChatBridge) -> list[dict[str, Any]]:
+        emit = cast(AsyncMock, bridge._client).emit
+        return [call.args[1] for call in emit.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_max_iterations_error_is_followed_by_exchange_end(self) -> None:
+        from uipath.runtime.errors import UiPathBaseRuntimeError
+
+        bridge = self._make_connected_bridge()
+        error = UiPathBaseRuntimeError(
+            code="TERMINATION_MAX_ITERATIONS",
+            title="Maximum iterations of '3' reached.",
+            detail="Verify the agent's trajectory.",
+            prefix="AGENT_RUNTIME",
+        )
+
+        await bridge.emit_exchange_error_event(error)
+
+        events = self._sent_events(bridge)
+        assert len(events) == 2
+        assert events[0] == {
+            "conversationId": "conv-123",
+            "exchange": {
+                "exchangeId": "exch-456",
+                "exchangeError": {
+                    "errorId": "AGENT_MAXIMUM_SEQUENTIAL_STEPS_REACHED",
+                    "startError": {
+                        "message": "Maximum number of sequential steps reached. You may send a new message to tell the agent to continue."
+                    },
+                },
+            },
+        }
+        assert events[1] == {
+            "conversationId": "conv-123",
+            "exchange": {"exchangeId": "exch-456", "endExchange": {}},
+        }
+
+    @pytest.mark.anyio
+    async def test_error_keeps_exchange_open_when_end_exchange_false(self) -> None:
+        bridge = self._make_connected_bridge(end_exchange=False)
+
+        await bridge.emit_exchange_error_event(ValueError("failed"))
+
+        events = self._sent_events(bridge)
+        assert len(events) == 1
+        assert "exchangeError" in events[0]["exchange"]
+
+    @pytest.mark.anyio
+    async def test_exchange_end_sent_once_when_error_follows_end(self) -> None:
+        """A failure after the exchange already ended does not end it again."""
+        bridge = self._make_connected_bridge()
+
+        await bridge.emit_exchange_end_event()
+        await bridge.emit_exchange_error_event(ValueError("failed"))
+
+        events = self._sent_events(bridge)
+        assert [list(e["exchange"])[1] for e in events] == [
+            "endExchange",
+            "exchangeError",
+        ]
+
+    @pytest.mark.anyio
+    async def test_exchange_not_ended_when_error_send_fails(self) -> None:
+        bridge = self._make_connected_bridge()
+        cast(AsyncMock, bridge._client).emit.side_effect = ValueError("socket failed")
+
+        with pytest.raises(RuntimeError, match="Failed to send exchange error event"):
+            await bridge.emit_exchange_error_event(ValueError("failed"))
+
+        assert cast(AsyncMock, bridge._client).emit.await_count == 1
+
+    @pytest.mark.anyio
+    async def test_failed_exchange_end_can_be_retried(self) -> None:
+        bridge = self._make_connected_bridge()
+        emit = cast(AsyncMock, bridge._client).emit
+        emit.side_effect = [ValueError("socket failed"), None, None]
+
+        with pytest.raises(RuntimeError):
+            await bridge.emit_exchange_end_event()
+        await bridge.emit_exchange_error_event(ValueError("failed"))
+
+        assert emit.await_count == 3
+        assert "endExchange" in emit.await_args_list[2].args[1]["exchange"]
+
+    @pytest.mark.anyio
+    async def test_faulted_chat_runtime_ends_the_exchange(self) -> None:
+        """Through UiPathChatRuntime: a run faulting on max iterations ends the exchange."""
+        from uipath.runtime import UiPathRuntimeResult, UiPathRuntimeStatus
+        from uipath.runtime.chat import UiPathChatRuntime
+        from uipath.runtime.errors import UiPathErrorCategory, UiPathErrorContract
+
+        class FaultingDelegate:
+            async def stream(self, input: Any = None, options: Any = None):
+                yield UiPathRuntimeResult(
+                    status=UiPathRuntimeStatus.FAULTED,
+                    error=UiPathErrorContract(
+                        code="AGENT_RUNTIME.TERMINATION_MAX_ITERATIONS",
+                        title="Maximum iterations of '3' reached.",
+                        detail="Verify the agent's trajectory.",
+                        category=UiPathErrorCategory.USER,
+                    ),
+                )
+
+        bridge = self._make_connected_bridge()
+        bridge.connect = AsyncMock()  # type: ignore[method-assign]
+        runtime = UiPathChatRuntime(
+            delegate=cast(Any, FaultingDelegate()), chat_bridge=bridge
+        )
+
+        result = await runtime.execute({})
+
+        assert result.status == UiPathRuntimeStatus.FAULTED
+        events = self._sent_events(bridge)
+        assert [list(e["exchange"])[1] for e in events] == [
+            "exchangeError",
+            "endExchange",
+        ]
+        assert (
+            events[0]["exchange"]["exchangeError"]["errorId"]
+            == "AGENT_MAXIMUM_SEQUENTIAL_STEPS_REACHED"
+        )
 
 
 class TestSignalRDebugBridgeSendMethod:
