@@ -271,10 +271,12 @@ class UiPathResumeTriggerReader:
                         return deep_rag
 
                     if deep_rag_status != DeepRagStatus.SUCCESSFUL:
-                        raise UiPathFaultedTriggerError(
-                            ErrorCategory.USER,
-                            f"DeepRag '{deep_rag.name}' did not finish successfully.",
+                        message = (
+                            f"DeepRag '{deep_rag.name}' did not finish successfully."
                         )
+                        if deep_rag.failure_reason:
+                            message += f" Reason: {deep_rag.failure_reason}"
+                        raise UiPathFaultedTriggerError(ErrorCategory.USER, message)
 
                     trigger_response = deep_rag.content
 
