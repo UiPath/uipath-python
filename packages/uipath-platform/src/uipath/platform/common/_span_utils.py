@@ -373,14 +373,15 @@ class _SpanUtils:
             raise ValueError(f"Invalid span ID format: {value}")
 
     @staticmethod
-    def current_span_id() -> Optional[str]:
+    def current_span() -> trace.Span:
         from uipath.core.tracing.span_utils import UiPathSpanUtils
 
+        return UiPathSpanUtils.get_external_current_span() or trace.get_current_span()
+
+    @staticmethod
+    def current_span_id() -> Optional[str]:
         try:
-            span = (
-                UiPathSpanUtils.get_external_current_span() or trace.get_current_span()
-            )
-            span_context = span.get_span_context()
+            span_context = _SpanUtils.current_span().get_span_context()
             span_id = span_context.span_id
             if span_context.is_valid and isinstance(span_id, int) and span_id:
                 return format_span_id(span_id)
