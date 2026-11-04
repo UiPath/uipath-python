@@ -11,8 +11,9 @@ from os import environ as env
 from typing import Any, Dict, List, Optional, TypeVar
 
 from opentelemetry import context as context_api
+from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
-from opentelemetry.trace import StatusCode
+from opentelemetry.trace import StatusCode, format_span_id
 from pydantic import BaseModel, ConfigDict, Field
 from uipath.core.serialization import serialize_json
 
@@ -370,6 +371,23 @@ class _SpanUtils:
             return normalized
         else:
             raise ValueError(f"Invalid span ID format: {value}")
+
+    @staticmethod
+    def current_span() -> trace.Span:
+        from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+        return UiPathSpanUtils.get_external_current_span() or trace.get_current_span()
+
+    @staticmethod
+    def current_span_id() -> Optional[str]:
+        try:
+            span_context = _SpanUtils.current_span().get_span_context()
+            span_id = span_context.span_id
+            if span_context.is_valid and isinstance(span_id, int) and span_id:
+                return format_span_id(span_id)
+        except Exception:
+            logger.debug("Could not read the current span id", exc_info=True)
+        return None
 
     @staticmethod
     def otel_span_to_uipath_span(
