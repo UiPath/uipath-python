@@ -296,6 +296,111 @@ async def test_openai_models_prefer_response_format():
     assert "response_format" in llm.calls[0]
 
 
+# --- Gemini: type lists ------------------------------------------------------
+
+# Shaped like an MCP tool's output schema, which writes nullable fields as type lists.
+_TYPE_LIST_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "case": {
+            "type": ["object", "null"],
+            "properties": {
+                "name": {"type": ["string", "null"]},
+                "tags": {"type": ["array", "null"], "items": {"type": "string"}},
+                "value": {"type": ["string", "number"]},
+                "status": {"type": "string", "enum": ["open", "closed"]},
+                # A property named like a data keyword is still a schema.
+                "default": {"type": ["boolean", "null"], "default": None},
+            },
+            "required": ["name"],
+        },
+        "nothing": {"type": ["null"]},
+    },
+}
+
+_GEMINI_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "case": {
+            "type": "object",
+            "nullable": True,
+            "properties": {
+                "name": {"type": "string", "nullable": True},
+                "tags": {
+                    "type": "array",
+                    "nullable": True,
+                    "items": {"type": "string"},
+                },
+                "value": {"anyOf": [{"type": "string"}, {"type": "number"}]},
+                "status": {"type": "string", "enum": ["open", "closed"]},
+                "default": {"type": "boolean", "nullable": True, "default": None},
+            },
+            "required": ["name"],
+        },
+        "nothing": {"nullable": True},
+    },
+}
+
+
+def _tool_call_llm() -> _FakeLLM:
+    return _FakeLLM(
+        [
+            _response(
+                SimpleNamespace(
+                    content=None,
+                    tool_calls=[SimpleNamespace(arguments={RESPONSE_KEY: {}})],
+                )
+            )
+        ]
+    )
+
+
+async def _generate(
+    llm: _FakeLLM, schema: dict[str, Any], completion_kwargs: dict[str, Any]
+) -> Any:
+    return await generate_structured_output(
+        llm,
+        [{"role": "user", "content": "x"}],
+        schema=schema,
+        response_format_name="OutputSchema",
+        description="d",
+        completion_kwargs=completion_kwargs,
+    )
+
+
+def _response_schema(call: dict[str, Any]) -> Any:
+    return call["tools"][0]["parameters"]["properties"][RESPONSE_KEY]
+
+
+async def test_gemini_rewrites_type_lists_in_the_tool_schema():
+    llm = _tool_call_llm()
+    await _generate(llm, _TYPE_LIST_SCHEMA, {"model": "gemini-3.7-flash"})
+    assert _response_schema(llm.calls[0]) == _GEMINI_SCHEMA
+
+
+async def test_gemini_keeps_an_existing_any_of_when_the_type_list_has_several_types():
+    schema = {"type": ["string", "number", "null"], "anyOf": [{"minLength": 1}]}
+    llm = _tool_call_llm()
+    await _generate(llm, schema, {"model": "gemini-3.7-flash"})
+    assert _response_schema(llm.calls[0]) == {
+        "type": ["string", "number", "null"],
+        "anyOf": [{"minLength": 1}],
+        "nullable": True,
+    }
+
+
+async def test_gemini_does_not_change_the_callers_schema():
+    schema = json.loads(json.dumps(_TYPE_LIST_SCHEMA))
+    await _generate(_tool_call_llm(), schema, {"model": "gemini-3.7-flash"})
+    assert schema == _TYPE_LIST_SCHEMA
+
+
+async def test_claude_keeps_type_lists():
+    llm = _tool_call_llm()
+    await _generate(llm, _TYPE_LIST_SCHEMA, {"model": "anthropic.claude-sonnet-4-6"})
+    assert _response_schema(llm.calls[0]) == _TYPE_LIST_SCHEMA
+
+
 # --- coerce_to_schema: stringified objects (SRE-655743) ---------------------
 
 

@@ -24,6 +24,11 @@ from uipath.platform.chat.llm_gateway import RequiredToolChoice
 RESPONSE_TOOL_NAME = "submit_tool_response"
 RESPONSE_KEY = "response"
 _DEFS_PREFIX = "#/$defs/"
+# Keys whose value maps names to schemas, and keys whose value is data.
+_SCHEMA_MAP_KEYS = frozenset(
+    {"properties", "patternProperties", "$defs", "definitions"}
+)
+_DATA_KEYS = frozenset({"default", "examples", "const", "enum", "required"})
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +84,48 @@ def _inline_defs(
     root = {key: value for key, value in schema.items() if key != "$defs"}
     inlined = resolve(root, frozenset())
     return inlined, leftover
+
+
+def _to_gemini_schema(schema: Any) -> Any:
+    """Rewrite JSON-schema type lists into the form Gemini accepts.
+
+    Gemini's function declarations take a single ``type`` and mark nullable
+    fields with ``nullable: true``; a type list such as ``["string", "null"]``
+    (common in MCP tool schemas) fails the request with a 400. So
+    ``{"type": ["string", "null"]}`` becomes
+    ``{"type": "string", "nullable": true}``, and a list with several non-null
+    types becomes an ``anyOf`` of single types. Values that are data rather
+    than schemas (``default``, ``enum``, ...) are left untouched.
+    """
+    if isinstance(schema, list):
+        return [_to_gemini_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+
+    converted: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key in _SCHEMA_MAP_KEYS and isinstance(value, dict):
+            converted[key] = {
+                name: _to_gemini_schema(sub) for name, sub in value.items()
+            }
+        elif key in _DATA_KEYS:
+            converted[key] = value
+        else:
+            converted[key] = _to_gemini_schema(value)
+
+    types = converted.get("type")
+    if isinstance(types, list):
+        non_null = [t for t in types if t != "null"]
+        if len(non_null) == 1:
+            converted["type"] = non_null[0]
+        elif not non_null:
+            del converted["type"]
+        elif "anyOf" not in converted:
+            del converted["type"]
+            converted["anyOf"] = [{"type": t} for t in non_null]
+        if "null" in types:
+            converted["nullable"] = True
+    return converted
 
 
 def build_response_tool(schema: dict[str, Any], description: str) -> dict[str, Any]:
@@ -223,7 +270,30 @@ class AnthropicStructuredOutput(ToolCallStructuredOutput):
 
 
 class GeminiStructuredOutput(ToolCallStructuredOutput):
-    """Gemini returns empty content for ``response_format``; go straight to tools."""
+    """Gemini returns empty content for ``response_format``; go straight to tools.
+
+    The tool schema is rewritten into the form Gemini accepts first.
+    """
+
+    async def generate(
+        self,
+        llm: Any,
+        messages: list[dict[str, str]],
+        *,
+        schema: dict[str, Any],
+        response_format_name: str,
+        description: str,
+        completion_kwargs: dict[str, Any],
+    ) -> Any:
+        """Force a tool call with a Gemini-compatible schema."""
+        return await super().generate(
+            llm,
+            messages,
+            schema=_to_gemini_schema(schema),
+            response_format_name=response_format_name,
+            description=description,
+            completion_kwargs=completion_kwargs,
+        )
 
 
 def _strategy_for_model(model: str | None) -> ToolCallStructuredOutput:
