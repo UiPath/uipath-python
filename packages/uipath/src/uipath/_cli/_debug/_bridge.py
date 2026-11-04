@@ -616,15 +616,18 @@ class SignalRDebugBridge:
             f"Breakpoint hit: {breakpoint_result.breakpoint_node} "
             f"({breakpoint_result.breakpoint_type})"
         )
-        await self._send(
-            "OnBreakpointHit",
-            {
-                "node": breakpoint_result.breakpoint_node,
-                "type": breakpoint_result.breakpoint_type,
-                "state": breakpoint_result.current_state,
-                "nextNodes": breakpoint_result.next_nodes,
-            },
+        payload: dict[str, Any] = {
+            "node": breakpoint_result.breakpoint_node,
+            "type": breakpoint_result.breakpoint_type,
+            "state": breakpoint_result.current_state,
+            "nextNodes": breakpoint_result.next_nodes,
+        }
+        function_start_line = (breakpoint_result.metadata or {}).get(
+            "function_start_line"
         )
+        if isinstance(function_start_line, int):
+            payload["functionStartLine"] = function_start_line
+        await self._send("OnBreakpointHit", payload)
 
     async def emit_execution_completed(
         self,

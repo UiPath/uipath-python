@@ -132,14 +132,10 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
     if HEADER_TRACEPARENT_ID in headers:
         return
 
-    from uipath.core.tracing.span_utils import UiPathSpanUtils
-
     from ._config import UiPathConfig
     from ._span_utils import _SpanUtils
 
-    llmops_span = UiPathSpanUtils.get_external_current_span()
-    span = llmops_span or trace.get_current_span()
-    ctx = span.get_span_context()
+    ctx = _SpanUtils.current_span().get_span_context()
     if not (ctx.trace_id and ctx.span_id):
         return
 

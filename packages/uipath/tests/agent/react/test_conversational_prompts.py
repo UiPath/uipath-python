@@ -105,7 +105,7 @@ class TestGenerateConversationalAgentSystemPrompt:
         assert "You are Customer Support Bot." in prompt
 
     def test_generate_system_prompt_includes_current_date(self):
-        """Current date in ISO 8601 format is included."""
+        """Current date is included, truncated to the hour."""
         # Mock datetime to have a predictable value
         mock_dt = datetime(2026, 1, 15, 10, 30, tzinfo=timezone.utc)
         with patch(
@@ -123,7 +123,8 @@ class TestGenerateConversationalAgentSystemPrompt:
                 user_settings=None,
             )
 
-        assert "2026-01-15T10:30Z" in prompt
+        assert "Thursday, January 15, 2026, 10:00 UTC" in prompt
+        assert "10:30" not in prompt
 
     def test_generate_system_prompt_includes_attachments_section(self):
         """Attachments template is always included."""
