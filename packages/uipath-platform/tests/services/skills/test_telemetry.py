@@ -9,6 +9,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
+from opentelemetry.trace import StatusCode
 
 from uipath.platform.skills import (
     BundleFailure,
@@ -17,12 +18,14 @@ from uipath.platform.skills import (
     SkillBundleRef,
     SkillSet,
     VersionMode,
+    _telemetry,
 )
 from uipath.platform.skills._telemetry import (
     bundles_resolved_span,
     record_bundle_failed,
     record_bundles_resolved,
     record_skill_loaded,
+    skill_load_span,
 )
 
 FINANCE = SkillBundle(
@@ -152,3 +155,60 @@ def test_the_skill_load_span(exporter: InMemorySpanExporter) -> None:
         "skill.invoked_by": "user",
         "skill.bytes": 7,
     }
+
+
+def test_spans_started_inside_the_skill_load_span_are_its_children(
+    exporter: InMemorySpanExporter, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.INFO):
+        with skill_load_span(FINANCE, FINANCE.skills[0]) as load:
+            with _telemetry._tracer.start_as_current_span("Tool call - read_file"):
+                pass
+            load.loaded(42)
+
+    child, parent = exporter.get_finished_spans()
+    assert parent.name == "Skill load - finance/invoice-triage"
+    assert child.parent is not None
+    assert child.parent.span_id == parent.context.span_id
+    attributes = _assert_llmops_span(parent, "skillLoad")
+    assert attributes["skill.bytes"] == 42
+    assert attributes["skill.invoked_by"] == "model"
+    assert parent.status.status_code is StatusCode.UNSET
+    assert "Skill loaded: finance/invoice-triage (v3)" in caplog.text
+
+
+def test_a_failed_skill_load_is_an_error_span_without_the_loaded_log(
+    exporter: InMemorySpanExporter, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.INFO):
+        with skill_load_span(FINANCE, FINANCE.skills[0]) as load:
+            load.fail("read_file returned an error")
+
+    span = _only_span(exporter)
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.status.description == "read_file returned an error"
+    assert "skill.bytes" not in (span.attributes or {})
+    assert "Skill loaded" not in caplog.text
+
+
+def test_a_skill_load_left_unsettled_is_an_error_span(
+    exporter: InMemorySpanExporter,
+) -> None:
+    with skill_load_span(FINANCE, FINANCE.skills[0]):
+        pass
+
+    span = _only_span(exporter)
+    assert span.status.status_code is StatusCode.ERROR
+    assert span.status.description == "The skill was not loaded"
+
+
+def test_an_exception_inside_the_skill_load_span_is_recorded_and_propagates(
+    exporter: InMemorySpanExporter,
+) -> None:
+    with pytest.raises(OSError, match="disk gone"):
+        with skill_load_span(FINANCE, FINANCE.skills[0]):
+            raise OSError("disk gone")
+
+    span = _only_span(exporter)
+    assert span.status.status_code is StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
