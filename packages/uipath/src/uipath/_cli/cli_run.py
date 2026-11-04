@@ -9,6 +9,7 @@ from uipath._cli._debug._bridge import ConsoleDebugBridge
 from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._tracing import create_trace_manager
+from uipath._utils._managed_workspace import wrap_with_managed_workspace
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.platform.common import (
     ExecutionSourceContext,
@@ -305,6 +306,15 @@ def run(
                                     agent_name=resolved_entrypoint,
                                     runtime_id=governance_runtime_id,
                                 )
+
+                            base_runtime = await wrap_with_managed_workspace(
+                                base_runtime,
+                                factory=factory,
+                                settings=factory_settings,
+                                runtime_id=governance_runtime_id,
+                                job_id=ctx.job_id,
+                                conversation_id=ctx.conversation_id,
+                            )
 
                             runtime = base_runtime
 
