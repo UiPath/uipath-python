@@ -1,8 +1,10 @@
+import contextlib
 import importlib.metadata
 import json
 import os
 import shutil
 import uuid
+from collections.abc import Iterator
 
 import click
 
@@ -103,6 +105,24 @@ def _select_agent_framework(
     )
 
 
+@contextlib.contextmanager
+def _working_directory(directory: str) -> Iterator[None]:
+    """Run the enclosed block with `directory` as the current directory.
+
+    The agent frameworks' `new` middlewares scaffold into the current
+    directory, and they live in their own packages (uipath-langchain,
+    uipath-llamaindex, uipath-openai-agents), so `--dir` reaches them through
+    the cwd rather than through a signature every one of them would have to
+    grow first.
+    """
+    previous = os.getcwd()
+    os.chdir(directory)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
 def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
     """Offer the scaffold to the installed agent frameworks."""
     Middlewares.load_plugins()
@@ -148,10 +168,20 @@ def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
     "`uipath-langchain`). Only valid together with `--type agent`; picks "
     "which framework scaffolds when several are installed.",
 )
+@click.option(
+    "--dir",
+    "target_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Directory to scaffold the project into, created when missing. "
+    "Defaults to the current directory.",
+)
 @track_command("new")
-def new(name: str, project_type: str, agent_framework: str | None):
+def new(
+    name: str, project_type: str, agent_framework: str | None, target_dir: str | None
+):
     """Generate a quick-start project."""
-    directory = os.getcwd()
+    directory = os.path.abspath(target_dir) if target_dir else os.getcwd()
 
     if not name:
         console.error(
@@ -165,10 +195,14 @@ def new(name: str, project_type: str, agent_framework: str | None):
             "`--agent-framework` can only be used together with `--type agent`."
         )
 
+    if target_dir:
+        os.makedirs(directory, exist_ok=True)
+
     # Agent frameworks scaffold through the `new` middleware chain. A function
     # project never consults them.
     if scaffold_type is not ProjectType.FUNCTION:
-        result = _scaffold_agent(name, agent_framework)
+        with _working_directory(directory):
+            result = _scaffold_agent(name, agent_framework)
 
         if result.error_message:
             console.error(
@@ -192,15 +226,17 @@ def new(name: str, project_type: str, agent_framework: str | None):
                 "function project."
             )
 
-    with console.spinner(f"Creating new project {name} in current directory ..."):
+    location = f"in '{target_dir}'" if target_dir else "in current directory"
+    with console.spinner(f"Creating new project {name} {location} ..."):
         generate_script(directory)
         console.success("Created 'main.py' file.")
         generate_pyproject(directory, name)
         console.success(f"Created '{PYTHON_CONFIGURATION_FILE}' file.")
         generate_uipath_json(directory)
         console.success(f"Created '{UIPATH_CONFIG_FILE}' file.")
-        init_command = """uipath init"""
-        run_command = """uipath run main '{"message": "Hello World!"}'"""
+        prefix = f"cd {target_dir} && " if target_dir else ""
+        init_command = f"{prefix}uipath init"
+        run_command = f"""{prefix}uipath run main '{{"message": "Hello World!"}}'"""
         console.hint(f"""Initialize project: {click.style(init_command, fg="cyan")}""")
         console.hint(f"""Run project: {click.style(run_command, fg="cyan")}""")
 
