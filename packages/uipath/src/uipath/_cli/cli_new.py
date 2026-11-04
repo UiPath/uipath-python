@@ -27,7 +27,7 @@ console = ConsoleLogger()
 # installed release itself: a Robot refuses a project on an older `uipath`
 # than it supports, so a scaffold must never ask for less than the CLI that
 # wrote it.
-UIPATH_SCAFFOLD_MINOR = "2.14"
+UIPATH_SCAFFOLD_MINOR = "2.15"
 
 
 def generate_script(target_directory):
