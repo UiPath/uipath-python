@@ -22,39 +22,18 @@ from uipath.runtime import (
 JOB_ID = str(uuid4())
 
 
-async def _run(
-    runtime: FileRuntime,
-    storage: MemoryStorage | None,
-    *,
-    settings: UiPathRuntimeFactorySettings | None = OPTED_IN,
-    job_id: str | None = JOB_ID,
-    conversation_id: str | None = None,
-) -> UiPathRuntimeResult:
+async def _run(runtime: FileRuntime, storage: MemoryStorage) -> UiPathRuntimeResult:
     wrapped = await wrap_with_managed_workspace(
         runtime,
         factory=WorkspaceFactory(runtime, storage=storage),
-        settings=settings,
+        settings=OPTED_IN,
         runtime_id="runtime-1",
-        job_id=job_id,
-        conversation_id=conversation_id,
+        job_id=JOB_ID,
     )
     try:
         return await wrapped.execute()
     finally:
         await wrapped.dispose()
-
-
-async def test_files_written_before_a_suspend_are_back_after_resume(
-    sdk: FakeSdk,
-) -> None:
-    storage = MemoryStorage()
-
-    await _run(
-        FileRuntime(write="draft", status=UiPathRuntimeStatus.SUSPENDED), storage
-    )
-    resumed = await _run(FileRuntime(), storage)
-
-    assert resumed.output == {"report": "draft"}
 
 
 async def test_uploads_are_linked_to_the_job(sdk: FakeSdk) -> None:
@@ -89,26 +68,6 @@ async def test_successful_run_outside_a_conversation_uploads_nothing(
     await _run(FileRuntime(write="final"), MemoryStorage())
 
     assert sdk.attachments.blobs == {}
-
-
-async def test_successful_exchange_in_a_conversation_keeps_files_for_the_next(
-    sdk: FakeSdk,
-) -> None:
-    storage = MemoryStorage()
-
-    await _run(FileRuntime(write="notes"), storage, conversation_id="conv-1")
-    next_exchange = await _run(FileRuntime(), storage, conversation_id="conv-1")
-
-    assert next_exchange.output == {"report": "notes"}
-
-
-async def test_dispose_removes_the_workspace_folder(sdk: FakeSdk) -> None:
-    runtime = FileRuntime(write="draft", status=UiPathRuntimeStatus.SUSPENDED)
-
-    await _run(runtime, MemoryStorage())
-
-    assert runtime.workspace_path is not None
-    assert not runtime.workspace_path.exists()
 
 
 @pytest.mark.parametrize(

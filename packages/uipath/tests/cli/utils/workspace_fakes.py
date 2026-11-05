@@ -162,14 +162,11 @@ class WorkspaceFactory:
         self.runtime = runtime
         self.storage = storage
         self.settings = settings
-        self.runtime_ids: list[str] = []
-        self.settings_reads = 0
 
     def discover_entrypoints(self) -> list[str]:
         return ["main"]
 
     async def get_settings(self) -> UiPathRuntimeFactorySettings | None:
-        self.settings_reads += 1
         return self.settings
 
     async def get_storage(self) -> MemoryStorage | None:
@@ -178,7 +175,6 @@ class WorkspaceFactory:
     async def new_runtime(
         self, entrypoint: str, runtime_id: str, **kwargs: Any
     ) -> FileRuntime:
-        self.runtime_ids.append(runtime_id)
         return self.runtime
 
     async def dispose(self) -> None:

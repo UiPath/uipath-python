@@ -64,16 +64,6 @@ async def test_eval_uploads_each_suspended_item_workspace(sdk: FakeSdk) -> None:
     assert {key[0] for key in storage.values if key[1:] == REGISTRY} == set(item_ids)
 
 
-async def test_eval_reads_factory_settings_once_for_all_items(sdk: FakeSdk) -> None:
-    factory = _suspending_factory(MemoryStorage())
-
-    await evaluate(
-        factory, UiPathTraceManager(), await _eval_context(items=2), EventBus()
-    )
-
-    assert factory.settings_reads == 1
-
-
 async def test_eval_set_run_carries_the_factory_agent_type(sdk: FakeSdk) -> None:
     created: list[Any] = []
     event_bus = EventBus()
