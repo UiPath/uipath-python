@@ -393,7 +393,7 @@ def handle_request(user_input: str) -> str:
 
 Requires `uipath-platform` 0.2.43 or newer.
 
-API-based validators forward the files a function receives or returns for the Agents backend to inspect. `ByoValidator` forwards them too, but a BYO connector reads them only when it declares document support. `CustomValidator` runs locally and sees text only.
+API-based validators forward the files a function receives or returns for the Agents backend to inspect. `ByoValidator` accepts `detection_scope`, but BYO guardrails evaluate text only; the files are not read. `CustomValidator` runs locally and sees text only.
 
 ### Detection scope
 
