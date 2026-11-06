@@ -851,13 +851,13 @@ class TestListFiles:
             json={
                 "items": [
                     {
-                        "fullPath": "/data/file1.txt",
+                        "fullPath": "data/file1.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
                     },
                     {
-                        "fullPath": "/data/file2.txt",
+                        "fullPath": "data/file2.txt",
                         "contentType": "text/plain",
                         "size": 200,
                         "lastModified": "2024-01-02T00:00:00Z",
@@ -873,9 +873,9 @@ class TestListFiles:
         token = result.continuation_token
         assert token is None  # No more pages
         assert len(files) == 2
-        assert files[0].path == "/data/file1.txt"
+        assert files[0].path == "data/file1.txt"
         assert files[0].size == 100
-        assert files[1].path == "/data/file2.txt"
+        assert files[1].path == "data/file2.txt"
         assert files[1].size == 200
 
     def test_list_files_with_prefix(
@@ -899,7 +899,7 @@ class TestListFiles:
             json={
                 "items": [
                     {
-                        "fullPath": "/data/file1.txt",
+                        "fullPath": "data/file1.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -915,7 +915,7 @@ class TestListFiles:
         token = result.continuation_token
         assert token is None
         assert len(files) == 1
-        assert files[0].path == "/data/file1.txt"
+        assert files[0].path == "data/file1.txt"
 
     def test_list_files_pagination(
         self,
@@ -1048,7 +1048,7 @@ class TestListFiles:
             json={
                 "items": [
                     {
-                        "fullPath": "/async-file.txt",
+                        "fullPath": "async-file.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1063,7 +1063,7 @@ class TestListFiles:
         token = result.continuation_token
         assert token is None  # No more pages
         assert len(files) == 1
-        assert files[0].path == "/async-file.txt"
+        assert files[0].path == "async-file.txt"
 
 
 class TestGetFiles:
@@ -1401,6 +1401,7 @@ class TestGetFiles:
 class TestExistsFile:
     """Tests for exists_file() method."""
 
+    @pytest.mark.parametrize("blob_file_path", ["data/file.txt", "/data/file.txt"])
     def test_exists_file_found(
         self,
         httpx_mock: HTTPXMock,
@@ -1408,6 +1409,7 @@ class TestExistsFile:
         base_url: str,
         org: str,
         tenant: str,
+        blob_file_path: str,
     ):
         """Test exists_file() returns True when file is found."""
         # Mock bucket retrieve
@@ -1424,7 +1426,7 @@ class TestExistsFile:
             json={
                 "items": [
                     {
-                        "fullPath": "/data/file.txt",
+                        "fullPath": "data/file.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1434,7 +1436,7 @@ class TestExistsFile:
             },
         )
 
-        result = service.exists_file(name="test-bucket", blob_file_path="data/file.txt")
+        result = service.exists_file(name="test-bucket", blob_file_path=blob_file_path)
         assert result is True
 
     def test_exists_file_not_found(
@@ -1510,7 +1512,7 @@ class TestExistsFile:
             json={
                 "items": [
                     {
-                        "fullPath": "/target.txt",
+                        "fullPath": "target.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1552,7 +1554,7 @@ class TestExistsFile:
             json={
                 "items": [
                     {
-                        "fullPath": "/other-file.txt",
+                        "fullPath": "other-file.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1569,7 +1571,7 @@ class TestExistsFile:
             json={
                 "items": [
                     {
-                        "fullPath": "/target.txt",
+                        "fullPath": "target.txt",
                         "contentType": "text/plain",
                         "size": 200,
                         "lastModified": "2024-01-02T00:00:00Z",
@@ -1608,7 +1610,7 @@ class TestExistsFile:
             json={
                 "items": [
                     {
-                        "fullPath": "/file.txt",
+                        "fullPath": "file.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1624,6 +1626,7 @@ class TestExistsFile:
         assert result is True
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("blob_file_path", ["async-file.txt", "/async-file.txt"])
     async def test_exists_file_async(
         self,
         httpx_mock: HTTPXMock,
@@ -1631,6 +1634,7 @@ class TestExistsFile:
         base_url: str,
         org: str,
         tenant: str,
+        blob_file_path: str,
     ):
         """Test async version of exists_file()."""
         # Mock bucket retrieve
@@ -1647,7 +1651,7 @@ class TestExistsFile:
             json={
                 "items": [
                     {
-                        "fullPath": "/async-file.txt",
+                        "fullPath": "async-file.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1658,7 +1662,7 @@ class TestExistsFile:
         )
 
         result = await service.exists_file_async(
-            name="test-bucket", blob_file_path="async-file.txt"
+            name="test-bucket", blob_file_path=blob_file_path
         )
         assert result is True
 
