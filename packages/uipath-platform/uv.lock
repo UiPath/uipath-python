@@ -1041,6 +1041,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-pyyaml"
+version = "6.0.12.20261030"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/0c/72b85bc2e3a3cf23419a7f8861c1855893f02080e202b631e33cc0d1a94a/types_pyyaml-6.0.12.20261030.tar.gz", hash = "sha256:9123d707aa31a3883eeb2cb290537c75246dfcb1c00abed7a70f5419d3bd31ae", size = 18878, upload-time = "2026-10-30T07:50:19.43Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/99/7e2c7c7202108220fb664ce4c5ac313a564ab5babb153516a3ac0ad8a681/types_pyyaml-6.0.12.20261030-py3-none-any.whl", hash = "sha256:508cc80546918201026a955356222111224e1f4f7deab0b91f2a95933f764e67", size = 21283, upload-time = "2026-10-30T07:50:18.389Z" },
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1101,6 +1110,7 @@ dependencies = [
     { name = "anyio" },
     { name = "httpx" },
     { name = "pydantic-function-models" },
+    { name = "pyyaml" },
     { name = "sqlparse" },
     { name = "tenacity" },
     { name = "truststore" },
@@ -1120,6 +1130,7 @@ dev = [
     { name = "pytest-trio" },
     { name = "ruff" },
     { name = "rust-just" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -1127,6 +1138,7 @@ requires-dist = [
     { name = "anyio", specifier = ">=4.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlparse", specifier = ">=0.6.0,<0.7.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
     { name = "truststore", specifier = ">=0.10.1" },
@@ -1146,6 +1158,7 @@ dev = [
     { name = "pytest-trio", specifier = ">=0.8.0" },
     { name = "ruff", specifier = ">=0.9.4" },
     { name = "rust-just", specifier = ">=1.39.0" },
+    { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 
 [[package]]

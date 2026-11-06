@@ -12,6 +12,7 @@ dependencies = [
   "uipath-core>=0.5.34, <0.6.0",
   "pydantic-function-models>=0.1.11",
   "sqlparse>=0.6.0, <0.7.0",
+  "pyyaml>=6.0",
 ]
 classifiers = [
   "Intended Audience :: Developers",
@@ -48,6 +49,7 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-mock>=3.11.1",
   "pre-commit>=4.1.0",
+  "types-PyYAML>=6.0",
 ]
 
 [tool.hatch.build.targets.wheel]

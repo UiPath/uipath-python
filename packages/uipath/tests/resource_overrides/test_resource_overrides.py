@@ -1,5 +1,6 @@
 # type: ignore
 import json
+import logging
 import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,6 +12,7 @@ from opentelemetry.sdk.trace.export import SpanExporter
 from pytest_httpx import HTTPXMock
 
 from uipath._cli import cli
+from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath.platform.common import ResourceOverwriteParser
 from uipath.runtime import UiPathRuntimeResult
 
@@ -564,3 +566,47 @@ class TestResourceOverrideWithTracing:
         assert input_attrs_dict["folder_path"] == "overridden_folder"
         assert output_attrs_dict["resource_name"] == "overridden_resource"
         assert output_attrs_dict["folder"] == "overridden_folder"
+
+
+class TestReadResourceOverwritesFromFile:
+    """``uipath run`` reads its overwrites from ``uipath.json`` entry by entry."""
+
+    @pytest.fixture
+    def common_logs(self, caplog, monkeypatch):
+        # CLI tests earlier in the session leave the ``uipath`` loggers, the
+        # module logger included, with propagate=False. Re-enable propagation
+        # along the whole chain for this test only; the handler stays on root,
+        # so each record is captured exactly once.
+        logger = logging.getLogger("uipath._cli._utils._common")
+        while logger is not None:
+            monkeypatch.setattr(logger, "propagate", True)
+            logger = logger.parent
+        caplog.set_level(logging.WARNING, logger="uipath._cli._utils._common")
+        return caplog
+
+    @staticmethod
+    def _write_uipath_json(directory: Path, overwrites: dict) -> None:
+        config = {"runtime": {"internalArguments": {"resourceOverwrites": overwrites}}}
+        (directory / "uipath.json").write_text(json.dumps(config))
+
+    async def test_unknown_overwrite_kind_is_skipped_with_a_warning(
+        self, tmp_path, common_logs
+    ):
+        self._write_uipath_json(
+            tmp_path,
+            {
+                "asset.A": {"name": "B", "folderPath": "F"},
+                "weird.X": {"foo": 1},
+            },
+        )
+
+        overwrites = await read_resource_overwrites_from_file(str(tmp_path))
+
+        assert set(overwrites) == {"asset.A"}
+        assert overwrites["asset.A"].resource_identifier == "B"
+        warnings = [
+            r.getMessage() for r in common_logs.records if r.levelno == logging.WARNING
+        ]
+        skipped = [message for message in warnings if "weird.X" in message]
+        assert len(skipped) == 1, warnings
+        assert "\n" not in skipped[0], skipped[0]

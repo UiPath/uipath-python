@@ -20,6 +20,7 @@ from pydantic import (
     ConfigDict,
     Field,
     TypeAdapter,
+    field_validator,
     model_validator,
 )
 
@@ -121,9 +122,65 @@ class ConnectionResourceOverwrite(ResourceOverwrite):
         return self.folder_key
 
 
+class SkillBundleResourceOverwrite(ResourceOverwrite):
+    """A deploy-time override of an agent's skill bundle binding.
+
+    Like the other bindings, an entry replaces the whole binding: it carries
+    ``name``, ``folderPath`` and ``versionMode``, plus ``version`` when pinned.
+    Its ``name`` retargets the bundle that is looked up; the agent-side name of
+    the binding stays what the agent declared. Apply it with
+    ``uipath.platform.skills._overwrites.apply_skill_bundle_overwrite``.
+    """
+
+    resource_type: Literal["skillBundle"]
+    name: str = Field(alias="name")
+    folder_path: str = Field(alias="folderPath")
+    # Keep in sync with uipath.platform.skills.VersionMode.
+    version_mode: Literal["pinned", "latest"] = Field(alias="versionMode")
+    version: Optional[str] = Field(default=None, alias="version")
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("name", "folder_path")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError(
+                "a skillBundle overwrite needs a non-blank name and folderPath"
+            )
+        return value
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: Any) -> Any:
+        # A cleared form field arrives as "", which is no version.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def _version_matches_mode(self) -> "SkillBundleResourceOverwrite":
+        if self.version_mode == "latest":
+            self.version = None
+        elif not self.version:
+            raise ValueError("a pinned skillBundle overwrite needs a version")
+        return self
+
+    @property
+    def resource_identifier(self) -> str:
+        return self.name
+
+    @property
+    def folder_identifier(self) -> str:
+        return self.folder_path
+
+
 ResourceOverwriteUnion = Annotated[
     Union[
-        GenericResourceOverwrite, EntityResourceOverwrite, ConnectionResourceOverwrite
+        GenericResourceOverwrite,
+        EntityResourceOverwrite,
+        ConnectionResourceOverwrite,
+        SkillBundleResourceOverwrite,
     ],
     Field(discriminator="resource_type"),
 ]
