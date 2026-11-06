@@ -851,13 +851,13 @@ class TestListFiles:
             json={
                 "items": [
                     {
-                        "fullPath": "/data/file1.txt",
+                        "fullPath": "data/file1.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
                     },
                     {
-                        "fullPath": "/data/file2.txt",
+                        "fullPath": "data/file2.txt",
                         "contentType": "text/plain",
                         "size": 200,
                         "lastModified": "2024-01-02T00:00:00Z",
@@ -873,9 +873,9 @@ class TestListFiles:
         token = result.continuation_token
         assert token is None  # No more pages
         assert len(files) == 2
-        assert files[0].path == "/data/file1.txt"
+        assert files[0].path == "data/file1.txt"
         assert files[0].size == 100
-        assert files[1].path == "/data/file2.txt"
+        assert files[1].path == "data/file2.txt"
         assert files[1].size == 200
 
     def test_list_files_with_prefix(
@@ -899,7 +899,7 @@ class TestListFiles:
             json={
                 "items": [
                     {
-                        "fullPath": "/data/file1.txt",
+                        "fullPath": "data/file1.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -915,7 +915,7 @@ class TestListFiles:
         token = result.continuation_token
         assert token is None
         assert len(files) == 1
-        assert files[0].path == "/data/file1.txt"
+        assert files[0].path == "data/file1.txt"
 
     def test_list_files_pagination(
         self,
@@ -1048,7 +1048,7 @@ class TestListFiles:
             json={
                 "items": [
                     {
-                        "fullPath": "/async-file.txt",
+                        "fullPath": "async-file.txt",
                         "contentType": "text/plain",
                         "size": 100,
                         "lastModified": "2024-01-01T00:00:00Z",
@@ -1063,7 +1063,7 @@ class TestListFiles:
         token = result.continuation_token
         assert token is None  # No more pages
         assert len(files) == 1
-        assert files[0].path == "/async-file.txt"
+        assert files[0].path == "async-file.txt"
 
 
 class TestGetFiles:
