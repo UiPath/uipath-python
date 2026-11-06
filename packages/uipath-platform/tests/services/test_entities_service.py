@@ -856,9 +856,8 @@ class TestEntitiesService:
         ) == {
             "entityRoutings": [
                 {
-                    "entityName": "Customers",
+                    "entityName": "Overwritten Customers",
                     "folderId": "known-folder-key",
-                    "overrideEntityName": "Overwritten Customers",
                 }
             ]
         }
@@ -866,6 +865,91 @@ class TestEntitiesService:
             "Overwritten Customers",
             "known-folder-key",
         )
+
+    def test_resolve_entity_set_chained_overwrites_route_by_resolved_names(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+    ) -> None:
+        service = EntitiesService(
+            config=config,
+            execution_context=execution_context,
+        )
+        service.retrieve_by_name = MagicMock(  # type: ignore[method-assign]
+            return_value=MagicMock(spec=Entity)
+        )
+
+        token = _resource_overwrites.set(
+            {
+                "entity.entity-a": EntityResourceOverwrite(
+                    resource_type="entity", name="B", folder_id="folder-b"
+                ),
+                "entity.entity-b": EntityResourceOverwrite(
+                    resource_type="entity", name="C", folder_id="folder-c"
+                ),
+            }
+        )
+        try:
+            resolution = service.resolve_entity_set(
+                [
+                    DataFabricEntityItem(
+                        id="entity-a", name="A", folder_key="folder-a"
+                    ),
+                    DataFabricEntityItem(
+                        id="entity-b", name="B", folder_key="folder-a"
+                    ),
+                ]
+            )
+        finally:
+            _resource_overwrites.reset(token)
+
+        assert resolution.entities_service._routing_strategy.routing_context is not None
+        assert resolution.entities_service._routing_strategy.routing_context.model_dump(
+            by_alias=True, exclude_none=True
+        ) == {
+            "entityRoutings": [
+                {"entityName": "B", "folderId": "folder-b"},
+                {"entityName": "C", "folderId": "folder-c"},
+            ]
+        }
+
+    def test_resolve_entity_set_rejects_two_entities_resolving_to_same_name(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+    ) -> None:
+        service = EntitiesService(
+            config=config,
+            execution_context=execution_context,
+        )
+        service.retrieve_by_name = MagicMock(  # type: ignore[method-assign]
+            return_value=MagicMock(spec=Entity)
+        )
+        service.retrieve = MagicMock(  # type: ignore[method-assign]
+            return_value=MagicMock(spec=Entity)
+        )
+
+        token = _resource_overwrites.set(
+            {
+                "entity.entity-a": EntityResourceOverwrite(
+                    resource_type="entity", name="B", folder_id="folder-b"
+                ),
+            }
+        )
+        try:
+            with pytest.raises(ValueError, match="both resolve to 'B'"):
+                service.resolve_entity_set(
+                    [
+                        DataFabricEntityItem(
+                            id="entity-a", name="A", folder_key="folder-a"
+                        ),
+                        DataFabricEntityItem(
+                            id="entity-b", name="B", folder_key="folder-a"
+                        ),
+                    ]
+                )
+        finally:
+            _resource_overwrites.reset(token)
 
     @pytest.mark.asyncio
     async def test_resolve_entity_set_async_resolves_folder_paths_before_fetch(
@@ -914,9 +998,8 @@ class TestEntitiesService:
         ) == {
             "entityRoutings": [
                 {
-                    "entityName": "Customers",
+                    "entityName": "Overwritten Customers",
                     "folderId": "resolved-folder-id",
-                    "overrideEntityName": "Overwritten Customers",
                 }
             ]
         }
