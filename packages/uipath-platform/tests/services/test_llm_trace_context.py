@@ -5,12 +5,9 @@ from unittest.mock import patch
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
-from uipath.core.feature_flags import FeatureFlags
 
 from uipath.platform.chat.llm_trace_context import build_trace_context_headers
 from uipath.platform.constants import ENV_PROJECT_KEY
-
-FEATURE_FLAG = "EnableTraceContextHeaders"
 
 
 def _make_span():
@@ -20,26 +17,8 @@ def _make_span():
     return tracer.start_span("test-span")
 
 
-class TestFeatureFlagDisabled:
-    """When the feature flag is off, no headers are returned."""
-
-    def setup_method(self) -> None:
-        FeatureFlags.reset_flags()
-
-    def test_returns_empty_dict_by_default(self) -> None:
-        assert build_trace_context_headers() == {}
-
-    def test_returns_empty_dict_when_explicitly_disabled(self) -> None:
-        FeatureFlags.configure_flags({FEATURE_FLAG: False})
-        assert build_trace_context_headers() == {}
-
-
 class TestTraceparentHeader:
-    """When enabled, x-uipath-traceparent-id is populated from config + span."""
-
-    def setup_method(self) -> None:
-        FeatureFlags.reset_flags()
-        FeatureFlags.configure_flags({FEATURE_FLAG: True})
+    """x-uipath-traceparent-id is populated from config + span."""
 
     def test_traceparent_from_config_and_span(self) -> None:
         span = _make_span()
@@ -111,14 +90,12 @@ class TestTraceparentHeader:
 
 
 class TestBaggageHeader:
-    """When enabled, x-uipath-tracebaggage is populated from UiPathConfig."""
+    """x-uipath-tracebaggage is populated from UiPathConfig."""
 
     def setup_method(self) -> None:
         from uipath.platform.common._span_utils import _read_config_id
 
         _read_config_id.cache_clear()
-        FeatureFlags.reset_flags()
-        FeatureFlags.configure_flags({FEATURE_FLAG: True})
 
     def test_all_env_vars_present(self) -> None:
         env = {
@@ -199,11 +176,7 @@ class TestBaggageHeader:
 
 
 class TestBothHeaders:
-    """When enabled with an active span and env vars, both headers are present."""
-
-    def setup_method(self) -> None:
-        FeatureFlags.reset_flags()
-        FeatureFlags.configure_flags({FEATURE_FLAG: True})
+    """With an active span and env vars, both headers are present."""
 
     def test_both_headers_present(self) -> None:
         span = _make_span()
