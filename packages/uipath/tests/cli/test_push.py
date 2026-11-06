@@ -694,7 +694,7 @@ class TestPush:
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}",
-            json={"id": project_id, "projectType": "Function"},
+            json={"id": project_id, "projectType": "Agent"},
         )
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
