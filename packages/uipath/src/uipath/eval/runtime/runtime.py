@@ -27,12 +27,14 @@ from opentelemetry.trace import (
 )
 from pydantic import BaseModel, ValidationError
 
+from uipath._utils._managed_workspace import wrap_with_managed_workspace
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathExecutionRuntime,
     UiPathRuntimeFactoryProtocol,
+    UiPathRuntimeFactorySettings,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
     UiPathRuntimeStorageProtocol,
@@ -348,12 +350,14 @@ class UiPathEvalRuntime:
         self.coverage = coverage.Coverage(branch=True)
 
         self._storage: UiPathRuntimeStorageProtocol | None = None
+        self._factory_settings: UiPathRuntimeFactorySettings | None = None
 
     async def __aenter__(self) -> UiPathEvalRuntime:
         """Async context manager entry - initialize storage and start coverage if enabled."""
         if self.context.report_coverage:
             self.coverage.start()
         self._storage = await self.factory.get_storage()
+        self._factory_settings = await self.factory.get_settings()
 
         return self
 
@@ -399,7 +403,7 @@ class UiPathEvalRuntime:
                 f"Please run with a single evaluation using --eval-ids to specify one evaluation."
             )
 
-        factory_settings = await self.factory.get_settings()
+        factory_settings = self._factory_settings
         agent_type = factory_settings.agent_type if factory_settings else None
 
         await self.event_bus.publish(
@@ -1017,6 +1021,13 @@ class UiPathEvalRuntime:
             eval_runtime = await self.factory.new_runtime(
                 entrypoint=self.context.entrypoint or "",
                 runtime_id=runtime_id,
+            )
+            eval_runtime = await wrap_with_managed_workspace(
+                eval_runtime,
+                factory=self.factory,
+                settings=self._factory_settings,
+                runtime_id=runtime_id,
+                job_id=self.context.job_id,
             )
 
             delegate = eval_runtime
