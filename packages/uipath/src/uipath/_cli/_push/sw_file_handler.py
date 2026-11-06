@@ -15,6 +15,7 @@ from uipath.platform.constants import (
     LEGACY_EVAL_FOLDER,
     PYTHON_CONFIGURATION_FILE,
     STUDIO_METADATA_FILE,
+    UIPROJ_FILE,
 )
 
 from .._utils._common import get_claim_from_token
@@ -246,11 +247,13 @@ class SwFileHandler:
                     )
                 )
 
-        # Identify and add deleted files (files that exist remotely but not locally)
+        # Identify and add deleted files (files that exist remotely but not locally).
+        # project.uiproj is owned by Studio Web (created with every project) and is
+        # never part of the local upload set, so it must survive the push.
         deleted_files = self._collect_deleted_files(
             remote_files,
             processed_source_files,
-            files_to_ignore=[STUDIO_METADATA_FILE],
+            files_to_ignore=[STUDIO_METADATA_FILE, UIPROJ_FILE],
             directories_to_ignore=[
                 name
                 for name, condition in [
