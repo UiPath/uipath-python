@@ -9,6 +9,8 @@ from typing import Any
 
 import click
 
+from ._console import OutputMode
+
 
 @dataclass
 class CliContext:
@@ -18,7 +20,7 @@ class CliContext:
     Using a dataclass ensures all attributes are properly typed and documented.
 
     Attributes:
-        output_format: Output format (table, json, csv)
+        output_mode: Output mode (TEXT, JSON, CSV)
         debug: Enable debug logging
 
     Note:
@@ -26,7 +28,7 @@ class CliContext:
         (UIPATH_URL and UIPATH_ACCESS_TOKEN).
     """
 
-    output_format: str = "table"
+    output_mode: OutputMode = OutputMode.TEXT
     debug: bool = False
 
     _client: Any = field(default=None, init=False, repr=False)
@@ -52,7 +54,7 @@ def get_cli_context(ctx: click.Context) -> CliContext:
         >>> @click.pass_context
         >>> def list(ctx):
         ...     cli_ctx = get_cli_context(ctx)  # Fully typed!
-        ...     print(cli_ctx.output_format)  # Autocomplete works
+        ...     print(cli_ctx.output_mode)  # Autocomplete works
     """
     if not isinstance(ctx.obj, CliContext):
         raise click.ClickException(
