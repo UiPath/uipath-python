@@ -86,6 +86,33 @@ def _inline_defs(
     return inlined, leftover
 
 
+def _narrowed_type(branch_type: Any, types: list[str]) -> Any:
+    """Return the part of ``branch_type`` that ``types`` allows, or None."""
+    if branch_type in types or (branch_type == "integer" and "number" in types):
+        return branch_type
+    if branch_type == "number" and "integer" in types:
+        return "integer"
+    return None
+
+
+def _restrict_to_types(branches: list[Any], types: list[str]) -> list[Any]:
+    """Narrow ``anyOf`` branches to ``types``, for a node that has both.
+
+    A branch with its own type is kept, narrowed, only when ``types`` allows
+    it; a branch without one is copied once per type in ``types``.
+    """
+    restricted: list[Any] = []
+    for branch in branches:
+        if not isinstance(branch, dict):
+            restricted.append(branch)
+        elif "type" not in branch:
+            restricted.extend({**branch, "type": t} for t in types)
+        elif (narrowed := _narrowed_type(branch["type"], types)) is not None:
+            restricted.append({**branch, "type": narrowed})
+    # No branch fits the types: keep the branches rather than send an empty anyOf.
+    return restricted or branches
+
+
 def _to_gemini_schema(schema: Any) -> Any:
     """Rewrite JSON-schema type lists into the form Gemini accepts.
 
@@ -94,8 +121,10 @@ def _to_gemini_schema(schema: Any) -> Any:
     (common in MCP tool schemas) fails the request with a 400. So
     ``{"type": ["string", "null"]}`` becomes
     ``{"type": "string", "nullable": true}``, and a list with several non-null
-    types becomes an ``anyOf`` of single types. Values that are data rather
-    than schemas (``default``, ``enum``, ...) are left untouched.
+    types becomes an ``anyOf`` of single types. When the node already has an
+    ``anyOf``, the types are applied to its branches instead, so both
+    constraints still hold. Values that are data rather than schemas
+    (``default``, ``enum``, ...) are left untouched.
     """
     if isinstance(schema, list):
         return [_to_gemini_schema(item) for item in schema]
@@ -118,11 +147,15 @@ def _to_gemini_schema(schema: Any) -> Any:
         non_null = [t for t in types if t != "null"]
         if len(non_null) == 1:
             converted["type"] = non_null[0]
-        elif not non_null:
+        else:
             del converted["type"]
-        elif "anyOf" not in converted:
-            del converted["type"]
-            converted["anyOf"] = [{"type": t} for t in non_null]
+        if len(non_null) > 1:
+            branches = converted.get("anyOf")
+            converted["anyOf"] = (
+                _restrict_to_types(branches, non_null)
+                if isinstance(branches, list)
+                else [{"type": t} for t in non_null]
+            )
         if "null" in types:
             converted["nullable"] = True
     return converted

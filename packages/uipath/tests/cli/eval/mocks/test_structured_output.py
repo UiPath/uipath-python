@@ -378,15 +378,65 @@ async def test_gemini_rewrites_type_lists_in_the_tool_schema():
     assert _response_schema(llm.calls[0]) == _GEMINI_SCHEMA
 
 
-async def test_gemini_keeps_an_existing_any_of_when_the_type_list_has_several_types():
-    schema = {"type": ["string", "number", "null"], "anyOf": [{"minLength": 1}]}
+# A type list with several types next to an existing anyOf.
+_ANY_OF_CASES: list[tuple[dict[str, Any], dict[str, Any]]] = [
+    # A branch without a type is copied once per type.
+    (
+        {"type": ["string", "number", "null"], "anyOf": [{"minLength": 1}]},
+        {
+            "anyOf": [
+                {"minLength": 1, "type": "string"},
+                {"minLength": 1, "type": "number"},
+            ],
+            "nullable": True,
+        },
+    ),
+    # A typed branch is kept only when the list allows its type.
+    (
+        {
+            "type": ["string", "number"],
+            "anyOf": [
+                {"type": "string", "format": "date"},
+                {"type": "integer"},
+                {"type": "boolean"},
+            ],
+        },
+        {"anyOf": [{"type": "string", "format": "date"}, {"type": "integer"}]},
+    ),
+    # A number branch under an integer type becomes an integer branch.
+    (
+        {"type": ["integer", "string"], "anyOf": [{"type": "number", "minimum": 0}]},
+        {"anyOf": [{"type": "integer", "minimum": 0}]},
+    ),
+    # A branch with its own type list is rewritten before the types apply.
+    (
+        {"type": ["string", "number"], "anyOf": [{"type": ["string", "null"]}]},
+        {"anyOf": [{"type": "string", "nullable": True}]},
+    ),
+    # No branch fits the types: the branches are kept, not an empty anyOf.
+    (
+        {"type": ["string", "number"], "anyOf": [{"type": "boolean"}]},
+        {"anyOf": [{"type": "boolean"}]},
+    ),
+]
+
+
+@pytest.mark.parametrize(("schema", "expected"), _ANY_OF_CASES)
+async def test_gemini_applies_a_type_list_to_an_existing_any_of(
+    schema: dict[str, Any], expected: dict[str, Any]
+):
     llm = _tool_call_llm()
     await _generate(llm, schema, {"model": "gemini-3.7-flash"})
-    assert _response_schema(llm.calls[0]) == {
-        "type": ["string", "number", "null"],
-        "anyOf": [{"minLength": 1}],
-        "nullable": True,
-    }
+    assert _response_schema(llm.calls[0]) == expected
+
+
+@pytest.mark.parametrize(
+    "schema", [_TYPE_LIST_SCHEMA, *(schema for schema, _ in _ANY_OF_CASES)]
+)
+async def test_gemini_tool_schema_has_no_type_lists(schema: dict[str, Any]):
+    llm = _tool_call_llm()
+    await _generate(llm, schema, {"model": "gemini-3.7-flash"})
+    assert '"type": [' not in json.dumps(llm.calls[0]["tools"])
 
 
 async def test_gemini_does_not_change_the_callers_schema():
