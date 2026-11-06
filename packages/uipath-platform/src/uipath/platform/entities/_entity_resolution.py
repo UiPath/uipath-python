@@ -385,8 +385,11 @@ def finalize_resolution_plan(
         folders_map=resolved_folders_map,
         effective_entity_names=draft.effective_entity_names,
         routing_context=build_resolution_routing_context(
-            resolved_folders_map,
-            draft.effective_entity_names,
+            {
+                draft.effective_entity_names.get(name, name): folder_key
+                for name, folder_key in resolved_folders_map.items()
+            },
+            {},
         ),
     )
 
