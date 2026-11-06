@@ -81,6 +81,18 @@
         "description": "Key to extract output from agent execution",
         "title": "Target Output Key",
         "type": "string"
+      },
+      "line_by_line_evaluator": {
+        "default": false,
+        "description": "If True, split output by delimiter and evaluate each line separately",
+        "title": "Line By Line Evaluator",
+        "type": "boolean"
+      },
+      "line_delimiter": {
+        "default": "\n",
+        "description": "Delimiter to split output when line_by_line_evaluator is True",
+        "title": "Line Delimiter",
+        "type": "string"
       }
     },
     "title": "LLMJudgeOutputEvaluatorConfig",
@@ -109,6 +121,27 @@
     "type": "object"
   },
   "justificationSchema": {
-    "type": "string"
+    "description": "Justification for LLM judge evaluators.",
+    "properties": {
+      "expected": {
+        "title": "Expected",
+        "type": "string"
+      },
+      "actual": {
+        "title": "Actual",
+        "type": "string"
+      },
+      "justification": {
+        "title": "Justification",
+        "type": "string"
+      }
+    },
+    "required": [
+      "expected",
+      "actual",
+      "justification"
+    ],
+    "title": "LLMJudgeJustification",
+    "type": "object"
   }
 }
