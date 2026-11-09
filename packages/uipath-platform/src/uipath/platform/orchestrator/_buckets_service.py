@@ -1131,7 +1131,8 @@ class BucketsService(FolderContext, BaseService):
             items = response.get("items", [])
             for item in items:
                 file = BucketFile.model_validate(item)
-                if file.path == normalized_target:
+                # Strip "/" on both sides: callers may pass it, and fullPath may include it.
+                if file.path.removeprefix("/") == blob_file_path.removeprefix("/"):
                     return True
 
             token = response.get("continuationToken")
@@ -1205,7 +1206,8 @@ class BucketsService(FolderContext, BaseService):
             items = response.get("items", [])
             for item in items:
                 file = BucketFile.model_validate(item)
-                if file.path == normalized_target:
+                # Strip "/" on both sides: callers may pass it, and fullPath may include it.
+                if file.path.removeprefix("/") == blob_file_path.removeprefix("/"):
                     return True
 
             token = response.get("continuationToken")
