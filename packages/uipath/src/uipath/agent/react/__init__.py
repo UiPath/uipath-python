@@ -6,7 +6,9 @@ This module includes UiPath ReAct Agent Loop constructs such as prompts, tools
 from .conversational_prompts import (
     PromptUserSettings,
     get_chat_system_prompt,
+    get_conversational_output_section,
     get_generate_output_prompt,
+    strip_conversational_output_section,
 )
 from .conversational_voice_prompts import get_voice_system_prompt
 from .prompts import AGENT_SYSTEM_PROMPT_TEMPLATE
@@ -31,6 +33,8 @@ __all__ = [
     "SetConversationalOutputToolSchemaModel",
     "PromptUserSettings",
     "get_chat_system_prompt",
+    "get_conversational_output_section",
     "get_generate_output_prompt",
     "get_voice_system_prompt",
+    "strip_conversational_output_section",
 ]

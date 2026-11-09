@@ -120,7 +120,9 @@ Before each tool call, verify:
 
 If execution cannot proceed:
 - State why
-- Request missing or clarifying information"""
+- Request missing or clarifying information
+
+{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaPrompt}}"""
 
 _ATTACHMENTS_TEMPLATE = """=====================================================================
 ATTACHMENTS
@@ -149,6 +151,7 @@ def get_chat_system_prompt(
     agent_name: str | None,
     user_settings: PromptUserSettings | None = None,
     conversation_id: str | None = None,
+    output_schema: type[BaseModel] | None = None,
 ) -> str:
     """Generate a system prompt for a conversational agent.
 
@@ -158,6 +161,7 @@ def get_chat_system_prompt(
         agent_name: The agent display name; defaults to "Unnamed Agent" when None.
         user_settings: Optional user data that is injected into the system prompt.
         conversation_id: Optional conversation identifier that is injected into the system prompt.
+        output_schema: Optional structured output fields recorded after the conversational turn loop.
 
     Returns:
         The complete system prompt string
@@ -191,6 +195,11 @@ def get_chat_system_prompt(
     prompt = prompt.replace(
         "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_conversationIdPrompt}}",
         get_conversation_id_template(conversation_id),
+    )
+
+    prompt = prompt.replace(
+        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaPrompt}}",
+        get_conversational_output_section(output_schema),
     )
 
     return prompt
@@ -236,12 +245,82 @@ def get_conversation_id_template(conversation_id: str | None) -> str:
     return _CONVERSATION_ID_TEMPLATE.format(conversation_id=conversation_id)
 
 
-_GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for this turn.
+_OUTPUT_SECTION_PREFIX = """=====================================================================
+STRUCTURED OUTPUT FOR THIS TURN
+=====================================================================
+At the end of your turn (when you decide to reply without calling a tool),
+a separate step will infer structured output fields for this turn with the following schema:
+
+```json
+"""
+
+_OUTPUT_SECTION_SUFFIX = """
+```
+
+- The outputs are produced after your turn, by a separate step. You have no tool for them:
+  do not look for one, and do not call some other tool in its place.
+- Instructions anywhere in this prompt about what an output field should contain apply to those
+  outputs, not to your reply. You do not need to do anything with them while replying.
+- Your reply is what the user reads. Respond naturally in conversation rather than
+  mentioning these output fields or their values."""
+
+
+def get_conversational_output_section(
+    output_schema: type[BaseModel] | None,
+) -> str:
+    """Return the system-prompt section describing the turn's output fields.
+
+    Conversational agents fill their declared output fields in a separate call
+    after the loop - this section informs the model of these fields and how to
+    handle them when replying.
+
+    Args:
+        output_schema: The fields to describe, or None for no section.
+
+    Returns:
+        The rendered section, or an empty string when there is no schema.
+    """
+    if output_schema is None:
+        return ""
+
+    schema_json = json.dumps(output_schema.model_json_schema(), indent=2)
+    return f"{_OUTPUT_SECTION_PREFIX}{schema_json}{_OUTPUT_SECTION_SUFFIX}"
+
+
+def strip_conversational_output_section(prompt: str) -> str:
+    """Remove the output-fields section from an assembled system prompt.
+
+    The structured-output call replays the exchange's messages, the system
+    message included. That section tells the agent it has no tool for these
+    fields, which is true inside the loop and the opposite of that call's job —
+    and the prompt's precedence hierarchy ranks the system prompt above the
+    user message carrying the instruction, so the conflict would resolve the
+    wrong way. Forcing the tool choice hides that today; it will not once a
+    model that cannot be forced runs on `auto`.
+
+    Matches the section's fixed text rather than re-rendering it, so no schema
+    is needed and there is nothing to keep in sync: a prompt built from any
+    field list is stripped correctly.
+    """
+    start = prompt.find(_OUTPUT_SECTION_PREFIX)
+    if start == -1:
+        return prompt
+    end = prompt.find(_OUTPUT_SECTION_SUFFIX, start + len(_OUTPUT_SECTION_PREFIX))
+    if end == -1:
+        return prompt
+    # Removes exactly what was substituted for the placeholder, so the result
+    # matches a prompt built without an output schema character for character.
+    return prompt[:start] + prompt[end + len(_OUTPUT_SECTION_SUFFIX) :]
+
+
+_GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for the CURRENT TURN ONLY.
+
+This instruction is not part of the conversation. The turn you are recording is the user's most recent message (not a tool-result) before this instruction, together with every message after it.
 
 Rules:
-- For each field, use values inferred from the conversation's recent turn.
-- For optional fields that are not yet relevant or determinable (e.g. the conversation is still gathering context, or the topic hasn't surfaced yet), omit them entirely.
-- For required fields that cannot yet be determined, provide a default placeholder. DO NOT fabricate, guess, or hallucinate meaningful values.
+- For each field, use values inferred from this turn. Only use earlier turns as context for interpreting this turn; do not report fields from an earlier turn that do not apply for this one.
+- For optional fields that are not yet relevant or determinable (e.g. context is still being gathered, or the topic hasn't surfaced yet), omit them entirely.
+- For required fields that cannot yet be determined, provide a default placeholder. Do not fabricate, guess, or hallucinate meaningful values.
 - Do not produce any text response, as this will not be seen by the user. Only call the tool."""
 
 
