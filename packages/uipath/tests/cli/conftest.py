@@ -3,6 +3,7 @@ import os
 import pytest
 
 from tests.cli.utils.project_details import ProjectDetails
+from tests.cli.utils.workspace_fakes import FakeSdk
 
 
 @pytest.fixture
@@ -29,3 +30,10 @@ def project_details() -> ProjectDetails:
         with open("tests/cli/mocks/pyproject.toml", "r") as file:
             data = file.read()
     return ProjectDetails.from_toml(data)
+
+
+@pytest.fixture
+def sdk(monkeypatch: pytest.MonkeyPatch) -> FakeSdk:
+    fake = FakeSdk()
+    monkeypatch.setattr("uipath._utils._managed_workspace.UiPath", lambda: fake)
+    return fake

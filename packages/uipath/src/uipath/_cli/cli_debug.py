@@ -10,6 +10,7 @@ from uipath._cli._debug._bridge import DebugAttachMode, get_debug_bridge
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli._utils._tracing import create_trace_manager
+from uipath._utils._managed_workspace import wrap_with_managed_workspace
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.eval.mocks._mock_runtime import load_simulation_config
 from uipath.eval.mocks._simulation_model import get_agent_max_tokens
@@ -228,6 +229,15 @@ def debug(
                                     agent_name=entrypoint,
                                     runtime_id=governance_runtime_id,
                                 )
+
+                            runtime = await wrap_with_managed_workspace(
+                                runtime,
+                                factory=factory,
+                                settings=factory_settings,
+                                runtime_id=governance_runtime_id,
+                                job_id=ctx.job_id,
+                                conversation_id=ctx.conversation_id,
+                            )
 
                             delegate = runtime
                             if ctx.conversation_id and ctx.exchange_id:
