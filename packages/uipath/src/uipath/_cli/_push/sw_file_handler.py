@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
+import anyio
 import click
 
 from uipath._cli.models.uipath_json_schema import PackOptions
@@ -330,8 +331,9 @@ class SwFileHandler:
             The content to send through the EntryPoints endpoint (None when the
             remote copy is already identical) and the progress event to report.
         """
-        with open(local_file.file_path, "r", encoding="utf-8") as f:
-            local_content = f.read()
+        local_content = await anyio.Path(local_file.file_path).read_text(
+            encoding="utf-8"
+        )
 
         if remote_file is None:
             return local_content, UpdateEvent(
