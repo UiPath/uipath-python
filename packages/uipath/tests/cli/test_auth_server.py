@@ -5,25 +5,22 @@ unauthenticated POSTs (no / wrong OAuth `state`), and the server must bind to
 loopback only rather than all interfaces.
 """
 
+import asyncio
+import http.client
 import json
 import os
+import socket
 import threading
 import urllib.error
 import urllib.request
 
-from uipath._cli._auth._auth_server import HTTPServer
+import pytest
+
+from uipath._cli._auth._auth_server import HTTPServer, make_request_handler_class
 
 STATE = "LEGITIMATE_OAUTH_STATE_ABCDE12345"
 CODE_VERIFIER = "LEGITIMATE_PKCE_CODE_VERIFIER"
 DOMAIN = "cloud.uipath.com"
-
-ATTACKER_PAYLOAD = {
-    "access_token": "attacker-token",
-    "refresh_token": "attacker-refresh",
-    "expires_in": 3600,
-    "token_type": "Bearer",
-    "scope": "offline_access",
-}
 
 
 def _request(port, path, data, headers=None, method="POST"):
@@ -72,27 +69,24 @@ async def test_endpoints_reject_unauthenticated_posts(tmp_path, monkeypatch):
         results["rebind_get"] = _request(
             port, "/", None, {"Host": "not-localhost.com"}, method="GET"
         )
-        results["rebind_post"] = _post(
-            port,
-            "/set_token",
-            ATTACKER_PAYLOAD,
-            {"X-Auth-State": STATE, "Host": "evil.com"},
+        results["rebind_post"] = _request(
+            port, "/set_token", None, {"X-Auth-State": STATE, "Host": "evil.com"}
         )
         # GET serves index.html with the OAuth params substituted in.
         results["get"] = _request(port, "/anything", None, method="GET")
         # /set_token: missing and wrong state are rejected.
-        results["set_missing"] = _post(port, "/set_token", ATTACKER_PAYLOAD)
-        results["set_wrong"] = _post(
-            port, "/set_token", ATTACKER_PAYLOAD, {"X-Auth-State": "not-the-state"}
+        results["set_missing"] = _request(port, "/set_token", None)
+        results["set_wrong"] = _request(
+            port, "/set_token", None, {"X-Auth-State": "not-the-state"}
         )
         # Valid state but a non-JSON body -> graceful 400, not 500.
         results["set_malformed"] = _request(
             port, "/set_token", b"not json", {"X-Auth-State": STATE}
         )
         # Unknown path -> 404.
-        results["unknown"] = _post(port, "/nope", {"x": 1}, {"X-Auth-State": STATE})
+        results["unknown"] = _request(port, "/nope", None, {"X-Auth-State": STATE})
         # /log: missing and valid state.
-        results["log_missing"] = _post(port, "/log", {"msg": "x"})
+        results["log_missing"] = _request(port, "/log", None)
         results["log_valid"] = _post(
             port, "/log", {"msg": "x"}, {"X-Auth-State": STATE}
         )
@@ -103,7 +97,9 @@ async def test_endpoints_reject_unauthenticated_posts(tmp_path, monkeypatch):
 
     t = threading.Thread(target=client, daemon=True)
     t.start()
-    token_data = await server.start(STATE, CODE_VERIFIER, DOMAIN)
+    token_data = await asyncio.wait_for(
+        server.start(STATE, CODE_VERIFIER, DOMAIN), timeout=30
+    )
     t.join(timeout=5)
 
     # DNS rebinding: forged Host is rejected on both GET and POST.
@@ -136,3 +132,37 @@ def test_server_binds_to_loopback_only():
         assert httpd.server_address[0] == "127.0.0.1"
     finally:
         httpd.server_close()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {},
+        {"X-Auth-State": "not-the-state"},
+        {"X-Auth-State": STATE, "Host": "evil.com"},
+    ],
+    ids=["missing_state", "wrong_state", "forged_host"],
+)
+def test_rejected_set_token_never_accepts_the_token(headers):
+    received: list[dict[str, str]] = []
+    handler = make_request_handler_class(
+        STATE, CODE_VERIFIER, received.append, DOMAIN, "http://localhost/cb", "c"
+    )
+    body = json.dumps({"access_token": "attacker-token"}).encode("utf-8")
+    head = {"Host": "127.0.0.1", "Content-Length": str(len(body)), **headers}
+    request = "POST /set_token HTTP/1.1\r\n" + "".join(
+        f"{name}: {value}\r\n" for name, value in head.items()
+    )
+    client, server_side = socket.socketpair()
+    with client, server_side:
+        client.sendall(request.encode("ascii") + b"\r\n" + body)
+        client.settimeout(5)
+        server_side.settimeout(5)
+        handler(server_side, ("127.0.0.1", 0), None)
+        server_side.shutdown(socket.SHUT_WR)
+        response = http.client.HTTPResponse(client)
+        response.begin()
+        response.read()
+
+    assert response.status == 403
+    assert received == []
