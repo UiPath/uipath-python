@@ -2762,7 +2762,7 @@ wheels = [
 
 [[package]]
 name = "uipath-platform"
-version = "0.2.33.post1"
+version = "0.2.33.post2"
 source = { editable = "../uipath-platform" }
 dependencies = [
     { name = "anyio" },
