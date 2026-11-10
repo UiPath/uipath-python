@@ -22,6 +22,14 @@ from .attachment import Attachment
 from .buckets import Bucket, BucketFile
 from .job import Job, JobErrorInfo, JobState
 from .mcp import McpServer, McpServerStatus, McpServerType
+from .mcp_tasks import (
+    McpTask,
+    McpTaskCancelledError,
+    McpTaskFailedError,
+    McpTaskStatus,
+    McpToolCallError,
+    McpToolCallOutcome,
+)
 from .processes import Process
 from .queues import (
     CommitType,
@@ -61,4 +69,10 @@ __all__ = [
     "McpServer",
     "McpServerStatus",
     "McpServerType",
+    "McpTask",
+    "McpTaskCancelledError",
+    "McpTaskFailedError",
+    "McpTaskStatus",
+    "McpToolCallError",
+    "McpToolCallOutcome",
 ]
