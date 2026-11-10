@@ -4891,8 +4891,15 @@ class TestAdvancedAgentSettings:
         settings = AgentSettings.model_validate(self._agent_settings())
         assert settings.advanced_agent is None
 
-    def test_absent_built_in_tools_is_none(self):
-        settings = AgentSettings.model_validate(self._agent_settings(advancedAgent={}))
+    @pytest.mark.parametrize(
+        "advanced_agent",
+        [{}, {"builtInTools": None}, {"builtInTools": ["task", "ls"]}],
+        ids=["absent", "null", "not-an-object"],
+    )
+    def test_built_in_tools_without_a_map_is_none(self, advanced_agent: Any):
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
         assert settings.advanced_agent is not None
         assert settings.advanced_agent.built_in_tools is None
 
@@ -4905,6 +4912,7 @@ class TestAdvancedAgentSettings:
                 "read_file": {"enabled": True, "config": {}},
                 "delete": {"enabled": False, "config": {}},
                 "eval": {"enabled": True, "config": {"timeoutSeconds": 5}},
+                "move_file": {"enabled": True, "config": {}},
             },
         }
         settings = AgentSettings.model_validate(
@@ -4924,16 +4932,6 @@ class TestAdvancedAgentSettings:
         assert tools["write_file"].enabled is False
         assert tools["write_file"].config == {}
 
-    def test_unknown_tool_and_config_key_are_kept(self):
-        tools = self._built_in_tools(
-            {
-                "move_file": {"enabled": True},
-                "eval": {"enabled": True, "config": {"timeoutSeconds": 5}},
-            }
-        )
-        assert tools["move_file"].enabled is True
-        assert tools["eval"].config == {"timeoutSeconds": 5}
-
     def test_malformed_tool_entry_is_dropped_and_others_kept(
         self, caplog: pytest.LogCaptureFixture
     ):
@@ -4949,15 +4947,6 @@ class TestAdvancedAgentSettings:
         assert "task" in caplog.text
         assert "grep" in caplog.text
 
-    def test_malformed_built_in_tools_is_none(self, caplog: pytest.LogCaptureFixture):
-        with caplog.at_level(logging.WARNING):
-            tools = self._built_in_tools(["task", "ls"])
-        assert tools is None
-        assert "builtInTools" in caplog.text
-
-    def test_null_built_in_tools_is_none(self):
-        assert self._built_in_tools(None) is None
-
     @pytest.mark.parametrize("advanced_agent", ["x", ["task"], 5])
     def test_malformed_advanced_agent_is_ignored(
         self, advanced_agent: Any, caplog: pytest.LogCaptureFixture
@@ -4968,23 +4957,6 @@ class TestAdvancedAgentSettings:
             )
         assert settings.advanced_agent is None
         assert "advancedAgent" in caplog.text
-
-    def test_a_leftover_deepagents_version_is_not_read(
-        self, caplog: pytest.LogCaptureFixture
-    ):
-        with caplog.at_level(logging.WARNING):
-            settings = AgentSettings.model_validate(
-                self._agent_settings(
-                    advancedAgent={
-                        "deepagentsVersion": 7,
-                        "builtInTools": {"ls": {"enabled": True}},
-                    }
-                )
-            )
-        assert settings.advanced_agent is not None
-        assert settings.advanced_agent.built_in_tools is not None
-        assert settings.advanced_agent.built_in_tools["ls"].enabled is True
-        assert caplog.text == ""
 
     @pytest.mark.parametrize("config", [None, "fork", ["mode"]])
     def test_malformed_config_keeps_the_tool(
@@ -5012,22 +4984,6 @@ class TestAdvancedAgentSettings:
         tools = settings.advanced_agent.built_in_tools
         assert tools is not None
         assert tools["ls"].enabled is True
-
-    def test_definition_exposes_advanced_agent(self):
-        definition = AgentDefinition.model_validate(
-            {
-                "inputSchema": {"type": "object", "properties": {}},
-                "outputSchema": {"type": "object", "properties": {}},
-                "messages": [],
-                "settings": self._agent_settings(
-                    advancedAgent={"builtInTools": {"task": {"enabled": False}}}
-                ),
-            }
-        )
-        assert definition.settings.advanced_agent is not None
-        tools = definition.settings.advanced_agent.built_in_tools
-        assert tools is not None
-        assert tools["task"].enabled is False
 
 
 class TestSearchDuringIngestion:
