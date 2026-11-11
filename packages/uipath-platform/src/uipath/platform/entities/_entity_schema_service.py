@@ -17,6 +17,8 @@ from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
+from ..common.paging import PagedResult
+from ..common.validation import validate_pagination_params
 from ..orchestrator._folder_service import FolderService
 from .entities import (
     ENTITY_CLASS_TO_ID_MAP,
@@ -38,6 +40,7 @@ DATA_FABRIC_TENANT_FOLDER_ID = "00000000-0000-0000-0000-000000000000"
 
 _V1_ENTITIES = "datafabric_/api/Entity"
 _V3_ENTITIES = "datafabric_/api/v3/entities"
+_MAX_ENTITIES_PAGE = 200
 
 
 def _schema_base(use_v3: bool) -> str:
@@ -133,6 +136,22 @@ class EntitySchemaService(BaseService):
         response = await self.request_async(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
+
+    def list_entities_paginated_v3(self, skip: int, top: int) -> PagedResult[Entity]:
+        """Internal implementation; see `EntitiesService.list_entities_paginated_v3()`."""
+        spec = self._list_entities_paginated_v3_spec(skip=skip, top=top)
+        response = self.request(spec.method, spec.endpoint, params=spec.params)
+        return self._entities_paginated_v3_page(response, skip=skip, top=top)
+
+    async def list_entities_paginated_v3_async(
+        self, skip: int, top: int
+    ) -> PagedResult[Entity]:
+        """Async variant of `list_entities_paginated_v3()`."""
+        spec = self._list_entities_paginated_v3_spec(skip=skip, top=top)
+        response = await self.request_async(
+            spec.method, spec.endpoint, params=spec.params
+        )
+        return self._entities_paginated_v3_page(response, skip=skip, top=top)
 
     def list_choicesets(self) -> List[Entity]:
         """Internal implementation; see `EntitiesService.list_choicesets()`."""
@@ -233,6 +252,34 @@ class EntitySchemaService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(_schema_base(use_v3)),
+        )
+
+    @staticmethod
+    def _list_entities_paginated_v3_spec(skip: int, top: int) -> RequestSpec:
+        """Build the GET spec for one page of entities without their fields.
+
+        The v3 `paginated` route lists the same entities as `GET /v3/entities`
+        but never loads the field schemas.
+        """
+        validate_pagination_params(skip=skip, top=top, max_top=_MAX_ENTITIES_PAGE)
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"{_V3_ENTITIES}/paginated"),
+            params={"skip": skip, "top": top},
+        )
+
+    @staticmethod
+    def _entities_paginated_v3_page(
+        response: Response, skip: int, top: int
+    ) -> PagedResult[Entity]:
+        """Parse one `paginated` response into a `PagedResult`."""
+        body = response.json()
+        entities = [Entity.model_validate(entity) for entity in body["results"]]
+        return PagedResult(
+            items=entities,
+            has_more=skip + len(entities) < body["totalCount"],
+            skip=skip,
+            top=top,
         )
 
     @staticmethod

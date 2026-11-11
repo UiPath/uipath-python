@@ -2724,6 +2724,73 @@ class TestEntitiesServiceAsyncCoverage:
         entities = await service.list_entities_async()
         assert len(entities) == 1
 
+    def test_list_entities_paginated_v3_returns_one_page(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/paginated?skip=2&top=2",
+            status_code=200,
+            json={
+                "totalCount": 5,
+                "results": [
+                    {
+                        "name": f"Entity{i}",
+                        "displayName": f"Entity{i}",
+                        "entityType": "Entity",
+                        "isRbacEnabled": False,
+                        "id": f"ent-{i}",
+                    }
+                    for i in (2, 3)
+                ],
+            },
+        )
+        page = service.list_entities_paginated_v3(skip=2, top=2)
+        assert [e.id for e in page.items] == ["ent-2", "ent-3"]
+        assert page.items[0].fields is None
+        assert page.has_more
+        assert (page.skip, page.top) == (2, 2)
+
+    async def test_list_entities_paginated_v3_async_last_page(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/paginated?skip=0&top=50",
+            status_code=200,
+            json={
+                "totalCount": 1,
+                "results": [
+                    {
+                        "name": "Customers",
+                        "displayName": "Customers",
+                        "entityType": "Entity",
+                        "isRbacEnabled": False,
+                        "id": "ent-1",
+                    }
+                ],
+            },
+        )
+        page = await service.list_entities_paginated_v3_async()
+        assert [e.name for e in page.items] == ["Customers"]
+        assert not page.has_more
+
+    def test_list_entities_paginated_v3_rejects_top_above_200(
+        self, service: EntitiesService
+    ) -> None:
+        with pytest.raises(ValueError, match="top must be <= 200"):
+            service.list_entities_paginated_v3(top=201)
+
     async def test_list_records_async(
         self,
         httpx_mock: HTTPXMock,
