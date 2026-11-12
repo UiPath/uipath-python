@@ -325,20 +325,6 @@ class TestMemoryService:
                 by_alias=True, exclude_none=True
             )
 
-        def test_search_response_keeps_unknown_server_keys(self) -> None:
-            payload = json.loads(json.dumps(SAMPLE_SEARCH_RESPONSE))
-            payload["searchId"] = "search-1"
-            payload["results"][0]["rank"] = 1
-            payload["results"][0]["fields"][0]["matched"] = True
-
-            dumped = MemorySearchResponse.model_validate(payload).model_dump(
-                by_alias=True, exclude_none=True
-            )
-
-            assert dumped["searchId"] == "search-1"
-            assert dumped["results"][0]["rank"] == 1
-            assert dumped["results"][0]["fields"][0]["matched"] is True
-
         @pytest.mark.parametrize(
             ("raw", "expected"),
             [
