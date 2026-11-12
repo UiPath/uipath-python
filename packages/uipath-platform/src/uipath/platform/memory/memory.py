@@ -72,14 +72,19 @@ class SearchSettings(BaseModel):
 
 
 class MemoryMatchField(BaseModel):
-    """A field within a search result, with scoring details."""
+    """A field within a search result, with scoring details.
 
-    model_config = ConfigDict(populate_by_name=True)
+    ``semantic_score`` is the field's vector similarity, as distinct from
+    ``score``. Unknown keys the server adds are kept, not dropped.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     key_path: List[str] = Field(..., alias="keyPath")
     value: str = Field(..., alias="value")
     weight: float = Field(..., alias="weight")
     score: float = Field(..., alias="score")
+    semantic_score: Optional[float] = Field(None, alias="semanticScore")
     weighted_score: float = Field(..., alias="weightedScore")
 
 
@@ -144,7 +149,7 @@ class MemorySearchRequest(BaseModel):
 class MemoryMatch(BaseModel):
     """A single matched memory from a search operation (LLMOps)."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     memory_item_id: str = Field(..., alias="memoryItemId")
     score: float = Field(..., alias="score")
@@ -158,7 +163,7 @@ class MemoryMatch(BaseModel):
 class MemorySearchResponse(BaseModel):
     """Response from LLMOps search, including system prompt injection."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     results: List[MemoryMatch] = Field(default_factory=list, alias="results")
     metadata: Dict[str, str] = Field(default_factory=dict, alias="metadata")

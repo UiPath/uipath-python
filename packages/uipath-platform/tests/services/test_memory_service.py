@@ -76,6 +76,7 @@ SAMPLE_SEARCH_RESPONSE = {
                     "value": "What is the capital of France?",
                     "weight": 1.0,
                     "score": 0.95,
+                    "semanticScore": 0.91,
                     "weightedScore": 0.95,
                 }
             ],
@@ -284,6 +285,7 @@ class TestMemoryService:
             assert result.results[0].memory_item_id == "item-001"
             assert result.results[0].score == 0.95
             assert isinstance(result.results[0].fields[0], MemoryMatchField)
+            assert result.results[0].fields[0].semantic_score == 0.91
             assert (
                 result.system_prompt_injection
                 == "Based on past interactions: Paris is the capital."
@@ -297,6 +299,45 @@ class TestMemoryService:
             assert body["settings"]["searchMode"] == "Hybrid"
             assert body["settings"]["fieldMatching"] == "Or"
             assert body["definitionSystemPrompt"] == "You are a helpful assistant."
+
+        def test_search_response_keeps_field_semantic_score_in_dump(self) -> None:
+            response = MemorySearchResponse.model_validate(SAMPLE_SEARCH_RESPONSE)
+
+            dumped = response.model_dump(by_alias=True, exclude_none=True)
+
+            field = dumped["results"][0]["fields"][0]
+            assert field["semanticScore"] == 0.91
+            assert field["score"] == 0.95
+
+        def test_search_response_field_semantic_score_is_optional(self) -> None:
+            field = MemoryMatchField.model_validate(
+                {
+                    "keyPath": ["agent-input", "topic"],
+                    "value": "python",
+                    "weight": 1.0,
+                    "score": 0.5,
+                    "weightedScore": 0.5,
+                }
+            )
+
+            assert field.semantic_score is None
+            assert "semanticScore" not in field.model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+        def test_search_response_keeps_unknown_server_keys(self) -> None:
+            payload = json.loads(json.dumps(SAMPLE_SEARCH_RESPONSE))
+            payload["searchId"] = "search-1"
+            payload["results"][0]["rank"] = 1
+            payload["results"][0]["fields"][0]["matched"] = True
+
+            dumped = MemorySearchResponse.model_validate(payload).model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+            assert dumped["searchId"] == "search-1"
+            assert dumped["results"][0]["rank"] == 1
+            assert dumped["results"][0]["fields"][0]["matched"] is True
 
         @pytest.mark.parametrize(
             ("raw", "expected"),
