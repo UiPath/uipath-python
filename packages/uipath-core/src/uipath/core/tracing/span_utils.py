@@ -2,6 +2,7 @@
 
 import logging
 from typing import Callable, Optional
+from uuid import UUID
 
 from opentelemetry import context, trace
 from opentelemetry.trace import NonRecordingSpan, Span, set_span_in_context
@@ -139,6 +140,7 @@ class UiPathSpanUtils:
 
     _current_span_provider: Optional[Callable[[], Optional[Span]]] = None
     _current_span_ancestors_provider: Optional[Callable[[], list[Span]]] = None
+    _run_span_provider: Optional[Callable[[UUID], Optional[Span]]] = None
 
     @staticmethod
     def register_current_span_provider(
@@ -329,6 +331,33 @@ class UiPathSpanUtils:
     def get_current_span_ancestors_provider():
         """Get the currently set custom span ancestors provider."""
         return UiPathSpanUtils._current_span_ancestors_provider
+
+    @staticmethod
+    def register_run_span_provider(
+        run_span_provider: Optional[Callable[[UUID], Optional[Span]]],
+    ):
+        """Register a provider for the span an external framework opened for a run.
+
+        Unlike the current span provider, which answers for whatever is executing now,
+        this answers for a specific run, so a caller holding a framework run id (e.g. a
+        LangChain callback's ``run_id``) can parent its own spans to that run's span.
+
+        Args:
+            run_span_provider: A function that takes a framework run id and returns the
+                               span opened for that run, or None if it has none. If None,
+                               run span lookups return None.
+        """
+        UiPathSpanUtils._run_span_provider = run_span_provider
+
+    @staticmethod
+    def get_run_span(run_id: UUID) -> Optional[Span]:
+        """Get the span the registered provider opened for ``run_id``, if any."""
+        if UiPathSpanUtils._run_span_provider is not None:
+            try:
+                return UiPathSpanUtils._run_span_provider(run_id)
+            except Exception as e:
+                logger.warning("Error getting run span from provider: %s", e)
+        return None
 
 
 __all__ = ["ParentedNonRecordingSpan", "UiPathSpanUtils"]
