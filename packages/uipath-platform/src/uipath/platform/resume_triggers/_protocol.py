@@ -493,6 +493,7 @@ class UiPathResumeTriggerCreator:
                 unknown model type is encountered.
             Exception: If any underlying UiPath service calls fail.
         """
+        trigger_type: UiPathResumeTriggerType | None = None
         try:
             trigger_type = self._determine_trigger_type(suspend_value)
             trigger_name = self._determine_trigger_name(suspend_value)
@@ -548,10 +549,19 @@ class UiPathResumeTriggerCreator:
         except UiPathFaultedTriggerError:
             raise
         except Exception as e:
+            # The message is what Maestro surfaces as the "Resume trigger error"
+            # detail, so name the trigger that failed and the underlying error
+            # type (a bare StopIteration, for example, has an empty str()).
+            message = (
+                f"Failed to create resume trigger of type {trigger_type.value}"
+                if trigger_type is not None
+                else "Failed to create resume trigger"
+            )
+            detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
             raise UiPathFaultedTriggerError(
                 ErrorCategory.SYSTEM,
-                "Failed to create HITL action",
-                f"{str(e)}",
+                message,
+                detail,
             ) from e
         return resume_trigger
 
