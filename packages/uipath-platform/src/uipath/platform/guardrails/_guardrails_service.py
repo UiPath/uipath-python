@@ -23,6 +23,7 @@ from .guardrails import (
     BYO_VALIDATOR_TYPE,
     BuiltInValidatorGuardrail,
     GuardrailAttachment,
+    GuardrailGovernanceContext,
     GuardrailTerminationMode,
 )
 
@@ -140,6 +141,7 @@ class GuardrailsService(BaseService):
         *,
         attachments: list[GuardrailAttachment] | None = None,
         termination_mode: GuardrailTerminationMode | None = None,
+        governance: GuardrailGovernanceContext | None = None,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
@@ -151,6 +153,8 @@ class GuardrailsService(BaseService):
                 meaning files apply but there are none to inspect.
             termination_mode: ``FAIL_FAST`` stops scanning at the first violation;
                 ``EVALUATE_ALL`` or ``None`` scans everything.
+            governance: The governance decision the check runs under, stamped on
+                the evaluation span. ``None`` omits the field.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -174,6 +178,8 @@ class GuardrailsService(BaseService):
             payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
         if termination_mode is not None:
             payload["terminationMode"] = termination_mode.value
+        if governance is not None:
+            payload["governance"] = governance.model_dump(by_alias=True)
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),

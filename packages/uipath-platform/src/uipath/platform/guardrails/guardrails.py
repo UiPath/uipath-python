@@ -127,3 +127,26 @@ class GuardrailType(str, Enum):
 
     BUILT_IN_VALIDATOR = "builtInValidator"
     CUSTOM = "custom"
+
+
+class GuardrailGovernanceContext(BaseModel):
+    """The governance decision an agent-defined guardrail check runs under.
+
+    Sent with the check so the guardrail service can stamp the shared
+    ``uipath_governance.*`` contract on the evaluation span it publishes.
+
+    Attributes:
+        hook: Point of the run the check guards: ``BEFORE_AGENT``, ``AFTER_AGENT``,
+            ``BEFORE_MODEL``, ``AFTER_MODEL``, ``TOOL_CALL`` or ``AFTER_TOOL``.
+        mode: ``ENFORCE``, or ``SIMULATE`` when a violation is only logged.
+        version: Version of the contract.
+        action_on_violation: What the agent does when the check fails:
+            ``DENY``, ``AUDIT`` or ``HITL``.
+    """
+
+    hook: str
+    mode: str
+    version: str
+    action_on_violation: str = Field(alias="actionOnViolation")
+
+    model_config = ConfigDict(populate_by_name=True)

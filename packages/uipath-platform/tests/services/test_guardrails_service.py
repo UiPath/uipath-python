@@ -17,6 +17,7 @@ from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
     GuardrailAttachment,
+    GuardrailGovernanceContext,
     GuardrailsService,
     GuardrailTerminationMode,
     MapEnumParameterValue,
@@ -1061,6 +1062,56 @@ class TestGuardrailTerminationMode:
         service.evaluate_guardrail("x", _judge_guardrail())
 
         assert "terminationMode" not in json.loads(httpx_mock.get_requests()[0].content)
+
+
+class TestGuardrailGovernanceContext:
+    """evaluate_guardrail forwards the governance decision to the validate API."""
+
+    def test_governance_is_sent_camel_case_when_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+        governance = GuardrailGovernanceContext(
+            hook="TOOL_CALL", mode="ENFORCE", version="1", action_on_violation="HITL"
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), governance=governance)
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["governance"] == {
+            "hook": "TOOL_CALL",
+            "mode": "ENFORCE",
+            "version": "1",
+            "actionOnViolation": "HITL",
+        }
+
+    def test_governance_key_is_absent_when_not_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend must see a byte-identical body to today."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert "governance" not in json.loads(httpx_mock.get_requests()[0].content)
 
 
 class TestGuardrailAttachmentFolderHeader:
