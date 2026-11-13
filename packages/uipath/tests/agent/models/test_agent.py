@@ -6,6 +6,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
+    AdvancedAgentSettings,
     AgentA2aResourceConfig,
     AgentBooleanOperator,
     AgentBooleanRule,
@@ -4864,6 +4865,125 @@ class TestAgentModelSettings:
             self._agent_settings(modelSettings=native)
         )
         assert settings.model_dump(by_alias=True)["modelSettings"] == native
+
+
+class TestAdvancedAgentSettings:
+    """settings.advancedAgent carries the advanced harness's built-in tool choices."""
+
+    def _agent_settings(self, **extra: Any) -> dict[str, Any]:
+        return {
+            "engine": "basic-v2",
+            "model": "anthropic.claude-opus-4-6-v1",
+            "maxTokens": 49047,
+            "temperature": 0.63,
+            "mode": "advanced",
+            **extra,
+        }
+
+    def _built_in_tools(self, built_in_tools: Any) -> Any:
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent={"builtInTools": built_in_tools})
+        )
+        assert settings.advanced_agent is not None
+        return settings.advanced_agent.built_in_tools
+
+    def test_absent_advanced_agent_is_none(self):
+        settings = AgentSettings.model_validate(self._agent_settings())
+        assert settings.advanced_agent is None
+
+    @pytest.mark.parametrize(
+        "advanced_agent",
+        [{}, {"builtInTools": None}, {"builtInTools": ["task", "ls"]}],
+        ids=["absent", "null", "not-an-object"],
+    )
+    def test_built_in_tools_without_a_map_is_none(self, advanced_agent: Any):
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
+        assert settings.advanced_agent is not None
+        assert settings.advanced_agent.built_in_tools is None
+
+    def test_empty_built_in_tools_is_kept_empty(self):
+        assert self._built_in_tools({}) == {}
+
+    def test_contract_round_trips_by_alias(self):
+        advanced_agent = {
+            "builtInTools": {
+                "read_file": {"enabled": True, "config": {}},
+                "delete": {"enabled": False, "config": {}},
+                "eval": {"enabled": True, "config": {"timeoutSeconds": 5}},
+                "move_file": {"enabled": True, "config": {}},
+            },
+        }
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
+        assert settings.advanced_agent is not None
+        tools = settings.advanced_agent.built_in_tools
+        assert tools is not None
+        assert tools["eval"].enabled is True
+        assert tools["eval"].config == {"timeoutSeconds": 5}
+        assert tools["delete"].enabled is False
+        dumped = settings.model_dump(by_alias=True)["advancedAgent"]
+        assert dumped == advanced_agent
+
+    def test_tool_without_enabled_is_off(self):
+        tools = self._built_in_tools({"write_file": {}})
+        assert tools["write_file"].enabled is False
+        assert tools["write_file"].config == {}
+
+    def test_malformed_tool_entry_is_dropped_and_others_kept(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING):
+            tools = self._built_in_tools(
+                {
+                    "task": True,
+                    "grep": {"enabled": "maybe"},
+                    "ls": {"enabled": True},
+                }
+            )
+        assert set(tools) == {"ls"}
+        assert "task" in caplog.text
+        assert "grep" in caplog.text
+
+    @pytest.mark.parametrize("advanced_agent", ["x", ["task"], 5])
+    def test_malformed_advanced_agent_is_ignored(
+        self, advanced_agent: Any, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING):
+            settings = AgentSettings.model_validate(
+                self._agent_settings(advancedAgent=advanced_agent)
+            )
+        assert settings.advanced_agent is None
+        assert "advancedAgent" in caplog.text
+
+    @pytest.mark.parametrize("config", [None, "fork", ["mode"]])
+    def test_malformed_config_keeps_the_tool(
+        self, config: Any, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING):
+            tools = self._built_in_tools({"task": {"enabled": True, "config": config}})
+        assert tools["task"].enabled is True
+        assert tools["task"].config == {}
+        assert "config" in caplog.text
+
+    @pytest.mark.parametrize("enabled", ["yes", "true", 1])
+    def test_a_non_boolean_enabled_drops_the_tool(self, enabled: Any):
+        tools = self._built_in_tools({"task": {"enabled": enabled}})
+        assert "task" not in tools
+
+    def test_a_settings_object_is_kept(self):
+        advanced_agent = AdvancedAgentSettings.model_validate(
+            {"builtInTools": {"ls": {"enabled": True}}}
+        )
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
+        assert settings.advanced_agent is not None
+        tools = settings.advanced_agent.built_in_tools
+        assert tools is not None
+        assert tools["ls"].enabled is True
 
 
 class TestSearchDuringIngestion:
