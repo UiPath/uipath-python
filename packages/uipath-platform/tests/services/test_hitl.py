@@ -1301,6 +1301,112 @@ class TestHitlProcessor:
         assert resume_trigger.folder_path == wait_action.app_folder_path
 
     @pytest.mark.anyio
+    async def test_create_trigger_failure_names_the_trigger_type(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """An unexpected service error is wrapped with the trigger type and cause."""
+        create_action = CreateTask(
+            title="Test Action",
+            app_name="TestApp",
+            app_folder_path="/test/path",
+            data={"input": "test-input"},
+        )
+        service_error = RuntimeError("tasks service unavailable")
+
+        with patch(
+            "uipath.platform.action_center._tasks_service.TasksService.create_async",
+            new=AsyncMock(side_effect=service_error),
+        ):
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                await UiPathResumeTriggerCreator().create_trigger(create_action)
+
+        error = exc_info.value
+        assert error.category == ErrorCategory.SYSTEM
+        assert error.message == "Failed to create resume trigger of type Task"
+        assert error.detail == "RuntimeError: tasks service unavailable"
+        assert error.__cause__ is service_error
+
+    @pytest.mark.anyio
+    async def test_create_trigger_failure_names_deep_rag_trigger_type(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """A failing deep RAG start is reported as a DeepRag trigger failure."""
+        create_deep_rag = CreateDeepRag(
+            name="test-deep-rag",
+            index_name="Files",
+            prompt="test prompt",
+            glob_pattern="**/*.pdf",
+            citation_mode=CitationMode.INLINE,
+            index_folder_path="/test/path",
+        )
+
+        with patch(
+            "uipath.platform.context_grounding._context_grounding_service.ContextGroundingService.start_deep_rag_async",
+            new=AsyncMock(return_value=None),
+        ):
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                await UiPathResumeTriggerCreator().create_trigger(create_deep_rag)
+
+        error = exc_info.value
+        assert error.category == ErrorCategory.SYSTEM
+        assert error.message == "Failed to create resume trigger of type DeepRag"
+        assert error.detail == "Exception: Failed to start deep rag"
+
+    @pytest.mark.anyio
+    async def test_create_trigger_failure_detail_keeps_type_of_messageless_error(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """An exception with an empty str() still leaves its type in the detail."""
+        create_action = CreateTask(
+            title="Test Action",
+            app_name="TestApp",
+            app_folder_path="/test/path",
+            data={"input": "test-input"},
+        )
+
+        with patch(
+            "uipath.platform.action_center._tasks_service.TasksService.create_async",
+            new=AsyncMock(side_effect=KeyError()),
+        ):
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                await UiPathResumeTriggerCreator().create_trigger(create_action)
+
+        error = exc_info.value
+        assert error.message == "Failed to create resume trigger of type Task"
+        assert error.detail == "KeyError"
+
+    @pytest.mark.anyio
+    async def test_create_trigger_passes_faulted_trigger_error_through(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """A UiPathFaultedTriggerError raised by a handler is re-raised unchanged."""
+        create_action = CreateTask(
+            title="Test Action",
+            app_name="TestApp",
+            app_folder_path="/test/path",
+            data={"input": "test-input"},
+        )
+        handler_error = UiPathFaultedTriggerError(
+            ErrorCategory.USER, "Task app not found", "TestApp"
+        )
+
+        with patch(
+            "uipath.platform.action_center._tasks_service.TasksService.create_async",
+            new=AsyncMock(side_effect=handler_error),
+        ):
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                await UiPathResumeTriggerCreator().create_trigger(create_action)
+
+        assert exc_info.value is handler_error
+        assert exc_info.value.category == ErrorCategory.USER
+        assert exc_info.value.message == "Task app not found"
+        assert exc_info.value.detail == "TestApp"
+
+    @pytest.mark.anyio
     async def test_create_resume_trigger_invoke_process(
         self,
         setup_test_env: None,
