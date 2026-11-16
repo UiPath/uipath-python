@@ -30,8 +30,10 @@ class ApiClient(FolderContext, BaseService):
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
+            # The client's default headers are merged by httpx; copying them here would
+            # make the default Authorization look caller-supplied to BaseService.
             kwargs["headers"] = {
-                **kwargs.get("headers", self._client.headers),
+                **kwargs.get("headers", {}),
                 **self.folder_headers,
             }
 
@@ -48,8 +50,10 @@ class ApiClient(FolderContext, BaseService):
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
+            # The client's default headers are merged by httpx; copying them here would
+            # make the default Authorization look caller-supplied to BaseService.
             kwargs["headers"] = {
-                **kwargs.get("headers", self._client_async.headers),
+                **kwargs.get("headers", {}),
                 **self.folder_headers,
             }
 
