@@ -69,9 +69,9 @@ class SkillsService(FolderContext, BaseService):
     overrides (``skillBundle.<name>`` resource overwrites) are applied before fetching.
     A bundle that cannot be resolved is reported, never raised, by ``load_all``.
 
-    Where the bundles come from is chosen by ``UIPATH_SKILLS_SOURCE``: a local
-    folder (the default) or the Orchestrator Skills API, a placeholder until
-    that API ships. The ``*_async`` methods are preferred; each
+    Where the bundles come from is chosen by ``UIPATH_SKILLS_SOURCE``:
+    Orchestrator (the default) or a local folder. The ``*_async`` methods are
+    preferred; each
     synchronous twin runs its async method to completion, on a worker thread
     when an event loop is already running in the calling thread.
     """
@@ -82,7 +82,7 @@ class SkillsService(FolderContext, BaseService):
         """Create the service.
 
         Args:
-            config: Base URL and access token for the Skills API.
+            config: Base URL and access token for Orchestrator.
             execution_context: The job's execution context.
         """
         super().__init__(config=config, execution_context=execution_context)

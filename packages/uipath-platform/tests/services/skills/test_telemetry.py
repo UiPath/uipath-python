@@ -236,3 +236,20 @@ def test_both_spans_attach_under_the_external_framework_span(
         assert span.parent is not None
         assert span.parent.span_id == run.context.span_id
         assert span.context.trace_id == run.context.trace_id
+
+
+def test_a_digest_is_recorded_on_the_resolution_event_and_the_skill_load_span(
+    exporter: InMemorySpanExporter,
+) -> None:
+    pinned = FINANCE.model_copy(update={"digest": "sha256:" + "a" * 64})
+    with bundles_resolved_span() as span:
+        record_bundles_resolved(
+            span, SkillSet(source="orchestrator", bundles=[pinned], failures=[])
+        )
+    with skill_load_span(pinned, pinned.skills[0]) as load:
+        load.loaded(3)
+
+    resolved, loaded = exporter.get_finished_spans()
+    [event] = resolved.events
+    assert (event.attributes or {})["skill.digest"] == "sha256:" + "a" * 64
+    assert (loaded.attributes or {})["skill.digest"] == "sha256:" + "a" * 64
