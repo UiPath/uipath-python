@@ -125,3 +125,8 @@ The default value is `INFORMATION`
 
 ### Builtin Variables
 The runtime environment automatically includes certain variables (such as `UIPATH_FOLDER_KEY`, `UIPATH_ROBOT_KEY`), eliminating the need for manual configuration.
+
+### Access Token Renewal
+A job receives its user access token once, through `UNATTENDED_USER_ACCESS_TOKEN` (or `UIPATH_ACCESS_TOKEN`). A job that runs longer than that token lives would otherwise start failing with `401` responses. When the job executor asks for it (it starts the job with `uipath run --handler-ipc-pipe ... --handler-ipc-token-refresh`, or sets `refreshAccessTokenOverIpc` on a pooled run request), the runtime asks the executor for a new token over the job's IPC channel at about 80% of the current token's lifetime and writes it back to the token environment variables that are set.
+
+`UiPath()` clients configured from the environment read the token variable on every request, so they pick the renewed token up without any change; code that reads the variables itself sees it too. A client created with an explicit `secret=` keeps that secret. When the executor does not ask for renewal, nothing changes. If a renewal fails, the runtime logs a warning once, keeps the current token and tries again later.
