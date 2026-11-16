@@ -212,3 +212,19 @@ def test_an_exception_inside_the_skill_load_span_is_recorded_and_propagates(
     span = _only_span(exporter)
     assert span.status.status_code is StatusCode.ERROR
     assert [event.name for event in span.events] == ["exception"]
+
+
+def test_a_digest_is_recorded_on_the_resolution_event_and_the_skill_load_span(
+    exporter: InMemorySpanExporter,
+) -> None:
+    pinned = FINANCE.model_copy(update={"digest": "sha256:" + "a" * 64})
+    with bundles_resolved_span() as span:
+        record_bundles_resolved(
+            span, SkillSet(source="orchestrator", bundles=[pinned], failures=[])
+        )
+    record_skill_loaded(pinned, pinned.skills[0], size=3)
+
+    resolved, load = exporter.get_finished_spans()
+    [event] = resolved.events
+    assert (event.attributes or {})["skill.digest"] == "sha256:" + "a" * 64
+    assert (load.attributes or {})["skill.digest"] == "sha256:" + "a" * 64

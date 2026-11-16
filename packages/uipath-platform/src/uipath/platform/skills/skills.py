@@ -35,7 +35,7 @@ class VersionMode(StrEnum):
 
 
 class SkillBundleRef(BaseModel):
-    """One bound skill bundle: what the agent asks the Skills API for."""
+    """One bound skill bundle: what the agent asks its source for."""
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
@@ -116,6 +116,8 @@ class SkillBundle(BaseModel):
     ref: SkillBundleRef
     version: str
     skills: list[Skill]
+    digest: str | None = None
+    """The content digest of the resolved version (``sha256:...``), when the source has one."""
 
     @property
     def virtual_root(self) -> str:

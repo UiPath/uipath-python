@@ -87,7 +87,7 @@ def record_bundles_resolved(span: trace.Span, result: SkillSet) -> None:
         span.add_event(
             "skill.bundle.resolved",
             {
-                **_ref_attributes(bundle.ref, bundle.version),
+                **_ref_attributes(bundle.ref, bundle.version, bundle.digest),
                 "skill.bundle.skill_count": len(bundle.skills),
             },
         )
@@ -189,7 +189,7 @@ def skill_load_span(
         f"Skill load - {bundle.ref.name}/{skill.name}",
         attributes={
             **_llmops_attributes(SPAN_TYPE_SKILL_LOAD),
-            **_ref_attributes(bundle.ref, bundle.version),
+            **_ref_attributes(bundle.ref, bundle.version, bundle.digest),
             "skill.name": skill.name,
             "skill.invoked_by": invoked_by,
         },
@@ -232,12 +232,17 @@ def _llmops_attributes(span_type: str) -> dict[str, str | bool]:
     }
 
 
-def _ref_attributes(ref: SkillBundleRef, version: str) -> dict[str, str]:
+def _ref_attributes(
+    ref: SkillBundleRef, version: str, digest: str | None = None
+) -> dict[str, str]:
     """The bundle identity shared by every skill span and event."""
-    return {
+    attributes = {
         "skill.bundle.name": ref.name,
         "skill.bundle.lookup_name": ref.lookup_name,
         "skill.folder": ref.folder_path or "",
         "skill.version": version,
         "skill.version_mode": ref.version_mode.value,
     }
+    if digest:
+        attributes["skill.digest"] = digest
+    return attributes
