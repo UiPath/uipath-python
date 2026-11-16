@@ -433,7 +433,7 @@ class TestGetConversationalOutputSection:
         """Seeing the fields invites narrating them; replies must stay conversational."""
         section = " ".join(get_conversational_output_section(_OutputSchema).split())
 
-        assert "Respond naturally in conversation rather than mentioning" in section
+        assert "respond naturally in conversation rather than mentioning" in section
 
     def test_is_stable_across_calls(self):
         assert get_conversational_output_section(
@@ -595,3 +595,59 @@ class TestStripConversationalOutputSection:
 
         assert "wholly_different" not in stripped
         assert stripped == self._prompt()
+
+
+class TestDownstreamConsumerContext:
+    """Both prompts say the outputs are internal and may drive later steps.
+
+    In the loop it explains why the fields must not be narrated to the user. In
+    the extraction step it supplies the reason behind CURRENT TURN ONLY — a
+    stale value can re-trigger an action that already ran, which is the failure
+    a flow looping back to this agent would produce.
+    """
+
+    @staticmethod
+    def _flat(text: str) -> str:
+        return " ".join(text.split())
+
+    def test_loop_section_frames_the_outputs_as_internal(self):
+        class _Fields(BaseModel):
+            should_handoff: bool = False
+
+        section = self._flat(get_conversational_output_section(_Fields))
+
+        assert "These outputs are internal" in section
+        assert "later steps in the surrounding process may read them" in section
+        assert "routing or follow-up actions" in section
+
+    def test_extraction_prompt_names_the_downstream_consumer(self):
+        """Stated in the same breath as CURRENT TURN ONLY, so the stakes of a
+        stale value sit next to the rule against reporting one."""
+        instruction = self._flat(get_generate_output_prompt())
+
+        assert "may be read and used by later steps in the surrounding process" in (
+            instruction
+        )
+        assert "for routing/processing" in instruction
+
+    def test_extraction_prompt_keeps_the_consumer_context_with_the_scoping_rule(self):
+        """Adjacency is the point: the reason a stale value is harmful is only
+        inferable if the two sit together."""
+        instruction = self._flat(get_generate_output_prompt())
+
+        assert instruction.index("CURRENT TURN ONLY") < instruction.index(
+            "later steps in the surrounding process"
+        )
+
+    def test_neither_prompt_names_a_specific_product(self):
+        """The model has no reliable notion of the topology it runs in, so the
+        wording stays at "the surrounding process" rather than naming one."""
+        both = self._flat(
+            get_generate_output_prompt()
+            + get_conversational_output_section(
+                type("_F", (BaseModel,), {"__annotations__": {"x": bool}})
+            )
+        ).lower()
+
+        for product in ("maestro", "flow", "orchestrator", "studio"):
+            assert product not in both

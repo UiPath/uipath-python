@@ -261,8 +261,9 @@ _OUTPUT_SECTION_SUFFIX = """
   do not look for one, and do not call some other tool in its place.
 - Instructions anywhere in this prompt about what an output field should contain apply to those
   outputs, not to your reply. You do not need to do anything with them while replying.
-- Your reply is what the user reads. Respond naturally in conversation rather than
-  mentioning these output fields or their values."""
+- Your reply is what the user reads. These outputs are internal — later steps in the
+  surrounding process may read them to decide routing or follow-up actions — so respond
+  naturally in conversation rather than mentioning these output fields or their values."""
 
 
 def get_conversational_output_section(
@@ -313,7 +314,7 @@ def strip_conversational_output_section(prompt: str) -> str:
     return prompt[:start] + prompt[end + len(_OUTPUT_SECTION_SUFFIX) :]
 
 
-_GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for the CURRENT TURN ONLY.
+_GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for the CURRENT TURN ONLY. These structured outputs may be read and used by later steps in the surrounding process for routing/processing.
 
 This instruction is not part of the conversation. The turn you are recording is the user's most recent message (not a tool-result) before this instruction, together with every message after it.
 
