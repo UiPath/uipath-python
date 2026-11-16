@@ -17,7 +17,6 @@ from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
     GuardrailAttachment,
-    GuardrailGovernanceContext,
     GuardrailsService,
     GuardrailTerminationMode,
     MapEnumParameterValue,
@@ -1064,10 +1063,10 @@ class TestGuardrailTerminationMode:
         assert "terminationMode" not in json.loads(httpx_mock.get_requests()[0].content)
 
 
-class TestGuardrailGovernanceContext:
-    """evaluate_guardrail forwards the governance decision to the validate API."""
+class TestGuardrailCheckContext:
+    """evaluate_guardrail forwards where the check guards and what the caller does on a violation."""
 
-    def test_governance_is_sent_camel_case_when_supplied(
+    def test_check_context_is_sent_camel_case_when_supplied(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
@@ -1080,21 +1079,23 @@ class TestGuardrailGovernanceContext:
             status_code=200,
             json={"result": "PASSED", "details": ""},
         )
-        governance = GuardrailGovernanceContext(
-            hook="TOOL_CALL", mode="ENFORCE", version="1", action_on_violation="HITL"
+
+        service.evaluate_guardrail(
+            "x",
+            _judge_guardrail(),
+            hook="TOOL_CALL",
+            mode="ENFORCE",
+            action_on_violation="HITL",
         )
 
-        service.evaluate_guardrail("x", _judge_guardrail(), governance=governance)
-
         body = json.loads(httpx_mock.get_requests()[0].content)
-        assert body["governance"] == {
-            "hook": "TOOL_CALL",
-            "mode": "ENFORCE",
-            "version": "1",
-            "actionOnViolation": "HITL",
-        }
+        assert (body["hook"], body["mode"], body["actionOnViolation"]) == (
+            "TOOL_CALL",
+            "ENFORCE",
+            "HITL",
+        )
 
-    def test_governance_key_is_absent_when_not_supplied(
+    def test_check_context_keys_are_absent_when_not_supplied(
         self,
         httpx_mock: HTTPXMock,
         service: GuardrailsService,
@@ -1111,7 +1112,8 @@ class TestGuardrailGovernanceContext:
 
         service.evaluate_guardrail("x", _judge_guardrail())
 
-        assert "governance" not in json.loads(httpx_mock.get_requests()[0].content)
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert {"hook", "mode", "actionOnViolation"}.isdisjoint(body)
 
 
 class TestGuardrailAttachmentFolderHeader:
