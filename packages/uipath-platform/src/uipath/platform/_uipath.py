@@ -66,6 +66,9 @@ class UiPath:
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
+        # A token read from the environment is re-read on every request (a long job's
+        # runtime may renew it there); an explicit secret is sent as is.
+        secret_from_environment = False
         try:
             if _has_valid_client_credentials(
                 client_id, client_secret, client_assertion
@@ -77,12 +80,15 @@ class UiPath:
                 )
                 base_url, secret = service._base_url, token_data.access_token
             else:
+                secret_from_environment = not secret
                 base_url, secret = resolve_config_from_env(base_url, secret)
 
             self._config = UiPathApiConfig(
                 base_url=base_url,
                 secret=secret,
             )
+            if secret_from_environment:
+                self._config.mark_secret_from_environment()
         except ValidationError as e:
             for error in e.errors():
                 if error["loc"][0] == "base_url":
