@@ -36,6 +36,9 @@ class PythonServerRunRequest:
     workingDirectory: str | None = None
     environmentVariables: dict[str, str] = field(default_factory=dict)
     streamOutputOverIpc: bool = False
+    # The host sets this once its job api serves GetUserAccessToken; a host without the
+    # method is never asked.
+    refreshAccessTokenOverIpc: bool = False
 
 
 @dataclass
@@ -103,7 +106,10 @@ class PythonRuntimeService(IPythonRuntimeServer):
         on_run_start: "Any" = None
         on_run_end: "Any" = None
         installed: "list[Any]" = []
-        if request.streamOutputOverIpc:
+        token_refreshers: "list[Any]" = []
+        stream_output = request.streamOutputOverIpc
+        refresh_token = request.refreshAccessTokenOverIpc
+        if stream_output or refresh_token:
             # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
                 IPythonJobApi,
@@ -112,16 +118,24 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 is_wire_job_key,
             )
 
+            flags = " and ".join(
+                name
+                for name, on in (
+                    ("streamOutputOverIpc", stream_output),
+                    ("refreshAccessTokenOverIpc", refresh_token),
+                )
+                if on
+            )
             if not is_wire_job_key(request.jobKey):
                 return PythonServerRunJobResult(
                     exitCode=1,
-                    error=f"streamOutputOverIpc needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}",
+                    error=f"{flags} needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}",
                 )
 
             if message is None or message.client is None:
                 return PythonServerRunJobResult(
                     exitCode=1,
-                    error="streamOutputOverIpc is only available when RunJob is invoked over IPC",
+                    error=f"{flags} is only available when RunJob is invoked over IPC",
                 )
 
             # get_callback only wraps the connection, so this cannot tell us whether the peer
@@ -133,12 +147,33 @@ class PythonRuntimeService(IPythonRuntimeServer):
             resume_version = request.resumeVersion
 
             def _install() -> None:
-                installed.append(
-                    install_runtime_sinks(job_key, resume_version, callback, loop)
-                )
+                if stream_output:
+                    installed.append(
+                        install_runtime_sinks(job_key, resume_version, callback, loop)
+                    )
+                if refresh_token:
+                    # Runs after the job's env vars are applied, so the seed token is this
+                    # job's. Jobs are serialized by the server lock, so one refresher at a
+                    # time writes os.environ.
+                    from ._job_token import install_job_token_refresher
+
+                    token_refreshers.append(
+                        install_job_token_refresher(
+                            job_key, resume_version, callback, loop
+                        )
+                    )
+
+            def _uninstall() -> None:
+                if stream_output:
+                    clear_runtime_sinks()
+                if token_refreshers:
+                    from ._job_token import uninstall_job_token_refresher
+
+                    for refresher in token_refreshers:
+                        uninstall_job_token_refresher(refresher)
 
             on_run_start = _install
-            on_run_end = clear_runtime_sinks
+            on_run_end = _uninstall
 
         result = await _run_command_isolated(
             cmd,

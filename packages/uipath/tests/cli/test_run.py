@@ -227,6 +227,85 @@ class TestRun:
                 ).output
             )
 
+        def test_the_token_refresh_flag_needs_the_pipe(
+            self, runner: CliRunner, temp_dir: str, entrypoint: str
+        ):
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                result = runner.invoke(
+                    cli, ["run", entrypoint, "--handler-ipc-token-refresh"]
+                )
+            assert result.exit_code == 1
+            assert "needs --handler-ipc-pipe" in result.output
+            assert "Successful execution." not in result.output
+
+        def test_the_token_refresh_flag_is_hidden_but_still_accepted(
+            self, runner: CliRunner
+        ):
+            assert (
+                "handler-ipc-token-refresh"
+                not in runner.invoke(cli, ["run", "--help"]).output
+            )
+            assert (
+                "No such option"
+                not in runner.invoke(
+                    cli,
+                    [
+                        "run",
+                        "x",
+                        "--handler-ipc-pipe",
+                        "some-pipe",
+                        "--handler-ipc-token-refresh",
+                    ],
+                ).output
+            )
+
+        def test_the_token_refresh_flag_reaches_the_connection(
+            self, runner: CliRunner, temp_dir: str, monkeypatch
+        ):
+            """The executor's opt-in has to arrive where the provider is installed."""
+            job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+            monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
+            seen: list[tuple[str, str, int | None, bool]] = []
+
+            @asynccontextmanager
+            async def _fake_connection(
+                pipe, job_key, resume_version, *, refresh_token=False
+            ):
+                seen.append((pipe, job_key, resume_version, refresh_token))
+                yield None
+
+            factory = _make_mock_factory(["my_agent"])
+            with runner.isolated_filesystem(temp_dir=temp_dir):
+                with (
+                    patch(
+                        "uipath._cli.cli_run.Middlewares.next",
+                        return_value=_middleware_continue(),
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
+                        return_value=factory,
+                    ),
+                    patch(
+                        "uipath._cli.cli_run.ResourceOverwritesContext",
+                        side_effect=_mock_resource_overwrites_context,
+                    ),
+                    patch(
+                        "uipath._cli._job_api.handler_ipc_connection", _fake_connection
+                    ),
+                ):
+                    result = runner.invoke(
+                        cli,
+                        [
+                            "run",
+                            "--handler-ipc-pipe",
+                            "some-pipe",
+                            "--handler-ipc-token-refresh",
+                        ],
+                    )
+
+            assert result.exit_code == 0, f"output: {result.output!r}"
+            assert seen == [("some-pipe", job_key, None, True)]
+
         def test_the_job_runs_inside_the_open_connection(
             self, runner: CliRunner, temp_dir: str, monkeypatch
         ):
@@ -235,7 +314,7 @@ class TestRun:
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
 
             events: list[str] = []
-            seen: list[tuple[str, str, int | None]] = []
+            seen: list[tuple[str, str, int | None, bool]] = []
             snapshots: list[object] = []
 
             from uipath.runtime import context as runtime_context
@@ -244,8 +323,10 @@ class TestRun:
             sentinel = logging.Handler()
 
             @asynccontextmanager
-            async def _fake_connection(pipe, job_key, resume_version):
-                seen.append((pipe, job_key, resume_version))
+            async def _fake_connection(
+                pipe, job_key, resume_version, *, refresh_token=False
+            ):
+                seen.append((pipe, job_key, resume_version, refresh_token))
                 events.append("open")
                 # Install for real: the ordering that matters is against the runtime context's
                 # one-shot snapshot, not against runtime.execute.
@@ -303,7 +384,7 @@ class TestRun:
             # The whole point: the connection must still be open when the job runs.
             assert events == ["open", "run", "close"], events
             # And it must be told which job, not None.
-            assert seen == [("some-pipe", job_key, None)]
+            assert seen == [("some-pipe", job_key, None, False)]
             # The connection must be open BEFORE the runtime context snapshots the sinks: move it
             # inside and __enter__ would capture None, losing every log line and the result.
             assert snapshots == [sentinel], (
