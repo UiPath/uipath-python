@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from httpx import HTTPStatusError
 from uipath.core.guardrails import (
+    GuardrailScope,
     GuardrailValidationErrorType,
     GuardrailValidationResult,
     GuardrailValidationResultType,
@@ -140,9 +141,9 @@ class GuardrailsService(BaseService):
         *,
         attachments: list[GuardrailAttachment] | None = None,
         termination_mode: GuardrailTerminationMode | None = None,
-        hook: str | None = None,
-        mode: str | None = None,
-        action_on_violation: str | None = None,
+        scope: GuardrailScope | None = None,
+        execution_stage: str | None = None,
+        action_type: str | None = None,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
@@ -154,12 +155,12 @@ class GuardrailsService(BaseService):
                 meaning files apply but there are none to inspect.
             termination_mode: ``FAIL_FAST`` stops scanning at the first violation;
                 ``EVALUATE_ALL`` or ``None`` scans everything.
-            hook: Point of the run the check guards: ``BEFORE_AGENT``,
-                ``AFTER_AGENT``, ``BEFORE_MODEL``, ``AFTER_MODEL``, ``TOOL_CALL`` or
-                ``AFTER_TOOL``. Recorded on the evaluation span; ``None`` omits it.
-            mode: ``ENFORCE``, or ``SIMULATE`` when a violation is only logged.
-            action_on_violation: What the caller does when the check fails:
-                ``DENY``, ``AUDIT`` or ``HITL``.
+            scope: What the check guards: the agent, an LLM call or a tool call.
+                Only recorded on the evaluation span; ``None`` omits it.
+            execution_stage: ``preExecution`` or ``postExecution``: whether the
+                check runs before or after what it guards.
+            action_type: What the caller does when the check fails: ``Block``,
+                ``Filter``, ``Log`` or ``Escalate``.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -183,12 +184,12 @@ class GuardrailsService(BaseService):
             payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
         if termination_mode is not None:
             payload["terminationMode"] = termination_mode.value
-        if hook is not None:
-            payload["hook"] = hook
-        if mode is not None:
-            payload["mode"] = mode
-        if action_on_violation is not None:
-            payload["actionOnViolation"] = action_on_violation
+        if scope is not None:
+            payload["scope"] = scope.value
+        if execution_stage is not None:
+            payload["executionStage"] = execution_stage
+        if action_type is not None:
+            payload["actionType"] = action_type
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),

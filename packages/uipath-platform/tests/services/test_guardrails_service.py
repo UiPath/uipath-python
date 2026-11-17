@@ -1064,7 +1064,7 @@ class TestGuardrailTerminationMode:
 
 
 class TestGuardrailCheckContext:
-    """evaluate_guardrail forwards where the check guards and what the caller does on a violation."""
+    """evaluate_guardrail forwards what the check guards, when, and what the caller does on a violation."""
 
     def test_check_context_is_sent_camel_case_when_supplied(
         self,
@@ -1083,16 +1083,16 @@ class TestGuardrailCheckContext:
         service.evaluate_guardrail(
             "x",
             _judge_guardrail(),
-            hook="TOOL_CALL",
-            mode="ENFORCE",
-            action_on_violation="HITL",
+            scope=GuardrailScope.TOOL,
+            execution_stage="preExecution",
+            action_type="Escalate",
         )
 
         body = json.loads(httpx_mock.get_requests()[0].content)
-        assert (body["hook"], body["mode"], body["actionOnViolation"]) == (
-            "TOOL_CALL",
-            "ENFORCE",
-            "HITL",
+        assert (body["scope"], body["executionStage"], body["actionType"]) == (
+            "Tool",
+            "preExecution",
+            "Escalate",
         )
 
     def test_check_context_keys_are_absent_when_not_supplied(
@@ -1113,7 +1113,7 @@ class TestGuardrailCheckContext:
         service.evaluate_guardrail("x", _judge_guardrail())
 
         body = json.loads(httpx_mock.get_requests()[0].content)
-        assert {"hook", "mode", "actionOnViolation"}.isdisjoint(body)
+        assert {"scope", "executionStage", "actionType"}.isdisjoint(body)
 
 
 class TestGuardrailAttachmentFolderHeader:
