@@ -215,7 +215,10 @@ class BaseService:
 
         specific_component = _get_caller_component()
 
-        # A copy: the caller's mapping must not pick up the headers added here.
+        # Work on a copy: the headers added below must not be written into the dict the
+        # caller passed in. That dict is reused on retries and often across calls, and an
+        # Authorization header left in it would later look like one the caller chose, so
+        # the token would never be re-read.
         kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
         _inject_trace_context(kwargs["headers"])
@@ -260,6 +263,7 @@ class BaseService:
             f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
         )
 
+        # A copy, for the same reason as in request().
         kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
             self._specific_component
@@ -318,10 +322,10 @@ class BaseService:
         Otherwise the client default header set in ``__init__`` is used, as before. A header
         the caller supplied is left alone.
         """
-        if not self._config.secret_from_environment or _has_authorization_header(
-            headers
-        ):
+        from_environment = self._config.secret_from_environment
+        if not from_environment or _has_authorization_header(headers):
             return
+
         headers["Authorization"] = f"Bearer {self._current_secret()}"
 
     @property
