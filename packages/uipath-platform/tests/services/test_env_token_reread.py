@@ -27,10 +27,10 @@ def url(base_url: str, org: str, tenant: str) -> str:
 
 @pytest.fixture
 def env_config(config: UiPathApiConfig, monkeypatch) -> UiPathApiConfig:
-    """The fixture config, marked as UiPath() marks one built from the environment."""
+    """The fixture config, flagged as UiPath() flags one built from the environment."""
     monkeypatch.setenv(ACCESS, config.secret)
     monkeypatch.delenv(UNATTENDED, raising=False)
-    config.mark_secret_from_environment()
+    config.secret_from_environment = True
     return config
 
 
@@ -163,14 +163,17 @@ class TestStaticSecret:
         assert _sent_auth(httpx_mock) == [f"Bearer {secret}"]
         assert config.secret == secret
 
-    def test_the_flag_is_outside_validation_and_serialization(self):
-        config = UiPathApiConfig(base_url="https://x", secret="s")
-        assert config.secret_from_environment is False
-
-        config.mark_secret_from_environment()
-
-        assert config.secret_from_environment is True
-        assert config.model_dump() == {"base_url": "https://x", "secret": "s"}
+    def test_the_flag_defaults_to_false(self):
+        assert (
+            UiPathApiConfig(base_url="https://x", secret="s").secret_from_environment
+            is False
+        )
+        assert (
+            UiPathApiConfig(
+                base_url="https://x", secret="s", secret_from_environment=True
+            ).secret_from_environment
+            is True
+        )
 
 
 class TestUiPathFactory:

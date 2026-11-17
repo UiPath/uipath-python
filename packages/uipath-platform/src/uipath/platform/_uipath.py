@@ -86,9 +86,8 @@ class UiPath:
             self._config = UiPathApiConfig(
                 base_url=base_url,
                 secret=secret,
+                secret_from_environment=secret_from_environment,
             )
-            if secret_from_environment:
-                self._config.mark_secret_from_environment()
         except ValidationError as e:
             for error in e.errors():
                 if error["loc"][0] == "base_url":

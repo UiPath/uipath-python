@@ -3,25 +3,13 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel
 
 
 class UiPathApiConfig(BaseModel):
     base_url: str
     secret: str
-
-    # Set by UiPath() when the secret came from the token environment variables. A long
-    # job's runtime renews the token there, so services re-read it on every request.
-    _secret_from_environment: bool = PrivateAttr(default=False)
-
-    @property
-    def secret_from_environment(self) -> bool:
-        """Whether ``secret`` was read from the token environment variables."""
-        return self._secret_from_environment
-
-    def mark_secret_from_environment(self) -> None:
-        """Record that ``secret`` came from the environment and may be renewed there."""
-        self._secret_from_environment = True
+    secret_from_environment: bool = False
 
 
 class ConfigurationManager:
