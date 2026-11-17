@@ -845,6 +845,104 @@ class TestPush:
             assert "Uploading 'main.py'" in result.output
             assert "Uploading 'pyproject.toml'" in result.output
 
+    def test_push_preserves_remote_uiproj_when_missing_locally(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """Test that push never deletes the remote project.uiproj.
+
+        Studio Web creates project.uiproj with every project and relies on it.
+        It is not part of the local upload set, so without an explicit
+        exception the deletion pass would treat it as an orphan and remove it.
+        """
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "uiproj-file-id",
+                    "name": "project.uiproj",
+                    "isMain": False,
+                    "fileType": "0",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "stale-file-id",
+                    "name": "stale.py",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        # No remote pyproject.toml, so the coded check falls back to the project type
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}",
+            json={"id": project_id, "projectType": "Function"},
+        )
+
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        httpx_mock.add_response(
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+            json=mock_structure,
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files()
+
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            # Importantly: no local project.uiproj and no local stale.py
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0
+
+            # The genuinely orphaned file is still deleted...
+            assert "Deleting 'stale.py'" in result.output
+            # ...but project.uiproj is preserved.
+            assert "Deleting 'project.uiproj'" not in result.output
+
+            structural_migration_request = httpx_mock.get_request(
+                method="POST",
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            )
+            assert structural_migration_request is not None
+            content = structural_migration_request.content
+            assert b"stale-file-id" in content
+            assert b"uiproj-file-id" not in content
+
     def test_push_to_typescript_function_project(
         self,
         runner: CliRunner,
