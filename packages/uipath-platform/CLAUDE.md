@@ -38,7 +38,8 @@ sdk.folders             # FolderService
 sdk.tasks               # TasksService (Action Center)
 sdk.connections         # ConnectionsService
 sdk.context_grounding   # ContextGroundingService
-sdk.documents           # DocumentsService
+sdk.documents           # DocumentsService (DU Framework API v1.1)
+sdk.documents_v2        # DocumentsServiceV2 (DU Framework API v2)
 sdk.entities            # EntitiesService
 sdk.llm                 # UiPathLlmChatService
 sdk.llm_openai          # UiPathOpenAIService
