@@ -10,10 +10,10 @@ from pydantic import BaseModel, Field
 from uipath.agent.react.conversational_prompts import (
     PromptUserSettings,
     get_chat_system_prompt,
-    get_conversational_output_section,
+    get_conversational_output_hint_section,
     get_generate_output_prompt,
     get_user_settings_template,
-    strip_conversational_output_section,
+    strip_conversational_output_hint_section,
 )
 
 SYSTEM_MESSAGE = "You are a helpful assistant."
@@ -368,168 +368,109 @@ class TestGetGenerateOutputPrompt:
         """The instruction must name the tool the new node binds."""
         assert "set_conversational_output" in get_generate_output_prompt()
 
+    def test_scopes_the_record_to_the_current_turn(self):
+        """A flow can loop back to this agent, so re-reporting an earlier
+        turn's field would re-trigger whatever consumes it."""
+        assert "CURRENT TURN ONLY" in get_generate_output_prompt()
 
-class _OutputSchema(BaseModel):
+    def test_excludes_itself_from_the_conversation(self):
+        """It is appended as a user message, so an unqualified "latest user
+        message" would anchor on this instruction. Tool results also arrive as
+        user-role content on Anthropic and Gemini, hence the second clause."""
+        instruction = _flat(get_generate_output_prompt())
+
+        assert "This instruction is not part of the conversation." in instruction
+        assert "(not a tool-result)" in instruction
+
+
+class _OutputFields(BaseModel):
     """The fields the model fills, as the caller narrows them before passing."""
 
     status: str = Field(description="Set to 'resolved' once the user confirms.")
-    ticket_id: str | None = Field(
-        default=None, description="The raised ticket, if any."
-    )
     escalated: bool = False
 
 
-class TestGetConversationalOutputSection:
-    """Tests for get_conversational_output_section."""
+def _flat(text: str) -> str:
+    """Collapse hard wrapping so assertions survive the prompt being rewrapped."""
+    return " ".join(text.split())
+
+
+def _prompt(**kwargs):
+    return get_chat_system_prompt(
+        model="claude-3-sonnet",
+        system_message=SYSTEM_MESSAGE,
+        agent_name="Agent",
+        **kwargs,
+    )
+
+
+class TestGetConversationalOutputHintSection:
+    """Tests for get_conversational_output_hint_section."""
 
     def test_empty_without_a_schema(self):
         """None means no section, matching get_user_settings_template and
-        get_conversation_id_template, so the caller can pass its optional
-        straight through."""
-        assert get_conversational_output_section(None) == ""
+        get_conversation_id_template, so callers pass their optional through."""
+        assert get_conversational_output_hint_section(None) == ""
 
     def test_renders_the_schema_as_json(self):
-        """The schema goes in verbatim, so new JSON-Schema features need no
-        change here: enums, nested objects, constraints and examples all ride
-        along."""
-        section = get_conversational_output_section(_OutputSchema)
+        """Rendered verbatim, so new JSON-Schema features need no change here:
+        enums, nested objects, constraints and examples all ride along."""
+        section = get_conversational_output_hint_section(_OutputFields)
 
         assert "```json" in section
         payload = json.loads(section.split("```json")[1].split("```")[0])
 
-        assert payload == _OutputSchema.model_json_schema()
-        assert set(payload["properties"]) == {"status", "ticket_id", "escalated"}
-        assert payload["required"] == ["status"]
+        assert payload == _OutputFields.model_json_schema()
         assert (
             payload["properties"]["status"]["description"]
             == "Set to 'resolved' once the user confirms."
         )
 
     def test_describes_whatever_it_is_given(self):
-        """Narrowing is the caller's job, not this module's.
-
-        It has no notion of framework-managed fields; callers pass only the
-        fields the model should fill (uipath-langchain narrows with
-        build_conversational_output_args_schema first).
-        """
+        """Narrowing is the caller's job: this module has no notion of
+        framework-managed fields and describes every field it receives."""
 
         class _WithFrameworkField(BaseModel):
             uipath__agent_response_messages: list[str] = Field(default_factory=list)
 
-        section = get_conversational_output_section(_WithFrameworkField)
-
-        assert "uipath__agent_response_messages" in section
-
-    def test_tells_the_agent_there_is_no_tool_for_them(self):
-        """The reported bug: the agent hunts for a tool that does not exist."""
-        section = get_conversational_output_section(_OutputSchema).lower()
-        assert "no tool" in section
-
-    def test_redirects_prompt_guidance_to_the_record(self):
-        """Builders write output guidance in the system prompt; it must land somewhere."""
-        assert "not to your reply" in get_conversational_output_section(_OutputSchema)
-
-    def test_forbids_mentioning_the_fields_to_the_user(self):
-        """Seeing the fields invites narrating them; replies must stay conversational."""
-        section = " ".join(get_conversational_output_section(_OutputSchema).split())
-
-        assert "respond naturally in conversation rather than mentioning" in section
-
-    def test_is_stable_across_calls(self):
-        assert get_conversational_output_section(
-            _OutputSchema
-        ) == get_conversational_output_section(_OutputSchema)
-
-
-class TestTurnScoping:
-    """Both prompts must agree on what "this turn" means, and on its scope.
-
-    The history is [system, user, AI(tools)..., AI(no tools), user, ...], so a
-    turn is one user message plus the agent's work up to its tool-less reply.
-    Each turn is recorded separately and the record is consumed downstream, so
-    repeating an earlier turn's value would re-fire whatever it triggers when a
-    flow loops back to this agent.
-    """
-
-    @staticmethod
-    def _flat(text: str) -> str:
-        """Collapse the prompt's hard wrapping so assertions survive rewrapping."""
-        return " ".join(text.split())
-
-    def _section(self) -> str:
-        class _Fields(BaseModel):
-            status: str = ""
-
-        return self._flat(get_conversational_output_section(_Fields))
-
-    def test_loop_section_defines_the_turn_end_by_the_agent_s_own_action(self):
-        """Models have no native notion of a multi-message turn, so the end is
-        pinned to something observable at decision time — "when you reply
-        without calling a tool" — rather than to a span of the transcript."""
-        section = self._section()
-
-        assert "At the end of your turn" in section
-        assert "when you decide to reply without calling a tool" in section
-
-    def test_loop_section_leaves_turn_scoping_to_the_extraction_step(self):
-        """The loop only has to not record anything; the extraction step does the
-        scoping, so those rules live there rather than being restated here."""
-        section = self._section()
-
-        assert "You have no tool for them" in section
-        assert "CURRENT TURN ONLY" not in section
-
-    def test_extraction_prompt_excludes_itself_from_the_conversation(self):
-        """It is appended as a user message, so an unqualified "latest user
-        message" would point at this instruction rather than the user's."""
-        instruction = self._flat(get_generate_output_prompt())
-
-        assert "This instruction is not part of the conversation." in instruction
-        assert "before this instruction" in instruction
-        assert "every message after it" in instruction
-
-    def test_extraction_prompt_anchors_on_a_real_user_message(self):
-        """Tool results reach the model as user-role content on some providers,
-        so the anchor has to exclude them explicitly."""
-        assert "(not a tool-result)" in get_generate_output_prompt()
-
-    def test_extraction_prompt_treats_earlier_turns_as_context_only(self):
-        """Not carry-forward: a flow can loop back to this agent, and repeating
-        an earlier turn's field would re-trigger whatever consumes it."""
-        instruction = self._flat(get_generate_output_prompt())
-
-        assert "CURRENT TURN ONLY" in instruction
-        assert "Only use earlier turns as context" in instruction
-        assert "do not report fields from an earlier turn" in instruction
-
-
-class TestOutputSectionInSystemPrompt:
-    def _prompt(self, **kwargs):
-        return get_chat_system_prompt(
-            model="claude-3-sonnet",
-            system_message=SYSTEM_MESSAGE,
-            agent_name="Agent",
-            **kwargs,
+        assert "uipath__agent_response_messages" in (
+            get_conversational_output_hint_section(_WithFrameworkField)
         )
 
+    def test_tells_the_loop_it_has_no_tool_for_the_fields(self):
+        """The reported bug: the agent hunts for a tool that does not exist."""
+        assert "no tool for them" in _flat(
+            get_conversational_output_hint_section(_OutputFields)
+        )
+
+
+class TestOutputHintSectionInSystemPrompt:
+    """The section reaches the assembled prompt via its own placeholder."""
+
     def test_absent_by_default(self):
-        assert "STRUCTURED OUTPUT FOR THIS TURN" not in self._prompt()
+        assert "STRUCTURED OUTPUT FOR THIS TURN" not in _prompt()
 
     def test_present_with_output_fields(self):
-        prompt = self._prompt(output_schema=_OutputSchema)
+        prompt = _prompt(output_schema=_OutputFields)
 
         assert "STRUCTURED OUTPUT FOR THIS TURN" in prompt
         assert '"status"' in prompt
 
+    def test_placeholder_is_always_consumed(self):
+        for prompt in (_prompt(), _prompt(output_schema=_OutputFields)):
+            assert "CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaHintPrompt" not in (
+                prompt
+            )
+
     def test_keeps_the_rest_of_the_prompt(self):
-        prompt = self._prompt(output_schema=_OutputSchema)
+        prompt = _prompt(output_schema=_OutputFields)
 
         assert "You are Agent." in prompt
         assert SYSTEM_MESSAGE in prompt
         assert "TOOL USAGE RULES" in prompt
 
 
-class TestStripConversationalOutputSection:
+class TestStripConversationalOutputHintSection:
     """The structured-output call must not inherit the loop-only section.
 
     It says the agent has no tool for these fields, and the prompt's own
@@ -538,116 +479,52 @@ class TestStripConversationalOutputSection:
     the conflict today; a model that cannot be forced would resolve it wrongly.
     """
 
-    def _prompt(self, **kwargs):
-        return get_chat_system_prompt(
-            model="claude-3-sonnet",
-            system_message=SYSTEM_MESSAGE,
-            agent_name="Agent",
-            **kwargs,
-        )
-
     def test_restores_the_prompt_exactly(self):
-        """No trailing blank lines left behind."""
+        """Byte-for-byte, so no stray blank lines are left behind."""
         assert (
-            strip_conversational_output_section(
-                self._prompt(output_schema=_OutputSchema)
+            strip_conversational_output_hint_section(
+                _prompt(output_schema=_OutputFields)
             )
-            == self._prompt()
+            == _prompt()
         )
 
     def test_removes_the_contradiction(self):
-        stripped = strip_conversational_output_section(
-            self._prompt(output_schema=_OutputSchema)
+        stripped = strip_conversational_output_hint_section(
+            _prompt(output_schema=_OutputFields)
         )
 
-        assert "no tool for it" not in stripped
-
-    def test_is_idempotent(self):
-        once = strip_conversational_output_section(
-            self._prompt(output_schema=_OutputSchema)
-        )
-
-        assert strip_conversational_output_section(once) == once
+        assert "no tool for them" not in _flat(stripped)
 
     def test_no_op_when_the_section_is_absent(self):
-        prompt = self._prompt()
+        assert strip_conversational_output_hint_section(_prompt()) == _prompt()
 
-        assert strip_conversational_output_section(prompt) == prompt
+    def test_is_idempotent(self):
+        once = strip_conversational_output_hint_section(
+            _prompt(output_schema=_OutputFields)
+        )
+
+        assert strip_conversational_output_hint_section(once) == once
 
     def test_survives_text_appended_after_the_section(self):
         """Advanced agents append a meta prompt after the assembled prompt."""
-        prompt = self._prompt(output_schema=_OutputSchema) + "\n\nEXTRA META PROMPT"
+        prompt = _prompt(output_schema=_OutputFields) + "\n\nEXTRA META PROMPT"
 
-        stripped = strip_conversational_output_section(prompt)
+        stripped = strip_conversational_output_hint_section(prompt)
 
         assert "STRUCTURED OUTPUT FOR THIS TURN" not in stripped
         assert stripped.endswith("EXTRA META PROMPT")
 
     def test_strips_a_section_built_from_a_different_field_list(self):
-        """Needs no schema, so it cannot drift from however the caller narrowed."""
+        """It takes no schema, so it cannot drift from however the caller
+        narrowed one — an earlier version re-rendered the section to find it
+        and silently did nothing on a mismatch."""
 
         class _Other(BaseModel):
             wholly_different: int = Field(description="Nothing like the above.")
 
-        stripped = strip_conversational_output_section(
-            self._prompt(output_schema=_Other)
+        stripped = strip_conversational_output_hint_section(
+            _prompt(output_schema=_Other)
         )
 
         assert "wholly_different" not in stripped
-        assert stripped == self._prompt()
-
-
-class TestDownstreamConsumerContext:
-    """Both prompts say the outputs are internal and may drive later steps.
-
-    In the loop it explains why the fields must not be narrated to the user. In
-    the extraction step it supplies the reason behind CURRENT TURN ONLY — a
-    stale value can re-trigger an action that already ran, which is the failure
-    a flow looping back to this agent would produce.
-    """
-
-    @staticmethod
-    def _flat(text: str) -> str:
-        return " ".join(text.split())
-
-    def test_loop_section_frames_the_outputs_as_internal(self):
-        class _Fields(BaseModel):
-            should_handoff: bool = False
-
-        section = self._flat(get_conversational_output_section(_Fields))
-
-        assert "These outputs are internal" in section
-        assert "later steps in the surrounding process may read them" in section
-        assert "routing or follow-up actions" in section
-
-    def test_extraction_prompt_names_the_downstream_consumer(self):
-        """Stated in the same breath as CURRENT TURN ONLY, so the stakes of a
-        stale value sit next to the rule against reporting one."""
-        instruction = self._flat(get_generate_output_prompt())
-
-        assert "may be read and used by later steps in the surrounding process" in (
-            instruction
-        )
-        assert "for routing/processing" in instruction
-
-    def test_extraction_prompt_keeps_the_consumer_context_with_the_scoping_rule(self):
-        """Adjacency is the point: the reason a stale value is harmful is only
-        inferable if the two sit together."""
-        instruction = self._flat(get_generate_output_prompt())
-
-        assert instruction.index("CURRENT TURN ONLY") < instruction.index(
-            "later steps in the surrounding process"
-        )
-
-    def test_neither_prompt_names_a_specific_product(self):
-        """The model has no reliable notion of the topology it runs in, so the
-        wording stays at "the surrounding process" rather than naming one."""
-        both = self._flat(
-            get_generate_output_prompt()
-            + get_conversational_output_section(
-                type("_F", (BaseModel,), {"__annotations__": {"x": bool}})
-            )
-        ).lower()
-
-        for product in ("maestro", "flow", "orchestrator", "studio"):
-            assert product not in both
+        assert stripped == _prompt()

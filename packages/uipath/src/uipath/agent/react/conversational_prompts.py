@@ -122,7 +122,7 @@ If execution cannot proceed:
 - State why
 - Request missing or clarifying information
 
-{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaPrompt}}"""
+{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaHintPrompt}}"""
 
 _ATTACHMENTS_TEMPLATE = """=====================================================================
 ATTACHMENTS
@@ -198,8 +198,8 @@ def get_chat_system_prompt(
     )
 
     prompt = prompt.replace(
-        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaPrompt}}",
-        get_conversational_output_section(output_schema),
+        "{{CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaHintPrompt}}",
+        get_conversational_output_hint_section(output_schema),
     )
 
     return prompt
@@ -245,7 +245,7 @@ def get_conversation_id_template(conversation_id: str | None) -> str:
     return _CONVERSATION_ID_TEMPLATE.format(conversation_id=conversation_id)
 
 
-_OUTPUT_SECTION_PREFIX = """=====================================================================
+_OUTPUT_HINT_SECTION_PREFIX = """=====================================================================
 STRUCTURED OUTPUT FOR THIS TURN
 =====================================================================
 At the end of your turn (when you decide to reply without calling a tool),
@@ -254,19 +254,19 @@ a separate step will infer structured output fields for this turn with the follo
 ```json
 """
 
-_OUTPUT_SECTION_SUFFIX = """
+_OUTPUT_HINT_SECTION_SUFFIX = """
 ```
 
 - The outputs are produced after your turn, by a separate step. You have no tool for them:
   do not look for one, and do not call some other tool in its place.
-- Instructions anywhere in this prompt about what an output field should contain apply to those
+- Instructions anywhere in the Agent System Prompt about what an output field should contain apply to those
   outputs, not to your reply. You do not need to do anything with them while replying.
 - Your reply is what the user reads. These outputs are internal — later steps in the
   surrounding process may read them to decide routing or follow-up actions — so respond
   naturally in conversation rather than mentioning these output fields or their values."""
 
 
-def get_conversational_output_section(
+def get_conversational_output_hint_section(
     output_schema: type[BaseModel] | None,
 ) -> str:
     """Return the system-prompt section describing the turn's output fields.
@@ -285,33 +285,26 @@ def get_conversational_output_section(
         return ""
 
     schema_json = json.dumps(output_schema.model_json_schema(), indent=2)
-    return f"{_OUTPUT_SECTION_PREFIX}{schema_json}{_OUTPUT_SECTION_SUFFIX}"
+    return f"{_OUTPUT_HINT_SECTION_PREFIX}{schema_json}{_OUTPUT_HINT_SECTION_SUFFIX}"
 
 
-def strip_conversational_output_section(prompt: str) -> str:
-    """Remove the output-fields section from an assembled system prompt.
+def strip_conversational_output_hint_section(assembled_system_prompt: str) -> str:
+    """Remove the informative output-fields section from an assembled system prompt.
 
-    The structured-output call replays the exchange's messages, the system
-    message included. That section tells the agent it has no tool for these
-    fields, which is true inside the loop and the opposite of that call's job —
-    and the prompt's precedence hierarchy ranks the system prompt above the
-    user message carrying the instruction, so the conflict would resolve the
-    wrong way. Forcing the tool choice hides that today; it will not once a
-    model that cannot be forced runs on `auto`.
-
-    Matches the section's fixed text rather than re-rendering it, so no schema
-    is needed and there is nothing to keep in sync: a prompt built from any
-    field list is stripped correctly.
+    After the conversational agent loop, an additional step will instruct the LLM to
+    call the `set_conversational_output` tool to record structured output fields for the turn.
+    This final call should not include the output-fields section in the system-prompt, which is
+    only relevant for describing these outputs to the central conversational agent loop.
     """
-    start = prompt.find(_OUTPUT_SECTION_PREFIX)
+    start = assembled_system_prompt.find(_OUTPUT_HINT_SECTION_PREFIX)
     if start == -1:
-        return prompt
-    end = prompt.find(_OUTPUT_SECTION_SUFFIX, start + len(_OUTPUT_SECTION_PREFIX))
+        return assembled_system_prompt
+    end = assembled_system_prompt.find(_OUTPUT_HINT_SECTION_SUFFIX, start + len(_OUTPUT_HINT_SECTION_PREFIX))
     if end == -1:
-        return prompt
+        return assembled_system_prompt
     # Removes exactly what was substituted for the placeholder, so the result
     # matches a prompt built without an output schema character for character.
-    return prompt[:start] + prompt[end + len(_OUTPUT_SECTION_SUFFIX) :]
+    return assembled_system_prompt[:start] + assembled_system_prompt[end + len(_OUTPUT_HINT_SECTION_SUFFIX) :]
 
 
 _GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for the CURRENT TURN ONLY. These structured outputs may be read and used by later steps in the surrounding process for routing/processing.
