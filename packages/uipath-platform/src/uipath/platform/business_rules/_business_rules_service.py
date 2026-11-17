@@ -30,7 +30,6 @@ from .business_rules import (
 _EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/evaluate")
 _DEBUG_EVALUATE_ENDPOINT = Endpoint("businessrules_/v1/business-rules/debug/evaluate")
 
-_MAX_INPUT_KEYS = 256
 _MAX_BUSINESS_RULE_NAME_LENGTH = 256
 
 
@@ -455,8 +454,6 @@ def _validate_input_arguments(input_arguments: Dict[str, Any]) -> None:
             "input_arguments must be a mapping of the rule's input names to values, "
             f"not {type(input_arguments).__name__}"
         )
-    if len(input_arguments) > _MAX_INPUT_KEYS:
-        raise ValueError(f"input_arguments must not exceed {_MAX_INPUT_KEYS} keys")
 
 
 def _overall_status(

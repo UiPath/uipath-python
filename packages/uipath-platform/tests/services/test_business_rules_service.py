@@ -132,9 +132,17 @@ class TestRunContext:
 
         assert httpx_mock.get_requests() == []
 
-    def test_rejects_oversized_input(self, service: BusinessRulesService) -> None:
-        with pytest.raises(ValueError, match="256 keys"):
-            service.run(RULE, {f"k{i}": i for i in range(257)}, folder_key=FOLDER_KEY)
+    def test_leaves_the_input_size_to_the_service(
+        self, httpx_mock: HTTPXMock, service: BusinessRulesService, evaluate_url: str
+    ) -> None:
+        httpx_mock.add_response(url=evaluate_url, json=_service_response())
+        input_arguments = {f"k{i}": i for i in range(1000)}
+
+        service.run(RULE, input_arguments, folder_key=FOLDER_KEY)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content)["input"] == input_arguments
 
 
 class TestFolder:
