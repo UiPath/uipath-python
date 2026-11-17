@@ -1570,4 +1570,5 @@ class TestEvaluateGuardrailSpan:
         spans = {s.name: s for s in recorded_spans.get_finished_spans()}
         assert set(spans) == {"caller", "evaluate_guardrail"}
         parent = spans["evaluate_guardrail"].parent
-        assert parent is not None and parent.span_id == caller_span_id
+        assert parent is not None
+        assert parent.span_id == caller_span_id
