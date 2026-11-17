@@ -132,7 +132,6 @@ class GuardrailsService(BaseService):
         except ValueError:
             return None
 
-    @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
         self,
         input_data: str | dict[str, Any],
@@ -155,6 +154,45 @@ class GuardrailsService(BaseService):
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
         """
+        # In a job, the Guardrails Service publishes its own span for this
+        # evaluation, so a client span would only duplicate it. Local runs don't
+        # get that span in their trace, so they keep the client one.
+        evaluate = (
+            self._evaluate_guardrail
+            if UiPathConfig.job_key
+            else self._traced_evaluate_guardrail
+        )
+        return evaluate(
+            input_data,
+            guardrail,
+            attachments=attachments,
+            termination_mode=termination_mode,
+        )
+
+    @traced("evaluate_guardrail", run_type="uipath")
+    def _traced_evaluate_guardrail(
+        self,
+        input_data: str | dict[str, Any],
+        guardrail: BuiltInValidatorGuardrail,
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
+        termination_mode: GuardrailTerminationMode | None = None,
+    ) -> GuardrailValidationResult:
+        return self._evaluate_guardrail(
+            input_data,
+            guardrail,
+            attachments=attachments,
+            termination_mode=termination_mode,
+        )
+
+    def _evaluate_guardrail(
+        self,
+        input_data: str | dict[str, Any],
+        guardrail: BuiltInValidatorGuardrail,
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
+        termination_mode: GuardrailTerminationMode | None = None,
+    ) -> GuardrailValidationResult:
         parameters = [
             param.model_dump(by_alias=True) for param in guardrail.validator_parameters
         ]
