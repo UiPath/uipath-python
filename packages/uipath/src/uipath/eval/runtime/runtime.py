@@ -65,7 +65,11 @@ from ..mocks._input_mocker import (
 from ..mocks._mock_context import cache_manager_context
 from ..mocks._mock_runtime import UiPathMockRuntime
 from ..mocks._mocker import UiPathInputMockingError, format_exception_message
-from ..mocks._types import LLMMockingStrategy, MockingContext, ModelSettings
+from ..mocks._simulation_model import (
+    get_agent_max_tokens,
+    simulation_model_settings,
+)
+from ..mocks._types import LLMMockingStrategy, MockingContext
 from ..models import EvaluationResult
 from ..models.evaluation_set import (
     EvaluationItem,
@@ -662,7 +666,14 @@ class UiPathEvalRuntime:
                         mocking_model = get_agent_model(self.context.runtime_schema)
                         if mocking_model:
                             mocking_strategy = mocking_strategy.model_copy(
-                                update={"model": ModelSettings(model=mocking_model)}
+                                update={
+                                    "model": simulation_model_settings(
+                                        mocking_model,
+                                        get_agent_max_tokens(
+                                            self.context.runtime_schema
+                                        ),
+                                    )
+                                }
                             )
 
                     agent_execution_output = await self.execute_runtime(
@@ -956,7 +967,12 @@ class UiPathEvalRuntime:
             input_generation_model = get_agent_model(self.context.runtime_schema)
             if input_generation_model:
                 input_strategy = input_strategy.model_copy(
-                    update={"model": ModelSettings(model=input_generation_model)}
+                    update={
+                        "model": simulation_model_settings(
+                            input_generation_model,
+                            get_agent_max_tokens(self.context.runtime_schema),
+                        )
+                    }
                 )
 
         generated_input = await generate_llm_input(

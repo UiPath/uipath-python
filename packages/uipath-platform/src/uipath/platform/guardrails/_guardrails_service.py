@@ -1,8 +1,10 @@
+import logging
 import re
 from typing import Any, Optional
 
 from httpx import HTTPStatusError
 from uipath.core.guardrails import (
+    GuardrailValidationErrorType,
     GuardrailValidationResult,
     GuardrailValidationResultType,
 )
@@ -23,6 +25,8 @@ from .guardrails import (
     GuardrailAttachment,
     GuardrailTerminationMode,
 )
+
+logger = logging.getLogger(__name__)
 
 _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
 
@@ -103,7 +107,30 @@ class GuardrailsService(BaseService):
                 return GuardrailValidationResultType[result_str]
             except KeyError:
                 # Fallback to validation_failed if unknown
+                logger.warning(
+                    "Unknown guardrail validation result '%s'; treating it as %s.",
+                    result_str,
+                    GuardrailValidationResultType.VALIDATION_FAILED.value,
+                )
                 return GuardrailValidationResultType.VALIDATION_FAILED
+
+    @staticmethod
+    def _parse_error_type(result_str: Any) -> Optional[GuardrailValidationErrorType]:
+        """Parse a result string the API returns when it could not validate.
+
+        Args:
+            result_str: The result string from the API response (e.g., "PROVIDER_ERROR").
+
+        Returns:
+            Optional[GuardrailValidationErrorType]: Why the validation could not
+                complete, or None when the result is not an error.
+        """
+        if not isinstance(result_str, str):
+            return None
+        try:
+            return GuardrailValidationErrorType(result_str.lower())
+        except ValueError:
+            return None
 
     @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
@@ -220,15 +247,30 @@ class GuardrailsService(BaseService):
             else:
                 raise
 
-        result = self._parse_result(response_data.get("result", ""))
-
+        result_str = response_data.get("result", "")
         reason = response_data.get("details", "")
+
+        error_type = self._parse_error_type(result_str)
+        if error_type is not None:
+            # The service could not evaluate the input: fail closed so the
+            # guardrail action still fires, and report why on error_type.
+            logger.warning(
+                "Guardrail '%s' could not be evaluated (%s): %s",
+                guardrail.name,
+                result_str,
+                reason,
+            )
+            result = GuardrailValidationResultType.VALIDATION_FAILED
+        else:
+            result = self._parse_result(result_str)
 
         # Prepare model data
         model_data: dict[str, Any] = {
             "result": result.value,
             "reason": reason,
         }
+        if error_type is not None:
+            model_data["errorType"] = error_type.value
         if span_id:
             model_data["spanId"] = span_id
         flagged_attachment_ids = response_data.get("flaggedAttachmentIds")

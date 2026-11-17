@@ -25,6 +25,7 @@ from ..common._base_service import BaseService
 from ..common._bindings import _resource_overwrites
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
+from ..common.paging import PagedResult
 from ..errors._datafabric_error import attach_datafabric_error_mapping
 from ..orchestrator._folder_service import FolderService
 from ._entity_data_service import EntityDataService, FileContent
@@ -377,6 +378,48 @@ class EntitiesService(BaseService):
     async def list_entities_v3_async(self) -> List[Entity]:
         """Async variant of `list_entities_v3()`."""
         return await self._schema.list_entities_async(use_v3=True)
+
+    @traced(name="list_entities_paginated_v3", run_type="uipath")
+    def list_entities_paginated_v3(
+        self, *, skip: int = 0, top: int = 50
+    ) -> PagedResult[Entity]:
+        """List one page of entities without their field definitions.
+
+        Cheaper than `list_entities_v3()` on tenants with many entities, since
+        the field schemas are never loaded. `Entity.fields`, `record_count`
+        and the storage sizes are `None` on the returned entities; use
+        `list_entities_v3()` or `retrieve_v3()` when you need them.
+
+        Args:
+            skip: Number of entities to skip (default 0, max 10000).
+            top: Maximum entities per page (default 50, max 200).
+
+        Returns:
+            PagedResult[Entity]: Page of entities with pagination metadata.
+
+        Raises:
+            ValueError: If skip or top parameters are invalid.
+
+        Examples:
+            Resolve entity ids by name across every page::
+
+                ids = {}
+                skip = 0
+                while True:
+                    page = entities_service.list_entities_paginated_v3(skip=skip, top=200)
+                    ids.update({entity.name: entity.id for entity in page.items})
+                    if not page.has_more:
+                        break
+                    skip += 200
+        """
+        return self._schema.list_entities_paginated_v3(skip=skip, top=top)
+
+    @traced(name="list_entities_paginated_v3", run_type="uipath")
+    async def list_entities_paginated_v3_async(
+        self, *, skip: int = 0, top: int = 50
+    ) -> PagedResult[Entity]:
+        """Async variant of `list_entities_paginated_v3()`."""
+        return await self._schema.list_entities_paginated_v3_async(skip=skip, top=top)
 
     @traced(name="list_choicesets", run_type="uipath")
     def list_choicesets(self) -> List[Entity]:

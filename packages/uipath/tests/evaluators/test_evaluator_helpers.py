@@ -103,6 +103,56 @@ class TestToolCallsOrderScore:
 class TestToolCallsCountScore:
     """Test tool_calls_count_score helper function."""
 
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_zero_expected_count_allows_other_tools(self, strict: bool) -> None:
+        """A zero scheduling count does not prohibit calendar lookups."""
+        score, justification = tool_calls_count_score(
+            {"calendar_lookup": 1}, {"schedule": ("=", 0)}, strict=strict
+        )
+
+        assert score == 1.0
+        assert (
+            "Actual: 0, Expected: 0, Score: 1.0"
+            == justification["explained_tool_calls_count"]["schedule"]
+        )
+
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize(
+        ("comparator", "count", "expected_score"),
+        [
+            ("=", 0, 1.0),
+            ("==", 0, 1.0),
+            ("<=", 1, 1.0),
+            ("<", 1, 1.0),
+            (">=", 0, 1.0),
+            ("!=", 1, 1.0),
+            ("=", 1, 0.0),
+            (">", 0, 0.0),
+        ],
+    )
+    def test_empty_actual_counts_use_comparator(
+        self, strict: bool, comparator: str, count: int, expected_score: float
+    ) -> None:
+        """Absent tool calls must be compared as zero calls."""
+        score, justification = tool_calls_count_score(
+            {}, {"schedule": (comparator, count)}, strict=strict
+        )
+
+        assert score == expected_score
+        assert "Actual: 0" in justification["explained_tool_calls_count"]["schedule"]
+
+    @pytest.mark.parametrize(("strict", "expected_score"), [(False, 0.5), (True, 0.0)])
+    def test_empty_actual_counts_mixed_expectations(
+        self, strict: bool, expected_score: float
+    ) -> None:
+        """An empty trace can satisfy some, but not all, count criteria."""
+        score, justification = tool_calls_count_score(
+            {}, {"schedule": ("=", 0), "lookup": ("=", 1)}, strict=strict
+        )
+
+        assert score == expected_score
+        assert "Score: 0.0" in justification["explained_tool_calls_count"]["lookup"]
+
     def test_empty_both_dicts(self) -> None:
         """Test when both expected and actual dicts are empty."""
         score, justification = tool_calls_count_score({}, {}, strict=False)
@@ -120,7 +170,10 @@ class TestToolCallsCountScore:
 
         assert score == 0.0
         assert isinstance(justification["explained_tool_calls_count"], dict)
-        assert "_result" in justification["explained_tool_calls_count"]
+        assert (
+            "Actual: 0, Expected: 1, Score: 0.0"
+            == justification["explained_tool_calls_count"]["tool1"]
+        )
 
     def test_empty_expected_dict(self) -> None:
         """Test when expected dict is empty but actual is not."""

@@ -401,12 +401,12 @@ def tool_calls_count_score(
                 "_result": "Both expected and actual tool calls are empty"
             },
         }
-    elif not expected_tool_calls_count or not actual_tool_calls_count:
+    elif not expected_tool_calls_count:
         return 0.0, {
             "expected": str(dict(expected_tool_calls_count)),
             "actual": str(dict(actual_tool_calls_count)),
             justification_key: {
-                "_result": "Either expected or actual tool calls are empty"
+                "_result": "Expected tool calls are empty but actual tool calls are not"
             },
         }
 

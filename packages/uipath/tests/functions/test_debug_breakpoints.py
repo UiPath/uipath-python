@@ -316,6 +316,56 @@ class TestBreakpointE2E:
         finally:
             await runtime.dispose()
 
+    async def test_breakpoint_reports_the_paused_function_start_line(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "starts.py",
+            "def helper(n):\n"
+            "    doubled = n * 2\n"
+            "    return doubled\n"
+            "\n"
+            "def main(input):\n"
+            '    result = helper(input["n"])\n'
+            '    return {"result": result}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=["3", "7"])
+
+        try:
+            await runtime.execute({"n": 4})
+
+            assert [hit.metadata for hit in bridge.breakpoint_hits] == [
+                {"function_start_line": 1},
+                {"function_start_line": 5},
+            ]
+        finally:
+            await runtime.dispose()
+
+    async def test_decorated_function_starts_at_its_first_decorator(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "decorated.py",
+            "def registered(fn):\n"
+            "    return fn\n"
+            "\n"
+            "@registered\n"
+            "def main(input):\n"
+            '    return {"n": input["n"]}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=["6"])
+
+        try:
+            await runtime.execute({"n": 4})
+
+            assert [hit.metadata for hit in bridge.breakpoint_hits] == [
+                {"function_start_line": 4}
+            ]
+        finally:
+            await runtime.dispose()
+
     async def test_bridge_lifecycle_events(self, script_dir: Path):
         """connect / emit_execution_started / emit_execution_completed / disconnect all fire."""
         script = _write_script(

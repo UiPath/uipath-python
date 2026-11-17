@@ -5,6 +5,7 @@ import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
+from uipath.platform.common import TokenData
 
 """
 Unit tests for the 'uipath auth' command.
@@ -218,3 +219,68 @@ class TestAuth:
                 mock_open.assert_called_once()
 
                 session.resolve_tenant_info.assert_called_once_with("MyTenantName")
+
+    def test_auth_with_client_assertion(self):
+        """
+        Test that --client-assertion runs the client credentials flow
+        with the OIDC token instead of a client secret.
+        """
+        runner = CliRunner()
+        with (
+            patch(
+                "uipath._cli._auth._auth_service.ExternalApplicationService"
+            ) as mock_service,
+            patch("uipath._cli._auth._auth_service.AuthSession") as mock_auth_session,
+            patch(
+                "uipath._cli._auth._auth_service.get_parsed_token_data",
+                return_value={"prt_id": "org-id"},
+            ),
+        ):
+            service = mock_service.return_value
+            service._base_url = "https://cloud.uipath.com/MyOrg/MyTenant"
+            service.get_token_data_async = AsyncMock(
+                return_value=TokenData(access_token="fed-token")
+            )
+            mock_auth_session.return_value.resolve_tenant_info = AsyncMock(
+                return_value={"tenant_id": "tenant-id"}
+            )
+            with runner.isolated_filesystem():
+                result = runner.invoke(
+                    cli,
+                    [
+                        "auth",
+                        "--base-url",
+                        "https://cloud.uipath.com/MyOrg/MyTenant",
+                        "--client-id",
+                        "app-client-id",
+                        "--client-assertion",
+                        "the.oidc.jwt",
+                    ],
+                )
+
+                assert result.exit_code == 0, result.output
+                service.get_token_data_async.assert_awaited_once_with(
+                    "app-client-id",
+                    None,
+                    "OR.Execution",
+                    client_assertion="the.oidc.jwt",
+                )
+                with open(".env") as f:
+                    assert "UIPATH_ACCESS_TOKEN=fed-token" in f.read()
+
+    @pytest.mark.parametrize(
+        "credential_args",
+        [["--client-secret", "secret"], ["--client-assertion", "the.oidc.jwt"]],
+    )
+    def test_auth_credential_without_client_id_fails(self, credential_args):
+        """
+        Test that a secret or assertion without --client-id is rejected
+        instead of falling back to the interactive browser flow.
+        """
+        runner = CliRunner()
+        with patch("uipath._cli._auth._auth_service.webbrowser.open") as mock_open:
+            result = runner.invoke(cli, ["auth", *credential_args])
+
+        assert result.exit_code == 2
+        assert "--client-id is required" in result.output
+        mock_open.assert_not_called()

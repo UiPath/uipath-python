@@ -1,8 +1,10 @@
+import contextlib
 import importlib.metadata
 import json
 import os
 import shutil
 import uuid
+from collections.abc import Iterator
 
 import click
 
@@ -18,11 +20,14 @@ from .models.project_types import ProjectType
 
 console = ConsoleLogger()
 
-# The `uipath` minor release that scaffolded projects are pinned to.
+# The `uipath` minor release that scaffolded projects are capped to.
 # Deliberately a constant: the guard test in tests/cli/test_new.py fails on
 # every minor bump so the scaffold (pin, template, hints) gets reviewed
-# alongside the release rather than drifting silently.
-UIPATH_SCAFFOLD_MINOR = "2.14"
+# alongside the release rather than drifting silently. The floor is the
+# installed release itself: a Robot refuses a project on an older `uipath`
+# than it supports, so a scaffold must never ask for less than the CLI that
+# wrote it.
+UIPATH_SCAFFOLD_MINOR = "2.15"
 
 
 def generate_script(target_directory):
@@ -37,13 +42,14 @@ def generate_script(target_directory):
 def generate_pyproject(target_directory, project_name):
     project_toml_path = os.path.join(target_directory, PYTHON_CONFIGURATION_FILE)
     major, minor = (int(part) for part in UIPATH_SCAFFOLD_MINOR.split("."))
+    floor = importlib.metadata.version("uipath")
     toml_content = f"""[project]
 name = "{project_name}"
 version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "uipath>={major}.{minor}.0, <{major}.{minor + 1}.0"
+    "uipath>={floor}, <{major}.{minor + 1}.0"
 ]
 requires-python = ">=3.11"
 """
@@ -99,6 +105,24 @@ def _select_agent_framework(
     )
 
 
+@contextlib.contextmanager
+def _working_directory(directory: str) -> Iterator[None]:
+    """Run the enclosed block with `directory` as the current directory.
+
+    The agent frameworks' `new` middlewares scaffold into the current
+    directory, and they live in their own packages (uipath-langchain,
+    uipath-llamaindex, uipath-openai-agents), so `--dir` reaches them through
+    the cwd rather than through a signature every one of them would have to
+    grow first.
+    """
+    previous = os.getcwd()
+    os.chdir(directory)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
 def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
     """Offer the scaffold to the installed agent frameworks."""
     Middlewares.load_plugins()
@@ -144,10 +168,20 @@ def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
     "`uipath-langchain`). Only valid together with `--type agent`; picks "
     "which framework scaffolds when several are installed.",
 )
+@click.option(
+    "--dir",
+    "target_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Directory to scaffold the project into, created when missing. "
+    "Defaults to the current directory.",
+)
 @track_command("new")
-def new(name: str, project_type: str, agent_framework: str | None):
+def new(
+    name: str, project_type: str, agent_framework: str | None, target_dir: str | None
+):
     """Generate a quick-start project."""
-    directory = os.getcwd()
+    directory = os.path.abspath(target_dir) if target_dir else os.getcwd()
 
     if not name:
         console.error(
@@ -161,10 +195,14 @@ def new(name: str, project_type: str, agent_framework: str | None):
             "`--agent-framework` can only be used together with `--type agent`."
         )
 
+    if target_dir:
+        os.makedirs(directory, exist_ok=True)
+
     # Agent frameworks scaffold through the `new` middleware chain. A function
     # project never consults them.
     if scaffold_type is not ProjectType.FUNCTION:
-        result = _scaffold_agent(name, agent_framework)
+        with _working_directory(directory):
+            result = _scaffold_agent(name, agent_framework)
 
         if result.error_message:
             console.error(
@@ -188,15 +226,17 @@ def new(name: str, project_type: str, agent_framework: str | None):
                 "function project."
             )
 
-    with console.spinner(f"Creating new project {name} in current directory ..."):
+    location = f"in '{target_dir}'" if target_dir else "in current directory"
+    with console.spinner(f"Creating new project {name} {location} ..."):
         generate_script(directory)
         console.success("Created 'main.py' file.")
         generate_pyproject(directory, name)
         console.success(f"Created '{PYTHON_CONFIGURATION_FILE}' file.")
         generate_uipath_json(directory)
         console.success(f"Created '{UIPATH_CONFIG_FILE}' file.")
-        init_command = """uipath init"""
-        run_command = """uipath run main '{"message": "Hello World!"}'"""
+        prefix = f"cd {target_dir} && " if target_dir else ""
+        init_command = f"{prefix}uipath init"
+        run_command = f"""{prefix}uipath run main '{{"message": "Hello World!"}}'"""
         console.hint(f"""Initialize project: {click.style(init_command, fg="cyan")}""")
         console.hint(f"""Run project: {click.style(run_command, fg="cyan")}""")
 

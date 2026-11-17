@@ -6,6 +6,10 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common._bindings import (
+    GenericResourceOverwrite,
+    _resource_overwrites,
+)
 from uipath.platform.constants import (
     ENV_JOB_KEY,
     HEADER_JOB_KEY,
@@ -4418,3 +4422,38 @@ class TestJobKeyHeader:
 
         headers = mock_request.call_args[1]["headers"]
         assert HEADER_JOB_KEY not in headers
+
+
+class TestResourceOverride:
+    def test_bound_folder_replaces_callers_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'eu-index'&$expand=dataSource",
+            status_code=200,
+            json={"value": [{"id": "eu-index-id", "name": "eu-index"}]},
+        )
+        overwrite = GenericResourceOverwrite(
+            resource_type="index", name="eu-index", folder_path="Finance/EU"
+        )
+        token = _resource_overwrites.set({"index.test-index": overwrite})
+        try:
+            with patch.object(
+                service._folders_service, "retrieve_key", return_value="eu-folder-key"
+            ) as retrieve_key:
+                index = service.retrieve(
+                    name="test-index", folder_key="callers-folder-key"
+                )
+        finally:
+            _resource_overwrites.reset(token)
+
+        assert index.id == "eu-index-id"
+        retrieve_key.assert_called_once_with(folder_path="Finance/EU")
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.headers["x-uipath-folderkey"] == "eu-folder-key"

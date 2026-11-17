@@ -20,6 +20,7 @@ from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
+from ..common._span_utils import _SpanUtils
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 
@@ -210,6 +211,7 @@ def _apply_task_source(
     trace_id = UiPathConfig.trace_id
     if not (project_id and trace_id):
         return
+    parent_span_id = _SpanUtils.current_span_id()
     payload["taskSource"] = {
         "sourceName": source_name,
         "sourceId": project_id,
@@ -218,6 +220,7 @@ def _apply_task_source(
             "FolderKey": UiPathConfig.folder_key,
             "JobKey": UiPathConfig.job_key,
             "ProcessKey": UiPathConfig.process_uuid,
+            **({"ParentSpanId": parent_span_id} if parent_span_id else {}),
             **(custom_metadata or {}),
         },
         "jobId": UiPathConfig.job_key,

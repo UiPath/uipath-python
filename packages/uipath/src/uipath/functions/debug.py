@@ -270,6 +270,7 @@ class BreakpointController:
                                 "file": filepath,
                                 "line": lineno,
                                 "function": frame.f_code.co_name,
+                                "function_start_line": frame.f_code.co_firstlineno,
                                 "locals": _capture_frame_locals(frame),
                             },
                         )
@@ -554,6 +555,7 @@ class UiPathDebugFunctionsRuntime:
                 breakpoint_type="before",
                 current_state=data["locals"],
                 next_nodes=[],
+                metadata={"function_start_line": data["function_start_line"]},
             )
 
         # Terminal events, release the controller.

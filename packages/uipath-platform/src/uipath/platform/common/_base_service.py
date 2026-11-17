@@ -21,7 +21,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from uipath.platform.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_TRACEPARENT_ID, HEADER_USER_AGENT
 
 from ..errors import EnrichedException
 from ._config import UiPathApiConfig
@@ -63,9 +63,6 @@ def _get_caller_component() -> str:
     except Exception:
         pass
     return ""
-
-
-_TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
 
 
 def resolve_trace_id(fallback: str | None = None) -> str | None:
@@ -129,15 +126,16 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
     remapping the LLMOps exporter applies), falling back to the OTEL trace ID.
     Span ID: uses the LLMOps tool span (via external span provider) so the
     span ID matches what's visible in the LLMOps trace UI.
+
+    A trace header already in ``headers`` is left as is: the caller chose it.
     """
-    from uipath.core.tracing.span_utils import UiPathSpanUtils
+    if HEADER_TRACEPARENT_ID in headers:
+        return
 
     from ._config import UiPathConfig
     from ._span_utils import _SpanUtils
 
-    llmops_span = UiPathSpanUtils.get_external_current_span()
-    span = llmops_span or trace.get_current_span()
-    ctx = span.get_span_context()
+    ctx = _SpanUtils.current_span().get_span_context()
     if not (ctx.trace_id and ctx.span_id):
         return
 
@@ -148,7 +146,7 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
         else format_trace_id(ctx.trace_id)
     )
     span_id = format_span_id(ctx.span_id)
-    headers[_TRACE_PARENT_HEADER] = f"00-{trace_id}-{span_id}-01"
+    headers[HEADER_TRACEPARENT_ID] = f"00-{trace_id}-{span_id}-01"
 
 
 class BaseService:

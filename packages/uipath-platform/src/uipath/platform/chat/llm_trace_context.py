@@ -1,7 +1,6 @@
 """W3C-style trace context headers for LLM Gateway requests."""
 
 from opentelemetry import trace
-from uipath.core.feature_flags import FeatureFlags
 from uipath.core.tracing.span_utils import UiPathSpanUtils
 
 from ..common._config import UiPathConfig
@@ -21,12 +20,9 @@ def build_trace_context_headers(
         extra_baggage: Additional baggage entries (e.g. ``["source=agents"]``)
             that callers can inject alongside the platform-level entries.
 
-    Returns an empty dict when the ``EnableTraceContextHeaders`` feature flag
-    is not enabled, or when no active span is present.
+    Returns an empty dict when there is no active span and no platform-level
+    baggage to send.
     """
-    if not FeatureFlags.is_flag_enabled("EnableTraceContextHeaders"):
-        return {}
-
     headers: dict[str, str] = {}
     llmops_span = UiPathSpanUtils.get_external_current_span()
     span = llmops_span or trace.get_current_span()

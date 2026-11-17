@@ -197,6 +197,23 @@ class ConfigurationManager:
         return self._read_internal_argument("isDebug") is True
 
     @property
+    def conversation_id(self) -> str | None:
+        """The conversation id of a conversational run, or None for any other run.
+
+        Read from the ``fpsProperties`` of the config file, where a conversational
+        job carries it as ``conversationalService.conversationId``.
+        """
+        fps_properties = self._config_data.get("fpsProperties")
+        if not isinstance(fps_properties, dict):
+            return None
+        conversation_id = fps_properties.get("conversationalService.conversationId")
+        return (
+            conversation_id
+            if isinstance(conversation_id, str) and conversation_id
+            else None
+        )
+
+    @property
     def is_tracing_enabled(self) -> bool:
         from uipath.platform.constants import ENV_TRACING_ENABLED
 
@@ -206,22 +223,26 @@ class ConfigurationManager:
         """Reset mutable cached state to defaults."""
         self.studio_solution_id = None
         # Invalidate cached_property by removing from instance __dict__
-        self.__dict__.pop("_internal_arguments", None)
+        self.__dict__.pop("_config_data", None)
 
     def _read_internal_argument(self, key: str) -> Any:
         internal_args = self._internal_arguments
         return internal_args.get(key) if internal_args else None
 
-    @cached_property
+    @property
     def _internal_arguments(self) -> dict[str, Any] | None:
+        return self._config_data.get("runtime", {}).get("internalArguments")
+
+    @cached_property
+    def _config_data(self) -> dict[str, Any]:
         import json
 
         try:
             with open(self.config_file_path, "r") as f:
                 data = json.load(f)
-                return data.get("runtime", {}).get("internalArguments")
         except (FileNotFoundError, json.JSONDecodeError):
-            return None
+            return {}
+        return data if isinstance(data, dict) else {}
 
 
 UiPathConfig = ConfigurationManager()

@@ -72,7 +72,11 @@ class SearchSettings(BaseModel):
 
 
 class MemoryMatchField(BaseModel):
-    """A field within a search result, with scoring details."""
+    """A field within a search result, with scoring details.
+
+    ``semantic_score`` is the field's vector similarity, as distinct from
+    ``score``.
+    """
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -80,6 +84,7 @@ class MemoryMatchField(BaseModel):
     value: str = Field(..., alias="value")
     weight: float = Field(..., alias="weight")
     score: float = Field(..., alias="score")
+    semantic_score: Optional[float] = Field(None, alias="semanticScore")
     weighted_score: float = Field(..., alias="weightedScore")
 
 

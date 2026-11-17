@@ -6,6 +6,7 @@ from uipath.core.guardrails import (
     AllFieldsSelector,
     FieldReference,
     FieldSource,
+    GuardrailValidationErrorType,
     GuardrailValidationResult,
     GuardrailValidationResultType,
 )
@@ -103,3 +104,57 @@ class TestGuardrailValidationResultFlaggedAttachmentIds:
         assert "flaggedAttachmentIds" not in result.model_dump(
             by_alias=True, exclude_none=True
         )
+
+
+class TestGuardrailValidationResultErrorType:
+    """Test GuardrailValidationResult.error_type."""
+
+    def test_enum_values(self) -> None:
+        assert GuardrailValidationErrorType.PROVIDER_ERROR.value == "provider_error"
+        assert GuardrailValidationErrorType.INTERNAL_ERROR.value == "internal_error"
+        assert (
+            GuardrailValidationErrorType.RATE_LIMIT_EXCEEDED.value
+            == "rate_limit_exceeded"
+        )
+
+    def test_defaults_to_none(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.VALIDATION_FAILED, reason=""
+        )
+        assert result.error_type is None
+
+    def test_populates_from_alias(self) -> None:
+        result = GuardrailValidationResult.model_validate(
+            {
+                "result": "validation_failed",
+                "reason": "Judge model rejected the request",
+                "errorType": "provider_error",
+            }
+        )
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.error_type == GuardrailValidationErrorType.PROVIDER_ERROR
+
+    def test_populates_from_field_name(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.VALIDATION_FAILED,
+            reason="",
+            error_type=GuardrailValidationErrorType.RATE_LIMIT_EXCEEDED,
+        )
+        assert result.error_type == GuardrailValidationErrorType.RATE_LIMIT_EXCEEDED
+
+    def test_round_trips_by_alias(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.VALIDATION_FAILED,
+            reason="",
+            error_type=GuardrailValidationErrorType.INTERNAL_ERROR,
+        )
+        dumped = result.model_dump(by_alias=True)
+        assert dumped["errorType"] == GuardrailValidationErrorType.INTERNAL_ERROR
+        assert GuardrailValidationResult.model_validate(dumped) == result
+
+    def test_dumps_none_by_alias(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.PASSED, reason=""
+        )
+        assert result.model_dump(by_alias=True)["errorType"] is None
+        assert "errorType" not in result.model_dump(by_alias=True, exclude_none=True)
