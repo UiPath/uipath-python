@@ -9,7 +9,6 @@ does: ``BaseService.request`` redirects the call and injects the routing headers
 """
 
 import logging
-import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
@@ -35,12 +34,6 @@ _BASE = "ontology_/api/v1/ontology"
 
 #: What ``download_artifacts`` puts in a prompt at most, per file.
 DEFAULT_MAX_ARTIFACT_BYTES = 256_000
-
-#: The service reads 50 rows without a LIMIT and caps a LIMIT at 200.
-MAX_SQL_LIMIT = 200
-
-_HAS_LIMIT = re.compile(r"\blimit\b", re.IGNORECASE)
-_HAS_OFFSET = re.compile(r"\boffset\b", re.IGNORECASE)
 
 
 def _segment(value: str, what: str) -> str:
@@ -379,8 +372,6 @@ class OntologyService(BaseService):
         statement: str,
         params: Optional[Dict[str, Any]] = None,
         *,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> SqlResult:
@@ -391,14 +382,13 @@ class OntologyService(BaseService):
         the mapped entities and runs it with the caller's permissions. Values go in
         ``params``, never in the statement text.
 
+        Paging is part of the statement: without a LIMIT the service reads 50 rows,
+        a LIMIT is at most 200, and OFFSET with ORDER BY reads a later page.
+
         Args:
             ontology_id: The ontology's id, or its name with a folder.
             statement: The SELECT, with ``:name`` placeholders.
             params: Values for the placeholders.
-            limit: Rows to read, at most 200. Without one the service reads 50.
-                Appended as a LIMIT clause; the statement must not have one already.
-            offset: Rows to skip, for a later page; pair with ORDER BY. Appended as
-                an OFFSET clause; the statement must not have one already.
             folder_key: The key of the ontology's folder; needed when addressing by name.
             folder_path: The path of the ontology's folder; exclusive with ``folder_key``.
 
@@ -406,12 +396,9 @@ class OntologyService(BaseService):
             SqlResult: columns, rows as objects, and the row count.
 
         Raises:
-            ValueError: If the statement is blank, a bound is out of range, or a
-                bound is given for a statement that already has that clause.
+            ValueError: If the statement is blank.
         """
-        spec = self._sql_spec(
-            ontology_id, statement, params, limit, offset, folder_key, folder_path
-        )
+        spec = self._sql_spec(ontology_id, statement, params, folder_key, folder_path)
         response = self.request(
             spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
@@ -429,15 +416,11 @@ class OntologyService(BaseService):
         statement: str,
         params: Optional[Dict[str, Any]] = None,
         *,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
     ) -> SqlResult:
         """Run one SELECT over the ontology's objects. See :meth:`execute_sql`."""
-        spec = self._sql_spec(
-            ontology_id, statement, params, limit, offset, folder_key, folder_path
-        )
+        spec = self._sql_spec(ontology_id, statement, params, folder_key, folder_path)
         response = await self.request_async(
             spec.method, url=spec.endpoint, json=spec.json, headers=spec.headers
         )
@@ -505,8 +488,6 @@ class OntologyService(BaseService):
         ontology_id: str,
         statement: str,
         params: Optional[Dict[str, Any]],
-        limit: Optional[int],
-        offset: Optional[int],
         folder_key: Optional[str],
         folder_path: Optional[str],
     ) -> RequestSpec:
@@ -514,7 +495,7 @@ class OntologyService(BaseService):
             method="POST",
             endpoint=Endpoint(f"{_BASE}/{_segment(ontology_id, 'ontology_id')}/sql"),
             json={
-                "statement": _bounded_statement(statement, limit, offset),
+                "statement": _checked_statement(statement),
                 "params": params or {},
             },
             headers=header_folder(folder_key, folder_path),
@@ -570,32 +551,11 @@ def _verify(content: OntologyArtifactContent, expected: OntologyArtifact) -> Non
         )
 
 
-def _bounded_statement(
-    statement: str, limit: Optional[int], offset: Optional[int]
-) -> str:
-    """The statement with LIMIT and OFFSET appended as integers, never as text.
+def _checked_statement(statement: str) -> str:
+    """The statement without trailing whitespace or ``;``, once it is known not blank.
 
-    The service takes paging from the statement itself, so the bounds become
-    clauses; they are validated integers, so nothing from the caller is spliced in
-    as SQL text.
+    Nothing is appended, so a trailing comment cannot swallow any clause.
     """
     if not statement or not statement.strip():
         raise ValueError("statement must be a non-empty SELECT")
-    bounded = statement.rstrip().rstrip(";")
-    if limit is not None:
-        if isinstance(limit, bool) or not isinstance(limit, int):
-            raise ValueError("limit must be an int")
-        if not 1 <= limit <= MAX_SQL_LIMIT:
-            raise ValueError(f"limit must be between 1 and {MAX_SQL_LIMIT}")
-        if _HAS_LIMIT.search(bounded):
-            raise ValueError("statement already has a LIMIT; pass one or the other")
-        bounded = f"{bounded} LIMIT {int(limit)}"
-    if offset is not None:
-        if isinstance(offset, bool) or not isinstance(offset, int):
-            raise ValueError("offset must be an int")
-        if offset < 0:
-            raise ValueError("offset must be 0 or more")
-        if _HAS_OFFSET.search(bounded):
-            raise ValueError("statement already has an OFFSET; pass one or the other")
-        bounded = f"{bounded} OFFSET {int(offset)}"
-    return bounded
+    return statement.rstrip().rstrip(";")

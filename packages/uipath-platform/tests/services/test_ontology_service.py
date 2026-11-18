@@ -23,7 +23,7 @@ from uipath.platform.ontology import (
     OntologyService,
     SqlResult,
 )
-from uipath.platform.ontology._ontology_service import _bounded_statement
+from uipath.platform.ontology._ontology_service import _checked_statement
 
 ONTOLOGY_ID = "c0d9f850-ba58-443e-8c54-0bc4bd68f202"
 FOLDER_KEY = "f65ca4a9-5c89-49f5-a144-78e510f6ea6c"
@@ -292,8 +292,6 @@ class TestOntologyService:
             ONTOLOGY_ID,
             "SELECT name FROM Supplier WHERE country = :c",
             {"c": "RO"},
-            limit=2,
-            offset=4,
         )
 
         assert isinstance(result, SqlResult)
@@ -305,9 +303,7 @@ class TestOntologyService:
         assert request.method == "POST"
         body = json.loads(request.content)
         assert body["params"] == {"c": "RO"}
-        assert body["statement"] == (
-            "SELECT name FROM Supplier WHERE country = :c LIMIT 2 OFFSET 4"
-        )
+        assert body["statement"] == "SELECT name FROM Supplier WHERE country = :c"
 
     async def test_execute_sql_without_declared_columns(
         self, httpx_mock: HTTPXMock, service: OntologyService, api: str
@@ -366,31 +362,14 @@ class TestOntologyService:
         assert "x-uipath-folderpath" in {k.lower() for k in request.headers.keys()}
 
 
-class TestBoundedStatement:
-    def test_no_bounds_leaves_the_statement_alone(self) -> None:
-        assert _bounded_statement("SELECT 1;", None, None) == "SELECT 1"
+class TestCheckedStatement:
+    def test_leaves_paging_words_and_comments_alone(self) -> None:
+        statement = "SELECT n FROM Supplier WHERE n < :limit ORDER BY n -- page"
+        assert _checked_statement(statement + "\n") == statement
 
-    def test_appends_limit_and_offset_as_integers(self) -> None:
-        assert (
-            _bounded_statement("SELECT a FROM B ORDER BY a", 10, 20)
-            == "SELECT a FROM B ORDER BY a LIMIT 10 OFFSET 20"
-        )
-
-    @pytest.mark.parametrize("limit", [0, 201, True, "5"])
-    def test_rejects_a_limit_out_of_range_or_not_an_int(self, limit: Any) -> None:
-        with pytest.raises(ValueError, match="limit"):
-            _bounded_statement("SELECT 1", limit, None)
-
-    def test_rejects_a_negative_offset(self) -> None:
-        with pytest.raises(ValueError, match="offset"):
-            _bounded_statement("SELECT 1", None, -1)
-
-    def test_refuses_to_double_a_clause(self) -> None:
-        with pytest.raises(ValueError, match="already has a LIMIT"):
-            _bounded_statement("SELECT 1 LIMIT 5", 10, None)
-        with pytest.raises(ValueError, match="already has an OFFSET"):
-            _bounded_statement("SELECT 1 OFFSET 5", None, 10)
+    def test_drops_a_trailing_semicolon(self) -> None:
+        assert _checked_statement("SELECT 1;  ") == "SELECT 1"
 
     def test_rejects_a_blank_statement(self) -> None:
         with pytest.raises(ValueError, match="non-empty"):
-            _bounded_statement("  ", None, None)
+            _checked_statement("  ")
