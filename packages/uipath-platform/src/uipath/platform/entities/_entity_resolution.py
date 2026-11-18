@@ -385,10 +385,31 @@ def finalize_resolution_plan(
         folders_map=resolved_folders_map,
         effective_entity_names=draft.effective_entity_names,
         routing_context=build_resolution_routing_context(
-            resolved_folders_map,
-            draft.effective_entity_names,
+            _folders_by_resolved_name(
+                resolved_folders_map, draft.effective_entity_names
+            ),
+            {},
         ),
     )
+
+
+def _folders_by_resolved_name(
+    folders_map: dict[str, str],
+    effective_entity_names: dict[str, str],
+) -> dict[str, str]:
+    folders: dict[str, str] = {}
+    original_by_resolved: dict[str, str] = {}
+    for original_name, folder_key in folders_map.items():
+        resolved_name = effective_entity_names.get(original_name, original_name)
+        other = original_by_resolved.get(resolved_name.lower())
+        if other is not None:
+            raise ValueError(
+                f"Entities '{other}' and '{original_name}' both resolve to "
+                f"'{resolved_name}'; queries cannot tell them apart."
+            )
+        original_by_resolved[resolved_name.lower()] = original_name
+        folders[resolved_name] = folder_key
+    return folders
 
 
 def build_resolution_routing_context(

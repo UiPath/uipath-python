@@ -856,9 +856,8 @@ class TestEntitiesService:
         ) == {
             "entityRoutings": [
                 {
-                    "entityName": "Customers",
+                    "entityName": "Overwritten Customers",
                     "folderId": "known-folder-key",
-                    "overrideEntityName": "Overwritten Customers",
                 }
             ]
         }
@@ -866,6 +865,91 @@ class TestEntitiesService:
             "Overwritten Customers",
             "known-folder-key",
         )
+
+    def test_resolve_entity_set_chained_overwrites_route_by_resolved_names(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+    ) -> None:
+        service = EntitiesService(
+            config=config,
+            execution_context=execution_context,
+        )
+        service.retrieve_by_name = MagicMock(  # type: ignore[method-assign]
+            return_value=MagicMock(spec=Entity)
+        )
+
+        token = _resource_overwrites.set(
+            {
+                "entity.entity-a": EntityResourceOverwrite(
+                    resource_type="entity", name="B", folder_id="folder-b"
+                ),
+                "entity.entity-b": EntityResourceOverwrite(
+                    resource_type="entity", name="C", folder_id="folder-c"
+                ),
+            }
+        )
+        try:
+            resolution = service.resolve_entity_set(
+                [
+                    DataFabricEntityItem(
+                        id="entity-a", name="A", folder_key="folder-a"
+                    ),
+                    DataFabricEntityItem(
+                        id="entity-b", name="B", folder_key="folder-a"
+                    ),
+                ]
+            )
+        finally:
+            _resource_overwrites.reset(token)
+
+        assert resolution.entities_service._routing_strategy.routing_context is not None
+        assert resolution.entities_service._routing_strategy.routing_context.model_dump(
+            by_alias=True, exclude_none=True
+        ) == {
+            "entityRoutings": [
+                {"entityName": "B", "folderId": "folder-b"},
+                {"entityName": "C", "folderId": "folder-c"},
+            ]
+        }
+
+    def test_resolve_entity_set_rejects_two_entities_resolving_to_same_name(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+    ) -> None:
+        service = EntitiesService(
+            config=config,
+            execution_context=execution_context,
+        )
+        service.retrieve_by_name = MagicMock(  # type: ignore[method-assign]
+            return_value=MagicMock(spec=Entity)
+        )
+        service.retrieve = MagicMock(  # type: ignore[method-assign]
+            return_value=MagicMock(spec=Entity)
+        )
+
+        token = _resource_overwrites.set(
+            {
+                "entity.entity-a": EntityResourceOverwrite(
+                    resource_type="entity", name="B", folder_id="folder-b"
+                ),
+            }
+        )
+        try:
+            with pytest.raises(ValueError, match="both resolve to 'B'"):
+                service.resolve_entity_set(
+                    [
+                        DataFabricEntityItem(
+                            id="entity-a", name="A", folder_key="folder-a"
+                        ),
+                        DataFabricEntityItem(
+                            id="entity-b", name="B", folder_key="folder-a"
+                        ),
+                    ]
+                )
+        finally:
+            _resource_overwrites.reset(token)
 
     @pytest.mark.asyncio
     async def test_resolve_entity_set_async_resolves_folder_paths_before_fetch(
@@ -914,9 +998,8 @@ class TestEntitiesService:
         ) == {
             "entityRoutings": [
                 {
-                    "entityName": "Customers",
+                    "entityName": "Overwritten Customers",
                     "folderId": "resolved-folder-id",
-                    "overrideEntityName": "Overwritten Customers",
                 }
             ]
         }
@@ -2723,6 +2806,73 @@ class TestEntitiesServiceAsyncCoverage:
         )
         entities = await service.list_entities_async()
         assert len(entities) == 1
+
+    def test_list_entities_paginated_v3_returns_one_page(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/paginated?skip=2&top=2",
+            status_code=200,
+            json={
+                "totalCount": 5,
+                "results": [
+                    {
+                        "name": f"Entity{i}",
+                        "displayName": f"Entity{i}",
+                        "entityType": "Entity",
+                        "isRbacEnabled": False,
+                        "id": f"ent-{i}",
+                    }
+                    for i in (2, 3)
+                ],
+            },
+        )
+        page = service.list_entities_paginated_v3(skip=2, top=2)
+        assert [e.id for e in page.items] == ["ent-2", "ent-3"]
+        assert page.items[0].fields is None
+        assert page.has_more
+        assert (page.skip, page.top) == (2, 2)
+
+    async def test_list_entities_paginated_v3_async_last_page(
+        self,
+        httpx_mock: HTTPXMock,
+        service: EntitiesService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/datafabric_/api/v3/entities/paginated?skip=0&top=50",
+            status_code=200,
+            json={
+                "totalCount": 1,
+                "results": [
+                    {
+                        "name": "Customers",
+                        "displayName": "Customers",
+                        "entityType": "Entity",
+                        "isRbacEnabled": False,
+                        "id": "ent-1",
+                    }
+                ],
+            },
+        )
+        page = await service.list_entities_paginated_v3_async()
+        assert [e.name for e in page.items] == ["Customers"]
+        assert not page.has_more
+
+    def test_list_entities_paginated_v3_rejects_top_above_200(
+        self, service: EntitiesService
+    ) -> None:
+        with pytest.raises(ValueError, match="top must be <= 200"):
+            service.list_entities_paginated_v3(top=201)
 
     async def test_list_records_async(
         self,

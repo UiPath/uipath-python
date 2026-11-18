@@ -235,3 +235,84 @@ class TestResolveCodedAgentHubConfig:
         assert (
             resolve_coded_agenthub_config() == AGENTHUB_CONFIG_CODED_AGENTS_PLAYGROUND
         )
+
+
+class TestConversationId:
+    @pytest.fixture(autouse=True)
+    def _isolated_config(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        UiPathConfig.reset()
+        yield
+        UiPathConfig.reset()
+
+    @staticmethod
+    def _write_config(path: Path, content: str) -> None:
+        path.write_text(content)
+        UiPathConfig.reset()
+
+    def test_reads_conversation_id_from_fps_properties(self, tmp_path):
+        self._write_config(
+            tmp_path / UIPATH_CONFIG_FILE,
+            '{"fpsProperties": {"conversationalService.conversationId": "conv-1",'
+            ' "conversationalService.exchangeId": "exchange-1"}}',
+        )
+        assert UiPathConfig.conversation_id == "conv-1"
+
+    def test_returns_none_without_config_file(self):
+        assert UiPathConfig.conversation_id is None
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            "{}",
+            '{"runtime": {"internalArguments": {}}}',
+            '{"fpsProperties": {}}',
+            '{"fpsProperties": []}',
+            '{"fpsProperties": {"conversationalService.conversationId": ""}}',
+            '{"fpsProperties": {"conversationalService.conversationId": 42}}',
+            "[]",
+            "not json",
+        ],
+    )
+    def test_returns_none_when_the_config_has_no_conversation_id(
+        self, tmp_path, content
+    ):
+        self._write_config(tmp_path / UIPATH_CONFIG_FILE, content)
+        assert UiPathConfig.conversation_id is None
+
+    def test_honors_config_path_override(self, monkeypatch, tmp_path):
+        custom = tmp_path / "custom.json"
+        monkeypatch.setenv(ENV_UIPATH_CONFIG_PATH, str(custom))
+        self._write_config(
+            custom,
+            '{"fpsProperties": {"conversationalService.conversationId": "conv-2"}}',
+        )
+        assert UiPathConfig.conversation_id == "conv-2"
+
+    def test_reset_rereads_the_config_file(self, tmp_path):
+        config = tmp_path / UIPATH_CONFIG_FILE
+        self._write_config(
+            config,
+            '{"fpsProperties": {"conversationalService.conversationId": "conv-1"}}',
+        )
+        assert UiPathConfig.conversation_id == "conv-1"
+
+        config.write_text(
+            '{"fpsProperties": {"conversationalService.conversationId": "conv-2"}}'
+        )
+        assert UiPathConfig.conversation_id == "conv-1"
+
+        UiPathConfig.reset()
+        assert UiPathConfig.conversation_id == "conv-2"
+
+    def test_internal_arguments_and_conversation_id_come_from_the_same_file(
+        self, tmp_path
+    ):
+        self._write_config(
+            tmp_path / UIPATH_CONFIG_FILE,
+            '{"runtime": {"internalArguments": {"licensingContext": "ctx", "isDebug": true}},'
+            ' "fpsProperties": {"conversationalService.conversationId": "conv-1"}}',
+        )
+        assert UiPathConfig.licensing_context == "ctx"
+        assert UiPathConfig.is_rooted_to_debug_job is True
+        assert UiPathConfig.conversation_id == "conv-1"

@@ -100,7 +100,12 @@ class ExternalApplicationService:
             raise Exception(f"Unexpected error during authentication: {e}") from e
 
     def get_token_data(
-        self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
+        self,
+        client_id: str,
+        client_secret: str | None = None,
+        scope: Optional[str] = "OR.Execution",
+        *,
+        client_assertion: str | None = None,
     ) -> TokenData:
         """Authenticate using client credentials flow.
 
@@ -108,6 +113,7 @@ class ExternalApplicationService:
             client_id: The client ID for authentication
             client_secret: The client secret for authentication
             scope: The scope for the token (default: OR.Execution)
+            client_assertion: An OIDC token from a federated identity provider, used instead of the client secret
 
         Returns:
             Token data if successful
@@ -117,10 +123,16 @@ class ExternalApplicationService:
                 client_id=client_id,
                 client_secret=client_secret,
                 scope=scope,
+                client_assertion=client_assertion,
             )
 
     async def get_token_data_async(
-        self, client_id: str, client_secret: str, scope: Optional[str] = "OR.Execution"
+        self,
+        client_id: str,
+        client_secret: str | None = None,
+        scope: Optional[str] = "OR.Execution",
+        *,
+        client_assertion: str | None = None,
     ) -> TokenData:
         """Authenticate using client credentials flow.
 
@@ -128,6 +140,7 @@ class ExternalApplicationService:
             client_id: The client ID for authentication
             client_secret: The client secret for authentication
             scope: The scope for the token (default: OR.Execution)
+            client_assertion: An OIDC token from a federated identity provider, used instead of the client secret
 
         Returns:
             Token data if successful
@@ -137,4 +150,5 @@ class ExternalApplicationService:
                 client_id=client_id,
                 client_secret=client_secret,
                 scope=scope,
+                client_assertion=client_assertion,
             )
