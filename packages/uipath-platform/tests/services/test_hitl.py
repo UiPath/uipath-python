@@ -72,7 +72,10 @@ from uipath.platform.documents import (
     ValidateExtractionAction,
 )
 from uipath.platform.documents.documents import DocumentsApiVersion
-from uipath.platform.errors import ContextGroundingIndexNotFoundError
+from uipath.platform.errors import (
+    AppNotFoundError,
+    ContextGroundingIndexNotFoundError,
+)
 from uipath.platform.orchestrator import Job, JobErrorInfo
 from uipath.platform.orchestrator.job import JobState
 from uipath.platform.resume_triggers import (
@@ -1286,6 +1289,39 @@ class TestHitlProcessor:
                 task_source_metadata=None,
                 source_name="Agent",
             )
+
+    @pytest.mark.anyio
+    async def test_missing_task_app_is_deployment_error(
+        self,
+        setup_test_env: None,
+    ) -> None:
+        """A missing Action Center app is the caller's deployment, not a system fault."""
+        create_action = CreateTask(
+            title="Test Action",
+            app_name="TestApp",
+            app_folder_path="/test/path",
+            data={"input": "test-input"},
+        )
+        missing_app = AppNotFoundError(
+            "App 'TestApp' was not found in folder with fully qualified name "
+            "'/test/path'"
+        )
+
+        with patch(
+            "uipath.platform.action_center._tasks_service.TasksService.create_async",
+            new=AsyncMock(side_effect=missing_app),
+        ):
+            with pytest.raises(UiPathFaultedTriggerError) as exc_info:
+                await UiPathResumeTriggerCreator().create_trigger(create_action)
+
+        error = exc_info.value
+        assert error.category == ErrorCategory.DEPLOYMENT
+        assert error.message == (
+            "Action app not found. Check that the app is deployed and available in "
+            "the configured folder."
+        )
+        assert error.detail == str(missing_app)
+        assert error.__cause__ is missing_app
 
     @pytest.mark.anyio
     async def test_create_resume_trigger_wait_task(

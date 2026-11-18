@@ -15,6 +15,7 @@ from uipath.platform.action_center._tasks_service import (
 )
 from uipath.platform.action_center.tasks import TaskRecipient, TaskRecipientType
 from uipath.platform.constants import HEADER_USER_AGENT
+from uipath.platform.errors import AppNotFoundError
 
 
 @pytest.fixture
@@ -633,7 +634,7 @@ class TestCreateFiltersByFolder:
         )
 
         with pytest.raises(
-            Exception, match="'my-app' was not found in the current tenant"
+            AppNotFoundError, match="'my-app' was not found in the current tenant"
         ):
             tasks_service.create(title="Test", app_name="my-app")
 
@@ -658,7 +659,7 @@ class TestCreateFiltersByFolder:
         )
 
         with pytest.raises(
-            Exception,
+            AppNotFoundError,
             match="'my-app' was not found in folder with fully qualified name 'folder-b'",
         ):
             tasks_service.create(
@@ -686,7 +687,7 @@ class TestCreateFiltersByFolder:
         )
 
         with pytest.raises(
-            Exception,
+            AppNotFoundError,
             match="'my-app' was not found in folder with identifier 'wrong-key'",
         ):
             tasks_service.create(
