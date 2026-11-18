@@ -126,6 +126,16 @@ class TestPush:
                 text="Remote file content" if not file_content else file_content,
             )
 
+    def _mock_entry_points_upload(
+        self, httpx_mock: HTTPXMock, base_url: str, project_id: str
+    ):
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints",
+            status_code=200,
+            text='"entry-points-file-id"',
+        )
+
     def _create_required_files(self, exclude: list[str] | None = None):
         required_files = ["uipath.json", "bindings.json", "entry-points.json"]
         for file in required_files:
@@ -296,7 +306,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         self._mock_file_download(httpx_mock, "123")
         self._mock_file_download(httpx_mock, "456")
@@ -325,6 +335,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         # Mock empty folder cleanup - get structure again after migration
         httpx_mock.add_response(
@@ -419,7 +430,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         self._mock_file_download(httpx_mock, "123")
 
@@ -429,6 +440,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         # Mock empty folder cleanup - get structure again after migration
         httpx_mock.add_response(
@@ -534,7 +546,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -543,6 +555,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -810,7 +823,7 @@ class TestPush:
             json={"id": project_id, "projectType": "Function"},
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         httpx_mock.add_response(
             method="POST",
@@ -818,6 +831,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -947,7 +961,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
         self._mock_file_download(httpx_mock, "789")
         self._mock_file_download(httpx_mock, "456")
@@ -958,6 +972,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1034,7 +1049,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         self._mock_file_download(httpx_mock, "123")
         httpx_mock.add_response(
@@ -1043,6 +1058,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1113,7 +1129,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -1122,6 +1138,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1191,7 +1208,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -1200,6 +1217,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1281,7 +1299,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -1290,6 +1308,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1387,7 +1406,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         httpx_mock.add_response(
             method="POST",
@@ -1395,6 +1414,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1507,7 +1527,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         self._mock_file_download(httpx_mock, "123")
         self._mock_file_download(httpx_mock, "456")
@@ -1518,6 +1538,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             self._create_required_files()
@@ -1594,7 +1615,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         self._mock_file_download(httpx_mock, "123")
         # Mock file downloads - return same content as local files
@@ -1607,6 +1628,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             self._create_required_files()
@@ -1664,7 +1686,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -1673,6 +1695,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1758,7 +1781,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -1767,6 +1790,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1844,7 +1868,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
         self._mock_file_download(httpx_mock, "123")
 
         httpx_mock.add_response(
@@ -1853,6 +1877,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         httpx_mock.add_response(
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
@@ -1973,7 +1998,7 @@ class TestPush:
             json=mock_structure,
         )
 
-        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
 
         self._mock_file_download(httpx_mock, "main-456")
         self._mock_file_download(httpx_mock, "123")
@@ -1984,6 +2009,7 @@ class TestPush:
             status_code=200,
             json={"success": True},
         )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
 
         with runner.isolated_filesystem(temp_dir=temp_dir):
             self._create_required_files()
@@ -2021,6 +2047,180 @@ class TestPush:
             # Check that the deleted resource IDs are not present in the request
             assert b"evaluator-file-1" not in content
             assert b"eval-set-file-1" not in content
+
+    def _mock_structure_with_entry_points(
+        self, httpx_mock: HTTPXMock, base_url: str, project_id: str
+    ) -> None:
+        mock_structure = {
+            "id": "root",
+            "name": "root",
+            "folders": [],
+            "files": [
+                {
+                    "id": "123",
+                    "name": "main.py",
+                    "isMain": True,
+                    "fileType": "1",
+                    "isEntryPoint": True,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "456",
+                    "name": "pyproject.toml",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+                {
+                    "id": "898",
+                    "name": "entry-points.json",
+                    "isMain": False,
+                    "fileType": "1",
+                    "isEntryPoint": False,
+                    "ignoredFromPublish": False,
+                },
+            ],
+            "folderType": "0",
+        }
+        # Fetched before the upload and again by the empty-folder cleanup.
+        for _ in range(2):
+            httpx_mock.add_response(
+                url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/Structure",
+                json=mock_structure,
+            )
+
+    def test_push_writes_entry_points_through_entry_points_endpoint(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """entry-points.json goes through the EntryPoints endpoint, after the structural migration."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+        local_entry_points = {
+            "$schema": "https://cloud.uipath.com/draft/2024-12/entry-point",
+            "entryPoints": [
+                {
+                    "filePath": "main",
+                    "uniqueId": "c2a0b6a2-5e0e-4a4a-9a7a-2c5a3f6a1b10",
+                    "type": "agent",
+                    "input": {
+                        "type": "object",
+                        "properties": {"topic": {"type": "string"}},
+                    },
+                    "output": {"type": "object", "properties": {}},
+                }
+            ],
+        }
+
+        self._mock_structure_with_entry_points(httpx_mock, base_url, project_id)
+        # One lock lookup for the structural migration, one for the entry-points write.
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=2)
+        self._mock_file_download(httpx_mock, "123")
+        self._mock_file_download(httpx_mock, "456")
+        self._mock_file_download(httpx_mock, "898", file_content='{"entryPoints": []}')
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+        self._mock_entry_points_upload(httpx_mock, base_url, project_id)
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["entry-points.json"])
+            with open("entry-points.json", "w") as f:
+                json.dump(local_entry_points, f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0, result.output
+            assert "Updating 'entry-points.json'" in result.output
+
+            entry_points_url = f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints"
+            migration_url = f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration"
+
+            entry_points_request = httpx_mock.get_request(
+                method="POST", url=entry_points_url
+            )
+            assert entry_points_request is not None
+            assert json.loads(entry_points_request.content) == local_entry_points
+            assert entry_points_request.headers["Content-Type"] == "application/json"
+            assert (
+                entry_points_request.headers["x-uipath-sw-lockkey"] == "test-lock-key"
+            )
+
+            migration_request = httpx_mock.get_request(method="POST", url=migration_url)
+            assert migration_request is not None
+            assert b"entry-points.json" not in migration_request.content
+            assert (
+                b"ModifiedResources[0].Id\r\n\r\n898" not in migration_request.content
+            )
+
+            ordered_urls = [str(request.url) for request in httpx_mock.get_requests()]
+            assert ordered_urls.index(migration_url) < ordered_urls.index(
+                entry_points_url
+            )
+
+    def test_push_skips_entry_points_endpoint_when_unchanged(
+        self,
+        runner: CliRunner,
+        temp_dir: str,
+        project_details: ProjectDetails,
+        mock_env_vars: dict[str, str],
+        httpx_mock: HTTPXMock,
+    ) -> None:
+        """An unchanged entry-points.json is neither migrated nor re-announced."""
+        base_url = "https://cloud.uipath.com/organization"
+        project_id = "test-project-id"
+        local_entry_points = {"entryPoints": [{"filePath": "main", "type": "agent"}]}
+
+        self._mock_structure_with_entry_points(httpx_mock, base_url, project_id)
+        self._mock_lock_retrieval(httpx_mock, base_url, project_id, times=1)
+        self._mock_file_download(httpx_mock, "123")
+        self._mock_file_download(httpx_mock, "456")
+        self._mock_file_download(
+            httpx_mock, "898", file_content=json.dumps(local_entry_points, indent=4)
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
+            status_code=200,
+            json={"success": True},
+        )
+
+        with runner.isolated_filesystem(temp_dir=temp_dir):
+            self._create_required_files(exclude=["entry-points.json"])
+            with open("entry-points.json", "w") as f:
+                json.dump(local_entry_points, f)
+            with open("pyproject.toml", "w") as f:
+                f.write(project_details.to_toml())
+            with open("main.py", "w") as f:
+                f.write("print('Hello World')")
+
+            configure_env_vars(mock_env_vars)
+            os.environ["UIPATH_PROJECT_ID"] = project_id
+
+            result = runner.invoke(cli, ["push", "./", "--ignore-resources"])
+            assert result.exit_code == 0, result.output
+            assert "File 'entry-points.json' is up to date" in result.output
+            assert (
+                httpx_mock.get_request(
+                    method="POST",
+                    url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints",
+                )
+                is None
+            )
 
 
 class TestResourceCreation:
@@ -2099,6 +2299,7 @@ class TestResourceCreation:
                 "projectLockKey": "test-lock-key",
                 "solutionLockKey": "test-solution-lock-key",
             },
+            is_reusable=True,
         )
 
         httpx_mock.add_response(
@@ -2106,6 +2307,12 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints",
+            status_code=200,
+            text='"entry-points-file-id"',
         )
 
         httpx_mock.add_response(
@@ -2293,6 +2500,7 @@ class TestResourceCreation:
                 "projectLockKey": "test-lock-key",
                 "solutionLockKey": "test-solution-lock-key",
             },
+            is_reusable=True,
         )
 
         httpx_mock.add_response(
@@ -2300,6 +2508,12 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints",
+            status_code=200,
+            text='"entry-points-file-id"',
         )
 
         httpx_mock.add_response(
@@ -2407,6 +2621,7 @@ class TestResourceCreation:
                 "projectLockKey": "test-lock-key",
                 "solutionLockKey": "test-solution-lock-key",
             },
+            is_reusable=True,
         )
 
         httpx_mock.add_response(
@@ -2414,6 +2629,12 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints",
+            status_code=200,
+            text='"entry-points-file-id"',
         )
 
         httpx_mock.add_response(
@@ -2576,6 +2797,7 @@ class TestResourceCreation:
                 "projectLockKey": "test-lock-key",
                 "solutionLockKey": "test-solution-lock-key",
             },
+            is_reusable=True,
         )
 
         self._mock_file_download(httpx_mock, "123")
@@ -2584,6 +2806,12 @@ class TestResourceCreation:
             url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/StructuralMigration",
             status_code=200,
             json={"success": True},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base_url}/studio_/backend/api/Project/{project_id}/FileOperations/EntryPoints",
+            status_code=200,
+            text='"entry-points-file-id"',
         )
 
         httpx_mock.add_response(

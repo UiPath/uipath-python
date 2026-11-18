@@ -6,11 +6,13 @@ import os
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
+import anyio
 import click
 
 from uipath._cli.models.uipath_json_schema import PackOptions
 from uipath.platform.common import UiPathConfig
 from uipath.platform.constants import (
+    ENTRY_POINTS_FILE,
     EVALS_FOLDER,
     LEGACY_EVAL_FOLDER,
     PYTHON_CONFIGURATION_FILE,
@@ -162,15 +164,27 @@ class SwFileHandler:
         )
         processed_source_files: set[str] = set()
         updates: list[UpdateEvent] = []
+        # Written through the EntryPoints endpoint once the sources have landed,
+        # so Studio Web announces a contract that matches the uploaded code.
+        entry_points_content: str | None = None
 
         for local_file in local_files:
             if not os.path.exists(local_file.file_path):
                 logger.info(f"File not found: '{local_file.file_path}'")
                 continue
 
-            remote_file = remote_files.get(
-                local_file.relative_path.replace("\\", "/"), None
-            )
+            relative_path = local_file.relative_path.replace("\\", "/")
+            remote_file = remote_files.get(relative_path, None)
+
+            if relative_path == ENTRY_POINTS_FILE:
+                if remote_file:
+                    processed_source_files.add(remote_file.id)
+                (
+                    entry_points_content,
+                    entry_points_event,
+                ) = await self._prepare_entry_points_file(local_file, remote_file)
+                updates.append(entry_points_event)
+                continue
 
             if remote_file:
                 processed_source_files.add(remote_file.id)
@@ -288,10 +302,68 @@ class SwFileHandler:
             structural_migration
         )
 
+        if entry_points_content is not None:
+            await self._studio_client.set_entry_points_async(entry_points_content)
+
         # Clean up empty folders after migration
         await self._cleanup_empty_folders()
 
         return updates
+
+    async def _prepare_entry_points_file(
+        self,
+        local_file: FileInfo,
+        remote_file: ProjectFile | None,
+    ) -> tuple[str | None, UpdateEvent]:
+        """Decide whether entry-points.json must be written and describe the operation.
+
+        The file is kept out of the structural migration: Studio Web only raises
+        its entry-points-changed notification for the dedicated EntryPoints
+        endpoint, and that notification is what lets designers consuming this
+        project (for example a Flow that invokes it) refresh its inputs and
+        outputs. A plain file write updates the file silently.
+
+        Args:
+            local_file: The local entry-points.json.
+            remote_file: The remote entry-points.json, if the project has one.
+
+        Returns:
+            The content to send through the EntryPoints endpoint (None when the
+            remote copy is already identical) and the progress event to report.
+        """
+        local_content = await anyio.Path(local_file.file_path).read_text(
+            encoding="utf-8"
+        )
+
+        if remote_file is None:
+            return local_content, UpdateEvent(
+                file_path=local_file.file_path,
+                status="uploading",
+                message=f"Uploading '{local_file.file_name}'",
+            )
+
+        try:
+            remote_response = await self._studio_client.download_project_file_async(
+                remote_file
+            )
+            remote_content = remote_response.read().decode("utf-8")
+            if compute_normalized_hash(local_content) == compute_normalized_hash(
+                remote_content
+            ):
+                return None, UpdateEvent(
+                    file_path=local_file.file_path,
+                    status="up_to_date",
+                    message=f"File '{local_file.file_name}' is up to date",
+                )
+        except Exception as e:
+            logger.warning(f"Failed to compare file '{local_file.file_path}': {e}")
+            # If comparison fails, proceed with update
+
+        return local_content, UpdateEvent(
+            file_path=local_file.file_path,
+            status="updating",
+            message=f"Updating '{local_file.file_name}'",
+        )
 
     def _collect_deleted_files(
         self,

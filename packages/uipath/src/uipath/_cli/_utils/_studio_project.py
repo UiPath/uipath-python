@@ -855,6 +855,37 @@ class StudioClient:
         # response contains only the uploaded file identifier
         return response.json(), action
 
+    @traced(name="set_entry_points", run_type="uipath")
+    @with_lock_retry
+    async def set_entry_points_async(
+        self,
+        content: str,
+        headers: Optional[dict[str, Any]] = None,
+    ) -> str:
+        """Create or overwrite the project's entry-points.json.
+
+        Studio Web raises its entry-points-changed notification only for writes
+        made through this endpoint, not for plain file writes. Designers that
+        consume this project's contract (for example a Flow that invokes it)
+        refresh their copy of the inputs and outputs from that notification.
+
+        Args:
+            content: The JSON text of entry-points.json.
+            headers: HTTP headers (the lock key is injected by the decorator).
+
+        Returns:
+            str: The id of the entry-points.json file in the project.
+        """
+        request_headers = {**(headers or {}), "Content-Type": "application/json"}
+        response = await self.uipath.api_client.request_async(
+            "POST",
+            url=f"{self.file_operations_base_url}/EntryPoints",
+            scoped="org",
+            content=content.encode("utf-8"),
+            headers=request_headers,
+        )
+        return response.text.strip().strip('"')
+
     @traced(name="delete_file", run_type="uipath")
     @with_lock_retry
     async def delete_item_async(
