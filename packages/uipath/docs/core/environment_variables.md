@@ -50,11 +50,11 @@ To obtain the folder path, right-click on the folder in UiPath Orchestrator and 
 </picture>
 
 ### Skill Bundles
-Coded agents that load [skill bundles](./skills.md) choose where the bundles come from with these variables. None is required: without them an agent reads bundles from `./skills` in the current directory.
+Coded agents that load [skill bundles](./skills.md) choose where the bundles come from with these variables. None is required: without them an agent fetches bundles from Orchestrator.
 
 | Variable | Values | Default | Description |
 |----------|--------|---------|-------------|
-| `UIPATH_SKILLS_SOURCE` | `local`, `orchestrator` | `local` (until the Skills API ships) | `local` copies bundles from a folder; `orchestrator` is the Orchestrator Skills API, a placeholder that skips every bundle until the API ships. An unknown value falls back to `local` with a warning. |
+| `UIPATH_SKILLS_SOURCE` | `orchestrator`, `local` | `orchestrator` | `orchestrator` downloads bundles from Orchestrator; `local` copies them from a folder. An unknown value falls back to `orchestrator` with a warning. |
 | `UIPATH_SKILLS_LOCAL_ROOT` | path | `<cwd>/skills` | The folder the `local` source reads, laid out as `<bundle>/<skill>/SKILL.md` with an optional `<bundle>/bundle.json`. |
 
 A `SkillBundleRef` without a `folder_path` is looked up in the job's folder, which `UIPATH_FOLDER_PATH` or `UIPATH_FOLDER_KEY` supplies (see [Folder Configuration](#folder-configuration)).
