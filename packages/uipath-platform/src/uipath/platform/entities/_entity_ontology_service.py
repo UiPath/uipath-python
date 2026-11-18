@@ -1,8 +1,13 @@
 """Ontology-side operations for the Data Fabric entities surface.
 
+Deprecated: ontologies are served by the Ontology service (``ontology_/api/v1``)
+and addressed by id; use :class:`uipath.platform.ontology.OntologyService`. This
+module stays for callers of ``EntitiesService.get_ontology_file_async`` until they
+move.
+
 Handles retrieval of ontology component files (OWL schema, R2RML mapping, and
-other typed files). Entity schema and record operations are managed by
-`EntitySchemaService` / `EntityDataService` and exposed alongside
+other typed files) from Data Fabric. Entity schema and record operations are
+managed by `EntitySchemaService` / `EntityDataService` and exposed alongside
 ontology operations through `EntitiesService`.
 """
 

@@ -105,3 +105,17 @@ def test_other_folder_parameters_are_left_alone() -> None:
         )
     finally:
         _resource_overwrites.reset(token)
+
+
+def test_ontology_binding_parses_as_a_generic_name_and_folder_override() -> None:
+    from uipath.platform.common._bindings import ResourceOverwriteParser
+
+    overwrite = ResourceOverwriteParser.parse(
+        "ontology.c0d9f850-ba58-443e-8c54-0bc4bd68f202",
+        {"name": "nxorders", "folderPath": "Shared/NxOrdersSolution"},
+    )
+
+    assert isinstance(overwrite, GenericResourceOverwrite)
+    assert overwrite.resource_type == "ontology"
+    assert overwrite.resource_identifier == "nxorders"
+    assert overwrite.folder_identifier == "Shared/NxOrdersSolution"
