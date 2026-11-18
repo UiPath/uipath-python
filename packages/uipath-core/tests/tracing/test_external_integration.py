@@ -87,3 +87,49 @@ def test_external_span_provider_raises_exception(span_capture: SpanCapture):
 
     spans = span_capture.get_spans()
     assert len(spans) == 1
+
+
+def test_run_span_provider_returns_the_span_for_the_run():
+    """Test that get_run_span resolves through the registered provider."""
+    from uuid import uuid4
+
+    from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    run_id, other_run_id = uuid4(), uuid4()
+    span = trace.get_tracer("external").start_span("llm_call")
+    UiPathSpanUtils.register_run_span_provider({run_id: span}.get)
+
+    assert UiPathSpanUtils.get_run_span(run_id) is span
+    assert UiPathSpanUtils.get_run_span(other_run_id) is None
+
+    # Clean up
+    UiPathSpanUtils.register_run_span_provider(None)
+    span.end()
+
+
+def test_run_span_without_provider_returns_none():
+    """Test that get_run_span returns None when no provider is registered."""
+    from uuid import uuid4
+
+    from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    UiPathSpanUtils.register_run_span_provider(None)
+
+    assert UiPathSpanUtils.get_run_span(uuid4()) is None
+
+
+def test_run_span_provider_raises_exception():
+    """Test that exceptions from the run span provider are caught."""
+    from uuid import UUID, uuid4
+
+    from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+    def failing_provider(run_id: UUID):
+        raise RuntimeError("Provider failed!")
+
+    UiPathSpanUtils.register_run_span_provider(failing_provider)
+
+    assert UiPathSpanUtils.get_run_span(uuid4()) is None
+
+    # Clean up
+    UiPathSpanUtils.register_run_span_provider(None)
