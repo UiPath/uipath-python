@@ -8,8 +8,10 @@ Honors ``UIPATH_SERVICE_URL_ONTOLOGY`` for local development, as every service
 does: ``BaseService.request`` redirects the call and injects the routing headers.
 """
 
+import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+import uuid
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 from uipath.core.tracing import traced
@@ -21,10 +23,12 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import header_folder
 from ..common._models import Endpoint, RequestSpec
 from .ontology import (
+    ArtifactDownload,
     OntologyArtifact,
     OntologyArtifactContent,
     OntologyArtifactIntegrityError,
     OntologyDetails,
+    SkippedArtifact,
     SqlResult,
 )
 
@@ -34,6 +38,32 @@ _BASE = "ontology_/api/v1/ontology"
 
 #: What ``download_artifacts`` puts in a prompt at most, per file.
 DEFAULT_MAX_ARTIFACT_BYTES = 256_000
+
+#: How many artifacts ``download_artifacts_async`` fetches at once.
+MAX_CONCURRENT_DOWNLOADS = 4
+
+
+def _folder_headers(
+    folder_key: Optional[str], folder_path: Optional[str]
+) -> Dict[str, str]:
+    """Folder headers for a call, sending a folder key that arrived as a path.
+
+    A deploy-time override carries the ontology's folder in ``folderPath``, and the
+    Agents packager fills it with the folder key, a GUID. Sent as a path, the service
+    would look up a folder by that name and answer 404, so a GUID goes as the key,
+    as the entity planner does for the same binding shape.
+    """
+    if folder_key is None and folder_path and _is_guid(folder_path):
+        return header_folder(folder_path, None)
+    return header_folder(folder_key, folder_path)
+
+
+def _is_guid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _segment(value: str, what: str) -> str:
@@ -248,11 +278,12 @@ class OntologyService(BaseService):
         max_bytes: int = DEFAULT_MAX_ARTIFACT_BYTES,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> List[OntologyArtifactContent]:
+    ) -> ArtifactDownload:
         """Download every artifact of a type, verified against the manifest.
 
-        Files larger than ``max_bytes`` are skipped with a warning, since they are
-        meant for a prompt and would not fit.
+        Files larger than ``max_bytes`` are not downloaded. They come back in
+        ``skipped`` with their size, so a caller can tell a file that was too large
+        from one the ontology does not have.
 
         Args:
             ontology_id: The ontology's id, or its name with a folder.
@@ -262,23 +293,24 @@ class OntologyService(BaseService):
             folder_path: The path of the ontology's folder; exclusive with ``folder_key``.
 
         Returns:
-            List[OntologyArtifactContent]: the verified files, in manifest order.
+            ArtifactDownload: the verified files in manifest order, and the entries
+            skipped for size.
         """
         manifest = self.list_artifacts(
             ontology_id, artifact_type, folder_key=folder_key, folder_path=folder_path
         )
-        contents: List[OntologyArtifactContent] = []
-        for entry in self._within_budget(manifest, max_bytes):
-            contents.append(
-                self.get_artifact(
-                    ontology_id,
-                    entry.file_name,
-                    expected=entry,
-                    folder_key=folder_key,
-                    folder_path=folder_path,
-                )
+        kept, skipped = self._split_by_size(manifest, max_bytes)
+        files = [
+            self.get_artifact(
+                ontology_id,
+                entry.file_name,
+                expected=entry,
+                folder_key=folder_key,
+                folder_path=folder_path,
             )
-        return contents
+            for entry in kept
+        ]
+        return ArtifactDownload(files=files, skipped=skipped)
 
     @traced(name="ontology_download_artifacts", run_type="uipath")
     async def download_artifacts_async(
@@ -289,23 +321,31 @@ class OntologyService(BaseService):
         max_bytes: int = DEFAULT_MAX_ARTIFACT_BYTES,
         folder_key: Optional[str] = None,
         folder_path: Optional[str] = None,
-    ) -> List[OntologyArtifactContent]:
-        """Download every artifact of a type. See :meth:`download_artifacts`."""
+    ) -> ArtifactDownload:
+        """Download every artifact of a type. See :meth:`download_artifacts`.
+
+        The files are fetched concurrently, at most ``MAX_CONCURRENT_DOWNLOADS`` at a
+        time, and keep manifest order. Any failed or mismatched download fails the
+        call, as in the sync variant.
+        """
         manifest = await self.list_artifacts_async(
             ontology_id, artifact_type, folder_key=folder_key, folder_path=folder_path
         )
-        contents: List[OntologyArtifactContent] = []
-        for entry in self._within_budget(manifest, max_bytes):
-            contents.append(
-                await self.get_artifact_async(
+        kept, skipped = self._split_by_size(manifest, max_bytes)
+        limit = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+
+        async def fetch(entry: OntologyArtifact) -> OntologyArtifactContent:
+            async with limit:
+                return await self.get_artifact_async(
                     ontology_id,
                     entry.file_name,
                     expected=entry,
                     folder_key=folder_key,
                     folder_path=folder_path,
                 )
-            )
-        return contents
+
+        files = await asyncio.gather(*(fetch(entry) for entry in kept))
+        return ArtifactDownload(files=list(files), skipped=skipped)
 
     # ── graph ────────────────────────────────────────────────────────────
 
@@ -435,7 +475,7 @@ class OntologyService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"{_BASE}/{_segment(ontology_id, 'ontology_id')}"),
-            headers=header_folder(folder_key, folder_path),
+            headers=_folder_headers(folder_key, folder_path),
         )
 
     @staticmethod
@@ -454,7 +494,7 @@ class OntologyService(BaseService):
                 f"{_BASE}/{_segment(ontology_id, 'ontology_id')}/artifact"
             ),
             params=params,
-            headers=header_folder(folder_key, folder_path),
+            headers=_folder_headers(folder_key, folder_path),
         )
 
     @staticmethod
@@ -470,7 +510,7 @@ class OntologyService(BaseService):
                 f"{_BASE}/{_segment(ontology_id, 'ontology_id')}/artifact/"
                 f"{_segment(file_name, 'file_name')}"
             ),
-            headers=header_folder(folder_key, folder_path),
+            headers=_folder_headers(folder_key, folder_path),
         )
 
     @staticmethod
@@ -480,7 +520,7 @@ class OntologyService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(f"{_BASE}/{_segment(ontology_id, 'ontology_id')}/graph"),
-            headers=header_folder(folder_key, folder_path),
+            headers=_folder_headers(folder_key, folder_path),
         )
 
     @staticmethod
@@ -498,16 +538,17 @@ class OntologyService(BaseService):
                 "statement": _checked_statement(statement),
                 "params": params or {},
             },
-            headers=header_folder(folder_key, folder_path),
+            headers=_folder_headers(folder_key, folder_path),
         )
 
     # ── helpers ──────────────────────────────────────────────────────────
 
     @staticmethod
-    def _within_budget(
+    def _split_by_size(
         manifest: List[OntologyArtifact], max_bytes: int
-    ) -> List[OntologyArtifact]:
+    ) -> Tuple[List[OntologyArtifact], List[SkippedArtifact]]:
         kept: List[OntologyArtifact] = []
+        skipped: List[SkippedArtifact] = []
         for entry in manifest:
             if entry.size_bytes > max_bytes:
                 logger.warning(
@@ -516,9 +557,17 @@ class OntologyService(BaseService):
                     entry.size_bytes,
                     max_bytes,
                 )
+                skipped.append(
+                    SkippedArtifact(
+                        file_name=entry.file_name,
+                        type=entry.type,
+                        size_bytes=entry.size_bytes,
+                        reason=f"over the {max_bytes} byte cap",
+                    )
+                )
                 continue
             kept.append(entry)
-        return kept
+        return kept, skipped
 
     @staticmethod
     def _to_content(

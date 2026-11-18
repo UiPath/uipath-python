@@ -11,15 +11,18 @@ from ._ontology_service import (
 )
 from .ontology import (
     ONTOLOGY_DEPLOYED_STATE,
+    ArtifactDownload,
     OntologyArtifact,
     OntologyArtifactContent,
     OntologyArtifactIntegrityError,
     OntologyDetails,
+    SkippedArtifact,
     SqlColumn,
     SqlResult,
 )
 
 __all__ = [
+    "ArtifactDownload",
     "DEFAULT_MAX_ARTIFACT_BYTES",
     "ONTOLOGY_DEPLOYED_STATE",
     "OntologyArtifact",
@@ -27,6 +30,7 @@ __all__ = [
     "OntologyArtifactIntegrityError",
     "OntologyDetails",
     "OntologyService",
+    "SkippedArtifact",
     "SqlColumn",
     "SqlResult",
 ]

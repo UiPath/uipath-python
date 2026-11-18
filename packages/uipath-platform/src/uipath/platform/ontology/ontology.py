@@ -86,6 +86,27 @@ class OntologyArtifactIntegrityError(ValueError):
     """A downloaded artifact does not match its manifest entry."""
 
 
+class SkippedArtifact(BaseModel):
+    """A manifest entry ``download_artifacts`` left out, and why."""
+
+    file_name: str
+    type: str
+    size_bytes: int
+    reason: str
+
+
+class ArtifactDownload(BaseModel):
+    """What ``download_artifacts`` fetched and what it skipped.
+
+    ``files`` are verified against the manifest and keep its order. ``skipped`` lists
+    the entries over the size cap, so a caller can tell a missing file from one that
+    was too large and say so in its trace.
+    """
+
+    files: List[OntologyArtifactContent] = Field(default_factory=list)
+    skipped: List[SkippedArtifact] = Field(default_factory=list)
+
+
 class SqlColumn(BaseModel):
     """A column of a SQL answer: its name and the ontology's declared type."""
 

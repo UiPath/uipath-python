@@ -18,6 +18,7 @@ from uipath.platform.constants import (
     HEADER_USER_AGENT,
 )
 from uipath.platform.ontology import (
+    ArtifactDownload,
     OntologyArtifact,
     OntologyArtifactIntegrityError,
     OntologyService,
@@ -258,15 +259,58 @@ class TestOntologyService:
         )
 
         with caplog.at_level("WARNING"):
-            contents = await service.download_artifacts_async(
+            result = await service.download_artifacts_async(
                 ONTOLOGY_ID, "schema", max_bytes=200
             )
 
-        assert [c.file_name for c in contents] == ["nxorders.ofn"]
-        assert contents[0].type == "schema"
+        assert isinstance(result, ArtifactDownload)
+        assert [c.file_name for c in result.files] == ["nxorders.ofn"]
+        assert result.files[0].type == "schema"
+        assert [(s.file_name, s.size_bytes) for s in result.skipped] == [
+            ("huge.ofn", 300)
+        ]
+        assert "200 byte cap" in result.skipped[0].reason
         assert "huge.ofn" in caplog.text
         # the oversize file was never requested
         assert len(httpx_mock.get_requests()) == 2
+
+    async def test_download_artifacts_keeps_manifest_order_across_files(
+        self, httpx_mock: HTTPXMock, service: OntologyService, api: str
+    ) -> None:
+        files = {f"part{i}.ofn": f"Ontology(<p{i}>)".encode() for i in range(6)}
+        httpx_mock.add_response(
+            url=f"{api}/{ONTOLOGY_ID}/artifact?type=schema",
+            json=[_manifest_entry(n, "schema", c) for n, c in files.items()],
+        )
+        for name, content in files.items():
+            httpx_mock.add_response(
+                url=f"{api}/{ONTOLOGY_ID}/artifact/{name}", content=content
+            )
+
+        result = await service.download_artifacts_async(ONTOLOGY_ID, "schema")
+
+        assert [c.file_name for c in result.files] == list(files)
+        assert [c.content for c in result.files] == list(files.values())
+        assert result.skipped == []
+
+    def test_sync_download_artifacts_reports_skipped(
+        self, httpx_mock: HTTPXMock, service: OntologyService, api: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{api}/{ONTOLOGY_ID}/artifact",
+            json=[
+                _manifest_entry("nxorders.ofn", "schema", SCHEMA),
+                _manifest_entry("mapping.yml", "mapping", b"y" * 500),
+            ],
+        )
+        httpx_mock.add_response(
+            url=f"{api}/{ONTOLOGY_ID}/artifact/nxorders.ofn", content=SCHEMA
+        )
+
+        result = service.download_artifacts(ONTOLOGY_ID, max_bytes=200)
+
+        assert [c.file_name for c in result.files] == ["nxorders.ofn"]
+        assert [s.type for s in result.skipped] == ["mapping"]
 
     async def test_get_graph_returns_the_raw_view(
         self, httpx_mock: HTTPXMock, service: OntologyService, api: str
@@ -360,6 +404,29 @@ class TestOntologyService:
         request = httpx_mock.get_request()
         assert request is not None
         assert "x-uipath-folderpath" in {k.lower() for k in request.headers.keys()}
+
+    async def test_a_binding_folder_key_goes_as_the_key_not_a_path(
+        self, httpx_mock: HTTPXMock, service: OntologyService, api: str
+    ) -> None:
+        # The Agents packager writes the ontology's folder key into folderPath.
+        overwrite = ResourceOverwriteParser.parse(
+            f"ontology.{ONTOLOGY_ID}",
+            {"name": "nxorders-prod", "folderPath": FOLDER_KEY},
+        )
+        httpx_mock.add_response(
+            url=f"{api}/nxorders-prod",
+            json={"id": "other", "name": "nxorders-prod", "state": "DEPLOYED"},
+        )
+        token = _resource_overwrites.set({f"ontology.{ONTOLOGY_ID}": overwrite})
+        try:
+            await service.get_async(ONTOLOGY_ID)
+        finally:
+            _resource_overwrites.reset(token)
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers[HEADER_FOLDER_KEY] == FOLDER_KEY
+        assert "x-uipath-folderpath" not in {k.lower() for k in request.headers.keys()}
 
 
 class TestCheckedStatement:
