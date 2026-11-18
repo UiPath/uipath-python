@@ -73,19 +73,13 @@
   "justificationSchema": {
     "description": "Justification for the tool call order evaluator.",
     "properties": {
-      "actual_tool_calls_order": {
-        "items": {
-          "type": "string"
-        },
-        "title": "Actual Tool Calls Order",
-        "type": "array"
+      "expected": {
+        "title": "Expected",
+        "type": "string"
       },
-      "expected_tool_calls_order": {
-        "items": {
-          "type": "string"
-        },
-        "title": "Expected Tool Calls Order",
-        "type": "array"
+      "actual": {
+        "title": "Actual",
+        "type": "string"
       },
       "lcs": {
         "items": {
@@ -96,8 +90,8 @@
       }
     },
     "required": [
-      "actual_tool_calls_order",
-      "expected_tool_calls_order",
+      "expected",
+      "actual",
       "lcs"
     ],
     "title": "ToolCallOrderEvaluatorJustification",
