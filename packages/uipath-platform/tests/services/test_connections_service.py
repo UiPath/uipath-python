@@ -94,6 +94,117 @@ class TestConnectionsService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ConnectionsService.retrieve/{version}"
         )
 
+    def test_retrieve_selects_matching_connection_from_list_response(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Regression (PC-4777): tolerate a list body and select the matching connection.
+
+        The Connections endpoint can answer with a list of connections instead of a
+        single object. Validating that list against the single ``Connection`` model used
+        to raise ``pydantic_core.ValidationError`` (input_type=list); ``retrieve`` must
+        instead pick the connection whose id matches the requested key.
+        """
+        connection_key = "1958b64e-9432-47aa-aaaa-000000000002"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}",
+            status_code=200,
+            json=[
+                {
+                    "id": "1958b64e-9432-47aa-aaaa-000000000001",
+                    "name": "Other Connection",
+                    "elementInstanceId": 101,
+                },
+                {
+                    "id": connection_key,
+                    "name": "Target Connection",
+                    "elementInstanceId": 102,
+                },
+            ],
+        )
+
+        connection = service.retrieve(key=connection_key)
+
+        assert isinstance(connection, Connection)
+        assert connection.id == connection_key
+        assert connection.name == "Target Connection"
+        assert connection.element_instance_id == 102
+
+    @pytest.mark.anyio
+    async def test_retrieve_async_selects_matching_connection_from_list_response(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """Regression (PC-4777): async retrieve tolerates a list body.
+
+        This is the exact path from SRE-610701: ``invoke_activity_async`` ->
+        ``retrieve_async`` received a list and ``Connection.model_validate`` raised.
+        """
+        connection_key = "1958b64e-9432-47aa-aaaa-000000000002"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}",
+            status_code=200,
+            json=[
+                {
+                    "id": "1958b64e-9432-47aa-aaaa-000000000001",
+                    "name": "Other Connection",
+                    "elementInstanceId": 101,
+                },
+                {
+                    "id": connection_key,
+                    "name": "Target Connection",
+                    "elementInstanceId": 102,
+                },
+            ],
+        )
+
+        connection = await service.retrieve_async(key=connection_key)
+
+        assert isinstance(connection, Connection)
+        assert connection.id == connection_key
+        assert connection.name == "Target Connection"
+        assert connection.element_instance_id == 102
+
+    def test_retrieve_falls_back_to_first_connection_when_no_key_match(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """A list with no id matching the key falls back to the first entry."""
+        connection_key = "unmatched-key"
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/connections_/api/v1/Connections/{connection_key}",
+            status_code=200,
+            json=[
+                {
+                    "id": "first-id",
+                    "name": "First Connection",
+                    "elementInstanceId": 201,
+                },
+                {
+                    "id": "second-id",
+                    "name": "Second Connection",
+                    "elementInstanceId": 202,
+                },
+            ],
+        )
+
+        connection = service.retrieve(key=connection_key)
+
+        assert isinstance(connection, Connection)
+        assert connection.id == "first-id"
+
     def test_metadata(
         self,
         httpx_mock: HTTPXMock,
