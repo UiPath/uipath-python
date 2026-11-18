@@ -266,9 +266,9 @@ class TrajectoryEvaluationTrace(BaseModel):
         """
         # Create a mapping of span IDs to names for parent lookup
         span_id_to_name = {
-            span.get_span_context().span_id: span.name  # pyright: ignore[reportOptionalMemberAccess]
+            span_context.span_id: span.name
             for span in spans
-            if span.get_span_context() is not None
+            if (span_context := span.get_span_context()) is not None
         }
 
         evaluation_spans = [
