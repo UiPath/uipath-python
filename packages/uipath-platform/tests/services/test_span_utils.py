@@ -214,6 +214,14 @@ class TestOTelToUiPathSpan:
             assert getattr(uipath_span, span_field) == expected_output, span_field
             assert span_dict[top_level_key] == expected_output, top_level_key
 
+    def test_missing_span_context_raises(self) -> None:
+        mock_span = Mock(spec=OTelSpan)
+        mock_span.get_span_context.return_value = None
+        mock_span.name = "no-context-span"
+
+        with pytest.raises(ValueError, match="no-context-span"):
+            _SpanUtils.otel_span_to_uipath_span(mock_span)
+
     @patch.dict(os.environ, {"UIPATH_ORGANIZATION_ID": "test-org"})
     def test_verbosity_level_omitted_when_unset(self) -> None:
         """Spans that don't set verbosityLevel must not carry the key on the wire.
