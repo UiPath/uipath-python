@@ -239,6 +239,55 @@ class TestOntologyService:
                 ONTOLOGY_ID, "nxorders.ofn", expected=expected
             )
 
+    async def test_get_artifact_by_type_reads_the_schema_in_one_request(
+        self, httpx_mock: HTTPXMock, service: OntologyService, api: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{api}/{ONTOLOGY_ID}/artifact/type/schema",
+            content=SCHEMA,
+            headers={
+                "content-type": "text/owl-functional",
+                "etag": f'"{_sha(SCHEMA)}"',
+                "content-disposition": (
+                    "attachment; filename=\"nxorders.ofn\"; filename*=UTF-8''nxorders.ofn"
+                ),
+            },
+        )
+
+        content = await service.get_artifact_by_type_async(ONTOLOGY_ID, "schema")
+
+        assert content.content == SCHEMA
+        assert content.file_name == "nxorders.ofn"
+        assert content.type == "schema"
+        assert content.media_type == "text/owl-functional"
+        assert len(httpx_mock.get_requests()) == 1
+
+    def test_sync_get_artifact_by_type(
+        self, httpx_mock: HTTPXMock, service: OntologyService, api: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{api}/{ONTOLOGY_ID}/artifact/type/schema",
+            content=SCHEMA,
+            headers={"etag": f'"{_sha(SCHEMA)}"'},
+        )
+
+        content = service.get_artifact_by_type(ONTOLOGY_ID, "schema")
+
+        assert content.text == SCHEMA.decode()
+        assert content.file_name == "schema"
+
+    async def test_get_artifact_by_type_refuses_content_that_misses_its_etag(
+        self, httpx_mock: HTTPXMock, service: OntologyService, api: str
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{api}/{ONTOLOGY_ID}/artifact/type/schema",
+            content=SCHEMA,
+            headers={"etag": '"0000"'},
+        )
+
+        with pytest.raises(OntologyArtifactIntegrityError, match="ETag"):
+            await service.get_artifact_by_type_async(ONTOLOGY_ID, "schema")
+
     async def test_download_artifacts_verifies_each_file_and_skips_oversize(
         self,
         httpx_mock: HTTPXMock,

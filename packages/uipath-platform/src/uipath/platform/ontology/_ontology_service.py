@@ -11,6 +11,7 @@ does: ``BaseService.request`` redirects the call and injects the routing headers
 import asyncio
 import logging
 import uuid
+from email.message import Message
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
@@ -269,6 +270,64 @@ class OntologyService(BaseService):
         )
         return self._to_content(file_name, response, expected)
 
+    @resource_override(
+        resource_type="ontology",
+        resource_identifier="ontology_id",
+        folder_identifier="folder_path",
+    )
+    @traced(name="ontology_get_artifact_by_type", run_type="uipath")
+    def get_artifact_by_type(
+        self,
+        ontology_id: str,
+        artifact_type: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> OntologyArtifactContent:
+        """Download the one artifact of a single-file type, such as the schema.
+
+        One request, no manifest: the service answers the type's file as a download by
+        name does, and the content is verified against the checksum in its ETag.
+
+        Args:
+            ontology_id: The ontology's id, or its name with a folder.
+            artifact_type: A single-file type: ``schema``, ``mapping``, ``summary`` or
+                ``context``. A type that can hold several files is refused by the
+                service; list those with :meth:`list_artifacts`.
+            folder_key: The key of the ontology's folder; needed when addressing by name.
+            folder_path: The path of the ontology's folder; exclusive with ``folder_key``.
+
+        Returns:
+            OntologyArtifactContent: the bytes, their media type, file name and ETag.
+
+        Raises:
+            OntologyArtifactIntegrityError: If the bytes do not match the ETag checksum.
+        """
+        spec = self._by_type_spec(ontology_id, artifact_type, folder_key, folder_path)
+        response = self.request(spec.method, url=spec.endpoint, headers=spec.headers)
+        return self._to_typed_content(artifact_type, response)
+
+    @resource_override(
+        resource_type="ontology",
+        resource_identifier="ontology_id",
+        folder_identifier="folder_path",
+    )
+    @traced(name="ontology_get_artifact_by_type", run_type="uipath")
+    async def get_artifact_by_type_async(
+        self,
+        ontology_id: str,
+        artifact_type: str,
+        *,
+        folder_key: Optional[str] = None,
+        folder_path: Optional[str] = None,
+    ) -> OntologyArtifactContent:
+        """Download the one artifact of a single-file type. See :meth:`get_artifact_by_type`."""
+        spec = self._by_type_spec(ontology_id, artifact_type, folder_key, folder_path)
+        response = await self.request_async(
+            spec.method, url=spec.endpoint, headers=spec.headers
+        )
+        return self._to_typed_content(artifact_type, response)
+
     @traced(name="ontology_download_artifacts", run_type="uipath")
     def download_artifacts(
         self,
@@ -514,6 +573,22 @@ class OntologyService(BaseService):
         )
 
     @staticmethod
+    def _by_type_spec(
+        ontology_id: str,
+        artifact_type: str,
+        folder_key: Optional[str],
+        folder_path: Optional[str],
+    ) -> RequestSpec:
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(
+                f"{_BASE}/{_segment(ontology_id, 'ontology_id')}/artifact/type/"
+                f"{_segment(artifact_type, 'artifact_type')}"
+            ),
+            headers=_folder_headers(folder_key, folder_path),
+        )
+
+    @staticmethod
     def _graph_spec(
         ontology_id: str, folder_key: Optional[str], folder_path: Optional[str]
     ) -> RequestSpec:
@@ -584,6 +659,25 @@ class OntologyService(BaseService):
             _verify(content, expected)
         return content
 
+    @staticmethod
+    def _to_typed_content(artifact_type: str, response: Any) -> OntologyArtifactContent:
+        etag = response.headers.get("etag")
+        content = OntologyArtifactContent(
+            file_name=_attachment_file_name(response.headers.get("content-disposition"))
+            or artifact_type,
+            content=response.content,
+            media_type=response.headers.get("content-type", ""),
+            etag=etag,
+            type=artifact_type,
+        )
+        checksum = (etag or "").strip().removeprefix("W/").strip('"').lower()
+        if checksum and content.sha256() != checksum:
+            raise OntologyArtifactIntegrityError(
+                f"Artifact '{content.file_name}' checksum {content.sha256()} does not "
+                f"match its ETag {checksum}"
+            )
+        return content
+
 
 def _verify(content: OntologyArtifactContent, expected: OntologyArtifact) -> None:
     """Refuse content whose size or SHA-256 differs from the manifest entry."""
@@ -598,6 +692,15 @@ def _verify(content: OntologyArtifactContent, expected: OntologyArtifact) -> Non
             f"Artifact '{expected.file_name}' checksum {digest} does not match "
             f"the manifest's {expected.checksum}"
         )
+
+
+def _attachment_file_name(disposition: Optional[str]) -> Optional[str]:
+    """The file name a ``Content-Disposition`` names, preferring the UTF-8 form."""
+    if not disposition:
+        return None
+    message = Message()
+    message["content-disposition"] = disposition
+    return message.get_filename()
 
 
 def _checked_statement(statement: str) -> str:
