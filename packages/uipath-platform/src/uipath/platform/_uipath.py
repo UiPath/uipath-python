@@ -41,6 +41,7 @@ from .orchestrator import (
 from .pii_detection import PiiDetectionService
 from .resource_catalog import ResourceCatalogService
 from .semantic_proxy import SemanticProxyService
+from .skills import SkillsService
 
 
 def _has_valid_client_credentials(
@@ -220,6 +221,10 @@ class UiPath:
     @property
     def semantic_proxy(self) -> SemanticProxyService:
         return SemanticProxyService(self._config, self._execution_context)
+
+    @cached_property
+    def skills(self) -> SkillsService:
+        return SkillsService(self._config, self._execution_context)
 
     @property
     def automation_tracker(self) -> AutomationTrackerService:

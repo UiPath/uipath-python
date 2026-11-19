@@ -608,9 +608,15 @@ class StudioClient:
     async def get_resource_overwrites(self) -> dict[str, ResourceOverwrite]:
         """Get resource overwrites from the solution.
 
+        Entries whose kind this SDK cannot parse are skipped with a warning, so
+        one unknown overwrite does not fail a debug or eval run.
+
         Returns:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
+        # ``_common`` imports this module, so import lazily to avoid the cycle.
+        from ._common import describe_overwrite_error
+
         if not os.path.exists(UiPathConfig.bindings_file_path):
             logger.warning(
                 "Bindings file not found at %s, no overwrites to fetch from Studio",
@@ -657,10 +663,16 @@ class StudioClient:
             json.dumps(data, indent=2),
         )
 
-        overwrites = {}
+        overwrites: dict[str, ResourceOverwrite] = {}
         for key, value in data.items():
-            overwrites[key] = ResourceOverwriteParser.parse(key, value)
-
+            try:
+                overwrites[key] = ResourceOverwriteParser.parse(key, value)
+            except Exception as e:  # one unknown kind must not fail a debug or eval run
+                logger.warning(
+                    "Skipping unrecognized resource overwrite '%s' from Studio: %s",
+                    key,
+                    describe_overwrite_error(e),
+                )
         return overwrites
 
     async def create_virtual_resource(

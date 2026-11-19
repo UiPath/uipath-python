@@ -183,6 +183,7 @@ The full set of Orchestrator services is available to agents:
 - **Buckets** — download and upload files: [Buckets reference](./buckets.md)
 - **Connections** — Integration Service connections for ERP and SaaS: [Connections reference](./connections.md)
 - **Context Grounding** — semantic search over enterprise data: [Context Grounding reference](./context_grounding.md)
+- **Skills** — skill bundles bound to the agent, resolved at run start and read on demand: [Skills reference](./skills.md)
 
 ---
 
