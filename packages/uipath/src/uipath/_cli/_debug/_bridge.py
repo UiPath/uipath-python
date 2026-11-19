@@ -35,6 +35,8 @@ from uipath.runtime.debug import (
 )
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
 
+from .._utils._auth_header import with_current_access_token
+
 DebugAttachMode = Literal["signalr", "console", "none"]
 
 logger = logging.getLogger(__name__)
@@ -516,6 +518,7 @@ class SignalRDebugBridge:
         all_headers = {**self.headers}
         if self.access_token:
             all_headers["Authorization"] = f"Bearer {self.access_token}"
+        all_headers = with_current_access_token(all_headers)
 
         # Lazy import to avoid dependency if not used, improve startup time
         from pysignalr.client import SignalRClient
