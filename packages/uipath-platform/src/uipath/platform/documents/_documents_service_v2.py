@@ -256,16 +256,22 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         folder_key = await self._model_folder_key_async(folder_key, folder_path)
         headers = self._model_headers(folder_key)
 
-        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
-            document_id = (
-                await self._request_json_async(
-                    "POST",
-                    url=_models_url(model_name, "digitization", "start"),
-                    params={"api-version": self._api_version},
-                    headers=headers,
-                    files={"File": handle},
-                )
-            )["documentId"]
+        # Read in a worker thread so the event loop isn't blocked. Keeping the
+        # file name keeps the upload's content type, which DU checks.
+        upload = (
+            (Path(file_path).name, await asyncio.to_thread(Path(file_path).read_bytes))
+            if file_path
+            else file
+        )
+        document_id = (
+            await self._request_json_async(
+                "POST",
+                url=_models_url(model_name, "digitization", "start"),
+                params={"api-version": self._api_version},
+                headers=headers,
+                files={"File": upload},
+            )
+        )["documentId"]
 
         await self._wait_for_model_digitization_async(
             model_name, folder_key, document_id

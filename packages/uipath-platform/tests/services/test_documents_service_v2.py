@@ -300,6 +300,15 @@ def model_extraction_result(ixp_extraction_response_v2: dict) -> dict:  # type: 
     return {"extractionResult": ixp_extraction_response_v2["extractionResult"]}
 
 
+async def call(
+    mode: str, service: DocumentsServiceV2, method: str, **kwargs: Any
+) -> Any:
+    """Calls `method`, or its `_async` twin in async mode."""
+    if mode == "async":
+        return await getattr(service, f"{method}_async")(**kwargs)
+    return getattr(service, method)(**kwargs)
+
+
 class TestDocumentsServiceV2FolderModels:
     @pytest.fixture
     def models_url(self, base_url: str, org: str, tenant: str) -> str:
@@ -444,6 +453,16 @@ class TestDocumentsServiceV2FolderModels:
         )
 
         # ASSERT
+        [upload] = [
+            request
+            for request in httpx_mock.get_requests()
+            if request.url.path.endswith("/digitization/start")
+        ]
+        # DU checks the content type, which comes from the file name.
+        body = upload.read()
+        assert b'filename="invoice.pdf"' in body
+        assert b"Content-Type: application/pdf" in body
+        assert b"test content" in body
         assert restored == StartModelExtractionResponse(
             operation_id=operation_id,
             document_id=document_id,
@@ -451,10 +470,12 @@ class TestDocumentsServiceV2FolderModels:
             folder_key=FOLDER_KEY,
         )
         with pytest.raises(OperationNotCompleteException):
-            if mode == "async":
-                await service.retrieve_model_extraction_result_async(restored)
-            else:
-                service.retrieve_model_extraction_result(restored)
+            await call(
+                mode,
+                service,
+                "retrieve_model_extraction_result",
+                start_response=restored,
+            )
 
         if mode == "async":
             response = await service.retrieve_model_extraction_result_async(restored)
@@ -486,10 +507,12 @@ class TestDocumentsServiceV2FolderModels:
 
         # ACT & ASSERT
         with pytest.raises(OperationFailedException, match="Model not found"):
-            if mode == "async":
-                await service.retrieve_model_extraction_result_async(start_response)
-            else:
-                service.retrieve_model_extraction_result(start_response)
+            await call(
+                mode,
+                service,
+                "retrieve_model_extraction_result",
+                start_response=start_response,
+            )
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
@@ -514,14 +537,14 @@ class TestDocumentsServiceV2FolderModels:
 
         # ACT & ASSERT
         with pytest.raises(TimeoutError):
-            if mode == "async":
-                await service.extract_with_model_async(
-                    model_name="invoices", file=b"x", folder_key=FOLDER_KEY
-                )
-            else:
-                service.extract_with_model(
-                    model_name="invoices", file=b"x", folder_key=FOLDER_KEY
-                )
+            await call(
+                mode,
+                service,
+                "extract_with_model",
+                model_name="invoices",
+                file=b"x",
+                folder_key=FOLDER_KEY,
+            )
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.parametrize(
@@ -614,10 +637,7 @@ class TestDocumentsServiceV2FolderModels:
 
         # ACT & ASSERT: it fails before sending any request.
         with pytest.raises(ValueError, match=message):
-            if mode == "async":
-                await service.start_model_extraction_async(**kwargs)
-            else:
-                service.start_model_extraction(**kwargs)
+            await call(mode, service, "start_model_extraction", **kwargs)
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
@@ -631,14 +651,14 @@ class TestDocumentsServiceV2FolderModels:
 
         # ACT & ASSERT: it fails before sending any request.
         with pytest.raises(ValueError, match="needs a `FolderService`"):
-            if mode == "async":
-                await service.start_model_extraction_async(
-                    model_name="invoices", file=b"x", folder_path="Shared/Invoices"
-                )
-            else:
-                service.start_model_extraction(
-                    model_name="invoices", file=b"x", folder_path="Shared/Invoices"
-                )
+            await call(
+                mode,
+                service,
+                "start_model_extraction",
+                model_name="invoices",
+                file=b"x",
+                folder_path="Shared/Invoices",
+            )
 
 
 def test_only_documents_v2_extracts_with_folder_models(
