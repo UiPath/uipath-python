@@ -26,6 +26,7 @@ from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService
+from .ontology import OntologyService
 from .orchestrator import (
     AssetsService,
     AttachmentsService,
@@ -165,6 +166,10 @@ class UiPath:
         return EntitiesService(
             self._config, self._execution_context, folders_service=self.folders
         )
+
+    @cached_property
+    def ontology(self) -> OntologyService:
+        return OntologyService(self._config, self._execution_context)
 
     @cached_property
     def resource_catalog(self) -> ResourceCatalogService:
