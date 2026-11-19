@@ -73,3 +73,12 @@ async def test_record_saved_without_parent_still_reopens_the_saved_span():
     assert span.context is not None
     assert format(span.context.span_id, "016x") == SAVED_SPAN_ID
     assert format(span.context.trace_id, "032x") == SAVED_TRACE_ID
+
+
+async def test_record_with_zero_ids_starts_a_fresh_span():
+    exporter = await _resume(
+        TracerProvider(), {"trace_id": "0" * 32, "span_id": "0" * 16, "parent": None}
+    )
+
+    (span,) = exporter.get_finished_spans()
+    assert span.context is not None and span.context.is_valid

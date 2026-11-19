@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
@@ -125,9 +125,12 @@ async def _run_job(
     resume: bool,
     execution_id: str,
     caller_span: str | None = None,
+    tracer_provider: TracerProvider | None = None,
 ) -> list[ReadableSpan]:
     exporter = InMemorySpanExporter()
     trace_manager = UiPathTraceManager()
+    if tracer_provider is not None:
+        trace_manager.tracer_provider = tracer_provider
     trace_manager.tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
     event_bus = EventBus()
     event_bus.publish = AsyncMock()  # type: ignore[method-assign]
@@ -255,3 +258,27 @@ async def test_fresh_run_after_a_resume_gets_new_span_ids(suspended_then_resumed
     fresh_ids = [s.context.span_id for s in fresh_spans if s.context]
     assert len(set(fresh_ids)) == len(fresh_ids)
     assert resumed_ids.isdisjoint(fresh_ids)
+
+
+async def test_suspend_and_resume_with_the_sdk_disabled(monkeypatch):
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+    disabled = TracerProvider()
+    storage = InMemoryStorage()
+    execution_id = str(uuid.uuid4())
+
+    await _run_job(
+        storage,
+        SUSPENDED,
+        resume=False,
+        execution_id=execution_id,
+        tracer_provider=disabled,
+    )
+    spans = await _run_job(
+        storage,
+        COMPLETED,
+        resume=True,
+        execution_id=execution_id,
+        tracer_provider=disabled,
+    )
+
+    assert spans == []

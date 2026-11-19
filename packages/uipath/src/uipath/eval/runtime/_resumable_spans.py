@@ -101,7 +101,13 @@ async def _load(
 ) -> dict[str, Any] | None:
     if storage is None:
         return None
-    return await storage.get_value(runtime_id=runtime_id, namespace=_NAMESPACE, key=key)
+    saved = await storage.get_value(
+        runtime_id=runtime_id, namespace=_NAMESPACE, key=key
+    )
+    # Zero ids were written for invalid spans (SDK disabled) before _save skipped them.
+    if not saved or int(saved["trace_id"], 16) == 0:
+        return None
+    return saved
 
 
 async def _save(
@@ -113,7 +119,9 @@ async def _save(
     if storage is None:
         return
     span_context = span.get_span_context()
-    # Absent on a NonRecordingSpan (SDK disabled).
+    if not span_context.is_valid:
+        return
+    # Absent on a NonRecordingSpan, e.g. one the sampler dropped.
     parent = getattr(cast(ReadableSpan, span), "parent", None)
     await storage.set_value(
         runtime_id=runtime_id,
