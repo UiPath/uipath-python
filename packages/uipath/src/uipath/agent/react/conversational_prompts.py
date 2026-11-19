@@ -248,8 +248,7 @@ def get_conversation_id_template(conversation_id: str | None) -> str:
 _OUTPUT_HINT_SECTION_PREFIX = """=====================================================================
 STRUCTURED OUTPUT FOR THIS TURN
 =====================================================================
-At the end of your turn (when you decide to reply without calling a tool),
-a separate step will infer structured output fields for this turn with the following schema:
+At the end of your turn (when you decide to reply without calling a tool), a separate step will infer structured output fields for this turn with the following schema:
 
 ```json
 """
@@ -257,13 +256,9 @@ a separate step will infer structured output fields for this turn with the follo
 _OUTPUT_HINT_SECTION_SUFFIX = """
 ```
 
-- The outputs are produced after your turn, by a separate step. You have no tool for them:
-  do not look for one, and do not call some other tool in its place.
-- Instructions anywhere in the Agent System Prompt about what an output field should contain apply to those
-  outputs, not to your reply. You do not need to do anything with them while replying.
-- Your reply is what the user reads. These outputs are internal — later steps in the
-  surrounding process may read them to decide routing or follow-up actions — so respond
-  naturally in conversation rather than mentioning these output fields or their values."""
+- The outputs are produced after your turn, by a separate step. You have no tool for them: do not look for one, and do not call some other tool in its place.
+- Instructions anywhere in the Agent System Prompt about what an output field should contain apply to those outputs, not to your reply. You do not need to do anything with them while replying.
+- Your reply is what the user reads. These outputs are internal — later steps in the surrounding process may read them to decide routing or follow-up actions — so respond naturally in conversation rather than mentioning these output fields or their values."""
 
 
 def get_conversational_output_hint_section(
@@ -299,12 +294,17 @@ def strip_conversational_output_hint_section(assembled_system_prompt: str) -> st
     start = assembled_system_prompt.find(_OUTPUT_HINT_SECTION_PREFIX)
     if start == -1:
         return assembled_system_prompt
-    end = assembled_system_prompt.find(_OUTPUT_HINT_SECTION_SUFFIX, start + len(_OUTPUT_HINT_SECTION_PREFIX))
+    end = assembled_system_prompt.find(
+        _OUTPUT_HINT_SECTION_SUFFIX, start + len(_OUTPUT_HINT_SECTION_PREFIX)
+    )
     if end == -1:
         return assembled_system_prompt
     # Removes exactly what was substituted for the placeholder, so the result
     # matches a prompt built without an output schema character for character.
-    return assembled_system_prompt[:start] + assembled_system_prompt[end + len(_OUTPUT_HINT_SECTION_SUFFIX) :]
+    return (
+        assembled_system_prompt[:start]
+        + assembled_system_prompt[end + len(_OUTPUT_HINT_SECTION_SUFFIX) :]
+    )
 
 
 _GENERATE_OUTPUT_INSTRUCTION = """The conversational response for this turn has already been delivered to the user. Call the `set_conversational_output` tool to record the structured output fields for the CURRENT TURN ONLY. These structured outputs may be read and used by later steps in the surrounding process for routing/processing.
