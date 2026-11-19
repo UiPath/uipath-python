@@ -37,6 +37,7 @@ sdk.jobs                # JobsService
 sdk.folders             # FolderService
 sdk.tasks               # TasksService (Action Center)
 sdk.connections         # ConnectionsService
+sdk.integration_service # IntegrationService (connector activity execution, vendor HTTP)
 sdk.context_grounding   # ContextGroundingService
 sdk.documents           # DocumentsService (DU Framework API v1.1)
 sdk.documents_v2        # DocumentsServiceV2 (DU Framework API v2)
@@ -101,6 +102,7 @@ Services provide both sync and async variants (e.g., `.invoke()` and `.invoke_as
 | `business_rules/` | Business rule runs: rules deployed to Orchestrator, or undeployed rules in a debug job's Studio project, behind one `run()` |
 | `chat/` | LLM gateway, conversations, throttling |
 | `connections/` | External connection management |
+| `integration_service/` | Integration Service execution: `execute_activity()` on a connector object and `execute_http()` to the vendor, neither raising on a non-2xx; pure request/response helpers in `execution/` |
 | `context_grounding/` | RAG services (DeepRAG, batch RAG, ephemeral indexes) |
 | `documents/` | Document Understanding (IXP) |
 | `entities/` | Data Service entity management |

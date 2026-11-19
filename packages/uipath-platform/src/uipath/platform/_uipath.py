@@ -25,6 +25,7 @@ from .errors import BaseUrlMissingError, SecretMissingError
 from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
 from .guardrails import GuardrailsService
+from .integration_service import IntegrationService
 from .memory import MemoryService
 from .ontology import OntologyService
 from .orchestrator import (
@@ -119,6 +120,10 @@ class UiPath:
     @cached_property
     def connections(self) -> ConnectionsService:
         return ConnectionsService(self._config, self._execution_context, self.folders)
+
+    @cached_property
+    def integration_service(self) -> IntegrationService:
+        return IntegrationService(self._config, self._execution_context)
 
     @property
     def context_grounding(self) -> ContextGroundingService:

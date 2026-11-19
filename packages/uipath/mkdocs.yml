@@ -74,6 +74,7 @@ nav:
             - Entities: core/entities.md
             - Jobs: core/jobs.md
             - Guardrails: core/guardrails.md
+            - Integration Service: core/integration_service.md
             - LLM Gateway: core/llm_gateway.md
             - Queues: core/queues.md
             - Processes: core/processes.md
