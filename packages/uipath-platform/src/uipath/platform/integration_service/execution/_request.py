@@ -64,10 +64,23 @@ def activity_endpoint(connection_id: str, object_name: str) -> str:
     `object_name` may be a multi-segment path such as `curated_get_issue/ABC-1`:
     each segment is encoded on its own and the `/` separators are kept.
     """
-    path = "/".join(quote(segment, safe="") for segment in object_name.split("/"))
-    return f"{ELEMENT_INSTANCES_BASE}/{quote(connection_id, safe='')}/{path}"
+    segments = object_name.split("/")
+    if any(segment in _DOT_SEGMENTS for segment in segments):
+        raise ValueError("object_name must not contain a '.' or '..' path segment")
+    path = "/".join(quote(segment, safe="") for segment in segments)
+    return f"{_instance_base(connection_id)}/{path}"
 
 
 def http_request_endpoint(connection_id: str) -> str:
     """Path of the version 3 raw HTTP passthrough of a connection."""
-    return f"{ELEMENT_INSTANCES_BASE}/{quote(connection_id, safe='')}/http-request"
+    return f"{_instance_base(connection_id)}/http-request"
+
+
+# A client or proxy resolves these, which would move the call off the connection
+_DOT_SEGMENTS = frozenset({".", ".."})
+
+
+def _instance_base(connection_id: str) -> str:
+    if connection_id in _DOT_SEGMENTS:
+        raise ValueError("connection_id must not be '.' or '..'")
+    return f"{ELEMENT_INSTANCES_BASE}/{quote(connection_id, safe='')}"

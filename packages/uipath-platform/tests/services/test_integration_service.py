@@ -705,6 +705,9 @@ class TestExecuteActivity:
             ({"connection_id": "", "object_name": "t"}, "connection_id is required"),
             ({"connection_id": "c", "object_name": ""}, "object_name is required"),
             ({"connection_id": "c", "object_name": "t", "method": "HEAD"}, "method"),
+            ({"connection_id": "c", "object_name": "../other/tickets"}, "path segment"),
+            ({"connection_id": "c", "object_name": "a/./b"}, "path segment"),
+            ({"connection_id": "..", "object_name": "tickets"}, "connection_id"),
             (
                 {"connection_id": "c", "object_name": "t", "max_records": 0},
                 "max_records",
@@ -1184,6 +1187,7 @@ class TestExecuteHttp:
         [
             ({"connection_id": "c", "url": ""}, "url is required"),
             ({"connection_id": "", "url": "/x"}, "connection_id is required"),
+            ({"connection_id": "..", "url": "/x"}, "connection_id"),
             (
                 {
                     "connection_id": "c",
@@ -1245,3 +1249,61 @@ def test_sdk_exposes_integration_service_and_leaves_connections_alone() -> None:
     assert isinstance(sdk.integration_service, IntegrationService)
     assert isinstance(sdk.connections, ConnectionsService)
     assert not hasattr(sdk.connections, "execute_activity")
+
+
+class TestTracedInputs:
+    def test_only_non_sensitive_arguments_are_kept(self) -> None:
+        from uipath.platform.integration_service._integration_service import (
+            _traced_inputs,
+        )
+
+        assert _traced_inputs(
+            {
+                "self": object(),
+                "connection_id": "c",
+                "object_name": "tickets",
+                "method": "POST",
+                "body": {"password": "p"},
+                "headers": {"X-Api-Key": "k"},
+                "query_params": {"token": "t"},
+                "files": [ExecuteFile(name="f", content=b"x")],
+                "file": ExecuteFile(name="f", content=b"x"),
+                "connector_key": "uipath-x",
+                "folder_key": "f1",
+                "max_records": 5,
+            }
+        ) == {
+            "connection_id": "c",
+            "object_name": "tickets",
+            "method": "POST",
+            "connector_key": "uipath-x",
+            "folder_key": "f1",
+            "max_records": 5,
+        }
+
+    @pytest.mark.parametrize(
+        "url,expected",
+        [
+            ("/v2/tickets?api_key=secret", "/v2/tickets"),
+            (
+                "https://user:pass@api.example.com/v2/t?token=s#frag",
+                "https://api.example.com/v2/t",
+            ),
+        ],
+    )
+    def test_url_keeps_no_query_or_credentials(self, url: str, expected: str) -> None:
+        from uipath.platform.integration_service._integration_service import (
+            _traced_inputs,
+        )
+
+        assert _traced_inputs({"connection_id": "c", "url": url}) == {
+            "connection_id": "c",
+            "url": expected,
+        }
+
+    def test_object_name_dots_inside_a_segment_are_allowed(
+        self, httpx_mock: HTTPXMock, service: IntegrationService, instance_url: str
+    ) -> None:
+        httpx_mock.add_response(url=f"{instance_url}/files/report..v1.pdf", json={})
+
+        assert service.execute_activity(CONNECTION_ID, "files/report..v1.pdf").ok

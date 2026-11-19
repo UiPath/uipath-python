@@ -3,6 +3,7 @@
 import asyncio
 import time
 from typing import Any, Dict, Optional, Sequence
+from urllib.parse import urlsplit
 
 from httpx import Response, TransportError
 from uipath.core.tracing import traced
@@ -43,13 +44,45 @@ _EXECUTE_INITIAL_BACKOFF = 0.5
 _EXECUTE_MAX_BACKOFF = 10.0
 
 
-def _hide_file_bytes(inputs: Dict[str, Any]) -> Dict[str, Any]:
-    """Keep uploaded file content out of the trace."""
-    hidden = dict(inputs)
-    for key in ("files", "file"):
-        if hidden.get(key):
-            hidden[key] = "<file content omitted>"
-    return hidden
+# The arguments of an execute call that are safe to record in a trace. The body,
+# headers, query parameters and files can carry secrets or personal data.
+_TRACED_INPUTS = frozenset(
+    {
+        "connection_id",
+        "object_name",
+        "method",
+        "connector_version",
+        "connector_key",
+        "script_ref",
+        "folder_key",
+        "folder_path",
+        "file_response",
+        "max_records",
+        "max_retries",
+        "retry_methods",
+        "timeout",
+    }
+)
+
+
+def _traced_inputs(inputs: Any) -> Dict[str, Any]:
+    """Keep only the non-sensitive arguments of an execute call in the trace."""
+    if not isinstance(inputs, dict):
+        return {}
+    traced_inputs = {
+        key: value for key, value in inputs.items() if key in _TRACED_INPUTS
+    }
+    url = inputs.get("url")
+    if isinstance(url, str):
+        # Scheme, host and path only: a query string or userinfo can hold a secret
+        try:
+            parts = urlsplit(url)
+            host = parts.hostname or ""
+            origin = f"{parts.scheme}://{host}" if parts.scheme and host else ""
+            traced_inputs["url"] = f"{origin}{parts.path}"
+        except ValueError:
+            traced_inputs["url"] = "<unreadable url>"
+    return traced_inputs
 
 
 class IntegrationService(BaseService):
@@ -78,7 +111,7 @@ class IntegrationService(BaseService):
     @traced(
         name="integration_service_execute_activity",
         run_type="uipath",
-        input_processor=_hide_file_bytes,
+        input_processor=_traced_inputs,
         hide_output=True,
     )
     def execute_activity(
@@ -250,7 +283,7 @@ class IntegrationService(BaseService):
     @traced(
         name="integration_service_execute_activity",
         run_type="uipath",
-        input_processor=_hide_file_bytes,
+        input_processor=_traced_inputs,
         hide_output=True,
     )
     async def execute_activity_async(
@@ -375,7 +408,7 @@ class IntegrationService(BaseService):
     @traced(
         name="integration_service_execute_http",
         run_type="uipath",
-        input_processor=_hide_file_bytes,
+        input_processor=_traced_inputs,
         hide_output=True,
     )
     def execute_http(
@@ -491,7 +524,7 @@ class IntegrationService(BaseService):
     @traced(
         name="integration_service_execute_http",
         run_type="uipath",
-        input_processor=_hide_file_bytes,
+        input_processor=_traced_inputs,
         hide_output=True,
     )
     async def execute_http_async(
