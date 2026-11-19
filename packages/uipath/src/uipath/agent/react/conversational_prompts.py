@@ -314,7 +314,7 @@ This instruction is not part of the conversation. The turn you are recording is 
 Rules:
 - For each field, use values inferred from this turn. Only use earlier turns as context for interpreting this turn; do not report fields from an earlier turn that do not apply for this one.
 - For optional fields that are not yet relevant or determinable (e.g. context is still being gathered, or the topic hasn't surfaced yet), omit them entirely.
-- For required fields that cannot yet be determined, provide a default placeholder. Do not fabricate, guess, or hallucinate meaningful values.
+- For required fields that cannot yet be determined, provide a default placeholder. DO NOT fabricate, guess, or hallucinate meaningful values.
 - Do not produce any text response, as this will not be seen by the user. Only call the tool."""
 
 
