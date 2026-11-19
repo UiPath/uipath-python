@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -12,6 +13,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
+from opentelemetry.trace import SpanContext
 
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
@@ -122,19 +124,28 @@ async def _run_job(
     *,
     resume: bool,
     execution_id: str,
+    caller_span: str | None = None,
 ) -> list[ReadableSpan]:
     exporter = InMemorySpanExporter()
     trace_manager = UiPathTraceManager()
     trace_manager.tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
     event_bus = EventBus()
     event_bus.publish = AsyncMock()  # type: ignore[method-assign]
-
-    await evaluate(
-        StubFactory(storage, result),
-        trace_manager,
-        await _context(resume, execution_id),
-        event_bus,
+    caller = (
+        trace_manager.tracer_provider.get_tracer("caller").start_as_current_span(
+            caller_span
+        )
+        if caller_span
+        else nullcontext()
     )
+
+    with caller:
+        await evaluate(
+            StubFactory(storage, result),
+            trace_manager,
+            await _context(resume, execution_id),
+            event_bus,
+        )
     return list(exporter.get_finished_spans())
 
 
@@ -144,6 +155,10 @@ def _one(spans: list[ReadableSpan], span_type: str) -> ReadableSpan:
     ]
     assert len(matches) == 1, f"expected one {span_type} span, got {len(matches)}"
     return matches[0]
+
+
+def _ids(span_context: SpanContext | None) -> tuple[int, int] | None:
+    return (span_context.trace_id, span_context.span_id) if span_context else None
 
 
 def _output(span: ReadableSpan) -> dict[str, Any]:
@@ -190,7 +205,7 @@ class TestResumedEvaluationSpans:
             assert before.context is not None and after.context is not None
             assert after.context.span_id == before.context.span_id
             assert after.context.trace_id == before.context.trace_id
-            assert after.parent == before.parent
+            assert _ids(after.parent) == _ids(before.parent)
             assert after.start_time == before.start_time
 
     async def test_evaluator_span_keeps_execution_id(self, suspended_then_resumed):
@@ -205,3 +220,38 @@ class TestResumedEvaluationSpans:
         )
         assert evaluator.parent is not None and evaluation.context is not None
         assert evaluator.parent.span_id == evaluation.context.span_id
+
+
+async def test_resume_under_a_different_caller_span_keeps_the_original_trace():
+    storage = InMemoryStorage()
+    execution_id = str(uuid.uuid4())
+    suspend_spans = await _run_job(
+        storage, SUSPENDED, resume=False, execution_id=execution_id
+    )
+    resume_spans = await _run_job(
+        storage,
+        COMPLETED,
+        resume=True,
+        execution_id=execution_id,
+        caller_span="resume job",
+    )
+
+    for span_type in ("eval_set_run", "evaluation"):
+        before = _one(suspend_spans, span_type)
+        after = _one(resume_spans, span_type)
+        assert before.context is not None and after.context is not None
+        assert after.context.trace_id == before.context.trace_id
+        assert _ids(after.parent) == _ids(before.parent)
+
+
+async def test_fresh_run_after_a_resume_gets_new_span_ids(suspended_then_resumed):
+    _, resume_spans = suspended_then_resumed
+
+    fresh_spans = await _run_job(
+        InMemoryStorage(), COMPLETED, resume=False, execution_id=str(uuid.uuid4())
+    )
+
+    resumed_ids = {s.context.span_id for s in resume_spans if s.context}
+    fresh_ids = [s.context.span_id for s in fresh_spans if s.context]
+    assert len(set(fresh_ids)) == len(fresh_ids)
+    assert resumed_ids.isdisjoint(fresh_ids)
