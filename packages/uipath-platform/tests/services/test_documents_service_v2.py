@@ -19,6 +19,7 @@ from uipath.platform.errors import (
     OperationFailedException,
     OperationNotCompleteException,
 )
+from uipath.platform.orchestrator import FolderService
 
 # Responses only DU Framework API v2 returns. Behavior both versions share is
 # tested against both services in test_documents_service.py.
@@ -276,12 +277,19 @@ def make_service(
     monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
     monkeypatch.delenv("UIPATH_FOLDER_PATH", raising=False)
 
-    def make(polling_timeout: float = 10) -> DocumentsServiceV2:
+    def make(
+        polling_timeout: float = 10, with_folders_service: bool = True
+    ) -> DocumentsServiceV2:
         return DocumentsServiceV2(
             config=config,
             execution_context=execution_context,
             polling_interval=0.001,
             polling_timeout=polling_timeout,
+            folders_service=(
+                FolderService(config=config, execution_context=execution_context)
+                if with_folders_service
+                else None
+            ),
         )
 
     return make
@@ -611,6 +619,27 @@ class TestDocumentsServiceV2FolderModels:
             else:
                 service.start_model_extraction(**kwargs)
 
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_folder_path_needs_a_folders_service(
+        self,
+        make_service: Callable[..., DocumentsServiceV2],
+        mode: str,
+    ):
+        # ARRANGE
+        service = make_service(with_folders_service=False)
+
+        # ACT & ASSERT: it fails before sending any request.
+        with pytest.raises(ValueError, match="needs a `FolderService`"):
+            if mode == "async":
+                await service.start_model_extraction_async(
+                    model_name="invoices", file=b"x", folder_path="Shared/Invoices"
+                )
+            else:
+                service.start_model_extraction(
+                    model_name="invoices", file=b"x", folder_path="Shared/Invoices"
+                )
+
 
 def test_only_documents_v2_extracts_with_folder_models(
     config: UiPathApiConfig,
@@ -618,5 +647,6 @@ def test_only_documents_v2_extracts_with_folder_models(
     sdk = UiPath(base_url=config.base_url, secret=config.secret)
 
     assert hasattr(sdk.documents_v2, "extract_with_model")
+    assert isinstance(sdk.documents_v2._folders(), FolderService)
     assert not hasattr(sdk.documents, "extract_with_model")
     assert not hasattr(sdk.documents, "start_model_extraction")

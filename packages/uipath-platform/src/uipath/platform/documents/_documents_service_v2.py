@@ -1,17 +1,21 @@
 import asyncio
 import time
 from contextlib import nullcontext
-from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from uipath.core.tracing import traced
 
+from ..common._config import UiPathApiConfig
+from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import header_folder
 from ..common._models import Endpoint
 from ..errors import OperationNotCompleteException
+from ..orchestrator._folder_service import FolderService
 from ._documents_service import (  # type: ignore[attr-defined]
+    POLLING_INTERVAL,
+    POLLING_TIMEOUT,
     _DocumentsServiceBase,
     _exactly_one_must_be_provided,
     _operation_result,
@@ -22,9 +26,6 @@ from .documents import (
     ModelExtractionResponse,
     StartModelExtractionResponse,
 )
-
-if TYPE_CHECKING:
-    from ..orchestrator import FolderService
 
 
 def _models_url(*segments: Any) -> Endpoint:
@@ -64,6 +65,22 @@ class DocumentsServiceV2(_DocumentsServiceBase):
 
     _api_version = "2.0"
 
+    def __init__(
+        self,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        polling_interval: float = POLLING_INTERVAL,
+        polling_timeout: float = POLLING_TIMEOUT,
+        folders_service: Optional[FolderService] = None,
+    ) -> None:
+        super().__init__(
+            config=config,
+            execution_context=execution_context,
+            polling_interval=polling_interval,
+            polling_timeout=polling_timeout,
+        )
+        self._folders_service = folders_service
+
     def _tag_route(self, tag: str) -> Tuple[str, ...]:
         # v2 moved tag-scoped routes under a literal `tags` segment.
         return ("tags", tag)
@@ -72,15 +89,13 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         # v2 moved this setting into the validation configuration.
         return {"configuration": {"allowChangeOfDocumentType": True}}
 
-    @cached_property
-    def _folders(self) -> "FolderService":
-        # Created on first use, to look up a folder path's key. Imported here:
-        # importing orchestrator while documents loads is circular.
-        from ..orchestrator import FolderService
-
-        return FolderService(
-            config=self._config, execution_context=self._execution_context
-        )
+    def _folders(self) -> FolderService:
+        if self._folders_service is None:
+            raise ValueError(
+                "Looking up a folder path's key needs a `FolderService`: use "
+                "`UiPath().documents_v2`, or pass `folders_service` or `folder_key`."
+            )
+        return self._folders_service
 
     def _folder_to_resolve(
         self, folder_key: Optional[str], folder_path: Optional[str]
@@ -104,7 +119,7 @@ class DocumentsServiceV2(_DocumentsServiceBase):
     ) -> str:
         folder_key, folder_path = self._folder_to_resolve(folder_key, folder_path)
         if folder_path:
-            folder_key = self._folders.retrieve_folder_key(folder_path)
+            folder_key = self._folders().retrieve_folder_key(folder_path)
         return _parse_folder_key(folder_key)
 
     async def _model_folder_key_async(
@@ -112,7 +127,7 @@ class DocumentsServiceV2(_DocumentsServiceBase):
     ) -> str:
         folder_key, folder_path = self._folder_to_resolve(folder_key, folder_path)
         if folder_path:
-            folder_key = await self._folders.retrieve_folder_key_async(folder_path)
+            folder_key = await self._folders().retrieve_folder_key_async(folder_path)
         return _parse_folder_key(folder_key)
 
     def _model_headers(self, folder_key: str) -> Dict[str, str]:

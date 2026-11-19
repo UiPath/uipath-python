@@ -138,7 +138,9 @@ class UiPath:
 
     @property
     def documents_v2(self) -> DocumentsServiceV2:
-        return DocumentsServiceV2(self._config, self._execution_context)
+        return DocumentsServiceV2(
+            self._config, self._execution_context, folders_service=self.folders
+        )
 
     @property
     def queues(self) -> QueuesService:
