@@ -2,6 +2,8 @@ import json
 from typing import Any
 from unittest.mock import AsyncMock
 
+import pytest
+
 from uipath._cli._debug._bridge import SignalRDebugBridge
 from uipath.runtime import UiPathBreakpointResult
 
@@ -61,3 +63,45 @@ async def test_breakpoint_hit_without_a_function_start_line_keeps_its_shape() ->
             "nextNodes": ["route"],
         },
     )
+
+
+async def test_connect_sends_the_token_currently_in_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import patch
+
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "renewed-token")
+    bridge = SignalRDebugBridge(
+        hub_url="https://hub.example/signalr/robotdebug",
+        access_token="startup-token",
+        headers={"X-Keep": "yes"},
+    )
+    seen: dict[str, Any] = {}
+
+    class FakeSignalRClient:
+        def __init__(self, url: str, headers: dict[str, str]) -> None:
+            seen["url"] = url
+            seen["headers"] = headers
+            self._on_open: Any = None
+
+        def on(self, event: str, handler: Any) -> None:
+            pass
+
+        def on_open(self, handler: Any) -> None:
+            self._on_open = handler
+
+        def on_close(self, handler: Any) -> None:
+            pass
+
+        def on_error(self, handler: Any) -> None:
+            pass
+
+        async def run(self) -> None:
+            await self._on_open()
+
+    with patch("pysignalr.client.SignalRClient", FakeSignalRClient):
+        await bridge.connect()
+
+    assert seen["headers"]["Authorization"] == "Bearer renewed-token"
+    assert seen["headers"]["X-Keep"] == "yes"
+    assert bridge.access_token == "startup-token"
