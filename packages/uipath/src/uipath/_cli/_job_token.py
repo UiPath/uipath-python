@@ -1,15 +1,4 @@
-"""Renew the job's user access token over the job-api IPC channel.
-
-The executor hands the token to the process once, as an environment variable, and a job that
-outlives it starts failing with 401. ``JobTokenRefresher`` asks the host for a new token
-(``IPythonJobApi.GetUserAccessToken``) shortly before the current one expires and writes it back
-to the token environment variables. ``UiPath()`` clients built from the environment re-read those
-on every request (see ``uipath.platform``), so they pick the new token up without a change of
-their own, and so does user code that reads the variables itself.
-
-The host opts in (``uipath run --handler-ipc-token-refresh``, or ``refreshAccessTokenOverIpc`` on
-a pooled run request); a host without the method is never asked.
-"""
+"""Renew a job's user access token before it expires."""
 
 from __future__ import annotations
 
@@ -33,15 +22,10 @@ from ._job_api import PythonUserAccessTokenRequestDto
 
 logger = logging.getLogger(__name__)
 
-# A healthy host answers in well under a second (serverless hands back the job's own token, the
-# Robot asks Orchestrator).
 _TOKEN_REQUEST_TIMEOUT_S = 30.0
-# Renew when this share of the lifetime is left (so at 80 percent of it), and never later than
-# this many seconds before expiry.
+# Renew when this share of the lifetime is left, at least this many seconds before expiry.
 _REFRESH_MARGIN_FRACTION = 0.2
 _MIN_REFRESH_MARGIN_S = 120.0
-# After a failed renewal, or one that returned a token already due, leave the host alone for
-# this long before asking again.
 _RETRY_AFTER_FAILURE_S = 30.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
 
@@ -63,7 +47,7 @@ def _claim_seconds(claims: dict[str, Any], name: str) -> float | None:
 
 @dataclass(frozen=True)
 class _TokenState:
-    """A token with the moments that drive its renewal (epoch seconds)."""
+    """A token and its renewal times (epoch seconds)."""
 
     token: str
     issued_at: float
@@ -71,7 +55,7 @@ class _TokenState:
 
     @classmethod
     def from_token(cls, token: str, now: float) -> _TokenState:
-        """Read ``iat``/``exp`` from the JWT; a token without ``exp`` is never renewed early."""
+        """Read ``iat`` and ``exp`` from the JWT."""
         claims = _claims(token)
         issued_at = _claim_seconds(claims, "iat")
         return cls(
@@ -82,7 +66,7 @@ class _TokenState:
 
     @property
     def refresh_at(self) -> float | None:
-        """When to renew: 80 percent into the lifetime, at least two minutes before expiry."""
+        """When to renew, or None for a token without ``exp``."""
         if self.expires_at is None:
             return None
         lifetime = max(self.expires_at - self.issued_at, 0.0)
@@ -95,22 +79,16 @@ class _TokenState:
 
 
 def publish_token_to_environ(token: str) -> None:
-    """Republish a token under whichever token variables the process environment has set."""
+    """Write the token to the token environment variables that are set."""
     for name in _TOKEN_ENV_VARS:
         if name in os.environ:
             os.environ[name] = token
 
 
 class JobTokenRefresher:
-    """Renews the job's user access token on the IPC loop and publishes it to the environment.
+    """Renews the job's user access token and publishes it to the environment.
 
-    One task, started by :meth:`start`, sleeps until 80 percent of the current token's lifetime
-    has passed (at least two minutes before expiry), asks the host, stores and publishes the
-    answer, and reschedules from the new token. The host opted in, so every failure is handled
-    the same way, whatever its type: the current token is kept and the host is asked again after
-    30 seconds. Only the first failure is logged, as a warning that says no more will follow.
-    :meth:`stop` cancels the task, a request in flight included, and a stopped refresher never
-    writes to the environment again.
+    A failure keeps the current token and is retried; only the first one is logged.
     """
 
     def __init__(
@@ -142,12 +120,12 @@ class JobTokenRefresher:
         self._reported_failure = False
 
     def start(self) -> None:
-        """Schedule the renewal task on the IPC loop (once)."""
+        """Start renewing (once)."""
         if self._task is None and not self._stopped:
             self._task = asyncio.run_coroutine_threadsafe(self._run(), self._loop)
 
     def stop(self) -> None:
-        """Cancel the renewal task; nothing is published to the environment after this."""
+        """Stop renewing; nothing is published after this."""
         with self._lock:
             self._stopped = True
         task = self._task
@@ -156,18 +134,18 @@ class JobTokenRefresher:
 
     @property
     def task(self) -> Future[None] | None:
-        """The renewal task's handle, for callers that need to await its end."""
+        """The renewal task, once started."""
         return self._task
 
     @property
     def current_token(self) -> str | None:
-        """The token last seeded or renewed, or None."""
+        """The current token, or None."""
         state = self._state
         return None if state is None else state.token
 
     @property
     def expires_at(self) -> float | None:
-        """The current token's ``exp`` (epoch seconds), or None when unknown."""
+        """The current token's expiry (epoch seconds), or None."""
         state = self._state
         return None if state is None else state.expires_at
 
@@ -175,7 +153,7 @@ class JobTokenRefresher:
         while not self._stopped:
             state = self._state
             if state is None or state.refresh_at is None:
-                return  # no token, or one without exp: nothing to time against
+                return  # nothing to time against
             now = self._clock()
             due_at = max(state.refresh_at, self._retry_not_before)
             if now < due_at:
@@ -205,10 +183,9 @@ class JobTokenRefresher:
         state = _TokenState.from_token(token, now)
         with self._lock:
             if self._stopped:
-                return  # a late answer after teardown must not touch the environment
+                return
             self._state = state
-            # A token that is already due (serverless handing back the same soon-to-expire
-            # token) would otherwise make the loop spin: wait the backoff before asking again.
+            # An answer that is already due must not make the loop spin.
             self._retry_not_before = (
                 0.0 if state.is_fresh(now) else now + _RETRY_AFTER_FAILURE_S
             )
@@ -223,13 +200,13 @@ class JobTokenRefresher:
 
     def _note_failure(self, error: BaseException) -> None:
         if self._stopped:
-            return  # teardown cancels in-flight work; nothing worth reporting
+            return
         with self._lock:
             self._retry_not_before = self._clock() + _RETRY_AFTER_FAILURE_S
             first = not self._reported_failure
             self._reported_failure = True
         if not first:
-            return  # the one warning already said that later failures are not logged
+            return
         logger.warning(
             "Could not renew the job's user access token over IPC (%r). Keeping the current "
             "token and retrying every %g seconds. This is logged only once: later failures "
@@ -245,10 +222,7 @@ def install_job_token_refresher(
     proxy: Any,
     loop: asyncio.AbstractEventLoop,
 ) -> JobTokenRefresher:
-    """Start renewing the job's token, seeded with the one in the environment.
-
-    Pair with :func:`uninstall_job_token_refresher` when the job ends.
-    """
+    """Start renewing the job's token, starting from the one in the environment."""
     initial = os.environ.get(ENV_UNATTENDED_USER_ACCESS_TOKEN) or os.environ.get(
         ENV_UIPATH_ACCESS_TOKEN
     )
@@ -260,5 +234,5 @@ def install_job_token_refresher(
 
 
 def uninstall_job_token_refresher(refresher: JobTokenRefresher) -> None:
-    """Stop the renewal task."""
+    """Stop renewing the job's token."""
     refresher.stop()

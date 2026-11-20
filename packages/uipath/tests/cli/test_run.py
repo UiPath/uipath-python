@@ -262,7 +262,7 @@ class TestRun:
         def test_the_token_refresh_flag_reaches_the_connection(
             self, runner: CliRunner, temp_dir: str, monkeypatch
         ):
-            """The executor's opt-in has to arrive where the provider is installed."""
+            """The flag reaches the IPC connection."""
             job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
             seen: list[tuple[str, str, int | None, bool]] = []

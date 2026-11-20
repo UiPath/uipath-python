@@ -127,7 +127,7 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
 @click.option(
     "--handler-ipc-token-refresh",
     is_flag=True,
-    hidden=True,  # set by the job executor once its job api serves GetUserAccessToken
+    hidden=True,  # set by the job executor, never by a person
     help="Renew this job's user access token over the handler IPC pipe before it expires. Needs --handler-ipc-pipe.",
 )
 @track_command("run")

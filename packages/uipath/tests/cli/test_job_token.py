@@ -1,8 +1,4 @@
-"""The job's user access token refresher: renewal over the job-api IPC proxy, published to the environment.
-
-Fakes stand in for the IPC proxy (``GetUserAccessToken``) except where the wire itself is the
-point; tokens are unsigned JWTs built here so ``iat``/``exp`` can be placed precisely.
-"""
+"""Tests for the job's user access token refresher."""
 
 import asyncio
 import base64
@@ -45,7 +41,7 @@ def token_with_lifetime(lifetime: float, *, remaining: float, tag: str = "t") ->
 
 
 class FakeJobApi:
-    """Stands in for the ``IPythonJobApi`` proxy; hands out ``tokens`` in order, then "fresh"."""
+    """Fake job API proxy; hands out ``tokens`` in order, then "fresh"."""
 
     def __init__(self, *tokens: Any, error: BaseException | None = None) -> None:
         self.tokens = list(tokens)
@@ -66,7 +62,7 @@ class FakeJobApi:
 
 
 class RemoteError(Exception):
-    """Shaped like uipath_ipc's RemoteException: carries the .NET type name."""
+    """Shaped like uipath_ipc's RemoteException."""
 
     def __init__(self, type_name: str) -> None:
         super().__init__(type_name)
@@ -307,8 +303,7 @@ class TestFailures:
     def test_a_host_without_the_method_is_retried_like_any_other_failure(
         self, ipc_loop, monkeypatch, records
     ):
-        # The host opted in, so no error type is read as "unsupported": a missing method is a
-        # host fault like any other, and the refresher keeps asking.
+        # No error type stops the retries.
         monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
         api = FakeJobApi(error=RemoteError("UiPath.Ipc.MethodNotFoundException"))
         token = token_with_lifetime(600, remaining=60)  # due now
@@ -347,7 +342,7 @@ class TestFailures:
     def test_a_token_already_due_is_kept_but_not_refetched_at_once(
         self, ipc_loop, monkeypatch, records
     ):
-        """Serverless hands back the job's own token; when the handler lags, it is still due."""
+        """An answer that is already due waits the backoff instead of spinning."""
         monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
         api = FakeJobApi(
             *[token_with_lifetime(600, remaining=60, tag=str(i)) for i in range(50)]

@@ -215,10 +215,7 @@ class BaseService:
 
         specific_component = _get_caller_component()
 
-        # Work on a copy: the headers added below must not be written into the dict the
-        # caller passed in. That dict is reused on retries and often across calls, and an
-        # Authorization header left in it would later look like one the caller chose, so
-        # the token would never be re-read.
+        # Copy: never write into the caller's dict.
         kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
         _inject_trace_context(kwargs["headers"])
@@ -263,7 +260,7 @@ class BaseService:
             f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
         )
 
-        # A copy, for the same reason as in request().
+        # Copy: never write into the caller's dict.
         kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
             self._specific_component
@@ -301,12 +298,7 @@ class BaseService:
         return {"Authorization": header}
 
     def _current_secret(self) -> str:
-        """The bearer token to send now.
-
-        A secret that came from the environment is re-read on every call: a long-running
-        job's runtime renews the token there (see ``uipath._cli._job_token``). Any other
-        secret is sent as is.
-        """
+        """The bearer token to send now; one from the environment is re-read."""
         if self._config.secret_from_environment:
             renewed = os.environ.get(
                 ENV_UNATTENDED_USER_ACCESS_TOKEN
@@ -317,11 +309,7 @@ class BaseService:
         return self._config.secret
 
     def _add_authorization(self, headers: MutableMapping[str, Any]) -> None:
-        """Put the current environment token on a request, when the secret came from there.
-
-        Otherwise the client default header set in ``__init__`` is used, as before. A header
-        the caller supplied is left alone.
-        """
+        """Send the environment's current token, unless the caller set a header."""
         from_environment = self._config.secret_from_environment
         if not from_environment or _has_authorization_header(headers):
             return

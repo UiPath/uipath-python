@@ -641,7 +641,7 @@ class TestPooledSinks:
 
 
 class TestPooledTokenRefresh:
-    """refreshAccessTokenOverIpc is its own opt-in, set by a host that serves GetUserAccessToken."""
+    """refreshAccessTokenOverIpc is its own opt-in."""
 
     @staticmethod
     def _fake_run(events: list[Any]) -> Any:
