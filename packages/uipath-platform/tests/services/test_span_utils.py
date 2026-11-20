@@ -22,6 +22,7 @@ from uipath.platform.common._reference_context import (
 from uipath.platform.common._span_utils import (
     _SOURCE_BY_INT,
     ExecutionType,
+    SpanAttachment,
     SpanSource,
     SpanStatus,
     VerbosityLevel,
@@ -1253,3 +1254,58 @@ class TestLiveSpanEndTime:
 
         assert uipath_span.end_time is not None
         assert uipath_span.to_dict()["EndTime"] == uipath_span.end_time
+
+
+class TestSpanAttachmentMimeType:
+    @pytest.mark.parametrize(
+        ("file_name", "mime_type", "expected"),
+        [
+            ("report.pdf", "", "application/pdf"),
+            ("client.ovpn", "", "application/octet-stream"),
+            ("client.ovpn", "   ", "application/octet-stream"),
+            ("", "", "application/octet-stream"),
+            ("client.ovpn", "text/plain", "text/plain"),
+        ],
+    )
+    def test_blank_mime_type_is_replaced(self, file_name, mime_type, expected):
+        attachment = SpanAttachment(
+            id="0f877427-f8ab-457e-1df3-08df4715cc29",
+            file_name=file_name,
+            mime_type=mime_type,
+        )
+
+        assert attachment.mime_type == expected
+
+    def test_span_with_untyped_attachment_serializes_a_mime_type(self):
+        mock_span = Mock(spec=OTelSpan)
+        mock_span.get_span_context.return_value = SpanContext(
+            trace_id=0x123456789ABCDEF0123456789ABCDEF0,
+            span_id=0x0123456789ABCDEF,
+            is_remote=False,
+        )
+        mock_span.name = "Agent run - Agent"
+        mock_span.parent = None
+        mock_span.status.status_code = StatusCode.OK
+        mock_span.attributes = {
+            "attachments": json.dumps(
+                [
+                    {
+                        "id": "81584504-38b3-406b-1df4-08df4715cc29",
+                        "fileName": "test-client-1.ovpn",
+                        "mimeType": "",
+                        "provider": 0,
+                        "direction": 1,
+                    }
+                ]
+            )
+        }
+        mock_span.events = []
+        mock_span.links = []
+        mock_span.start_time = int(datetime.now().timestamp() * 1e9)
+        mock_span.end_time = mock_span.start_time + 1_000_000
+
+        payload = _SpanUtils.otel_span_to_uipath_span(mock_span).to_dict()
+
+        assert [att["MimeType"] for att in payload["Attachments"]] == [
+            "application/octet-stream"
+        ]
