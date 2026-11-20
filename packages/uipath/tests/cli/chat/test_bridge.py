@@ -1239,6 +1239,10 @@ class TestConnectUsesTheCurrentToken:
         with patch("socketio.AsyncClient", FakeClient):
             await bridge.connect(timeout=1.0)
 
-        assert seen["headers"]["Authorization"] == "Bearer renewed-token"
-        assert seen["headers"]["X-Keep"] == "yes"
+        headers = seen["headers"]()
+        assert headers["Authorization"] == "Bearer renewed-token"
+        assert headers["X-Keep"] == "yes"
         assert bridge.headers["Authorization"] == "Bearer startup-token"
+        # Asked again, as on a reconnect, it carries the token of that moment.
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "newer-token")
+        assert seen["headers"]()["Authorization"] == "Bearer newer-token"

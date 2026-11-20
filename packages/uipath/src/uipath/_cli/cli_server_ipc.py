@@ -122,60 +122,58 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 is_wire_job_key,
             )
 
-            flags = " and ".join(
-                name
-                for name, on in (
-                    ("streamOutputOverIpc", stream_output),
-                    ("refreshAccessTokenOverIpc", refresh_token),
-                )
-                if on
-            )
+            client = message.client if message is not None else None
+            problem: str | None = None
             if not is_wire_job_key(request.jobKey):
-                return PythonServerRunJobResult(
-                    exitCode=1,
-                    error=f"{flags} needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}",
+                problem = (
+                    f"needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}"
                 )
+            elif client is None:
+                problem = "is only available when RunJob is invoked over IPC"
 
-            if message is None or message.client is None:
+            if problem is not None and stream_output:
                 return PythonServerRunJobResult(
-                    exitCode=1,
-                    error=f"{flags} is only available when RunJob is invoked over IPC",
+                    exitCode=1, error=f"streamOutputOverIpc {problem}"
                 )
+            if problem is not None:
+                # Renewal is optional: the job runs without it.
+                console.warning(
+                    f"refreshAccessTokenOverIpc {problem}; running without token renewal."
+                )
+            elif client is not None:
+                # get_callback only wraps the connection, so this cannot tell us whether the peer
+                # actually hosts the contract; a peer that doesn't shows up as a failing send.
+                callback = client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
 
-            # get_callback only wraps the connection, so this cannot tell us whether the peer
-            # actually hosts the contract; a peer that doesn't shows up as a failing send.
-            callback = message.client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
+                loop = asyncio.get_running_loop()
+                job_key = request.jobKey
+                resume_version = request.resumeVersion
 
-            loop = asyncio.get_running_loop()
-            job_key = request.jobKey
-            resume_version = request.resumeVersion
-
-            def _install() -> None:
-                if stream_output:
-                    installed.append(
-                        install_runtime_sinks(job_key, resume_version, callback, loop)
-                    )
-                if refresh_token:
-                    # The job's environment is applied by now; jobs run one at a time.
-                    from ._job_token import install_job_token_refresher
-
-                    token_refreshers.append(
-                        install_job_token_refresher(
-                            job_key, resume_version, callback, loop
+                def _install() -> None:
+                    if stream_output:
+                        installed.append(
+                            install_runtime_sinks(
+                                job_key, resume_version, callback, loop
+                            )
                         )
-                    )
+                    if refresh_token:
+                        # The job's environment is applied by now; jobs run one at a time.
+                        from ._job_token import install_job_token_refresher
 
-            def _uninstall() -> None:
-                if stream_output:
-                    clear_runtime_sinks()
-                if token_refreshers:
-                    from ._job_token import uninstall_job_token_refresher
+                        token_refreshers.append(
+                            install_job_token_refresher(
+                                job_key, resume_version, callback, loop
+                            )
+                        )
 
+                def _uninstall() -> None:
+                    if stream_output:
+                        clear_runtime_sinks()
                     for refresher in token_refreshers:
-                        uninstall_job_token_refresher(refresher)
+                        refresher.stop()
 
-            on_run_start = _install
-            on_run_end = _uninstall
+                on_run_start = _install
+                on_run_end = _uninstall
 
         result = await _run_command_isolated(
             cmd,

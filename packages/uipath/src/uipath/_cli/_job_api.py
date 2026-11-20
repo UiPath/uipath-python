@@ -14,7 +14,10 @@ from concurrent.futures import Future
 from concurrent.futures import wait as _futures_wait
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, TypeGuard
+from typing import TYPE_CHECKING, Any, TypeGuard
+
+if TYPE_CHECKING:
+    from ._job_token import JobTokenRefresher
 
 logger = logging.getLogger(__name__)
 
@@ -344,7 +347,7 @@ class _HandlerIpcConnection:
         loop: asyncio.AbstractEventLoop,
         thread: threading.Thread,
         log_handler: "_IpcLogHandler | None" = None,
-        token_refresher: Any = None,
+        token_refresher: JobTokenRefresher | None = None,
     ) -> None:
         self._client = client
         self._loop = loop
@@ -355,9 +358,7 @@ class _HandlerIpcConnection:
     def _shutdown(self) -> None:
         """Close the client and stop its loop/thread."""
         if self._token_refresher is not None:
-            from ._job_token import uninstall_job_token_refresher
-
-            uninstall_job_token_refresher(self._token_refresher)
+            self._token_refresher.stop()
         if self._log_handler is not None:
             self._log_handler.flush_pending()
         try:

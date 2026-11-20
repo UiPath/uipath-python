@@ -163,7 +163,7 @@ def test_force_flush(exporter):
     assert exporter.force_flush() is True
 
 
-def test_send_uses_the_token_currently_in_the_environment(mock_env_vars):
+def test_send_uses_the_token_currently_in_the_environment(mock_env_vars: None) -> None:
     """A token renewed in the environment after construction goes out on the next upload."""
     seen: list[str | None] = []
 

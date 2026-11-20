@@ -163,8 +163,11 @@ def run(  # NOSONAR: one parameter per click option
             return
 
     if handler_ipc_token_refresh and handler_ipc_pipe is None:
-        console.error("--handler-ipc-token-refresh needs --handler-ipc-pipe.")
-        return
+        # Renewal is optional: the job runs without it.
+        console.warning(
+            "--handler-ipc-token-refresh needs --handler-ipc-pipe; running without token renewal."
+        )
+        handler_ipc_token_refresh = False
 
     result = Middlewares.next(
         "run",

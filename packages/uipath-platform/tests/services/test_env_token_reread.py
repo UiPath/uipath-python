@@ -5,13 +5,14 @@ from unittest.mock import patch
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath.platform import UiPath, UiPathApiConfig
+from uipath.platform import UiPath, UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.common import ApiClient
 from uipath.platform.common._base_service import BaseService
 from uipath.platform.common.auth import TokenData
 
 UNATTENDED = "UNATTENDED_USER_ACCESS_TOKEN"
 ACCESS = "UIPATH_ACCESS_TOKEN"
+JOB_KEY = "UIPATH_JOB_KEY"
 URL = "https://cloud.uipath.com/org/tenant"
 
 
@@ -21,10 +22,13 @@ def url(base_url: str, org: str, tenant: str) -> str:
 
 
 @pytest.fixture
-def env_config(config: UiPathApiConfig, monkeypatch) -> UiPathApiConfig:
+def env_config(
+    config: UiPathApiConfig, monkeypatch: pytest.MonkeyPatch
+) -> UiPathApiConfig:
     """The fixture config, flagged as UiPath() flags one built from the environment."""
     monkeypatch.setenv(ACCESS, config.secret)
     monkeypatch.delenv(UNATTENDED, raising=False)
+    monkeypatch.delenv(JOB_KEY, raising=False)
     config.secret_from_environment = True
     return config
 
@@ -37,12 +41,12 @@ class TestEnvironmentSecret:
     def test_each_request_reads_the_current_environment_token(
         self,
         httpx_mock: HTTPXMock,
-        env_config,
-        execution_context,
-        url,
-        monkeypatch,
-        secret,
-    ):
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        secret: str,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         httpx_mock.add_response(url=url, status_code=200, json={})
         service = BaseService(config=env_config, execution_context=execution_context)
@@ -58,12 +62,12 @@ class TestEnvironmentSecret:
     async def test_each_async_request_reads_the_current_environment_token(
         self,
         httpx_mock: HTTPXMock,
-        env_config,
-        execution_context,
-        url,
-        monkeypatch,
-        secret,
-    ):
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        secret: str,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         httpx_mock.add_response(url=url, status_code=200, json={})
         service = BaseService(config=env_config, execution_context=execution_context)
@@ -76,8 +80,13 @@ class TestEnvironmentSecret:
         assert env_config.secret == "renewed"
 
     def test_the_unattended_token_wins_over_the_access_token(
-        self, httpx_mock: HTTPXMock, env_config, execution_context, url, monkeypatch
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         monkeypatch.setenv(UNATTENDED, "unattended")
         monkeypatch.setenv(ACCESS, "access")
@@ -90,12 +99,12 @@ class TestEnvironmentSecret:
     def test_a_missing_variable_falls_back_to_the_stored_secret(
         self,
         httpx_mock: HTTPXMock,
-        env_config,
-        execution_context,
-        url,
-        monkeypatch,
-        secret,
-    ):
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        secret: str,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         service = BaseService(config=env_config, execution_context=execution_context)
         monkeypatch.delenv(ACCESS)
@@ -105,8 +114,13 @@ class TestEnvironmentSecret:
         assert _sent_auth(httpx_mock) == [f"Bearer {secret}"]
 
     def test_a_caller_supplied_authorization_header_is_left_alone(
-        self, httpx_mock: HTTPXMock, env_config, execution_context, url, monkeypatch
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         monkeypatch.setenv(ACCESS, "renewed")
         service = BaseService(config=env_config, execution_context=execution_context)
@@ -116,8 +130,12 @@ class TestEnvironmentSecret:
         assert _sent_auth(httpx_mock) == ["Bearer mine"]
 
     def test_the_callers_headers_mapping_is_not_modified(
-        self, httpx_mock: HTTPXMock, env_config, execution_context, url
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         service = BaseService(config=env_config, execution_context=execution_context)
         headers = {"X-Test": "1"}
@@ -128,8 +146,13 @@ class TestEnvironmentSecret:
         assert httpx_mock.get_requests()[0].headers["X-Test"] == "1"
 
     def test_api_client_folder_headers_do_not_pin_the_old_token(
-        self, httpx_mock: HTTPXMock, env_config, execution_context, url, monkeypatch
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """include_folder_headers used to copy the client defaults, Authorization included."""
         monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-1")
         httpx_mock.add_response(url=url, status_code=200, json={})
@@ -144,10 +167,59 @@ class TestEnvironmentSecret:
         assert sent.headers["Accept"] == "application/json"
 
 
+class TestAnotherJobsEnvironment:
+    def test_a_client_keeps_its_token_once_the_environment_belongs_to_another_job(
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        secret: str,
+    ) -> None:
+        httpx_mock.add_response(url=url, status_code=200, json={})
+        httpx_mock.add_response(url=url, status_code=200, json={})
+        monkeypatch.setenv(JOB_KEY, "job-a")
+        env_config.environment_job_key = "job-a"
+        service = BaseService(config=env_config, execution_context=execution_context)
+
+        service.request("GET", "/endpoint")
+        monkeypatch.setenv(JOB_KEY, "job-b")
+        monkeypatch.setenv(ACCESS, "job-b-token")
+        service.request("GET", "/endpoint")
+
+        assert _sent_auth(httpx_mock) == [f"Bearer {secret}", f"Bearer {secret}"]
+        assert env_config.secret == secret
+
+    def test_a_renewal_inside_the_same_job_is_still_followed(
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        httpx_mock.add_response(url=url, status_code=200, json={})
+        monkeypatch.setenv(JOB_KEY, "job-a")
+        env_config.environment_job_key = "job-a"
+        service = BaseService(config=env_config, execution_context=execution_context)
+
+        monkeypatch.setenv(ACCESS, "renewed")
+        service.request("GET", "/endpoint")
+
+        assert _sent_auth(httpx_mock) == ["Bearer renewed"]
+
+
 class TestStaticSecret:
     def test_an_explicit_secret_ignores_the_environment(
-        self, httpx_mock: HTTPXMock, config, execution_context, url, monkeypatch, secret
-    ):
+        self,
+        httpx_mock: HTTPXMock,
+        config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        secret: str,
+    ) -> None:
         httpx_mock.add_response(url=url, status_code=200, json={})
         monkeypatch.setenv(ACCESS, "renewed")
         service = BaseService(config=config, execution_context=execution_context)
@@ -158,7 +230,7 @@ class TestStaticSecret:
         assert _sent_auth(httpx_mock) == [f"Bearer {secret}"]
         assert config.secret == secret
 
-    def test_the_flag_defaults_to_false(self):
+    def test_the_flag_defaults_to_false(self) -> None:
         assert (
             UiPathApiConfig(base_url="https://x", secret="s").secret_from_environment
             is False
@@ -172,12 +244,16 @@ class TestStaticSecret:
 
 
 class TestUiPathFactory:
-    def test_a_client_built_from_the_environment_follows_it(self, monkeypatch):
+    def test_a_client_built_from_the_environment_follows_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("UIPATH_URL", URL)
         monkeypatch.setenv(ACCESS, "env-token")
         monkeypatch.delenv(UNATTENDED, raising=False)
+        monkeypatch.setenv(JOB_KEY, "job-a")
         sdk = UiPath()
         assert sdk._config.secret_from_environment is True
+        assert sdk._config.environment_job_key == "job-a"
         assert sdk._config.secret == "env-token"
 
         monkeypatch.setenv(ACCESS, "renewed")
@@ -185,7 +261,7 @@ class TestUiPathFactory:
         assert sdk.api_client.default_headers["Authorization"] == "Bearer renewed"
         assert sdk._config.secret == "renewed"
 
-    def test_an_explicit_secret_does_not(self, monkeypatch):
+    def test_an_explicit_secret_does_not(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("UIPATH_URL", URL)
         monkeypatch.setenv(ACCESS, "env-token")
 
@@ -195,7 +271,7 @@ class TestUiPathFactory:
         assert sdk._config.secret_from_environment is False
         assert sdk.api_client.default_headers["Authorization"] == "Bearer mine"
 
-    def test_client_credentials_do_not(self, monkeypatch):
+    def test_client_credentials_do_not(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(ACCESS, "env-token")
         with patch(
             "uipath.platform._uipath.ExternalApplicationService.get_token_data",

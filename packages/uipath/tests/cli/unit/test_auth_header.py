@@ -25,9 +25,7 @@ def test_keeps_the_bearer_when_the_variable_is_unset(
     }
 
 
-def test_adds_nothing_when_no_bearer_was_given(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_adds_nothing_when_no_bearer_was_given(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "renewed")
 
     assert with_current_access_token({"X-Other": "kept"}) == {"X-Other": "kept"}
