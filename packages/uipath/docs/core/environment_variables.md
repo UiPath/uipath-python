@@ -58,7 +58,7 @@ Telemetry is enabled by default. You can opt out by setting the `UIPATH_TELEMETR
 UIPATH_TELEMETRY_ENABLED=false
 ```
 
-Setting `UIPATH_TELEMETRY_DISABLED=true` has the same effect and takes precedence. The serverless platform sets it for robots whose telemetry is turned off, for example on Automation Suite.
+Setting `UIPATH_TELEMETRY_DISABLED=true` has the same effect and takes precedence over `UIPATH_TELEMETRY_ENABLED`.
 
 ## Runtime
 

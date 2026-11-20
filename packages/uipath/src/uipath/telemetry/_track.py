@@ -516,8 +516,8 @@ class _TelemetryClient:
         """Check if telemetry is enabled at runtime.
 
         ``UIPATH_TELEMETRY_DISABLED=true`` turns it off whatever
-        ``UIPATH_TELEMETRY_ENABLED`` says: that is how the serverless platform
-        tells a robot its telemetry is off, e.g. on Automation Suite.
+        ``UIPATH_TELEMETRY_ENABLED`` says, so a host environment can switch
+        telemetry off for the processes it starts.
         """
         if os.getenv(_ENV_TELEMETRY_DISABLED, "").strip().lower() in ("true", "1"):
             return False
