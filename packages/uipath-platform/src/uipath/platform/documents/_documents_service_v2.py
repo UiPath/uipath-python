@@ -268,12 +268,10 @@ class DocumentsServiceV2(_DocumentsServiceBase):
 
         # Extraction starts only on a successfully digitized document.
         document_id = self._start_and_wait(
-            self._start_model_digitization,
+            lambda: self._start_model_digitization(
+                model_name, folder_key, file, file_path
+            ),
             self._retrieve_model_digitization,
-            model_name=model_name,
-            folder_key=folder_key,
-            file=file,
-            file_path=file_path,
         )
 
         operation_id = self._request_json(
@@ -307,12 +305,10 @@ class DocumentsServiceV2(_DocumentsServiceBase):
 
         # Extraction starts only on a successfully digitized document.
         document_id = await self._start_and_wait_async(
-            self._start_model_digitization_async,
+            lambda: self._start_model_digitization_async(
+                model_name, folder_key, file, file_path
+            ),
             self._retrieve_model_digitization_async,
-            model_name=model_name,
-            folder_key=folder_key,
-            file=file,
-            file_path=file_path,
         )
 
         operation_id = (
@@ -454,13 +450,14 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         # The private retrieve isn't traced: a span per poll would record each
         # not-complete check as an error.
         return self._start_and_wait(
-            self.start_model_extraction,
+            lambda: self.start_model_extraction(
+                model_name=model_name,
+                file=file,
+                file_path=file_path,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            ),
             self._retrieve_model_extraction_result,
-            model_name=model_name,
-            file=file,
-            file_path=file_path,
-            folder_key=folder_key,
-            folder_path=folder_path,
         )
 
     @traced(name="documents_extract_with_model_async", run_type="uipath")
@@ -474,11 +471,12 @@ class DocumentsServiceV2(_DocumentsServiceBase):
     ) -> ModelExtractionResponse:
         """Asynchronous version of the [`extract_with_model`][uipath.platform.documents._documents_service_v2.DocumentsServiceV2.extract_with_model] method."""
         return await self._start_and_wait_async(
-            self.start_model_extraction_async,
+            lambda: self.start_model_extraction_async(
+                model_name=model_name,
+                file=file,
+                file_path=file_path,
+                folder_key=folder_key,
+                folder_path=folder_path,
+            ),
             self._retrieve_model_extraction_result_async,
-            model_name=model_name,
-            file=file,
-            file_path=file_path,
-            folder_key=folder_key,
-            folder_path=folder_path,
         )

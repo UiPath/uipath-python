@@ -3197,9 +3197,9 @@ class TestDocumentsService:
         starts = []
         checks = [False, False, True]
 
-        def start(name: str, *, size: int) -> str:
-            starts.append((name, size))
-            return f"{name}-op"
+        def start() -> str:
+            starts.append("op")
+            return "op"
 
         def retrieve(started: str) -> str:
             if not checks.pop(0):
@@ -3208,26 +3208,23 @@ class TestDocumentsService:
                 )
             return f"{started} done"
 
-        async def start_async(name: str, *, size: int) -> str:
-            return start(name, size=size)
+        async def start_async() -> str:
+            return start()
 
         async def retrieve_async(started: str) -> str:
             return retrieve(started)
 
         # ACT
         if mode == "async":
-            result = await service._start_and_wait_async(
-                start_async, retrieve_async, "doc", size=3
-            )
+            result = await service._start_and_wait_async(start_async, retrieve_async)
         else:
-            result = service._start_and_wait(start, retrieve, "doc", size=3)
+            result = service._start_and_wait(start, retrieve)
 
         # ASSERT
-        # Started once with the arguments, then checked on what start returned
-        # until complete.
-        assert starts == [("doc", 3)]
+        # Started once, then checked on what start returned until complete.
+        assert starts == ["op"]
         assert checks == []
-        assert result == "doc-op done"
+        assert result == "op done"
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
