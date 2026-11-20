@@ -1,8 +1,15 @@
 import json
 import logging
+from typing import Iterator
 
 import httpx
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from pytest_httpx import HTTPXMock
 from uipath.core.guardrails import (
     GuardrailScope,
@@ -1543,3 +1550,78 @@ class TestGuardrailErrorType:
         assert result.error_type is None
         assert result.reason == "Evaluated"
         assert not [r for r in caplog.records if r.name == _SERVICE_LOGGER]
+
+
+@pytest.fixture
+def recorded_spans(monkeypatch: pytest.MonkeyPatch) -> Iterator[InMemorySpanExporter]:
+    """Record every span, including any @traced would open, in memory."""
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(trace, "get_tracer", provider.get_tracer)
+    yield exporter
+    provider.shutdown()
+
+
+class TestEvaluateGuardrailSpan:
+    """In a job the Guardrails Service's span is the only evaluation span (AL-712)."""
+
+    def _evaluate_under_caller(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        url: str,
+    ) -> int:
+        httpx_mock.add_response(
+            url=url, status_code=200, json={"result": "PASSED", "details": ""}
+        )
+        with trace.get_tracer("test").start_as_current_span("caller") as caller:
+            service.evaluate_guardrail("some text", _judge_guardrail())
+            return caller.get_span_context().span_id
+
+    def test_job_run_opens_no_client_span(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        recorded_spans: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_JOB_KEY", "job-123")
+        monkeypatch.setenv("UIPATH_TRACE_ID", "0af7651916cd43dd8448eb211c80319c")
+
+        caller_span_id = self._evaluate_under_caller(
+            httpx_mock, service, f"{base_url}{org}{tenant}{_VALIDATE_PATH}"
+        )
+
+        assert [s.name for s in recorded_spans.get_finished_spans()] == ["caller"]
+        # The service's span is parented directly to the caller's span.
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-traceparent-id"].split("-")[2] == format(
+            caller_span_id, "016x"
+        )
+
+    def test_local_run_keeps_client_span(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        recorded_spans: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
+
+        caller_span_id = self._evaluate_under_caller(
+            httpx_mock, service, f"{base_url}{org}{tenant}{_VALIDATE_PATH}"
+        )
+
+        spans = {s.name: s for s in recorded_spans.get_finished_spans()}
+        assert set(spans) == {"caller", "evaluate_guardrail"}
+        parent = spans["evaluate_guardrail"].parent
+        assert parent is not None
+        assert parent.span_id == caller_span_id
