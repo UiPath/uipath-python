@@ -405,6 +405,8 @@ class _SpanUtils:
         """
         # Extract the context information from the OTel span
         span_context = otel_span.get_span_context()
+        if span_context is None:
+            raise ValueError(f"Span {otel_span.name!r} has no span context")
 
         # Convert to OTEL hex format (32 chars for trace_id, 16 chars for span_id)
         trace_id = format(span_context.trace_id, "032x")

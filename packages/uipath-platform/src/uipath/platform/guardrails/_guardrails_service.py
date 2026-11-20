@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from httpx import HTTPStatusError
 from uipath.core.guardrails import (
+    GuardrailScope,
     GuardrailValidationErrorType,
     GuardrailValidationResult,
     GuardrailValidationResultType,
@@ -140,6 +141,9 @@ class GuardrailsService(BaseService):
         *,
         attachments: list[GuardrailAttachment] | None = None,
         termination_mode: GuardrailTerminationMode | None = None,
+        scope: GuardrailScope | None = None,
+        execution_stage: str | None = None,
+        action_type: str | None = None,
     ) -> GuardrailValidationResult:
         """Validate input text using the provided guardrail.
 
@@ -151,6 +155,12 @@ class GuardrailsService(BaseService):
                 meaning files apply but there are none to inspect.
             termination_mode: ``FAIL_FAST`` stops scanning at the first violation;
                 ``EVALUATE_ALL`` or ``None`` scans everything.
+            scope: What the check guards: the agent, an LLM call or a tool call.
+                Only recorded on the evaluation span; ``None`` omits it.
+            execution_stage: ``preExecution`` or ``postExecution``: whether the
+                check runs before or after what it guards.
+            action_type: What the caller does when the check fails: ``Block``,
+                ``Filter``, ``Log`` or ``Escalate``.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -168,6 +178,9 @@ class GuardrailsService(BaseService):
             guardrail,
             attachments=attachments,
             termination_mode=termination_mode,
+            scope=scope,
+            execution_stage=execution_stage,
+            action_type=action_type,
         )
 
     @traced("evaluate_guardrail", run_type="uipath")
@@ -175,16 +188,9 @@ class GuardrailsService(BaseService):
         self,
         input_data: str | dict[str, Any],
         guardrail: BuiltInValidatorGuardrail,
-        *,
-        attachments: list[GuardrailAttachment] | None = None,
-        termination_mode: GuardrailTerminationMode | None = None,
+        **options: Any,
     ) -> GuardrailValidationResult:
-        return self._evaluate_guardrail(
-            input_data,
-            guardrail,
-            attachments=attachments,
-            termination_mode=termination_mode,
-        )
+        return self._evaluate_guardrail(input_data, guardrail, **options)
 
     def _evaluate_guardrail(
         self,
@@ -193,12 +199,21 @@ class GuardrailsService(BaseService):
         *,
         attachments: list[GuardrailAttachment] | None = None,
         termination_mode: GuardrailTerminationMode | None = None,
+        scope: GuardrailScope | None = None,
+        execution_stage: str | None = None,
+        action_type: str | None = None,
     ) -> GuardrailValidationResult:
         spec = RequestSpec(
             method="POST",
             endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
             json=self._build_validate_payload(
-                input_data, guardrail, attachments, termination_mode
+                input_data,
+                guardrail,
+                attachments,
+                termination_mode,
+                scope=scope,
+                execution_stage=execution_stage,
+                action_type=action_type,
             ),
         )
         request_kwargs: dict[str, Any] = {
@@ -217,6 +232,10 @@ class GuardrailsService(BaseService):
         guardrail: BuiltInValidatorGuardrail,
         attachments: list[GuardrailAttachment] | None,
         termination_mode: GuardrailTerminationMode | None,
+        *,
+        scope: GuardrailScope | None = None,
+        execution_stage: str | None = None,
+        action_type: str | None = None,
     ) -> dict[str, Any]:
         """Build the body of a validate request."""
         payload: dict[str, Any] = {
@@ -238,6 +257,12 @@ class GuardrailsService(BaseService):
             payload["attachments"] = [a.model_dump(by_alias=True) for a in attachments]
         if termination_mode is not None:
             payload["terminationMode"] = termination_mode.value
+        if scope is not None:
+            payload["scope"] = scope.value
+        if execution_stage is not None:
+            payload["executionStage"] = execution_stage
+        if action_type is not None:
+            payload["actionType"] = action_type
         return payload
 
     def _build_validate_headers(

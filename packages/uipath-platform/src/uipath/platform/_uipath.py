@@ -19,13 +19,14 @@ from .common import (
 from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
-from .documents import DocumentsService
+from .documents import DocumentsService, DocumentsServiceV2
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
 from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService
+from .ontology import OntologyService
 from .orchestrator import (
     AssetsService,
     AttachmentsService,
@@ -137,6 +138,10 @@ class UiPath:
         return DocumentsService(self._config, self._execution_context)
 
     @property
+    def documents_v2(self) -> DocumentsServiceV2:
+        return DocumentsServiceV2(self._config, self._execution_context)
+
+    @property
     def queues(self) -> QueuesService:
         return QueuesService(self._config, self._execution_context)
 
@@ -161,6 +166,10 @@ class UiPath:
         return EntitiesService(
             self._config, self._execution_context, folders_service=self.folders
         )
+
+    @cached_property
+    def ontology(self) -> OntologyService:
+        return OntologyService(self._config, self._execution_context)
 
     @cached_property
     def resource_catalog(self) -> ResourceCatalogService:

@@ -7,11 +7,12 @@ from uuid import UUID, uuid4
 import pytest
 from pytest_httpx import HTTPXMock
 
-from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform import UiPath, UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.documents import (
     ActionPriority,
     ClassificationResult,
     DocumentsService,
+    DocumentsServiceV2,
     ExtractionResponse,
     ProjectType,
     ValidateClassificationAction,
@@ -23,12 +24,14 @@ from uipath.platform.errors import (
 )
 
 
-@pytest.fixture
+# Every test runs against both DU Framework API versions.
+@pytest.fixture(params=[DocumentsService, DocumentsServiceV2], ids=["v1.1", "v2"])
 def service(
+    request: pytest.FixtureRequest,
     config: UiPathApiConfig,
     execution_context: UiPathExecutionContext,
 ):
-    return DocumentsService(
+    return request.param(
         config=config,
         execution_context=execution_context,
         polling_interval=0.001,  # 1ms for fast tests
@@ -36,15 +39,22 @@ def service(
     )
 
 
-@pytest.fixture
-def documents_tests_data_path(tests_data_path: Path) -> Path:
-    return tests_data_path / "documents_service"
+def api_version(service: DocumentsService | DocumentsServiceV2) -> str:
+    return "2.0" if isinstance(service, DocumentsServiceV2) else "1.1"
 
 
-@pytest.fixture
-def classification_response(documents_tests_data_path: Path) -> dict:  # type: ignore
-    with open(documents_tests_data_path / "classification_response.json", "r") as f:
-        return json.load(f)
+def tag_route(service: DocumentsService | DocumentsServiceV2, tag: str) -> str:
+    # v2 moved tag-scoped routes under a literal `tags` segment.
+    return f"tags/{tag}" if isinstance(service, DocumentsServiceV2) else tag
+
+
+def allow_document_type_change(
+    service: DocumentsService | DocumentsServiceV2,
+) -> dict[str, Any]:
+    # v2 moved this setting into the validation configuration.
+    if isinstance(service, DocumentsServiceV2):
+        return {"configuration": {"allowChangeOfDocumentType": True}}
+    return {"allowChangeOfDocumentType": True}
 
 
 @pytest.fixture
@@ -56,16 +66,6 @@ def ixp_extraction_response(documents_tests_data_path: Path) -> dict:  # type: i
 @pytest.fixture
 def modern_extraction_response(documents_tests_data_path: Path) -> dict:  # type: ignore
     with open(documents_tests_data_path / "modern_extraction_response.json", "r") as f:
-        return json.load(f)
-
-
-@pytest.fixture
-def create_validation_action_response(documents_tests_data_path: Path) -> dict:  # type: ignore
-    with open(
-        documents_tests_data_path
-        / "extraction_validation_action_response_unassigned.json",
-        "r",
-    ) as f:
         return json.load(f)
 
 
@@ -214,7 +214,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -223,7 +223,7 @@ class TestDocumentsService:
             json={"operationId": operation_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -245,6 +245,7 @@ class TestDocumentsService:
         modern_extraction_response["extractorId"] = document_type_id
         modern_extraction_response["tag"] = None
         modern_extraction_response["documentTypeId"] = document_type_id
+        modern_extraction_response["apiVersion"] = api_version(service)
         assert response.model_dump() == modern_extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -286,7 +287,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -298,7 +299,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -325,7 +326,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -337,7 +338,7 @@ class TestDocumentsService:
         statuses = ["NotStarted", "Running", "Succeeded"]
         for status in statuses:
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}?api-version=1.1",
+                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
                 status_code=200,
                 match_headers={
                     "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -359,6 +360,7 @@ class TestDocumentsService:
         modern_extraction_response["extractorId"] = extractor_id
         modern_extraction_response["tag"] = None
         modern_extraction_response["documentTypeId"] = document_type_id
+        modern_extraction_response["apiVersion"] = api_version(service)
         assert response.model_dump() == modern_extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -394,7 +396,7 @@ class TestDocumentsService:
 
         operation_id = str(uuid4())
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/document-types/{document_type_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/document-types/{document_type_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -403,7 +405,7 @@ class TestDocumentsService:
             json={"operationId": operation_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/document-types/{document_type_id}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/document-types/{document_type_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -425,6 +427,7 @@ class TestDocumentsService:
         modern_extraction_response["extractorId"] = None
         modern_extraction_response["tag"] = "Production"
         modern_extraction_response["documentTypeId"] = document_type_id
+        modern_extraction_response["apiVersion"] = api_version(service)
         assert response.model_dump() == modern_extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -444,7 +447,7 @@ class TestDocumentsService:
         document_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -453,7 +456,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -463,7 +466,7 @@ class TestDocumentsService:
 
         operation_id = str(uuid4())
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -472,7 +475,7 @@ class TestDocumentsService:
             json={"operationId": operation_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/classification/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -523,7 +526,7 @@ class TestDocumentsService:
         version = 5
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=Modern",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=Modern",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -538,7 +541,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -548,7 +551,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -557,7 +560,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -611,7 +614,7 @@ class TestDocumentsService:
         classifier_id = "classifier_2"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=Modern",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=Modern",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -626,7 +629,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -635,7 +638,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -644,7 +647,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -659,7 +662,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -669,7 +672,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/classification/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -724,7 +727,7 @@ class TestDocumentsService:
         document_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=Modern",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=Modern",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -739,7 +742,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -752,7 +755,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -761,7 +764,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -771,7 +774,7 @@ class TestDocumentsService:
 
         operation_id = str(uuid4())
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/classification/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/classification/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -780,7 +783,7 @@ class TestDocumentsService:
             json={"operationId": operation_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/classification/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/classification/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -980,7 +983,7 @@ class TestDocumentsService:
         version = 3
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=IXP",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -995,7 +998,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1005,7 +1008,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1014,7 +1017,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1041,7 +1044,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1051,7 +1054,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1082,6 +1085,7 @@ class TestDocumentsService:
         expected_response["extractorId"] = extractor_id
         expected_response["tag"] = None
         expected_response["documentTypeId"] = str(UUID(int=0))
+        expected_response["apiVersion"] = api_version(service)
         assert response.model_dump() == expected_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1102,7 +1106,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=IXP",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1116,7 +1120,7 @@ class TestDocumentsService:
             },
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1130,7 +1134,7 @@ class TestDocumentsService:
             },
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1139,7 +1143,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1147,7 +1151,7 @@ class TestDocumentsService:
             json={"status": "Succeeded", "result": {}},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'live')}/document-types/{UUID(int=0)}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1157,7 +1161,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'live')}/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1165,7 +1169,7 @@ class TestDocumentsService:
             json={"status": "NotStarted", "result": ixp_extraction_response},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'live')}/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1173,7 +1177,7 @@ class TestDocumentsService:
             json={"status": "Running", "result": ixp_extraction_response},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/live/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'live')}/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1204,6 +1208,7 @@ class TestDocumentsService:
         expected_response["extractorId"] = None
         expected_response["tag"] = "live"
         expected_response["documentTypeId"] = str(UUID(int=0))
+        expected_response["apiVersion"] = api_version(service)
         assert response.model_dump() == expected_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1225,7 +1230,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1234,7 +1239,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1243,7 +1248,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1258,7 +1263,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1270,7 +1275,7 @@ class TestDocumentsService:
         statuses = ["NotStarted", "Running", "Succeeded"]
         for status in statuses:
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/result/{operation_id}?api-version=1.1",
+                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
                 status_code=200,
                 match_headers={
                     "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1299,6 +1304,7 @@ class TestDocumentsService:
         expected_response["extractorId"] = document_type_id
         expected_response["tag"] = None
         expected_response["documentTypeId"] = document_type_id
+        expected_response["apiVersion"] = api_version(service)
         assert response.model_dump() == expected_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1319,7 +1325,7 @@ class TestDocumentsService:
         document_type_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=Modern",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=Modern",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1334,7 +1340,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1344,7 +1350,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1353,7 +1359,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1368,7 +1374,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1437,7 +1443,7 @@ class TestDocumentsService:
         version = 2
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=Modern",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=Modern",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1452,7 +1458,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1461,7 +1467,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1470,7 +1476,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1485,7 +1491,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1512,7 +1518,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1524,7 +1530,7 @@ class TestDocumentsService:
         statuses = ["NotStarted", "Running", "Succeeded"]
         for status in statuses:
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}?api-version=1.1",
+                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
                 status_code=200,
                 match_headers={
                     "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1557,6 +1563,7 @@ class TestDocumentsService:
         expected_response["extractorId"] = extractor_id
         expected_response["tag"] = None
         expected_response["documentTypeId"] = document_type_id
+        expected_response["apiVersion"] = api_version(service)
         assert response.model_dump() == expected_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1578,7 +1585,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=Modern",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=Modern",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1593,7 +1600,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1608,7 +1615,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1617,7 +1624,7 @@ class TestDocumentsService:
             json={"documentId": document_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/result/{document_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1626,7 +1633,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/document-types?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1641,7 +1648,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/document-types/{document_type_id}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/document-types/{document_type_id}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={
                 "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1653,7 +1660,7 @@ class TestDocumentsService:
         statuses = ["NotStarted", "Running", "Succeeded"]
         for status in statuses:
             httpx_mock.add_response(
-                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/document-types/{document_type_id}/extraction/result/{operation_id}?api-version=1.1",
+                url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/document-types/{document_type_id}/extraction/result/{operation_id}?api-version={api_version(service)}",
                 status_code=200,
                 match_headers={
                     "X-UiPath-Internal-ConsumptionSourceType": "CodedAgents",
@@ -1686,6 +1693,7 @@ class TestDocumentsService:
         expected_response["extractorId"] = None
         expected_response["tag"] = "Production"
         expected_response["documentTypeId"] = document_type_id
+        expected_response["apiVersion"] = api_version(service)
         assert response.model_dump() == expected_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1726,7 +1734,7 @@ class TestDocumentsService:
     ):
         # ARRANGE
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/dummy_project_id/document-types?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/dummy_project_id/document-types?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
@@ -1800,7 +1808,7 @@ class TestDocumentsService:
     ):
         # ARRANGE
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=IXP",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
@@ -1843,7 +1851,7 @@ class TestDocumentsService:
         # ARRANGE
         project_id = str(uuid4())
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=IXP",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
@@ -1855,7 +1863,7 @@ class TestDocumentsService:
             },
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/tags?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"tags": [{"name": "staging"}]},
@@ -1912,7 +1920,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -1931,7 +1939,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2001,7 +2009,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2020,7 +2028,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2090,7 +2098,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/classifiers/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2109,7 +2117,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/classifiers/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/classifiers/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2207,7 +2215,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2226,7 +2234,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2278,7 +2286,7 @@ class TestDocumentsService:
         storage_bucket_directory_path = "Test/Directory/Path"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2291,14 +2299,14 @@ class TestDocumentsService:
                 "actionCatalog": action_catalog,
                 "actionFolder": action_folder,
                 "storageBucketName": storage_bucket_name,
-                "allowChangeOfDocumentType": True,
+                **allow_document_type_change(service),
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
             json={"operationId": operation_id},
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2374,7 +2382,7 @@ class TestDocumentsService:
         storage_bucket_directory_path = "Test/Directory/Path"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2385,13 +2393,13 @@ class TestDocumentsService:
                 "actionCatalog": action_catalog,
                 "actionFolder": action_folder,
                 "storageBucketName": storage_bucket_name,
-                "allowChangeOfDocumentType": True,
+                **allow_document_type_change(service),
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
             json={"operationId": operation_id},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2466,7 +2474,7 @@ class TestDocumentsService:
         storage_bucket_directory_path = "Test/Directory/Path"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2477,27 +2485,27 @@ class TestDocumentsService:
                 "actionCatalog": action_catalog,
                 "actionFolder": action_folder,
                 "storageBucketName": storage_bucket_name,
-                "allowChangeOfDocumentType": True,
+                **allow_document_type_change(service),
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
             json={"operationId": operation_id},
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "NotStarted"},
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Running"},
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2567,7 +2575,7 @@ class TestDocumentsService:
         action_title = "TestAction"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -2580,14 +2588,14 @@ class TestDocumentsService:
                 "actionCatalog": None,
                 "actionFolder": None,
                 "storageBucketName": None,
-                "allowChangeOfDocumentType": True,
+                **allow_document_type_change(service),
                 "storageBucketDirectoryPath": None,
             },
             json={"operationId": operation_id},
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2649,7 +2657,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/ml-classification/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2713,7 +2721,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/classifiers/{classifier_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2776,7 +2784,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/Production/classifiers/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'Production')}/classifiers/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2847,7 +2855,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{document_type_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2873,6 +2881,7 @@ class TestDocumentsService:
         modern_extraction_response["extractorId"] = document_type_id
         modern_extraction_response["tag"] = None
         modern_extraction_response["documentTypeId"] = document_type_id
+        modern_extraction_response["apiVersion"] = api_version(service)
         assert response.model_dump() == modern_extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -2926,7 +2935,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/extractors/{extractor_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -2952,6 +2961,7 @@ class TestDocumentsService:
         extraction_response["extractorId"] = extractor_id
         extraction_response["tag"] = None
         extraction_response["documentTypeId"] = document_type_id
+        extraction_response["apiVersion"] = api_version(service)
         assert response.model_dump() == extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -3005,7 +3015,7 @@ class TestDocumentsService:
         )
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{document_type_id}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{document_type_id}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -3031,6 +3041,7 @@ class TestDocumentsService:
         extraction_response["extractorId"] = None
         extraction_response["tag"] = tag
         extraction_response["documentTypeId"] = document_type_id
+        extraction_response["apiVersion"] = api_version(service)
         assert response.model_dump() == extraction_response
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -3115,7 +3126,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version=1.1&type=IXP",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects?api-version={api_version(service)}&type=IXP",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
@@ -3125,7 +3136,7 @@ class TestDocumentsService:
             },
         )
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/digitization/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_files={"File": b"test content"},
@@ -3134,7 +3145,7 @@ class TestDocumentsService:
 
         httpx_mock.add_response(
             method="POST",
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'staging')}/document-types/{UUID(int=0)}/extraction/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={"documentId": document_id},
@@ -3160,6 +3171,7 @@ class TestDocumentsService:
         assert response.document_id == document_id
         assert response.project_id == project_id
         assert response.tag == "staging"
+        assert response.api_version == api_version(service)
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
@@ -3201,7 +3213,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'staging')}/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": ixp_extraction_response},
@@ -3224,6 +3236,7 @@ class TestDocumentsService:
         # ASSERT
         assert response.project_id == project_id
         assert response.tag == "staging"
+        assert response.api_version == api_version(service)
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
@@ -3241,7 +3254,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'staging')}/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Running"},
@@ -3284,7 +3297,7 @@ class TestDocumentsService:
         operation_id = str(uuid4())
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/staging/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, 'staging')}/document-types/{UUID(int=0)}/extraction/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Failed", "error": "Dummy extraction error"},
@@ -3332,7 +3345,7 @@ class TestDocumentsService:
         storage_bucket_directory_path = "Test/Directory/Path"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -3343,7 +3356,7 @@ class TestDocumentsService:
                 "actionCatalog": action_catalog,
                 "actionFolder": action_folder,
                 "storageBucketName": storage_bucket_name,
-                "allowChangeOfDocumentType": True,
+                **allow_document_type_change(service),
                 "storageBucketDirectoryPath": storage_bucket_directory_path,
             },
             json={"operationId": operation_id},
@@ -3387,6 +3400,7 @@ class TestDocumentsService:
             "tag": tag,
             "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
             "operationId": operation_id,
+            "apiVersion": api_version(service),
         }
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -3408,7 +3422,7 @@ class TestDocumentsService:
         action_title = "TestAction"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/start?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/start?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             match_json={
@@ -3419,7 +3433,7 @@ class TestDocumentsService:
                 "actionCatalog": None,
                 "actionFolder": None,
                 "storageBucketName": None,
-                "allowChangeOfDocumentType": True,
+                **allow_document_type_change(service),
                 "storageBucketDirectoryPath": None,
             },
             json={"operationId": operation_id},
@@ -3453,6 +3467,7 @@ class TestDocumentsService:
             "tag": tag,
             "documentId": ixp_extraction_response["extractionResult"]["DocumentId"],
             "operationId": operation_id,
+            "apiVersion": api_version(service),
         }
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -3473,7 +3488,7 @@ class TestDocumentsService:
         tag = "live"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Succeeded", "result": create_validation_action_response},
@@ -3522,7 +3537,7 @@ class TestDocumentsService:
         tag = "live"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={
@@ -3575,7 +3590,7 @@ class TestDocumentsService:
         tag = "live"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Running"},
@@ -3619,7 +3634,7 @@ class TestDocumentsService:
         tag = "live"
 
         httpx_mock.add_response(
-            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version=1.1",
+            url=f"{base_url}{org}{tenant}/du_/api/framework/projects/{project_id}/{tag_route(service, tag)}/document-types/{UUID(int=0)}/validation/result/{operation_id}?api-version={api_version(service)}",
             status_code=200,
             match_headers={"X-UiPath-Internal-ConsumptionSourceType": "CodedAgents"},
             json={"status": "Failed", "error": "Dummy error"},
@@ -3642,3 +3657,107 @@ class TestDocumentsService:
                     tag=tag,
                     operation_id=operation_id,
                 )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_ixp_extraction_encodes_tag_in_url(
+        self,
+        httpx_mock: HTTPXMock,
+        service: DocumentsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: str,
+    ):
+        # ARRANGE
+        project_id = str(uuid4())
+        document_id = str(uuid4())
+        operation_id = str(uuid4())
+        base = f"{base_url}{org}{tenant}/du_/api/framework/projects"
+
+        httpx_mock.add_response(
+            url=f"{base}?api-version={api_version(service)}&type=IXP",
+            json={"projects": [{"id": project_id, "name": "TestProjectIXP"}]},
+        )
+        httpx_mock.add_response(
+            url=f"{base}/{project_id}/digitization/start?api-version={api_version(service)}",
+            json={"documentId": document_id},
+        )
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{base}/{project_id}/{tag_route(service, 'my%20tag%2F..%2Fv2')}/document-types/{UUID(int=0)}/extraction/start?api-version={api_version(service)}",
+            json={"operationId": operation_id},
+        )
+
+        # ACT
+        if mode == "async":
+            response = await service.start_ixp_extraction_async(
+                project_name="TestProjectIXP",
+                tag="my tag/../v2",
+                file=b"test content",
+            )
+        else:
+            response = service.start_ixp_extraction(
+                project_name="TestProjectIXP",
+                tag="my tag/../v2",
+                file=b"test content",
+            )
+
+        # ASSERT
+        assert response.operation_id == operation_id
+        assert response.tag == "my tag/../v2"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize(
+        "project_id,tag",
+        [
+            ("test-project-id", ".."),
+            ("test-project-id", "."),
+            ("test-project-id", ""),
+            ("..", "live"),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_retrieve_ixp_extraction_result_rejects_dot_and_empty_segments(
+        self,
+        service: DocumentsService,
+        mode: str,
+        project_id: str,
+        tag: str,
+    ):
+        # Percent-encoding leaves `.` and `..` unchanged, and httpx would resolve them.
+        # ACT & ASSERT
+        with pytest.raises(ValueError, match="Invalid URL path segment"):
+            if mode == "async":
+                await service.retrieve_ixp_extraction_result_async(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=str(uuid4()),
+                )
+            else:
+                service.retrieve_ixp_extraction_result(
+                    project_id=project_id,
+                    tag=tag,
+                    operation_id=str(uuid4()),
+                )
+
+
+@pytest.mark.parametrize(
+    "property_name,service_class,expected_version",
+    [
+        ("documents", DocumentsService, "1.1"),
+        ("documents_v2", DocumentsServiceV2, "2.0"),
+    ],
+)
+def test_uipath_documents_services(
+    mock_env_vars: dict[str, str],
+    property_name: str,
+    service_class: type,
+    expected_version: str,
+):
+    # ACT
+    service: DocumentsService | DocumentsServiceV2 = getattr(UiPath(), property_name)
+
+    # ASSERT
+    assert service._api_version == expected_version
+    assert type(service) is service_class
