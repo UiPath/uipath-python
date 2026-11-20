@@ -42,7 +42,7 @@ _REFRESH_MARGIN_FRACTION = 0.2
 _MIN_REFRESH_MARGIN_S = 120.0
 # After a failed renewal, or one that returned a token already due, leave the host alone for
 # this long before asking again.
-_RETRY_AFTER_FAILURE_S = 60.0
+_RETRY_AFTER_FAILURE_S = 30.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
 # .NET exception type names a host answers with when it cannot serve the method at all.
 _UNSUPPORTED_MARKERS = (
@@ -122,7 +122,7 @@ class JobTokenRefresher:
     One task, started by :meth:`start`, sleeps until 80 percent of the current token's lifetime
     has passed (at least two minutes before expiry), asks the host, stores and publishes the
     answer, and reschedules from the new token. A failure is logged once, the current token is
-    kept and the host is left alone for a minute; a host that does not implement the call ends
+    kept and the host is left alone for 30 seconds; a host that does not implement the call ends
     the task. :meth:`stop` cancels the task, a request in flight included, and a stopped
     refresher never writes to the environment again.
     """
