@@ -5,7 +5,7 @@ description = "UiPath MCP agent"
 authors = [{ name = "John Doe", email = "john.doe@myemail.com" }]
 dependencies = [
     "uipath>=2.14.41",
-    "mcp>=1.28.1",
+    "mcp>=1.30.0",
 ]
 requires-python = ">=3.11"
 

@@ -1442,6 +1442,10 @@ class EntitiesService(BaseService):
         """Async variant of `delete_record_v3()`."""
         await self._data.delete_record_async(entity_key, record_id, use_v3=True)
 
+    @deprecated(
+        "Deprecated; ontologies live in the Ontology service. Use "
+        "UiPath().ontology.download_artifacts_async(ontology_id, artifact_type)."
+    )
     async def get_ontology_file_async(
         self,
         ontology_name: str,
@@ -1449,6 +1453,9 @@ class EntitiesService(BaseService):
         folder_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Fetch one file of an ontology from Data Fabric.
+
+        Deprecated: ontologies are served by the Ontology service by id; use
+        :class:`uipath.platform.ontology.OntologyService` instead.
 
         !!! warning "Preview Feature"
             This method is currently experimental. Behavior and parameters are
