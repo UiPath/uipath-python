@@ -395,10 +395,21 @@ class LlmOpsHttpExporter(SpanExporter):
         source = str(span_list[0].get("Source") or SpanSource.CODED_AGENTS)
         return f"{self.base_url}/api/Traces/v3/spans?traceId={trace_id}&source={source}"
 
+    def _refresh_auth_token(self) -> None:
+        """Pick up a token that changed in the environment."""
+        token = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
+        if not token or token == self.auth_token:
+            return
+
+        self.auth_token = token
+        self.headers["Authorization"] = f"Bearer {token}"
+        self.http_client.headers["Authorization"] = f"Bearer {token}"
+
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
     ) -> SpanExportResult:
         """Send the HTTP request with retry logic."""
+        self._refresh_auth_token()
         for attempt in range(max_retries):
             try:
                 response = self.http_client.post(url, json=payload)

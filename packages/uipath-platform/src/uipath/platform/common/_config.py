@@ -9,6 +9,8 @@ from pydantic import BaseModel
 class UiPathApiConfig(BaseModel):
     base_url: str
     secret: str
+    secret_from_environment: bool = False
+    environment_job_key: str | None = None
 
 
 class ConfigurationManager:

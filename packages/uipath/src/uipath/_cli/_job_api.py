@@ -14,7 +14,10 @@ from concurrent.futures import Future
 from concurrent.futures import wait as _futures_wait
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, TypeGuard
+from typing import TYPE_CHECKING, Any, TypeGuard
+
+if TYPE_CHECKING:
+    from ._job_token import JobTokenRefresher
 
 logger = logging.getLogger(__name__)
 
@@ -342,14 +345,18 @@ class _HandlerIpcConnection:
         loop: asyncio.AbstractEventLoop,
         thread: threading.Thread,
         log_handler: "_IpcLogHandler | None" = None,
+        token_refresher: JobTokenRefresher | None = None,
     ) -> None:
         self._client = client
         self._loop = loop
         self._thread = thread
         self._log_handler = log_handler
+        self._token_refresher = token_refresher
 
     def _shutdown(self) -> None:
         """Close the client and stop its loop/thread."""
+        if self._token_refresher is not None:
+            self._token_refresher.stop()
         if self._log_handler is not None:
             self._log_handler.flush_pending()
         try:
@@ -372,9 +379,16 @@ def is_wire_job_key(job_key: str | None) -> TypeGuard[str]:
 
 
 def connect_handler_ipc(
-    pipe: str, job_key: str | None, resume_version: int | None
+    pipe: str,
+    job_key: str | None,
+    resume_version: int | None,
+    *,
+    refresh_token: bool = False,
 ) -> _HandlerIpcConnection:
-    """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``)."""
+    """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``).
+
+    With ``refresh_token``, the job's user access token is renewed over the same connection.
+    """
     if not is_wire_job_key(job_key):
         raise RuntimeError(
             f"--handler-ipc-pipe needs UIPATH_JOB_KEY to be a job key; got {job_key!r}."
@@ -415,7 +429,14 @@ def connect_handler_ipc(
         raise
     # Install in the caller's context: the sinks are contextvars, read in the job's own context at teardown.
     handler = install_runtime_sinks(job_key, resume_version, proxy, loop)
-    return _HandlerIpcConnection(client, loop, thread, handler)
+    token_refresher = None
+    if refresh_token:
+        from ._job_token import install_job_token_refresher
+
+        token_refresher = install_job_token_refresher(
+            job_key, resume_version, proxy, loop
+        )
+    return _HandlerIpcConnection(client, loop, thread, handler, token_refresher)
 
 
 async def disconnect_handler_ipc(conn: _HandlerIpcConnection) -> None:
@@ -426,11 +447,17 @@ async def disconnect_handler_ipc(conn: _HandlerIpcConnection) -> None:
 
 @contextlib.asynccontextmanager
 async def handler_ipc_connection(
-    pipe: str | None, job_key: str | None, resume_version: int | None
+    pipe: str | None,
+    job_key: str | None,
+    resume_version: int | None,
+    *,
+    refresh_token: bool = False,
 ) -> AsyncIterator[Any]:
     """Connect (if ``pipe`` is set) and always disconnect on exit; yields the connection or None."""
     conn = (
-        connect_handler_ipc(pipe, job_key, resume_version) if pipe is not None else None
+        connect_handler_ipc(pipe, job_key, resume_version, refresh_token=refresh_token)
+        if pipe is not None
+        else None
     )
     try:
         yield conn

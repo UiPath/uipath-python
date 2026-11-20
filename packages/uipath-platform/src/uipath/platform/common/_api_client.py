@@ -30,8 +30,9 @@ class ApiClient(FolderContext, BaseService):
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
+            # httpx merges the client's default headers; do not copy them here.
             kwargs["headers"] = {
-                **kwargs.get("headers", self._client.headers),
+                **kwargs.get("headers", {}),
                 **self.folder_headers,
             }
 
@@ -48,8 +49,9 @@ class ApiClient(FolderContext, BaseService):
         **kwargs: Any,
     ) -> Response:
         if kwargs.get("include_folder_headers", False):
+            # httpx merges the client's default headers; do not copy them here.
             kwargs["headers"] = {
-                **kwargs.get("headers", self._client_async.headers),
+                **kwargs.get("headers", {}),
                 **self.folder_headers,
             }
 

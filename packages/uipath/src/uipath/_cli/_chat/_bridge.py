@@ -32,6 +32,8 @@ from uipath.platform.constants import (
 from uipath.runtime.chat import UiPathChatProtocol
 from uipath.runtime.context import UiPathRuntimeContext
 
+from .._utils._auth_header import with_current_access_token
+
 logger = logging.getLogger(__name__)
 
 # Type for tool call resume values (confirmToolCall or endToolCall payloads)
@@ -222,7 +224,8 @@ class SocketIOChatBridge:
                     self._client.connect(
                         url=self.websocket_url,
                         socketio_path=self.websocket_path,
-                        headers=self.headers,
+                        # A callable: the library asks again on every reconnect.
+                        headers=lambda: with_current_access_token(self.headers),
                         auth=self.auth,
                         transports=["websocket"],
                     ),

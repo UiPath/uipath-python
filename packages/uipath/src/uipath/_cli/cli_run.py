@@ -124,8 +124,14 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     hidden=True,  # set by the job executor, never by a person
     help="Named pipe to stream this job's logs and result over uipath-ipc instead of writing them to files.",
 )
+@click.option(
+    "--handler-ipc-token-refresh",
+    is_flag=True,
+    hidden=True,  # set by the job executor, never by a person
+    help="Renew this job's user access token over the handler IPC pipe before it expires. Needs --handler-ipc-pipe.",
+)
 @track_command("run")
-def run(
+def run(  # NOSONAR: one parameter per click option
     entrypoint: str | None,
     input: str | None,
     resume: bool,
@@ -139,6 +145,7 @@ def run(
     keep_state_file: bool,
     simulation: str | None,
     handler_ipc_pipe: str | None,
+    handler_ipc_token_refresh: bool,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -154,6 +161,13 @@ def run(
         except (ValidationError, ValueError) as e:
             console.error(f"Invalid --simulation config: {e}")
             return
+
+    if handler_ipc_token_refresh and handler_ipc_pipe is None:
+        # Renewal is optional: the job runs without it.
+        console.warning(
+            "--handler-ipc-token-refresh needs --handler-ipc-pipe; running without token renewal."
+        )
+        handler_ipc_token_refresh = False
 
     result = Middlewares.next(
         "run",
@@ -232,7 +246,12 @@ def run(
                 from ._job_api import handler_ipc_connection
 
                 async with (
-                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id, None),
+                    handler_ipc_connection(
+                        handler_ipc_pipe,
+                        ctx.job_id,
+                        None,
+                        refresh_token=handler_ipc_token_refresh,
+                    ),
                     ResourceOverwritesContext(
                         lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                     ),
