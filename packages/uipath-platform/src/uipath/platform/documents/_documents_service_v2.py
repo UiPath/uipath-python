@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 from uuid import UUID
 
 from uipath.core.tracing import traced
@@ -28,6 +28,14 @@ from .documents import (
 
 def _models_url(*segments: Any) -> Endpoint:
     return Endpoint(f"/du_/api/framework/models/{_url_path(segments)}")
+
+
+class _ModelDigitization(NamedTuple):
+    """A digitization started on a model's route: everything checking it needs."""
+
+    model_name: str
+    folder_key: str
+    document_id: str
 
 
 def _parse_folder_key(folder_key: Optional[str]) -> str:
@@ -134,41 +142,83 @@ class DocumentsServiceV2(_DocumentsServiceBase):
             **header_folder(_parse_folder_key(folder_key), None),
         }
 
-    def _wait_for_model_digitization(
-        self, model_name: str, folder_key: str, document_id: str
-    ) -> None:
-        def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            result = self._request_json(
-                "GET",
-                url=_models_url(model_name, "digitization", "result", document_id),
+    def _start_model_digitization(
+        self,
+        model_name: str,
+        folder_key: str,
+        file: Optional[FileContent],
+        file_path: Optional[str],
+    ) -> _ModelDigitization:
+        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
+            document_id = self._request_json(
+                "POST",
+                url=_models_url(model_name, "digitization", "start"),
                 params={"api-version": self._api_version},
                 headers=self._model_headers(folder_key),
-            )
-            return result["status"], result.get("error"), None
+                files={"File": handle},
+            )["documentId"]
+        return _ModelDigitization(model_name, folder_key, document_id)
 
-        self._wait_for_operation(
-            result_getter=result_getter,
-            wait_statuses=["NotStarted", "Running"],
-            success_status="Succeeded",
+    async def _start_model_digitization_async(
+        self,
+        model_name: str,
+        folder_key: str,
+        file: Optional[FileContent],
+        file_path: Optional[str],
+    ) -> _ModelDigitization:
+        # Read in a worker thread so the event loop isn't blocked. Keeping the
+        # file name keeps the upload's content type, which DU checks.
+        upload = (
+            (Path(file_path).name, await asyncio.to_thread(Path(file_path).read_bytes))
+            if file_path
+            else file
         )
-
-    async def _wait_for_model_digitization_async(
-        self, model_name: str, folder_key: str, document_id: str
-    ) -> None:
-        async def result_getter() -> Tuple[str, Optional[str], Optional[str]]:
-            result = await self._request_json_async(
-                "GET",
-                url=_models_url(model_name, "digitization", "result", document_id),
+        document_id = (
+            await self._request_json_async(
+                "POST",
+                url=_models_url(model_name, "digitization", "start"),
                 params={"api-version": self._api_version},
                 headers=self._model_headers(folder_key),
+                files={"File": upload},
             )
-            return result["status"], result.get("error"), None
+        )["documentId"]
+        return _ModelDigitization(model_name, folder_key, document_id)
 
-        await self._wait_for_operation_async(
-            result_getter=result_getter,
-            wait_statuses=["NotStarted", "Running"],
-            success_status="Succeeded",
+    def _model_digitization_result_url(
+        self, digitization: _ModelDigitization
+    ) -> Endpoint:
+        return _models_url(
+            digitization.model_name,
+            "digitization",
+            "result",
+            digitization.document_id,
         )
+
+    def _digitized_document_id(
+        self, response: Dict[str, Any], digitization: _ModelDigitization
+    ) -> str:
+        _operation_result(response, digitization.document_id, "Digitization")
+        return digitization.document_id
+
+    def _retrieve_model_digitization(self, digitization: _ModelDigitization) -> str:
+        response = self._request_json(
+            "GET",
+            url=self._model_digitization_result_url(digitization),
+            params={"api-version": self._api_version},
+            headers=self._model_headers(digitization.folder_key),
+        )
+        return self._digitized_document_id(response, digitization)
+
+    async def _retrieve_model_digitization_async(
+        self, digitization: _ModelDigitization
+    ) -> str:
+        response = await self._request_json_async(
+            "GET",
+            url=self._model_digitization_result_url(digitization),
+            params={"api-version": self._api_version},
+            headers=self._model_headers(digitization.folder_key),
+        )
+        return self._digitized_document_id(response, digitization)
 
     @traced(name="documents_start_model_extraction", run_type="uipath")
     def start_model_extraction(
@@ -197,6 +247,10 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         Returns:
             StartModelExtractionResponse: Contains the operation_id, document_id, model_name, and folder_key.
 
+        Raises:
+            OperationFailedException: If the digitization failed, e.g. for a corrupt or password-protected document.
+            TimeoutError: If the digitization didn't finish within the polling timeout.
+
         Examples:
             ```python
             start_response = uipath.documents_v2.start_model_extraction(
@@ -211,24 +265,22 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         _exactly_one_must_be_provided(file=file, file_path=file_path)
         _url_path((model_name,))
         folder_key = self._model_folder_key(folder_key, folder_path)
-        headers = self._model_headers(folder_key)
 
-        with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
-            document_id = self._request_json(
-                "POST",
-                url=_models_url(model_name, "digitization", "start"),
-                params={"api-version": self._api_version},
-                headers=headers,
-                files={"File": handle},
-            )["documentId"]
-
-        self._wait_for_model_digitization(model_name, folder_key, document_id)
+        # Extraction starts only on a successfully digitized document.
+        document_id = self._start_and_wait(
+            self._start_model_digitization,
+            self._retrieve_model_digitization,
+            model_name=model_name,
+            folder_key=folder_key,
+            file=file,
+            file_path=file_path,
+        )
 
         operation_id = self._request_json(
             "POST",
             url=_models_url(model_name, "extraction", "start"),
             params={"api-version": self._api_version},
-            headers=headers,
+            headers=self._model_headers(folder_key),
             json={"documentId": document_id},
         )["operationId"]
 
@@ -252,27 +304,15 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         _exactly_one_must_be_provided(file=file, file_path=file_path)
         _url_path((model_name,))
         folder_key = await self._model_folder_key_async(folder_key, folder_path)
-        headers = self._model_headers(folder_key)
 
-        # Read in a worker thread so the event loop isn't blocked. Keeping the
-        # file name keeps the upload's content type, which DU checks.
-        upload = (
-            (Path(file_path).name, await asyncio.to_thread(Path(file_path).read_bytes))
-            if file_path
-            else file
-        )
-        document_id = (
-            await self._request_json_async(
-                "POST",
-                url=_models_url(model_name, "digitization", "start"),
-                params={"api-version": self._api_version},
-                headers=headers,
-                files={"File": upload},
-            )
-        )["documentId"]
-
-        await self._wait_for_model_digitization_async(
-            model_name, folder_key, document_id
+        # Extraction starts only on a successfully digitized document.
+        document_id = await self._start_and_wait_async(
+            self._start_model_digitization_async,
+            self._retrieve_model_digitization_async,
+            model_name=model_name,
+            folder_key=folder_key,
+            file=file,
+            file_path=file_path,
         )
 
         operation_id = (
@@ -280,7 +320,7 @@ class DocumentsServiceV2(_DocumentsServiceBase):
                 "POST",
                 url=_models_url(model_name, "extraction", "start"),
                 params={"api-version": self._api_version},
-                headers=headers,
+                headers=self._model_headers(folder_key),
                 json={"documentId": document_id},
             )
         )["operationId"]
@@ -398,8 +438,8 @@ class DocumentsServiceV2(_DocumentsServiceBase):
             ModelExtractionResponse: The extraction response containing the extracted data.
 
         Raises:
-            OperationFailedException: If the extraction operation failed.
-            TimeoutError: If the extraction didn't finish within the polling timeout.
+            OperationFailedException: If the digitization or the extraction failed.
+            TimeoutError: If the digitization or the extraction didn't finish within the polling timeout.
 
         Examples:
             ```python
@@ -411,16 +451,16 @@ class DocumentsServiceV2(_DocumentsServiceBase):
                 )
             ```
         """
-        start_response = self.start_model_extraction(
+        # The private retrieve isn't traced: a span per poll would record each
+        # not-complete check as an error.
+        return self._start_and_wait(
+            self.start_model_extraction,
+            self._retrieve_model_extraction_result,
             model_name=model_name,
             file=file,
             file_path=file_path,
             folder_key=folder_key,
             folder_path=folder_path,
-        )
-
-        return self._wait_until_complete(
-            lambda: self._retrieve_model_extraction_result(start_response)
         )
 
     @traced(name="documents_extract_with_model_async", run_type="uipath")
@@ -433,14 +473,12 @@ class DocumentsServiceV2(_DocumentsServiceBase):
         folder_path: Optional[str] = None,
     ) -> ModelExtractionResponse:
         """Asynchronous version of the [`extract_with_model`][uipath.platform.documents._documents_service_v2.DocumentsServiceV2.extract_with_model] method."""
-        start_response = await self.start_model_extraction_async(
+        return await self._start_and_wait_async(
+            self.start_model_extraction_async,
+            self._retrieve_model_extraction_result_async,
             model_name=model_name,
             file=file,
             file_path=file_path,
             folder_key=folder_key,
             folder_path=folder_path,
-        )
-
-        return await self._wait_until_complete_async(
-            lambda: self._retrieve_model_extraction_result_async(start_response)
         )

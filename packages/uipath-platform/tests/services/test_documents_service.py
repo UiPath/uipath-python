@@ -3192,6 +3192,45 @@ class TestDocumentsService:
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
+    async def test_start_and_wait(self, service: DocumentsService, mode: str):
+        # ARRANGE
+        starts = []
+        checks = [False, False, True]
+
+        def start(name: str, *, size: int) -> str:
+            starts.append((name, size))
+            return f"{name}-op"
+
+        def retrieve(started: str) -> str:
+            if not checks.pop(0):
+                raise OperationNotCompleteException(
+                    operation_id=started, status="Running"
+                )
+            return f"{started} done"
+
+        async def start_async(name: str, *, size: int) -> str:
+            return start(name, size=size)
+
+        async def retrieve_async(started: str) -> str:
+            return retrieve(started)
+
+        # ACT
+        if mode == "async":
+            result = await service._start_and_wait_async(
+                start_async, retrieve_async, "doc", size=3
+            )
+        else:
+            result = service._start_and_wait(start, retrieve, "doc", size=3)
+
+        # ASSERT
+        # Started once with the arguments, then checked on what start returned
+        # until complete.
+        assert starts == [("doc", 3)]
+        assert checks == []
+        assert result == "doc-op done"
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
     async def test_start_ixp_extraction(
         self,
         httpx_mock: HTTPXMock,

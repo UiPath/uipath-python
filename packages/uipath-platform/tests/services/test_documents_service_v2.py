@@ -515,6 +515,44 @@ class TestDocumentsServiceV2FolderModels:
             )
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize("method", ["start_model_extraction", "extract_with_model"])
+    @pytest.mark.asyncio
+    async def test_model_digitization_failed(
+        self,
+        httpx_mock: HTTPXMock,
+        make_service: Callable[..., DocumentsServiceV2],
+        models_url: str,
+        mode: str,
+        method: str,
+    ):
+        # ARRANGE
+        service = make_service()
+        httpx_mock.add_response(
+            method="POST",
+            url=f"{models_url}/invoices/digitization/start?api-version=2.0",
+            json={"documentId": "doc"},
+        )
+        httpx_mock.add_response(
+            method="GET",
+            url=f"{models_url}/invoices/digitization/result/doc?api-version=2.0",
+            json={"status": "Failed", "error": "Password protected PDFs"},
+        )
+
+        # ACT & ASSERT
+        # Nothing else is mocked, so starting the extraction would fail differently.
+        with pytest.raises(
+            OperationFailedException, match="Digitization 'doc' failed.*Password"
+        ):
+            await call(
+                mode,
+                service,
+                method,
+                model_name="invoices",
+                file=b"x",
+                folder_key=FOLDER_KEY,
+            )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
     async def test_extract_with_model_times_out(
         self,

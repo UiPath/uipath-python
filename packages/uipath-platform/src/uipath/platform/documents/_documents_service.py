@@ -10,6 +10,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    ParamSpec,
     Set,
     Tuple,
     TypeVar,
@@ -44,6 +45,8 @@ from .documents import (
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
 
+P = ParamSpec("P")
+S = TypeVar("S")
 T = TypeVar("T")
 
 # Response values returned as-is: Document Processing contract payloads are
@@ -863,6 +866,39 @@ class _DocumentsServiceBase(FolderContext, BaseService):
                 if time.monotonic() - start_time >= self.polling_timeout:
                     raise TimeoutError("Operation timed out.") from None
                 await asyncio.sleep(self.polling_interval)
+
+    def _start_and_wait(
+        self,
+        start: Callable[P, S],
+        retrieve: Callable[[S], T],
+        /,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> T:
+        """Start an operation, then wait for it to complete.
+
+        `start` is called once, with `args` and `kwargs`. What it returns is
+        passed to `retrieve`, so it must carry everything `retrieve` needs.
+        `retrieve` checks once, raising `OperationNotCompleteException` while
+        the operation runs. It is called until it returns.
+
+        Raises:
+            TimeoutError: If the operation is still not complete after `polling_timeout`.
+        """
+        started = start(*args, **kwargs)
+        return self._wait_until_complete(lambda: retrieve(started))
+
+    async def _start_and_wait_async(
+        self,
+        start: Callable[P, Awaitable[S]],
+        retrieve: Callable[[S], Awaitable[T]],
+        /,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> T:
+        """Asynchronous version of `_start_and_wait`."""
+        started = await start(*args, **kwargs)
+        return await self._wait_until_complete_async(lambda: retrieve(started))
 
     def _wait_for_operation(
         self,
