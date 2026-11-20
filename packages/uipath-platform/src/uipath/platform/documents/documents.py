@@ -280,7 +280,20 @@ class ClassificationResponse(BaseModel):
     )
 
 
-class StartOperationResponse(BaseModel):
+class _StartOperationBase(BaseModel):
+    """The fields that every started operation has, whatever addresses its model."""
+
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
+
+    operation_id: str = Field(alias="operationId")
+    document_id: str = Field(alias="documentId")
+
+
+class StartOperationResponse(_StartOperationBase):
     """A model representing the response from starting an operation.
 
     Attributes:
@@ -291,14 +304,6 @@ class StartOperationResponse(BaseModel):
         api_version (str): The DU Framework API version that started the operation, `1.1` or `2.0`.
     """
 
-    model_config = ConfigDict(
-        serialize_by_alias=True,
-        validate_by_alias=True,
-        validate_by_name=True,
-    )
-
-    operation_id: str = Field(alias="operationId")
-    document_id: str = Field(alias="documentId")
     project_id: str = Field(alias="projectId")
     tag: str | None = Field(default=None)
     api_version: DocumentsApiVersion = Field(alias="apiVersion", default="1.1")
@@ -306,6 +311,46 @@ class StartOperationResponse(BaseModel):
 
 class StartExtractionResponse(StartOperationResponse):
     """A model representing the response from starting an extraction operation."""
+
+
+class StartModelExtractionResponse(_StartOperationBase):
+    """A model representing the response from starting an extraction with a model deployed to a folder.
+
+    Pass it to `DocumentsServiceV2.retrieve_model_extraction_result` to read the result.
+    It isn't a `StartOperationResponse`: a model deployed to a folder has no project or tag.
+
+    Attributes:
+        operation_id (str): The ID of the extraction operation, used to poll for results.
+        document_id (str): The ID of the digitized document.
+        model_name (str): The name of the model deployed to the folder.
+        folder_key (str): The key of the folder the model is deployed to.
+    """
+
+    model_name: str = Field(alias="modelName")
+    folder_key: str = Field(alias="folderKey")
+
+
+class ModelExtractionResponse(BaseModel):
+    """A model representing the result of an extraction with a model deployed to a folder.
+
+    Unlike project extraction results, it has no data projection: DU Framework
+    doesn't return one for models deployed to a folder.
+
+    Attributes:
+        extraction_result (ExtractionResult): The result of the extraction process.
+        model_name (str): The name of the model deployed to the folder.
+        folder_key (str): The key of the folder the model is deployed to.
+    """
+
+    model_config = ConfigDict(
+        serialize_by_alias=True,
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
+
+    extraction_result: ExtractionResult = Field(alias="extractionResult")
+    model_name: str = Field(alias="modelName")
+    folder_key: str = Field(alias="folderKey")
 
 
 class StartExtractionValidationResponse(StartOperationResponse):
