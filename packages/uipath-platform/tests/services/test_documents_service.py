@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -3096,6 +3096,87 @@ class TestDocumentsService:
         with pytest.raises(
             Exception, match="Operation failed with status: Failed, error: Dummy error"
         ):
+            if mode == "async":
+                await service._wait_for_operation_async(
+                    result_getter=mock_result_getter_async,
+                    wait_statuses=["NotStarted", "Running"],
+                    success_status="Succeeded",
+                )
+            else:
+                service._wait_for_operation(
+                    result_getter=mock_result_getter,
+                    wait_statuses=["NotStarted", "Running"],
+                    success_status="Succeeded",
+                )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    @patch("uipath.platform.documents._documents_service.asyncio")
+    @patch("uipath.platform.documents._documents_service.time")
+    async def test_wait_for_operation_sleeps_only_between_checks(
+        self,
+        mock_time: Mock,
+        mock_asyncio: Mock,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ARRANGE
+        mock_time.monotonic.return_value = 0
+        mock_asyncio.sleep = AsyncMock()
+        outcomes = [
+            ("NotStarted", None, None),
+            ("Running", None, None),
+            ("Succeeded", None, {"done": True}),
+        ]
+
+        def mock_result_getter():
+            return outcomes.pop(0)
+
+        async def mock_result_getter_async():
+            return outcomes.pop(0)
+
+        # ACT
+        if mode == "async":
+            result = await service._wait_for_operation_async(
+                result_getter=mock_result_getter_async,
+                wait_statuses=["NotStarted", "Running"],
+                success_status="Succeeded",
+            )
+        else:
+            result = service._wait_for_operation(
+                result_getter=mock_result_getter,
+                wait_statuses=["NotStarted", "Running"],
+                success_status="Succeeded",
+            )
+
+        # ASSERT
+        assert result == {"done": True}
+        sleep = mock_asyncio.sleep if mode == "async" else mock_time.sleep
+        # Between the three checks, and not after the last one.
+        assert sleep.call_count == 2
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    @patch("uipath.platform.documents._documents_service.time")
+    async def test_wait_for_operation_reports_a_failure_near_the_deadline(
+        self,
+        mock_time: Mock,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ARRANGE
+        # The failure comes back from a check that ends after the timeout.
+        mock_time.monotonic.side_effect = [0, 5, 12]
+        outcomes = [("Running", None, None), ("Failed", "Dummy error", None)]
+
+        def mock_result_getter():
+            return outcomes.pop(0)
+
+        async def mock_result_getter_async():
+            return outcomes.pop(0)
+
+        # ACT & ASSERT
+        with pytest.raises(RuntimeError, match="status: Failed, error: Dummy error"):
             if mode == "async":
                 await service._wait_for_operation_async(
                     result_getter=mock_result_getter_async,

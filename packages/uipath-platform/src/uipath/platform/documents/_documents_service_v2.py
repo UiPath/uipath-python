@@ -1,5 +1,4 @@
 import asyncio
-import time
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -11,7 +10,6 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import header_folder
 from ..common._models import Endpoint
-from ..errors import OperationNotCompleteException
 from ..orchestrator._folder_service import FolderService
 from ._documents_service import (  # type: ignore[attr-defined]
     POLLING_INTERVAL,
@@ -421,14 +419,9 @@ class DocumentsServiceV2(_DocumentsServiceBase):
             folder_path=folder_path,
         )
 
-        start_time = time.monotonic()
-        while True:
-            try:
-                return self._retrieve_model_extraction_result(start_response)
-            except OperationNotCompleteException:
-                if time.monotonic() - start_time >= self.polling_timeout:
-                    raise TimeoutError("Operation timed out.") from None
-                time.sleep(self.polling_interval)
+        return self._wait_until_complete(
+            lambda: self._retrieve_model_extraction_result(start_response)
+        )
 
     @traced(name="documents_extract_with_model_async", run_type="uipath")
     async def extract_with_model_async(
@@ -448,13 +441,6 @@ class DocumentsServiceV2(_DocumentsServiceBase):
             folder_path=folder_path,
         )
 
-        start_time = time.monotonic()
-        while True:
-            try:
-                return await self._retrieve_model_extraction_result_async(
-                    start_response
-                )
-            except OperationNotCompleteException:
-                if time.monotonic() - start_time >= self.polling_timeout:
-                    raise TimeoutError("Operation timed out.") from None
-                await asyncio.sleep(self.polling_interval)
+        return await self._wait_until_complete_async(
+            lambda: self._retrieve_model_extraction_result_async(start_response)
+        )
