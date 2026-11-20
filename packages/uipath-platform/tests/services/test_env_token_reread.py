@@ -1,9 +1,4 @@
-"""A UiPath() configured from the environment re-reads the token on every request.
-
-The job runtime renews the token in the process environment (``uipath._cli._job_token``);
-re-reading it is what lets long-lived clients pick the new token up. A secret given
-explicitly is sent as is.
-"""
+"""A UiPath() configured from the environment re-reads the token on every request."""
 
 from unittest.mock import patch
 

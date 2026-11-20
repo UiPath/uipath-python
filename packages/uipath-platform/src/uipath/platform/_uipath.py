@@ -68,8 +68,7 @@ class UiPath:
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
-        # A token read from the environment is re-read on every request (a long job's
-        # runtime may renew it there); an explicit secret is sent as is.
+        # A secret read from the environment is re-read on every request.
         secret_from_environment = False
         try:
             if _has_valid_client_credentials(

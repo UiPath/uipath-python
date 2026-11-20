@@ -42,8 +42,6 @@ class PythonServerRunRequest:
     workingDirectory: str | None = None
     environmentVariables: dict[str, str] = field(default_factory=dict)
     streamOutputOverIpc: bool = False
-    # The host sets this once its job api serves GetUserAccessToken; a host without the
-    # method is never asked.
     refreshAccessTokenOverIpc: bool = False
 
 
@@ -158,9 +156,7 @@ class PythonRuntimeService(IPythonRuntimeServer):
                         install_runtime_sinks(job_key, resume_version, callback, loop)
                     )
                 if refresh_token:
-                    # Runs after the job's env vars are applied, so the seed token is this
-                    # job's. Jobs are serialized by the server lock, so one refresher at a
-                    # time writes os.environ.
+                    # The job's environment is applied by now; jobs run one at a time.
                     from ._job_token import install_job_token_refresher
 
                     token_refreshers.append(

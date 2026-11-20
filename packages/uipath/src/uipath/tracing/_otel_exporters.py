@@ -396,7 +396,7 @@ class LlmOpsHttpExporter(SpanExporter):
         return f"{self.base_url}/api/Traces/v3/spans?traceId={trace_id}&source={source}"
 
     def _refresh_auth_token(self) -> None:
-        """Follow the token environment variable: a long job's runtime renews it there."""
+        """Pick up a token that changed in the environment."""
         token = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
         if not token or token == self.auth_token:
             return

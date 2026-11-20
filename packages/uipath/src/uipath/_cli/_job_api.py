@@ -355,8 +355,6 @@ class _HandlerIpcConnection:
     def _shutdown(self) -> None:
         """Close the client and stop its loop/thread."""
         if self._token_refresher is not None:
-            # First: its refresh task lives on this loop, and nothing may be published to
-            # the environment once teardown has begun.
             from ._job_token import uninstall_job_token_refresher
 
             uninstall_job_token_refresher(self._token_refresher)
@@ -390,8 +388,7 @@ def connect_handler_ipc(
 ) -> _HandlerIpcConnection:
     """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``).
 
-    With ``refresh_token`` the host has said it serves ``GetUserAccessToken``: the job's user
-    access token is then renewed over the same connection (see ``_job_token``).
+    With ``refresh_token``, the job's user access token is renewed over the same connection.
     """
     if not is_wire_job_key(job_key):
         raise RuntimeError(
