@@ -31,6 +31,7 @@ from ._constants import (
     _CONNECTION_STRING_ALPHA,
     _CONNECTION_STRING_PROD,
     _CONNECTION_STRING_STAGING,
+    _ENV_TELEMETRY_DISABLED,
     _OTEL_RESOURCE_ATTRIBUTES,
     _PROJECT_KEY,
     _SDK_VERSION,
@@ -512,7 +513,14 @@ class _TelemetryClient:
 
     @staticmethod
     def _is_enabled() -> bool:
-        """Check if telemetry is enabled at runtime."""
+        """Check if telemetry is enabled at runtime.
+
+        ``UIPATH_TELEMETRY_DISABLED=true`` turns it off whatever
+        ``UIPATH_TELEMETRY_ENABLED`` says, so a host environment can switch
+        telemetry off for the processes it starts.
+        """
+        if os.getenv(_ENV_TELEMETRY_DISABLED, "").strip().lower() in ("true", "1"):
+            return False
         return os.getenv(ENV_TELEMETRY_ENABLED, "true").lower() == "true"
 
     @staticmethod
