@@ -4,8 +4,8 @@ _CONNECTION_STRING_PROD = "$CONNECTION_STRING_PROD"
 
 PERIODIC_TELEMETRY_FLUSH_FEATURE_FLAG = "EnablePeriodicTelemetryFlush"
 
-# Set to "true" by the serverless platform for robots whose telemetry is off
-# (always on Automation Suite). Wins over UIPATH_TELEMETRY_ENABLED.
+# Set to "true" by a host environment that turns telemetry off.
+# Wins over UIPATH_TELEMETRY_ENABLED.
 _ENV_TELEMETRY_DISABLED = "UIPATH_TELEMETRY_DISABLED"
 
 _APP_INSIGHTS_EVENT_MARKER_ATTRIBUTE = "APPLICATION_INSIGHTS_EVENT_MARKER_ATTRIBUTE"

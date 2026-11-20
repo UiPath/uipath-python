@@ -739,18 +739,18 @@ class TestTelemetryClient:
         with patch.dict(os.environ, {"UIPATH_TELEMETRY_ENABLED": "False"}):
             assert _TelemetryClient._is_enabled() is False
 
-    def test_is_enabled_false_when_platform_disables_telemetry(self):
-        """UIPATH_TELEMETRY_DISABLED=true is the serverless platform's off switch."""
+    def test_is_enabled_false_when_telemetry_disabled(self):
+        """UIPATH_TELEMETRY_DISABLED=true turns telemetry off."""
         with patch.dict(os.environ, {"UIPATH_TELEMETRY_DISABLED": "true"}, clear=True):
             assert _TelemetryClient._is_enabled() is False
 
-    def test_platform_disable_wins_over_enabled(self):
-        """The platform's off switch wins over UIPATH_TELEMETRY_ENABLED=true."""
+    def test_disabled_wins_over_enabled(self):
+        """UIPATH_TELEMETRY_DISABLED=true wins over UIPATH_TELEMETRY_ENABLED=true."""
         env = {"UIPATH_TELEMETRY_DISABLED": "True", "UIPATH_TELEMETRY_ENABLED": "true"}
         with patch.dict(os.environ, env, clear=True):
             assert _TelemetryClient._is_enabled() is False
 
-    def test_platform_disable_not_set_keeps_telemetry_on(self):
+    def test_disabled_not_true_keeps_telemetry_on(self):
         """Any other UIPATH_TELEMETRY_DISABLED value leaves the default in place."""
         for value in ("false", "", "0"):
             with patch.dict(
@@ -758,8 +758,8 @@ class TestTelemetryClient:
             ):
                 assert _TelemetryClient._is_enabled() is True
 
-    def test_track_event_sends_nothing_when_platform_disables_telemetry(self):
-        """No event reaches the App Insights client when the platform turned telemetry off."""
+    def test_track_event_sends_nothing_when_telemetry_disabled(self):
+        """No event reaches the App Insights client when telemetry is disabled."""
         with patch.dict(os.environ, {"UIPATH_TELEMETRY_DISABLED": "true"}, clear=True):
             with patch.object(_AppInsightsEventClient, "track_event") as mock_track:
                 _TelemetryClient.track_event("test_event", {"key": "value"})
