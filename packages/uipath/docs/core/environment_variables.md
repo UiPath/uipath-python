@@ -58,6 +58,8 @@ Telemetry is enabled by default. You can opt out by setting the `UIPATH_TELEMETR
 UIPATH_TELEMETRY_ENABLED=false
 ```
 
+Setting `UIPATH_TELEMETRY_DISABLED=true` has the same effect and takes precedence. The serverless platform sets it for robots whose telemetry is turned off, for example on Automation Suite.
+
 ## Runtime
 
 When executing processes or starting jobs, you can configure environment variables through the UiPath Orchestrator interface. For sensitive information like API keys and secrets, we strongly recommend using secret assets instead of environment variables. Secret assets provide enhanced security and better management capabilities.
