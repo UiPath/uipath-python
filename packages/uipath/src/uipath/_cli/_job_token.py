@@ -44,13 +44,6 @@ _MIN_REFRESH_MARGIN_S = 120.0
 # this long before asking again.
 _RETRY_AFTER_FAILURE_S = 30.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
-# .NET exception type names a host answers with when it cannot serve the method at all.
-_UNSUPPORTED_MARKERS = (
-    "MethodNotFound",
-    "EndpointNotFound",
-    "NotSupported",
-    "MissingMethod",
-)
 
 
 def _claims(token: str) -> dict[str, Any]:
@@ -108,23 +101,16 @@ def publish_token_to_environ(token: str) -> None:
             os.environ[name] = token
 
 
-def _is_unsupported(error: BaseException) -> bool:
-    """True for a host that does not implement GetUserAccessToken; asking again cannot help."""
-    if isinstance(error, (AttributeError, NotImplementedError)):
-        return True
-    type_name = getattr(error, "type_name", None) or ""
-    return any(marker in type_name for marker in _UNSUPPORTED_MARKERS)
-
-
 class JobTokenRefresher:
     """Renews the job's user access token on the IPC loop and publishes it to the environment.
 
     One task, started by :meth:`start`, sleeps until 80 percent of the current token's lifetime
     has passed (at least two minutes before expiry), asks the host, stores and publishes the
-    answer, and reschedules from the new token. A failure is logged once, the current token is
-    kept and the host is left alone for 30 seconds; a host that does not implement the call ends
-    the task. :meth:`stop` cancels the task, a request in flight included, and a stopped
-    refresher never writes to the environment again.
+    answer, and reschedules from the new token. The host opted in, so every failure is handled
+    the same way, whatever its type: the current token is kept and the host is asked again after
+    30 seconds. Only the first failure is logged, as a warning that says no more will follow.
+    :meth:`stop` cancels the task, a request in flight included, and a stopped refresher never
+    writes to the environment again.
     """
 
     def __init__(
@@ -153,7 +139,6 @@ class JobTokenRefresher:
         self._task: Future[None] | None = None
         self._retry_not_before = 0.0
         self._stopped = False
-        self._unsupported = False
         self._reported_failure = False
 
     def start(self) -> None:
@@ -187,7 +172,7 @@ class JobTokenRefresher:
         return None if state is None else state.expires_at
 
     async def _run(self) -> None:
-        while not self._stopped and not self._unsupported:
+        while not self._stopped:
             state = self._state
             if state is None or state.refresh_at is None:
                 return  # no token, or one without exp: nothing to time against
@@ -241,24 +226,17 @@ class JobTokenRefresher:
             return  # teardown cancels in-flight work; nothing worth reporting
         with self._lock:
             self._retry_not_before = self._clock() + _RETRY_AFTER_FAILURE_S
-            if _is_unsupported(error):
-                self._unsupported = True
             first = not self._reported_failure
             self._reported_failure = True
         if not first:
-            logger.debug("Renewing the job's user access token failed again: %r", error)
-        elif self._unsupported:
-            logger.warning(
-                "The job host does not support renewing the user access token (%r); "
-                "keeping the token the job started with.",
-                error,
-            )
-        else:
-            logger.warning(
-                "Could not renew the job's user access token over IPC (%r); keeping the "
-                "current token and retrying later. Further failures are logged at debug level.",
-                error,
-            )
+            return  # the one warning already said that later failures are not logged
+        logger.warning(
+            "Could not renew the job's user access token over IPC (%r). Keeping the current "
+            "token and retrying every %g seconds. This is logged only once: later failures "
+            "to renew this job's token are not logged.",
+            error,
+            _RETRY_AFTER_FAILURE_S,
+        )
 
 
 def install_job_token_refresher(
