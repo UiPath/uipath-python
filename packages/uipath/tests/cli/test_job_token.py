@@ -301,22 +301,29 @@ class TestFailures:
         warnings = _warnings(records)
         assert len(warnings) == 1
         assert "pipe down" in warnings[0]
+        # the silence that follows is announced
+        assert "logged only once" in warnings[0]
 
-    def test_an_unsupported_host_ends_the_task(self, ipc_loop, records):
+    def test_a_host_without_the_method_is_retried_like_any_other_failure(
+        self, ipc_loop, monkeypatch, records
+    ):
+        # The host opted in, so no error type is read as "unsupported": a missing method is a
+        # host fault like any other, and the refresher keeps asking.
+        monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
         api = FakeJobApi(error=RemoteError("UiPath.Ipc.MethodNotFoundException"))
         token = token_with_lifetime(600, remaining=60)  # due now
         refresher = _refresher(api, ipc_loop, token)
 
         refresher.start()
 
+        assert _wait(lambda: len(api.requests) >= 2)  # still asking
         task = refresher.task
-        assert task is not None
-        task.result(timeout=5)  # the loop exits on its own
-        assert len(api.requests) == 1
+        assert task is not None and not task.done()
+        refresher.stop()
         assert refresher.current_token == token
         warnings = _warnings(records)
         assert len(warnings) == 1
-        assert "does not support" in warnings[0]
+        assert "MethodNotFoundException" in warnings[0]
 
     @pytest.mark.parametrize("bad", ["", None, 42])
     def test_an_empty_answer_is_a_failure(self, ipc_loop, monkeypatch, records, bad):
