@@ -62,6 +62,9 @@ class GenericResourceOverwrite(ResourceOverwrite):
         "remoteA2aAgent",
         "memorySpace",
         "businessRule",
+        # The Agents packager fills an ontology binding's folderPath with the folder
+        # key (a GUID); OntologyService sends a GUID folder as the key, not a path.
+        "ontology",
     ]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")

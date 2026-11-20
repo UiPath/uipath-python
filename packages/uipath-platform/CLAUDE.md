@@ -38,7 +38,8 @@ sdk.folders             # FolderService
 sdk.tasks               # TasksService (Action Center)
 sdk.connections         # ConnectionsService
 sdk.context_grounding   # ContextGroundingService
-sdk.documents           # DocumentsService
+sdk.documents           # DocumentsService (DU Framework API v1.1)
+sdk.documents_v2        # DocumentsServiceV2 (DU Framework API v2)
 sdk.entities            # EntitiesService
 sdk.llm                 # UiPathLlmChatService
 sdk.llm_openai          # UiPathOpenAIService
@@ -49,6 +50,7 @@ sdk.mcp                 # McpService
 sdk.resource_catalog    # ResourceCatalogService
 sdk.automation_tracker  # AutomationTrackerService
 sdk.business_rules      # BusinessRulesService
+sdk.ontology            # OntologyService
 ```
 
 ### Authentication
@@ -103,6 +105,7 @@ Services provide both sync and async variants (e.g., `.invoke()` and `.invoke_as
 | `context_grounding/` | RAG services (DeepRAG, batch RAG, ephemeral indexes) |
 | `documents/` | Document Understanding (IXP) |
 | `entities/` | Data Service entity management |
+| `ontology/` | Ontology service: an ontology by id, its artifact files, its graph, SQL over its objects |
 | `guardrails/` | LLM output guardrails |
 | `resource_catalog/` | Resource discovery and metadata |
 | `resume_triggers/` | HITL trigger creation/reading protocols |

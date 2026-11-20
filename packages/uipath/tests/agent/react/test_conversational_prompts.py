@@ -5,11 +5,15 @@ import re
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+from pydantic import BaseModel, Field
+
 from uipath.agent.react.conversational_prompts import (
     PromptUserSettings,
     get_chat_system_prompt,
+    get_conversational_output_hint_section,
     get_generate_output_prompt,
     get_user_settings_template,
+    strip_conversational_output_hint_section,
 )
 
 SYSTEM_MESSAGE = "You are a helpful assistant."
@@ -363,3 +367,164 @@ class TestGetGenerateOutputPrompt:
     def test_references_set_conversational_output_tool(self):
         """The instruction must name the tool the new node binds."""
         assert "set_conversational_output" in get_generate_output_prompt()
+
+    def test_scopes_the_record_to_the_current_turn(self):
+        """A flow can loop back to this agent, so re-reporting an earlier
+        turn's field would re-trigger whatever consumes it."""
+        assert "CURRENT TURN ONLY" in get_generate_output_prompt()
+
+    def test_excludes_itself_from_the_conversation(self):
+        """It is appended as a user message, so an unqualified "latest user
+        message" would anchor on this instruction. Tool results also arrive as
+        user-role content on Anthropic and Gemini, hence the second clause."""
+        instruction = _flat(get_generate_output_prompt())
+
+        assert "This instruction is not part of the conversation." in instruction
+        assert "(not a tool-result)" in instruction
+
+
+class _OutputFields(BaseModel):
+    """The fields the model fills, as the caller narrows them before passing."""
+
+    status: str = Field(description="Set to 'resolved' once the user confirms.")
+    escalated: bool = False
+
+
+def _flat(text: str) -> str:
+    """Collapse hard wrapping so assertions survive the prompt being rewrapped."""
+    return " ".join(text.split())
+
+
+def _prompt(**kwargs):
+    return get_chat_system_prompt(
+        model="claude-3-sonnet",
+        system_message=SYSTEM_MESSAGE,
+        agent_name="Agent",
+        **kwargs,
+    )
+
+
+class TestGetConversationalOutputHintSection:
+    """Tests for get_conversational_output_hint_section."""
+
+    def test_empty_without_a_schema(self):
+        """None means no section, matching get_user_settings_template and
+        get_conversation_id_template, so callers pass their optional through."""
+        assert get_conversational_output_hint_section(None) == ""
+
+    def test_renders_the_schema_as_json(self):
+        """Rendered verbatim, so new JSON-Schema features need no change here:
+        enums, nested objects, constraints and examples all ride along."""
+        section = get_conversational_output_hint_section(_OutputFields)
+
+        assert "```json" in section
+        payload = json.loads(section.split("```json")[1].split("```")[0])
+
+        assert payload == _OutputFields.model_json_schema()
+        assert (
+            payload["properties"]["status"]["description"]
+            == "Set to 'resolved' once the user confirms."
+        )
+
+    def test_describes_whatever_it_is_given(self):
+        """Narrowing is the caller's job: this module has no notion of
+        framework-managed fields and describes every field it receives."""
+
+        class _WithFrameworkField(BaseModel):
+            uipath__agent_response_messages: list[str] = Field(default_factory=list)
+
+        assert "uipath__agent_response_messages" in (
+            get_conversational_output_hint_section(_WithFrameworkField)
+        )
+
+    def test_tells_the_loop_it_has_no_tool_for_the_fields(self):
+        """The reported bug: the agent hunts for a tool that does not exist."""
+        assert "no tool for them" in _flat(
+            get_conversational_output_hint_section(_OutputFields)
+        )
+
+
+class TestOutputHintSectionInSystemPrompt:
+    """The section reaches the assembled prompt via its own placeholder."""
+
+    def test_absent_by_default(self):
+        assert "STRUCTURED OUTPUT FOR THIS TURN" not in _prompt()
+
+    def test_present_with_output_fields(self):
+        prompt = _prompt(output_schema=_OutputFields)
+
+        assert "STRUCTURED OUTPUT FOR THIS TURN" in prompt
+        assert '"status"' in prompt
+
+    def test_placeholder_is_always_consumed(self):
+        for prompt in (_prompt(), _prompt(output_schema=_OutputFields)):
+            assert "CONVERSATIONAL_AGENT_SERVICE_PREFIX_outputSchemaHintPrompt" not in (
+                prompt
+            )
+
+    def test_keeps_the_rest_of_the_prompt(self):
+        prompt = _prompt(output_schema=_OutputFields)
+
+        assert "You are Agent." in prompt
+        assert SYSTEM_MESSAGE in prompt
+        assert "TOOL USAGE RULES" in prompt
+
+
+class TestStripConversationalOutputHintSection:
+    """The structured-output call must not inherit the loop-only section.
+
+    It says the agent has no tool for these fields, and the prompt's own
+    precedence hierarchy ranks the system prompt above the user message that
+    carries the instruction to call exactly that tool. Forced tool choice hides
+    the conflict today; a model that cannot be forced would resolve it wrongly.
+    """
+
+    def test_restores_the_prompt_exactly(self):
+        """Byte-for-byte, so no stray blank lines are left behind."""
+        assert (
+            strip_conversational_output_hint_section(
+                _prompt(output_schema=_OutputFields)
+            )
+            == _prompt()
+        )
+
+    def test_removes_the_contradiction(self):
+        stripped = strip_conversational_output_hint_section(
+            _prompt(output_schema=_OutputFields)
+        )
+
+        assert "no tool for them" not in _flat(stripped)
+
+    def test_no_op_when_the_section_is_absent(self):
+        assert strip_conversational_output_hint_section(_prompt()) == _prompt()
+
+    def test_is_idempotent(self):
+        once = strip_conversational_output_hint_section(
+            _prompt(output_schema=_OutputFields)
+        )
+
+        assert strip_conversational_output_hint_section(once) == once
+
+    def test_survives_text_appended_after_the_section(self):
+        """Advanced agents append a meta prompt after the assembled prompt."""
+        prompt = _prompt(output_schema=_OutputFields) + "\n\nEXTRA META PROMPT"
+
+        stripped = strip_conversational_output_hint_section(prompt)
+
+        assert "STRUCTURED OUTPUT FOR THIS TURN" not in stripped
+        assert stripped.endswith("EXTRA META PROMPT")
+
+    def test_strips_a_section_built_from_a_different_field_list(self):
+        """It takes no schema, so it cannot drift from however the caller
+        narrowed one — an earlier version re-rendered the section to find it
+        and silently did nothing on a mismatch."""
+
+        class _Other(BaseModel):
+            wholly_different: int = Field(description="Nothing like the above.")
+
+        stripped = strip_conversational_output_hint_section(
+            _prompt(output_schema=_Other)
+        )
+
+        assert "wholly_different" not in stripped
+        assert stripped == _prompt()

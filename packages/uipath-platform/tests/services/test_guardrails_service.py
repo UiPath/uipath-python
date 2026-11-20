@@ -1063,6 +1063,59 @@ class TestGuardrailTerminationMode:
         assert "terminationMode" not in json.loads(httpx_mock.get_requests()[0].content)
 
 
+class TestGuardrailCheckContext:
+    """evaluate_guardrail forwards what the check guards, when, and what the caller does on a violation."""
+
+    def test_check_context_is_sent_camel_case_when_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail(
+            "x",
+            _judge_guardrail(),
+            scope=GuardrailScope.TOOL,
+            execution_stage="preExecution",
+            action_type="Escalate",
+        )
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert (body["scope"], body["executionStage"], body["actionType"]) == (
+            "Tool",
+            "preExecution",
+            "Escalate",
+        )
+
+    def test_check_context_keys_are_absent_when_not_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend must see a byte-identical body to today."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert {"scope", "executionStage", "actionType"}.isdisjoint(body)
+
+
 class TestGuardrailAttachmentFolderHeader:
     """evaluate_guardrail sends the folder key alongside attachments."""
 

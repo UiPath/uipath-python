@@ -538,8 +538,8 @@ class TestExtractionFunctions:
                 end_time=1,
                 attributes={  # pyright: ignore[reportArgumentType]
                     "tool.name": "dict_tool",
-                    "input.value": {"direct": "dict", "num": 456},  # type: ignore[dict-item]
-                    "output.value": {"content": "dict_result"},  # type: ignore[dict-item]
+                    "input.value": {"direct": "dict", "num": 456},
+                    "output.value": {"content": "dict_result"},
                 },
             ),
         ]
@@ -853,7 +853,7 @@ class TestExtractionFunctions:
             attributes={  # pyright: ignore[reportArgumentType]
                 "tool.name": "dict_output_tool",
                 "input.value": "{}",
-                "output.value": {"content": "dict output value"},  # type: ignore[dict-item]
+                "output.value": {"content": "dict output value"},
             },
         )
 
@@ -873,7 +873,7 @@ class TestExtractionFunctions:
             attributes={  # pyright: ignore[reportArgumentType]
                 "tool.name": "dict_no_content_tool",
                 "input.value": "{}",
-                "output.value": {"result": "some result", "status": "ok"},  # type: ignore[dict-item]
+                "output.value": {"result": "some result", "status": "ok"},
             },
         )
 
