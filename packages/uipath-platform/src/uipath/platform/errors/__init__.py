@@ -3,6 +3,7 @@
 This module contains all exception classes used by the UiPath Platform SDK.
 
 Available exceptions:
+- AppNotFoundError: Raised when an Action Center app cannot be found by name
 - BaseUrlMissingError: Raised when base URL is not configured
 - SecretMissingError: Raised when access token is not configured
 - FolderNotFoundException: Raised when a folder cannot be found
@@ -16,6 +17,7 @@ Available exceptions:
 - EnrichedException: Enriched HTTP error with detailed request/response information
 """
 
+from ._app_not_found_error import AppNotFoundError
 from ._base_url_missing_error import BaseUrlMissingError
 from ._batch_transform_failed_exception import BatchTransformFailedException
 from ._batch_transform_not_complete_exception import BatchTransformNotCompleteException
@@ -33,6 +35,7 @@ from ._unsupported_data_source_exception import UnsupportedDataSourceException
 from .datafabric_error_codes import DataFabricErrorCategory
 
 __all__ = [
+    "AppNotFoundError",
     "BaseUrlMissingError",
     "DataFabricError",
     "DataFabricErrorCategory",

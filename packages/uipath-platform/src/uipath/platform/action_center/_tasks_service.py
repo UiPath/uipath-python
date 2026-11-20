@@ -21,6 +21,7 @@ from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext, header_folder
 from ..common._models import Endpoint, RequestSpec
 from ..common._span_utils import _SpanUtils
+from ..errors import AppNotFoundError
 from .task_schema import TaskSchema
 from .tasks import Task, TaskRecipient, TaskRecipientType
 
@@ -997,7 +998,9 @@ class TasksService(FolderContext, BaseService):
             app for app in deployed_apps if app["deploymentTitle"] == app_name
         ]
         if len(filtered_apps_by_name) < 1:
-            raise Exception(f"App '{app_name}' was not found in the current tenant")
+            raise AppNotFoundError(
+                f"App '{app_name}' was not found in the current tenant"
+            )
 
         # priority: app_folder_path -> app_folder_key -> self._folder_path -> self._folder_key
         candidates = [
@@ -1017,7 +1020,7 @@ class TasksService(FolderContext, BaseService):
                     if app["deploymentFolder"][field] == value
                 )
             except StopIteration:
-                raise Exception(
+                raise AppNotFoundError(
                     f"App '{app_name}' was not found in folder with {label} '{value}'"
                 ) from StopIteration
 
