@@ -24,6 +24,7 @@ from tenacity import (
 )
 
 from uipath.platform.constants import (
+    ENV_JOB_KEY,
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
     HEADER_TRACEPARENT_ID,
@@ -299,7 +300,10 @@ class BaseService:
 
     def _current_secret(self) -> str:
         """The bearer token to send now; one from the environment is re-read."""
-        if self._config.secret_from_environment:
+        config = self._config
+        # Follow the environment only while it belongs to the job this config was built in.
+        same_job = os.environ.get(ENV_JOB_KEY) == config.environment_job_key
+        if config.secret_from_environment and same_job:
             renewed = os.environ.get(
                 ENV_UNATTENDED_USER_ACCESS_TOKEN
             ) or os.environ.get(ENV_UIPATH_ACCESS_TOKEN)

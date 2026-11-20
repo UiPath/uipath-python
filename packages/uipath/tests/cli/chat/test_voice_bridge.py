@@ -263,5 +263,9 @@ async def test_run_connects_with_the_token_currently_in_the_environment(
         reason = await session.run()
 
     assert reason == VoiceSessionEndReason.COMPLETED
-    assert seen["headers"]["Authorization"] == "Bearer renewed-token"
-    assert seen["headers"]["X-Keep"] == "yes"
+    headers = seen["headers"]()
+    assert headers["Authorization"] == "Bearer renewed-token"
+    assert headers["X-Keep"] == "yes"
+    # Asked again, as on a reconnect, it carries the token of that moment.
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "newer-token")
+    assert seen["headers"]()["Authorization"] == "Bearer newer-token"

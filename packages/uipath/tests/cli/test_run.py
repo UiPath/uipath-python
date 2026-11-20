@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -227,20 +228,21 @@ class TestRun:
                 ).output
             )
 
-        def test_the_token_refresh_flag_needs_the_pipe(
+        def test_the_token_refresh_flag_without_the_pipe_runs_without_renewal(
             self, runner: CliRunner, temp_dir: str, entrypoint: str
-        ):
-            with runner.isolated_filesystem(temp_dir=temp_dir):
+        ) -> None:
+            with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
                 result = runner.invoke(
                     cli, ["run", entrypoint, "--handler-ipc-token-refresh"]
                 )
-            assert result.exit_code == 1
+            # Renewal is optional: the job runs without it.
+            assert result.exit_code == 0, f"output: {result.output!r}"
             assert "needs --handler-ipc-pipe" in result.output
-            assert "Successful execution." not in result.output
+            assert "Successful execution." in result.output
 
         def test_the_token_refresh_flag_is_hidden_but_still_accepted(
             self, runner: CliRunner
-        ):
+        ) -> None:
             assert (
                 "handler-ipc-token-refresh"
                 not in runner.invoke(cli, ["run", "--help"]).output
@@ -260,8 +262,8 @@ class TestRun:
             )
 
         def test_the_token_refresh_flag_reaches_the_connection(
-            self, runner: CliRunner, temp_dir: str, monkeypatch
-        ):
+            self, runner: CliRunner, temp_dir: str, monkeypatch: pytest.MonkeyPatch
+        ) -> None:
             """The flag reaches the IPC connection."""
             job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
@@ -269,8 +271,12 @@ class TestRun:
 
             @asynccontextmanager
             async def _fake_connection(
-                pipe, job_key, resume_version, *, refresh_token=False
-            ):
+                pipe: str | None,
+                job_key: str | None,
+                resume_version: int | None,
+                *,
+                refresh_token: bool = False,
+            ) -> AsyncIterator[None]:
                 seen.append((pipe, job_key, resume_version, refresh_token))
                 yield None
 
@@ -324,8 +330,12 @@ class TestRun:
 
             @asynccontextmanager
             async def _fake_connection(
-                pipe, job_key, resume_version, *, refresh_token=False
-            ):
+                pipe: str | None,
+                job_key: str | None,
+                resume_version: int | None,
+                *,
+                refresh_token: bool = False,
+            ) -> AsyncIterator[None]:
                 seen.append((pipe, job_key, resume_version, refresh_token))
                 events.append("open")
                 # Install for real: the ordering that matters is against the runtime context's

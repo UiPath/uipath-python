@@ -224,7 +224,8 @@ class SocketIOChatBridge:
                     self._client.connect(
                         url=self.websocket_url,
                         socketio_path=self.websocket_path,
-                        headers=with_current_access_token(self.headers),
+                        # A callable: the library asks again on every reconnect.
+                        headers=lambda: with_current_access_token(self.headers),
                         auth=self.auth,
                         transports=["websocket"],
                     ),

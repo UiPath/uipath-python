@@ -1,3 +1,4 @@
+import os
 from functools import cached_property
 from typing import Optional
 
@@ -18,6 +19,7 @@ from .common import (
 )
 from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
+from .constants import ENV_JOB_KEY
 from .context_grounding import ContextGroundingService
 from .documents import DocumentsService
 from .entities import EntitiesService
@@ -86,6 +88,7 @@ class UiPath:
                 base_url=base_url,
                 secret=secret,
                 secret_from_environment=secret_from_environment,
+                environment_job_key=os.environ.get(ENV_JOB_KEY),
             )
         except ValidationError as e:
             for error in e.errors():

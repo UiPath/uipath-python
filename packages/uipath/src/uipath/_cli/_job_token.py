@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Any
@@ -27,6 +28,8 @@ _TOKEN_REQUEST_TIMEOUT_S = 30.0
 _REFRESH_MARGIN_FRACTION = 0.2
 _MIN_REFRESH_MARGIN_S = 120.0
 _RETRY_AFTER_FAILURE_S = 30.0
+# Longest single wait, so a suspended machine or a clock change cannot delay a renewal for long.
+_MAX_SLEEP_S = 60.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
 
 
@@ -78,9 +81,11 @@ class _TokenState:
         return refresh_at is None or now < refresh_at
 
 
-def publish_token_to_environ(token: str) -> None:
-    """Write the token to the token environment variables that are set."""
-    for name in _TOKEN_ENV_VARS:
+def publish_token_to_environ(
+    token: str, names: Iterable[str] = _TOKEN_ENV_VARS
+) -> None:
+    """Write the token to those of ``names`` that are set in the environment."""
+    for name in names:
         if name in os.environ:
             os.environ[name] = token
 
@@ -88,7 +93,8 @@ def publish_token_to_environ(token: str) -> None:
 class JobTokenRefresher:
     """Renews the job's user access token and publishes it to the environment.
 
-    A failure keeps the current token and is retried; only the first one is logged.
+    A failure keeps the current token and is retried. Only the first failure is logged,
+    until a renewal succeeds again.
     """
 
     def __init__(
@@ -132,32 +138,19 @@ class JobTokenRefresher:
         if task is not None:
             task.cancel()
 
-    @property
-    def task(self) -> Future[None] | None:
-        """The renewal task, once started."""
-        return self._task
-
-    @property
-    def current_token(self) -> str | None:
-        """The current token, or None."""
-        state = self._state
-        return None if state is None else state.token
-
-    @property
-    def expires_at(self) -> float | None:
-        """The current token's expiry (epoch seconds), or None."""
-        state = self._state
-        return None if state is None else state.expires_at
-
     async def _run(self) -> None:
         while not self._stopped:
             state = self._state
             if state is None or state.refresh_at is None:
-                return  # nothing to time against
+                logger.warning(
+                    "Not renewing the job's user access token: there is no token with an "
+                    "expiry to schedule against."
+                )
+                return
             now = self._clock()
             due_at = max(state.refresh_at, self._retry_not_before)
             if now < due_at:
-                await asyncio.sleep(due_at - now)
+                await asyncio.sleep(min(due_at - now, _MAX_SLEEP_S))
                 continue
             await self._refresh_once()
 
@@ -189,14 +182,17 @@ class JobTokenRefresher:
             self._retry_not_before = (
                 0.0 if state.is_fresh(now) else now + _RETRY_AFTER_FAILURE_S
             )
-            if self._publish is None:
-                return
-            try:
-                self._publish(token)
-            except Exception:
-                logger.debug(
-                    "Could not republish the renewed access token", exc_info=True
-                )
+            recovered = self._reported_failure
+            self._reported_failure = False
+            if self._publish is not None:
+                try:
+                    self._publish(token)
+                except Exception:
+                    logger.debug(
+                        "Could not republish the renewed access token", exc_info=True
+                    )
+        if recovered:
+            logger.info("Renewed the job's user access token after an earlier failure.")
 
     def _note_failure(self, error: BaseException) -> None:
         if self._stopped:
@@ -209,8 +205,8 @@ class JobTokenRefresher:
             return
         logger.warning(
             "Could not renew the job's user access token over IPC (%r). Keeping the current "
-            "token and retrying every %g seconds. This is logged only once: later failures "
-            "to renew this job's token are not logged.",
+            "token and retrying every %g seconds. This is logged only once: further "
+            "failures are not logged until a renewal succeeds.",
             error,
             _RETRY_AFTER_FAILURE_S,
         )
@@ -226,13 +222,17 @@ def install_job_token_refresher(
     initial = os.environ.get(ENV_UNATTENDED_USER_ACCESS_TOKEN) or os.environ.get(
         ENV_UIPATH_ACCESS_TOKEN
     )
+    # Another token under the other variable name is left alone.
+    names = tuple(
+        name for name in _TOKEN_ENV_VARS if initial and os.environ.get(name) == initial
+    )
     refresher = JobTokenRefresher(
-        proxy, loop, job_key, resume_version, initial_token=initial
+        proxy,
+        loop,
+        job_key,
+        resume_version,
+        initial_token=initial,
+        publish=functools.partial(publish_token_to_environ, names=names),
     )
     refresher.start()
     return refresher
-
-
-def uninstall_job_token_refresher(refresher: JobTokenRefresher) -> None:
-    """Stop renewing the job's token."""
-    refresher.stop()

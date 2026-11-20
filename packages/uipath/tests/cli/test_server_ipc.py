@@ -645,7 +645,14 @@ class TestPooledTokenRefresh:
 
     @staticmethod
     def _fake_run(events: list[Any]) -> Any:
-        async def run(cmd, args, env, wd, on_run_start=None, on_run_end=None):
+        async def run(
+            cmd: Any,
+            args: Any,
+            env: Any,
+            wd: Any,
+            on_run_start: Any = None,
+            on_run_end: Any = None,
+        ) -> dict[str, Any]:
             if on_run_start:
                 on_run_start()
             events.append(("run",))
@@ -656,20 +663,22 @@ class TestPooledTokenRefresh:
         return run
 
     @staticmethod
-    def _spy_token_refresher(monkeypatch, events: list[Any]) -> None:
+    def _spy_token_refresher(
+        monkeypatch: pytest.MonkeyPatch, events: list[Any]
+    ) -> None:
         from uipath._cli import _job_token
 
-        def install(jid: str, rv: int | None, cb: Any, loop: Any) -> str:
-            events.append(("install-token", jid, rv, cb))
-            return "REFRESHER"
+        class _Refresher:
+            def stop(self) -> None:
+                events.append(("stop-token",))
 
-        def uninstall(refresher: Any) -> None:
-            events.append(("uninstall-token", refresher))
+        def install(jid: str, rv: int | None, cb: Any, loop: Any) -> _Refresher:
+            events.append(("install-token", jid, rv, cb))
+            return _Refresher()
 
         monkeypatch.setattr(_job_token, "install_job_token_refresher", install)
-        monkeypatch.setattr(_job_token, "uninstall_job_token_refresher", uninstall)
 
-    def test_the_opt_in_defaults_to_off(self):
+    def test_the_opt_in_defaults_to_off(self) -> None:
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
         assert (
@@ -680,8 +689,8 @@ class TestPooledTokenRefresh:
         )
 
     def test_runjob_installs_the_refresher_inside_the_run_and_removes_it_after(
-        self, monkeypatch
-    ):
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from uipath._cli import _job_api, cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
@@ -720,10 +729,10 @@ class TestPooledTokenRefresh:
         assert events == [
             ("install-token", JOB_ID, 4, "CALLBACK"),
             ("run",),
-            ("uninstall-token", "REFRESHER"),
+            ("stop-token",),
         ]
 
-    def test_both_opt_ins_install_both(self, monkeypatch):
+    def test_both_opt_ins_install_both(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from uipath._cli import _job_api, cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
@@ -766,13 +775,15 @@ class TestPooledTokenRefresh:
             ("install-token", JOB_ID, None, "CALLBACK"),
             ("run",),
             ("clear",),
-            ("uninstall-token", "REFRESHER"),
+            ("stop-token",),
         ]
 
     @pytest.mark.parametrize(
         "job_key", ["", "job-9", "00000000-0000-0000-0000-000000000000"]
     )
-    def test_token_refresh_needs_a_real_job_key(self, monkeypatch, job_key):
+    def test_a_bad_job_key_runs_the_job_without_renewal(
+        self, monkeypatch: pytest.MonkeyPatch, job_key: str
+    ) -> None:
         from uipath._cli import cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
@@ -797,12 +808,13 @@ class TestPooledTokenRefresh:
             )
 
         result = asyncio.run(scenario())
-        assert result.exitCode == 1
-        assert "refreshAccessTokenOverIpc" in (result.error or "")
-        assert "jobKey" in (result.error or "")
-        assert events == []
+        # Renewal is optional: the job runs, without a refresher.
+        assert result.exitCode == 0, result.error
+        assert events == [("run",)]
 
-    def test_token_refresh_needs_ipc(self, monkeypatch):
+    def test_without_ipc_the_job_runs_without_renewal(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from uipath._cli import cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
@@ -821,7 +833,34 @@ class TestPooledTokenRefresh:
             return await service.RunJob(request, message=Message())
 
         result = asyncio.run(scenario())
+        assert result.exitCode == 0, result.error
+        assert events == [("run",)]
+
+    def test_stream_output_still_needs_a_real_job_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
+        )
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey="job-9",
+            command="run",
+            args=[],
+            streamOutputOverIpc=True,
+            refreshAccessTokenOverIpc=True,
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(request, message=Message())
+
+        result = asyncio.run(scenario())
         assert result.exitCode == 1
-        assert "refreshAccessTokenOverIpc" in (result.error or "")
-        assert "over IPC" in (result.error or "")
+        assert (result.error or "").startswith("streamOutputOverIpc needs a 'jobKey'")
         assert events == []
