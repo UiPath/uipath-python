@@ -475,12 +475,23 @@ class UiPathDebugFunctionsRuntime:
         tracked = self._build_tracked_functions()
 
         # A debugger tracing this thread through sys.settrace (debugpy before
-        # Python 3.12) would lose the worker thread to our trace function and
-        # never hit its breakpoints there. Without breakpoints of ours, state
-        # events are all we would trace, so skip them and leave it in charge.
-        if tracked and not breakpoints and _is_debugger_tracer(sys.gettrace()):
-            logger.debug("A debugger traces this thread; skipping state events")
-            tracked = None
+        # Python 3.12) loses the worker thread to our trace function and never
+        # hits its breakpoints there.
+        if _is_debugger_tracer(sys.gettrace()):
+            if breakpoints:
+                # Our breakpoints need our trace function, so say why the
+                # debugger's breakpoints stop working.
+                logger.warning(
+                    "Breakpoints from the debug bridge replace the attached "
+                    "debugger's trace function on the thread that runs the "
+                    "function, so the debugger's breakpoints won't be hit. "
+                    "Clear the bridge breakpoints to use the debugger's."
+                )
+            elif tracked:
+                # Without breakpoints of ours, state events are all we would
+                # trace, so skip them and leave the debugger in charge.
+                logger.debug("A debugger traces this thread; skipping state events")
+                tracked = None
 
         # Nothing to trace → transparent delegation.  The controller
         # path runs delegate.execute() in a background thread with a

@@ -14,8 +14,10 @@ breakpoint so the full loop completes without human interaction.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -136,12 +138,16 @@ class _FakeDebuggerTracer:
 
 @contextmanager
 def _traced_by(tracer: _FakeDebuggerTracer) -> Iterator[None]:
-    """Trace this thread with *tracer*, as a debugger does before Python 3.12."""
+    """Trace this thread and new threads with *tracer*, as pydevd does before Python 3.12."""
     previous = sys.gettrace()
+    previous_for_new_threads = threading.gettrace()
     sys.settrace(tracer)
+    threading.settrace(tracer)
     try:
         yield
     finally:
+        # None clears the hook, but typeshed only accepts a trace function.
+        threading.settrace(previous_for_new_threads)  # type: ignore[arg-type]
         sys.settrace(previous)
 
 
@@ -972,6 +978,42 @@ class TestAttachedDebugger:
             assert result.output == {"result": 8}
         finally:
             await runtime.dispose()
+
+    async def test_warns_that_breakpoints_of_ours_replace_the_debugger(
+        self,
+        script_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """Breakpoints of ours take the function's thread from the debugger, so say so."""
+        monkeypatch.setattr(
+            "uipath.functions.debug._is_debugger_tracer", lambda tracer: True
+        )
+        script = _write_script(
+            script_dir,
+            "calc.py",
+            "def main(input):\n"
+            '    x = input["value"]\n'
+            "    y = x * 2\n"
+            '    return {"result": y}\n',
+        )
+        runtime, _ = _build_stack(script, breakpoints=["3"])
+        # CLI tests leave the uipath logger with propagate = False, so attach
+        # caplog's handler to the module logger itself.
+        logger = logging.getLogger("uipath.functions.debug")
+        logger.addHandler(caplog.handler)
+
+        try:
+            await runtime.execute({"value": 4})
+        finally:
+            logger.removeHandler(caplog.handler)
+            await runtime.dispose()
+
+        assert any(
+            record.levelno == logging.WARNING
+            and "debugger's breakpoints won't be hit" in record.getMessage()
+            for record in caplog.records
+        )
 
     async def test_no_call_graph_state_events_while_a_debugger_traces(
         self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
