@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import mimetypes
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -14,7 +15,7 @@ from opentelemetry import context as context_api
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import StatusCode, format_span_id
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from uipath.core.serialization import serialize_json
 
 from uipath.platform.constants import (
@@ -222,6 +223,15 @@ class SpanAttachment(BaseModel):
     direction: AttachmentDirection = Field(
         default=AttachmentDirection.NONE, alias="direction"
     )
+
+    @model_validator(mode="after")
+    def _default_blank_mime_type(self) -> "SpanAttachment":
+        # The traces API rejects the whole span when an attachment has no MIME type.
+        if not self.mime_type.strip():
+            self.mime_type = (
+                mimetypes.guess_type(self.file_name)[0] or "application/octet-stream"
+            )
+        return self
 
 
 @dataclass

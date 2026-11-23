@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from typing import Any, Optional
@@ -133,7 +134,6 @@ class GuardrailsService(BaseService):
         except ValueError:
             return None
 
-    @traced("evaluate_guardrail", run_type="uipath")
     def evaluate_guardrail(
         self,
         input_data: str | dict[str, Any],
@@ -165,13 +165,86 @@ class GuardrailsService(BaseService):
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
         """
-        parameters = [
-            param.model_dump(by_alias=True) for param in guardrail.validator_parameters
-        ]
+        # In a job, the Guardrails Service publishes its own span for this
+        # evaluation, so a client span would only duplicate it. Local runs don't
+        # get that span in their trace, so they keep the client one.
+        evaluate = (
+            self._evaluate_guardrail
+            if UiPathConfig.job_key
+            else self._traced_evaluate_guardrail
+        )
+        return evaluate(
+            input_data,
+            guardrail,
+            attachments=attachments,
+            termination_mode=termination_mode,
+            scope=scope,
+            execution_stage=execution_stage,
+            action_type=action_type,
+        )
+
+    @traced("evaluate_guardrail", run_type="uipath")
+    def _traced_evaluate_guardrail(
+        self,
+        input_data: str | dict[str, Any],
+        guardrail: BuiltInValidatorGuardrail,
+        **options: Any,
+    ) -> GuardrailValidationResult:
+        return self._evaluate_guardrail(input_data, guardrail, **options)
+
+    def _evaluate_guardrail(
+        self,
+        input_data: str | dict[str, Any],
+        guardrail: BuiltInValidatorGuardrail,
+        *,
+        attachments: list[GuardrailAttachment] | None = None,
+        termination_mode: GuardrailTerminationMode | None = None,
+        scope: GuardrailScope | None = None,
+        execution_stage: str | None = None,
+        action_type: str | None = None,
+    ) -> GuardrailValidationResult:
+        spec = RequestSpec(
+            method="POST",
+            endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
+            json=self._build_validate_payload(
+                input_data,
+                guardrail,
+                attachments,
+                termination_mode,
+                scope=scope,
+                execution_stage=execution_stage,
+                action_type=action_type,
+            ),
+        )
+        request_kwargs: dict[str, Any] = {
+            "json": spec.json,
+            "headers": self._build_validate_headers(spec, attachments),
+        }
+        if attachments:
+            request_kwargs["timeout"] = _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS
+
+        response_data, span_id = self._send_validate_request(spec, request_kwargs)
+        return self._to_validation_result(response_data, span_id, guardrail.name)
+
+    @staticmethod
+    def _build_validate_payload(
+        input_data: str | dict[str, Any],
+        guardrail: BuiltInValidatorGuardrail,
+        attachments: list[GuardrailAttachment] | None,
+        termination_mode: GuardrailTerminationMode | None,
+        *,
+        scope: GuardrailScope | None = None,
+        execution_stage: str | None = None,
+        action_type: str | None = None,
+    ) -> dict[str, Any]:
+        """Build the body of a validate request."""
         payload: dict[str, Any] = {
             "validator": guardrail.validator_type,
             "input": input_data if isinstance(input_data, str) else str(input_data),
-            "parameters": parameters,
+            "parameters": [
+                param.model_dump(by_alias=True)
+                for param in guardrail.validator_parameters
+            ],
             "guardrailName": guardrail.name,
         }
         if guardrail.validator_type == BYO_VALIDATOR_TYPE:
@@ -190,16 +263,20 @@ class GuardrailsService(BaseService):
             payload["executionStage"] = execution_stage
         if action_type is not None:
             payload["actionType"] = action_type
-        spec = RequestSpec(
-            method="POST",
-            endpoint=Endpoint("/agentsruntime_/api/execution/guardrails/validate"),
-            json=payload,
-        )
-        # Include trace context headers for server-side span correlation, plus
-        # the execution source (x-uipath-guardrails-source) and job key headers
-        # for licensing/metering correlation. The execution source is read from
-        # the execution context, propagated from the runtime context.
-        trace_headers = build_trace_context_headers(extra_baggage=["source=agents"])
+        return payload
+
+    def _build_validate_headers(
+        self,
+        spec: RequestSpec,
+        attachments: list[GuardrailAttachment] | None,
+    ) -> dict[str, str]:
+        """Build the headers of a validate request.
+
+        Includes trace context headers for server-side span correlation, plus
+        the execution source (x-uipath-guardrails-source) and job key headers
+        for licensing/metering correlation. The execution source is read from
+        the execution context, propagated from the runtime context.
+        """
         source_headers: dict[str, str] = {}
         execution_source = self._execution_context.execution_source
         if execution_source:
@@ -207,62 +284,44 @@ class GuardrailsService(BaseService):
         folder_headers: dict[str, str] = {}
         if attachments and UiPathConfig.folder_key:
             folder_headers[HEADER_FOLDER_KEY] = UiPathConfig.folder_key
-        request_headers = {
+        return {
             **(spec.headers or {}),
-            **trace_headers,
+            **build_trace_context_headers(extra_baggage=["source=agents"]),
             **source_headers,
             **header_job_key(),
             **folder_headers,
         }
-        request_kwargs: dict[str, Any] = {
-            "json": spec.json,
-            "headers": request_headers,
-        }
-        if attachments:
-            request_kwargs["timeout"] = _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS
 
-        span_id = None
+    def _send_validate_request(
+        self, spec: RequestSpec, request_kwargs: dict[str, Any]
+    ) -> tuple[dict[str, Any], str | None]:
+        """Send a validate request; return the response body and the service span id."""
         try:
-            response = self.request(
-                spec.method,
-                url=spec.endpoint,
-                **request_kwargs,
-            )
-            span_id = self._extract_span_id_from_traceparent(
-                response.headers.get("x-uipath-traceparent-id")
-            )
-            response_data = response.json()
+            response = self.request(spec.method, url=spec.endpoint, **request_kwargs)
         except EnrichedException as e:
-            # Handle 403 responses: API returns 403 with valid JSON body for
-            # ENTITLEMENTS_MISSING or FEATURE_DISABLED cases
-            if e.status_code == 403:
-                # Access the original HTTPStatusError to get the full response
-                original_error = e.__cause__
-                if (
-                    isinstance(original_error, HTTPStatusError)
-                    and original_error.response
-                ):
-                    try:
-                        span_id = self._extract_span_id_from_traceparent(
-                            original_error.response.headers.get(
-                                "x-uipath-traceparent-id"
-                            )
-                        )
-                        response_data = original_error.response.json()
-                    except Exception:
-                        # If JSON parsing fails, re-raise the original exception
-                        raise
-                else:
-                    # Try to parse from response_content if available
-                    try:
-                        import json
-
-                        response_data = json.loads(e.response_content)
-                    except Exception:
-                        raise
-            else:
+            # The API returns 403 with a valid JSON body for ENTITLEMENTS_MISSING
+            # or FEATURE_DISABLED; any other error is raised.
+            if e.status_code != 403:
                 raise
+            # Read the full response from the original HTTPStatusError when
+            # there is one, else parse the body kept on the exception.
+            original_error = e.__cause__
+            if isinstance(original_error, HTTPStatusError) and original_error.response:
+                response = original_error.response
+            else:
+                return json.loads(e.response_content), None
+        span_id = self._extract_span_id_from_traceparent(
+            response.headers.get("x-uipath-traceparent-id")
+        )
+        return response.json(), span_id
 
+    def _to_validation_result(
+        self,
+        response_data: dict[str, Any],
+        span_id: str | None,
+        guardrail_name: str,
+    ) -> GuardrailValidationResult:
+        """Map a validate response body to a GuardrailValidationResult."""
         result_str = response_data.get("result", "")
         reason = response_data.get("details", "")
 
@@ -272,7 +331,7 @@ class GuardrailsService(BaseService):
             # guardrail action still fires, and report why on error_type.
             logger.warning(
                 "Guardrail '%s' could not be evaluated (%s): %s",
-                guardrail.name,
+                guardrail_name,
                 result_str,
                 reason,
             )
@@ -280,7 +339,6 @@ class GuardrailsService(BaseService):
         else:
             result = self._parse_result(result_str)
 
-        # Prepare model data
         model_data: dict[str, Any] = {
             "result": result.value,
             "reason": reason,
