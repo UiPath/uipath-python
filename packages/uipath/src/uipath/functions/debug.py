@@ -78,6 +78,20 @@ def _format_location(filepath: str, line: int) -> str:
     return f"{relative}:{line}"
 
 
+def _is_debugger_tracer(tracer: object) -> bool:
+    """Return True if *tracer* is the trace function of a pydevd-based debugger.
+
+    debugpy (VS Code) and PyCharm are built on pydevd, which traces threads
+    through sys.settrace before Python 3.12. Installing our own trace function
+    on a thread replaces theirs, so their breakpoints are never hit there. From
+    Python 3.12 debugpy uses sys.monitoring and leaves sys.gettrace() empty.
+    """
+    if tracer is None:
+        return False
+    module = getattr(tracer, "__module__", None) or type(tracer).__module__
+    return "pydevd" in str(module)
+
+
 class BreakpointController:
     """Synchronises a sys.settrace-instrumented thread with an async stream.
 
@@ -390,7 +404,9 @@ class UiPathDebugFunctionsRuntime:
 
     Additionally emits ``UiPathRuntimeStateEvent`` for every function call
     that appears in the entrypoint's call graph, so the debug bridge can
-    visualise execution flow through the graph nodes.
+    visualise execution flow through the graph nodes.  Without breakpoints,
+    these are skipped while a debugger traces the process through
+    sys.settrace (debugpy before Python 3.12), so its breakpoints still hit.
 
     Works for both sync and async user functions — async functions run in
     a dedicated asyncio event loop on the background thread.
@@ -457,6 +473,25 @@ class UiPathDebugFunctionsRuntime:
         # Build the set of tracked functions from the call graph so we
         # can emit state events even without breakpoints.
         tracked = self._build_tracked_functions()
+
+        # A debugger tracing this thread through sys.settrace (debugpy before
+        # Python 3.12) loses the worker thread to our trace function and never
+        # hits its breakpoints there.
+        if _is_debugger_tracer(sys.gettrace()):
+            if breakpoints:
+                # Our breakpoints need our trace function, so say why the
+                # debugger's breakpoints stop working.
+                logger.warning(
+                    "Breakpoints from the debug bridge replace the attached "
+                    "debugger's trace function on the thread that runs the "
+                    "function, so the debugger's breakpoints won't be hit. "
+                    "Clear the bridge breakpoints to use the debugger's."
+                )
+            elif tracked:
+                # Without breakpoints of ours, state events are all we would
+                # trace, so skip them and leave the debugger in charge.
+                logger.debug("A debugger traces this thread; skipping state events")
+                tracked = None
 
         # Nothing to trace → transparent delegation.  The controller
         # path runs delegate.execute() in a background thread with a

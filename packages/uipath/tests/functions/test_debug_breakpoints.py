@@ -14,13 +14,23 @@ breakpoint so the full loop completes without human interaction.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
+import sys
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from types import FrameType
 from typing import Any, Literal
 
 import pytest
 
-from uipath.functions.debug import BreakpointController, UiPathDebugFunctionsRuntime
+from uipath.functions.debug import (
+    BreakpointController,
+    UiPathDebugFunctionsRuntime,
+    _is_debugger_tracer,
+)
 from uipath.functions.runtime import UiPathFunctionsRuntime
 from uipath.runtime import (
     UiPathBreakpointResult,
@@ -110,6 +120,35 @@ def _build_stack(
     bridge = MockDebugBridge(breakpoints=breakpoints)
     runtime = UiPathDebugRuntime(delegate=debug_fn, debug_bridge=bridge)
     return runtime, bridge
+
+
+class _FakeDebuggerTracer:
+    """Stands in for the trace function of a pydevd-based debugger (debugpy, PyCharm)."""
+
+    __module__ = "_pydevd_bundle.pydevd_fake"
+
+    def __init__(self) -> None:
+        self.called: list[str] = []
+
+    def __call__(self, frame: FrameType, event: str, arg: Any) -> Any:
+        if event == "call":
+            self.called.append(frame.f_code.co_name)
+        return self
+
+
+@contextmanager
+def _traced_by(tracer: _FakeDebuggerTracer) -> Iterator[None]:
+    """Trace this thread and new threads with *tracer*, as pydevd does before Python 3.12."""
+    previous = sys.gettrace()
+    previous_for_new_threads = threading.gettrace()
+    sys.settrace(tracer)
+    threading.settrace(tracer)
+    try:
+        yield
+    finally:
+        # None clears the hook, but typeshed only accepts a trace function.
+        threading.settrace(previous_for_new_threads)  # type: ignore[arg-type]
+        sys.settrace(previous)
 
 
 @pytest.fixture()
@@ -885,3 +924,141 @@ class TestStateEvents:
             assert result_events[0].output == {"value": 6}
         finally:
             await inner.dispose()
+
+
+class TestAttachedDebugger:
+    """A debugger that traces through sys.settrace (debugpy before Python 3.12)."""
+
+    async def test_debugger_keeps_tracing_the_function(self, script_dir: Path):
+        """Without breakpoints of ours, the debugger's trace function sees every call."""
+        _write_script(
+            script_dir,
+            "debugged_helpers.py",
+            "def helper(n):\n    return n * 2\n",
+        )
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "from debugged_helpers import helper\n"
+            "\n"
+            "def main(input):\n"
+            '    return {"result": helper(input["n"])}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=[])
+        debugger = _FakeDebuggerTracer()
+
+        try:
+            with _traced_by(debugger):
+                result = await runtime.execute({"n": 3})
+
+            assert result.status == UiPathRuntimeStatus.SUCCESSFUL
+            assert result.output == {"result": 6}
+            assert {"main", "helper"} <= set(debugger.called)
+        finally:
+            await runtime.dispose()
+
+    async def test_breakpoints_of_ours_still_pause(self, script_dir: Path):
+        """Breakpoints requested through the debug bridge still pause the function."""
+        script = _write_script(
+            script_dir,
+            "calc.py",
+            "def main(input):\n"
+            '    x = input["value"]\n'
+            "    y = x * 2\n"
+            '    return {"result": y}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=["3"])
+
+        try:
+            with _traced_by(_FakeDebuggerTracer()):
+                result = await runtime.execute({"value": 4})
+
+            assert len(bridge.breakpoint_hits) == 1
+            assert bridge.breakpoint_hits[0].current_state["x"] == 4
+            assert result.output == {"result": 8}
+        finally:
+            await runtime.dispose()
+
+    async def test_warns_that_breakpoints_of_ours_replace_the_debugger(
+        self,
+        script_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """Breakpoints of ours take the function's thread from the debugger, so say so."""
+        monkeypatch.setattr(
+            "uipath.functions.debug._is_debugger_tracer", lambda tracer: True
+        )
+        script = _write_script(
+            script_dir,
+            "calc.py",
+            "def main(input):\n"
+            '    x = input["value"]\n'
+            "    y = x * 2\n"
+            '    return {"result": y}\n',
+        )
+        runtime, _ = _build_stack(script, breakpoints=["3"])
+        # CLI tests leave the uipath logger with propagate = False, so attach
+        # caplog's handler to the module logger itself.
+        logger = logging.getLogger("uipath.functions.debug")
+        logger.addHandler(caplog.handler)
+
+        try:
+            await runtime.execute({"value": 4})
+        finally:
+            logger.removeHandler(caplog.handler)
+            await runtime.dispose()
+
+        assert any(
+            record.levelno == logging.WARNING
+            and "debugger's breakpoints won't be hit" in record.getMessage()
+            for record in caplog.records
+        )
+
+    async def test_no_call_graph_state_events_while_a_debugger_traces(
+        self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Call-graph state events need our trace function, so they are skipped."""
+        monkeypatch.setattr(
+            "uipath.functions.debug._is_debugger_tracer", lambda tracer: True
+        )
+        _write_script(
+            script_dir,
+            "skipped_helpers.py",
+            "def helper(n):\n    return n + 1\n",
+        )
+        script = _write_script(
+            script_dir,
+            "main.py",
+            "from skipped_helpers import helper\n"
+            "\n"
+            "def main(input):\n"
+            '    return {"result": helper(input["n"])}\n',
+        )
+        runtime, bridge = _build_stack(script, breakpoints=[])
+
+        try:
+            result = await runtime.execute({"n": 1})
+
+            assert result.output == {"result": 2}
+            assert "helper" not in [s.node_name for s in bridge.state_updates]
+        finally:
+            await runtime.dispose()
+
+    def test_recognizes_pydevd_trace_functions(self):
+        def trace_dispatch(frame: FrameType, event: str, arg: Any) -> None:
+            return None
+
+        trace_dispatch.__module__ = "_pydevd_bundle.pydevd_trace_dispatch_regular"
+
+        assert _is_debugger_tracer(_FakeDebuggerTracer())  # Cython build: an object
+        assert _is_debugger_tracer(trace_dispatch)  # pure-Python build: a function
+
+    def test_ignores_other_trace_functions(self):
+        def coverage_tracer(frame: FrameType, event: str, arg: Any) -> None:
+            return None
+
+        coverage_tracer.__module__ = "coverage.pytracer"
+
+        assert not _is_debugger_tracer(None)
+        assert not _is_debugger_tracer(coverage_tracer)
