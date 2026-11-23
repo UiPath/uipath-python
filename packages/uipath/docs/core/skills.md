@@ -50,10 +50,10 @@ async def make_graph():
 
 | `destination` | Where bundles land | Who cleans up |
 |---|---|---|
-| omitted | a temp folder the set owns | you: call `skills.cleanup()` when the run ends |
-| `destination=path` | `path`, **emptied first on every call** | the set leaves the folder in place; `cleanup()` only clears `root` |
+| omitted | a temp folder the set owns | you: call `skills.cleanup()` when the run ends; it removes the folder |
+| `destination=path` | `path`, which must be **empty or missing** | `cleanup()` removes the bundle folders and the manifest it wrote; `path` and anything else in it stay |
 
-`root` is laid out as `<root>/<bundle>/<skill>/...` next to `.uipath-skills-manifest.json`. Pass a `destination` you do not mind losing. `root` is `None` when no bundle resolved and after `cleanup()`; after `cleanup()` a `read()` of a listed skill raises `RuntimeError` (with no bundle resolved there is nothing to read and `read()` raises `KeyError`).
+`root` is laid out as `<root>/<bundle>/<skill>/...` next to `.uipath-skills-manifest.json`. Nothing that was in `destination` before the call is removed: when it holds any file, or is a file or a symbolic link, every bundle fails as `invalid` and the folder is left as it is. To load into the same folder again, call `cleanup()` on the previous set first. Pass a `destination` only when something reads the files by path, such as the workspace of an advanced (deepagents) agent; the `read()` path works with the default temp folder. `root` is `None` when no bundle resolved and after `cleanup()`; after `cleanup()` a `read()` of a listed skill raises `RuntimeError` (with no bundle resolved there is nothing to read and `read()` raises `KeyError`).
 
 ---
 
@@ -111,11 +111,11 @@ Today the default is `local`; `orchestrator` becomes the default once the Skills
     "versionMode": { "defaultValue": "pinned",        "isExpression": false, "displayName": "Version Mode" },
     "version":     { "defaultValue": "3",             "isExpression": false, "displayName": "Version" }
   },
-  "metadata": { "ActivityName": "load_async", "BindingsVersion": "2.2", "DisplayLabel": "FullName" }
+  "metadata": { "ActivityName": "load_all_async", "BindingsVersion": "2.2", "DisplayLabel": "FullName" }
 }
 ```
 
-`ActivityName` names the SDK method that declares the reference; `load_async` covers both `load_async` and `load_all_async`.
+`ActivityName` names the SDK method that declares the reference, `load_all_async`.
 
 `uipath pack` ships the file as `content/bindings_v2.json`. `uipath push` does not import skill-bundle bindings yet and reports each one as skipped, so the bundle must exist in Orchestrator before the solution is deployed.
 
@@ -134,7 +134,7 @@ At deploy time the binding can be overridden per environment. The job receives t
 - An override replaces the whole binding, as for the other bindings: it must give `name`, `folderPath` and `versionMode`, plus `version` when `versionMode` is `pinned`. Nothing is taken from the declared binding.
 - A key qualified with the design-time folder, `skillBundle.finance.Shared/Skills`, wins over the bare key `skillBundle.finance`.
 - An override's `name` only changes which bundle is fetched. The agent still sees the bundle as `finance`: in `names()`, in the prompt section and on disk.
-- An incomplete or invalid override (for instance `pinned` without a `version`) is skipped with a warning, and the declared binding is used.
+- An incomplete or invalid override (for instance `pinned` without a `version`) fails that bundle as `invalid`, with the reason in the failure's `detail`; the agent runs without it. The declared binding is not used instead, so a broken pin never loads a different version.
 
 Locally, put the same object into `__uipath/uipath.json` (the file `uipath run` reads runtime arguments from; create it if it does not exist) and run `uipath run` to test an override.
 
@@ -144,7 +144,7 @@ Locally, put the same object into `__uipath/uipath.json` (the file `uipath run` 
 
 Two spans describe skills in a job trace:
 
-- `Skill bundles resolved`: one per `load_all_async` call (and per `load_async` call); none is emitted when no bundle is declared. It carries the source, the bundle and skill counts and the failures. Each resolved bundle is an event with its name, folder, version, version mode and skill count; each failure is a `skill.bundle.failed` event with its reason and detail.
+- `Skill bundles resolved`: one per `load_all_async` call; none is emitted when no bundle is declared. It carries the source, the bundle and skill counts and the failures. Each resolved bundle is an event with its name, folder, version, version mode and skill count; each failure is a `skill.bundle.failed` event with its reason and detail.
 - `Skill load - <bundle>/<skill>`: one per `read()` of a `SKILL.md`, with the bundle version, who asked for it (`skill.invoked_by`) and the size of the text.
 
 Locally, `uipath run agent '{...}' --trace-file trace.jsonl` writes the spans to a JSON Lines file. See [Tracing](./traced.md).
@@ -157,36 +157,25 @@ Locally, `uipath run agent '{...}' --trace-file trace.jsonl` writes the spans to
 |-------|-------|
 | File size | 512 KiB per file |
 | Bundle size | 24 MiB per bundle |
-| Time budget | 20 s per bundle; after the first timeout the remaining bundles are skipped |
+| Time budget | 20 s per bundle; after the first timeout the remaining bundles are skipped. The `local` source is not stopped by it |
+| Description | 1024 characters; a longer `description` is cut, one that is not a string is left empty |
 
 - A file over the size limit is skipped with a warning. A skill is skipped with a warning when its `SKILL.md` is over the size limit or not valid UTF-8.
-- Hidden files and folders are skipped, and a folder without a `SKILL.md` is not a skill. The file name is matched in any case: a `skill.md` is accepted and written to the bundle folder as `SKILL.md`.
+- Hidden files and folders are skipped, and a folder without a `SKILL.md` is not a skill. The `local` source does not follow symbolic links: a linked file or skill folder is skipped, and a linked bundle folder is reported as `invalid`. The file name is matched in any case: a `skill.md` is accepted and written to the bundle folder as `SKILL.md`.
 - A second reference to the same bundle name is reported as `invalid`; the first one is kept.
 - Scripts inside a skill are copied with the rest of its files but never executed by the SDK.
 
 ---
 
-## Other Calls
+## Synchronous Use
 
-### One Bundle
-
-```python
-one = await sdk.skills.load_async(
-    "finance", folder_path="Shared/Skills", version_mode="pinned", version="3"
-)
-```
-
-`load_async` returns a `SkillSet` holding exactly one bundle. Unlike `load_all_async`, it raises when the bundle cannot be resolved: `SkillBundleLoadError`, whose `failure.reason` is one of `not_found`, `version_not_found`, `forbidden`, `invalid`, `too_large` or `source_unavailable`. An unknown `version_mode`, or `pinned` without a `version`, raises `ValueError` before anything is fetched.
-
-### Synchronous Use
-
-`load_all` and `load` are the synchronous twins of `load_all_async` and `load_async`. Prefer the `*_async` methods inside an agent. A synchronous method runs its async twin to completion; when an event loop is already running in the calling thread it runs on a worker thread and blocks the caller for up to 20 s per bundle.
+`load_all` is the synchronous twin of `load_all_async`. Prefer `load_all_async` inside an agent. `load_all` runs it to completion; when an event loop is already running in the calling thread it runs on a worker thread and blocks the caller for up to 20 s per bundle.
 
 ---
 
 ## Reference
 
-`SkillsService` is what `sdk.skills` returns. `SkillSet` is what `load_all_async` gives back; `SkillBundle`, `Skill` and `BundleFailure` are its parts; `SkillBundleLoadError` is what `load_async` raises.
+`SkillsService` is what `sdk.skills` returns. `SkillSet` is what `load_all_async` gives back; `SkillBundle`, `Skill` and `BundleFailure` are its parts.
 
 ::: uipath.platform.skills.SkillsService
     options:
@@ -219,12 +208,6 @@ one = await sdk.skills.load_async(
       heading_level: 3
 
 ::: uipath.platform.skills.BundleFailure
-    options:
-      show_root_heading: true
-      show_root_toc_entry: true
-      heading_level: 3
-
-::: uipath.platform.skills.SkillBundleLoadError
     options:
       show_root_heading: true
       show_root_toc_entry: true

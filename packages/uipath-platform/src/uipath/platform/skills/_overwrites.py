@@ -13,9 +13,13 @@ from ..common._bindings import (
     _resource_overwrites,
 )
 from ._constants import OVERWRITE_TYPE
-from .skills import SkillBundleRef, VersionMode
+from .skills import SkillBundleRef
 
 logger = logging.getLogger(__name__)
+
+
+class InvalidSkillBundleOverwrite(Exception):
+    """The deploy-time override of a bound bundle is not a valid binding."""
 
 
 def current_overwrites() -> Mapping[str, ResourceOverwrite] | None:
@@ -36,8 +40,8 @@ def apply_skill_bundle_overwrite(
     ``skillBundle.<name>.<folder>`` wins over ``skillBundle.<name>``. The
     override replaces the folder and version of the declared reference; its
     ``name`` only changes the lookup target (``source_name``), so ``ref.name``
-    stays the agent-side identity. An override that yields an invalid
-    reference is ignored with a warning.
+    stays the agent-side identity. An invalid override is never replaced by the
+    declared reference: a broken pin must not load another version.
 
     Args:
         ref: The bound bundle as the agent declares it.
@@ -45,7 +49,11 @@ def apply_skill_bundle_overwrite(
 
     Returns:
         A new reference built from the override, or ``ref`` itself when
-        nothing matches, the map is empty, or the reference is invalid.
+        nothing matches or the map is empty.
+
+    Raises:
+        InvalidSkillBundleOverwrite: The matching override is not a valid
+            binding; the message says which key and why.
     """
     if not overwrites:
         return ref
@@ -57,26 +65,22 @@ def apply_skill_bundle_overwrite(
         overwrite = overwrites.get(key)
         if not isinstance(overwrite, SkillBundleResourceOverwrite):
             continue
-        try:
-            return SkillBundleRef(
-                name=ref.name,
-                source_name=None if overwrite.name == ref.name else overwrite.name,
-                folder_path=overwrite.folder_path,
-                version_mode=VersionMode(overwrite.version_mode),
-                version=overwrite.version,
-            )
-        except ValidationError as e:
-            message = _first_error(e)
-            bare_key = f"{OVERWRITE_TYPE}.{ref.name}"
-            if key != bare_key and bare_key in overwrites:
-                message += f"; the less specific key '{bare_key}' was not tried"
-            logger.warning(
-                "Ignoring invalid skillBundle overwrite '%s' for '%s': %s",
-                key,
-                ref.name,
-                message,
-            )
-            return ref
+        problem = overwrite.problem
+        if problem is None:
+            try:
+                return SkillBundleRef(
+                    name=ref.name,
+                    source_name=None if overwrite.name == ref.name else overwrite.name,
+                    folder_path=overwrite.folder_path,
+                    version_mode=overwrite.version_mode,
+                    version=overwrite.version,
+                )
+            except ValidationError as e:
+                problem = _first_error(e)
+        bare_key = f"{OVERWRITE_TYPE}.{ref.name}"
+        if key != bare_key and bare_key in overwrites:
+            problem += f"; the less specific key '{bare_key}' was not tried"
+        raise InvalidSkillBundleOverwrite(f"invalid overwrite '{key}': {problem}")
     return ref
 
 

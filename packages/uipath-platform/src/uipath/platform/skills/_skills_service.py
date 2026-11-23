@@ -29,8 +29,12 @@ from uipath.platform.common import (
     UiPathExecutionContext,
 )
 
-from ._constants import BUNDLE_RESOLVE_TIMEOUT_SECONDS
-from ._overwrites import apply_skill_bundle_overwrite, current_overwrites
+from ._constants import BUNDLE_RESOLVE_TIMEOUT_SECONDS, MANIFEST_FILE_NAME
+from ._overwrites import (
+    InvalidSkillBundleOverwrite,
+    apply_skill_bundle_overwrite,
+    current_overwrites,
+)
 from ._sources import (
     BundleSourceError,
     SkillBundleSource,
@@ -48,7 +52,6 @@ from .skills import (
     SkillBundle,
     SkillBundleRef,
     SkillSet,
-    VersionMode,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,25 +60,6 @@ T = TypeVar("T")
 
 _TEMP_PREFIX = "uipath-skills-"
 """Prefix of the temp folder ``load_all`` creates when no destination is given."""
-
-
-class SkillBundleLoadError(Exception):
-    """``load``/``load_async`` could not resolve the one bundle it was asked for.
-
-    Raised for every ``BundleFailure.reason``, not only ``not_found``.
-    """
-
-    def __init__(self, failure: BundleFailure) -> None:
-        """Wrap the failure ``load_all`` would have reported.
-
-        Args:
-            failure: The bundle that could not be resolved, and why.
-        """
-        super().__init__(
-            f"skill bundle '{failure.ref.name}' {failure.reason}: {failure.detail}"
-        )
-        self.failure = failure
-        """The reported failure: ``ref``, ``reason`` and ``detail``."""
 
 
 class SkillsService(FolderContext, BaseService):
@@ -113,27 +97,27 @@ class SkillsService(FolderContext, BaseService):
         """Resolve ``refs`` in order, write each bundle under ``<root>/<name>/`` and describe the set.
 
         The run's ``skillBundle.<name>`` resource overwrites are applied to each
-        reference first. Every bundle gets ``BUNDLE_RESOLVE_TIMEOUT_SECONDS`` of
+        reference first; an invalid one fails its bundle as ``invalid`` rather
+        than falling back to the declared reference. Every bundle gets ``BUNDLE_RESOLVE_TIMEOUT_SECONDS`` of
         wall clock; after the first timeout the remaining bundles are skipped
         without being tried. A bundle that fails is reported in
         ``SkillSet.failures`` and as a ``skill.bundle.failed`` event on the
         ``Skill bundles resolved`` span; nothing here fails the run, though
-        cancellation still propagates. The folder the bundles land in holds
-        only this run's bundles plus the manifest: whatever was in
-        ``destination`` before is removed first, on every call, before the
-        source is even built. After an unexpected error a caller
-        ``destination`` may hold partial files; an owned temp root is always
-        removed.
+        cancellation still propagates. Nothing that was in ``destination``
+        before the call is ever removed. After an error, cancellation included,
+        the bundle folders written so far are removed again, and an owned temp
+        root is removed whole.
 
         Args:
             refs: The bundles the agent is bound to. With none, nothing is
-                fetched, no span is emitted and the set has no ``root``; a
-                caller ``destination`` is still reset, so an agent that unbinds
-                every bundle does not keep last run's files.
-            destination: The folder to write into; it is reset first and the set
-                does not own it, so ``SkillSet.cleanup`` leaves it alone. By
-                default a temp folder is created that the set owns and
-                ``cleanup`` removes.
+                fetched, no span is emitted, ``destination`` is not touched and
+                the set has no ``root``.
+            destination: An empty or missing folder to write into, which the
+                set does not own. When it is anything else (a folder that holds
+                files, a file, a symbolic link) every bundle fails as
+                ``invalid`` and nothing in it changes. ``SkillSet.cleanup``
+                removes only what this call wrote there. By default a temp
+                folder is created that the set owns and ``cleanup`` removes.
             source: Where bundles come from; by default the one
                 ``UIPATH_SKILLS_SOURCE`` selects. It is closed before this
                 returns.
@@ -144,7 +128,7 @@ class SkillsService(FolderContext, BaseService):
         """
         refs = list(refs)
         if not refs:
-            return await _empty_set(destination, source)
+            return await _empty_set(source)
         try:
             with bundles_resolved_span() as span:
                 result, root = await self._resolve(span, refs, destination, source)
@@ -160,6 +144,7 @@ class SkillsService(FolderContext, BaseService):
             return result
         result.root = root
         result.owns_root = owns_root
+        result._wrote_bundles = True
         return result
 
     def load_all(
@@ -179,7 +164,7 @@ class SkillsService(FolderContext, BaseService):
 
         Args:
             refs: The bundles the agent is bound to.
-            destination: The folder to write into, reset first and not owned by
+            destination: An empty or missing folder to write into, not owned by
                 the set; by default an owned temp folder.
             source: Where bundles come from; by default the one
                 ``UIPATH_SKILLS_SOURCE`` selects. It is closed before this
@@ -190,105 +175,6 @@ class SkillsService(FolderContext, BaseService):
         """
         return _run_sync(
             self.load_all_async(refs, destination=destination, source=source)
-        )
-
-    async def load_async(
-        self,
-        name: str,
-        *,
-        folder_path: str | None = None,
-        version_mode: str | VersionMode = VersionMode.LATEST,
-        version: str | None = None,
-        destination: Path | None = None,
-    ) -> SkillSet:
-        """Resolve and download one bundle, raising when it cannot be.
-
-        The same resolution as ``load_all_async`` for a single reference,
-        overwrites included. A bundle is addressed by name and folder path.
-        The set holds exactly one bundle; use ``read()`` for its files and
-        ``cleanup()`` when done (a caller-supplied ``destination`` is left
-        alone).
-
-        Args:
-            name: The bundle name, as the agent declares it.
-            folder_path: The bundle's folder path, or ``None`` for the job's
-                folder.
-            version_mode: ``"pinned"`` or ``"latest"`` (a ``VersionMode`` or its
-                value).
-            version: The version to pin; required for ``pinned``, dropped for
-                ``latest``.
-            destination: The folder to write into, reset first; by default a
-                temp folder.
-
-        Returns:
-            A set with the one resolved bundle, its ``root`` set.
-
-        Raises:
-            SkillBundleLoadError: The bundle could not be resolved; its
-                ``failure`` says why (``not_found``, ``version_not_found``,
-                ``forbidden``, ``invalid``, ``too_large`` or
-                ``source_unavailable``). Nothing is left on disk for an owned
-                temp root.
-            ValueError: ``version_mode`` is not a known mode, or the reference
-                is invalid (a name that is not one plain folder name, or
-                ``pinned`` without a ``version``).
-        """
-        ref = SkillBundleRef(
-            name=name,
-            folder_path=folder_path,
-            version_mode=VersionMode(version_mode),
-            version=version,
-        )
-        result = await self.load_all_async([ref], destination=destination)
-        if result.failures:
-            # With one reference and a failure there is no bundle, so an owned
-            # temp root is already gone; this keeps that true should it change.
-            result.cleanup()
-            raise SkillBundleLoadError(result.failures[0])
-        return result
-
-    def load(
-        self,
-        name: str,
-        *,
-        folder_path: str | None = None,
-        version_mode: str | VersionMode = VersionMode.LATEST,
-        version: str | None = None,
-        destination: Path | None = None,
-    ) -> SkillSet:
-        """Resolve and download one bundle; see ``load_async``.
-
-        ``load_async`` is preferred. This runs it to completion, on a worker
-        thread when an event loop is already running in this thread; called
-        from a running loop, it blocks the caller for up to the per-bundle
-        budget. A bundle is addressed by name and folder path. The set holds
-        exactly one bundle; use ``read()`` for its files and ``cleanup()``
-        when done (a caller-supplied ``destination`` is left alone).
-
-        Args:
-            name: The bundle name, as the agent declares it.
-            folder_path: The bundle's folder path, or ``None`` for the job's
-                folder.
-            version_mode: ``"pinned"`` or ``"latest"``.
-            version: The version to pin; required for ``pinned``.
-            destination: The folder to write into, reset first; by default a
-                temp folder.
-
-        Returns:
-            A set with the one resolved bundle, its ``root`` set.
-
-        Raises:
-            SkillBundleLoadError: As ``load_async`` raises it.
-            ValueError: As ``load_async`` raises it.
-        """
-        return _run_sync(
-            self.load_async(
-                name,
-                folder_path=folder_path,
-                version_mode=version_mode,
-                version=version,
-                destination=destination,
-            )
         )
 
     async def _resolve(
@@ -336,23 +222,16 @@ class SkillsService(FolderContext, BaseService):
         root: Path,
         source: SkillBundleSource | None,
     ) -> SkillSet:
-        """Reset ``root``, build the source when none was given, materialize, and close the source.
+        """Check ``root`` is empty, build the source when none was given, materialize, and close the source.
 
-        A caller-supplied ``source`` is closed on every path, a failed reset
-        included.
+        A caller-supplied ``source`` is closed on every path, a refused
+        ``root`` included.
         """
         try:
-            # The folder is reserved for materialized bundles, so nothing from
-            # an earlier run (a bundle no longer bound, a stale manifest) may
-            # survive. This runs before the source is built, so the reset
-            # happens even when the source cannot be.
-            if not _remove_tree(root):
+            problem = _unusable_destination(root)
+            if problem is not None:
                 return _fail_all(
-                    span,
-                    _source_name(source),
-                    refs,
-                    reason="invalid",
-                    detail="stale files could not be removed",
+                    span, _source_name(source), refs, reason="invalid", detail=problem
                 )
             if source is None:
                 # get_bundle_source raises when the configured source cannot be
@@ -381,51 +260,68 @@ async def _materialize_with(
     refs: list[SkillBundleRef],
     root: Path,
 ) -> SkillSet:
-    """Materialize ``refs`` in order into the reset ``root``, then write the manifest.
+    """Materialize ``refs`` in order into the empty ``root``, then write the manifest.
 
     The manifest is written only when at least one bundle resolved; the caller
-    decides what happens to ``root`` otherwise.
+    decides what happens to ``root`` otherwise. On an error, cancellation
+    included, the bundle folders and manifest written so far are removed.
     """
     overwrites = current_overwrites()
     bundles: list[SkillBundle] = []
     failures: list[BundleFailure] = []
     seen: set[str] = set()
     timed_out = False
-    for declared in refs:
-        ref = apply_skill_bundle_overwrite(declared, overwrites)
-        dest = root / ref.name
-        failure: BundleFailure | None = None
-        if ref.name.casefold() in seen or dest.exists():
-            # A second reference would write into the first one's folder and
-            # shadow or mix its skills; the first reference wins. ``root`` was
-            # reset, so an existing ``dest`` is an earlier bundle of this run
-            # under a name the filesystem folds together with this one (case,
-            # or Unicode normalization) that ``casefold`` did not catch.
-            failure = BundleFailure(
-                ref=ref,
-                reason="invalid",
-                detail="repeated bundle name; the first reference was kept",
-            )
-        elif timed_out:
-            failure = BundleFailure(
-                ref=ref,
-                reason="source_unavailable",
-                detail="skipped: skills source timed out",
-            )
-        else:
-            bundle, failure, timed_out = await _materialize_one(source, ref, dest)
-            if bundle is not None:
-                bundles.append(bundle)
-        seen.add(ref.name.casefold())
-        if failure is not None:
-            failures.append(failure)
-            record_bundle_failed(span, failure)
-    _warn_duplicate_skill_names(bundles)
-    result = SkillSet(source=source.name, bundles=bundles, failures=failures)
-    record_bundles_resolved(span, result)
-    if bundles:
-        result.save(root)
-    return result
+    try:
+        for declared in refs:
+            failure: BundleFailure | None = None
+            try:
+                ref = apply_skill_bundle_overwrite(declared, overwrites)
+            except InvalidSkillBundleOverwrite as e:
+                ref = declared
+                failure = BundleFailure(ref=ref, reason="invalid", detail=str(e))
+            dest = root / ref.name
+            if failure is None:
+                if ref.name.casefold() in seen or dest.exists():
+                    # A second reference would write into the first one's folder and
+                    # shadow or mix its skills; the first reference wins. ``root``
+                    # started empty, so an existing ``dest`` is an earlier bundle of
+                    # this run under a name the filesystem folds together with this one
+                    # (case, or Unicode normalization) that ``casefold`` did not catch.
+                    failure = BundleFailure(
+                        ref=ref,
+                        reason="invalid",
+                        detail="repeated bundle name; the first reference was kept",
+                    )
+                elif timed_out:
+                    failure = BundleFailure(
+                        ref=ref,
+                        reason="source_unavailable",
+                        detail="skipped: skills source timed out",
+                    )
+                else:
+                    bundle, failure, timed_out = await _materialize_one(
+                        source, ref, dest
+                    )
+                    if bundle is not None:
+                        bundles.append(bundle)
+            seen.add(ref.name.casefold())
+            if failure is not None:
+                failures.append(failure)
+                record_bundle_failed(span, failure)
+        _warn_duplicate_skill_names(bundles)
+        result = SkillSet(source=source.name, bundles=bundles, failures=failures)
+        record_bundles_resolved(span, result)
+        if bundles:
+            result.save(root)
+        return result
+    except BaseException:
+        for bundle in bundles:
+            _remove_tree(root / bundle.ref.name)
+        try:
+            (root / MANIFEST_FILE_NAME).unlink(missing_ok=True)
+        except OSError as e:
+            logger.warning("Could not remove %s: %s", root / MANIFEST_FILE_NAME, e)
+        raise
 
 
 async def _materialize_one(
@@ -448,17 +344,11 @@ async def _materialize_one(
         raise
 
 
-async def _empty_set(
-    destination: Path | None, source: SkillBundleSource | None
-) -> SkillSet:
+async def _empty_set(source: SkillBundleSource | None) -> SkillSet:
     """The set for an agent that binds no bundle: nothing fetched, no span, no temp folder.
 
-    A caller ``destination`` is still reset, so last run's bundles and manifest
-    do not survive an agent that unbinds every bundle; a failed reset is logged
-    by ``_remove_tree``. A caller-supplied source is closed.
+    A caller ``destination`` is not touched. A caller-supplied source is closed.
     """
-    if destination is not None:
-        _remove_tree(destination)
     source_name = _source_name(source)
     if source is not None:
         await _close_source(source)
@@ -526,20 +416,30 @@ def _failure_for(
     return BundleFailure(ref=ref, reason="source_unavailable", detail=repr(error))
 
 
-def _remove_tree(path: Path) -> bool:
-    """Delete ``path``; ``False``, with a warning, when anything is left behind.
+def _unusable_destination(root: Path) -> str | None:
+    """Why ``root`` cannot receive bundles, or ``None`` when it is missing or an empty folder."""
+    if root.is_symlink():
+        return f"destination {root} is a symbolic link"
+    if not root.exists():
+        return None
+    if not root.is_dir():
+        return f"destination {root} is not a folder"
+    try:
+        if any(root.iterdir()):
+            return f"destination {root} is not empty"
+    except OSError as e:
+        return f"destination {root} cannot be read: {e}"
+    return None
 
-    A symlink is not followed: ``rmtree`` refuses it, so it stays and the
-    caller reports the folder as unusable instead of emptying its target.
+
+def _remove_tree(path: Path) -> None:
+    """Delete a folder this call created; a warning when anything is left behind.
+
+    A symlink is not followed: ``rmtree`` refuses it, so it stays.
     """
     shutil.rmtree(path, ignore_errors=True)
-    # A dangling junction on Windows is neither a symlink nor existing here, so
-    # it counts as removed; the source's later mkdir then fails on it and is
-    # reported as source_unavailable.
     if path.is_symlink() or path.exists():
         logger.warning("Could not remove %s", path)
-        return False
-    return True
 
 
 def _warn_duplicate_skill_names(bundles: list[SkillBundle]) -> None:
@@ -599,4 +499,4 @@ def _run_sync(coro: Coroutine[Any, Any, T]) -> T:
         return future.result()
 
 
-__all__ = ["SkillBundleLoadError", "SkillsService"]
+__all__ = ["SkillsService"]

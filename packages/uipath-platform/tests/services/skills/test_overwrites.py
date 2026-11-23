@@ -1,6 +1,5 @@
 """Tests for applying ``skillBundle`` resource overwrites to a bundle reference."""
 
-import logging
 from typing import Any
 
 import pytest
@@ -8,7 +7,10 @@ import pytest
 from uipath.platform.common import ResourceOverwrite, ResourceOverwriteParser
 from uipath.platform.common._bindings import GenericResourceOverwrite
 from uipath.platform.skills import SkillBundleRef, VersionMode
-from uipath.platform.skills._overwrites import apply_skill_bundle_overwrite
+from uipath.platform.skills._overwrites import (
+    InvalidSkillBundleOverwrite,
+    apply_skill_bundle_overwrite,
+)
 
 
 def _ctx(entries: dict[str, dict[str, Any]]) -> dict[str, ResourceOverwrite]:
@@ -88,11 +90,7 @@ def test_an_overwrite_replaces_everything_but_the_name() -> None:
             }
         ),
     )
-    assert (out.name, out.lookup_name, out.key) == (
-        "finance",
-        "finance-eu",
-        "skillBundle.finance",
-    )
+    assert (out.name, out.lookup_name) == ("finance", "finance-eu")
     assert (out.folder_path, out.version_mode, out.version) == (
         "Prod",
         VersionMode.LATEST,
@@ -150,27 +148,37 @@ def test_a_folder_key_is_not_tried_for_a_ref_without_a_folder() -> None:
     [
         (
             {"skillBundle.finance": _entry(name="../x")},
-            "Ignoring invalid skillBundle overwrite 'skillBundle.finance' for "
-            "'finance': Value error, a skill bundle name must be a single folder name",
+            "invalid overwrite 'skillBundle.finance': Value error, a skill bundle "
+            "name must be a single folder name",
+        ),
+        (
+            {"skillBundle.finance": _entry(version=None)},
+            "invalid overwrite 'skillBundle.finance': Value error, a pinned skill "
+            "bundle needs a version",
+        ),
+        (
+            {"skillBundle.finance": _entry(versionMode="")},
+            "invalid overwrite 'skillBundle.finance': versionMode: Input should be "
+            "'pinned' or 'latest'",
         ),
         (
             {
                 "skillBundle.finance.Shared/Skills": _entry(name="../x"),
                 "skillBundle.finance": _entry(version="5"),
             },
-            "Ignoring invalid skillBundle overwrite 'skillBundle.finance.Shared/Skills' "
-            "for 'finance': Value error, a skill bundle name must be a single folder "
-            "name; the less specific key 'skillBundle.finance' was not tried",
+            "invalid overwrite 'skillBundle.finance.Shared/Skills': Value error, a "
+            "skill bundle name must be a single folder name; the less specific key "
+            "'skillBundle.finance' was not tried",
         ),
     ],
-    ids=["unsafe-name", "invalid-folder-key"],
+    ids=["unsafe-name", "pinned-without-version", "blank-version-mode", "folder-key"],
 )
-def test_an_invalid_overwrite_is_ignored_with_one_warning(
-    caplog: pytest.LogCaptureFixture,
-    entries: dict[str, dict[str, Any]],
-    message: str,
+def test_an_invalid_overwrite_raises_instead_of_falling_back(
+    entries: dict[str, dict[str, Any]], message: str
 ) -> None:
-    ref = _pinned(versionMode="latest", version=None)
-    with caplog.at_level(logging.WARNING):
-        assert apply_skill_bundle_overwrite(ref, _ctx(entries)) is ref
-    assert [r.getMessage() for r in caplog.records] == [message]
+    entries = {
+        k: {f: v for f, v in e.items() if v is not None} for k, e in entries.items()
+    }
+    with pytest.raises(InvalidSkillBundleOverwrite) as info:
+        apply_skill_bundle_overwrite(_pinned(), _ctx(entries))
+    assert str(info.value) == message

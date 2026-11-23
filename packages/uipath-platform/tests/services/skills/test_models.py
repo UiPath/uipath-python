@@ -7,9 +7,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
+from opentelemetry.trace import StatusCode
 from pydantic import ValidationError
 
 from uipath.platform.skills import (
@@ -73,7 +76,7 @@ def test_a_ref_parses_camel_case_and_defaults_to_latest() -> None:
         VersionMode.LATEST,
         None,
     )
-    assert (ref.key, ref.lookup_name) == ("skillBundle.finance", "finance")
+    assert ref.lookup_name == "finance"
 
 
 @pytest.mark.parametrize(
@@ -255,6 +258,34 @@ def test_reading_skill_md_records_one_load_span(
     assert attributes["skill.version"] == "1"
     assert attributes["skill.invoked_by"] == invoked_by
     assert attributes["skill.bytes"] == len(text.encode("utf-8"))
+
+
+def test_the_skill_load_span_is_current_while_skill_md_is_read(
+    root: Path, exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    current: list[str] = []
+    real = Path.read_text
+
+    def spying(self: Path, *args: Any, **kwargs: Any) -> str:
+        span = trace.get_current_span()
+        current.append(span.name if isinstance(span, ReadableSpan) else "")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", spying)
+    _fixture_set(root).read("ops/vendor-lookup")
+    assert current == ["Skill load - ops/vendor-lookup"]
+
+
+def test_a_skill_md_read_that_fails_records_an_error_span(
+    root: Path, exporter: InMemorySpanExporter
+) -> None:
+    (root / "ops" / "vendor-lookup" / "SKILL.md").unlink()
+    with pytest.raises(FileNotFoundError):
+        _fixture_set(root).read("ops/vendor-lookup")
+    [span] = exporter.get_finished_spans()
+    assert span.name == "Skill load - ops/vendor-lookup"
+    assert span.status.status_code is StatusCode.ERROR
+    assert [event.name for event in span.events] == ["exception"]
 
 
 def test_read_drops_a_bom_and_replaces_undecodable_bytes(

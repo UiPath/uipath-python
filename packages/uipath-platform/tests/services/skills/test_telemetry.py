@@ -5,11 +5,13 @@ import logging
 from collections.abc import Mapping
 
 import pytest
+from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 from opentelemetry.trace import StatusCode
+from uipath.core.tracing import UiPathSpanUtils
 
 from uipath.platform.skills import (
     BundleFailure,
@@ -24,7 +26,6 @@ from uipath.platform.skills._telemetry import (
     bundles_resolved_span,
     record_bundle_failed,
     record_bundles_resolved,
-    record_skill_loaded,
     skill_load_span,
 )
 
@@ -137,7 +138,8 @@ def test_the_resolution_span_with_nothing_resolved(
 
 
 def test_the_skill_load_span(exporter: InMemorySpanExporter) -> None:
-    record_skill_loaded(OPS, OPS.skills[0], size=7, invoked_by="user")
+    with skill_load_span(OPS, OPS.skills[0], invoked_by="user") as load:
+        load.loaded(7)
 
     span = _only_span(exporter)
     assert span.name == "Skill load - ops/vendor-lookup"
@@ -212,3 +214,25 @@ def test_an_exception_inside_the_skill_load_span_is_recorded_and_propagates(
     span = _only_span(exporter)
     assert span.status.status_code is StatusCode.ERROR
     assert [event.name for event in span.events] == ["exception"]
+
+
+def test_both_spans_attach_under_the_external_framework_span(
+    exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A LangGraph or LangChain span that is not current in OpenTelemetry's
+    # context, as uipath-langchain registers it.
+    external = _telemetry._tracer.start_span("LangGraph run")
+    monkeypatch.setattr(UiPathSpanUtils, "_current_span_provider", lambda: external)
+    assert trace.get_current_span() is trace.INVALID_SPAN
+    with bundles_resolved_span():
+        pass
+    with skill_load_span(FINANCE, FINANCE.skills[0]) as load:
+        load.loaded(1)
+    external.end()
+
+    resolved, loaded, run = exporter.get_finished_spans()
+    assert run.name == "LangGraph run"
+    for span in (resolved, loaded):
+        assert span.parent is not None
+        assert span.parent.span_id == run.context.span_id
+        assert span.context.trace_id == run.context.trace_id

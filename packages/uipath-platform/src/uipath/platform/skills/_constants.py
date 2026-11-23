@@ -12,11 +12,15 @@ BUNDLE_FILE_NAME = "bundle.json"
 SKILL_FILE_NAME = "SKILL.md"
 MAX_FILE_BYTES = 512 * 1024
 MAX_BUNDLE_BYTES = 24 * 1024 * 1024
+MAX_DESCRIPTION_CHARS = 1024
+"""Longest skill description kept, the Agent Skills limit."""
+
 BUNDLE_RESOLVE_TIMEOUT_SECONDS = 20.0
 """Per-bundle wall clock for resolving skills at agent start.
 
 After the first timeout the remaining bundles are skipped. The local source
-copies on a worker thread, so it times out too, stopping before its next file.
+copies without yielding to the event loop, so the limit does not stop it;
+``MAX_BUNDLE_BYTES`` bounds it instead.
 """
 
 LOCAL_VERSION = "local"

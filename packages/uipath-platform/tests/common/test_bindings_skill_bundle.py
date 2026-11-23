@@ -1,18 +1,19 @@
 """Tests for the ``skillBundle`` resource overwrite type and its parsing."""
 
-from typing import Any, get_args
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
+from uipath.platform import skills
 from uipath.platform.common import (
     ConnectionResourceOverwrite,
     EntityResourceOverwrite,
     GenericResourceOverwrite,
     ResourceOverwriteParser,
     SkillBundleResourceOverwrite,
+    VersionMode,
 )
-from uipath.platform.skills import VersionMode
 
 
 def _parse(key: str, entry: dict[str, Any]) -> SkillBundleResourceOverwrite:
@@ -42,7 +43,10 @@ def test_a_full_entry_parses_with_its_identifiers() -> None:
         "finance-eu",
         "Prod/Skills",
     )
-    assert "isEnabled" not in ow.model_dump(by_alias=True)
+    assert ow.problem is None
+    dumped = ow.model_dump(by_alias=True)
+    assert "isEnabled" not in dumped
+    assert "problem" not in dumped
 
 
 @pytest.mark.parametrize("version", [None, "4", ""])
@@ -80,16 +84,48 @@ _FULL = {"name": "finance", "folderPath": "F", "versionMode": "pinned", "version
         "unknown-version-mode",
     ],
 )
-def test_an_incomplete_entry_is_rejected(missing_or_blank: dict[str, Any]) -> None:
+def test_an_incomplete_entry_parses_with_its_problem(
+    missing_or_blank: dict[str, Any],
+) -> None:
+    # Kept, not rejected, so the loader fails the bundle instead of loading
+    # the declared binding.
     entry = {**_FULL, **missing_or_blank}
     entry = {k: v for k, v in entry.items() if v is not None}
+    ow = _parse("skillBundle.finance", entry)
+    assert ow.problem
+    assert "\n" not in ow.problem
+    assert (ow.name, ow.folder_path, ow.version) == ("", "", None)
+
+
+@pytest.mark.parametrize(
+    ("change", "problem"),
+    [
+        ({"version": None}, "Value error, a pinned skill bundle needs a version"),
+        ({"folderPath": None}, "folderPath: Field required"),
+        (
+            {"versionMode": "cached"},
+            "versionMode: Input should be 'pinned' or 'latest'",
+        ),
+    ],
+    ids=["pinned-without-version", "no-folder", "unknown-version-mode"],
+)
+def test_the_problem_names_the_field_and_the_rule(
+    change: dict[str, Any], problem: str
+) -> None:
+    entry = {k: v for k, v in {**_FULL, **change}.items() if v is not None}
+    assert _parse("skillBundle.finance", entry).problem == problem
+
+
+def test_a_malformed_entry_of_another_kind_is_still_rejected() -> None:
     with pytest.raises(ValidationError):
-        ResourceOverwriteParser.parse("skillBundle.finance", entry)
+        ResourceOverwriteParser.parse("asset.A", {"name": "B"})
 
 
-def test_the_version_mode_literal_matches_skills_version_mode() -> None:
+def test_overwrites_and_references_share_one_version_mode() -> None:
     annotation = SkillBundleResourceOverwrite.model_fields["version_mode"].annotation
-    assert set(get_args(annotation)) == {mode.value for mode in VersionMode}
+    assert annotation is VersionMode
+    assert skills.VersionMode is VersionMode
+    assert _parse("skillBundle.finance", _FULL).version_mode is VersionMode.PINNED
 
 
 @pytest.mark.parametrize(
@@ -108,3 +144,19 @@ def test_other_kinds_still_parse_to_their_own_type(
     key: str, entry: dict[str, Any], kind: type
 ) -> None:
     assert isinstance(ResourceOverwriteParser.parse(key, entry), kind)
+
+
+@pytest.mark.parametrize(
+    ("key", "known"),
+    [
+        ("skillBundle.finance", True),
+        ("skillBundle.finance.Shared/Skills", True),
+        ("asset.A", True),
+        ("entity.E", True),
+        ("connection.c", True),
+        ("weird.X", False),
+        ("", False),
+    ],
+)
+def test_the_parser_knows_the_kinds_it_has_a_model_for(key: str, known: bool) -> None:
+    assert ResourceOverwriteParser.knows(key) is known

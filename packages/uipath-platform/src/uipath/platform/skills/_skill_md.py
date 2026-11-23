@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import yaml
 
+from ._constants import MAX_DESCRIPTION_CHARS
+
 _BOM = "﻿"
 _FENCE = "---"
 
@@ -40,8 +42,9 @@ def parse_skill_description(content: str) -> str:
         content: The ``SKILL.md`` text; a leading UTF-8 BOM is ignored.
 
     Returns:
-        The stripped description, or ``""`` when there is no frontmatter, it is
-        not valid YAML, it is not a mapping, or it has no description.
+        The stripped description, cut to ``MAX_DESCRIPTION_CHARS``. ``""`` when
+        there is no frontmatter, it is not valid YAML, it is not a mapping, or
+        its description is missing or not a string.
     """
     frontmatter = _frontmatter(content.lstrip(_BOM))
     if frontmatter is None:
@@ -52,4 +55,8 @@ def parse_skill_description(content: str) -> str:
         return ""
     if not isinstance(data, dict):
         return ""
-    return str(data.get("description", "")).strip()
+    description = data.get("description")
+    # Only a string: str() of a list or mapping expands YAML aliases.
+    if not isinstance(description, str):
+        return ""
+    return description.strip()[:MAX_DESCRIPTION_CHARS]

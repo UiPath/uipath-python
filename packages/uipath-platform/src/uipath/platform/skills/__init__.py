@@ -1,13 +1,15 @@
 """Skill bundles for coded agents: references, resolved bundles, the manifest, and the service that loads them."""
 
+from ..common._bindings import VersionMode
 from ._constants import MANIFEST_FILE_NAME
-from ._skills_service import SkillBundleLoadError, SkillsService
+from ._skills_service import SkillsService
 from ._sources import (
     BundleSourceError,
     LocalFolderBundleSource,
     OrchestratorBundleSource,
     SkillBundleSource,
 )
+from ._telemetry import SkillLoad, skill_load_span
 from .skills import (
     BundleFailure,
     FailureReason,
@@ -16,7 +18,6 @@ from .skills import (
     SkillBundle,
     SkillBundleRef,
     SkillSet,
-    VersionMode,
 )
 
 __all__ = [
@@ -29,10 +30,11 @@ __all__ = [
     "OrchestratorBundleSource",
     "Skill",
     "SkillBundle",
-    "SkillBundleLoadError",
     "SkillBundleRef",
     "SkillBundleSource",
+    "SkillLoad",
     "SkillSet",
     "SkillsService",
     "VersionMode",
+    "skill_load_span",
 ]

@@ -2,7 +2,8 @@
 
 ``uipath debug`` and ``uipath eval`` load their resource overwrites from the
 Studio backend when ``UIPATH_PROJECT_ID`` is set. One entry of a kind this SDK
-does not know must not fail the whole run.
+does not know must not fail the whole run; a malformed entry of a known kind
+still does.
 """
 
 import json
@@ -10,6 +11,7 @@ import logging
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath._cli._utils._studio_project import StudioClient
@@ -89,3 +91,16 @@ async def test_get_resource_overwrites_skips_unknown_entries(
     skipped = [message for message in warnings if "weird.X" in message]
     assert len(skipped) == 1, warnings
     assert "\n" not in skipped[0], skipped[0]
+
+
+async def test_get_resource_overwrites_raises_for_a_malformed_known_kind(
+    studio_client: StudioClient, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(
+        method="POST",
+        url=_OVERWRITES_URL,
+        json={"asset.A": {"name": "B"}, "weird.X": {"foo": 1}},
+    )
+
+    with pytest.raises(ValidationError):
+        await studio_client.get_resource_overwrites()

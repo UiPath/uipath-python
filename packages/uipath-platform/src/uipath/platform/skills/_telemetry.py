@@ -8,7 +8,9 @@ render them as generic custom spans.
 Raw OpenTelemetry spans are used instead of ``@traced``: the resolve span
 has to be yielded to the caller so bundle events can be attached to it, and
 the three LLMOps marker attributes are a cross-runtime contract that the
-decorator does not set.
+decorator does not set. Like ``@traced``, both spans take their parent from
+``UiPathSpanUtils.get_parent_context``, so they attach under the running
+LangGraph or LangChain span.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
+from uipath.core.tracing import UiPathSpanUtils
 
 if TYPE_CHECKING:
     from .skills import (
@@ -52,6 +55,7 @@ def bundles_resolved_span() -> Iterator[trace.Span]:
     """
     with _tracer.start_as_current_span(
         "Skill bundles resolved",
+        context=UiPathSpanUtils.get_parent_context(),
         attributes=_llmops_attributes(SPAN_TYPE_BUNDLES_RESOLVED),
     ) as span:
         yield span
@@ -187,6 +191,7 @@ def skill_load_span(
     """
     with _tracer.start_as_current_span(
         f"Skill load - {bundle.ref.name}/{skill.name}",
+        context=UiPathSpanUtils.get_parent_context(),
         attributes={
             **_llmops_attributes(SPAN_TYPE_SKILL_LOAD),
             **_ref_attributes(bundle.ref, bundle.version),
@@ -198,28 +203,6 @@ def skill_load_span(
         yield load
         if not load._settled:
             load.fail("The skill was not loaded")
-
-
-def record_skill_loaded(
-    bundle: SkillBundle,
-    skill: Skill,
-    *,
-    size: int,
-    invoked_by: InvokedBy = "model",
-) -> None:
-    """One point-in-time span for a skill that was already read (DEC-31).
-
-    Args:
-        bundle: The bundle the skill belongs to.
-        skill: The skill whose ``SKILL.md`` was read.
-        size: UTF-8 bytes of the text handed to the reader, recorded as
-            ``skill.bytes``.
-        invoked_by: Who asked for the skill, recorded as ``skill.invoked_by``:
-            ``"model"`` for a tool call, ``"user"`` when the agent's own code
-            loaded it.
-    """
-    with skill_load_span(bundle, skill, invoked_by=invoked_by) as load:
-        load.loaded(size)
 
 
 def _llmops_attributes(span_type: str) -> dict[str, str | bool]:

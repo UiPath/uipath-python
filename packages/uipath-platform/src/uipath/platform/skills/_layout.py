@@ -80,15 +80,22 @@ def find_skill_md(path: Path) -> Path | None:
     (``skill.md`` counts). On a case-sensitive file system it can hold several
     spellings; ``SKILL.md`` itself wins, then the first in code-point order.
 
+    Symbolic links are not followed: a linked folder is not a skill folder and
+    a linked ``SKILL.md`` does not count.
+
     Args:
         path: A child of a bundle folder.
 
     Returns:
         The file, or ``None`` when ``path`` is not a skill folder.
     """
-    if not path.is_dir() or not is_plain_name(path.name):
+    if path.is_symlink() or not path.is_dir() or not is_plain_name(path.name):
         return None
-    matches = [p for p in path.iterdir() if is_skill_md(p.name) and p.is_file()]
+    matches = [
+        p
+        for p in path.iterdir()
+        if is_skill_md(p.name) and p.is_file() and not p.is_symlink()
+    ]
     return min(matches, key=lambda p: (p.name != SKILL_FILE_NAME, p.name), default=None)
 
 
@@ -112,13 +119,17 @@ def iter_skill_files(skill_dir: Path) -> list[str]:
 
     Returns:
         Sorted paths with ``SKILL.md`` first; a path with any component that is
-        not a plain name (hidden files and folders, for instance) is left out.
+        not a plain name (hidden files and folders, for instance) is left out,
+        and so is a symbolic link (``rglob`` does not descend into linked
+        folders).
     """
     return sorted(
         (
             rel.as_posix()
             for rel in (
-                p.relative_to(skill_dir) for p in skill_dir.rglob("*") if p.is_file()
+                p.relative_to(skill_dir)
+                for p in skill_dir.rglob("*")
+                if p.is_file() and not p.is_symlink()
             )
             if all(is_plain_name(part) for part in rel.parts)
         ),

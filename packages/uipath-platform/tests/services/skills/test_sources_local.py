@@ -1,10 +1,7 @@
 """Tests for the local-folder skill bundle source."""
 
-import asyncio
 import logging
 import shutil
-import threading
-import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -227,56 +224,66 @@ async def test_a_filesystem_error_is_source_unavailable(
     assert isinstance(info.value.__cause__, PermissionError)
 
 
-# --- The worker thread ---
+# --- Symbolic links ---
 
 
-async def test_the_copy_runs_off_the_event_loop(
-    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    real = shutil.copyfile
-
-    def slow(src: Path, dst: Path) -> object:
-        time.sleep(0.1)
-        return real(src, dst)
-
-    monkeypatch.setattr(COPYFILE, slow)
-    ticks = 0
-
-    async def ticker() -> None:
-        nonlocal ticks
-        while True:
-            ticks += 1
-            await asyncio.sleep(0.01)
-
-    task = asyncio.create_task(ticker())
+def _symlink(link: Path, target: Path) -> None:
     try:
-        assert await _names(root, tmp_path / "d") == HEALTHY
-    finally:
-        task.cancel()
-    # Three files at 0.1 s each; a blocked loop would have ticked once.
-    assert ticks >= 5
+        link.symlink_to(target, target_is_directory=target.is_dir())
+    except OSError as e:
+        pytest.skip(f"cannot create a symlink here: {e}")
 
 
-async def test_cancelling_stops_the_copy_before_the_next_file(
-    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+async def test_a_symlinked_file_is_not_copied(root: Path, tmp_path: Path) -> None:
+    secret = tmp_path / "secret.txt"
+    secret.write_text("secret", encoding="utf-8")
+    _symlink(root / "finance" / "vendor-lookup" / "notes.md", secret)
+    dest = tmp_path / "d"
+    bundle = await _materialize(root, dest)
+    vendor = next(s for s in bundle.skills if s.name == "vendor-lookup")
+    assert vendor.files == ["SKILL.md"]
+    assert not (dest / "vendor-lookup" / "notes.md").exists()
+
+
+async def test_a_symlinked_folder_inside_a_skill_is_not_copied(
+    root: Path, tmp_path: Path
 ) -> None:
-    real = shutil.copyfile
-    started = threading.Event()
-    copied: list[str] = []
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "notes.md").write_text("secret", encoding="utf-8")
+    _symlink(root / "finance" / "vendor-lookup" / "linked", outside)
+    bundle = await _materialize(root, tmp_path / "d")
+    vendor = next(s for s in bundle.skills if s.name == "vendor-lookup")
+    assert vendor.files == ["SKILL.md"]
 
-    def slow(src: Path, dst: Path) -> object:
-        started.set()
-        time.sleep(0.2)
-        copied.append(Path(dst).name)
-        return real(src, dst)
 
-    monkeypatch.setattr(COPYFILE, slow)
-    task = asyncio.create_task(_names(root, tmp_path / "d"))
-    await asyncio.to_thread(started.wait)
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    # The file in flight finished before materialize returned; no other started.
-    assert len(copied) == 1
-    await asyncio.sleep(0.3)
-    assert len(copied) == 1
+async def test_a_symlinked_skill_md_does_not_make_a_skill(
+    root: Path, tmp_path: Path
+) -> None:
+    outside = tmp_path / "SKILL.md"
+    outside.write_bytes(b"---\ndescription: linked\n---\n")
+    (root / "finance" / "linked").mkdir()
+    _symlink(root / "finance" / "linked" / "SKILL.md", outside)
+    assert await _names(root, tmp_path / "d") == HEALTHY
+
+
+async def test_a_symlinked_skill_folder_is_not_a_skill(
+    root: Path, tmp_path: Path
+) -> None:
+    outside = tmp_path / "outside-skill"
+    shutil.copytree(root / "finance" / "vendor-lookup", outside)
+    _symlink(root / "finance" / "linked", outside)
+    dest = tmp_path / "d"
+    assert await _names(root, dest) == HEALTHY
+    assert not (dest / "linked").exists()
+
+
+async def test_a_symlinked_bundle_folder_is_invalid(root: Path, tmp_path: Path) -> None:
+    outside = tmp_path / "outside-bundle"
+    shutil.copytree(root / "finance", outside)
+    _symlink(root / "linked", outside)
+    with pytest.raises(BundleSourceError) as info:
+        await _materialize(root, tmp_path / "d", name="linked")
+    assert info.value.reason == "invalid"
+    assert "symbolic link" in info.value.detail
+    assert not (tmp_path / "d").exists()

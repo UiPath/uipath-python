@@ -36,11 +36,7 @@ from uipath.platform.skills import (
     _sources,
 )
 from uipath.platform.skills._constants import MANIFEST_FILE_NAME
-from uipath.platform.skills._skills_service import (
-    SkillBundleLoadError,
-    SkillsService,
-    _run_sync,
-)
+from uipath.platform.skills._skills_service import SkillsService, _run_sync
 from uipath.platform.skills._sources import BundleSourceError, LocalFolderBundleSource
 
 # --- Helpers ---
@@ -80,13 +76,13 @@ def _temp_skill_roots(tmp_path: Path) -> set[Path]:
     return set(tmp_path.glob("uipath-skills-*"))
 
 
-def _write_stale(dest: Path) -> Path:
-    """A leftover bundle file and manifest from an earlier run."""
-    stale = dest / "stale" / "x.txt"
-    stale.parent.mkdir(parents=True)
-    stale.write_text("x", encoding="utf-8")
+def _write_leftover(dest: Path) -> Path:
+    """A bundle file and manifest left in ``dest`` by an earlier run."""
+    leftover = dest / "old" / "x.txt"
+    leftover.parent.mkdir(parents=True)
+    leftover.write_text("x", encoding="utf-8")
     (dest / MANIFEST_FILE_NAME).write_text("{}", encoding="utf-8")
-    return stale
+    return leftover
 
 
 class FakeSource:
@@ -198,19 +194,86 @@ async def test_the_context_overwrite_is_applied(service: SkillsService) -> None:
         result.cleanup()
 
 
-async def test_a_caller_destination_is_reset_and_kept(
+async def test_an_invalid_overwrite_fails_its_bundle_and_the_rest_continue(
+    service: SkillsService, exporter: InMemorySpanExporter
+) -> None:
+    token = _resource_overwrites.set(
+        _ctx(
+            {
+                "skillBundle.finance": {
+                    "name": "finance",
+                    "folderPath": "Prod/Skills",
+                    "versionMode": "pinned",
+                }
+            }
+        )
+    )
+    try:
+        result = await service.load_all_async([_ref("finance"), _ref("ops")])
+    finally:
+        _resource_overwrites.reset(token)
+    try:
+        # The declared binding would have loaded; a broken pin must not.
+        assert [b.ref.name for b in result.bundles] == ["ops"]
+        assert _failed_events(_only_span(exporter)) == [
+            (
+                "finance",
+                "invalid",
+                "invalid overwrite 'skillBundle.finance': Value error, a pinned "
+                "skill bundle needs a version",
+            )
+        ]
+    finally:
+        result.cleanup()
+
+
+async def test_a_caller_destination_is_written_and_cleanup_removes_only_that(
     service: SkillsService, tmp_path: Path
 ) -> None:
     dest = tmp_path / "run" / "skills"
-    stale = _write_stale(dest)
     result = await service.load_all_async([_ref("finance")], destination=dest)
     assert (result.root, result.owns_root) == (dest, False)
-    assert not stale.exists()
     loaded = SkillSet.load(dest)
     assert loaded is not None
     assert loaded.names() == result.names()
+    # A set read back from disk did not write the folder, so it removes nothing.
+    loaded.cleanup()
+    assert sorted(p.name for p in dest.iterdir()) == [MANIFEST_FILE_NAME, "finance"]
+    (dest / "notes.txt").write_text("mine", encoding="utf-8")
     result.cleanup()
-    assert (dest / MANIFEST_FILE_NAME).is_file()
+    assert sorted(p.name for p in dest.iterdir()) == ["notes.txt"]
+    assert result.root is None
+
+
+async def test_a_cleaned_up_destination_can_be_loaded_into_again(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    dest = tmp_path / "skills"
+    first = await service.load_all_async([_ref("finance")], destination=dest)
+    first.cleanup()
+    second = await service.load_all_async([_ref("ops")], destination=dest)
+    assert (second.failures, second.names()) == ([], ["ops/vendor-lookup"])
+    assert sorted(p.name for p in dest.iterdir()) == [MANIFEST_FILE_NAME, "ops"]
+
+
+async def test_a_destination_that_holds_files_fails_every_bundle_and_is_kept(
+    service: SkillsService, tmp_path: Path, exporter: InMemorySpanExporter
+) -> None:
+    dest = tmp_path / "skills"
+    leftover = _write_leftover(dest)
+    source = FakeSource()
+    result = await service.load_all_async(
+        [_ref("x"), _ref("y")], destination=dest, source=source
+    )
+    assert (result.bundles, result.root) == ([], None)
+    assert (source.requested, source.closed) == ([], True)
+    detail = f"destination {dest} is not empty"
+    assert _failed_events(_only_span(exporter)) == [
+        ("x", "invalid", detail),
+        ("y", "invalid", detail),
+    ]
+    assert leftover.read_text(encoding="utf-8") == "x"
+    assert (dest / MANIFEST_FILE_NAME).read_text(encoding="utf-8") == "{}"
 
 
 async def test_a_missing_bundle_is_reported_and_the_rest_continue(
@@ -264,23 +327,15 @@ async def test_no_refs_gives_an_empty_set_without_a_span(
     assert _temp_skill_roots(tmp_path) == set()
 
 
-async def test_no_refs_still_resets_a_caller_destination(
-    service: SkillsService, tmp_path: Path, caplog: pytest.LogCaptureFixture
+async def test_no_refs_leaves_a_caller_destination_alone(
+    service: SkillsService, tmp_path: Path
 ) -> None:
     dest = tmp_path / "skills"
-    stale = _write_stale(dest)
+    leftover = _write_leftover(dest)
     result = await service.load_all_async([], destination=dest)
-    assert not stale.exists()
-    assert not (dest / MANIFEST_FILE_NAME).exists()
     assert (result.bundles, result.root) == ([], None)
-    # A destination that is a file cannot be reset; it is left alone.
-    assert not dest.exists()
-    dest.write_text("not a folder", encoding="utf-8")
-    with caplog.at_level(logging.WARNING):
-        result = await service.load_all_async([], destination=dest)
-    assert result.root is None
-    assert f"Could not remove {dest}" in caplog.text
-    assert dest.read_text(encoding="utf-8") == "not a folder"
+    assert leftover.is_file()
+    assert (dest / MANIFEST_FILE_NAME).is_file()
 
 
 # --- Failures ---
@@ -346,34 +401,30 @@ async def test_a_slow_bundle_times_out_and_the_rest_are_skipped(
         result.cleanup()
 
 
-async def test_the_local_source_honours_the_time_budget(
+async def test_the_time_budget_does_not_stop_the_local_source(
     service: SkillsService,
     root: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setattr(_skills_service, "BUNDLE_RESOLVE_TIMEOUT_SECONDS", 0.05)
     real = shutil.copyfile
 
     def slow(src: Path, dst: Path) -> object:
-        time.sleep(0.2)
+        time.sleep(0.1)
         return real(src, dst)
 
     monkeypatch.setattr(f"{_sources.__name__}.shutil.copyfile", slow)
-    dest = tmp_path / "run"
-    result = await service.load_all_async(
-        [_ref("finance"), _ref("ops")],
-        destination=dest,
-        source=LocalFolderBundleSource(root),
-    )
-    assert result.bundles == []
-    assert [(f.ref.name, f.detail) for f in result.failures] == [
-        ("finance", "timed out after 0.05s"),
-        ("ops", "skipped: skills source timed out"),
-    ]
-    # The stopped copy wrote nothing after the bundle folder was removed.
-    await asyncio.sleep(0.3)
-    assert not (dest / "finance").exists()
+    with caplog.at_level(logging.ERROR):
+        result = await service.load_all_async(
+            [_ref("finance"), _ref("ops")],
+            destination=tmp_path / "run",
+            source=LocalFolderBundleSource(root),
+        )
+    assert [b.ref.name for b in result.bundles] == ["finance", "ops"]
+    assert result.failures == []
+    assert caplog.records == []
 
 
 async def test_a_timeout_raised_by_the_source_does_not_skip_the_rest(
@@ -402,13 +453,9 @@ async def test_a_source_that_cannot_be_built_fails_every_bundle(
 
     monkeypatch.setattr(_skills_service, "get_bundle_source", broken)
     monkeypatch.setenv("UIPATH_SKILLS_SOURCE", " Orchestrator ")
-    dest = tmp_path / "skills"
-    stale = _write_stale(dest)
     result = await service.load_all_async(
-        [_ref("finance"), _ref("ops")], destination=dest
+        [_ref("finance"), _ref("ops")], destination=tmp_path / "skills"
     )
-    # The destination is reset before the source is built.
-    assert not stale.exists()
     assert (result.bundles, result.root, result.source) == ([], None, "orchestrator")
     for failure in result.failures:
         assert failure.reason == "source_unavailable"
@@ -499,7 +546,7 @@ async def test_a_bundle_folder_that_already_exists_is_a_repeat(
 # --- The root ---
 
 
-async def test_a_destination_that_cannot_be_reset_fails_every_bundle(
+async def test_a_destination_that_is_a_file_fails_every_bundle(
     service: SkillsService, tmp_path: Path, exporter: InMemorySpanExporter
 ) -> None:
     dest = tmp_path / "skills"
@@ -510,9 +557,10 @@ async def test_a_destination_that_cannot_be_reset_fails_every_bundle(
     )
     assert (result.bundles, result.root) == ([], None)
     assert (source.requested, source.closed) == ([], True)
+    detail = f"destination {dest} is not a folder"
     assert _failed_events(_only_span(exporter)) == [
-        ("x", "invalid", "stale files could not be removed"),
-        ("y", "invalid", "stale files could not be removed"),
+        ("x", "invalid", detail),
+        ("y", "invalid", detail),
     ]
     assert dest.read_text(encoding="utf-8") == "not a folder"
 
@@ -527,11 +575,31 @@ async def test_a_symlinked_destination_is_not_followed(
     _link_directory(target, link)
     result = await service.load_all_async([_ref("finance")], destination=link)
     assert (result.bundles, result.root) == ([], None)
-    assert [(f.reason, f.detail) for f in result.failures] == [
-        ("invalid", "stale files could not be removed")
-    ]
-    assert (target / "keep.txt").read_text(encoding="utf-8") == "keep"
+    [failure] = result.failures
+    # A symlink is refused as such; a Windows junction is refused as not empty.
+    assert failure.reason == "invalid"
+    assert failure.detail.startswith(f"destination {link} is ")
+    assert sorted(p.name for p in target.iterdir()) == ["keep.txt"]
     assert os.path.lexists(link)
+
+
+async def test_a_destination_that_cannot_be_listed_fails_every_bundle(
+    service: SkillsService, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dest = tmp_path / "skills"
+    dest.mkdir()
+    real = Path.iterdir
+
+    def denied(self: Path) -> Any:
+        if self == dest:
+            raise PermissionError(13, "Permission denied")
+        return real(self)
+
+    monkeypatch.setattr(Path, "iterdir", denied)
+    result = await service.load_all_async([_ref("finance")], destination=dest)
+    [failure] = result.failures
+    assert failure.reason == "invalid"
+    assert failure.detail.startswith(f"destination {dest} cannot be read: ")
 
 
 def _link_directory(target: Path, link: Path) -> None:
@@ -571,6 +639,39 @@ async def test_an_unexpected_error_leaves_no_skills_and_does_not_raise(
     assert not source.root.exists()
 
 
+async def test_an_error_removes_what_it_wrote_to_a_caller_destination(
+    service: SkillsService, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken_save(self: SkillSet, skills_dir: Path) -> None:
+        (skills_dir / MANIFEST_FILE_NAME).write_text("{", encoding="utf-8")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(SkillSet, "save", broken_save)
+    dest = tmp_path / "skills"
+    result = await service.load_all_async(
+        [_ref("x"), _ref("y")], destination=dest, source=FakeSource()
+    )
+    assert (result.bundles, result.root) == ([], None)
+    assert list(dest.iterdir()) == []
+
+
+async def test_cancellation_removes_what_it_wrote_to_a_caller_destination(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    source = FakeSource(delays={"y": 10})
+    dest = tmp_path / "skills"
+    task = asyncio.create_task(
+        service.load_all_async([_ref("x"), _ref("y")], destination=dest, source=source)
+    )
+    while len(source.dests) < 2:
+        await asyncio.sleep(0)
+    assert (dest / "x" / "partial.txt").is_file()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert list(dest.iterdir()) == []
+
+
 async def test_cancellation_removes_the_partial_bundle_and_propagates(
     service: SkillsService,
 ) -> None:
@@ -586,49 +687,6 @@ async def test_cancellation_removes_the_partial_bundle_and_propagates(
     assert source.closed
 
 
-# --- load_async ---
-
-
-async def test_load_async_returns_one_bundle(
-    service: SkillsService, tmp_path: Path
-) -> None:
-    dest = tmp_path / "skills"
-    pinned = await service.load_async(
-        "ops", version_mode="pinned", version="1", destination=dest
-    )
-    assert [b.label for b in pinned.bundles] == ["ops v1"]
-    assert (pinned.root, pinned.owns_root) == (dest, False)
-    latest = await service.load_async("finance")
-    assert latest.bundles[0].ref.version_mode is VersionMode.LATEST
-    assert latest.owns_root is True
-    assert latest.root is not None
-    assert latest.root.parent == tmp_path
-    latest.cleanup()
-    assert _temp_skill_roots(tmp_path) == set()
-
-
-async def test_load_async_raises_for_a_missing_bundle_and_leaves_no_temp_root(
-    service: SkillsService, tmp_path: Path
-) -> None:
-    with pytest.raises(SkillBundleLoadError) as info:
-        await service.load_async("ghost", folder_path="Shared/Skills")
-    assert _temp_skill_roots(tmp_path) == set()
-    failure = info.value.failure
-    assert (failure.reason, failure.ref.name, failure.ref.folder_path) == (
-        "not_found",
-        "ghost",
-        "Shared/Skills",
-    )
-    assert str(info.value).startswith("skill bundle 'ghost' not_found: ")
-
-
-async def test_load_async_rejects_a_bad_reference(service: SkillsService) -> None:
-    with pytest.raises(ValueError, match="needs a version"):
-        await service.load_async("finance", version_mode="pinned")
-    with pytest.raises(ValueError):
-        await service.load_async("finance", version_mode="newest")
-
-
 # --- Sync twins ---
 
 
@@ -638,10 +696,6 @@ def test_the_sync_twins_run_without_an_event_loop(
     result = service.load_all([_ref("finance")])
     assert result.names() == ["finance/invoice-triage", "finance/vendor-lookup"]
     result.cleanup()
-    one = service.load("finance", destination=tmp_path / "skills")
-    assert [b.label for b in one.bundles] == ["finance v3"]
-    with pytest.raises(SkillBundleLoadError):
-        service.load("ghost")
     assert _temp_skill_roots(tmp_path) == set()
 
 

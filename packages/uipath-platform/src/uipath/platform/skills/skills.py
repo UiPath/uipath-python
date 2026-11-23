@@ -5,33 +5,24 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-from ._constants import (
-    MANIFEST_FILE_NAME,
-    OVERWRITE_TYPE,
-    SKILL_FILE_NAME,
-    SKILLS_DIR_NAME,
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
 )
+
+from ..common._bindings import VersionMode, version_for_mode
+from ._constants import MANIFEST_FILE_NAME, SKILL_FILE_NAME, SKILLS_DIR_NAME
 from ._layout import is_plain_name
-from ._telemetry import record_skill_loaded
+from ._telemetry import skill_load_span
 
 logger = logging.getLogger(__name__)
-
-
-class VersionMode(StrEnum):
-    """How a bundle version is chosen.
-
-    ``pinned`` uses a fixed version; ``latest`` takes the newest one at run start.
-    """
-
-    # Keep in sync with the Literal on common._bindings.SkillBundleResourceOverwrite.
-    PINNED = "pinned"
-    LATEST = "latest"
 
 
 class SkillBundleRef(BaseModel):
@@ -60,16 +51,8 @@ class SkillBundleRef(BaseModel):
 
     @model_validator(mode="after")
     def _version_matches_mode(self) -> SkillBundleRef:
-        if self.version_mode is VersionMode.LATEST:
-            self.version = None
-        elif not self.version:
-            raise ValueError("a pinned skill bundle needs a version")
+        self.version = version_for_mode(self.version_mode, self.version)
         return self
-
-    @property
-    def key(self) -> str:
-        """The ``resourceOverwrites`` key, ``skillBundle.<name>``."""
-        return f"{OVERWRITE_TYPE}.{self.name}"
 
     @property
     def lookup_name(self) -> str:
@@ -138,7 +121,7 @@ FailureReason = Literal[
 ]
 """Why a bundle was skipped.
 
-``invalid`` also covers stale files that could not be removed before materializing.
+``invalid`` also covers a destination that is not an empty folder.
 """
 
 InvokedBy = Literal["model", "user"]
@@ -169,6 +152,8 @@ class SkillSet(BaseModel):
     """Folder the bundles were written to; ``None`` before materializing and after ``cleanup``."""
     owns_root: bool = Field(default=False, exclude=True, repr=False)
     """Whether ``cleanup`` may remove ``root``: only for a temp folder this set created."""
+    _wrote_bundles: bool = PrivateAttr(default=False)
+    """Whether ``load_all`` wrote this set's bundle folders and manifest into ``root``."""
 
     def names(self) -> list[str]:
         """Qualified ``<bundle>/<skill>`` names in bundle order (D20)."""
@@ -223,7 +208,10 @@ class SkillSet(BaseModel):
         *,
         invoked_by: InvokedBy = "model",
     ) -> str:
-        """A skill file's text. Reading ``SKILL.md`` records a skill-load span.
+        """A skill file's text. ``SKILL.md`` is read inside a ``Skill load`` span.
+
+        The span is current during the read, and a read that raises leaves it
+        with an error status.
 
         Args:
             qualified_name: The ``<bundle>/<skill>`` name.
@@ -251,36 +239,34 @@ class SkillSet(BaseModel):
                 "this SkillSet was not materialized to disk, or was cleaned up"
             )
         file = self.root / bundle.ref.name / skill.name / path
-        try:
-            text = file.read_text(encoding="utf-8-sig")
-        except UnicodeDecodeError as e:
-            logger.warning(
-                "Skill file %s is not valid UTF-8 (%s); replacing undecodable bytes",
-                file,
-                e,
-            )
-            text = file.read_text(encoding="utf-8-sig", errors="replace")
-        if path == SKILL_FILE_NAME:
-            record_skill_loaded(
-                bundle, skill, size=len(text.encode("utf-8")), invoked_by=invoked_by
-            )
+        if path != SKILL_FILE_NAME:
+            return _read_text(file)
+        with skill_load_span(bundle, skill, invoked_by=invoked_by) as load:
+            text = _read_text(file)
+            load.loaded(len(text.encode("utf-8")))
         return text
 
     def cleanup(self) -> None:
-        """Remove the temp root this set created; a caller-supplied destination is left alone.
+        """Remove what this set wrote to disk.
+
+        An owned temp root is removed whole. In a caller's ``destination`` only
+        what ``load_all`` wrote is removed, the bundle folders and the manifest,
+        so the folder can be loaded into again; the folder and anything else in
+        it stay. A set read back with ``load`` removes nothing.
 
         Afterwards the set has no ``root``, so ``read`` raises ``RuntimeError``
-        and a second ``cleanup`` does nothing. A root that cannot be removed is
-        logged as a warning.
+        and a second ``cleanup`` does nothing. What cannot be removed is logged
+        as a warning.
         """
-        if self.owns_root and self.root is not None:
-            try:
-                shutil.rmtree(self.root)
-            except FileNotFoundError:
-                pass
-            except OSError as e:
-                logger.warning("Could not remove skills folder %s: %s", self.root, e)
+        if self.root is not None:
+            if self.owns_root:
+                _remove(self.root)
+            elif self._wrote_bundles:
+                for bundle in self.bundles:
+                    _remove(self.root / bundle.ref.name)
+                _remove(self.root / MANIFEST_FILE_NAME)
         self.owns_root = False
+        self._wrote_bundles = False
         self.root = None
 
     def skill_at(self, virtual_path: str) -> tuple[SkillBundle, Skill] | None:
@@ -352,3 +338,32 @@ class SkillSet(BaseModel):
         data.pop("root", None)
         data.pop("owns_root", None)
         return cls.model_validate({**data, "root": skills_dir, "owns_root": False})
+
+
+def _read_text(file: Path) -> str:
+    """``file`` as UTF-8 without a BOM; undecodable bytes are replaced, with a warning."""
+    try:
+        return file.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as e:
+        logger.warning(
+            "Skill file %s is not valid UTF-8 (%s); replacing undecodable bytes",
+            file,
+            e,
+        )
+        return file.read_text(encoding="utf-8-sig", errors="replace")
+
+
+def _remove(path: Path) -> None:
+    """Delete a folder or file; a missing one is fine, any other failure is a warning.
+
+    A symlink is removed itself, never followed.
+    """
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        logger.warning("Could not remove skills folder %s: %s", path, e)

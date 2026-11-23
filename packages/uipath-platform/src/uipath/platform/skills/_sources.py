@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import shutil
-import threading
 from pathlib import Path
 from typing import Protocol
 
-from uipath.platform.common import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common import (
+    UiPathApiConfig,
+    UiPathExecutionContext,
+    VersionMode,
+)
 
 from ._constants import (
     DEFAULT_SOURCE_KIND,
@@ -23,7 +25,7 @@ from ._constants import (
 )
 from ._layout import find_skill_md, is_skill_md, iter_skill_files, read_bundle_version
 from ._skill_md import parse_skill_description
-from .skills import FailureReason, Skill, SkillBundle, SkillBundleRef, VersionMode
+from .skills import FailureReason, Skill, SkillBundle, SkillBundleRef
 
 logger = logging.getLogger(__name__)
 
@@ -83,10 +85,11 @@ class SkillBundleSource(Protocol):
 class LocalFolderBundleSource:
     """Bundles laid out as ``<root>/<bundle>/<skill>/SKILL.md``, with an optional ``bundle.json``.
 
-    Meant for dev runs and Agent Builder debug copies: symlinked files are
-    followed and copied like regular files. The copy runs on a worker thread,
-    so it neither blocks the event loop nor outlives the caller's time budget
-    by more than one file.
+    Meant for dev runs and Agent Builder debug copies. Symbolic links are not
+    followed: a linked bundle folder is refused, and linked skill folders and
+    files are left out. The copy runs on the event loop without yielding, so
+    the caller's time limit does not interrupt it; ``MAX_BUNDLE_BYTES`` bounds
+    it instead.
     """
 
     name = "local"
@@ -106,13 +109,10 @@ class LocalFolderBundleSource:
         warning: local folders hold one version only. Hidden folders and folders
         without a ``SKILL.md`` are not skills; the name is matched in any case
         and copied as ``SKILL.md``. A skill whose ``SKILL.md`` is too
-        large or not UTF-8 is skipped with a warning. Inside a skill, hidden files
-        and files over ``MAX_FILE_BYTES`` are skipped. On an error, what was
-        written so far is left under ``dest`` for the caller to remove.
-
-        When the caller is cancelled or its timeout fires, the copy stops before
-        its next file and this returns only once the worker thread has stopped,
-        so nothing is written into ``dest`` after the caller removes it.
+        large or not UTF-8 is skipped with a warning. Inside a skill, hidden files,
+        symbolic links and files over ``MAX_FILE_BYTES`` are skipped. On an
+        error, what was written so far is left under ``dest`` for the caller to
+        remove.
 
         Args:
             ref: The bound bundle.
@@ -126,29 +126,18 @@ class LocalFolderBundleSource:
 
         Raises:
             BundleSourceError: ``not_found`` if ``root`` has no folder for the
-                bundle, ``too_large`` if the copied files exceed
-                ``MAX_BUNDLE_BYTES``, ``source_unavailable`` if the bundle folder
-                cannot be read or ``dest`` cannot be written.
+                bundle, ``invalid`` if that folder is a symbolic link,
+                ``too_large`` if the copied files exceed ``MAX_BUNDLE_BYTES``,
+                ``source_unavailable`` if the bundle folder cannot be read or
+                ``dest`` cannot be written.
         """
-        stop = threading.Event()
-        copy = asyncio.ensure_future(
-            asyncio.to_thread(self._materialize, ref, dest, stop)
-        )
-        try:
-            return await asyncio.shield(copy)
-        except BaseException:
-            stop.set()
-            # Shielded, so the thread is waited for even though this task was
-            # cancelled; it stops within one file.
-            await asyncio.wait([copy])
-            raise
-
-    def _materialize(
-        self, ref: SkillBundleRef, dest: Path, stop: threading.Event
-    ) -> SkillBundle:
-        """``materialize`` on the worker thread; ``stop`` ends it before the next file."""
         bundle_dir = self.root / ref.lookup_name
         try:
+            if bundle_dir.is_symlink():
+                raise BundleSourceError(
+                    f"{bundle_dir} is a symbolic link; links are not followed",
+                    reason="invalid",
+                )
             if not bundle_dir.is_dir():
                 raise BundleSourceError(f"no folder {bundle_dir}", reason="not_found")
             version = read_bundle_version(bundle_dir)
@@ -163,7 +152,6 @@ class LocalFolderBundleSource:
             budget = _ByteBudget(ref.name)
             skills: list[Skill] = []
             for skill_dir in sorted(bundle_dir.iterdir(), key=lambda p: p.name):
-                _check(stop)
                 skill_md_path = find_skill_md(skill_dir)
                 if skill_md_path is None:
                     continue
@@ -185,7 +173,6 @@ class LocalFolderBundleSource:
                         skill_md,
                         dest / skill_dir.name,
                         budget,
-                        stop,
                     )
                 )
         except OSError as e:
@@ -201,15 +188,6 @@ class LocalFolderBundleSource:
 
 class _SkipSkill(Exception):
     """Leave one skill out of the bundle; the message says why."""
-
-
-class _Stopped(Exception):
-    """The caller gave up on the copy; nothing more is written."""
-
-
-def _check(stop: threading.Event) -> None:
-    if stop.is_set():
-        raise _Stopped()
 
 
 class _ByteBudget:
@@ -252,7 +230,6 @@ def _copy_skill(
     skill_md: str,
     dest: Path,
     budget: _ByteBudget,
-    stop: threading.Event,
 ) -> Skill:
     """Copy a skill folder, skipping hidden and oversized files; ``SKILL.md`` is listed first.
 
@@ -262,7 +239,6 @@ def _copy_skill(
     """
     files: list[str] = []
     for rel in iter_skill_files(skill_dir):
-        _check(stop)
         if is_skill_md(rel) and rel != skill_md_name:
             logger.warning(
                 "Skipping %s/%s in bundle '%s': the skill already has %s",
