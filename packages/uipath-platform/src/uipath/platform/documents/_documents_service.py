@@ -838,32 +838,36 @@ class _DocumentsServiceBase(FolderContext, BaseService):
 
         This is the one polling loop of the documents services: blocking
         methods wait through it, on the same single-check `retrieve` that
-        non-blocking callers use.
+        non-blocking callers use. Checks are `polling_interval` apart, and the
+        last one is made when `polling_timeout` runs out.
 
         Raises:
             TimeoutError: If the operation is still not complete after `polling_timeout`.
         """
-        start_time = time.monotonic()
+        deadline = time.monotonic() + self.polling_timeout
         while True:
             try:
                 return retrieve()
             except OperationNotCompleteException:
-                if time.monotonic() - start_time >= self.polling_timeout:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
                     raise TimeoutError("Operation timed out.") from None
-                time.sleep(self.polling_interval)
+                # Never sleep past the deadline, so no check starts after it.
+                time.sleep(min(self.polling_interval, remaining))
 
     async def _wait_until_complete_async(
         self, retrieve: Callable[[], Awaitable[T]]
     ) -> T:
         """Asynchronous version of `_wait_until_complete`."""
-        start_time = time.monotonic()
+        deadline = time.monotonic() + self.polling_timeout
         while True:
             try:
                 return await retrieve()
             except OperationNotCompleteException:
-                if time.monotonic() - start_time >= self.polling_timeout:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
                     raise TimeoutError("Operation timed out.") from None
-                await asyncio.sleep(self.polling_interval)
+                await asyncio.sleep(min(self.polling_interval, remaining))
 
     def _start_and_wait(self, start: Callable[[], S], retrieve: Callable[[S], T]) -> T:
         """Start an operation, then wait for it to complete.

@@ -57,6 +57,30 @@ def allow_document_type_change(
     return {"allowChangeOfDocumentType": True}
 
 
+async def wait_for_outcomes(
+    service: DocumentsService | DocumentsServiceV2,
+    mode: str,
+    outcomes: list[tuple[Any, Any, Any]],
+) -> Any:
+    """Waits through `_wait_for_operation`, or its async twin, on `outcomes` in turn."""
+
+    def result_getter() -> tuple[Any, Any, Any]:
+        return outcomes.pop(0)
+
+    async def result_getter_async() -> tuple[Any, Any, Any]:
+        return outcomes.pop(0)
+
+    statuses: dict[str, Any] = {
+        "wait_statuses": ["NotStarted", "Running"],
+        "success_status": "Succeeded",
+    }
+    if mode == "async":
+        return await service._wait_for_operation_async(
+            result_getter=result_getter_async, **statuses
+        )
+    return service._wait_for_operation(result_getter=result_getter, **statuses)
+
+
 @pytest.fixture
 def ixp_extraction_response(documents_tests_data_path: Path) -> dict:  # type: ignore
     with open(documents_tests_data_path / "ixp_extraction_response.json", "r") as f:
@@ -3129,31 +3153,43 @@ class TestDocumentsService:
             ("Succeeded", None, {"done": True}),
         ]
 
-        def mock_result_getter():
-            return outcomes.pop(0)
-
-        async def mock_result_getter_async():
-            return outcomes.pop(0)
-
         # ACT
-        if mode == "async":
-            result = await service._wait_for_operation_async(
-                result_getter=mock_result_getter_async,
-                wait_statuses=["NotStarted", "Running"],
-                success_status="Succeeded",
-            )
-        else:
-            result = service._wait_for_operation(
-                result_getter=mock_result_getter,
-                wait_statuses=["NotStarted", "Running"],
-                success_status="Succeeded",
-            )
+        result = await wait_for_outcomes(service, mode, outcomes)
 
         # ASSERT
         assert result == {"done": True}
         sleep = mock_asyncio.sleep if mode == "async" else mock_time.sleep
         # Between the three checks, and not after the last one.
         assert sleep.call_count == 2
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    @patch("uipath.platform.documents._documents_service.asyncio")
+    @patch("uipath.platform.documents._documents_service.time")
+    async def test_wait_for_operation_checks_last_at_the_deadline(
+        self,
+        mock_time: Mock,
+        mock_asyncio: Mock,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ARRANGE
+        service.polling_interval = 2
+        service.polling_timeout = 3
+        # The wait starts at 0, and the checks end at 0, 2 and 3.
+        mock_time.monotonic.side_effect = [0, 0, 2, 3]
+        mock_asyncio.sleep = AsyncMock()
+        outcomes = [("Running", None, None)] * 3
+
+        # ACT & ASSERT
+        with pytest.raises(TimeoutError, match="Operation timed out."):
+            await wait_for_outcomes(service, mode, outcomes)
+
+        sleep = mock_asyncio.sleep if mode == "async" else mock_time.sleep
+        # The second sleep is cut short so it ends at the deadline, where the
+        # last check is made.
+        assert [c.args for c in sleep.call_args_list] == [(2,), (1,)]
+        assert outcomes == []
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
@@ -3169,26 +3205,9 @@ class TestDocumentsService:
         mock_time.monotonic.side_effect = [0, 5, 12]
         outcomes = [("Running", None, None), ("Failed", "Dummy error", None)]
 
-        def mock_result_getter():
-            return outcomes.pop(0)
-
-        async def mock_result_getter_async():
-            return outcomes.pop(0)
-
         # ACT & ASSERT
         with pytest.raises(RuntimeError, match="status: Failed, error: Dummy error"):
-            if mode == "async":
-                await service._wait_for_operation_async(
-                    result_getter=mock_result_getter_async,
-                    wait_statuses=["NotStarted", "Running"],
-                    success_status="Succeeded",
-                )
-            else:
-                service._wait_for_operation(
-                    result_getter=mock_result_getter,
-                    wait_statuses=["NotStarted", "Running"],
-                    success_status="Succeeded",
-                )
+            await wait_for_outcomes(service, mode, outcomes)
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio
