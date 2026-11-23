@@ -2196,7 +2196,7 @@ wheels = [
 
 [[package]]
 name = "pysignalr"
-version = "1.3.0"
+version = "1.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -2204,9 +2204,9 @@ dependencies = [
     { name = "orjson" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/93/a6/ac80bd4972604c6930050e8b0eba41d6fde41cb3286087be0188a8865f55/pysignalr-1.3.0.tar.gz", hash = "sha256:ca2e4372f213d82148fa2f060f0fefd096f1f66fca1107ac05e76ec6abd4cf52", size = 16790, upload-time = "2025-04-29T21:23:38.931Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/90/991c2069ea98b6328a87a2380dea6c957cbe81b7954eddbcbf0bff5d62d6/pysignalr-1.3.3.tar.gz", hash = "sha256:d5bb0676f087a06e0ae8177b5791bf060f0f6546658707bb7de290c92da3052b", size = 239016, upload-time = "2026-10-17T15:55:51.267Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/54/74e35563927ab8538e1bd1404b35027861434aecf2bcc945ff30c188e56d/pysignalr-1.3.0-py3-none-any.whl", hash = "sha256:423c91b0d1dc8387f37118ac2d1dc87ed6b9e01993a04612eab8452193f40344", size = 19966, upload-time = "2025-04-29T21:23:37.513Z" },
+    { url = "https://files.pythonhosted.org/packages/59/ea/dc88c56f80c0dfc3649948b1a768592a6e61b27623e88cce655da4ffc609/pysignalr-1.3.3-py3-none-any.whl", hash = "sha256:5012af69a812eb0b8d725b1b8ca075ec1cc8633706da4239012ab7a76b83b23b", size = 23014, upload-time = "2026-10-17T15:55:50.23Z" },
 ]
 
 [[package]]
@@ -2720,7 +2720,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.15.5"
+version = "2.15.6"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2794,7 +2794,7 @@ requires-dist = [
     { name = "pathlib", specifier = ">=1.0.1" },
     { name = "pydantic-function-models", specifier = ">=0.1.11" },
     { name = "pyjwt", specifier = ">=2.15.0,<3.0.0" },
-    { name = "pysignalr", specifier = "==1.3.0" },
+    { name = "pysignalr", specifier = "==1.3.3" },
     { name = "python-dotenv", specifier = ">=1.2.2,<2.0.0" },
     { name = "python-socketio", specifier = ">=5.16.2,<6.0.0" },
     { name = "pyyaml", specifier = ">=6.0,<7.0" },

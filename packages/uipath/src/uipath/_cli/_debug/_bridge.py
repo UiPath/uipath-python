@@ -760,7 +760,11 @@ class SignalRDebugBridge:
             serialized_data = serialize_object(data)
             data_json = json.dumps(serialized_data)
             arguments: list[Any] = [event_name, data_json]
-            await self._client.send(method="SendCommand", arguments=arguments)
+            await self._client.send(
+                method="SendCommand",
+                arguments=arguments,
+                on_invocation=self._handle_send_completion,
+            )
             logger.debug(f"Sent command: {event_name}")
         except Exception as e:
             logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
@@ -892,6 +896,9 @@ class SignalRDebugBridge:
     async def _handle_error(self, error: Any) -> None:
         """Handle SignalR error."""
         logger.error(f"SignalR error: {error}")
+
+    async def _handle_send_completion(self, message: Any) -> None:
+        """Receive the hub's completion for SendCommand; errors go to _handle_error."""
 
 
 def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugProtocol:
