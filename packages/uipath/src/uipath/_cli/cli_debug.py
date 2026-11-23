@@ -7,6 +7,10 @@ from pydantic import ValidationError
 
 from uipath._cli._chat._bridge import get_chat_bridge
 from uipath._cli._debug._bridge import DebugAttachMode, get_debug_bridge
+from uipath._cli._debug._project_evaluation import (
+    ProjectEvaluationPlan,
+    execute_project_evaluation,
+)
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli._utils._tracing import create_trace_manager
@@ -87,6 +91,7 @@ logger = logging.getLogger(__name__)
     default=None,
     help="Simulation config as a JSON object (same schema as simulation.json)",
 )
+@click.option("--evaluation-plan", hidden=True)
 @track_command("debug")
 def debug(
     entrypoint: str | None,
@@ -99,6 +104,7 @@ def debug(
     debug_port: int,
     attach: str | None,
     simulation: str | None,
+    evaluation_plan: str | None = None,
 ) -> None:
     """Debug the project."""
     input_file = file or input_file
@@ -113,6 +119,17 @@ def debug(
         except (ValidationError, ValueError) as e:
             console.error(f"Invalid --simulation config: {e}")
             return
+
+    try:
+        plan = (
+            ProjectEvaluationPlan.model_validate_json(evaluation_plan)
+            if evaluation_plan
+            else None
+        )
+    except ValidationError as error:
+        raise click.BadParameter(
+            "Invalid project evaluation plan.", param_hint="--evaluation-plan"
+        ) from error
 
     attach_mode: DebugAttachMode | None = (
         cast(DebugAttachMode, attach.lower()) if attach else None
@@ -271,10 +288,20 @@ def debug(
                                 )
 
                             try:
-                                ctx.result = await delegate_runtime.execute(
-                                    ctx.get_input(),
-                                    options=UiPathExecuteOptions(resume=resume),
-                                )
+                                inputs = ctx.get_input()
+                                options = UiPathExecuteOptions(resume=resume)
+                                if plan is None:
+                                    ctx.result = await delegate_runtime.execute(
+                                        inputs, options=options
+                                    )
+                                else:
+                                    ctx.result = await execute_project_evaluation(
+                                        delegate_runtime,
+                                        inputs,
+                                        options,
+                                        plan,
+                                        trace_manager,
+                                    )
                             finally:
                                 if delegate_runtime is not debug_runtime:
                                     await delegate_runtime.dispose()
