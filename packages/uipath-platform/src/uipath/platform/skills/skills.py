@@ -121,7 +121,7 @@ FailureReason = Literal[
 ]
 """Why a bundle was skipped.
 
-``invalid`` also covers a destination that is not an empty folder.
+``invalid`` also covers a destination that holds files an earlier load did not write.
 """
 
 InvokedBy = Literal["model", "user"]

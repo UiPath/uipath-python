@@ -21,7 +21,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    ModelWrapValidatorHandler,
     TypeAdapter,
     ValidationError,
     field_validator,
@@ -168,9 +167,10 @@ class SkillBundleResourceOverwrite(ResourceOverwrite):
     the binding stays what the agent declared. Apply it with
     ``uipath.platform.skills._overwrites.apply_skill_bundle_overwrite``.
 
-    An entry that is not a valid binding still parses, with ``problem`` saying
-    why and the other fields left empty, so the skills loader fails that bundle
-    instead of falling back to the declared binding.
+    ``ResourceOverwriteParser.parse`` keeps an entry that is not a valid
+    binding as ``invalid(problem)``, so the skills loader fails that bundle
+    instead of falling back to the declared binding. Constructing the class
+    directly validates like any other model.
     """
 
     resource_type: Literal["skillBundle"]
@@ -205,28 +205,24 @@ class SkillBundleResourceOverwrite(ResourceOverwrite):
         self.version = version_for_mode(self.version_mode, self.version)
         return self
 
-    # Defined after the other validators so that it wraps them all.
-    @model_validator(mode="wrap")
     @classmethod
-    def _keep_an_invalid_entry(
-        cls,
-        data: Any,
-        handler: ModelWrapValidatorHandler["SkillBundleResourceOverwrite"],
-    ) -> "SkillBundleResourceOverwrite":
-        try:
-            return handler(data)
-        except ValidationError as e:
-            error = e.errors()[0]
-            field = ".".join(str(part) for part in error["loc"])
-            problem = f"{field}: {error['msg']}" if field else str(error["msg"])
-            return cls.model_construct(
-                resource_type="skillBundle",
-                name="",
-                folder_path="",
-                version_mode=VersionMode.LATEST,
-                version=None,
-                problem=problem,
-            )
+    def invalid(cls, problem: str) -> "SkillBundleResourceOverwrite":
+        """An entry that is not a valid binding, kept so its bundle can fail.
+
+        Args:
+            problem: Why the entry is invalid.
+
+        Returns:
+            An entry with ``problem`` set and every other field empty.
+        """
+        return cls.model_construct(
+            resource_type="skillBundle",
+            name="",
+            folder_path="",
+            version_mode=VersionMode.LATEST,
+            version=None,
+            problem=problem,
+        )
 
     @property
     def resource_identifier(self) -> str:
@@ -288,12 +284,21 @@ class ResourceOverwriteParser:
             value: The resource data dictionary
 
         Returns:
-            The appropriate ResourceOverwrite subclass instance
+            The appropriate ResourceOverwrite subclass instance. An invalid
+            ``skillBundle`` entry comes back as
+            ``SkillBundleResourceOverwrite.invalid(problem)`` instead of raising.
         """
         resource_type = key.split(".")[0]
         normalized_value = cls._normalize_value(resource_type, value)
         value_with_type = {"resource_type": resource_type, **normalized_value}
-        return cls._adapter.validate_python(value_with_type)
+        try:
+            return cls._adapter.validate_python(value_with_type)
+        except ValidationError as e:
+            if resource_type != "skillBundle":
+                raise
+            return SkillBundleResourceOverwrite.invalid(
+                _first_problem(e, resource_type)
+            )
 
     @staticmethod
     def _normalize_value(resource_type: str, value: dict[str, Any]) -> dict[str, Any]:
@@ -307,6 +312,17 @@ class ResourceOverwriteParser:
             normalized["folder_path"] = normalized.pop("folderPath")
 
         return normalized
+
+
+def _first_problem(error: ValidationError, resource_type: str) -> str:
+    """The first validation error on one line, ``<field>: <message>``."""
+    first = error.errors()[0]
+    # The union adds the discriminator value in front of the field.
+    loc = [str(part) for part in first["loc"]]
+    if loc and loc[0] == resource_type:
+        loc = loc[1:]
+    field = ".".join(loc)
+    return f"{field}: {first['msg']}" if field else str(first["msg"])
 
 
 _resource_overwrites: ContextVar[Optional[dict[str, ResourceOverwrite]]] = ContextVar(

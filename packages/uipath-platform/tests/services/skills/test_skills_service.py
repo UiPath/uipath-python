@@ -327,6 +327,92 @@ async def test_no_refs_gives_an_empty_set_without_a_span(
     assert _temp_skill_roots(tmp_path) == set()
 
 
+async def test_loading_twice_into_a_destination_replaces_the_earlier_bundles(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    # A process that exits without cleanup() leaves its bundles behind.
+    dest = tmp_path / "workspace" / "skills"
+    first = await service.load_all_async([_ref("finance")], destination=dest)
+    assert first.failures == []
+    second = await service.load_all_async([_ref("ops")], destination=dest)
+    assert (second.failures, second.names()) == ([], ["ops/vendor-lookup"])
+    assert sorted(p.name for p in dest.iterdir()) == [MANIFEST_FILE_NAME, "ops"]
+    loaded = SkillSet.load(dest)
+    assert loaded is not None
+    assert [b.ref.name for b in loaded.bundles] == ["ops"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    ["notes.txt", ".DS_Store", "finance/notes.txt", "finance/invoice-triage/extra.md"],
+)
+async def test_an_earlier_load_with_a_file_it_did_not_write_is_left_alone(
+    service: SkillsService, tmp_path: Path, extra: str
+) -> None:
+    dest = tmp_path / "skills"
+    await service.load_all_async([_ref("finance")], destination=dest)
+    (dest / extra).write_text("mine", encoding="utf-8")
+    result = await service.load_all_async([_ref("ops")], destination=dest)
+    assert result.bundles == []
+    assert [(f.reason, f.detail) for f in result.failures] == [
+        ("invalid", f"destination {dest} is not empty")
+    ]
+    assert (dest / extra).read_text(encoding="utf-8") == "mine"
+    assert (dest / "finance" / "invoice-triage" / "SKILL.md").is_file()
+
+
+async def test_a_manifest_that_does_not_list_a_folder_is_left_alone(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    dest = tmp_path / "skills"
+    await service.load_all_async([_ref("finance")], destination=dest)
+    (dest / "authored" / "my-skill").mkdir(parents=True)
+    result = await service.load_all_async([_ref("ops")], destination=dest)
+    assert [f.reason for f in result.failures] == ["invalid"]
+    assert (dest / "authored" / "my-skill").is_dir()
+    assert (dest / "finance").is_dir()
+
+
+async def test_an_earlier_load_holding_a_symlink_is_left_alone(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    dest = tmp_path / "skills"
+    await service.load_all_async([_ref("finance")], destination=dest)
+    target = tmp_path / "elsewhere.md"
+    target.write_text("x", encoding="utf-8")
+    skill_md = dest / "finance" / "vendor-lookup" / "SKILL.md"
+    skill_md.unlink()
+    try:
+        skill_md.symlink_to(target)
+    except OSError as e:
+        pytest.skip(f"cannot create a symlink here: {e}")
+    result = await service.load_all_async([_ref("ops")], destination=dest)
+    assert [f.reason for f in result.failures] == ["invalid"]
+    assert target.read_text(encoding="utf-8") == "x"
+    assert skill_md.is_symlink()
+
+
+async def test_an_unreadable_manifest_is_left_alone(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    dest = tmp_path / "skills"
+    await service.load_all_async([_ref("finance")], destination=dest)
+    (dest / MANIFEST_FILE_NAME).write_text("{not json", encoding="utf-8")
+    result = await service.load_all_async([_ref("ops")], destination=dest)
+    assert [f.reason for f in result.failures] == ["invalid"]
+    assert (dest / "finance").is_dir()
+
+
+async def test_no_refs_clears_an_earlier_load(
+    service: SkillsService, tmp_path: Path
+) -> None:
+    dest = tmp_path / "skills"
+    await service.load_all_async([_ref("finance")], destination=dest)
+    result = await service.load_all_async([], destination=dest)
+    assert (result.bundles, result.root) == ([], None)
+    assert list(dest.iterdir()) == []
+
+
 async def test_no_refs_leaves_a_caller_destination_alone(
     service: SkillsService, tmp_path: Path
 ) -> None:

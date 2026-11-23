@@ -160,3 +160,23 @@ def test_other_kinds_still_parse_to_their_own_type(
 )
 def test_the_parser_knows_the_kinds_it_has_a_model_for(key: str, known: bool) -> None:
     assert ResourceOverwriteParser.knows(key) is known
+
+
+def test_constructing_an_invalid_entry_directly_raises() -> None:
+    with pytest.raises(ValidationError, match="needs a version"):
+        SkillBundleResourceOverwrite(
+            resource_type="skillBundle",
+            name="finance",
+            folder_path="Shared/Skills",
+            version_mode=VersionMode.PINNED,
+        )
+
+
+def test_an_invalid_entry_keeps_only_its_problem() -> None:
+    ow = SkillBundleResourceOverwrite.invalid("versionMode: bad")
+    assert (ow.problem, ow.name, ow.folder_path, ow.version) == (
+        "versionMode: bad",
+        "",
+        "",
+        None,
+    )

@@ -51,9 +51,9 @@ async def make_graph():
 | `destination` | Where bundles land | Who cleans up |
 |---|---|---|
 | omitted | a temp folder the set owns | you: call `skills.cleanup()` when the run ends; it removes the folder |
-| `destination=path` | `path`, which must be **empty or missing** | `cleanup()` removes the bundle folders and the manifest it wrote; `path` and anything else in it stay |
+| `destination=path` | `path`: missing, empty, or holding only an earlier load's bundles, which are removed first | `cleanup()` removes the bundle folders and the manifest it wrote; `path` and anything else in it stay |
 
-`root` is laid out as `<root>/<bundle>/<skill>/...` next to `.uipath-skills-manifest.json`. Nothing that was in `destination` before the call is removed: when it holds any file, or is a file or a symbolic link, every bundle fails as `invalid` and the folder is left as it is. To load into the same folder again, call `cleanup()` on the previous set first. Pass a `destination` only when something reads the files by path, such as the workspace of an advanced (deepagents) agent; the `read()` path works with the default temp folder. `root` is `None` when no bundle resolved and after `cleanup()`; after `cleanup()` a `read()` of a listed skill raises `RuntimeError` (with no bundle resolved there is nothing to read and `read()` raises `KeyError`).
+`root` is laid out as `<root>/<bundle>/<skill>/...` next to `.uipath-skills-manifest.json`. The SDK never removes a file it did not write. A `destination` that holds only what an earlier load wrote there, as its manifest lists, is cleared before the new bundles are written, so a second run into the same folder works even if the first one never called `cleanup()`. When it holds anything else, or is a file or a symbolic link, every bundle fails as `invalid` and the folder is left as it is. With no bundles bound, an earlier load's bundles are cleared too. Pass a `destination` only when something reads the files by path, such as the workspace of an advanced (deepagents) agent; the `read()` path works with the default temp folder. `root` is `None` when no bundle resolved and after `cleanup()`; after `cleanup()` a `read()` of a listed skill raises `RuntimeError` (with no bundle resolved there is nothing to read and `read()` raises `KeyError`).
 
 ---
 

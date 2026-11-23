@@ -17,7 +17,7 @@ import logging
 import shutil
 import tempfile
 from collections.abc import Coroutine, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, TypeVar
 
 from opentelemetry.trace import Span
@@ -103,21 +103,24 @@ class SkillsService(FolderContext, BaseService):
         without being tried. A bundle that fails is reported in
         ``SkillSet.failures`` and as a ``skill.bundle.failed`` event on the
         ``Skill bundles resolved`` span; nothing here fails the run, though
-        cancellation still propagates. Nothing that was in ``destination``
-        before the call is ever removed. After an error, cancellation included,
-        the bundle folders written so far are removed again, and an owned temp
-        root is removed whole.
+        cancellation still propagates. Nothing the SDK did not write is ever
+        removed. After an error, cancellation included, the bundle folders
+        written so far are removed again, and an owned temp root is removed
+        whole.
 
         Args:
             refs: The bundles the agent is bound to. With none, nothing is
-                fetched, no span is emitted, ``destination`` is not touched and
-                the set has no ``root``.
-            destination: An empty or missing folder to write into, which the
-                set does not own. When it is anything else (a folder that holds
-                files, a file, a symbolic link) every bundle fails as
-                ``invalid`` and nothing in it changes. ``SkillSet.cleanup``
-                removes only what this call wrote there. By default a temp
-                folder is created that the set owns and ``cleanup`` removes.
+                fetched, no span is emitted and the set has no ``root``; a
+                ``destination`` that holds only an earlier load's bundles is
+                cleared.
+            destination: The folder to write into, which the set does not own.
+                It may be missing, empty, or hold only what an earlier load
+                wrote there, as its manifest lists; that is removed first. When
+                it holds anything else, or is a file or a symbolic link, every
+                bundle fails as ``invalid`` and nothing in it changes.
+                ``SkillSet.cleanup`` removes only what this call wrote there. By
+                default a temp folder is created that the set owns and
+                ``cleanup`` removes.
             source: Where bundles come from; by default the one
                 ``UIPATH_SKILLS_SOURCE`` selects. It is closed before this
                 returns.
@@ -128,7 +131,7 @@ class SkillsService(FolderContext, BaseService):
         """
         refs = list(refs)
         if not refs:
-            return await _empty_set(source)
+            return await _empty_set(destination, source)
         try:
             with bundles_resolved_span() as span:
                 result, root = await self._resolve(span, refs, destination, source)
@@ -164,8 +167,8 @@ class SkillsService(FolderContext, BaseService):
 
         Args:
             refs: The bundles the agent is bound to.
-            destination: An empty or missing folder to write into, not owned by
-                the set; by default an owned temp folder.
+            destination: The folder to write into, not owned by the set; see
+                ``load_all_async``. By default an owned temp folder.
             source: Where bundles come from; by default the one
                 ``UIPATH_SKILLS_SOURCE`` selects. It is closed before this
                 returns.
@@ -222,13 +225,13 @@ class SkillsService(FolderContext, BaseService):
         root: Path,
         source: SkillBundleSource | None,
     ) -> SkillSet:
-        """Check ``root`` is empty, build the source when none was given, materialize, and close the source.
+        """Prepare ``root``, build the source when none was given, materialize, and close the source.
 
         A caller-supplied ``source`` is closed on every path, a refused
         ``root`` included.
         """
         try:
-            problem = _unusable_destination(root)
+            problem = _prepare_destination(root)
             if problem is not None:
                 return _fail_all(
                     span, _source_name(source), refs, reason="invalid", detail=problem
@@ -344,11 +347,17 @@ async def _materialize_one(
         raise
 
 
-async def _empty_set(source: SkillBundleSource | None) -> SkillSet:
+async def _empty_set(
+    destination: Path | None, source: SkillBundleSource | None
+) -> SkillSet:
     """The set for an agent that binds no bundle: nothing fetched, no span, no temp folder.
 
-    A caller ``destination`` is not touched. A caller-supplied source is closed.
+    A caller ``destination`` that holds only an earlier load's bundles is
+    cleared, so bundles the agent no longer binds do not stay readable; anything
+    else in it is left alone. A caller-supplied source is closed.
     """
+    if destination is not None:
+        _prepare_destination(destination)
     source_name = _source_name(source)
     if source is not None:
         await _close_source(source)
@@ -416,8 +425,12 @@ def _failure_for(
     return BundleFailure(ref=ref, reason="source_unavailable", detail=repr(error))
 
 
-def _unusable_destination(root: Path) -> str | None:
-    """Why ``root`` cannot receive bundles, or ``None`` when it is missing or an empty folder."""
+def _prepare_destination(root: Path) -> str | None:
+    """Make ``root`` ready for this run's bundles; why it cannot be, or ``None``.
+
+    ``root`` may be missing, empty, or hold only what an earlier ``load_all``
+    wrote there, which is removed first. Anything else is left untouched.
+    """
     if root.is_symlink():
         return f"destination {root} is a symbolic link"
     if not root.exists():
@@ -425,11 +438,58 @@ def _unusable_destination(root: Path) -> str | None:
     if not root.is_dir():
         return f"destination {root} is not a folder"
     try:
-        if any(root.iterdir()):
+        if not any(root.iterdir()):
+            return None
+        previous = _previous_load(root)
+        if previous is None:
             return f"destination {root} is not empty"
+        logger.info("Removing the skill bundles an earlier load left in %s", root)
+        for bundle in previous.bundles:
+            _remove_tree(root / bundle.ref.name)
+        (root / MANIFEST_FILE_NAME).unlink(missing_ok=True)
+        if any(root.iterdir()):
+            return f"destination {root} could not be cleared"
     except OSError as e:
         return f"destination {root} cannot be read: {e}"
     return None
+
+
+def _previous_load(root: Path) -> SkillSet | None:
+    """The earlier set whose manifest is in ``root``, when it accounts for everything there.
+
+    Every folder and file under ``root`` must be the manifest or one it lists:
+    a bundle folder, a skill folder, a skill file or a folder holding one. A
+    missing or unreadable manifest, a symbolic link or any other entry gives
+    ``None``, so nothing an earlier load did not write is ever removed.
+    """
+    try:
+        previous = SkillSet.load(root)
+    except ValueError:
+        return None
+    if previous is None:
+        return None
+    files = {MANIFEST_FILE_NAME}
+    folders: set[str] = set()
+    for bundle in previous.bundles:
+        folders.add(bundle.ref.name)
+        for skill in bundle.skills:
+            skill_dir = PurePosixPath(bundle.ref.name, skill.name)
+            folders.add(str(skill_dir))
+            for name in skill.files:
+                file = skill_dir / name
+                files.add(str(file))
+                folders.update(
+                    str(parent)
+                    for parent in file.parents
+                    if parent != PurePosixPath(".")
+                )
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            return None
+        rel = path.relative_to(root).as_posix()
+        if rel not in (folders if path.is_dir() else files):
+            return None
+    return previous
 
 
 def _remove_tree(path: Path) -> None:
