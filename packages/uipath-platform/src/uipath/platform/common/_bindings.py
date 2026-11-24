@@ -3,6 +3,7 @@ import inspect
 import logging
 from abc import ABC, abstractmethod
 from contextvars import ContextVar, Token
+from enum import StrEnum
 from typing import (
     Annotated,
     Any,
@@ -12,6 +13,7 @@ from typing import (
     Optional,
     TypeVar,
     Union,
+    get_args,
 )
 
 from pydantic import (
@@ -20,6 +22,8 @@ from pydantic import (
     ConfigDict,
     Field,
     TypeAdapter,
+    ValidationError,
+    field_validator,
     model_validator,
 )
 
@@ -124,12 +128,126 @@ class ConnectionResourceOverwrite(ResourceOverwrite):
         return self.folder_key
 
 
+class VersionMode(StrEnum):
+    """How a skill bundle version is chosen.
+
+    ``pinned`` uses a fixed version; ``latest`` takes the newest one at run start.
+    """
+
+    PINNED = "pinned"
+    LATEST = "latest"
+
+
+def version_for_mode(mode: VersionMode, version: Optional[str]) -> Optional[str]:
+    """The version a skill bundle reference keeps under ``mode``.
+
+    Args:
+        mode: The reference's version mode.
+        version: The version it declares, if any.
+
+    Returns:
+        ``version`` when pinned, ``None`` for ``latest``.
+
+    Raises:
+        ValueError: Pinned without a version.
+    """
+    if mode is VersionMode.LATEST:
+        return None
+    if not version:
+        raise ValueError("a pinned skill bundle needs a version")
+    return version
+
+
+class SkillBundleResourceOverwrite(ResourceOverwrite):
+    """A deploy-time override of an agent's skill bundle binding.
+
+    Like the other bindings, an entry replaces the whole binding: it carries
+    ``name``, ``folderPath`` and ``versionMode``, plus ``version`` when pinned.
+    Its ``name`` retargets the bundle that is looked up; the agent-side name of
+    the binding stays what the agent declared. Apply it with
+    ``uipath.platform.skills._overwrites.apply_skill_bundle_overwrite``.
+
+    ``ResourceOverwriteParser.parse`` keeps an entry that is not a valid
+    binding as ``invalid(problem)``, so the skills loader fails that bundle
+    instead of falling back to the declared binding. Constructing the class
+    directly validates like any other model.
+    """
+
+    resource_type: Literal["skillBundle"]
+    name: str = Field(alias="name")
+    folder_path: str = Field(alias="folderPath")
+    version_mode: VersionMode = Field(alias="versionMode")
+    version: Optional[str] = Field(default=None, alias="version")
+    problem: Optional[str] = Field(default=None, exclude=True)
+    """Why the entry is not a valid binding; ``None`` when it is."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @field_validator("name", "folder_path")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError(
+                "a skillBundle overwrite needs a non-blank name and folderPath"
+            )
+        return value
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: Any) -> Any:
+        # A cleared form field arrives as "", which is no version.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def _version_matches_mode(self) -> "SkillBundleResourceOverwrite":
+        self.version = version_for_mode(self.version_mode, self.version)
+        return self
+
+    @classmethod
+    def invalid(cls, problem: str) -> "SkillBundleResourceOverwrite":
+        """An entry that is not a valid binding, kept so its bundle can fail.
+
+        Args:
+            problem: Why the entry is invalid.
+
+        Returns:
+            An entry with ``problem`` set and every other field empty.
+        """
+        return cls.model_construct(
+            resource_type="skillBundle",
+            name="",
+            folder_path="",
+            version_mode=VersionMode.LATEST,
+            version=None,
+            problem=problem,
+        )
+
+    @property
+    def resource_identifier(self) -> str:
+        return self.name
+
+    @property
+    def folder_identifier(self) -> str:
+        return self.folder_path
+
+
 ResourceOverwriteUnion = Annotated[
     Union[
-        GenericResourceOverwrite, EntityResourceOverwrite, ConnectionResourceOverwrite
+        GenericResourceOverwrite,
+        EntityResourceOverwrite,
+        ConnectionResourceOverwrite,
+        SkillBundleResourceOverwrite,
     ],
     Field(discriminator="resource_type"),
 ]
+
+_KNOWN_RESOURCE_TYPES: frozenset[str] = frozenset(
+    resource_type
+    for model in get_args(get_args(ResourceOverwriteUnion)[0])
+    for resource_type in get_args(model.model_fields["resource_type"].annotation)
+)
 
 
 class ResourceOverwriteParser:
@@ -140,6 +258,19 @@ class ResourceOverwriteParser:
     """
 
     _adapter: TypeAdapter[ResourceOverwriteUnion] = TypeAdapter(ResourceOverwriteUnion)
+
+    @classmethod
+    def knows(cls, key: str) -> bool:
+        """Whether this SDK has a model for the resource type ``key`` starts with.
+
+        Args:
+            key: The resource key (e.g., "process.MyProcess").
+
+        Returns:
+            ``False`` for a kind added after this SDK version, which ``parse``
+            would reject.
+        """
+        return key.split(".")[0] in _KNOWN_RESOURCE_TYPES
 
     @classmethod
     def parse(cls, key: str, value: dict[str, Any]) -> ResourceOverwrite:
@@ -153,12 +284,21 @@ class ResourceOverwriteParser:
             value: The resource data dictionary
 
         Returns:
-            The appropriate ResourceOverwrite subclass instance
+            The appropriate ResourceOverwrite subclass instance. An invalid
+            ``skillBundle`` entry comes back as
+            ``SkillBundleResourceOverwrite.invalid(problem)`` instead of raising.
         """
         resource_type = key.split(".")[0]
         normalized_value = cls._normalize_value(resource_type, value)
         value_with_type = {"resource_type": resource_type, **normalized_value}
-        return cls._adapter.validate_python(value_with_type)
+        try:
+            return cls._adapter.validate_python(value_with_type)
+        except ValidationError as e:
+            if resource_type != "skillBundle":
+                raise
+            return SkillBundleResourceOverwrite.invalid(
+                _first_problem(e, resource_type)
+            )
 
     @staticmethod
     def _normalize_value(resource_type: str, value: dict[str, Any]) -> dict[str, Any]:
@@ -172,6 +312,17 @@ class ResourceOverwriteParser:
             normalized["folder_path"] = normalized.pop("folderPath")
 
         return normalized
+
+
+def _first_problem(error: ValidationError, resource_type: str) -> str:
+    """The first validation error on one line, ``<field>: <message>``."""
+    first = error.errors()[0]
+    # The union adds the discriminator value in front of the field.
+    loc = [str(part) for part in first["loc"]]
+    if loc and loc[0] == resource_type:
+        loc = loc[1:]
+    field = ".".join(loc)
+    return f"{field}: {first['msg']}" if field else str(first["msg"])
 
 
 _resource_overwrites: ContextVar[Optional[dict[str, ResourceOverwrite]]] = ContextVar(

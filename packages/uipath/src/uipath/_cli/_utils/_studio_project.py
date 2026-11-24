@@ -608,6 +608,10 @@ class StudioClient:
     async def get_resource_overwrites(self) -> dict[str, ResourceOverwrite]:
         """Get resource overwrites from the solution.
 
+        An entry of a kind this SDK does not know is skipped with a warning, so
+        a kind added later does not fail a debug or eval run. A malformed entry
+        of a known kind still raises.
+
         Returns:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
@@ -657,10 +661,16 @@ class StudioClient:
             json.dumps(data, indent=2),
         )
 
-        overwrites = {}
+        overwrites: dict[str, ResourceOverwrite] = {}
         for key, value in data.items():
+            if not ResourceOverwriteParser.knows(key):
+                logger.warning(
+                    "Skipping resource overwrite '%s' from Studio: unknown kind '%s'",
+                    key,
+                    key.split(".")[0],
+                )
+                continue
             overwrites[key] = ResourceOverwriteParser.parse(key, value)
-
         return overwrites
 
     async def create_virtual_resource(
