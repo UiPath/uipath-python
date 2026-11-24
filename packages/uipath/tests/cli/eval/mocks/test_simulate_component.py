@@ -2,6 +2,7 @@
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -149,6 +150,52 @@ class TestFindComponent:
 
 
 class TestSimulateComponentMockerResponse:
+    @pytest.mark.asyncio
+    async def test_sends_authored_rules_with_named_tool_arguments(self):
+        ctx = MockingContext.model_validate(
+            {
+                "strategy": None,
+                "workload_id": "wl-123",
+                "components": [
+                    {
+                        "componentId": "get_weather",
+                        "simulationStrategy": "Mockito",
+                        "behaviors": [
+                            {
+                                "when": [
+                                    {"field": "city", "op": "Eq", "value": "Paris"}
+                                ],
+                                "answers": [{"type": "Return", "value": "sunny"}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        service = _make_service_mock({"status": 1, "simulatedOutput": "sunny"})
+
+        @mockable()
+        async def get_weather(city: str, unit: str = "C", **options: Any) -> str:
+            raise NotImplementedError()
+
+        execution_id = str(uuid4())
+        set_execution_context(ctx, _mock_span_collector, execution_id)
+        try:
+            with patch(_SIMULATE_PATH, return_value=service):
+                assert await get_weather("Paris", source="lab") == "sunny"
+        finally:
+            clear_execution_context()
+
+        payload = service.simulate.await_args.args[0]
+        assert payload["input"] == {"city": "Paris", "unit": "C", "source": "lab"}
+        assert payload["runId"] == execution_id
+        assert payload["behaviors"] == [
+            {
+                "when": [{"field": "city", "op": 0, "value": "Paris"}],
+                "then": [{"type": 0, "value": "sunny"}],
+            }
+        ]
+
     @pytest.mark.asyncio
     async def test_returns_simulated_output_on_status_1(self):
         ctx = _make_context("my_tool")
