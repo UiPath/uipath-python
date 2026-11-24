@@ -192,10 +192,11 @@ async def test_disconnect_waits_until_the_hub_relays_the_last_command(
     bridge = SignalRDebugBridge(hub_url=await serve(state))
     await bridge.connect()
 
+    await bridge.emit_execution_started()
     await bridge.emit_execution_completed(_completed())
     await bridge.disconnect()
 
-    assert state.relayed == ["OnExecutionCompleted"]
+    assert state.relayed == ["OnExecutionStarted", "OnExecutionCompleted"]
 
 
 async def test_disconnect_stops_waiting_for_a_hub_that_never_acknowledges(
@@ -229,6 +230,22 @@ async def test_disconnect_does_not_wait_on_a_connection_the_hub_ended(
     monkeypatch.setattr(_bridge, "SEND_ACKNOWLEDGEMENT_TIMEOUT_SECONDS", 10.0)
     state = _RelayHub(ends_connection=ends_connection)
     bridge = SignalRDebugBridge(hub_url=await serve(state))
+    await bridge.connect()
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+
+    await bridge.emit_execution_completed(_completed())
+    await bridge.disconnect()
+
+    assert loop.time() - started < 5
+
+
+async def test_a_command_the_hub_rejects_does_not_hold_up_disconnect(
+    hub: tuple[_Hub, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_bridge, "SEND_ACKNOWLEDGEMENT_TIMEOUT_SECONDS", 10.0)
+    _, url = hub
+    bridge = SignalRDebugBridge(hub_url=url)
     await bridge.connect()
     loop = asyncio.get_running_loop()
     started = loop.time()

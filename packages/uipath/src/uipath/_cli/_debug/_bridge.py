@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+from collections.abc import Awaitable
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Any, Literal
@@ -762,10 +763,13 @@ class SignalRDebugBridge:
         if not self._client:
             raise RuntimeError("SignalR client not connected")
         acknowledged: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._unacknowledged_sends.add(acknowledged)
+        acknowledged.add_done_callback(self._unacknowledged_sends.discard)
 
-        async def acknowledge(_completion: Any) -> None:
+        def acknowledge(_completion: Any) -> Awaitable[None]:
             if not acknowledged.done():
                 acknowledged.set_result(None)
+            return asyncio.sleep(0)
 
         try:
             # Wrap the event in SendCommand protocol
@@ -779,10 +783,12 @@ class SignalRDebugBridge:
                 arguments=arguments,
                 on_invocation=acknowledge,
             )
-            self._unacknowledged_sends.add(acknowledged)
-            acknowledged.add_done_callback(self._unacknowledged_sends.discard)
             logger.debug(f"Sent command: {event_name}")
+        except asyncio.CancelledError:
+            acknowledged.cancel()
+            raise
         except Exception as e:
+            acknowledged.cancel()
             logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
 
     async def _wait_for_acknowledgements(self) -> None:
