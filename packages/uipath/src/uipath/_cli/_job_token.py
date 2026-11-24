@@ -84,6 +84,9 @@ class _TokenState:
         refresh_at = self.refresh_at
         return refresh_at is None or now < refresh_at
 
+    def is_expired(self, now: float) -> bool:
+        return self.expires_at is not None and now >= self.expires_at
+
 
 def publish_token_to_environ(
     token: str, names: Iterable[str] = _TOKEN_ENV_VARS
@@ -98,7 +101,8 @@ class JobTokenRefresher:
     """Renews the job's user access token and publishes it to the environment.
 
     A failure keeps the current token and is retried. Only the first failure is logged,
-    until a renewal succeeds again. A host that cannot renew ends the renewal for the job.
+    until a renewal succeeds again. A host that cannot renew, or that answers with an
+    expired token, ends the renewal for the job.
     """
 
     def __init__(
@@ -181,6 +185,9 @@ class JobTokenRefresher:
     def _store(self, token: str) -> None:
         now = self._clock()
         state = _TokenState.from_token(token, now)
+        if state.is_expired(now):
+            self._host_answered_expired()
+            return
         with self._lock:
             if self._stopped:
                 return
@@ -224,6 +231,16 @@ class JobTokenRefresher:
         logger.info(
             "Not renewing the job's user access token: the host does not offer it (%s).",
             getattr(error, "type_name", None),
+        )
+
+    def _host_answered_expired(self) -> None:
+        with self._lock:
+            if self._stopped:
+                return
+            self._stopped = True
+        logger.warning(
+            "Stopped renewing the job's user access token: the host answered with a token "
+            "that has already expired. Calls that need the token will fail from now on."
         )
 
 

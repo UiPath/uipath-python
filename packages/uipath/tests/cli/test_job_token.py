@@ -176,6 +176,13 @@ class TestTokenState:
         assert none.expires_at is None
         assert none.refresh_at is None
         assert none.is_fresh(now + 10**9)
+        assert not none.is_expired(now + 10**9)
+
+    def test_a_token_is_expired_from_its_exp_on(self) -> None:
+        now = 1_000_000.0
+        state = _job_token._TokenState.from_token(jwt(iat=now, exp=now + 600), now)
+        assert not state.is_expired(now + 599)
+        assert state.is_expired(now + 600)
 
     def test_an_opaque_token_is_kept(self) -> None:
         state = _job_token._TokenState.from_token("opaque", 1.0)
@@ -473,6 +480,46 @@ class TestFailures:
         assert 2 <= len(api.requests) <= 8  # once per backoff period, not a spin
         assert _token(refresher) in api.tokens or _token(refresher) != ""
         assert _warnings(records) == []
+
+    def test_an_expired_answer_ends_the_renewal_with_one_warning(
+        self,
+        ipc_loop: asyncio.AbstractEventLoop,
+        records: list[logging.LogRecord],
+    ) -> None:
+        published: list[str] = []
+        api = FakeJobApi(token_with_lifetime(600, remaining=-1, tag="expired"))
+        token = token_with_lifetime(600, remaining=60)  # due now
+        refresher = _refresher(api, ipc_loop, token, publish=published.append)
+
+        refresher.start()
+
+        _task(refresher).result(timeout=5)  # the loop ends by itself
+        assert len(api.requests) == 1
+        assert _token(refresher) == token
+        assert published == []
+        warnings = _warnings(records)
+        assert len(warnings) == 1
+        assert "already expired" in warnings[0]
+
+    def test_the_same_token_handed_back_until_it_expires_ends_the_renewal(
+        self,
+        ipc_loop: asyncio.AbstractEventLoop,
+        monkeypatch: pytest.MonkeyPatch,
+        records: list[logging.LogRecord],
+    ) -> None:
+        """A host that does not renew keeps answering with the token the job holds."""
+        monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.1)
+        token = token_with_lifetime(600, remaining=1.0)  # due now, expires soon
+        api = FakeJobApi(*[token] * 100)
+        refresher = _refresher(api, ipc_loop, token)
+
+        refresher.start()
+
+        _task(refresher).result(timeout=5)  # the loop ends once the token expired
+        assert 2 <= len(api.requests) <= 25  # asked while there was hope, then stopped
+        warnings = _warnings(records)
+        assert len(warnings) == 1
+        assert "already expired" in warnings[0]
 
     def test_a_timed_out_host_is_a_failure(
         self, ipc_loop: asyncio.AbstractEventLoop, records: list[logging.LogRecord]
