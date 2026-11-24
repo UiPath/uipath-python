@@ -16,9 +16,11 @@ import pytest
 
 from uipath._cli import _job_api, _job_token
 from uipath._cli._job_token import (
+    TOKEN_REFRESH_ENV_VAR,
     JobTokenRefresher,
     install_job_token_refresher,
     publish_token_to_environ,
+    token_refresh_requested,
 )
 
 JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
@@ -570,6 +572,35 @@ class TestInstall:
 
         assert _task(refresher).cancelled()
         assert not thread.is_alive()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("true", True),
+        ("True", True),
+        (" TRUE ", True),
+        ("false", False),
+        ("", False),
+        ("1", False),
+        ("yes", False),
+    ],
+)
+def test_the_opt_in_is_an_explicit_true(value: str, expected: bool) -> None:
+    assert token_refresh_requested({TOKEN_REFRESH_ENV_VAR: value}) is expected
+
+
+def test_the_opt_in_is_off_when_the_variable_is_missing() -> None:
+    assert token_refresh_requested({}) is False
+
+
+def test_the_opt_in_reads_this_process_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, "true")
+    assert token_refresh_requested() is True
+    monkeypatch.delenv(TOKEN_REFRESH_ENV_VAR)
+    assert token_refresh_requested() is False
 
 
 def test_token_request_dto_wire_keys_are_pinned() -> None:

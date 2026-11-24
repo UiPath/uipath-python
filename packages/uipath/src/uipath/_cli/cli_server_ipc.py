@@ -42,7 +42,6 @@ class PythonServerRunRequest:
     workingDirectory: str | None = None
     environmentVariables: dict[str, str] = field(default_factory=dict)
     streamOutputOverIpc: bool = False
-    refreshAccessTokenOverIpc: bool = False
 
 
 @dataclass
@@ -111,8 +110,11 @@ class PythonRuntimeService(IPythonRuntimeServer):
         on_run_end: "Any" = None
         installed: "list[Any]" = []
         token_refreshers: "list[Any]" = []
+        from ._job_token import TOKEN_REFRESH_ENV_VAR, token_refresh_requested
+
         stream_output = request.streamOutputOverIpc
-        refresh_token = request.refreshAccessTokenOverIpc
+        env = request.environmentVariables
+        refresh_token = token_refresh_requested(env if isinstance(env, dict) else {})
         if stream_output or refresh_token:
             # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
@@ -138,7 +140,8 @@ class PythonRuntimeService(IPythonRuntimeServer):
             if problem is not None:
                 # Renewal is optional: the job runs without it.
                 console.warning(
-                    f"refreshAccessTokenOverIpc {problem}; running without token renewal."
+                    f"{TOKEN_REFRESH_ENV_VAR} is set, but token renewal {problem}; "
+                    "running without it."
                 )
             elif client is not None:
                 # get_callback only wraps the connection, so this cannot tell us whether the peer

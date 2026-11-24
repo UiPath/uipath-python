@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
+from uipath._cli._job_token import TOKEN_REFRESH_ENV_VAR
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -228,45 +229,36 @@ class TestRun:
                 ).output
             )
 
-        def test_the_token_refresh_flag_without_the_pipe_runs_without_renewal(
-            self, runner: CliRunner, temp_dir: str, entrypoint: str
+        def test_the_token_refresh_opt_in_without_the_pipe_is_ignored(
+            self,
+            runner: CliRunner,
+            temp_dir: str,
+            entrypoint: str,
+            monkeypatch: pytest.MonkeyPatch,
         ) -> None:
+            # A child process inherits the variable; without a pipe there is nothing to ask.
+            monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, "true")
             with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
-                result = runner.invoke(
-                    cli, ["run", entrypoint, "--handler-ipc-token-refresh"]
-                )
-            # Renewal is optional: the job runs without it.
+                result = runner.invoke(cli, ["run", entrypoint])
             assert result.exit_code == 0, f"output: {result.output!r}"
-            assert "needs --handler-ipc-pipe" in result.output
+            assert "renewal" not in result.output
             assert "Successful execution." in result.output
 
-        def test_the_token_refresh_flag_is_hidden_but_still_accepted(
-            self, runner: CliRunner
+        @pytest.mark.parametrize(
+            ("value", "expected"), [("true", True), ("false", False)]
+        )
+        def test_the_token_refresh_opt_in_reaches_the_connection(
+            self,
+            runner: CliRunner,
+            temp_dir: str,
+            monkeypatch: pytest.MonkeyPatch,
+            value: str,
+            expected: bool,
         ) -> None:
-            assert (
-                "handler-ipc-token-refresh"
-                not in runner.invoke(cli, ["run", "--help"]).output
-            )
-            assert (
-                "No such option"
-                not in runner.invoke(
-                    cli,
-                    [
-                        "run",
-                        "x",
-                        "--handler-ipc-pipe",
-                        "some-pipe",
-                        "--handler-ipc-token-refresh",
-                    ],
-                ).output
-            )
-
-        def test_the_token_refresh_flag_reaches_the_connection(
-            self, runner: CliRunner, temp_dir: str, monkeypatch: pytest.MonkeyPatch
-        ) -> None:
-            """The flag reaches the IPC connection."""
+            """The job's environment decides; there is no command-line flag for it."""
             job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
+            monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, value)
             seen: list[tuple[str, str, int | None, bool]] = []
 
             @asynccontextmanager
@@ -300,17 +292,11 @@ class TestRun:
                     ),
                 ):
                     result = runner.invoke(
-                        cli,
-                        [
-                            "run",
-                            "--handler-ipc-pipe",
-                            "some-pipe",
-                            "--handler-ipc-token-refresh",
-                        ],
+                        cli, ["run", "--handler-ipc-pipe", "some-pipe"]
                     )
 
             assert result.exit_code == 0, f"output: {result.output!r}"
-            assert seen == [("some-pipe", job_key, None, True)]
+            assert seen == [("some-pipe", job_key, None, expected)]
 
         def test_the_job_runs_inside_the_open_connection(
             self, runner: CliRunner, temp_dir: str, monkeypatch
@@ -318,6 +304,7 @@ class TestRun:
             """Dialling the pipe is not enough: the run has to happen while it is open."""
             job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
+            monkeypatch.delenv(TOKEN_REFRESH_ENV_VAR, raising=False)
 
             events: list[str] = []
             seen: list[tuple[str, str, int | None, bool]] = []

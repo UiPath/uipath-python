@@ -31,6 +31,7 @@ from uipath_ipc import (
 
 from uipath._cli import _server_core
 from uipath._cli._job_api import IPythonJobApi
+from uipath._cli._job_token import TOKEN_REFRESH_ENV_VAR
 from uipath._cli.cli_server import (
     IPythonRuntimeServer,
     PythonRuntimeService,
@@ -655,7 +656,7 @@ class TestPooledSinks:
 
 
 class TestPooledTokenRefresh:
-    """refreshAccessTokenOverIpc is its own opt-in."""
+    """The opt-in rides in the job's environment, apart from streamOutputOverIpc."""
 
     @staticmethod
     def _fake_run(events: list[Any]) -> Any:
@@ -692,15 +693,40 @@ class TestPooledTokenRefresh:
 
         monkeypatch.setattr(_job_token, "install_job_token_refresher", install)
 
-    def test_the_opt_in_defaults_to_off(self) -> None:
+    @pytest.mark.parametrize(
+        "env", [{}, {TOKEN_REFRESH_ENV_VAR: "false"}, {"UIPATH_JOB_KEY": JOB_ID}]
+    )
+    def test_a_job_that_does_not_ask_is_not_renewed(
+        self, monkeypatch: pytest.MonkeyPatch, env: dict[str, str]
+    ) -> None:
+        from uipath._cli import cli_server_ipc
         from uipath._cli.cli_server_ipc import PythonServerRunRequest
 
-        assert (
-            PythonServerRunRequest(
-                jobKey=JOB_ID, command="run"
-            ).refreshAccessTokenOverIpc
-            is False
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
         )
+        # Only the job's environment counts, not the server's.
+        monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, "true")
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey=JOB_ID, command="run", args=[], environmentVariables=env
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(
+                request, message=Message(client=cast(Any, _Client()))
+            )
+
+        result = asyncio.run(scenario())
+        assert result.exitCode == 0, result.error
+        assert events == [("run",)]
 
     def test_runjob_installs_the_refresher_inside_the_run_and_removes_it_after(
         self, monkeypatch: pytest.MonkeyPatch
@@ -729,7 +755,7 @@ class TestPooledTokenRefresh:
             resumeVersion=4,
             command="run",
             args=[],
-            refreshAccessTokenOverIpc=True,
+            environmentVariables={TOKEN_REFRESH_ENV_VAR: "true"},
         )
 
         async def scenario() -> Any:
@@ -774,7 +800,7 @@ class TestPooledTokenRefresh:
             command="run",
             args=[],
             streamOutputOverIpc=True,
-            refreshAccessTokenOverIpc=True,
+            environmentVariables={TOKEN_REFRESH_ENV_VAR: "true"},
         )
 
         async def scenario() -> Any:
@@ -813,7 +839,10 @@ class TestPooledTokenRefresh:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            jobKey=job_key, command="run", args=[], refreshAccessTokenOverIpc=True
+            jobKey=job_key,
+            command="run",
+            args=[],
+            environmentVariables={TOKEN_REFRESH_ENV_VAR: "true"},
         )
 
         async def scenario() -> Any:
@@ -840,7 +869,10 @@ class TestPooledTokenRefresh:
 
         service = PythonRuntimeService()
         request = PythonServerRunRequest(
-            jobKey=JOB_ID, command="run", args=[], refreshAccessTokenOverIpc=True
+            jobKey=JOB_ID,
+            command="run",
+            args=[],
+            environmentVariables={TOKEN_REFRESH_ENV_VAR: "true"},
         )
 
         async def scenario() -> Any:
@@ -868,7 +900,7 @@ class TestPooledTokenRefresh:
             command="run",
             args=[],
             streamOutputOverIpc=True,
-            refreshAccessTokenOverIpc=True,
+            environmentVariables={TOKEN_REFRESH_ENV_VAR: "true"},
         )
 
         async def scenario() -> Any:

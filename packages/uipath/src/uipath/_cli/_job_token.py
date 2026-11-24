@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +31,15 @@ _RETRY_AFTER_FAILURE_S = 30.0
 # Longest single wait, so a suspended machine or a clock change cannot delay a renewal for long.
 _MAX_SLEEP_S = 60.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
+# Set to "true" in a job's environment by a host that can renew the job's token.
+TOKEN_REFRESH_ENV_VAR = "UIPATH_FEATURE_EnableAccessTokenRefresh"
+
+
+def token_refresh_requested(environ: Mapping[str, str] | None = None) -> bool:
+    """Whether a job's environment asks for token renewal; this process's by default."""
+    # Not through FeatureFlags: the pooled server reads a job's environment before applying it.
+    env = os.environ if environ is None else environ
+    return env.get(TOKEN_REFRESH_ENV_VAR, "").strip().lower() == "true"
 
 
 def _claims(token: str) -> dict[str, Any]:
