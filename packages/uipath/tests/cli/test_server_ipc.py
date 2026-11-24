@@ -41,6 +41,13 @@ from uipath._cli.cli_server import (
 _pipe_counter = 0
 
 
+@pytest.fixture(autouse=True)
+def forget_early_stops() -> Any:
+    # Every server these tests start shares the process-wide server state.
+    yield
+    _server_core._state.early_stops.clear()
+
+
 def _unique_pipe() -> str:
     global _pipe_counter
     _pipe_counter += 1

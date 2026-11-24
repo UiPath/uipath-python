@@ -8,6 +8,7 @@ Kept import-light: ``_cli/__init__.py`` defers heavy imports.
 """
 
 import asyncio
+import concurrent.futures
 import contextvars
 import importlib
 import threading
@@ -91,21 +92,30 @@ def run_execution_loop(coro: Any) -> Any:
     With no control in scope (``uipath run`` from a terminal) this is ``asyncio.run``.
     The loop is withdrawn before the runner closes, so a sweep can never cancel the
     runner's own wait on the threads the execution started.
+
+    It returns only once those threads have exited. From Python 3.12 the runner stops
+    waiting for them after ``THREAD_JOIN_TIMEOUT``, and a thread still running then
+    would see the next job's environment and working directory.
     """
     control = CURRENT_EXECUTION_CONTROL.get()
     if control is None:
         return asyncio.run(coro)
 
-    with asyncio.Runner() as runner:
-        loop = runner.get_loop()
-        context = contextvars.copy_context()
-        context.run(_report_stops_as_stopped, control)
-        task = loop.create_task(coro, context=context)
-        control.bind(loop, task)
-        try:
-            return loop.run_until_complete(task)
-        finally:
-            control.unbind()
+    executor = concurrent.futures.ThreadPoolExecutor(thread_name_prefix="asyncio")
+    try:
+        with asyncio.Runner() as runner:
+            loop = runner.get_loop()
+            loop.set_default_executor(executor)
+            context = contextvars.copy_context()
+            context.run(_report_stops_as_stopped, control)
+            task = loop.create_task(coro, context=context)
+            control.bind(loop, task)
+            try:
+                return loop.run_until_complete(task)
+            finally:
+                control.unbind()
+    finally:
+        executor.shutdown(wait=True)
 
 
 def _report_stops_as_stopped(control: ExecutionControl) -> None:

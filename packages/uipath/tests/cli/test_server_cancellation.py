@@ -123,6 +123,15 @@ def self_cancelling_with_a_lingering_thread_command() -> None:
 
 
 @click.command()
+def lingering_thread_command() -> None:
+    async def body() -> None:
+        asyncio.get_running_loop().run_in_executor(None, release.wait, 10)
+        started.set()
+
+    run_execution_loop(body())
+
+
+@click.command()
 def blocking_command() -> None:
     started.set()
     release.wait(10)
@@ -314,17 +323,67 @@ async def test_cancelling_a_queued_execution_does_not_leak_the_lock(
     assert (await start(quick_command))["ExitCode"] == 0
 
 
-async def test_a_stop_for_another_resume_version_leaves_the_live_run_alone() -> None:
-    execution = start(long_command, resume_version=2)
+@pytest.mark.parametrize(("running", "stopped"), [(2, 1), (1, None), (None, 1)])
+async def test_a_stop_for_another_attempt_leaves_the_live_run_alone(
+    running: int | None, stopped: int | None
+) -> None:
+    execution = start(long_command, resume_version=running)
     await wait_until(started)
 
-    assert await stop_execution(JOB_KEY, resume_version=1) is True
+    assert await stop_execution(JOB_KEY, resume_version=stopped) is True
     await asyncio.sleep(0.05)
     assert not execution.done()
     assert not cleanup_ran.is_set()
 
-    assert await stop_execution(JOB_KEY, resume_version=2) is True
+    assert await stop_execution(JOB_KEY, resume_version=running) is True
     assert (await execution)["ExitCode"] == EXIT_CODE_STOPPED
+
+
+async def test_a_stop_that_arrives_before_its_start_stops_that_attempt() -> None:
+    assert await stop_execution(JOB_KEY, resume_version=1) is True
+
+    outcome = await start(long_command, resume_version=1)
+
+    assert outcome["ExitCode"] == EXIT_CODE_STOPPED
+    assert not started.is_set()
+
+
+async def test_an_early_stop_is_only_for_its_own_attempt() -> None:
+    assert await stop_execution(JOB_KEY) is True
+
+    assert (await start(quick_command, resume_version=1))["ExitCode"] == 0
+    assert (await start(quick_command, job_key=OTHER_JOB_KEY))["ExitCode"] == 0
+
+
+async def test_an_early_stop_is_used_once() -> None:
+    assert await stop_execution(JOB_KEY) is True
+
+    assert (await start(quick_command))["ExitCode"] == EXIT_CODE_STOPPED
+    assert (await start(quick_command))["ExitCode"] == 0
+
+
+async def test_an_early_stop_expires(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_server_core, "EARLY_STOP_TTL_SECONDS", 0.0)
+    assert await stop_execution(JOB_KEY) is True
+
+    assert (await start(quick_command))["ExitCode"] == 0
+
+
+@pytest.mark.filterwarnings("ignore:The executor did not finish")
+async def test_an_execution_holds_the_lock_until_the_threads_it_started_exit(
+    fresh_state: _ServerState, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Python 3.12+ runners stop waiting for the default executor after this long.
+    monkeypatch.setattr(asyncio.constants, "THREAD_JOIN_TIMEOUT", 0.1, raising=False)
+    execution = start(lingering_thread_command)
+    await wait_until(started)
+
+    await asyncio.sleep(0.5)
+    assert not execution.done()
+    assert fresh_state.lock is not None and fresh_state.lock.locked()
+
+    release.set()
+    assert (await execution)["ExitCode"] == 0
 
 
 async def test_stopping_an_unknown_key_reports_it_is_not_running() -> None:

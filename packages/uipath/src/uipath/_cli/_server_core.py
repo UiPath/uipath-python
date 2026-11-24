@@ -6,6 +6,7 @@ import functools
 import logging
 import os
 import shlex
+import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
@@ -30,6 +31,8 @@ STOP_GRACE_SECONDS = 30.0
 STOP_ESCALATION_SECONDS = 10.0
 FORCE_STOP_GRACE_SECONDS = 5.0
 FORCE_STOP_ESCALATION_SECONDS = 5.0
+# How long a stop that arrives before its execution's start waits for that start.
+EARLY_STOP_TTL_SECONDS = 60.0
 
 
 @dataclass
@@ -50,6 +53,8 @@ class _ServerState:
         self.baseline_env: dict[str, str] | None = None
         # Queued and running executions; the lock lets at most one of them run.
         self.executions: list[_Execution] = []
+        # Stops for an attempt not yet started, by (job key, resume version), with expiry.
+        self.early_stops: dict[tuple[str, int | None], float] = {}
         # Optional per-job scope; ``None`` (the default) leaves jobs unscoped.
         self.job_scope_provider: (
             Callable[[], AbstractAsyncContextManager[None]] | None
@@ -174,17 +179,26 @@ def _stopped_outcome() -> dict[str, Any]:
 
 
 def _find_execution(job_key: str, resume_version: int | None) -> _Execution | None:
+    # The first attempt has no resume version; a stop for it must not reach a resumed run.
     for execution in _state.executions:
-        if execution.job_key != job_key:
-            continue
-        if (
-            resume_version is not None
-            and execution.resume_version is not None
-            and execution.resume_version != resume_version
-        ):
-            continue
-        return execution
+        if execution.job_key == job_key and execution.resume_version == resume_version:
+            return execution
     return None
+
+
+def _remember_early_stop(job_key: str, resume_version: int | None) -> None:
+    now = time.monotonic()
+    _state.early_stops = {
+        attempt: expiry
+        for attempt, expiry in _state.early_stops.items()
+        if expiry > now
+    }
+    _state.early_stops[(job_key, resume_version)] = now + EARLY_STOP_TTL_SECONDS
+
+
+def _take_early_stop(job_key: str, resume_version: int | None) -> bool:
+    expiry = _state.early_stops.pop((job_key, resume_version), None)
+    return expiry is not None and expiry > time.monotonic()
 
 
 async def _wait_finished(execution: _Execution, timeout: float) -> bool:
@@ -207,12 +221,19 @@ async def stop_execution(
     still has not finished the answer is False: it is blocked in a call that cannot be
     interrupted, and only ending the process stops it. ``force`` shortens both waits.
 
-    An execution that is not known, or whose live run has another resume version, is
-    not running, so the answer is True.
+    An attempt (job key and resume version) that is not queued or running gets True.
+    Its start can still be on its way, so the stop is kept for a while and a start of
+    that attempt ends as stopped without running.
     """
     execution = _find_execution(job_key, resume_version)
     if execution is None:
-        logger.info("StopJob for %s: no such execution is queued or running", job_key)
+        logger.info(
+            "StopJob for %s: no such execution is queued or running; "
+            "a start of it in the next %ss is stopped",
+            job_key,
+            EARLY_STOP_TTL_SECONDS,
+        )
+        _remember_early_stop(job_key, resume_version)
         return True
 
     grace, escalation = (
@@ -329,6 +350,10 @@ async def _run_command_isolated(
     """
     if _state.lock is None or _state.baseline_env is None:
         raise RuntimeError("Server state not initialized")
+
+    if job_key and _take_early_stop(job_key, resume_version):
+        logger.info("Job %s was stopped before it started; not running it", job_key)
+        return _stopped_outcome()
 
     execution = _Execution(job_key or "", resume_version)
     if job_key:
