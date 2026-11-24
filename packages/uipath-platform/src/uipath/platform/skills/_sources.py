@@ -628,7 +628,9 @@ def _unpack_and_copy(bundle: str, archive: bytes, dest: Path) -> list[Skill]:
             dest.mkdir(parents=True, exist_ok=True)
             return _copy_bundle_skills(bundle, staging, dest)
     except OSError as e:
-        raise BundleSourceError(f"cannot write skill bundle '{bundle}': {e}") from e
+        raise BundleSourceError(
+            f"cannot write skill bundle '{bundle}': {e.strerror or type(e).__name__}"
+        ) from e
 
 
 def _unpack(bundle: str, archive: bytes, staging: Path) -> None:

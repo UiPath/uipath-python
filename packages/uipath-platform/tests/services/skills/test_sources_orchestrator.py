@@ -493,6 +493,23 @@ async def test_an_archive_that_is_not_a_zip_is_invalid(
     assert info.value.reason == "invalid"
 
 
+async def test_a_write_error_reports_the_reason_without_the_local_path(
+    source: OrchestratorBundleSource, httpx_mock: HTTPXMock, tmp_path: Path
+) -> None:
+    _mock_bundle(httpx_mock)
+    dest = tmp_path / "finance"
+    dest.write_text("not a folder", encoding="utf-8")
+
+    with pytest.raises(BundleSourceError) as info:
+        await source.materialize(_ref(), dest)
+
+    detail = info.value.detail
+    assert info.value.reason == "source_unavailable"
+    assert detail.startswith("cannot write skill bundle 'finance': ")
+    assert str(tmp_path) not in detail
+    assert "Errno" not in detail and "WinError" not in detail
+
+
 @pytest.mark.parametrize(
     "compression",
     [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED],
