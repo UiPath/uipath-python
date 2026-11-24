@@ -61,9 +61,15 @@ async def _score(
     evaluator_id = config["id"]
     start = monotonic()
     try:
-        evaluator = EvaluatorFactory.create_evaluator(
-            {**config, "evaluatorSchema": _resolve_schema(config["evaluatorSchema"])}
-        )
+        definition = {
+            **config,
+            "evaluatorSchema": _resolve_schema(config["evaluatorSchema"]),
+        }
+        if definition.get("version") is None:
+            definition["version"] = "1.0"
+        if definition.get("evaluatorTypeId") is None:
+            definition.pop("evaluatorTypeId", None)
+        evaluator = EvaluatorFactory.create_evaluator(definition)
         criteria = dict((plan.evaluation_criterias or {}).get(evaluator_id) or {})
         fields = evaluator.evaluation_criteria_type.model_fields
         if "expected_output" in fields and criteria.get("expectedOutput") is None:

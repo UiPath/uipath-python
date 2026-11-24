@@ -13,13 +13,18 @@ from uipath.runtime import UiPathExecuteOptions, UiPathRuntimeResult
 
 
 @pytest.mark.parametrize("operator, score", [("*", 1), ("+", 0)])
+@pytest.mark.parametrize(
+    "wire_fields",
+    [{}, {"evaluatorTypeId": None}, {"evaluatorTypeId": None, "version": None}],
+    ids=["file-config", "null-type", "null-type-and-version"],
+)
 async def test_project_evaluator_can_score_the_agent_trace(
-    monkeypatch, operator, score
+    monkeypatch, operator, score, wire_fields
 ):
     project = Path(__file__).resolve().parents[2] / "samples" / "calculator"
     monkeypatch.chdir(project)
     config_file = project / "evaluations/evaluators/correct-operator-evaluator.json"
-    config = json.loads(config_file.read_text())
+    config = {**json.loads(config_file.read_text()), **wire_fields}
     plan = ProjectEvaluationPlan.model_validate(
         {
             "evaluationItemId": "calculator-item",
