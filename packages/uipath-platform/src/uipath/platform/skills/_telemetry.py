@@ -116,7 +116,7 @@ def record_bundle_failed(span: trace.Span, failure: BundleFailure) -> None:
     span.add_event(
         "skill.bundle.failed",
         {
-            **_ref_attributes(failure.ref, failure.ref.version or ""),
+            **_ref_attributes(failure.ref, failure.ref.version),
             "skill.reason": failure.reason,
             "skill.detail": failure.detail,
         },
@@ -216,16 +216,18 @@ def _llmops_attributes(span_type: str) -> dict[str, str | bool]:
 
 
 def _ref_attributes(
-    ref: SkillBundleRef, version: str, digest: str | None = None
+    ref: SkillBundleRef, version: str | None, digest: str | None = None
 ) -> dict[str, str]:
-    """The bundle identity shared by every skill span and event."""
+    """The bundle identity shared by every skill span and event.
+
+    An attribute without a value (no folder, no version, no digest) is left out.
+    """
     attributes = {
         "skill.bundle.name": ref.name,
         "skill.bundle.lookup_name": ref.lookup_name,
-        "skill.folder": ref.folder_path or "",
+        "skill.folder": ref.folder_path,
         "skill.version": version,
         "skill.version_mode": ref.version_mode.value,
+        "skill.digest": digest,
     }
-    if digest:
-        attributes["skill.digest"] = digest
-    return attributes
+    return {key: value for key, value in attributes.items() if value}

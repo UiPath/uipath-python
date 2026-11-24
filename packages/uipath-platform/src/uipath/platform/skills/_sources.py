@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import uuid
 import zipfile
+import zlib
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote
@@ -25,6 +26,7 @@ from uipath.platform.common import (
     VersionMode,
 )
 from uipath.platform.common._folder_context import folder_path_header
+from uipath.platform.common.retry import RETRYABLE_STATUS_CODES
 from uipath.platform.errors import EnrichedException
 
 from ._constants import (
@@ -319,7 +321,9 @@ _LATEST = "latest"
 _FOLDER_NOT_FOUND = "1100"
 _FILE_TYPE_MASK = 0o170000
 _SYMLINK = 0o120000
-_READ_CHUNK = 64 * 1024
+_ENCRYPTED_FLAG = 0x1
+_READABLE_COMPRESSION = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+_DAMAGED_ENTRY_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError)
 
 
 class _ManifestEntry(BaseModel):
@@ -382,11 +386,12 @@ class OrchestratorBundleSource:
 
         Raises:
             BundleSourceError: ``not_found`` when the folder or the bundle does not
-                exist, ``version_not_found`` when the version does not,
-                ``forbidden`` when access is denied, ``too_large`` past the
-                download or copy limits, ``invalid`` for a malformed reference,
-                manifest or archive, ``source_unavailable`` when Orchestrator
-                cannot be reached or there is no configuration to call it with.
+                exist, ``version_not_found`` when the bundle exists but the
+                version does not exist, ``forbidden`` when access is denied,
+                ``too_large`` past the download or copy limits, ``invalid`` for a
+                malformed reference, manifest or archive, ``source_unavailable``
+                when Orchestrator cannot be reached, still fails after the SDK's
+                retries, or there is no configuration to call it with.
         """
         api = self._client()
         version = _version_segment(ref)
@@ -584,14 +589,17 @@ def _version_segment(ref: SkillBundleRef) -> str:
 
 
 def _reason_for(status: int, error_code: str | None, step: str) -> FailureReason:
-    """The ``BundleFailure.reason`` for an HTTP error status."""
+    """The ``BundleFailure.reason`` for an HTTP error status.
+
+    A status the SDK retries (408, 429 and some 5xx) is ``source_unavailable``.
+    """
     if status in (401, 403):
         return "forbidden"
     if status == 404:
         return "not_found" if step == "bundle lookup" else "version_not_found"
     if status == 400 and error_code == _FOLDER_NOT_FOUND:
         return "not_found"
-    if 400 <= status < 500:
+    if 400 <= status < 500 and status not in RETRYABLE_STATUS_CODES:
         return "invalid"
     return "source_unavailable"
 
@@ -626,11 +634,14 @@ def _unpack_and_copy(bundle: str, archive: bytes, dest: Path) -> list[Skill]:
 def _unpack(bundle: str, archive: bytes, staging: Path) -> None:
     """Write the archive's files under ``staging``, refusing anything outside it.
 
-    An entry that is not a relative path inside the bundle makes the archive
-    ``invalid``. Hidden files and symbolic links are left out. Each file is cut
-    at one byte over ``MAX_FILE_BYTES``, so the copy step still sees it as too
-    large and skips it with its usual warning; the bytes written in all stay
-    within ``MAX_ARCHIVE_BYTES``.
+    The archive is ``invalid`` when an entry is not a relative path inside the
+    bundle, is encrypted, uses a compression other than stored or deflated, is
+    damaged, or conflicts with another entry (one path used as both a file and
+    a folder, or used twice).
+    Hidden files and symbolic links are left out. Each file is cut at one byte
+    over ``MAX_FILE_BYTES``, so the copy step still sees it as too large and
+    skips it with its usual warning; the bytes written in all stay within
+    ``MAX_ARCHIVE_BYTES``.
     """
     try:
         zf = zipfile.ZipFile(io.BytesIO(archive))
@@ -663,14 +674,30 @@ def _unpack(bundle: str, archive: bytes, staging: Path) -> None:
             if (info.external_attr >> 16) & _FILE_TYPE_MASK == _SYMLINK:
                 logger.warning("Skipping symbolic link %s in bundle '%s'", name, bundle)
                 continue
+            if info.flag_bits & _ENCRYPTED_FLAG:
+                raise BundleSourceError(
+                    f"skill bundle '{bundle}' archive entry {name!r} is encrypted",
+                    reason="invalid",
+                )
+            if info.compress_type not in _READABLE_COMPRESSION:
+                raise BundleSourceError(
+                    f"skill bundle '{bundle}' archive entry {name!r} uses compression "
+                    f"method {info.compress_type}; only stored and deflated are read",
+                    reason="invalid",
+                )
             target = (staging / name).resolve()
             if root not in target.parents:
                 raise BundleSourceError(
                     f"skill bundle '{bundle}' archive entry {name!r} leaves the bundle",
                     reason="invalid",
                 )
-            target.parent.mkdir(parents=True, exist_ok=True)
-            written += _write_capped(zf, info, target, MAX_FILE_BYTES + 1)
+            if target.exists():
+                raise _path_conflict(bundle, name)
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+            except (FileExistsError, NotADirectoryError) as e:
+                raise _path_conflict(bundle, name) from e
+            written += _write_capped(bundle, zf, info, target, MAX_FILE_BYTES + 1)
             if written > MAX_ARCHIVE_BYTES:
                 raise BundleSourceError(
                     f"skill bundle '{bundle}' unpacks to over {MAX_ARCHIVE_BYTES} bytes",
@@ -679,18 +706,32 @@ def _unpack(bundle: str, archive: bytes, staging: Path) -> None:
 
 
 def _write_capped(
-    zf: zipfile.ZipFile, info: zipfile.ZipInfo, target: Path, limit: int
+    bundle: str, zf: zipfile.ZipFile, info: zipfile.ZipInfo, target: Path, limit: int
 ) -> int:
-    """Write at most ``limit`` bytes of ``info`` to ``target``; returns the bytes written."""
-    written = 0
-    with zf.open(info) as source, target.open("wb") as sink:
-        while written < limit:
-            chunk = source.read(min(_READ_CHUNK, limit - written))
-            if not chunk:
-                break
-            sink.write(chunk)
-            written += len(chunk)
-    return written
+    """Write at most ``limit`` bytes of ``info`` to ``target``; returns the bytes written.
+
+    A damaged entry (bad CRC, broken deflate stream, cut short) makes the archive
+    ``invalid``; a disk error is left to the caller.
+    """
+    try:
+        with zf.open(info) as source:
+            data = source.read(limit)
+    except _DAMAGED_ENTRY_ERRORS as e:
+        raise BundleSourceError(
+            f"skill bundle '{bundle}' archive entry {info.filename!r} is damaged: {e}",
+            reason="invalid",
+        ) from e
+    target.write_bytes(data)
+    return len(data)
+
+
+def _path_conflict(bundle: str, name: str) -> BundleSourceError:
+    """The error for an entry whose path another entry already uses."""
+    return BundleSourceError(
+        f"skill bundle '{bundle}' archive entry {name!r} conflicts with another "
+        "entry: a path cannot be both a file and a folder, or appear twice",
+        reason="invalid",
+    )
 
 
 # --- Source selection ---

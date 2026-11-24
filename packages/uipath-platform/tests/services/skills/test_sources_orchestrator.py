@@ -2,6 +2,7 @@
 
 import io
 import logging
+import struct
 import zipfile
 from pathlib import Path
 from urllib.parse import quote
@@ -34,16 +35,36 @@ FILES = {
 }
 
 
-def _zip(files: dict[str, bytes], symlinks: dict[str, str] | None = None) -> bytes:
+def _zip(
+    files: dict[str, bytes],
+    symlinks: dict[str, str] | None = None,
+    compression: int = zipfile.ZIP_DEFLATED,
+    encrypted: tuple[str, ...] = (),
+) -> bytes:
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(buffer, "w", compression) as zf:
         for name, content in files.items():
             zf.writestr(name, content)
         for name, target in (symlinks or {}).items():
             info = zipfile.ZipInfo(name)
             info.external_attr = (0o120777 << 16) | 0x20
             zf.writestr(info, target)
+        for name in encrypted:
+            zf.getinfo(name).flag_bits |= 0x1
     return buffer.getvalue()
+
+
+def _damage_entry(archive: bytes, name: str) -> bytes:
+    """Flip the first data bytes of ``name``, leaving the zip's directory intact."""
+    with zipfile.ZipFile(io.BytesIO(archive)) as zf:
+        info = zf.getinfo(name)
+    data = bytearray(archive)
+    header = info.header_offset
+    name_len, extra_len = struct.unpack("<HH", data[header + 26 : header + 30])
+    start = header + 30 + name_len + extra_len
+    for i in range(start, start + min(8, info.compress_size)):
+        data[i] ^= 0x5A
+    return bytes(data)
 
 
 def _manifest(
@@ -318,12 +339,16 @@ async def test_a_missing_version_is_version_not_found(
     assert info.value.reason == "version_not_found"
 
 
-async def test_a_server_error_is_source_unavailable_after_the_retries(
-    source: OrchestratorBundleSource, httpx_mock: HTTPXMock, tmp_path: Path
+@pytest.mark.parametrize("status", [408, 429, 503])
+async def test_a_status_the_sdk_retries_is_source_unavailable_after_the_retries(
+    source: OrchestratorBundleSource,
+    httpx_mock: HTTPXMock,
+    tmp_path: Path,
+    status: int,
 ) -> None:
     httpx_mock.add_response(
         url=_lookup_url("finance"),
-        status_code=503,
+        status_code=status,
         headers={"Retry-After": "0"},
         json={"message": "busy"},
         is_reusable=True,
@@ -333,6 +358,8 @@ async def test_a_server_error_is_source_unavailable_after_the_retries(
         await source.materialize(_ref(), tmp_path / "finance")
 
     assert info.value.reason == "source_unavailable"
+    assert f"HTTP {status}" in info.value.detail
+    assert len(httpx_mock.get_requests()) > 1
 
 
 async def test_a_network_error_is_source_unavailable(
@@ -461,6 +488,72 @@ async def test_an_archive_that_is_not_a_zip_is_invalid(
     _mock_bundle(httpx_mock, archive=b"not a zip")
 
     with pytest.raises(BundleSourceError, match="not a zip") as info:
+        await source.materialize(_ref(), tmp_path / "finance")
+
+    assert info.value.reason == "invalid"
+
+
+@pytest.mark.parametrize(
+    "compression",
+    [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED],
+    ids=["stored", "deflated"],
+)
+async def test_a_damaged_archive_entry_is_invalid(
+    source: OrchestratorBundleSource,
+    httpx_mock: HTTPXMock,
+    tmp_path: Path,
+    compression: int,
+) -> None:
+    archive = _damage_entry(
+        _zip(FILES, compression=compression), "invoice-triage/reference/vendors.md"
+    )
+    _mock_bundle(httpx_mock, archive=archive)
+
+    with pytest.raises(BundleSourceError, match="is damaged") as info:
+        await source.materialize(_ref(), tmp_path / "finance")
+
+    assert info.value.reason == "invalid"
+
+
+async def test_an_encrypted_archive_entry_is_invalid(
+    source: OrchestratorBundleSource, httpx_mock: HTTPXMock, tmp_path: Path
+) -> None:
+    _mock_bundle(httpx_mock, archive=_zip(FILES, encrypted=("vendor-lookup/SKILL.md",)))
+
+    with pytest.raises(BundleSourceError, match="is encrypted") as info:
+        await source.materialize(_ref(), tmp_path / "finance")
+
+    assert info.value.reason == "invalid"
+
+
+async def test_an_archive_entry_with_another_compression_is_invalid(
+    source: OrchestratorBundleSource, httpx_mock: HTTPXMock, tmp_path: Path
+) -> None:
+    _mock_bundle(httpx_mock, archive=_zip(FILES, compression=zipfile.ZIP_BZIP2))
+
+    with pytest.raises(BundleSourceError, match="compression method 12") as info:
+        await source.materialize(_ref(), tmp_path / "finance")
+
+    assert info.value.reason == "invalid"
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"a": b"x", "a/SKILL.md": b"---\ndescription: d\n---\n"},
+        {"a/SKILL.md": b"---\ndescription: d\n---\n", "a": b"x"},
+    ],
+    ids=["file-then-folder", "folder-then-file"],
+)
+async def test_an_entry_with_the_path_of_another_is_invalid(
+    source: OrchestratorBundleSource,
+    httpx_mock: HTTPXMock,
+    tmp_path: Path,
+    files: dict[str, bytes],
+) -> None:
+    _mock_bundle(httpx_mock, files=files)
+
+    with pytest.raises(BundleSourceError, match="conflicts with another entry") as info:
         await source.materialize(_ref(), tmp_path / "finance")
 
     assert info.value.reason == "invalid"
