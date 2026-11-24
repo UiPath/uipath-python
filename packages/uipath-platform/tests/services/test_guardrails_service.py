@@ -1427,7 +1427,6 @@ class TestGuardrailFlaggedAttachmentIds:
                 "flaggedAttachmentIds": [_ATTACHMENT_ID],
                 "inspectedAttachmentIds": [_ATTACHMENT_ID, "other"],
                 "payloadEvaluated": False,
-                "detections": [{"entity": "Email"}],
             },
         )
 
@@ -1441,7 +1440,127 @@ class TestGuardrailFlaggedAttachmentIds:
             "spanId": None,
             "flaggedAttachmentIds": [_ATTACHMENT_ID],
             "errorType": None,
+            "detections": None,
         }
+
+
+class TestGuardrailDetections:
+    """evaluate_guardrail parses what the guardrail service found."""
+
+    def _respond(self, httpx_mock: HTTPXMock, url: str, detections: object) -> None:
+        httpx_mock.add_response(
+            url=url,
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "PII detected",
+                "detections": detections,
+            },
+        )
+
+    def test_detections_are_parsed_when_present(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        self._respond(
+            httpx_mock,
+            f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            [
+                {
+                    "category": "Email",
+                    "text": "jane@example.com",
+                    "offset": 12,
+                    "length": 16,
+                    "confidenceScore": 0.8,
+                },
+                {"category": "Person", "text": "Jane", "confidenceScore": 0.95},
+            ],
+        )
+
+        result = service.evaluate_guardrail(
+            "Contact me: jane@example.com", _judge_guardrail(), action_type="Mask"
+        )
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.detections is not None
+        email, person = result.detections
+        assert (email.category, email.text, email.offset, email.length) == (
+            "Email",
+            "jane@example.com",
+            12,
+            16,
+        )
+        assert email.confidence_score == 0.8
+        # A detection from a file carries no position in the input.
+        assert (person.category, person.offset, person.length) == (
+            "Person",
+            None,
+            None,
+        )
+
+    def test_detections_are_none_when_absent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.detections is None
+
+    @pytest.mark.parametrize("value", [None, "Email", {"category": "Email"}, 1])
+    def test_detections_are_none_when_not_a_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        value: object,
+    ) -> None:
+        self._respond(httpx_mock, f"{base_url}{org}{tenant}{_VALIDATE_PATH}", value)
+
+        result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.detections is None
+
+    def test_malformed_detections_are_skipped_without_logging_their_text(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        self._respond(
+            httpx_mock,
+            f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            [
+                {"entity": "Email", "text": "jane@example.com"},
+                "jane@example.com",
+                {"category": "Email", "text": "jane@example.com", "offset": 0},
+            ],
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.detections is not None
+        assert [d.text for d in result.detections] == ["jane@example.com"]
+        assert "jane@example.com" not in caplog.text
 
 
 _SERVICE_LOGGER = "uipath.platform.guardrails._guardrails_service"

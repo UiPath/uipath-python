@@ -6,6 +6,7 @@ from uipath.core.guardrails import (
     AllFieldsSelector,
     FieldReference,
     FieldSource,
+    GuardrailDetection,
     GuardrailValidationErrorType,
     GuardrailValidationResult,
     GuardrailValidationResultType,
@@ -158,3 +159,67 @@ class TestGuardrailValidationResultErrorType:
         )
         assert result.model_dump(by_alias=True)["errorType"] is None
         assert "errorType" not in result.model_dump(by_alias=True, exclude_none=True)
+
+
+class TestGuardrailValidationResultDetections:
+    """Test GuardrailValidationResult.detections."""
+
+    def test_defaults_to_none(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.PASSED, reason=""
+        )
+        assert result.detections is None
+
+    def test_populates_from_camel_case(self) -> None:
+        result = GuardrailValidationResult.model_validate(
+            {
+                "result": "validation_failed",
+                "reason": "PII detected",
+                "detections": [
+                    {
+                        "category": "Email",
+                        "text": "jane@example.com",
+                        "offset": 12,
+                        "length": 16,
+                        "confidenceScore": 0.8,
+                    },
+                    {"category": "Person", "text": "Jane", "confidenceScore": 0.9},
+                ],
+            }
+        )
+        assert result.detections == [
+            GuardrailDetection(
+                category="Email",
+                text="jane@example.com",
+                offset=12,
+                length=16,
+                confidence_score=0.8,
+            ),
+            GuardrailDetection(category="Person", text="Jane", confidence_score=0.9),
+        ]
+
+    def test_a_file_detection_has_no_offset_or_length(self) -> None:
+        detection = GuardrailDetection.model_validate(
+            {"category": "Person", "text": "Jane", "confidenceScore": 0.9}
+        )
+        assert (detection.offset, detection.length) == (None, None)
+
+    def test_round_trips_by_alias(self) -> None:
+        result = GuardrailValidationResult(
+            result=GuardrailValidationResultType.VALIDATION_FAILED,
+            reason="PII detected",
+            detections=[
+                GuardrailDetection(category="Email", text="a@b.co", offset=0, length=6)
+            ],
+        )
+        dumped = result.model_dump(by_alias=True)
+        assert dumped["detections"] == [
+            {
+                "category": "Email",
+                "text": "a@b.co",
+                "offset": 0,
+                "length": 6,
+                "confidenceScore": None,
+            }
+        ]
+        assert GuardrailValidationResult.model_validate(dumped) == result

@@ -204,6 +204,7 @@ class AgentGuardrailActionType(str, CaseInsensitiveEnum):
     ESCALATE = "escalate"
     FILTER = "filter"
     LOG = "log"
+    MASK = "mask"
     UNKNOWN = "unknown"  # fallback branch discriminator
 
 
@@ -1521,6 +1522,19 @@ class AgentGuardrailEscalateAction(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
+class AgentGuardrailMaskAction(BaseModel):
+    """Agent guardrail mask action model.
+
+    Replaces the PII found in the guarded call's input with placeholders, and puts
+    the original values back in the call's output.
+    """
+
+    action_type: Literal[AgentGuardrailActionType.MASK] = Field(
+        alias="$actionType", default=AgentGuardrailActionType.MASK, frozen=True
+    )
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+
 class AgentGuardrailUnknownAction(BaseModel):
     """Fallback for unknown guardrail actions."""
 
@@ -1538,6 +1552,7 @@ GuardrailAction = Annotated[
         AgentGuardrailFilterAction,
         AgentGuardrailLogAction,
         AgentGuardrailEscalateAction,
+        AgentGuardrailMaskAction,
         AgentGuardrailUnknownAction,  # when parent sets $actionType="unknown"
     ],
     Field(discriminator="action_type"),
@@ -1875,7 +1890,7 @@ class AgentDefinition(BaseModel):
                 at = action.get("$actionType")
                 if isinstance(at, str):
                     at_lower = at.lower()
-                    if at_lower in {"block", "filter", "log", "escalate"}:
+                    if at_lower in {"block", "filter", "log", "escalate", "mask"}:
                         # Valid action type, keep as-is or normalize case if needed
                         g["action"]["$actionType"] = at_lower
                     else:
