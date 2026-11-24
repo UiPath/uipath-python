@@ -73,7 +73,6 @@ async def test_breakpoint_hit_without_a_function_start_line_keeps_its_shape() ->
     )
 
 
-<<<<<<< HEAD
 async def _seconds_to_disconnect(bridge: SignalRDebugBridge) -> float:
     loop = asyncio.get_running_loop()
     started = loop.time()

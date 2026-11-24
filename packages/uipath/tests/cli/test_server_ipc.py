@@ -666,6 +666,7 @@ class TestPooledTokenRefresh:
             wd: Any,
             on_run_start: Any = None,
             on_run_end: Any = None,
+            **_: Any,
         ) -> dict[str, Any]:
             if on_run_start:
                 on_run_start()
