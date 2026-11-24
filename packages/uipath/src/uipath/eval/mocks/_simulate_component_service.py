@@ -10,6 +10,14 @@ from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
     HEADER_INTERNAL_TENANT_ID,
 )
+from uipath.platform.errors import EnrichedException
+
+_SIMULATE_COMPONENT = Endpoint(
+    "/agentsruntime_/api/unifiedEvals/simulations/simulate-component"
+)
+_LEGACY_SIMULATE_COMPONENT = Endpoint(
+    "/agentsruntime_/api/execution/simulations/simulate-component"
+)
 
 
 class SimulateComponentService(BaseService):
@@ -22,14 +30,17 @@ class SimulateComponentService(BaseService):
         if UiPathConfig.organization_id:
             headers[HEADER_INTERNAL_ACCOUNT_ID] = UiPathConfig.organization_id
 
-        response = await self.request_async(
-            "POST",
-            url=Endpoint(
-                "/agentsruntime_/api/execution/simulations/simulate-component"
-            ),
-            json=json.loads(serialize_json(payload)),
-            headers=headers,
-        )
+        body = json.loads(serialize_json(payload))
+        try:
+            response = await self.request_async(
+                "POST", url=_SIMULATE_COMPONENT, json=body, headers=headers
+            )
+        except EnrichedException as error:
+            if error.status_code not in (404, 405):
+                raise
+            response = await self.request_async(
+                "POST", url=_LEGACY_SIMULATE_COMPONENT, json=body, headers=headers
+            )
         return response.json()
 
 
