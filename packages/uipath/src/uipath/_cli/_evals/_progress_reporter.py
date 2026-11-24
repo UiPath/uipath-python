@@ -521,7 +521,6 @@ class StudioWebProgressReporter:
                 execution_time=sw_progress_item.agent_execution_time,
                 actual_output=sw_progress_item.agent_output,
                 success=sw_progress_item.success,
-                is_coded=is_coded,
             )
         else:
             spec = self._update_eval_run_spec(
@@ -531,7 +530,6 @@ class StudioWebProgressReporter:
                 execution_time=sw_progress_item.agent_execution_time,
                 actual_output=sw_progress_item.agent_output,
                 success=sw_progress_item.success,
-                is_coded=is_coded,
             )
 
         await self._client.request_async(
@@ -1130,11 +1128,7 @@ class StudioWebProgressReporter:
         actual_output: dict[str, Any],
         execution_time: float,
         success: bool,
-        is_coded: bool = False,
     ) -> RequestSpec:
-        # For legacy evaluations, endpoint is without /coded
-        endpoint_suffix = "coded/" if is_coded else ""
-
         # Determine status based on success
         status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
 
@@ -1157,17 +1151,15 @@ class StudioWebProgressReporter:
         payload = inner_payload
 
         # Log the payload for debugging eval run updates
-        agent_type = "coded" if is_coded else "low-code"
         logger.debug(
-            f"Updating eval run (type={agent_type}): "
-            f"evalRunId={eval_run_id}, success={success}"
+            f"Updating low-code eval run: evalRunId={eval_run_id}, success={success}"
         )
         logger.debug(f"Full eval run update payload: {json.dumps(payload, indent=2)}")
 
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalRun"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/evalRun"
             ),
             json=payload,
             headers=self._tenant_header(),
@@ -1181,12 +1173,8 @@ class StudioWebProgressReporter:
         actual_output: dict[str, Any],
         execution_time: float,
         success: bool,
-        is_coded: bool = False,
     ) -> RequestSpec:
         """Create update spec for coded evaluators."""
-        # For coded evaluations, endpoint has /coded
-        endpoint_suffix = "coded/" if is_coded else ""
-
         # Determine status based on success
         status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
 
@@ -1204,10 +1192,8 @@ class StudioWebProgressReporter:
         }
 
         # Log the payload for debugging coded eval run updates
-        agent_type = "coded" if is_coded else "low-code"
         logger.debug(
-            f"Updating coded eval run (type={agent_type}): "
-            f"evalRunId={eval_run_id}, success={success}"
+            f"Updating coded eval run: evalRunId={eval_run_id}, success={success}"
         )
         logger.debug(
             f"Full coded eval run update payload: {json.dumps(payload, indent=2)}"
@@ -1216,8 +1202,9 @@ class StudioWebProgressReporter:
         return RequestSpec(
             method="PUT",
             endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalRun"
+                f"{self._unified_progress_path()}/evalRuns/{eval_run_id}"
             ),
+            params=self._project_files_source_field(),
             json=payload,
             headers=self._tenant_header(),
         )
@@ -1262,9 +1249,6 @@ class StudioWebProgressReporter:
                     expected_output = first_criteria.get("expectedOutput", {})
             eval_snapshot["expectedOutput"] = expected_output
 
-        # For legacy evaluations, endpoint is without /coded
-        endpoint_suffix = "coded/" if is_coded else ""
-
         inner_payload: dict[str, Any] = {
             "evalSetRunId": eval_set_run_id,
             "evalSnapshot": eval_snapshot,
@@ -1286,11 +1270,15 @@ class StudioWebProgressReporter:
         )
         logger.debug(f"Full eval run payload: {json.dumps(payload, indent=2)}")
 
+        endpoint = (
+            f"{self._unified_progress_path()}/evalSetRuns/{eval_set_run_id}/evalRuns"
+            if is_coded
+            else f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/evalRun"
+        )
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalRun"
-            ),
+            endpoint=Endpoint(endpoint),
+            params={"reportId": str(uuid.uuid4())} if is_coded else {},
             json=payload,
             headers=self._tenant_header(),
         )
@@ -1302,8 +1290,6 @@ class StudioWebProgressReporter:
         no_of_evals: int,
         is_coded: bool = False,
     ) -> RequestSpec:
-        # For legacy evaluations, endpoint is without /coded
-        endpoint_suffix = "coded/" if is_coded else ""
 
         # Legacy API expects evalSetId as GUID, coded accepts string
         # Convert string IDs to deterministic GUIDs for legacy
@@ -1343,11 +1329,15 @@ class StudioWebProgressReporter:
         )
         logger.debug(f"Full eval set run payload: {json.dumps(payload, indent=2)}")
 
+        endpoint = (
+            f"{self._unified_progress_path()}/evalSetRuns"
+            if is_coded
+            else f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/evalSetRun"
+        )
         return RequestSpec(
             method="POST",
-            endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalSetRun"
-            ),
+            endpoint=Endpoint(endpoint),
+            params={"reportId": str(uuid.uuid4())} if is_coded else {},
             json=payload,
             headers=self._tenant_header(),
         )
@@ -1379,9 +1369,6 @@ class StudioWebProgressReporter:
                 {"value": avg_score, "evaluatorId": evaluator_id_value}
             )
 
-        # For legacy evaluations, endpoint is without /coded
-        endpoint_suffix = "coded/" if is_coded else ""
-
         # Determine status based on success
         status = EvaluationStatus.COMPLETED if success else EvaluationStatus.FAILED
 
@@ -1409,11 +1396,15 @@ class StudioWebProgressReporter:
             f"Full eval set run update payload: {json.dumps(payload, indent=2)}"
         )
 
+        endpoint = (
+            f"{self._unified_progress_path()}/evalSetRuns/{eval_set_run_id}"
+            if is_coded
+            else f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/evalSetRun"
+        )
         return RequestSpec(
             method="PUT",
-            endpoint=Endpoint(
-                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/{endpoint_suffix}evalSetRun"
-            ),
+            endpoint=Endpoint(endpoint),
+            params=self._project_files_source_field() if is_coded else {},
             json=payload,
             headers=self._tenant_header(),
         )
@@ -1436,20 +1427,11 @@ class StudioWebProgressReporter:
         Returns:
             RequestSpec for the GET request
         """
-        # Build endpoint path matching backend structure:
-        # Legacy: api/execution/agents/{agentId}/evalSets/{evalSetId}/evalSetRuns/{evalSetRunId}/evalRuns
-        # Coded: api/execution/agents/{agentId}/coded/evalSets/{evalSetId}/evalSetRuns/{evalSetRunId}/evalRuns
-
-        prefix = self._get_endpoint_prefix()
-
         if is_coded:
-            endpoint_path = (
-                f"{prefix}execution/agents/{self._agent_id}/coded/"
-                f"evalSets/{eval_set_id}/evalSetRuns/{eval_set_run_id}/evalRuns"
-            )
+            endpoint_path = f"{self._unified_progress_path()}/evalSetRuns/{eval_set_run_id}/evalRuns"
         else:
             endpoint_path = (
-                f"{prefix}execution/agents/{self._agent_id}/"
+                f"{self._get_endpoint_prefix()}execution/agents/{self._agent_id}/"
                 f"evalSets/{eval_set_id}/evalSetRuns/{eval_set_run_id}/evalRuns"
             )
 
@@ -1468,6 +1450,9 @@ class StudioWebProgressReporter:
             params=self._project_files_source_field(),
             headers=self._tenant_header(),
         )
+
+    def _unified_progress_path(self) -> str:
+        return f"{self._get_endpoint_prefix()}unifiedEvals/workloads/{self._agent_id}"
 
     def _tenant_header(self) -> dict[str, str | None]:
         tenant_id = os.getenv(ENV_TENANT_ID, None)
