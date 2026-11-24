@@ -75,6 +75,7 @@ nav:
             - Jobs: core/jobs.md
             - Guardrails: core/guardrails.md
             - LLM Gateway: core/llm_gateway.md
+            - Ontology: core/ontology.md
             - Queues: core/queues.md
             - Processes: core/processes.md
             - Resource Catalog: core/resource_catalog.md
