@@ -3,7 +3,8 @@ import logging
 import re
 from typing import Any, Optional
 
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, ReadTimeout, Timeout
+from tenacity import retry_if_exception, retry_if_result
 from uipath.core.guardrails import (
     GuardrailScope,
     GuardrailValidationErrorType,
@@ -12,7 +13,11 @@ from uipath.core.guardrails import (
 )
 from uipath.core.tracing import traced
 
-from uipath.platform.constants import HEADER_FOLDER_KEY, HEADER_GUARDRAILS_SOURCE
+from uipath.platform.constants import (
+    HEADER_FOLDER_KEY,
+    HEADER_GUARDRAILS_SOURCE,
+    HEADER_GUARDRAILS_TIMEOUT_MS,
+)
 
 from ..chat.llm_trace_context import build_trace_context_headers
 from ..common._base_service import BaseService
@@ -20,7 +25,8 @@ from ..common._config import UiPathApiConfig, UiPathConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._job_context import header_job_key
 from ..common._models import Endpoint, RequestSpec
-from ..errors import EnrichedException
+from ..common.retry import is_retryable_response, is_retryable_unless_read_timeout
+from ..errors import EnrichedException, GuardrailValidationTimeoutError
 from .guardrails import (
     BYO_VALIDATOR_TYPE,
     BuiltInValidatorGuardrail,
@@ -30,7 +36,20 @@ from .guardrails import (
 
 logger = logging.getLogger(__name__)
 
-_ATTACHMENT_VALIDATE_TIMEOUT_SECONDS = 60.0
+# A validation can outlast the client's default 30 s while a provider is throttled.
+# The service is told the same wait, so it stops working when the client stops
+# waiting. Connecting keeps the default.
+_VALIDATE_RESPONSE_TIMEOUT_SECONDS = 150.0
+_VALIDATE_TIMEOUT = Timeout(30.0, read=_VALIDATE_RESPONSE_TIMEOUT_SECONDS)
+
+# The retries of ``BaseService.request``, minus the one after a read timeout: the
+# service has the request, and sending it again starts the validation over.
+_request_without_read_timeout_retry = BaseService.request.retry_with(  # type: ignore[attr-defined]
+    retry=(
+        retry_if_exception(is_retryable_unless_read_timeout)
+        | retry_if_result(is_retryable_response)
+    )
+)
 
 
 # x-uipath-traceparent-id header format: {version}-{trace_id}-{span_id}[-{trace_flags}]
@@ -164,6 +183,10 @@ class GuardrailsService(BaseService):
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
+
+        Raises:
+            GuardrailValidationTimeoutError: The service did not answer in time.
+                The request is not sent again.
         """
         # In a job, the Guardrails Service publishes its own span for this
         # evaluation, so a client span would only duplicate it. Local runs don't
@@ -219,11 +242,12 @@ class GuardrailsService(BaseService):
         request_kwargs: dict[str, Any] = {
             "json": spec.json,
             "headers": self._build_validate_headers(spec, attachments),
+            "timeout": _VALIDATE_TIMEOUT,
         }
-        if attachments:
-            request_kwargs["timeout"] = _ATTACHMENT_VALIDATE_TIMEOUT_SECONDS
 
-        response_data, span_id = self._send_validate_request(spec, request_kwargs)
+        response_data, span_id = self._send_validate_request(
+            spec, request_kwargs, guardrail.name
+        )
         return self._to_validation_result(response_data, span_id, guardrail.name)
 
     @staticmethod
@@ -290,14 +314,28 @@ class GuardrailsService(BaseService):
             **source_headers,
             **header_job_key(),
             **folder_headers,
+            HEADER_GUARDRAILS_TIMEOUT_MS: str(
+                int(_VALIDATE_RESPONSE_TIMEOUT_SECONDS * 1000)
+            ),
         }
 
     def _send_validate_request(
-        self, spec: RequestSpec, request_kwargs: dict[str, Any]
+        self,
+        spec: RequestSpec,
+        request_kwargs: dict[str, Any],
+        guardrail_name: str,
     ) -> tuple[dict[str, Any], str | None]:
         """Send a validate request; return the response body and the service span id."""
         try:
-            response = self.request(spec.method, url=spec.endpoint, **request_kwargs)
+            response = _request_without_read_timeout_retry(
+                self, spec.method, url=spec.endpoint, **request_kwargs
+            )
+        except ReadTimeout as e:
+            raise GuardrailValidationTimeoutError(
+                guardrail_name,
+                _VALIDATE_RESPONSE_TIMEOUT_SECONDS,
+                request=e.request,
+            ) from e
         except EnrichedException as e:
             # The API returns 403 with a valid JSON body for ENTITLEMENTS_MISSING
             # or FEATURE_DISABLED; any other error is raised.
