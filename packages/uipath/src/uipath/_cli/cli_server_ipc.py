@@ -110,12 +110,9 @@ class PythonRuntimeService(IPythonRuntimeServer):
         on_run_end: "Any" = None
         installed: "list[Any]" = []
         token_refreshers: "list[Any]" = []
-        from ._job_token import TOKEN_REFRESH_ENV_VAR, token_refresh_requested
-
         stream_output = request.streamOutputOverIpc
-        env = request.environmentVariables
-        refresh_token = token_refresh_requested(env if isinstance(env, dict) else {})
-        if stream_output or refresh_token:
+        client = message.client if message is not None else None
+        if stream_output or client is not None:
             # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
                 IPythonJobApi,
@@ -124,7 +121,6 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 is_wire_job_key,
             )
 
-            client = message.client if message is not None else None
             problem: str | None = None
             if not is_wire_job_key(request.jobKey):
                 problem = (
@@ -137,13 +133,8 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 return PythonServerRunJobResult(
                     exitCode=1, error=f"streamOutputOverIpc {problem}"
                 )
-            if problem is not None:
-                # Renewal is optional: the job runs without it.
-                console.warning(
-                    f"{TOKEN_REFRESH_ENV_VAR} is set, but token renewal {problem}; "
-                    "running without it."
-                )
-            elif client is not None:
+            # Token renewal rides along; a host that cannot renew ends it.
+            if client is not None and problem is None:
                 # get_callback only wraps the connection, so this cannot tell us whether the peer
                 # actually hosts the contract; a peer that doesn't shows up as a failing send.
                 callback = client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
@@ -159,15 +150,14 @@ class PythonRuntimeService(IPythonRuntimeServer):
                                 job_key, resume_version, callback, loop
                             )
                         )
-                    if refresh_token:
-                        # The job's environment is applied by now; jobs run one at a time.
-                        from ._job_token import install_job_token_refresher
+                    # The job's environment is applied by now; jobs run one at a time.
+                    from ._job_token import install_job_token_refresher
 
-                        token_refreshers.append(
-                            install_job_token_refresher(
-                                job_key, resume_version, callback, loop
-                            )
+                    token_refreshers.append(
+                        install_job_token_refresher(
+                            job_key, resume_version, callback, loop
                         )
+                    )
 
                 def _uninstall() -> None:
                     if stream_output:

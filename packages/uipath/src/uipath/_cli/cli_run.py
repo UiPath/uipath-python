@@ -230,15 +230,9 @@ def run(  # NOSONAR: one parameter per click option
                     )
 
                 from ._job_api import handler_ipc_connection
-                from ._job_token import token_refresh_requested
 
                 async with (
-                    handler_ipc_connection(
-                        handler_ipc_pipe,
-                        ctx.job_id,
-                        None,
-                        refresh_token=token_refresh_requested(),
-                    ),
+                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id, None),
                     ResourceOverwritesContext(
                         lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
                     ),

@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Any
@@ -31,15 +31,10 @@ _RETRY_AFTER_FAILURE_S = 30.0
 # Longest single wait, so a suspended machine or a clock change cannot delay a renewal for long.
 _MAX_SLEEP_S = 60.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
-# Set to "true" in a job's environment by a host that can renew the job's token.
-TOKEN_REFRESH_ENV_VAR = "UIPATH_FEATURE_EnableAccessTokenRefresh"
-
-
-def token_refresh_requested(environ: Mapping[str, str] | None = None) -> bool:
-    """Whether a job's environment asks for token renewal; this process's by default."""
-    # Not through FeatureFlags: the pooled server reads a job's environment before applying it.
-    env = os.environ if environ is None else environ
-    return env.get(TOKEN_REFRESH_ENV_VAR, "").strip().lower() == "true"
+# Errors meaning the host cannot renew: it predates the call, or it cannot mint tokens.
+_HOST_CANNOT_RENEW = frozenset(
+    {"UiPath.Ipc.MethodNotFoundException", "System.NotSupportedException"}
+)
 
 
 def _claims(token: str) -> dict[str, Any]:
@@ -103,7 +98,7 @@ class JobTokenRefresher:
     """Renews the job's user access token and publishes it to the environment.
 
     A failure keeps the current token and is retried. Only the first failure is logged,
-    until a renewal succeeds again.
+    until a renewal succeeds again. A host that cannot renew ends the renewal for the job.
     """
 
     def __init__(
@@ -151,7 +146,7 @@ class JobTokenRefresher:
         while not self._stopped:
             state = self._state
             if state is None or state.refresh_at is None:
-                logger.warning(
+                logger.debug(
                     "Not renewing the job's user access token: there is no token with an "
                     "expiry to schedule against."
                 )
@@ -176,7 +171,10 @@ class JobTokenRefresher:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            self._note_failure(e)
+            if getattr(e, "type_name", None) in _HOST_CANNOT_RENEW:
+                self._host_cannot_renew(e)
+            else:
+                self._note_failure(e)
             return
         self._store(token)
 
@@ -218,6 +216,14 @@ class JobTokenRefresher:
             "failures are not logged until a renewal succeeds.",
             error,
             _RETRY_AFTER_FAILURE_S,
+        )
+
+    def _host_cannot_renew(self, error: BaseException) -> None:
+        with self._lock:
+            self._stopped = True
+        logger.info(
+            "Not renewing the job's user access token: the host does not offer it (%s).",
+            getattr(error, "type_name", None),
         )
 
 

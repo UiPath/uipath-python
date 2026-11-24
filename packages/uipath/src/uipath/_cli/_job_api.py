@@ -384,12 +384,10 @@ def connect_handler_ipc(
     pipe: str,
     job_key: str | None,
     resume_version: int | None,
-    *,
-    refresh_token: bool = False,
 ) -> _HandlerIpcConnection:
     """Dial ``pipe`` on a dedicated loop/thread and install the sinks (see ``_HandlerIpcConnection``).
 
-    With ``refresh_token``, the job's user access token is renewed over the same connection.
+    The job's user access token is renewed over the same connection.
     """
     if not is_wire_job_key(job_key):
         raise RuntimeError(
@@ -431,13 +429,9 @@ def connect_handler_ipc(
         raise
     # Install in the caller's context: the sinks are contextvars, read in the job's own context at teardown.
     handler = install_runtime_sinks(job_key, resume_version, proxy, loop)
-    token_refresher = None
-    if refresh_token:
-        from ._job_token import install_job_token_refresher
+    from ._job_token import install_job_token_refresher
 
-        token_refresher = install_job_token_refresher(
-            job_key, resume_version, proxy, loop
-        )
+    token_refresher = install_job_token_refresher(job_key, resume_version, proxy, loop)
     return _HandlerIpcConnection(client, loop, thread, handler, token_refresher)
 
 
@@ -452,14 +446,10 @@ async def handler_ipc_connection(
     pipe: str | None,
     job_key: str | None,
     resume_version: int | None,
-    *,
-    refresh_token: bool = False,
 ) -> AsyncIterator[Any]:
     """Connect (if ``pipe`` is set) and always disconnect on exit; yields the connection or None."""
     conn = (
-        connect_handler_ipc(pipe, job_key, resume_version, refresh_token=refresh_token)
-        if pipe is not None
-        else None
+        connect_handler_ipc(pipe, job_key, resume_version) if pipe is not None else None
     )
     try:
         yield conn

@@ -16,11 +16,9 @@ import pytest
 
 from uipath._cli import _job_api, _job_token
 from uipath._cli._job_token import (
-    TOKEN_REFRESH_ENV_VAR,
     JobTokenRefresher,
     install_job_token_refresher,
     publish_token_to_environ,
-    token_refresh_requested,
 )
 
 JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
@@ -292,9 +290,9 @@ class TestRenewal:
 
         _task(refresher).result(timeout=5)  # returns at once: nothing to time against
         assert api.requests == []
-        warnings = _warnings(records)
-        assert len(warnings) == 1
-        assert "no token with an expiry" in warnings[0]
+        # Normal for a job without a usable token, so not a warning.
+        assert _warnings(records) == []
+        assert any("no token with an expiry" in r.getMessage() for r in records)
 
     def test_no_token_at_all_means_no_timer(
         self, ipc_loop: asyncio.AbstractEventLoop, records: list[logging.LogRecord]
@@ -307,7 +305,7 @@ class TestRenewal:
         _task(refresher).result(timeout=5)
         assert api.requests == []
         assert _token(refresher) is None
-        assert len(_warnings(records)) == 1
+        assert _warnings(records) == []
 
     def test_a_clock_jump_during_the_wait_is_noticed_within_one_slice(
         self, ipc_loop: asyncio.AbstractEventLoop, monkeypatch: pytest.MonkeyPatch
@@ -356,15 +354,39 @@ class TestFailures:
         # the silence that follows is announced
         assert "logged only once" in warnings[0]
 
-    def test_a_host_without_the_method_is_retried_like_any_other_failure(
+    @pytest.mark.parametrize(
+        "type_name",
+        ["UiPath.Ipc.MethodNotFoundException", "System.NotSupportedException"],
+    )
+    def test_a_host_that_cannot_renew_ends_the_renewal_quietly(
+        self,
+        ipc_loop: asyncio.AbstractEventLoop,
+        monkeypatch: pytest.MonkeyPatch,
+        records: list[logging.LogRecord],
+        type_name: str,
+    ) -> None:
+        monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.1)
+        api = FakeJobApi(error=RemoteError(type_name))
+        token = token_with_lifetime(600, remaining=60)  # due now
+        refresher = _refresher(api, ipc_loop, token)
+
+        refresher.start()
+
+        _task(refresher).result(timeout=5)  # the loop ends by itself
+        assert len(api.requests) == 1  # asked once, never again
+        assert _token(refresher) == token
+        assert _warnings(records) == []
+        infos = [r.getMessage() for r in records if r.levelno == logging.INFO]
+        assert any(type_name in m for m in infos)
+
+    def test_any_other_remote_error_is_retried(
         self,
         ipc_loop: asyncio.AbstractEventLoop,
         monkeypatch: pytest.MonkeyPatch,
         records: list[logging.LogRecord],
     ) -> None:
-        # No error type stops the retries.
         monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
-        api = FakeJobApi(error=RemoteError("UiPath.Ipc.MethodNotFoundException"))
+        api = FakeJobApi(error=RemoteError("UiPath.Ipc.EndpointNotFoundException"))
         token = token_with_lifetime(600, remaining=60)  # due now
         refresher = _refresher(api, ipc_loop, token)
 
@@ -376,7 +398,7 @@ class TestFailures:
         assert _token(refresher) == token
         warnings = _warnings(records)
         assert len(warnings) == 1
-        assert "MethodNotFoundException" in warnings[0]
+        assert "EndpointNotFoundException" in warnings[0]
 
     def test_a_new_failure_after_a_recovery_warns_again(
         self,
@@ -574,35 +596,6 @@ class TestInstall:
         assert not thread.is_alive()
 
 
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("true", True),
-        ("True", True),
-        (" TRUE ", True),
-        ("false", False),
-        ("", False),
-        ("1", False),
-        ("yes", False),
-    ],
-)
-def test_the_opt_in_is_an_explicit_true(value: str, expected: bool) -> None:
-    assert token_refresh_requested({TOKEN_REFRESH_ENV_VAR: value}) is expected
-
-
-def test_the_opt_in_is_off_when_the_variable_is_missing() -> None:
-    assert token_refresh_requested({}) is False
-
-
-def test_the_opt_in_reads_this_process_by_default(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, "true")
-    assert token_refresh_requested() is True
-    monkeypatch.delenv(TOKEN_REFRESH_ENV_VAR)
-    assert token_refresh_requested() is False
-
-
 def test_token_request_dto_wire_keys_are_pinned() -> None:
     serialization = pytest.importorskip("uipath_ipc.wire.serialization")
     request = _job_api.PythonUserAccessTokenRequestDto(jobKey="j")
@@ -631,7 +624,9 @@ def _isolate_output_sinks(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _serve_jobapi_in_background(pipe: str, api: Any) -> Callable[[], None]:
+def _serve_jobapi_in_background(
+    pipe: str, api: Any, contract: Any = None
+) -> Callable[[], None]:
     """Host ``api`` as IPythonJobApi on ``pipe`` on its own loop/thread; returns stop()."""
     from uipath_ipc import IpcServer, NamedPipeServerTransport
 
@@ -642,7 +637,7 @@ def _serve_jobapi_in_background(pipe: str, api: Any) -> Callable[[], None]:
     async def _serve() -> None:
         server = IpcServer(
             transport=NamedPipeServerTransport(pipe),
-            services={_job_api.IPythonJobApi: api},
+            services={contract or _job_api.IPythonJobApi: api},
             request_timeout=None,
         )
         holder["server"] = server
@@ -693,7 +688,7 @@ class _WireApi(_job_api.IPythonJobApi):
         return f"wire-token-{len(self.received)}"
 
 
-def test_connect_with_refresh_renews_over_the_wire(
+def test_connecting_renews_over_the_wire(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pytest.importorskip("uipath_ipc")
@@ -706,9 +701,7 @@ def test_connect_with_refresh_renews_over_the_wire(
     try:
 
         async def scenario() -> None:
-            async with _job_api.handler_ipc_connection(
-                pipe, JOB_ID, 5, refresh_token=True
-            ) as conn:
+            async with _job_api.handler_ipc_connection(pipe, JOB_ID, 5) as conn:
                 assert conn._token_refresher is not None
                 # The renewal crosses the pipe and lands in the environment.
                 assert await asyncio.to_thread(
@@ -727,21 +720,38 @@ def test_connect_with_refresh_renews_over_the_wire(
     assert (request.jobKey, request.resumeVersion, request.scopes) == (JOB_ID, 5, None)
 
 
-def test_connect_without_refresh_installs_no_refresher(
-    monkeypatch: pytest.MonkeyPatch,
+def _old_job_api_contract() -> type:
+    """IPythonJobApi as served by a host from before the token call."""
+    methods = {
+        name: getattr(_job_api.IPythonJobApi, name)
+        for name in vars(_job_api.IPythonJobApi)
+        if not name.startswith("_") and name != "GetUserAccessToken"
+    }
+    return type("IPythonJobApi", (), methods)
+
+
+def test_a_host_without_the_method_ends_the_renewal_over_the_wire(
+    monkeypatch: pytest.MonkeyPatch, records: list[logging.LogRecord]
 ) -> None:
     pytest.importorskip("uipath_ipc")
     _isolate_output_sinks(monkeypatch)
+    monkeypatch.setenv(ACCESS, token_with_lifetime(600, remaining=60))  # due now
+    monkeypatch.delenv(UNATTENDED, raising=False)
     api = _WireApi()
     pipe = _unique_pipe()
-    stop = _serve_jobapi_in_background(pipe, api)
+    stop = _serve_jobapi_in_background(pipe, api, contract=_old_job_api_contract())
     try:
 
         async def scenario() -> None:
             async with _job_api.handler_ipc_connection(pipe, JOB_ID, None) as conn:
-                assert conn._token_refresher is None
+                refresher = conn._token_refresher
+                assert refresher is not None
+                # The host's own error ends the renewal: no retry, no warning.
+                assert await asyncio.to_thread(_wait, lambda: _task(refresher).done())
 
         asyncio.run(scenario())
     finally:
         stop()
+
     assert api.received == []
+    assert _warnings(records) == []

@@ -10,7 +10,6 @@ import pytest
 from click.testing import CliRunner
 
 from uipath._cli import cli
-from uipath._cli._job_token import TOKEN_REFRESH_ENV_VAR
 from uipath._cli.middlewares import MiddlewareResult
 
 
@@ -229,85 +228,15 @@ class TestRun:
                 ).output
             )
 
-        def test_the_token_refresh_opt_in_without_the_pipe_is_ignored(
-            self,
-            runner: CliRunner,
-            temp_dir: str,
-            entrypoint: str,
-            monkeypatch: pytest.MonkeyPatch,
-        ) -> None:
-            # A child process inherits the variable; without a pipe there is nothing to ask.
-            monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, "true")
-            with runner.isolated_filesystem(temp_dir=temp_dir), self._taken_over():
-                result = runner.invoke(cli, ["run", entrypoint])
-            assert result.exit_code == 0, f"output: {result.output!r}"
-            assert "renewal" not in result.output
-            assert "Successful execution." in result.output
-
-        @pytest.mark.parametrize(
-            ("value", "expected"), [("true", True), ("false", False)]
-        )
-        def test_the_token_refresh_opt_in_reaches_the_connection(
-            self,
-            runner: CliRunner,
-            temp_dir: str,
-            monkeypatch: pytest.MonkeyPatch,
-            value: str,
-            expected: bool,
-        ) -> None:
-            """The job's environment decides; there is no command-line flag for it."""
-            job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
-            monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
-            monkeypatch.setenv(TOKEN_REFRESH_ENV_VAR, value)
-            seen: list[tuple[str, str, int | None, bool]] = []
-
-            @asynccontextmanager
-            async def _fake_connection(
-                pipe: str | None,
-                job_key: str | None,
-                resume_version: int | None,
-                *,
-                refresh_token: bool = False,
-            ) -> AsyncIterator[None]:
-                seen.append((pipe, job_key, resume_version, refresh_token))
-                yield None
-
-            factory = _make_mock_factory(["my_agent"])
-            with runner.isolated_filesystem(temp_dir=temp_dir):
-                with (
-                    patch(
-                        "uipath._cli.cli_run.Middlewares.next",
-                        return_value=_middleware_continue(),
-                    ),
-                    patch(
-                        "uipath._cli.cli_run.UiPathRuntimeFactoryRegistry.get",
-                        return_value=factory,
-                    ),
-                    patch(
-                        "uipath._cli.cli_run.ResourceOverwritesContext",
-                        side_effect=_mock_resource_overwrites_context,
-                    ),
-                    patch(
-                        "uipath._cli._job_api.handler_ipc_connection", _fake_connection
-                    ),
-                ):
-                    result = runner.invoke(
-                        cli, ["run", "--handler-ipc-pipe", "some-pipe"]
-                    )
-
-            assert result.exit_code == 0, f"output: {result.output!r}"
-            assert seen == [("some-pipe", job_key, None, expected)]
-
         def test_the_job_runs_inside_the_open_connection(
             self, runner: CliRunner, temp_dir: str, monkeypatch
         ):
             """Dialling the pipe is not enough: the run has to happen while it is open."""
             job_key = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
-            monkeypatch.delenv(TOKEN_REFRESH_ENV_VAR, raising=False)
 
             events: list[str] = []
-            seen: list[tuple[str, str, int | None, bool]] = []
+            seen: list[tuple[str | None, str | None, int | None]] = []
             snapshots: list[object] = []
 
             from uipath.runtime import context as runtime_context
@@ -320,10 +249,8 @@ class TestRun:
                 pipe: str | None,
                 job_key: str | None,
                 resume_version: int | None,
-                *,
-                refresh_token: bool = False,
             ) -> AsyncIterator[None]:
-                seen.append((pipe, job_key, resume_version, refresh_token))
+                seen.append((pipe, job_key, resume_version))
                 events.append("open")
                 # Install for real: the ordering that matters is against the runtime context's
                 # one-shot snapshot, not against runtime.execute.
@@ -381,7 +308,7 @@ class TestRun:
             # The whole point: the connection must still be open when the job runs.
             assert events == ["open", "run", "close"], events
             # And it must be told which job, not None.
-            assert seen == [("some-pipe", job_key, None, False)]
+            assert seen == [("some-pipe", job_key, None)]
             # The connection must be open BEFORE the runtime context snapshots the sinks: move it
             # inside and __enter__ would capture None, losing every log line and the result.
             assert snapshots == [sentinel], (
