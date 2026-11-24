@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -55,6 +55,30 @@ def allow_document_type_change(
     if isinstance(service, DocumentsServiceV2):
         return {"configuration": {"allowChangeOfDocumentType": True}}
     return {"allowChangeOfDocumentType": True}
+
+
+async def wait_for_outcomes(
+    service: DocumentsService | DocumentsServiceV2,
+    mode: str,
+    outcomes: list[tuple[Any, Any, Any]],
+) -> Any:
+    """Waits through `_wait_for_operation`, or its async twin, on `outcomes` in turn."""
+
+    def result_getter() -> tuple[Any, Any, Any]:
+        return outcomes.pop(0)
+
+    async def result_getter_async() -> tuple[Any, Any, Any]:
+        return outcomes.pop(0)
+
+    statuses: dict[str, Any] = {
+        "wait_statuses": ["NotStarted", "Running"],
+        "success_status": "Succeeded",
+    }
+    if mode == "async":
+        return await service._wait_for_operation_async(
+            result_getter=result_getter_async, **statuses
+        )
+    return service._wait_for_operation(result_getter=result_getter, **statuses)
 
 
 @pytest.fixture
@@ -3108,6 +3132,118 @@ class TestDocumentsService:
                     wait_statuses=["NotStarted", "Running"],
                     success_status="Succeeded",
                 )
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    @patch("uipath.platform.documents._documents_service.asyncio")
+    @patch("uipath.platform.documents._documents_service.time")
+    async def test_wait_for_operation_sleeps_only_between_checks(
+        self,
+        mock_time: Mock,
+        mock_asyncio: Mock,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ARRANGE
+        mock_time.monotonic.return_value = 0
+        mock_asyncio.sleep = AsyncMock()
+        outcomes = [
+            ("NotStarted", None, None),
+            ("Running", None, None),
+            ("Succeeded", None, {"done": True}),
+        ]
+
+        # ACT
+        result = await wait_for_outcomes(service, mode, outcomes)
+
+        # ASSERT
+        assert result == {"done": True}
+        sleep = mock_asyncio.sleep if mode == "async" else mock_time.sleep
+        # Between the three checks, and not after the last one.
+        assert sleep.call_count == 2
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    @patch("uipath.platform.documents._documents_service.asyncio")
+    @patch("uipath.platform.documents._documents_service.time")
+    async def test_wait_for_operation_checks_last_at_the_deadline(
+        self,
+        mock_time: Mock,
+        mock_asyncio: Mock,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ARRANGE
+        service.polling_interval = 2
+        service.polling_timeout = 3
+        # The wait starts at 0, and the checks end at 0, 2 and 3.
+        mock_time.monotonic.side_effect = [0, 0, 2, 3]
+        mock_asyncio.sleep = AsyncMock()
+        outcomes = [("Running", None, None)] * 3
+
+        # ACT & ASSERT
+        with pytest.raises(TimeoutError, match="Operation timed out."):
+            await wait_for_outcomes(service, mode, outcomes)
+
+        sleep = mock_asyncio.sleep if mode == "async" else mock_time.sleep
+        # The second sleep is cut short so it ends at the deadline, where the
+        # last check is made.
+        assert [c.args for c in sleep.call_args_list] == [(2,), (1,)]
+        assert outcomes == []
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    @patch("uipath.platform.documents._documents_service.time")
+    async def test_wait_for_operation_reports_a_failure_near_the_deadline(
+        self,
+        mock_time: Mock,
+        service: DocumentsService,
+        mode: str,
+    ):
+        # ARRANGE
+        # The failure comes back from a check that ends after the timeout.
+        mock_time.monotonic.side_effect = [0, 5, 12]
+        outcomes = [("Running", None, None), ("Failed", "Dummy error", None)]
+
+        # ACT & ASSERT
+        with pytest.raises(RuntimeError, match="status: Failed, error: Dummy error"):
+            await wait_for_outcomes(service, mode, outcomes)
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.asyncio
+    async def test_start_and_wait(self, service: DocumentsService, mode: str):
+        # ARRANGE
+        starts = []
+        checks = [False, False, True]
+
+        def start() -> str:
+            starts.append("op")
+            return "op"
+
+        def retrieve(started: str) -> str:
+            if not checks.pop(0):
+                raise OperationNotCompleteException(
+                    operation_id=started, status="Running"
+                )
+            return f"{started} done"
+
+        async def start_async() -> str:
+            return start()
+
+        async def retrieve_async(started: str) -> str:
+            return retrieve(started)
+
+        # ACT
+        if mode == "async":
+            result = await service._start_and_wait_async(start_async, retrieve_async)
+        else:
+            result = service._start_and_wait(start, retrieve)
+
+        # ASSERT
+        # Started once, then checked on what start returned until complete.
+        assert starts == ["op"]
+        assert checks == []
+        assert result == "op done"
 
     @pytest.mark.parametrize("mode", ["sync", "async"])
     @pytest.mark.asyncio

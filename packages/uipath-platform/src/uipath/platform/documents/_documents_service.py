@@ -3,7 +3,18 @@ import asyncio
 import time
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 from urllib.parse import quote
 from uuid import UUID
 
@@ -33,6 +44,9 @@ from .documents import (
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
 
+S = TypeVar("S")
+T = TypeVar("T")
+
 # Response values returned as-is: Document Processing contract payloads are
 # PascalCase in every API version, and the digitization DOM is large and unused.
 _UNNORMALIZED_KEYS = frozenset(
@@ -46,15 +60,33 @@ _UNNORMALIZED_KEYS = frozenset(
 )
 
 
-def _framework_url(*segments: Any) -> Endpoint:
+def _url_path(segments: Tuple[Any, ...]) -> str:
     parts = [str(segment) for segment in segments]
     for part in parts:
         # Percent-encoding leaves these unchanged, and URL normalization would
         # resolve them, moving the request to another route.
         if part in ("", ".", ".."):
             raise ValueError(f"Invalid URL path segment: {part!r}")
-    path = "/".join(quote(part, safe="") for part in parts)
-    return Endpoint(f"/du_/api/framework/projects/{path}")
+    return "/".join(quote(part, safe="") for part in parts)
+
+
+def _framework_url(*segments: Any) -> Endpoint:
+    return Endpoint(f"/du_/api/framework/projects/{_url_path(segments)}")
+
+
+def _status_result(
+    outcome: Tuple[Any, Optional[Any], Optional[Any]],
+    wait_statuses: List[str],
+    success_status: str,
+) -> Any:
+    """Read one `(status, error, result)` check for `_wait_until_complete`."""
+    status, error, result = outcome
+    if status in wait_statuses:
+        # Only signals the poller to try again; it never reaches the caller.
+        raise OperationNotCompleteException(operation_id="", status=status)
+    if status != success_status:
+        raise RuntimeError(f"Operation failed with status: {status}, error: {error}")
+    return result
 
 
 def _operation_result(
@@ -801,31 +833,74 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             api_version=self._api_version,
         )
 
+    def _wait_until_complete(self, retrieve: Callable[[], T]) -> T:
+        """Call `retrieve` until it stops raising `OperationNotCompleteException`.
+
+        This is the one polling loop of the documents services: blocking
+        methods wait through it, on the same single-check `retrieve` that
+        non-blocking callers use. Checks are `polling_interval` apart, and the
+        last one is made when `polling_timeout` runs out.
+
+        Raises:
+            TimeoutError: If the operation is still not complete after `polling_timeout`.
+        """
+        deadline = time.monotonic() + self.polling_timeout
+        while True:
+            try:
+                return retrieve()
+            except OperationNotCompleteException:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("Operation timed out.") from None
+                # Never sleep past the deadline, so no check starts after it.
+                time.sleep(min(self.polling_interval, remaining))
+
+    async def _wait_until_complete_async(
+        self, retrieve: Callable[[], Awaitable[T]]
+    ) -> T:
+        """Asynchronous version of `_wait_until_complete`."""
+        deadline = time.monotonic() + self.polling_timeout
+        while True:
+            try:
+                return await retrieve()
+            except OperationNotCompleteException:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("Operation timed out.") from None
+                await asyncio.sleep(min(self.polling_interval, remaining))
+
+    def _start_and_wait(self, start: Callable[[], S], retrieve: Callable[[S], T]) -> T:
+        """Start an operation, then wait for it to complete.
+
+        `start` is called once. What it returns is passed to `retrieve`, so it
+        must carry everything `retrieve` needs. `retrieve` checks once, raising
+        `OperationNotCompleteException` while the operation runs. It is called
+        until it returns.
+
+        Raises:
+            TimeoutError: If the operation is still not complete after `polling_timeout`.
+        """
+        started = start()
+        return self._wait_until_complete(lambda: retrieve(started))
+
+    async def _start_and_wait_async(
+        self,
+        start: Callable[[], Awaitable[S]],
+        retrieve: Callable[[S], Awaitable[T]],
+    ) -> T:
+        """Asynchronous version of `_start_and_wait`."""
+        started = await start()
+        return await self._wait_until_complete_async(lambda: retrieve(started))
+
     def _wait_for_operation(
         self,
         result_getter: Callable[[], Tuple[Any, Optional[Any], Optional[Any]]],
         wait_statuses: List[str],
         success_status: str,
     ) -> Any:
-        start_time = time.monotonic()
-        status = wait_statuses[0]
-        result = None
-
-        while (
-            status in wait_statuses
-            and (time.monotonic() - start_time) < self.polling_timeout
-        ):
-            status, error, result = result_getter()
-            time.sleep(self.polling_interval)
-
-        if status != success_status:
-            if time.monotonic() - start_time >= self.polling_timeout:
-                raise TimeoutError("Operation timed out.")
-            raise RuntimeError(
-                f"Operation failed with status: {status}, error: {error}"
-            )
-
-        return result
+        return self._wait_until_complete(
+            lambda: _status_result(result_getter(), wait_statuses, success_status)
+        )
 
     async def _wait_for_operation_async(
         self,
@@ -835,25 +910,10 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         wait_statuses: List[str],
         success_status: str,
     ) -> Any:
-        start_time = time.monotonic()
-        status = wait_statuses[0]
-        result = None
+        async def retrieve() -> Any:
+            return _status_result(await result_getter(), wait_statuses, success_status)
 
-        while (
-            status in wait_statuses
-            and (time.monotonic() - start_time) < self.polling_timeout
-        ):
-            status, error, result = await result_getter()
-            await asyncio.sleep(self.polling_interval)
-
-        if status != success_status:
-            if time.monotonic() - start_time >= self.polling_timeout:
-                raise TimeoutError("Operation timed out.")
-            raise RuntimeError(
-                f"Operation failed with status: {status}, error: {error}"
-            )
-
-        return result
+        return await self._wait_until_complete_async(retrieve)
 
     def _wait_for_extraction(
         self,
