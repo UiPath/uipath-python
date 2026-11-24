@@ -1,5 +1,6 @@
 """What an execution's loop tells the runtime about the stops it delivers."""
 
+import asyncio
 import contextvars
 import sys
 import types
@@ -31,7 +32,7 @@ def stop_module(monkeypatch: pytest.MonkeyPatch) -> contextvars.ContextVar[Any]:
     return probe
 
 
-def test_the_runtime_learns_the_execution_was_asked_to_stop(
+def test_the_runtime_learns_a_stop_reached_the_execution(
     stop_module: contextvars.ContextVar[Any],
 ) -> None:
     control = ExecutionControl()
@@ -39,10 +40,30 @@ def test_the_runtime_learns_the_execution_was_asked_to_stop(
     async def body() -> tuple[bool, bool]:
         probe = stop_module.get()
         before = probe()
-        control.cancel_requested = True
-        return before, probe()
+        control.cancel()
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            return before, probe()
+        return before, False
 
     assert _run_controlled(control, body()) == (False, True)
+
+
+def test_a_stop_that_reaches_a_finished_execution_is_not_delivered() -> None:
+    control = ExecutionControl()
+    loop = asyncio.new_event_loop()
+    try:
+        task = loop.create_task(asyncio.sleep(0))
+        loop.run_until_complete(task)
+        control.bind(loop, task)
+        control.cancel()
+        loop.run_until_complete(asyncio.sleep(0))
+    finally:
+        loop.close()
+
+    assert control.cancel_requested is True
+    assert control.delivered is False
 
 
 def test_the_probe_stays_inside_the_execution(

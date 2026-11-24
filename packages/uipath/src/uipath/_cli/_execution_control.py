@@ -1,6 +1,6 @@
 """Lets the server cancel the execution that runs on its worker thread.
 
-run/debug/eval drive their own event loop inside the ``asyncio.to_thread`` worker. That
+run/debug/eval drive their own event loop on the server's executor thread. That
 loop is the only place a cancellation can land, so the command publishes it here and
 the server reaches it through ``loop.call_soon_threadsafe``.
 
@@ -24,7 +24,9 @@ class ExecutionControl:
     def __init__(self) -> None:
         """Create an unbound control; the execution binds its loop once it has one."""
         self.cancel_requested = False
-        self._delivered = False
+        # Set on the execution's loop once the root task, still running, took the cancellation.
+        self.delivered = False
+        self._sent = False
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: "asyncio.Task[Any] | None" = None
         self._sync = threading.Lock()
@@ -51,15 +53,19 @@ class ExecutionControl:
         """
         with self._sync:
             self.cancel_requested = True
-            if self._delivered or self._loop is None or self._task is None:
+            if self._sent or self._loop is None or self._task is None:
                 return
             loop, task = self._loop, self._task
-            self._delivered = True
+            self._sent = True
         try:
-            loop.call_soon_threadsafe(task.cancel)
+            loop.call_soon_threadsafe(self._deliver, task)
         except RuntimeError:
             with self._sync:
-                self._delivered = False
+                self._sent = False
+
+    def _deliver(self, task: "asyncio.Task[Any]") -> None:
+        if task.cancel():
+            self.delivered = True
 
     def cancel_all(self) -> None:
         """Cancel every task on the execution's loop, giving up on a clean cleanup."""
@@ -108,4 +114,4 @@ def _report_stops_as_stopped(control: ExecutionControl) -> None:
         stop = importlib.import_module("uipath.runtime.stop")
     except ImportError:  # uipath-runtime before 0.13.6 reports a stop as a fault
         return
-    stop.set_stop_requested_probe(lambda: control.cancel_requested)
+    stop.set_stop_requested_probe(lambda: control.delivered)

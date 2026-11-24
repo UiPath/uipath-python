@@ -284,7 +284,7 @@ async def _run_on_worker_thread(
         execution.finished.set()
 
     if worker.cancelled() or isinstance(worker.exception(), asyncio.CancelledError):
-        if execution.control.cancel_requested:
+        if execution.control.delivered:
             return _stopped_outcome()
         return {
             "ExitCode": 1,

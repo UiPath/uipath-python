@@ -113,6 +113,16 @@ def self_cancelling_command() -> None:
 
 
 @click.command()
+def self_cancelling_with_a_lingering_thread_command() -> None:
+    async def body() -> None:
+        asyncio.get_running_loop().run_in_executor(None, release.wait, 10)
+        started.set()
+        raise asyncio.CancelledError()
+
+    run_execution_loop(body())
+
+
+@click.command()
 def blocking_command() -> None:
     started.set()
     release.wait(10)
@@ -244,6 +254,27 @@ async def test_a_self_inflicted_cancellation_is_a_fault_not_a_stop() -> None:
 
     assert outcome["ExitCode"] == 1
     assert outcome["Unexpected"] is True
+    assert "Stopped" not in outcome
+
+
+async def test_a_stop_after_a_self_inflicted_cancellation_does_not_make_it_a_stop(
+    fresh_state: _ServerState, short_waits: None
+) -> None:
+    execution = start(self_cancelling_with_a_lingering_thread_command)
+    await wait_until(started)
+    control = fresh_state.executions[0].control
+    deadline = time.monotonic() + 10
+    while control._task is not None:
+        assert time.monotonic() < deadline, "the execution never withdrew its loop"
+        await asyncio.sleep(0.01)
+
+    stop = asyncio.create_task(stop_execution(JOB_KEY))
+    await asyncio.sleep(0.05)
+    release.set()
+    outcome = await execution
+    await stop
+
+    assert outcome["ExitCode"] == 1
     assert "Stopped" not in outcome
 
 
@@ -395,9 +426,31 @@ async def test_http_stop_route_accepts_an_empty_body() -> None:
         assert (await response.json())["stopped"] is True
 
 
-async def test_http_stop_route_rejects_a_bad_resume_version() -> None:
+@pytest.mark.parametrize("resume_version", ["two", True, False])
+async def test_http_stop_route_rejects_a_bad_resume_version(
+    resume_version: Any,
+) -> None:
     async with TestClient(TestServer(cli_server.create_app())) as client:
         response = await client.post(
-            f"/jobs/{JOB_KEY}/stop", json={"resumeVersion": "two"}
+            f"/jobs/{JOB_KEY}/stop", json={"resumeVersion": resume_version}
+        )
+        assert response.status == 400
+
+
+@pytest.mark.parametrize("force_stop", ["true", 1])
+async def test_http_stop_route_rejects_a_force_stop_that_is_not_a_bool(
+    force_stop: Any,
+) -> None:
+    async with TestClient(TestServer(cli_server.create_app())) as client:
+        response = await client.post(
+            f"/jobs/{JOB_KEY}/stop", json={"forceStop": force_stop}
+        )
+        assert response.status == 400
+
+
+async def test_http_start_route_rejects_a_bool_resume_version() -> None:
+    async with TestClient(TestServer(cli_server.create_app())) as client:
+        response = await client.post(
+            f"/jobs/{JOB_KEY}/start", json={"command": "run", "resumeVersion": True}
         )
         assert response.status == 400

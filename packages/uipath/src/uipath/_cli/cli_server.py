@@ -106,6 +106,11 @@ def get_field(message: dict[str, Any], *keys: str) -> Any:
     return None
 
 
+def _is_int(value: Any) -> bool:
+    # A JSON true would otherwise pass as 1.
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 # --------------------------------------------------------------------------- #
 # HTTP transport (default) — aiohttp over a Unix socket / TCP, with ready-ACK  #
 # --------------------------------------------------------------------------- #
@@ -186,7 +191,7 @@ async def handle_start(request: web.Request) -> web.Response:
         )
 
     resume_version = get_field(message, "resumeVersion", "ResumeVersion")
-    if resume_version is not None and not isinstance(resume_version, int):
+    if resume_version is not None and not _is_int(resume_version):
         return web.json_response(
             {
                 "success": False,
@@ -268,7 +273,7 @@ async def handle_stop(request: web.Request) -> web.Response:
         )
 
     resume_version = get_field(message, "resumeVersion", "ResumeVersion")
-    if resume_version is not None and not isinstance(resume_version, int):
+    if resume_version is not None and not _is_int(resume_version):
         return web.json_response(
             {
                 "success": False,
@@ -276,7 +281,13 @@ async def handle_stop(request: web.Request) -> web.Response:
             },
             status=400,
         )
-    force = get_field(message, "forceStop", "ForceStop") is True
+    force = get_field(message, "forceStop", "ForceStop")
+    if force is not None and not isinstance(force, bool):
+        return web.json_response(
+            {"success": False, "error": "Invalid field: 'forceStop' must be a bool"},
+            status=400,
+        )
+    force = force is True
 
     console.info(f"StopJob requested for {job_key} (force={force})")
     stopped = await stop_execution(job_key, resume_version, force=force)
