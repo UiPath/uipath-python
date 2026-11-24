@@ -374,7 +374,7 @@ async def test_an_execution_holds_the_lock_until_the_threads_it_started_exit(
     fresh_state: _ServerState, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Python 3.12+ runners stop waiting for the default executor after this long.
-    monkeypatch.setattr(asyncio.constants, "THREAD_JOIN_TIMEOUT", 0.1, raising=False)
+    monkeypatch.setattr("asyncio.constants.THREAD_JOIN_TIMEOUT", 0.1, raising=False)
     execution = start(lingering_thread_command)
     await wait_until(started)
 
