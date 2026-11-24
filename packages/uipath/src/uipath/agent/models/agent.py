@@ -24,7 +24,9 @@ from pydantic import (
     ConfigDict,
     Discriminator,
     Field,
+    StrictBool,
     Tag,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -1711,6 +1713,71 @@ class ModelSettings(BaseCfg):
     """
 
 
+class AdvancedAgentBuiltInToolSettings(BaseCfg):
+    """One built-in tool's entry in ``settings.advancedAgent.builtInTools``.
+
+    ``enabled`` must be a real boolean; anything else fails this entry, and the
+    caller drops it, which leaves the tool off. ``config`` is kept as a plain
+    mapping, as written: no built-in tool takes settings yet, and the runtime
+    logs and ignores them.
+    """
+
+    enabled: StrictBool = False
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("config", mode="before")
+    @classmethod
+    def _ignore_malformed_config(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return value
+        logger.warning(
+            "Ignoring built-in tool config: expected an object, got %s",
+            type(value).__name__,
+        )
+        return {}
+
+
+class AdvancedAgentSettings(BaseCfg):
+    """Advanced-agent settings model (``settings.advancedAgent``).
+
+    ``built_in_tools`` holds the raw entries from agent.json; uipath-langchain
+    resolves them into the tools to build. It is None when ``builtInTools`` is
+    absent, null or not an object, which the runtime reads as the tool set from
+    before the entries existed. An empty ``builtInTools`` is kept as an empty
+    mapping, which turns every tool off except ``read_file``. Nothing here fails
+    parsing of the agent definition: a malformed part
+    is logged and ignored, and a tool entry that doesn't parse is dropped, which
+    leaves that tool off.
+    """
+
+    built_in_tools: Optional[Dict[str, AdvancedAgentBuiltInToolSettings]] = Field(
+        None, alias="builtInTools"
+    )
+
+    @field_validator("built_in_tools", mode="before")
+    @classmethod
+    def _drop_malformed_tools(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            logger.warning(
+                "Ignoring settings.advancedAgent.builtInTools: expected an object, got %s",
+                type(value).__name__,
+            )
+            return None
+        tools: Dict[str, AdvancedAgentBuiltInToolSettings] = {}
+        for name, entry in value.items():
+            try:
+                tools[name] = AdvancedAgentBuiltInToolSettings.model_validate(entry)
+            except ValidationError as exc:
+                logger.warning(
+                    "Ignoring built-in tool %r in settings.advancedAgent.builtInTools: %s",
+                    name,
+                    exc.errors(include_url=False),
+                )
+        return tools
+
+
 class AgentSettings(BaseCfg):
     """Agent settings model."""
 
@@ -1722,6 +1789,18 @@ class AgentSettings(BaseCfg):
     max_iterations: Optional[int] = Field(None, alias="maxIterations")
     persona: Optional[str] = Field(None, alias="persona")
     model_settings: Optional[ModelSettings] = Field(None, alias="modelSettings")
+    advanced_agent: Optional[AdvancedAgentSettings] = Field(None, alias="advancedAgent")
+
+    @field_validator("advanced_agent", mode="before")
+    @classmethod
+    def _ignore_malformed_advanced_agent(cls, value: Any) -> Any:
+        if value is None or isinstance(value, (dict, AdvancedAgentSettings)):
+            return value
+        logger.warning(
+            "Ignoring settings.advancedAgent: expected an object, got %s",
+            type(value).__name__,
+        )
+        return None
 
 
 class AgentDefinition(BaseModel):
