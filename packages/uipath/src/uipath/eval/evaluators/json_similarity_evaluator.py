@@ -1,6 +1,7 @@
 """JSON similarity evaluator for flexible structural comparison of outputs."""
 
 import math
+import os
 from typing import Any, Tuple
 
 from ..models import (
@@ -173,28 +174,34 @@ class JsonSimilarityEvaluator(
         return 1.0
 
     def _levenshtein(self, source_text: str, target_text: str) -> int:
-        if not source_text:
-            return len(target_text)
-        if not target_text:
-            return len(source_text)
-        source_len, target_len = len(source_text), len(target_text)
-        distance_matrix = [[0] * (target_len + 1) for _ in range(source_len + 1)]
-        for row_idx in range(source_len + 1):
-            distance_matrix[row_idx][0] = row_idx
-        for col_idx in range(target_len + 1):
-            distance_matrix[0][col_idx] = col_idx
-        for row_idx in range(1, source_len + 1):
-            for col_idx in range(1, target_len + 1):
-                substitution_cost = (
-                    0 if source_text[row_idx - 1] == target_text[col_idx - 1] else 1
+        if source_text == target_text:
+            return 0
+        # A shared prefix or suffix never changes the distance, so compare only the middle.
+        prefix_len = len(os.path.commonprefix([source_text, target_text]))
+        source_text, target_text = source_text[prefix_len:], target_text[prefix_len:]
+        suffix_len = len(os.path.commonprefix([source_text[::-1], target_text[::-1]]))
+        if suffix_len:
+            source_text, target_text = (
+                source_text[:-suffix_len],
+                target_text[:-suffix_len],
+            )
+        # Two rows of the shorter string replace the full matrix, which needed gigabytes for long strings.
+        if len(source_text) < len(target_text):
+            source_text, target_text = target_text, source_text
+        previous_row = list(range(len(target_text) + 1))
+        for row_idx, source_char in enumerate(source_text, start=1):
+            current_row = [row_idx]
+            for col_idx, target_char in enumerate(target_text, start=1):
+                current_row.append(
+                    min(
+                        previous_row[col_idx] + 1,  # deletion
+                        current_row[col_idx - 1] + 1,  # insertion
+                        previous_row[col_idx - 1]
+                        + (source_char != target_char),  # substitution
+                    )
                 )
-                distance_matrix[row_idx][col_idx] = min(
-                    distance_matrix[row_idx - 1][col_idx] + 1,  # deletion
-                    distance_matrix[row_idx][col_idx - 1] + 1,  # insertion
-                    distance_matrix[row_idx - 1][col_idx - 1]
-                    + substitution_cost,  # substitution
-                )
-        return distance_matrix[source_len][target_len]
+            previous_row = current_row
+        return previous_row[-1]
 
     def _is_number(self, value: Any) -> bool:
         return isinstance(value, (int, float)) and not isinstance(value, bool)
