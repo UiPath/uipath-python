@@ -9,6 +9,7 @@ from .action_center import TasksService
 from .agenthub._agenthub_service import AgentHubService
 from .agenthub._remote_a2a_service import RemoteA2aService
 from .automation_ops import AutomationOpsService
+from .business_rules import BusinessRulesService
 from .chat import ConversationsService, UiPathLlmChatService, UiPathOpenAIService
 from .common import (
     ApiClient,
@@ -18,13 +19,14 @@ from .common import (
 from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
 from .context_grounding import ContextGroundingService
-from .documents import DocumentsService
+from .documents import DocumentsService, DocumentsServiceV2
 from .entities import EntitiesService
 from .errors import BaseUrlMissingError, SecretMissingError
 from .external_applications import ExternalApplicationService
 from .governance import GovernanceService
 from .guardrails import GuardrailsService
 from .memory import MemoryService
+from .ontology import OntologyService
 from .orchestrator import (
     AssetsService,
     AttachmentsService,
@@ -39,14 +41,19 @@ from .orchestrator import (
 from .pii_detection import PiiDetectionService
 from .resource_catalog import ResourceCatalogService
 from .semantic_proxy import SemanticProxyService
+from .skills import SkillsService
 
 
 def _has_valid_client_credentials(
-    client_id: Optional[str], client_secret: Optional[str]
+    client_id: str | None, client_secret: str | None, client_assertion: str | None
 ) -> bool:
-    if bool(client_id) != bool(client_secret):
-        raise ValueError("Both client_id and client_secret must be provided together.")
-    return bool(client_id and client_secret)
+    if client_secret and client_assertion:
+        raise ValueError("Provide either client_secret or client_assertion, not both.")
+    if bool(client_id) != bool(client_secret or client_assertion):
+        raise ValueError(
+            "client_id must be provided together with client_secret or client_assertion."
+        )
+    return bool(client_id)
 
 
 class UiPath:
@@ -57,14 +64,19 @@ class UiPath:
         secret: Optional[str] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
+        client_assertion: str | None = None,
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
         try:
-            if _has_valid_client_credentials(client_id, client_secret):
-                assert client_id and client_secret
+            if _has_valid_client_credentials(
+                client_id, client_secret, client_assertion
+            ):
+                assert client_id
                 service = ExternalApplicationService(base_url)
-                token_data = service.get_token_data(client_id, client_secret, scope)
+                token_data = service.get_token_data(
+                    client_id, client_secret, scope, client_assertion=client_assertion
+                )
                 base_url, secret = service._base_url, token_data.access_token
             else:
                 base_url, secret = resolve_config_from_env(base_url, secret)
@@ -127,6 +139,10 @@ class UiPath:
         return DocumentsService(self._config, self._execution_context)
 
     @property
+    def documents_v2(self) -> DocumentsServiceV2:
+        return DocumentsServiceV2(self._config, self._execution_context)
+
+    @property
     def queues(self) -> QueuesService:
         return QueuesService(self._config, self._execution_context)
 
@@ -151,6 +167,10 @@ class UiPath:
         return EntitiesService(
             self._config, self._execution_context, folders_service=self.folders
         )
+
+    @cached_property
+    def ontology(self) -> OntologyService:
+        return OntologyService(self._config, self._execution_context)
 
     @cached_property
     def resource_catalog(self) -> ResourceCatalogService:
@@ -191,12 +211,20 @@ class UiPath:
         return AutomationOpsService(self._config, self._execution_context)
 
     @property
+    def business_rules(self) -> BusinessRulesService:
+        return BusinessRulesService(self._config, self._execution_context, self.folders)
+
+    @property
     def pii_detection(self) -> PiiDetectionService:
         return PiiDetectionService(self._config, self._execution_context)
 
     @property
     def semantic_proxy(self) -> SemanticProxyService:
         return SemanticProxyService(self._config, self._execution_context)
+
+    @cached_property
+    def skills(self) -> SkillsService:
+        return SkillsService(self._config, self._execution_context)
 
     @property
     def automation_tracker(self) -> AutomationTrackerService:

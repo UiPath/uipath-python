@@ -22,7 +22,7 @@ from ._aggregator_specs import AggregatorSpec
 class BaseDatasetEvaluator(ABC):
     """Abstract base for dataset-level evaluators.
 
-    Constructed from an :class:`AggregatorSpec`, the source evaluator's name,
+    Constructed from an `AggregatorSpec`, the source evaluator's name,
     and the class vocabulary of the parent per-datapoint evaluator. Classes
     live on the evaluator config (not the spec) — every aggregator on the same
     evaluator operates on the same vocabulary.

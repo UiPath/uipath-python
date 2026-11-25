@@ -1,11 +1,20 @@
 import json
+import logging
+from typing import Iterator
 
 import httpx
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from pytest_httpx import HTTPXMock
 from uipath.core.guardrails import (
     GuardrailScope,
     GuardrailSelector,
+    GuardrailValidationErrorType,
     GuardrailValidationResultType,
 )
 
@@ -14,7 +23,9 @@ from uipath.platform.common import ExecutionSourceContext
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
     EnumListParameterValue,
+    GuardrailAttachment,
     GuardrailsService,
+    GuardrailTerminationMode,
     MapEnumParameterValue,
 )
 
@@ -897,3 +908,720 @@ class TestGuardrailsService:
             assert (
                 GuardrailsService._extract_span_id_from_traceparent("not-valid") is None
             )
+
+
+_VALIDATE_PATH = "/agentsruntime_/api/execution/guardrails/validate"
+_ATTACHMENT_ID = "7f2c1e44-0b3a-4a1e-9d55-2f9a1c3b8e10"
+
+
+def _judge_guardrail() -> BuiltInValidatorGuardrail:
+    return BuiltInValidatorGuardrail(
+        id="g1",
+        name="Injection check",
+        description="Test judge",
+        enabled_for_evals=True,
+        selector=GuardrailSelector(scopes=[GuardrailScope.AGENT]),
+        guardrail_type="builtInValidator",
+        validator_type="llm_as_judge",
+        validator_parameters=[],
+    )
+
+
+def _attachment() -> GuardrailAttachment:
+    return GuardrailAttachment(
+        id=_ATTACHMENT_ID,
+        file_name="Tickets.csv",
+        mime_type="text/csv",
+    )
+
+
+class TestGuardrailAttachments:
+    """evaluate_guardrail forwards attachment references to the validate API."""
+
+    def test_attachments_are_sent_with_camel_case_aliases(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail(
+            "see attached", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["attachments"] == [
+            {
+                "id": _ATTACHMENT_ID,
+                "fileName": "Tickets.csv",
+                "mimeType": "text/csv",
+            }
+        ]
+
+    def test_attachments_key_is_absent_when_not_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend must see a byte-identical body to today."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("no files here", _judge_guardrail())
+
+        assert "attachments" not in json.loads(httpx_mock.get_requests()[0].content)
+
+    def test_empty_attachments_list_is_sent_as_empty_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An empty list tells the backend files apply but none were found."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["attachments"] == []
+
+    def test_attachment_round_trips_the_wire_shape(self) -> None:
+        """The camelCase body the API emits parses back into the model unchanged."""
+        wire = {
+            "id": _ATTACHMENT_ID,
+            "fileName": "a.csv",
+            "mimeType": "text/csv",
+        }
+
+        parsed = GuardrailAttachment.model_validate(wire)
+
+        assert parsed.file_name == "a.csv"
+        assert parsed.mime_type == "text/csv"
+        assert parsed.model_dump(by_alias=True) == wire
+
+
+class TestGuardrailTerminationMode:
+    """evaluate_guardrail forwards the termination mode to the validate API."""
+
+    @pytest.mark.parametrize(
+        ("mode", "wire"),
+        [
+            (GuardrailTerminationMode.FAIL_FAST, "FailFast"),
+            (GuardrailTerminationMode.EVALUATE_ALL, "EvaluateAll"),
+        ],
+    )
+    def test_termination_mode_is_sent_when_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        mode: GuardrailTerminationMode,
+        wire: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), termination_mode=mode)
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["terminationMode"] == wire
+
+    def test_termination_mode_key_is_absent_when_not_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend must see a byte-identical body to today."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert "terminationMode" not in json.loads(httpx_mock.get_requests()[0].content)
+
+
+class TestGuardrailCheckContext:
+    """evaluate_guardrail forwards what the check guards, when, and what the caller does on a violation."""
+
+    def test_check_context_is_sent_camel_case_when_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail(
+            "x",
+            _judge_guardrail(),
+            scope=GuardrailScope.TOOL,
+            execution_stage="preExecution",
+            action_type="Escalate",
+        )
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert (body["scope"], body["executionStage"], body["actionType"]) == (
+            "Tool",
+            "preExecution",
+            "Escalate",
+        )
+
+    def test_check_context_keys_are_absent_when_not_supplied(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend must see a byte-identical body to today."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert {"scope", "executionStage", "actionType"}.isdisjoint(body)
+
+
+class TestGuardrailAttachmentFolderHeader:
+    """evaluate_guardrail sends the folder key alongside attachments."""
+
+    def test_folder_header_sent_when_folder_key_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-key-123")
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
+
+        request = httpx_mock.get_requests()[0]
+        assert request.headers["x-uipath-folderkey"] == "folder-key-123"
+
+    def test_folder_header_absent_when_no_folder_key_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_FOLDER_KEY", raising=False)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
+
+        request = httpx_mock.get_requests()[0]
+        assert "x-uipath-folderkey" not in request.headers
+
+    def test_folder_header_absent_without_attachments_even_if_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The header is meaningless without attachments, so it is never sent."""
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-key-123")
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        request = httpx_mock.get_requests()[0]
+        assert "x-uipath-folderkey" not in request.headers
+
+    def test_folder_header_absent_with_empty_attachments_even_if_configured(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_FOLDER_KEY", "folder-key-123")
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
+
+        request = httpx_mock.get_requests()[0]
+        assert "x-uipath-folderkey" not in request.headers
+
+
+class TestGuardrailAttachmentTiming:
+    """Attachments still get the longer, file-fetching-aware timeout."""
+
+    def test_evaluate_guardrail_forwards_a_longer_timeout_with_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """The default client timeout is 30s; a validate call that waits on the backend
+        fetching files gets 60s. Without this assertion the kwarg could vanish silently."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[_attachment()])
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] == 60.0
+
+    def test_evaluate_guardrail_keeps_default_timeout_without_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail())
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] != 60.0
+
+    def test_evaluate_guardrail_keeps_default_timeout_with_empty_attachments(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """No file is fetched for an empty list, so it needs no longer timeout."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "PASSED", "details": ""},
+        )
+
+        service.evaluate_guardrail("x", _judge_guardrail(), attachments=[])
+
+        timeout = httpx_mock.get_requests()[0].extensions["timeout"]
+        assert timeout["read"] != 60.0
+
+
+class TestGuardrailFlaggedAttachmentIds:
+    """evaluate_guardrail parses the flagged attachment ids from the response."""
+
+    def test_flagged_ids_are_parsed_when_present(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "PII detected",
+                "flaggedAttachmentIds": [_ATTACHMENT_ID],
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.flagged_attachment_ids == [_ATTACHMENT_ID]
+
+    def test_flagged_ids_items_are_coerced_to_str(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "",
+                "flaggedAttachmentIds": [_ATTACHMENT_ID, 42],
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.flagged_attachment_ids == [_ATTACHMENT_ID, "42"]
+
+    def test_flagged_ids_are_none_when_absent(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """An older backend never sends the key."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "VALIDATION_FAILED", "details": "PII detected"},
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.flagged_attachment_ids is None
+
+    @pytest.mark.parametrize(
+        ("result_value", "expected"),
+        [
+            ("FEATURE_DISABLED", GuardrailValidationResultType.FEATURE_DISABLED),
+            (
+                "ENTITLEMENTS_MISSING",
+                GuardrailValidationResultType.ENTITLEMENTS_MISSING,
+            ),
+        ],
+    )
+    def test_flagged_ids_are_none_on_403_bodies(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        result_value: str,
+        expected: GuardrailValidationResultType,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=403,
+            json={"result": result_value, "details": "Not available"},
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.result == expected
+        assert result.flagged_attachment_ids is None
+
+    @pytest.mark.parametrize(
+        "value", [None, _ATTACHMENT_ID, {"id": _ATTACHMENT_ID}, 1, True]
+    )
+    def test_flagged_ids_are_none_when_not_a_list(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        value: object,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "",
+                "flaggedAttachmentIds": value,
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.flagged_attachment_ids is None
+
+    def test_unknown_response_keys_are_ignored(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": "VALIDATION_FAILED",
+                "details": "PII detected",
+                "flaggedAttachmentIds": [_ATTACHMENT_ID],
+                "inspectedAttachmentIds": [_ATTACHMENT_ID, "other"],
+                "payloadEvaluated": False,
+                "detections": [{"entity": "Email"}],
+            },
+        )
+
+        result = service.evaluate_guardrail(
+            "x", _judge_guardrail(), attachments=[_attachment()]
+        )
+
+        assert result.model_dump(by_alias=True) == {
+            "result": GuardrailValidationResultType.VALIDATION_FAILED,
+            "reason": "PII detected",
+            "spanId": None,
+            "flaggedAttachmentIds": [_ATTACHMENT_ID],
+            "errorType": None,
+        }
+
+
+_SERVICE_LOGGER = "uipath.platform.guardrails._guardrails_service"
+
+
+class TestGuardrailErrorType:
+    """evaluate_guardrail fails closed and reports why validation did not complete."""
+
+    @pytest.mark.parametrize(
+        ("result_value", "expected"),
+        [
+            ("PROVIDER_ERROR", GuardrailValidationErrorType.PROVIDER_ERROR),
+            ("INTERNAL_ERROR", GuardrailValidationErrorType.INTERNAL_ERROR),
+            (
+                "RATE_LIMIT_EXCEEDED",
+                GuardrailValidationErrorType.RATE_LIMIT_EXCEEDED,
+            ),
+            ("provider_error", GuardrailValidationErrorType.PROVIDER_ERROR),
+        ],
+    )
+    def test_error_results_fail_closed_with_error_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+        result_value: str,
+        expected: GuardrailValidationErrorType,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={
+                "result": result_value,
+                "details": "`temperature` is deprecated for this model.",
+            },
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.error_type == expected
+        assert result.reason == "`temperature` is deprecated for this model."
+        assert any(
+            record.levelno == logging.WARNING and result_value in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_unknown_result_fails_closed_without_error_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": "SOMETHING_NEW", "details": "Unexpected"},
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.result == GuardrailValidationResultType.VALIDATION_FAILED
+        assert result.error_type is None
+        assert result.reason == "Unexpected"
+        assert any(
+            record.levelno == logging.WARNING and "SOMETHING_NEW" in record.getMessage()
+            for record in caplog.records
+        )
+
+    @pytest.mark.parametrize(
+        ("result_value", "expected"),
+        [
+            ("PASSED", GuardrailValidationResultType.PASSED),
+            ("VALIDATION_FAILED", GuardrailValidationResultType.VALIDATION_FAILED),
+        ],
+    )
+    def test_evaluated_results_have_no_error_type(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        caplog: pytest.LogCaptureFixture,
+        result_value: str,
+        expected: GuardrailValidationResultType,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}{_VALIDATE_PATH}",
+            status_code=200,
+            json={"result": result_value, "details": "Evaluated"},
+        )
+
+        with caplog.at_level(logging.WARNING, logger=_SERVICE_LOGGER):
+            result = service.evaluate_guardrail("x", _judge_guardrail())
+
+        assert result.result == expected
+        assert result.error_type is None
+        assert result.reason == "Evaluated"
+        assert not [r for r in caplog.records if r.name == _SERVICE_LOGGER]
+
+
+@pytest.fixture
+def recorded_spans(monkeypatch: pytest.MonkeyPatch) -> Iterator[InMemorySpanExporter]:
+    """Record every span, including any @traced would open, in memory."""
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(trace, "get_tracer", provider.get_tracer)
+    yield exporter
+    provider.shutdown()
+
+
+class TestEvaluateGuardrailSpan:
+    """In a job the Guardrails Service's span is the only evaluation span (AL-712)."""
+
+    def _evaluate_under_caller(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        url: str,
+    ) -> int:
+        httpx_mock.add_response(
+            url=url, status_code=200, json={"result": "PASSED", "details": ""}
+        )
+        with trace.get_tracer("test").start_as_current_span("caller") as caller:
+            service.evaluate_guardrail("some text", _judge_guardrail())
+            return caller.get_span_context().span_id
+
+    def test_job_run_opens_no_client_span(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        recorded_spans: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("UIPATH_JOB_KEY", "job-123")
+        monkeypatch.setenv("UIPATH_TRACE_ID", "0af7651916cd43dd8448eb211c80319c")
+
+        caller_span_id = self._evaluate_under_caller(
+            httpx_mock, service, f"{base_url}{org}{tenant}{_VALIDATE_PATH}"
+        )
+
+        assert [s.name for s in recorded_spans.get_finished_spans()] == ["caller"]
+        # The service's span is parented directly to the caller's span.
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert request.headers["x-uipath-traceparent-id"].split("-")[2] == format(
+            caller_span_id, "016x"
+        )
+
+    def test_local_run_keeps_client_span(
+        self,
+        httpx_mock: HTTPXMock,
+        service: GuardrailsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        recorded_spans: InMemorySpanExporter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("UIPATH_JOB_KEY", raising=False)
+
+        caller_span_id = self._evaluate_under_caller(
+            httpx_mock, service, f"{base_url}{org}{tenant}{_VALIDATE_PATH}"
+        )
+
+        spans = {s.name: s for s in recorded_spans.get_finished_spans()}
+        assert set(spans) == {"caller", "evaluate_guardrail"}
+        parent = spans["evaluate_guardrail"].parent
+        assert parent is not None
+        assert parent.span_id == caller_span_id

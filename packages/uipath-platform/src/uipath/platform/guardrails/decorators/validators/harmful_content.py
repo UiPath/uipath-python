@@ -19,7 +19,7 @@ class HarmfulContentValidator(BuiltInGuardrailValidator):
     Supported at all stages (PRE, POST, PRE_AND_POST).
 
     Args:
-        entities: One or more :class:`~uipath.platform.guardrails.decorators.HarmfulContentEntity`
+        entities: One or more `HarmfulContentEntity`
             instances specifying which harmful content categories to detect
             and their severity thresholds.
 
@@ -39,7 +39,7 @@ class HarmfulContentValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build a harmful content :class:`BuiltInValidatorGuardrail`.
+        """Build a harmful content `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -47,7 +47,7 @@ class HarmfulContentValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` for harmful content detection.
+            Configured `BuiltInValidatorGuardrail` for harmful content detection.
         """
         entity_names = [entity.name for entity in self.entities]
         entity_thresholds: dict[str, Any] = {

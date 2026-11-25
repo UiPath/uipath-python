@@ -1,0 +1,143 @@
+{
+  "version": "1.0",
+  "id": "TicketTriageEval",
+  "name": "Ticket Triage Routing & Escalation Evaluation",
+  "evaluatorRefs": [
+    "DepartmentRoutingEvaluator",
+    "EscalationDecisionEvaluator"
+  ],
+  "evaluations": [
+    {
+      "id": "billing-refund-calm",
+      "name": "Billing - calm refund request (auto-reply)",
+      "inputs": {
+        "subject": "Duplicate charge on my account",
+        "message": "Hi, I was charged twice for order A-104. Could you please refund the duplicate charge? Thanks for your help."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "billing" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "billing-invoice-question",
+      "name": "Billing - invoice clarification (auto-reply)",
+      "inputs": {
+        "subject": "Question about my invoice",
+        "message": "I noticed my invoice this month includes a charge I do not recognize. Could you clarify the payment breakdown? Thanks."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "billing" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "technical-bug-report",
+      "name": "Technical - routine bug report (auto-reply)",
+      "inputs": {
+        "subject": "App crashes on login",
+        "message": "The app crashes every time I try to log in. This started after the last update. Please help me fix this bug."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "technical" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "technical-outage-urgent",
+      "name": "Technical - urgent outage (escalate: high urgency)",
+      "inputs": {
+        "subject": "URGENT: service down",
+        "message": "Our integration has been down for 3 days and this is unacceptable. We need this fixed immediately, it is critical."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "technical" },
+        "EscalationDecisionEvaluator": { "expectedClass": "true" }
+      }
+    },
+    {
+      "id": "sales-pricing-question",
+      "name": "Sales - pricing inquiry (auto-reply)",
+      "inputs": {
+        "subject": "Question about pricing plans",
+        "message": "Hi, I would like a quote for upgrading to your premium plan. Can you share pricing details?"
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "sales" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "sales-demo-request",
+      "name": "Sales - demo request (auto-reply)",
+      "inputs": {
+        "subject": "Requesting a demo",
+        "message": "We are considering your product and would like to schedule a demo to see the upgrade options."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "sales" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "billing-angry-customer",
+      "name": "Billing - angry customer (escalate: high frustration)",
+      "inputs": {
+        "subject": "This is ridiculous",
+        "message": "I have been charged the wrong amount again and I am furious, this is unacceptable and terrible service."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "billing" },
+        "EscalationDecisionEvaluator": { "expectedClass": "true" }
+      }
+    },
+    {
+      "id": "technical-calm-minor-bug",
+      "name": "Technical - minor, no-rush bug (auto-reply)",
+      "inputs": {
+        "subject": "Minor bug report",
+        "message": "Just a small bug: the export button is not working as expected. No rush, whenever you get a chance, thanks."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "technical" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "ambiguous-low-confidence",
+      "name": "Ambiguous ticket (escalate: low routing confidence)",
+      "inputs": {
+        "subject": "Quick question",
+        "message": "Can someone tell me more about how things work around here?"
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "billing" },
+        "EscalationDecisionEvaluator": { "expectedClass": "true" }
+      }
+    },
+    {
+      "id": "sales-demo-request-wrong-department",
+      "name": "Sales - demo request (DELIBERATELY WRONG: ground truth department set to 'technical')",
+      "inputs": {
+        "subject": "Requesting a demo",
+        "message": "We are considering your product and would like to schedule a demo to see the upgrade options."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "technical" },
+        "EscalationDecisionEvaluator": { "expectedClass": "false" }
+      }
+    },
+    {
+      "id": "billing-refund-calm-wrong-escalation",
+      "name": "Billing - calm refund request (DELIBERATELY WRONG: ground truth escalation set to 'true')",
+      "inputs": {
+        "subject": "Duplicate charge on my account",
+        "message": "Hi, I was charged twice for order A-104. Could you please refund the duplicate charge? Thanks for your help."
+      },
+      "evaluationCriterias": {
+        "DepartmentRoutingEvaluator": { "expectedClass": "billing" },
+        "EscalationDecisionEvaluator": { "expectedClass": "true" }
+      }
+    }
+  ]
+}

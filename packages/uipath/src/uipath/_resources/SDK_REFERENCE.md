@@ -22,10 +22,10 @@ Agenthub service
 
 ```python
 # Fetch available models from LLM Gateway discovery endpoint.
-sdk.agenthub.get_available_llm_models(headers: dict[str, Any] | None=None) -> list[uipath.platform.agenthub.agenthub.LlmModel]
+sdk.agenthub.get_available_llm_models(headers: dict[str, Any] | None=None, include_deprecated_models: bool=False) -> list[uipath.platform.agenthub.agenthub.LlmModel]
 
 # Asynchronously fetch available models from LLM Gateway discovery endpoint.
-sdk.agenthub.get_available_llm_models_async(headers: dict[str, Any] | None=None) -> list[uipath.platform.agenthub.agenthub.LlmModel]
+sdk.agenthub.get_available_llm_models_async(headers: dict[str, Any] | None=None, include_deprecated_models: bool=False) -> list[uipath.platform.agenthub.agenthub.LlmModel]
 
 # Start a system agent job.
 sdk.agenthub.invoke_system_agent(agent_name: str, entrypoint: str, input_arguments: dict[str, Any] | None=None, folder_key: str | None=None, folder_path: str | None=None, headers: dict[str, Any] | None=None) -> str
@@ -405,10 +405,10 @@ sdk.context_grounding.start_deep_rag_ephemeral(name: str, prompt: Annotated[str,
 sdk.context_grounding.start_deep_rag_ephemeral_async(name: str, prompt: Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=250000)])], glob_pattern: Annotated[str, FieldInfo(annotation=NoneType, required=False, default='*', metadata=[MaxLen(max_length=512)])]="**", citation_mode: <enum 'CitationMode="CitationMode.SKIP", index_id: Optional[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=512)])]]=None) -> uipath.platform.context_grounding.context_grounding.DeepRagCreationResponse
 
 # Perform a unified search on a context grounding index.
-sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+sdk.context_grounding.unified_search(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False, search_during_ingestion: bool=False) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 # Asynchronously perform a unified search on a context grounding index.
-sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
+sdk.context_grounding.unified_search_async(name: str, query: str, search_mode: <enum 'SearchMode="SearchMode.SEMANTIC", number_of_results: int=10, threshold: float=0.0, scope: Optional[uipath.platform.context_grounding.context_grounding.UnifiedSearchScope]=None, folder_key: Optional[str]=None, folder_path: Optional[str]=None, include_system_indexes: bool=False, search_during_ingestion: bool=False) -> uipath.platform.context_grounding.context_grounding.UnifiedQueryResult
 
 ```
 
@@ -668,7 +668,7 @@ Guardrails service
 
 ```python
 # Validate input text using the provided guardrail.
-sdk.guardrails.evaluate_guardrail(input_data: str | dict[str, Any], guardrail: uipath.platform.guardrails.guardrails.BuiltInValidatorGuardrail) -> uipath.core.guardrails.guardrails.GuardrailValidationResult
+sdk.guardrails.evaluate_guardrail(input_data: str | dict[str, Any], guardrail: uipath.platform.guardrails.guardrails.BuiltInValidatorGuardrail, attachments: list[uipath.platform.guardrails.guardrails.GuardrailAttachment] | None=None, termination_mode: uipath.platform.guardrails.guardrails.GuardrailTerminationMode | None=None) -> uipath.core.guardrails.guardrails.GuardrailValidationResult
 
 ```
 
@@ -966,6 +966,22 @@ sdk.semantic_proxy.detect_pii(request: uipath.platform.semantic_proxy.semantic_p
 
 # Detect PII in the provided documents and/or files (async).
 sdk.semantic_proxy.detect_pii_async(request: uipath.platform.semantic_proxy.semantic_proxy.PiiDetectionRequest) -> uipath.platform.semantic_proxy.semantic_proxy.PiiDetectionResponse
+
+```
+
+### Skills
+
+Skills service
+
+```python
+# Close the HTTP clients owned by this service.
+sdk.skills.aclose() -> None
+
+# Resolve and download ``refs``; see ``load_all_async``.
+sdk.skills.load_all(refs: Sequence[SkillBundleRef], destination: Path | None=None, source: SkillBundleSource | None=None) -> SkillSet
+
+# Resolve ``refs`` in order, write each bundle under ``<root>/<name>/`` and describe the set.
+sdk.skills.load_all_async(refs: Sequence[SkillBundleRef], destination: Path | None=None, source: SkillBundleSource | None=None) -> SkillSet
 
 ```
 

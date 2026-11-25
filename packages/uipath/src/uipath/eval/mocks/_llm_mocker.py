@@ -11,7 +11,7 @@ from uipath.core.serialization import serialize_defaults
 from uipath.core.tracing import traced
 from uipath.platform import UiPath
 from uipath.platform.chat import UiPathLlmChatService
-from uipath.platform.chat._llm_gateway_service import ChatModels, _cleanup_schema
+from uipath.platform.chat._llm_gateway_service import _cleanup_schema
 
 from .._execution_context import (
     eval_set_run_id_context,
@@ -30,6 +30,7 @@ from ._mocker import (
     UiPathNoMockFoundError,
     format_exception_message,
 )
+from ._simulation_model import simulation_completion_kwargs
 from ._structured_output import generate_structured_output
 from ._types import (
     ExampleCall,
@@ -176,18 +177,12 @@ class LLMMocker(Mocker):
                     k: json.dumps(pydantic_to_dict_safe(v), default=serialize_defaults)
                     for k, v in prompt_input.items()
                 }
-                model_parameters = self.context.strategy.model
-                completion_kwargs = (
-                    model_parameters.model_dump(by_alias=False, exclude_none=True)
-                    if model_parameters
-                    else {}
-                )
-
-                simulation_model = completion_kwargs.get(
-                    "model", ChatModels.gpt_4_1_mini_2025_04_14
+                completion_kwargs = simulation_completion_kwargs(
+                    self.context.strategy.model
                 )
                 logger.info(
-                    f"Simulating tool '{function_name}' using model: {simulation_model}"
+                    f"Simulating tool '{function_name}' using model: "
+                    f"{completion_kwargs['model']}"
                 )
 
                 formatted_prompt = PROMPT.format(**prompt_generation_args)

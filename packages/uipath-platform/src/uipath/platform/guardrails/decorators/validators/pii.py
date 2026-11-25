@@ -19,7 +19,7 @@ class PIIValidator(BuiltInGuardrailValidator):
     Supported at all stages.
 
     Args:
-        entities: One or more :class:`~uipath.platform.guardrails.decorators.PIIDetectionEntity`
+        entities: One or more `PIIDetectionEntity`
             instances specifying which PII types to detect and their confidence thresholds.
 
     Raises:
@@ -38,7 +38,7 @@ class PIIValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build a PII detection :class:`BuiltInValidatorGuardrail`.
+        """Build a PII detection `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -46,7 +46,7 @@ class PIIValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` for PII detection.
+            Configured `BuiltInValidatorGuardrail` for PII detection.
         """
         entity_names = [entity.name for entity in self.entities]
         entity_thresholds: dict[str, Any] = {

@@ -6,6 +6,10 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common._bindings import (
+    GenericResourceOverwrite,
+    _resource_overwrites,
+)
 from uipath.platform.constants import (
     ENV_JOB_KEY,
     HEADER_JOB_KEY,
@@ -35,7 +39,10 @@ from uipath.platform.context_grounding import (
 from uipath.platform.context_grounding._context_grounding_service import (
     ContextGroundingService,
 )
-from uipath.platform.errors import ContextGroundingIndexNotFoundError
+from uipath.platform.errors import (
+    ContextGroundingIndexNotFoundError,
+    IngestionInProgressException,
+)
 from uipath.platform.orchestrator._buckets_service import BucketsService
 from uipath.platform.orchestrator._folder_service import FolderService
 
@@ -2491,6 +2498,44 @@ class TestContextGroundingService:
             == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_async/{version}"
         )
 
+    @pytest.mark.anyio
+    async def test_start_batch_transform_async_with_exclude_domains(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """exclude_domains rides on the same wire field as the from-attachment primitive."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes/test-index-id/createBatchRag",
+            status_code=200,
+            json={
+                "id": "grounded-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = await service.start_batch_transform_async(
+            name="grounded-task",
+            index_id="test-index-id",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            storage_bucket_folder_path_prefix="data",
+            enable_web_search_grounding=True,
+            exclude_domains=["example.com", "blocked.io"],
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "grounded-batch-id"
+        request_data = json.loads(httpx_mock.get_requests()[-1].content)
+        assert request_data["useWebSearchGrounding"] is True
+        assert request_data["excludeDomains"] == ["example.com", "blocked.io"]
+
     def test_start_batch_transform_with_target_file_name(
         self,
         httpx_mock: HTTPXMock,
@@ -3521,6 +3566,175 @@ class TestContextGroundingService:
         )
 
     @pytest.mark.anyio
+    async def test_start_batch_transform_from_attachment_async(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        version: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "new-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(
+                name="summary",
+                description="A summary of the row",
+            )
+        ]
+
+        response = await service.start_batch_transform_from_attachment_async(
+            name="my-attachments-batch-transform",
+            prompt="Summarize each row",
+            output_columns=output_columns,
+            attachment="attachment-1",
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "new-batch-transform-id"
+        assert response.last_batch_rag_status == "Queued"
+
+        sent_requests = httpx_mock.get_requests()
+        if sent_requests is None:
+            raise Exception("No request was sent")
+
+        assert sent_requests[0].method == "POST"
+        assert f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create" in str(
+            sent_requests[0].url
+        )
+
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["name"] == "my-attachments-batch-transform"
+        assert request_data["prompt"] == "Summarize each row"
+        assert request_data["useWebSearchGrounding"] is False
+        assert request_data["attachments"] == ["attachment-1"]
+        assert "targetFileGlobPattern" not in request_data
+        assert "excludeDomains" not in request_data
+
+        assert HEADER_USER_AGENT in sent_requests[0].headers
+        assert (
+            sent_requests[0].headers[HEADER_USER_AGENT]
+            == f"UiPath.Python.Sdk/UiPath.Python.Sdk.Activities.ContextGroundingService.start_batch_transform_from_attachment_async/{version}"
+        )
+
+    def test_start_batch_transform_from_attachment(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "sync-batch-transform-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        output_columns = [
+            BatchTransformOutputColumn(name="summary", description="A summary"),
+        ]
+
+        response = service.start_batch_transform_from_attachment(
+            name="sync-attachments-task",
+            prompt="Summarize each row",
+            output_columns=output_columns,
+            attachment="attachment-1",
+        )
+
+        assert isinstance(response, BatchTransformCreationResponse)
+        assert response.id == "sync-batch-transform-id"
+
+        sent_requests = httpx_mock.get_requests()
+        assert sent_requests[0].method == "POST"
+        request_data = json.loads(sent_requests[0].content)
+        assert request_data["attachments"] == ["attachment-1"]
+
+    def test_start_batch_transform_from_attachment_with_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """When folder_key is provided the folder header is added; no folder lookup."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "folder-scoped-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = service.start_batch_transform_from_attachment(
+            name="folder-scoped-task",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            attachment="attachment-1",
+            folder_key="explicit-folder-key",
+        )
+
+        assert response.id == "folder-scoped-batch-id"
+        sent_requests = httpx_mock.get_requests()
+        assert any(
+            "explicit-folder-key" in (v or "")
+            for v in sent_requests[0].headers.values()
+        )
+
+    def test_start_batch_transform_from_attachment_with_web_search_grounding(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        """exclude_domains is forwarded only when enable_web_search_grounding is on."""
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/batchrag/create",
+            status_code=200,
+            json={
+                "id": "grounded-batch-id",
+                "lastBatchRagStatus": "Queued",
+                "errorMessage": None,
+            },
+        )
+
+        response = service.start_batch_transform_from_attachment(
+            name="grounded-task",
+            prompt="Summarize each row",
+            output_columns=[
+                BatchTransformOutputColumn(name="summary", description="A summary"),
+            ],
+            attachment="attachment-1",
+            enable_web_search_grounding=True,
+            exclude_domains=["example.com", "blocked.io"],
+        )
+
+        assert response.id == "grounded-batch-id"
+        request_data = json.loads(httpx_mock.get_requests()[0].content)
+        assert request_data["useWebSearchGrounding"] is True
+        assert request_data["excludeDomains"] == ["example.com", "blocked.io"]
+
+    @pytest.mark.anyio
     async def test_start_deep_rag_ephemeral_async(
         self,
         httpx_mock: HTTPXMock,
@@ -3839,6 +4053,170 @@ class TestContextGroundingService:
         assert response.semantic_results.metadata is not None
         assert len(response.semantic_results.values) == 1
 
+    def _mock_index_lookup(
+        self,
+        httpx_mock: HTTPXMock,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        """Mock the folder + index lookup that precedes a unified search."""
+        for _ in range(2):
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/orchestrator_/api/FoldersNavigation/GetFoldersForCurrentUser?searchText=test-folder-path&skip=0&take=20",
+                status_code=200,
+                json={
+                    "PageItems": [
+                        {
+                            "Key": "test-folder-key",
+                            "FullyQualifiedName": "test-folder-path",
+                        }
+                    ]
+                },
+            )
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'test-index'&$expand=dataSource",
+            status_code=200,
+            json={
+                "value": [
+                    {
+                        "id": "test-index-id",
+                        "name": "test-index",
+                        "lastIngestionStatus": ingestion_status,
+                    }
+                ]
+            },
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    async def test_unified_search_async_blocks_during_ingestion_by_default(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+
+        with pytest.raises(IngestionInProgressException):
+            await service.unified_search_async(name="test-index", query="test query")
+
+    @pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    def test_unified_search_blocks_during_ingestion_by_default(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+
+        with pytest.raises(IngestionInProgressException):
+            service.unified_search(name="test-index", query="test query")
+
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    def test_unified_search_opt_in_searches_during_ingestion(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
+                    "values": [
+                        {
+                            "id": "result-1",
+                            "source": "test-source",
+                            "page_number": 1,
+                            "content": "Partially ingested content",
+                            "score": 0.95,
+                        }
+                    ],
+                },
+                "explanation": "test explanation",
+            },
+        )
+
+        response = service.unified_search(
+            name="test-index",
+            query="test query",
+            search_during_ingestion=True,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.semantic_results is not None
+        assert len(response.semantic_results.values) == 1
+        assert (
+            response.semantic_results.values[0].content == "Partially ingested content"
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("ingestion_status", ["Queued", "InProgress"])
+    async def test_unified_search_async_opt_in_searches_during_ingestion(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+        ingestion_status: str,
+    ) -> None:
+        self._mock_index_lookup(httpx_mock, base_url, org, tenant, ingestion_status)
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v1.2/search/test-index-id",
+            status_code=200,
+            json={
+                "semanticResults": {
+                    "metadata": {
+                        "operation_id": "test-op",
+                        "strategy": "test-strategy",
+                    },
+                    "values": [
+                        {
+                            "id": "result-1",
+                            "source": "test-source",
+                            "page_number": 1,
+                            "content": "Partially ingested content",
+                            "score": 0.95,
+                        }
+                    ],
+                },
+                "explanation": "test explanation",
+            },
+        )
+
+        response = await service.unified_search_async(
+            name="test-index",
+            query="test query",
+            search_during_ingestion=True,
+        )
+
+        assert isinstance(response, UnifiedQueryResult)
+        assert response.semantic_results is not None
+        assert len(response.semantic_results.values) == 1
+        assert (
+            response.semantic_results.values[0].content == "Partially ingested content"
+        )
+
     def test_unified_search_with_scope(
         self,
         httpx_mock: HTTPXMock,
@@ -4044,3 +4422,38 @@ class TestJobKeyHeader:
 
         headers = mock_request.call_args[1]["headers"]
         assert HEADER_JOB_KEY not in headers
+
+
+class TestResourceOverride:
+    def test_bound_folder_replaces_callers_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ContextGroundingService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/ecs_/v2/indexes?$filter=Name eq 'eu-index'&$expand=dataSource",
+            status_code=200,
+            json={"value": [{"id": "eu-index-id", "name": "eu-index"}]},
+        )
+        overwrite = GenericResourceOverwrite(
+            resource_type="index", name="eu-index", folder_path="Finance/EU"
+        )
+        token = _resource_overwrites.set({"index.test-index": overwrite})
+        try:
+            with patch.object(
+                service._folders_service, "retrieve_key", return_value="eu-folder-key"
+            ) as retrieve_key:
+                index = service.retrieve(
+                    name="test-index", folder_key="callers-folder-key"
+                )
+        finally:
+            _resource_overwrites.reset(token)
+
+        assert index.id == "eu-index-id"
+        retrieve_key.assert_called_once_with(folder_path="Finance/EU")
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert sent_request.headers["x-uipath-folderkey"] == "eu-folder-key"

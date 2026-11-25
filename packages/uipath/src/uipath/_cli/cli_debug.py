@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any, cast, get_args
 
@@ -16,6 +15,7 @@ from uipath._cli._utils._studio_project import StudioClient
 from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
 from uipath.eval.mocks._mock_runtime import load_simulation_config
+from uipath.eval.mocks._simulation_model import get_agent_max_tokens
 from uipath.platform.common import (
     ExecutionSourceContext,
     ResourceOverwritesContext,
@@ -32,6 +32,7 @@ from uipath.runtime.chat import UiPathChatProtocol, UiPathChatRuntime
 from uipath.runtime.debug import UiPathDebugProtocol, UiPathDebugRuntime
 from uipath.tracing import LiveTrackingSpanProcessor, LlmOpsHttpExporter
 
+from ._execution_control import run_execution_loop
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
 from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
@@ -198,6 +199,7 @@ def debug(
                             entrypoint=entrypoint,
                             execution_source=ctx.execution_source,
                             is_conversational=ctx.conversation_id is not None,
+                            factory=factory,
                         )
 
                         governance_bootstrap = await resolve_governance(
@@ -265,13 +267,14 @@ def debug(
                             agent_model = None
                             if schema.metadata and "settings" in schema.metadata:
                                 agent_model = schema.metadata["settings"].get("model")
+                            agent_max_tokens = get_agent_max_tokens(schema)
 
                             delegate_runtime: UiPathDebugRuntime | UiPathMockRuntime = (
                                 debug_runtime
                             )
                             if simulation_config:
                                 mocking_context = build_mocking_context(
-                                    simulation_config, agent_model
+                                    simulation_config, agent_model, agent_max_tokens
                                 )
                                 if mocking_context:
                                     delegate_runtime = UiPathMockRuntime(
@@ -280,7 +283,8 @@ def debug(
                                     )
                             else:
                                 mocking_context = load_simulation_config(
-                                    agent_model=agent_model
+                                    agent_model=agent_model,
+                                    agent_max_tokens=agent_max_tokens,
                                 )
                                 delegate_runtime = UiPathMockRuntime(
                                     delegate=debug_runtime,
@@ -338,7 +342,7 @@ def debug(
                         finally:
                             trace_manager.shutdown()
 
-            asyncio.run(execute_debug_runtime())
+            run_execution_loop(execute_debug_runtime())
         except Exception as e:
             console.error(
                 f"Error occurred: {e or 'Execution failed'}", include_traceback=True

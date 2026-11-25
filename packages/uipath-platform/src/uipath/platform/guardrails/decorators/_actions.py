@@ -15,7 +15,7 @@ from ._models import GuardrailAction
 
 
 class LoggingSeverityLevel(int, Enum):
-    """Logging severity level for :class:`LogAction`."""
+    """Logging severity level for `LogAction`."""
 
     ERROR = logging.ERROR
     INFO = logging.INFO
@@ -55,7 +55,7 @@ class LogAction(GuardrailAction):
 
 @dataclass
 class BlockAction(GuardrailAction):
-    """Block execution by raising :class:`GuardrailBlockException`.
+    """Block execution by raising `GuardrailBlockException`.
 
     Framework adapters catch ``GuardrailBlockException`` at the wrapper boundary
     and convert it to their own runtime error type.
@@ -74,7 +74,7 @@ class BlockAction(GuardrailAction):
         data: str | dict[str, Any],
         guardrail_name: str,
     ) -> str | dict[str, Any] | None:
-        """Raise :class:`GuardrailBlockException` when validation fails."""
+        """Raise `GuardrailBlockException` when validation fails."""
         if result.result == GuardrailValidationResultType.VALIDATION_FAILED:
             title = self.title or f"Guardrail [{guardrail_name}] blocked execution"
             detail = self.detail or result.reason or "Guardrail validation failed"

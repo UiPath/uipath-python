@@ -67,6 +67,7 @@ nav:
             - Assets: core/assets.md
             - Attachments: core/attachments.md
             - Buckets: core/buckets.md
+            - Business Rules: core/business_rules.md
             - Connections: core/connections.md
             - Context Grounding: core/context_grounding.md
             - Documents: core/documents.md
@@ -74,11 +75,14 @@ nav:
             - Jobs: core/jobs.md
             - Guardrails: core/guardrails.md
             - LLM Gateway: core/llm_gateway.md
+            - Ontology: core/ontology.md
             - Queues: core/queues.md
             - Processes: core/processes.md
             - Resource Catalog: core/resource_catalog.md
+            - Skills: core/skills.md
             - Tasks: core/tasks.md
         - Models:
+            - Business Rules: core/business_rules_models.md
             - Documents: core/documents_models.md
         - Evaluations:
             - Overview: eval/index.md

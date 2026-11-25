@@ -28,6 +28,7 @@ class AuthService:
         force: bool,
         client_id: str | None = None,
         client_secret: str | None = None,
+        client_assertion: str | None = None,
         base_url: str | None = None,
         tenant: str | None = None,
         scope: str | None = None,
@@ -36,26 +37,27 @@ class AuthService:
         self._console = ConsoleLogger()
         self._client_id = client_id
         self._client_secret = client_secret
+        self._client_assertion = client_assertion
         self._base_url = base_url
         self._tenant = tenant
         self._domain = resolve_domain(self._base_url, environment)
         self._scope = scope
 
     async def authenticate(self) -> None:
-        if self._client_id and self._client_secret:
+        if self._client_id and (self._client_secret or self._client_assertion):
             await self._authenticate_client_credentials()
             return
 
         await self._authenticate_authorization_code()
 
     async def _authenticate_client_credentials(self):
-        if not (self._client_id and self._client_secret):
-            raise ValueError("Client ID and Client Secret must be provided.")
+        assert self._client_id
         external_app_service = ExternalApplicationService(self._base_url)
         token_data = await external_app_service.get_token_data_async(
             self._client_id,
             self._client_secret,
             self._scope,
+            client_assertion=self._client_assertion,
         )
 
         organization_name, tenant_name = extract_org_tenant(

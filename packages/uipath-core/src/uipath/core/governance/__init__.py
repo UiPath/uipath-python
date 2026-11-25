@@ -2,7 +2,7 @@
 
 Evaluator-agnostic types every governance consumer references — the
 runtime layer, adapter packages, and customer code that catches
-:class:`GovernanceBlockException`. The full runtime / audit /
+`GovernanceBlockException`. The full runtime / audit /
 native-evaluator implementation lives outside this package; this
 core surface is just the contracts.
 """

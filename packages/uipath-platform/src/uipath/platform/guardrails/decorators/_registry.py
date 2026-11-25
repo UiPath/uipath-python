@@ -11,9 +11,9 @@ from ._models import GuardrailAction
 class GuardrailTargetAdapter(Protocol):
     """Protocol for framework-specific guardrail adapters.
 
-    Implement this protocol to teach :func:`guardrail` how to handle objects
+    Implement this protocol to teach `guardrail()` how to handle objects
     from a particular framework. Register instances via
-    :func:`register_guardrail_adapter`.
+    `register_guardrail_adapter()`.
     """
 
     def recognize(self, target: Any) -> bool:
@@ -39,7 +39,7 @@ class GuardrailTargetAdapter(Protocol):
 
         Args:
             target: Object to wrap.
-            evaluator: Unified evaluation callable from :func:`_make_evaluator`.
+            evaluator: Unified evaluation callable from `_make_evaluator()`.
             action: Action to invoke on validation failure.
             name: Human-readable guardrail name.
             stage: When to evaluate (PRE, POST, or PRE_AND_POST).
@@ -60,7 +60,7 @@ def register_guardrail_adapter(adapter: GuardrailTargetAdapter) -> None:
     Later-registered adapters are tried first.
 
     Args:
-        adapter: An instance implementing :class:`GuardrailTargetAdapter`.
+        adapter: An instance implementing `GuardrailTargetAdapter`.
     """
     _adapters.insert(0, adapter)
 

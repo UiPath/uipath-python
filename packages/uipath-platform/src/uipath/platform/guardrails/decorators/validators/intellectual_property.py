@@ -39,7 +39,7 @@ class IntellectualPropertyValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build an intellectual property :class:`BuiltInValidatorGuardrail`.
+        """Build an intellectual property `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -47,7 +47,7 @@ class IntellectualPropertyValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` for IP detection.
+            Configured `BuiltInValidatorGuardrail` for IP detection.
         """
         return BuiltInValidatorGuardrail(
             id=str(uuid4()),

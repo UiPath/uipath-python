@@ -2,8 +2,8 @@
 
 Handles record CRUD (single and batch), structured queries, attachments,
 choice-set value lookup, bulk import, and federated SQL queries. Schema
-definitions are managed by :class:`EntitySchemaService` and exposed alongside
-data operations through :class:`EntitiesService`.
+definitions are managed by `EntitySchemaService` and exposed alongside
+data operations through `EntitiesService`.
 """
 
 import json as json_module
@@ -125,7 +125,7 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> List[ChoiceSetValue]:
-        """Internal implementation; see :meth:`EntitiesService.get_choiceset_values`."""
+        """Internal implementation; see `EntitiesService.get_choiceset_values()`."""
         spec = self._get_choiceset_values_spec(choiceset_id, start=start, limit=limit)
         response = self.request(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
@@ -138,7 +138,7 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> List[ChoiceSetValue]:
-        """Async variant of :meth:`get_choiceset_values`."""
+        """Async variant of `get_choiceset_values()`."""
         spec = self._get_choiceset_values_spec(choiceset_id, start=start, limit=limit)
         response = await self.request_async(
             spec.method, spec.endpoint, params=spec.params, json=spec.json
@@ -158,7 +158,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecordsListResponse:
-        """Internal implementation; see :meth:`EntitiesService.list_records`."""
+        """Internal implementation; see `EntitiesService.list_records()`."""
         spec = self._list_records_spec(
             entity_key,
             start=start,
@@ -178,7 +178,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecordsListResponse:
-        """Async variant of :meth:`list_records`."""
+        """Async variant of `list_records()`."""
         spec = self._list_records_spec(
             entity_key,
             start=start,
@@ -202,7 +202,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecord:
-        """Internal implementation; see :meth:`EntitiesService.insert_record`."""
+        """Internal implementation; see `EntitiesService.insert_record()`."""
         spec = self._insert_record_spec(
             entity_key, data, expansion_level, use_v3=use_v3
         )
@@ -218,7 +218,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecord:
-        """Async variant of :meth:`insert_record`."""
+        """Async variant of `insert_record()`."""
         spec = self._insert_record_spec(
             entity_key, data, expansion_level, use_v3=use_v3
         )
@@ -248,7 +248,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecord:
-        """Async variant of :meth:`get_record`."""
+        """Async variant of `get_record()`."""
         spec = self._get_record_spec(
             entity_key, record_id, expansion_level, use_v3=use_v3
         )
@@ -265,7 +265,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecord:
-        """Internal implementation; see :meth:`EntitiesService.update_record`."""
+        """Internal implementation; see `EntitiesService.update_record()`."""
         spec = self._update_record_spec(
             entity_key, record_id, data, expansion_level, use_v3=use_v3
         )
@@ -282,7 +282,7 @@ class EntityDataService(BaseService):
         expansion_level: Optional[int] = None,
         use_v3: bool = False,
     ) -> EntityRecord:
-        """Async variant of :meth:`update_record`."""
+        """Async variant of `update_record()`."""
         spec = self._update_record_spec(
             entity_key, record_id, data, expansion_level, use_v3=use_v3
         )
@@ -301,7 +301,7 @@ class EntityDataService(BaseService):
     async def delete_record_async(
         self, entity_key: str, record_id: str, use_v3: bool = False
     ) -> None:
-        """Async variant of :meth:`delete_record`."""
+        """Async variant of `delete_record()`."""
         spec = self._delete_record_spec(entity_key, record_id, use_v3=use_v3)
         await self.request_async(spec.method, spec.endpoint)
 
@@ -318,7 +318,7 @@ class EntityDataService(BaseService):
         fail_on_first: Optional[bool] = None,
         use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
-        """Internal implementation; see :meth:`EntitiesService.insert_records`."""
+        """Internal implementation; see `EntitiesService.insert_records()`."""
         spec = self._insert_batch_spec(
             entity_key,
             records,
@@ -344,7 +344,7 @@ class EntityDataService(BaseService):
         fail_on_first: Optional[bool] = None,
         use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
-        """Async variant of :meth:`insert_records`."""
+        """Async variant of `insert_records()`."""
         spec = self._insert_batch_spec(
             entity_key,
             records,
@@ -372,7 +372,7 @@ class EntityDataService(BaseService):
         fail_on_first: Optional[bool] = None,
         use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
-        """Internal implementation; see :meth:`EntitiesService.update_records`."""
+        """Internal implementation; see `EntitiesService.update_records()`."""
         normalized = [self._record_to_dict(record) for record in records]
         if schema is not None:
             for record in normalized:
@@ -403,7 +403,7 @@ class EntityDataService(BaseService):
         fail_on_first: Optional[bool] = None,
         use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
-        """Async variant of :meth:`update_records`."""
+        """Async variant of `update_records()`."""
         normalized = [self._record_to_dict(record) for record in records]
         if schema is not None:
             for record in normalized:
@@ -454,7 +454,7 @@ class EntityDataService(BaseService):
         fail_on_first: Optional[bool] = None,
         use_v3: bool = False,
     ) -> EntityRecordsBatchResponse:
-        """Async variant of :meth:`delete_records`."""
+        """Async variant of `delete_records()`."""
         spec = self._delete_batch_spec(
             entity_key, record_ids, fail_on_first=fail_on_first, use_v3=use_v3
         )
@@ -489,7 +489,7 @@ class EntityDataService(BaseService):
         limit: Optional[int] = None,
         use_v3: bool = False,
     ) -> RetrieveEntityRecordsResponse:
-        """Internal implementation; see :meth:`EntitiesService.retrieve_records`."""
+        """Internal implementation; see `EntitiesService.retrieve_records()`."""
         spec = self._retrieve_records_spec(
             entity_key,
             filter_group=filter_group,
@@ -526,7 +526,7 @@ class EntityDataService(BaseService):
         limit: Optional[int] = None,
         use_v3: bool = False,
     ) -> RetrieveEntityRecordsResponse:
-        """Async variant of :meth:`retrieve_records`."""
+        """Async variant of `retrieve_records()`."""
         spec = self._retrieve_records_spec(
             entity_key,
             filter_group=filter_group,
@@ -557,7 +557,7 @@ class EntityDataService(BaseService):
         relationships_as_scalar: bool = False,
         resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Internal implementation; see :meth:`EntitiesService.query_entity_records`."""
+        """Internal implementation; see `EntitiesService.query_entity_records()`."""
         return self._query_entities_for_records(
             sql_query, relationships_as_scalar, resolve_choice_sets
         )
@@ -568,7 +568,7 @@ class EntityDataService(BaseService):
         relationships_as_scalar: bool = False,
         resolve_choice_sets: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Async variant of :meth:`query_entity_records`."""
+        """Async variant of `query_entity_records()`."""
         return await self._query_entities_for_records_async(
             sql_query, relationships_as_scalar, resolve_choice_sets
         )
@@ -586,7 +586,7 @@ class EntityDataService(BaseService):
         file_path: Optional[str] = None,
         expansion_level: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Internal implementation; see :meth:`EntitiesService.upload_attachment`."""
+        """Internal implementation; see `EntitiesService.upload_attachment()`."""
         spec = self._attachment_endpoint(
             entity_id, record_id, field_name, expansion_level
         )
@@ -608,7 +608,7 @@ class EntityDataService(BaseService):
         file_path: Optional[str] = None,
         expansion_level: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Async variant of :meth:`upload_attachment`."""
+        """Async variant of `upload_attachment()`."""
         spec = self._attachment_endpoint(
             entity_id, record_id, field_name, expansion_level
         )
@@ -624,7 +624,7 @@ class EntityDataService(BaseService):
     def download_attachment(
         self, entity_id: str, record_id: str, field_name: str
     ) -> bytes:
-        """Internal implementation; see :meth:`EntitiesService.download_attachment`."""
+        """Internal implementation; see `EntitiesService.download_attachment()`."""
         spec = self._attachment_endpoint(entity_id, record_id, field_name)
         response = self.request("GET", spec.endpoint)
         return response.content
@@ -632,7 +632,7 @@ class EntityDataService(BaseService):
     async def download_attachment_async(
         self, entity_id: str, record_id: str, field_name: str
     ) -> bytes:
-        """Async variant of :meth:`download_attachment`."""
+        """Async variant of `download_attachment()`."""
         spec = self._attachment_endpoint(entity_id, record_id, field_name)
         response = await self.request_async("GET", spec.endpoint)
         return response.content
@@ -644,7 +644,7 @@ class EntityDataService(BaseService):
         field_name: str,
         expansion_level: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Internal implementation; see :meth:`EntitiesService.delete_attachment`."""
+        """Internal implementation; see `EntitiesService.delete_attachment()`."""
         spec = self._attachment_endpoint(
             entity_id, record_id, field_name, expansion_level
         )
@@ -658,7 +658,7 @@ class EntityDataService(BaseService):
         field_name: str,
         expansion_level: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Async variant of :meth:`delete_attachment`."""
+        """Async variant of `delete_attachment()`."""
         spec = self._attachment_endpoint(
             entity_id, record_id, field_name, expansion_level
         )
@@ -675,7 +675,7 @@ class EntityDataService(BaseService):
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
     ) -> EntityImportRecordsResponse:
-        """Internal implementation; see :meth:`EntitiesService.import_records`."""
+        """Internal implementation; see `EntitiesService.import_records()`."""
         spec = self._import_records_spec(entity_id)
         with self._open_file(file, file_path) as handle:
             response = self.request(spec.method, spec.endpoint, files={"file": handle})
@@ -687,7 +687,7 @@ class EntityDataService(BaseService):
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
     ) -> EntityImportRecordsResponse:
-        """Async variant of :meth:`import_records`."""
+        """Async variant of `import_records()`."""
         spec = self._import_records_spec(entity_id)
         with self._open_file(file, file_path) as handle:
             response = await self.request_async(
@@ -704,7 +704,7 @@ class EntityDataService(BaseService):
         batch_response: Response,
         schema: Optional[Type[Any]] = None,
     ) -> EntityRecordsBatchResponse:
-        """Internal implementation; see :meth:`EntitiesService.validate_entity_batch`."""
+        """Internal implementation; see `EntitiesService.validate_entity_batch()`."""
         parsed = EntityRecordsBatchResponse.model_validate(batch_response.json())
 
         validated_successful_records = []
@@ -767,7 +767,7 @@ class EntityDataService(BaseService):
         The endpoint implements only ``start``, ``limit`` and ``expansionLevel``.
         OData-style ``$filter`` / ``$orderby`` / ``$select`` / ``$expand`` params
         are accepted and silently ignored by the backend, so they are not sent —
-        use :meth:`retrieve_records` (``POST .../query``) to filter or sort.
+        use `retrieve_records()` (``POST .../query``) to filter or sort.
         """
         params: Dict[str, Any] = {}
         if start is not None:
@@ -1104,7 +1104,7 @@ class EntityDataService(BaseService):
     def _record_to_dict(record: Any) -> Dict[str, Any]:
         """Normalize an input record to a plain dict.
 
-        Accepts dicts, Pydantic ``BaseModel`` (including :class:`EntityRecord`),
+        Accepts dicts, Pydantic ``BaseModel`` (including `EntityRecord`),
         or any object exposing ``__dict__``. Explicit ``None`` values are
         preserved so callers can clear fields by setting them to ``None`` on a
         model instance — only unset fields (whose Pydantic default applies) are
@@ -1128,7 +1128,7 @@ class EntityDataService(BaseService):
         start: Optional[int],
         limit: Optional[int],
     ) -> EntityRecordsListResponse:
-        """Build an :class:`EntityRecordsListResponse` from a list-records body."""
+        """Build an `EntityRecordsListResponse` from a list-records body."""
         body = response.json() or {}
         records_data = body.get("value", [])
         total_count = int(
@@ -1158,11 +1158,11 @@ class EntityDataService(BaseService):
         start: Optional[int] = None,
         limit: Optional[int] = None,
     ) -> RetrieveEntityRecordsResponse:
-        """Parse a query response into :class:`RetrieveEntityRecordsResponse`.
+        """Parse a query response into `RetrieveEntityRecordsResponse`.
 
-        Rows that include an ``Id`` field are parsed as :class:`EntityRecord`;
+        Rows that include an ``Id`` field are parsed as `EntityRecord`;
         rows that don't (aggregate / group-by / binning results) are parsed as
-        :class:`AggregateRow`. ``has_next_page`` is derived from
+        `AggregateRow`. ``has_next_page`` is derived from
         ``start + len(items) < total_count`` whenever ``limit`` is supplied;
         ``next_cursor`` is populated only when the backend returns one,
         otherwise the caller paginates by passing the next ``start``.
@@ -1227,7 +1227,7 @@ class EntityDataService(BaseService):
         self,
         async_call: Any,
     ) -> Response | EntityRecordsBatchResponse:
-        """Async variant of :meth:`_request_or_extract_batch`."""
+        """Async variant of `_request_or_extract_batch()`."""
         try:
             return await async_call()
         except EnrichedException as exc:
@@ -1277,7 +1277,7 @@ class EntityDataService(BaseService):
 
         Raises:
             DataFabricSqlValidationError: The statement violates the
-                entity-query subset. Its :class:`DataFabricError` category
+                entity-query subset. Its `DataFabricError` category
                 distinguishes a mechanically fixable statement (``BAD_SQL``)
                 from one whose shape the subset cannot express at all
                 (``UNSUPPORTED_CONSTRUCT``), so a retry loop can stop instead

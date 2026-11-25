@@ -3,12 +3,14 @@ import json
 import logging
 import os
 import signal
+from collections.abc import Awaitable
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel
 from rich.console import Console
+from rich.markup import escape
 from rich.tree import Tree
 
 from uipath.core.serialization import serialize_object
@@ -36,6 +38,8 @@ from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePha
 DebugAttachMode = Literal["signalr", "console", "none"]
 
 logger = logging.getLogger(__name__)
+
+SEND_ACKNOWLEDGEMENT_TIMEOUT_SECONDS = 15.0
 
 
 class DebugCommand(str, Enum):
@@ -166,7 +170,7 @@ class ConsoleDebugBridge:
                 output_data = runtime_result.output.model_dump()
             else:
                 output_data = runtime_result.output
-        self._print_json(output_data, label="output")
+        self._print_json(output_data, label="output", truncate=False)
 
     async def emit_execution_suspended(
         self,
@@ -179,11 +183,13 @@ class ConsoleDebugBridge:
 
         if runtime_result.trigger.trigger_type == UiPathResumeTriggerType.API:
             if runtime_result.output is None:
-                self._print_json({}, label="output")
+                self._print_json({}, label="output", truncate=False)
             elif isinstance(runtime_result.output, BaseModel):
-                self._print_json(runtime_result.output.model_dump(), label="output")
+                self._print_json(
+                    runtime_result.output.model_dump(), label="output", truncate=False
+                )
             else:
-                self._print_json(runtime_result.output, label="output")
+                self._print_json(runtime_result.output, label="output", truncate=False)
             self.console.print("[dim]Please provide your input:[/dim]")
 
             self._waiting_for_resume_data = True
@@ -381,8 +387,26 @@ class ConsoleDebugBridge:
         self.console.print("  [yellow]q, quit[/yellow]         Exit debugger")
         self.console.print()
 
-    def _print_json(self, data: dict[str, Any] | str, label: str = "data") -> None:
-        """Print JSON data with enhanced hierarchy."""
+    def _print_json(
+        self,
+        data: dict[str, Any] | str,
+        label: str = "data",
+        truncate: bool = True,
+    ) -> None:
+        """Print JSON data with enhanced hierarchy.
+
+        Args:
+            data: The payload to print.
+            label: The root label of the tree.
+            truncate: Shorten long values and deep nesting. Pass False for a
+                run's output, which is the result itself and must print whole.
+        """
+
+        def shorten(val_str: str) -> str:
+            if truncate and len(val_str) > 250:
+                return val_str[:250] + "..."
+            return val_str
+
         try:
             # Create a tree for nested structure
             tree = Tree(f"[bold cyan]{label}[/bold cyan]")
@@ -405,13 +429,11 @@ class ConsoleDebugBridge:
                     )
                     add_to_tree(branch, value, depth + 1)
                 else:
-                    val_str = str(value)
-                    if len(val_str) > 250:
-                        val_str = val_str[:250] + "..."
+                    val_str = escape(shorten(str(value)))
                     node.add(f"{key_label}: [green]{val_str}[/green]")
 
             def add_to_tree(node: Tree, payload: Any, depth: int = 0):
-                if depth > 10:
+                if truncate and depth > 10:
                     node.add("[dim]...[/dim]")
                     return
 
@@ -424,16 +446,16 @@ class ConsoleDebugBridge:
 
                 elif isinstance(payload, dict):
                     for key, value in payload.items():
-                        process_value(node, value, f"[yellow]{key}[/yellow]", depth)
+                        process_value(
+                            node, value, f"[yellow]{escape(str(key))}[/yellow]", depth
+                        )
 
                 elif isinstance(payload, list):
                     for i, item in enumerate(payload):
                         process_value(node, item, f"[cyan]#{i}[/cyan]", depth)
 
                 else:
-                    val_str = str(payload)
-                    if len(val_str) > 250:
-                        val_str = val_str[:250] + "..."
+                    val_str = escape(shorten(str(payload)))
                     node.add(f"[green]{val_str}[/green]")
 
             add_to_tree(tree, data)
@@ -445,11 +467,18 @@ class ConsoleDebugBridge:
         except Exception:
             try:
                 json_str = json.dumps(data, indent=2, default=str)
-                if len(json_str) > 10000:
+                if truncate and len(json_str) > 10000:
                     json_str = json_str[:10000] + "\n..."
                 from rich.syntax import Syntax
 
-                syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
+                # Syntax crops lines wider than the console unless it wraps.
+                syntax = Syntax(
+                    json_str,
+                    "json",
+                    theme="monokai",
+                    line_numbers=False,
+                    word_wrap=not truncate,
+                )
                 self.console.print(f"\n[dim]{label}:")
                 self.console.print(syntax)
                 self.console.print()
@@ -480,6 +509,7 @@ class SignalRDebugBridge:
         self._connected_event = asyncio.Event()
         self._resume_event: asyncio.Event | None = None
         self._terminate_event = asyncio.Event()
+        self._unacknowledged_sends: set[asyncio.Future[None]] = set()
 
     async def connect(self) -> None:
         """Establish SignalR connection."""
@@ -504,6 +534,9 @@ class SignalRDebugBridge:
         self._client.on_error(self._handle_error)
 
         self._run_task = asyncio.create_task(self._client.run())
+        self._run_task.add_done_callback(
+            lambda _: self._cancel_pending_acknowledgements()
+        )
 
         async def cleanup_run_task() -> str:
             error_message = (
@@ -546,8 +579,10 @@ class SignalRDebugBridge:
         if not self._client:
             return
 
+        await self._wait_for_acknowledgements()
+
         # Cancel the run task first
-        if self._run_task and not self._run_task.done():
+        if self._run_task:
             self._run_task.cancel()
             try:
                 await self._run_task
@@ -590,15 +625,18 @@ class SignalRDebugBridge:
             f"Breakpoint hit: {breakpoint_result.breakpoint_node} "
             f"({breakpoint_result.breakpoint_type})"
         )
-        await self._send(
-            "OnBreakpointHit",
-            {
-                "node": breakpoint_result.breakpoint_node,
-                "type": breakpoint_result.breakpoint_type,
-                "state": breakpoint_result.current_state,
-                "nextNodes": breakpoint_result.next_nodes,
-            },
+        payload: dict[str, Any] = {
+            "node": breakpoint_result.breakpoint_node,
+            "type": breakpoint_result.breakpoint_type,
+            "state": breakpoint_result.current_state,
+            "nextNodes": breakpoint_result.next_nodes,
+        }
+        function_start_line = (breakpoint_result.metadata or {}).get(
+            "function_start_line"
         )
+        if isinstance(function_start_line, int):
+            payload["functionStartLine"] = function_start_line
+        await self._send("OnBreakpointHit", payload)
 
     async def emit_execution_completed(
         self,
@@ -724,6 +762,15 @@ class SignalRDebugBridge:
         """
         if not self._client:
             raise RuntimeError("SignalR client not connected")
+        acknowledged: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._unacknowledged_sends.add(acknowledged)
+        acknowledged.add_done_callback(self._unacknowledged_sends.discard)
+
+        def acknowledge(_completion: Any) -> Awaitable[None]:
+            if not acknowledged.done():
+                acknowledged.set_result(None)
+            return asyncio.sleep(0)
+
         try:
             # Wrap the event in SendCommand protocol
             # Server expects: SendCommand(event_name, json_string_of_data)
@@ -731,10 +778,37 @@ class SignalRDebugBridge:
             serialized_data = serialize_object(data)
             data_json = json.dumps(serialized_data)
             arguments: list[Any] = [event_name, data_json]
-            await self._client.send(method="SendCommand", arguments=arguments)
+            await self._client.send(
+                method="SendCommand",
+                arguments=arguments,
+                on_invocation=acknowledge,
+            )
             logger.debug(f"Sent command: {event_name}")
+        except asyncio.CancelledError:
+            acknowledged.cancel()
+            raise
         except Exception as e:
+            acknowledged.cancel()
             logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
+
+    async def _wait_for_acknowledgements(self) -> None:
+        """Wait for the hub to acknowledge the commands sent so far."""
+        if not self._unacknowledged_sends:
+            return
+        _, unacknowledged = await asyncio.wait(
+            set(self._unacknowledged_sends),
+            timeout=SEND_ACKNOWLEDGEMENT_TIMEOUT_SECONDS,
+        )
+        if unacknowledged:
+            logger.warning(
+                f"Closing the SignalR connection before the hub acknowledged "
+                f"{len(unacknowledged)} command(s)"
+            )
+
+    def _cancel_pending_acknowledgements(self) -> None:
+        """Stop waiting for acknowledgements a closed connection can no longer get."""
+        for acknowledged in tuple(self._unacknowledged_sends):
+            acknowledged.cancel()
 
     async def _handle_start(self, args: list[Any]) -> None:
         """Handle Start command from SignalR server.
@@ -859,6 +933,7 @@ class SignalRDebugBridge:
         """Handle SignalR connection close."""
         logger.info("SignalR connection closed")
         self._connected_event.clear()
+        self._cancel_pending_acknowledgements()
 
     async def _handle_error(self, error: Any) -> None:
         """Handle SignalR error."""

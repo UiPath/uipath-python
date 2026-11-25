@@ -17,7 +17,6 @@ from uipath.platform.constants import (
     STUDIO_METADATA_FILE,
 )
 
-from ...platform.errors import EnrichedException
 from .._utils._common import get_claim_from_token
 from .._utils._console import ConsoleLogger
 from .._utils._constants import (
@@ -512,7 +511,7 @@ class SwFileHandler:
         """Main method to upload source files to the UiPath project.
 
         This method:
-        1. Gets project structure (or creates if it doesn't exist)
+        1. Gets the remote project structure
         2. Collects local files to upload
         3. Processes file uploads (yields progress updates)
         4. Performs structural migration
@@ -525,18 +524,12 @@ class SwFileHandler:
             FileOperationUpdate: Progress updates for each file operation
 
         Raises:
-            Exception: If any step in the process fails
+            EnrichedException: If the project structure cannot be fetched
+                (including 404, which means the project id or base URL is wrong,
+                not that the project is empty)
+            Exception: If any other step in the process fails
         """
-        # Get or create project structure
-        try:
-            structure = await self._studio_client.get_project_structure_async()
-        except EnrichedException as e:
-            if e.status_code == 404:
-                # Project structure doesn't exist - create empty structure and lock
-                structure = ProjectStructure(name="", files=[], folders=[])
-                await self._studio_client._put_lock()
-            else:
-                raise
+        structure = await self._studio_client.get_project_structure_async()
 
         remote_files = self._get_remote_files(structure)
 

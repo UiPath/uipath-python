@@ -25,6 +25,9 @@ The `uipath` package is always required. Add one framework extension on top:
 | PydanticAI | `uipath-pydantic-ai` | Type-safe agents with Pydantic models |
 | Google ADK | `uipath-google-adk` | Gemini models, Google ecosystem |
 | UiPath Agent Framework | `uipath-agent-framework` | UiPath-native agent primitives |
+| Claude Agent SDK | `uipath-claude-sdk` | Claude models, Anthropic-native agent loop |
+
+Installing one of these packages is what makes `uipath new` scaffold an agent. With more than one installed, name the one you want with `--agent-framework`, using the package exactly as it appears above.
 
 ---
 
@@ -84,6 +87,20 @@ The example below uses LangChain. Swap `uipath-langchain` for the framework of y
 ```
 
 ////
+
+/// info | Guaranteeing an agent project
+`uipath new` defaults to `--type auto`: the installed framework integration claims the scaffold, which is why the commands above create an agent project. Pass `--type agent` to make that a requirement — it fails with instructions instead of creating a function project when no framework is installed:
+
+```shell
+uipath new agent --type agent
+```
+
+With several framework integrations installed in the same environment, `uipath new` warns and uses the first one discovered; name the one you want instead with:
+
+```shell
+uipath new agent --type agent --agent-framework uipath-langchain
+```
+///
 
 ---
 
@@ -166,6 +183,7 @@ The full set of Orchestrator services is available to agents:
 - **Buckets** — download and upload files: [Buckets reference](./buckets.md)
 - **Connections** — Integration Service connections for ERP and SaaS: [Connections reference](./connections.md)
 - **Context Grounding** — semantic search over enterprise data: [Context Grounding reference](./context_grounding.md)
+- **Skills** — skill bundles bound to the agent, resolved at run start and read on demand: [Skills reference](./skills.md)
 
 ---
 

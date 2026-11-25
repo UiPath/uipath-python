@@ -24,7 +24,10 @@ from ..documents import (
     FileContent,
     StartExtractionResponse,
 )
-from ..documents.documents import StartExtractionValidationResponse
+from ..documents.documents import (
+    DocumentsApiVersion,
+    StartExtractionValidationResponse,
+)
 from ..orchestrator.job import Job
 
 
@@ -35,6 +38,7 @@ class InvokeProcess(BaseModel):
     process_folder_path: str | None = None
     process_folder_key: str | None = None
     input_arguments: dict[str, Any] | None
+    entry_point_path: str | None = None
     attachments: list[Attachment] | None = None
 
 
@@ -195,12 +199,24 @@ class CreateBatchTransform(BaseModel):
     index_folder_key: str | None = None
     index_folder_path: str | None = None
     is_ephemeral_index: bool | None = None
+    attachment: str | None = None
 
     @model_validator(mode="after")
     def validate_ephemeral_index_requires_index_id(self) -> "CreateBatchTransform":
         """Validate that if it is an ephemeral index that it is using index id."""
-        if self.is_ephemeral_index is True and self.index_id is None:
-            raise ValueError("Index id must be provided for an ephemeral index")
+        if (
+            self.is_ephemeral_index is True
+            and self.index_id is None
+            and not self.attachment
+        ):
+            raise ValueError(
+                "Index id must be provided for an ephemeral index (or use attachment)"
+            )
+        if self.attachment is not None:
+            if self.index_id is not None or self.index_name is not None:
+                raise ValueError(
+                    "attachment cannot be combined with index_id or index_name"
+                )
         return self
 
 
@@ -231,12 +247,17 @@ class WaitSystemAgent(BaseModel):
 
 
 class DocumentExtraction(BaseModel):
-    """Model representing a document extraction task creation."""
+    """Model representing a document extraction task creation.
+
+    `api_version` selects the DU Framework API version: `1.1` runs the extraction with
+    `UiPath().documents`, `2.0` with `UiPath().documents_v2`.
+    """
 
     project_name: str
     tag: str
     file: FileContent | None = None
     file_path: str | None = None
+    api_version: DocumentsApiVersion = "1.1"
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,

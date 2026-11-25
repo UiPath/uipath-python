@@ -464,6 +464,12 @@ def ingest_index(
     default="Semantic",
     help="Search mode (default: Semantic)",
 )
+@click.option(
+    "--search-during-ingestion",
+    is_flag=True,
+    default=False,
+    help="Search the documents indexed so far even while ingestion is in progress",
+)
 @common_service_options
 @service_command
 def search_index(
@@ -473,6 +479,7 @@ def search_index(
     limit: int,
     threshold: float,
     search_mode: str,
+    search_during_ingestion: bool,
     folder_path: Optional[str],
     folder_key: Optional[str],
     format: Optional[str],
@@ -494,6 +501,7 @@ def search_index(
         number_of_results=limit,
         threshold=threshold,
         search_mode=SearchMode(search_mode),
+        search_during_ingestion=search_during_ingestion,
         folder_path=folder_path,
         folder_key=folder_key,
     )
@@ -650,6 +658,12 @@ def batch_transform() -> None:
     is_flag=True,
     help="Enable web search grounding",
 )
+@click.option(
+    "--exclude-domain",
+    "exclude_domains",
+    multiple=True,
+    help="Domain to exclude from web search grounding. Requires --web-search. Repeatable.",
+)
 @common_service_options
 @service_command
 def start_batch_transform(
@@ -662,6 +676,7 @@ def start_batch_transform(
     target_file: Optional[str],
     prefix: Optional[str],
     web_search: bool,
+    exclude_domains: tuple[str, ...],
     folder_path: Optional[str],
     folder_key: Optional[str],
     format: Optional[str],
@@ -710,6 +725,7 @@ def start_batch_transform(
         storage_bucket_folder_path_prefix=prefix,
         target_file_name=target_file,
         enable_web_search_grounding=web_search,
+        exclude_domains=list(exclude_domains) if exclude_domains else None,
         folder_path=folder_path,
         folder_key=folder_key,
     )

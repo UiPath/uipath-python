@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import mimetypes
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -11,9 +12,10 @@ from os import environ as env
 from typing import Any, Dict, List, Optional, TypeVar
 
 from opentelemetry import context as context_api
+from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
-from opentelemetry.trace import StatusCode
-from pydantic import BaseModel, ConfigDict, Field
+from opentelemetry.trace import StatusCode, format_span_id
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from uipath.core.serialization import serialize_json
 
 from uipath.platform.constants import (
@@ -222,6 +224,15 @@ class SpanAttachment(BaseModel):
         default=AttachmentDirection.NONE, alias="direction"
     )
 
+    @model_validator(mode="after")
+    def _default_blank_mime_type(self) -> "SpanAttachment":
+        # The traces API rejects the whole span when an attachment has no MIME type.
+        if not self.mime_type.strip():
+            self.mime_type = (
+                mimetypes.guess_type(self.file_name)[0] or "application/octet-stream"
+            )
+        return self
+
 
 @dataclass
 class UiPathSpan:
@@ -372,6 +383,23 @@ class _SpanUtils:
             raise ValueError(f"Invalid span ID format: {value}")
 
     @staticmethod
+    def current_span() -> trace.Span:
+        from uipath.core.tracing.span_utils import UiPathSpanUtils
+
+        return UiPathSpanUtils.get_external_current_span() or trace.get_current_span()
+
+    @staticmethod
+    def current_span_id() -> Optional[str]:
+        try:
+            span_context = _SpanUtils.current_span().get_span_context()
+            span_id = span_context.span_id
+            if span_context.is_valid and isinstance(span_id, int) and span_id:
+                return format_span_id(span_id)
+        except Exception:
+            logger.debug("Could not read the current span id", exc_info=True)
+        return None
+
+    @staticmethod
     def otel_span_to_uipath_span(
         otel_span: ReadableSpan,
         custom_trace_id: Optional[str] = None,
@@ -387,6 +415,8 @@ class _SpanUtils:
         """
         # Extract the context information from the OTel span
         span_context = otel_span.get_span_context()
+        if span_context is None:
+            raise ValueError(f"Span {otel_span.name!r} has no span context")
 
         # Convert to OTEL hex format (32 chars for trace_id, 16 chars for span_id)
         trace_id = format(span_context.trace_id, "032x")

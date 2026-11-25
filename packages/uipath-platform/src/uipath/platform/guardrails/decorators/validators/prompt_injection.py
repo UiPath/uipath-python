@@ -37,7 +37,7 @@ class PromptInjectionValidator(BuiltInGuardrailValidator):
         description: str | None,
         enabled_for_evals: bool,
     ) -> BuiltInValidatorGuardrail:
-        """Build a prompt injection :class:`BuiltInValidatorGuardrail`.
+        """Build a prompt injection `BuiltInValidatorGuardrail`.
 
         Args:
             name: Name for the guardrail.
@@ -45,7 +45,7 @@ class PromptInjectionValidator(BuiltInGuardrailValidator):
             enabled_for_evals: Whether active in evaluation scenarios.
 
         Returns:
-            Configured :class:`BuiltInValidatorGuardrail` for prompt injection.
+            Configured `BuiltInValidatorGuardrail` for prompt injection.
         """
         return BuiltInValidatorGuardrail(
             id=str(uuid4()),

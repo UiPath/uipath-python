@@ -65,6 +65,96 @@ Treat `--client-secret` as a credential. In CI, prefer reading it from a secret 
 
 ///
 
+/// info | Unattended Authentication (Federated Credentials)
+
+CI providers such as GitHub Actions and Azure DevOps issue a short-lived OIDC token to each job. Pass it with `--client-assertion` instead of `--client-secret` and no long-lived secret has to be stored in the pipeline. The token can also be read from the `UIPATH_CLIENT_ASSERTION` environment variable.
+
+**Setup:**
+
+1. Create an External Application without a secret and grant it the scopes you need.
+2. Register a federated credential on it whose issuer, audience and subject exactly match the claims of your CI provider's token. For GitHub Actions the issuer is `https://token.actions.githubusercontent.com` and the subject looks like `repo:<owner>/<repo>:ref:refs/heads/main`. See the [uip CLI authentication docs](https://docs.uipath.com/uipath-cli/standalone/latest/user-guide/authentication#flow-3-%E2%80%94-federated-credentials-(workload-identity)) for the commands.
+
+**Example:**
+
+<!-- termynal -->
+```shell
+> uipath auth --client-id 12345678-c4c5-4f1f-93ff-4f5ab47d57ea \
+              --client-assertion "$OIDC_TOKEN" \
+              --base-url https://cloud.uipath.com/your-org/your-tenant \
+              --scope OR.Folders.Read
+✓  Authentication successful.
+```
+
+**Configuring the same flow in code:** pass `client_assertion` instead of `client_secret` to `UiPath(...)`. The [`federated-credentials-ci` sample](https://github.com/UiPath/uipath-python/tree/main/packages/uipath/samples/federated-credentials-ci) runs pytest against Orchestrator from a GitHub Actions workflow.
+
+///
+
+---
+
+::: mkdocs-click
+    :module: uipath._cli
+    :command: new
+    :depth: 1
+    :style: table
+
+Scaffolds a project in the current directory. `--type` selects what gets created:
+
+- **`auto`** (default) — an installed agent framework integration (e.g. `uipath-langchain`) claims the scaffold and creates a coded agent project; with none installed, a coded function project is created.
+- **`function`** — always creates a coded function project, regardless of installed integrations.
+- **`agent`** — creates a coded agent project with the installed framework integration, and fails if none is installed rather than quietly creating a function project.
+
+| Installed framework integrations | `uipath new x` (auto) | `uipath new x --type agent` |
+|----------------------------------|------------------------|------------------------------|
+| none | coded function project | error: install an agent framework |
+| one | that framework's coded agent project | that framework's coded agent project |
+| several | warns, scaffolds with the first discovered | warns, scaffolds with the first discovered |
+
+With one framework installed there is nothing to choose, so `uipath new` uses it. With several, it warns and scaffolds with the first one discovered — pass `--agent-framework` to choose deliberately:
+
+```shell
+uipath new my-agent --type agent --agent-framework uipath-langchain
+```
+
+`--agent-framework` takes the integration package name, is only valid together with `--type agent`, and scaffolds with that framework alone. The names it accepts are the packages installed in your environment — the same ones the error above lists — so `uipath` keeps no list of its own.
+
+Scaffold a coded function:
+
+<!-- termynal -->
+
+```shell
+> uipath new my-function --type function
+⠋ Creating new project my-function in current directory ...
+✓  Created 'main.py' file.
+✓  Created 'pyproject.toml' file.
+✓  Created 'uipath.json' file.
+💡 Initialize project: uipath init
+💡 Run project: uipath run main '{"message": "Hello World!"}'
+```
+
+Both scaffold into the current directory. Pass `--dir` to scaffold into another directory instead; it is created when missing:
+
+```shell
+uipath new my-function --type function --dir my-function
+```
+
+Scaffold a coded agent — requires the framework's integration package in the environment:
+
+<!-- termynal -->
+
+```shell
+> uv add uipath-langchain
+Resolved 42 packages in 1.2s
+Installed 42 packages in 0.8s
+
+> uipath new my-agent --type agent
+⠋ Creating new agent my-agent in current directory ...
+✓  Created 'main.py' file.
+✓  Created 'langgraph.json' file.
+✓  Created 'pyproject.toml' file.
+💡 Initialize project: uipath init
+💡 Run agent: uipath run agent '{"topic": "UiPath"}'
+```
+
 ---
 
 ::: mkdocs-click

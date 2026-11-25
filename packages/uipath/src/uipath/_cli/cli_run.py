@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 import click
@@ -10,6 +9,7 @@ from uipath._cli._utils._common import read_resource_overwrites_from_file
 from uipath._cli._utils._debug import setup_debugging
 from uipath._cli._utils._tracing import create_trace_manager
 from uipath.eval.mocks import SimulationConfig, UiPathMockRuntime, build_mocking_context
+from uipath.eval.mocks._simulation_model import get_agent_max_tokens
 from uipath.platform.common import (
     ExecutionSourceContext,
     ResourceOverwritesContext,
@@ -35,6 +35,7 @@ from uipath.tracing import (
 )
 
 from ._errors import EntrypointDiscoveryException
+from ._execution_control import run_execution_loop
 from ._governance_bootstrap import GovernanceBootstrap, resolve_governance
 from ._run_telemetry import RunTelemetry
 from ._telemetry import track_command
@@ -116,6 +117,13 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     default=None,
     help="Simulation config as a JSON object (same schema as simulation.json)",
 )
+@click.option(
+    "--handler-ipc-pipe",
+    required=False,
+    default=None,
+    hidden=True,  # set by the job executor, never by a person
+    help="Named pipe to stream this job's logs and result over uipath-ipc instead of writing them to files.",
+)
 @track_command("run")
 def run(
     entrypoint: str | None,
@@ -130,6 +138,7 @@ def run(
     debug_port: int,
     keep_state_file: bool,
     simulation: str | None,
+    handler_ipc_pipe: str | None,
 ) -> None:
     """Execute the project."""
     input_file = file or input_file
@@ -162,6 +171,13 @@ def run(
 
     if result.error_message:
         console.error(result.error_message)
+        return
+
+    if not result.should_continue and handler_ipc_pipe is not None:
+        console.error(
+            "--handler-ipc-pipe was requested, but a plugin took over the run and cannot "
+            "stream the logs or the result over it."
+        )
         return
 
     if result.should_continue:
@@ -213,8 +229,13 @@ def run(
                         JsonLinesFileExporter(ctx.trace_file)
                     )
 
-                async with ResourceOverwritesContext(
-                    lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
+                from ._job_api import handler_ipc_connection
+
+                async with (
+                    handler_ipc_connection(handler_ipc_pipe, ctx.job_id, None),
+                    ResourceOverwritesContext(
+                        lambda: read_resource_overwrites_from_file(ctx.runtime_dir)
+                    ),
                 ):
                     with ExecutionSourceContext(ctx.execution_source), ctx:
                         base_runtime: UiPathRuntimeProtocol | None = None
@@ -256,6 +277,7 @@ def run(
                                 entrypoint=resolved_entrypoint,
                                 execution_source=ctx.execution_source,
                                 is_conversational=ctx.conversation_id is not None,
+                                factory=factory,
                             )
 
                             governance_bootstrap = await resolve_governance(
@@ -295,7 +317,9 @@ def run(
                                         "model"
                                     )
                                 mocking_context = build_mocking_context(
-                                    simulation_config, agent_model
+                                    simulation_config,
+                                    agent_model,
+                                    get_agent_max_tokens(schema),
                                 )
                                 if mocking_context:
                                     runtime = UiPathMockRuntime(
@@ -347,7 +371,7 @@ def run(
                             finally:
                                 trace_manager.shutdown()
 
-            asyncio.run(execute())
+            run_execution_loop(execute())
 
         except _RunDiscoveryError as e:
             click.echo("\n".join(e.get_usage_help()))
@@ -357,7 +381,7 @@ def run(
                     "uipath.json spec:",
                     "https://github.com/UiPath/uipath-python/blob/main/packages/uipath/specs/uipath.spec.md",
                 )
-            return
+            click.get_current_context().exit(1)
         except UiPathRuntimeError as e:
             console.error(f"{e.error_info.title} - {e.error_info.detail}")
         except Exception as e:

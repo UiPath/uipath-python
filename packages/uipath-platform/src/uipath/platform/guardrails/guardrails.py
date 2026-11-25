@@ -96,6 +96,32 @@ class BuiltInValidatorGuardrail(BaseGuardrail):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 
+class GuardrailAttachment(BaseModel):
+    """A reference to a file attached to the run that a guardrail may inspect.
+
+    Attributes:
+        id: The Orchestrator attachment id, as a string UUID.
+        file_name: Original file name.
+        mime_type: Original mime type.
+    """
+
+    id: str
+    file_name: str = Field(alias="fileName")
+    mime_type: str = Field(alias="mimeType")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class GuardrailTerminationMode(str, Enum):
+    """When a guardrail evaluation stops scanning.
+
+    ``FAIL_FAST`` stops at the first violation; ``EVALUATE_ALL`` scans everything.
+    """
+
+    FAIL_FAST = "FailFast"
+    EVALUATE_ALL = "EvaluateAll"
+
+
 class GuardrailType(str, Enum):
     """Guardrail type enumeration."""
 

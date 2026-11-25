@@ -6,7 +6,7 @@ Microsoft AGT bridge, a composite, …) live in packages outside
 ``uipath-core`` — plugins depend only on this structural protocol so
 they can be swapped against any of them without code change.
 
-``EvaluatorProtocol`` is a :class:`typing.Protocol` so any class whose
+``EvaluatorProtocol`` is a `typing.Protocol` so any class whose
 methods match the signatures below satisfies the contract without
 inheritance.
 """
@@ -22,9 +22,9 @@ from uipath.core.governance.models import AuditRecord
 class EvaluatorProtocol(Protocol):
     """Structural protocol a framework plugin expects from a policy evaluator.
 
-    Every ``evaluate_*`` method returns an :class:`AuditRecord` — the
+    Every ``evaluate_*`` method returns an `AuditRecord` — the
     per-hook audit envelope holding the per-rule
-    :class:`RuleEvaluation` list, the final action, and the trace /
+    `RuleEvaluation` list, the final action, and the trace /
     agent metadata. Callers get a typed result; no downcasting is
     required.
     """

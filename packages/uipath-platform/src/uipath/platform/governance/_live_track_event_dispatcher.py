@@ -1,11 +1,11 @@
 """Non-blocking dispatcher for governance track-event telemetry.
 
-Wraps :meth:`UiPathPlatformGovernanceProvider.track_event_async` on a
+Wraps `UiPathPlatformGovernanceProvider.track_event_async()` on a
 private background ``asyncio`` event loop so sync callers can fire
 telemetry events without blocking on the underlying ``POST /runtime/log``
 HTTP round-trip.
 
-:meth:`LiveTrackEventDispatcher.dispatch` is a sync fire-and-forget
+`LiveTrackEventDispatcher.dispatch()` is a sync fire-and-forget
 method that mirrors the kwargs of ``track_event_async``. Internally it
 schedules the async HTTP call onto a dedicated background loop, so the
 calling thread never blocks on network I/O and the underlying HTTP call
@@ -59,16 +59,16 @@ class LiveTrackEventDispatcher:
     platform's ``/runtime/log`` HTTP call — and the HTTP call itself
     is awaited (not run on a sync thread pool).
 
-    .. code-block:: python
-
-        provider = UiPathPlatformGovernanceProvider(config=..., execution_context=...)
-        dispatcher = LiveTrackEventDispatcher(provider)
-        dispatcher.dispatch(event_name="agent.started")
-        # ...
-        dispatcher.shutdown()  # at process exit
+    ```python
+    provider = UiPathPlatformGovernanceProvider(config=..., execution_context=...)
+    dispatcher = LiveTrackEventDispatcher(provider)
+    dispatcher.dispatch(event_name="agent.started")
+    # ...
+    dispatcher.shutdown()  # at process exit
+    ```
 
     ``dispatch`` has the same kwargs as
-    :meth:`UiPathPlatformGovernanceProvider.track_event_async` so it is
+    `UiPathPlatformGovernanceProvider.track_event_async()` so it is
     a drop-in sync callable for anywhere the async method would go.
     """
 
@@ -154,13 +154,13 @@ class LiveTrackEventDispatcher:
         """Schedule a track-event call on the background loop — returns immediately.
 
         The kwargs mirror
-        :meth:`UiPathPlatformGovernanceProvider.track_event_async` so
+        `UiPathPlatformGovernanceProvider.track_event_async()` so
         this method is a drop-in sync callable for the async provider
         method.
 
         Failure modes — all silent, never raised to the caller:
 
-        - **Post-shutdown**: dispatch after :meth:`shutdown` returns
+        - **Post-shutdown**: dispatch after `shutdown()` returns
           silently; the provider is not called.
         - **Saturated in-flight cap**: when ``max_inflight`` coroutines
           are already scheduled, the call is dropped with a warning.
@@ -235,7 +235,7 @@ class LiveTrackEventDispatcher:
         doesn't warn "exception was never retrieved" at GC time.
         ``concurrent.futures.Future.exception()`` *raises*
         ``CancelledError`` when the future was cancelled (the observe-
-        without-raise semantics apply only to :class:`asyncio.Future`,
+        without-raise semantics apply only to `asyncio.Future`,
         not this ``concurrent.futures`` type), so the observation is
         wrapped in a targeted catch. The accounting — semaphore release
         and pending-set discard — runs in ``finally`` so success,

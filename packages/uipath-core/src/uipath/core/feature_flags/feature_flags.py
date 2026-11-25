@@ -1,13 +1,13 @@
 """Feature flags configuration for UiPath SDK.
 
 A simple, local-only feature flag registry. Flags can be set
-programmatically via :meth:`FeatureFlagsManager.configure_flags` or
+programmatically via `FeatureFlagsManager.configure_flags()` or
 supplied via environment variables named ``UIPATH_FEATURE_<FlagName>``
 when nothing has been configured programmatically.
 
 Programmatic values always take precedence over environment variables.
 
-Example usage::
+Example usage:
 
     from uipath.core.feature_flags import FeatureFlags
 
@@ -58,7 +58,7 @@ def _parse_env_value(raw: str) -> Any:
 class FeatureFlagsManager:
     """Singleton registry for UiPath feature flags.
 
-    Use the module-level :data:`FeatureFlags` instance rather than
+    Use the module-level `FeatureFlags` instance rather than
     instantiating this class directly.
     """
 
@@ -90,7 +90,7 @@ class FeatureFlagsManager:
 
         Resolution order:
 
-        1. Value set via :meth:`configure_flags` (highest priority)
+        1. Value set via `configure_flags()` (highest priority)
         2. ``UIPATH_FEATURE_<name>`` environment variable (fallback when nothing configured)
         3. *default*
 
@@ -108,7 +108,7 @@ class FeatureFlagsManager:
     def is_flag_enabled(self, name: str, *, default: bool = False) -> bool:
         """Check whether a boolean flag is enabled.
 
-        Uses the same resolution order as :meth:`get_flag`.
+        Uses the same resolution order as `get_flag()`.
 
         Args:
             name: The feature flag name.

@@ -51,7 +51,7 @@ class ReferenceContext:
     Each mutating call returns a new instance — the original is never
     modified, preventing sibling spans from sharing context.
 
-    Usage::
+    Usage:
 
         ctx = ReferenceContext.Empty
         ctx = ctx.add("maestro", process_id, "2.1.0")
@@ -105,7 +105,7 @@ class ReferenceContext:
             version: Optional version string.
 
         Returns:
-            A new :class:`ReferenceContext` with the entry appended.
+            A new `ReferenceContext` with the entry appended.
         """
         if not service_type or not service_type.strip():
             raise ValueError("service_type must be a non-empty string.")
@@ -158,7 +158,7 @@ class ReferenceContext:
                 ``"ref.type=agent;ref.id=<uuid>;ref.v=1.0,ref.type=maestro;ref.id=<uuid>"``
 
         Returns:
-            Parsed :class:`ReferenceContext`, or :attr:`ReferenceContext.Empty`
+            Parsed `ReferenceContext`, or `ReferenceContext.Empty`
             if the header is absent, empty, or contains no valid ref entries.
         """
         if not header_value or not header_value.strip():
@@ -225,12 +225,12 @@ ReferenceContext.Empty = ReferenceContext()
 
 
 class ReferenceContextAccessor:
-    """Ambient accessor for the current :class:`ReferenceContext`.
+    """Ambient accessor for the current `ReferenceContext`.
 
-    Backed by :mod:`contextvars` so the value propagates across ``await``
+    Backed by `contextvars` so the value propagates across ``await``
     boundaries without being threaded through every call signature.
 
-    Usage::
+    Usage:
 
         token = ReferenceContextAccessor.set(ctx)
         try:
@@ -254,7 +254,7 @@ class ReferenceContextAccessor:
     ) -> contextvars.Token[Optional[ReferenceContext]]:
         """Set the ambient context. Returns a token for restoration.
 
-        Pass the token to :meth:`reset` in a ``finally`` block.
+        Pass the token to `reset()` in a ``finally`` block.
         """
         return cls._current.set(value)
 

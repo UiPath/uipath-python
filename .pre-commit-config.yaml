@@ -5,3 +5,20 @@ repos:
     - id: ruff
       args: [ --fix ]
     - id: ruff-format
+
+# The docs site renders docstrings through mkdocstrings with the Google
+# parser, which treats them as Markdown, so Sphinx/RST markup leaks through
+# verbatim onto the published API pages. Scoped to src/ because test
+# docstrings are never rendered.
+- repo: local
+  hooks:
+    - id: no-rst-roles
+      name: No Sphinx/RST roles or directives in docstrings (docs render as Markdown)
+      language: pygrep
+      entry: ':(class|meth|func|mod|attr|data|exc|obj|ref):`|^\s*\.\. [a-z-]+::'
+      files: ^packages/[^/]+/src/.*\.py$
+    - id: no-rst-literal-blocks
+      name: No RST literal-block markers in docstrings (use a fenced code block)
+      language: pygrep
+      entry: '::$'
+      files: ^packages/[^/]+/src/.*\.py$

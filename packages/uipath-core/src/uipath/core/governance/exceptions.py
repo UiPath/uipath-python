@@ -41,8 +41,8 @@ class GovernanceBlockException(Exception):
     This exception indicates that the AI agent's operation was blocked by
     a configured governance policy, not an unexpected system error.
 
-    Prefer the classmethod constructors (:meth:`from_violation`,
-    :meth:`from_audit_record`) when you have structured context — the
+    Prefer the classmethod constructors (`from_violation()`,
+    `from_audit_record()`) when you have structured context — the
     default constructor is for raw-message use only.
     """
 
@@ -60,8 +60,8 @@ class GovernanceBlockException(Exception):
     ) -> None:
         """Construct from a pre-formatted message and optional structured context.
 
-        Most callers should use :meth:`from_violation` or
-        :meth:`from_audit_record` instead of passing structured context
+        Most callers should use `from_violation()` or
+        `from_audit_record()` instead of passing structured context
         directly.
         """
         self.violation = violation
@@ -76,7 +76,7 @@ class GovernanceBlockException(Exception):
     def from_violation(
         cls, violation: GovernanceViolation
     ) -> "GovernanceBlockException":
-        """Build from a structured :class:`GovernanceViolation`."""
+        """Build from a structured `GovernanceViolation`."""
         return cls(
             message=_format_violation_message(
                 violation.rule_id, violation.rule_name, violation.detail
@@ -88,7 +88,7 @@ class GovernanceBlockException(Exception):
 
     @classmethod
     def from_audit_record(cls, audit_record: AuditRecord) -> "GovernanceBlockException":
-        """Build from an :class:`AuditRecord` — first matched rule wins."""
+        """Build from an `AuditRecord` — first matched rule wins."""
         matched_rules = [e for e in audit_record.evaluations if e.matched]
         if matched_rules:
             rule = matched_rules[0]

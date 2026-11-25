@@ -1560,6 +1560,65 @@ class TestConnectorActivityInvocation:
             "/elements_/v3/element/instances/test-connection-123/elements/test-connector/users/user456/posts/post789"
         )
 
+    def test_invoke_activity_bool_query_and_header_params_are_lowercase(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        simple_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test that booleans are sent as true/false, not Python's True/False."""
+        connection_id = "test-connection-123"
+        activity_input = {
+            "query_param": True,
+            "query_param2": False,
+            "custom_header": True,
+            "custom_header2": 3,
+        }
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={})
+
+        service.invoke_activity(
+            activity_metadata=simple_activity_metadata,
+            connection_id=connection_id,
+            activity_input=activity_input,
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        assert sent_request.url.params["query_param"] == "true"
+        assert sent_request.url.params["query_param2"] == "false"
+        assert sent_request.headers["custom_header"] == "true"
+        assert sent_request.headers["custom_header2"] == "3"
+
+    def test_invoke_activity_bool_path_param_is_lowercase(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+        path_activity_metadata: ActivityMetadata,
+    ) -> None:
+        """Test that a boolean path parameter is substituted as false, not False."""
+        connection_id = "test-connection-123"
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={})
+
+        service.invoke_activity(
+            activity_metadata=path_activity_metadata,
+            connection_id=connection_id,
+            activity_input={"userId": False, "postId": 7},
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        assert sent_request.url.path.endswith("/users/false/posts/7")
+
     def test_invoke_activity_multipart_request(
         self,
         httpx_mock: HTTPXMock,
@@ -2343,3 +2402,39 @@ class TestMultipartFileUpload:
         # Scalar payload must NOT carry a filename in Content-Disposition.
         assert "filename=" not in payload_part
         assert "{}" in payload_part
+
+    def test_invoke_activity_multipart_bool_scalar_is_lowercase(
+        self,
+        httpx_mock: HTTPXMock,
+        service: ConnectionsService,
+    ) -> None:
+        """Boolean multipart form fields are sent as true/false, not True/False."""
+        metadata = ActivityMetadata(
+            object_path="/elements/test-connector/upload",
+            method_name="POST",
+            content_type="multipart/form-data",
+            parameter_location_info=ActivityParameterLocationInfo(
+                multipart_params=["flag"],
+                body_fields=[],
+            ),
+        )
+        connection_id = "test-connection-123"
+
+        httpx_mock.add_response(
+            method="GET",
+            status_code=200,
+            json={"id": connection_id, "name": "Test", "elementInstanceId": 1},
+        )
+        httpx_mock.add_response(method="POST", status_code=200, json={"ok": True})
+
+        service.invoke_activity(
+            activity_metadata=metadata,
+            connection_id=connection_id,
+            activity_input={"flag": True},
+        )
+
+        sent_request = httpx_mock.get_requests()[1]
+        boundary = sent_request.headers["content-type"].split("boundary=")[1]
+        flag_part = _multipart_part(sent_request.content, boundary, "flag")
+
+        assert flag_part.rstrip().endswith("true")

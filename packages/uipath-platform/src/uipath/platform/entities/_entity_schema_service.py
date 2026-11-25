@@ -3,7 +3,7 @@
 Handles entity definitions, choice set listings, and the create / delete /
 update-metadata lifecycle that targets the backend ``EntityController``.
 Record CRUD, queries, attachments, and bulk import live on
-:class:`EntityDataService` and are mediated by :class:`EntitiesService`.
+`EntityDataService` and are mediated by `EntitiesService`.
 """
 
 import re
@@ -17,6 +17,8 @@ from ..common._base_service import BaseService
 from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._models import Endpoint, RequestSpec
+from ..common.paging import PagedResult
+from ..common.validation import validate_pagination_params
 from ..orchestrator._folder_service import FolderService
 from .entities import (
     ENTITY_CLASS_TO_ID_MAP,
@@ -38,6 +40,7 @@ DATA_FABRIC_TENANT_FOLDER_ID = "00000000-0000-0000-0000-000000000000"
 
 _V1_ENTITIES = "datafabric_/api/Entity"
 _V3_ENTITIES = "datafabric_/api/v3/entities"
+_MAX_ENTITIES_PAGE = 200
 
 
 def _schema_base(use_v3: bool) -> str:
@@ -85,13 +88,13 @@ class EntitySchemaService(BaseService):
         self._folders_service = folders_service
 
     def retrieve(self, entity_key: str, use_v3: bool = False) -> Entity:
-        """Internal implementation; see :meth:`EntitiesService.retrieve`."""
+        """Internal implementation; see `EntitiesService.retrieve()`."""
         spec = self._retrieve_spec(entity_key, use_v3=use_v3)
         response = self.request(spec.method, spec.endpoint)
         return Entity.model_validate(response.json())
 
     async def retrieve_async(self, entity_key: str, use_v3: bool = False) -> Entity:
-        """Async variant of :meth:`retrieve`."""
+        """Async variant of `retrieve()`."""
         spec = self._retrieve_spec(entity_key, use_v3=use_v3)
         response = await self.request_async(spec.method, spec.endpoint)
         return Entity.model_validate(response.json())
@@ -102,7 +105,7 @@ class EntitySchemaService(BaseService):
         folder_key: Optional[str] = None,
         use_v3: bool = False,
     ) -> Entity:
-        """Internal implementation; see :meth:`EntitiesService.retrieve_by_name`."""
+        """Internal implementation; see `EntitiesService.retrieve_by_name()`."""
         spec = self._retrieve_by_name_spec(entity_name, use_v3=use_v3)
         headers = self._folder_key_headers(folder_key)
         response = self.request(spec.method, spec.endpoint, headers=headers)
@@ -114,34 +117,50 @@ class EntitySchemaService(BaseService):
         folder_key: Optional[str] = None,
         use_v3: bool = False,
     ) -> Entity:
-        """Async variant of :meth:`retrieve_by_name`."""
+        """Async variant of `retrieve_by_name()`."""
         spec = self._retrieve_by_name_spec(entity_name, use_v3=use_v3)
         headers = self._folder_key_headers(folder_key)
         response = await self.request_async(spec.method, spec.endpoint, headers=headers)
         return Entity.model_validate(response.json())
 
     def list_entities(self, use_v3: bool = False) -> List[Entity]:
-        """Internal implementation; see :meth:`EntitiesService.list_entities`."""
+        """Internal implementation; see `EntitiesService.list_entities()`."""
         spec = self._list_entities_spec(use_v3=use_v3)
         response = self.request(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
 
     async def list_entities_async(self, use_v3: bool = False) -> List[Entity]:
-        """Async variant of :meth:`list_entities`."""
+        """Async variant of `list_entities()`."""
         spec = self._list_entities_spec(use_v3=use_v3)
         response = await self.request_async(spec.method, spec.endpoint)
         entities_data = response.json()
         return [Entity.model_validate(entity) for entity in entities_data]
 
+    def list_entities_paginated_v3(self, skip: int, top: int) -> PagedResult[Entity]:
+        """Internal implementation; see `EntitiesService.list_entities_paginated_v3()`."""
+        spec = self._list_entities_paginated_v3_spec(skip=skip, top=top)
+        response = self.request(spec.method, spec.endpoint, params=spec.params)
+        return self._entities_paginated_v3_page(response, skip=skip, top=top)
+
+    async def list_entities_paginated_v3_async(
+        self, skip: int, top: int
+    ) -> PagedResult[Entity]:
+        """Async variant of `list_entities_paginated_v3()`."""
+        spec = self._list_entities_paginated_v3_spec(skip=skip, top=top)
+        response = await self.request_async(
+            spec.method, spec.endpoint, params=spec.params
+        )
+        return self._entities_paginated_v3_page(response, skip=skip, top=top)
+
     def list_choicesets(self) -> List[Entity]:
-        """Internal implementation; see :meth:`EntitiesService.list_choicesets`."""
+        """Internal implementation; see `EntitiesService.list_choicesets()`."""
         spec = self._list_choicesets_spec()
         response = self.request(spec.method, spec.endpoint)
         return [Entity.model_validate(item) for item in response.json()]
 
     async def list_choicesets_async(self) -> List[Entity]:
-        """Async variant of :meth:`list_choicesets`."""
+        """Async variant of `list_choicesets()`."""
         spec = self._list_choicesets_spec()
         response = await self.request_async(spec.method, spec.endpoint)
         return [Entity.model_validate(item) for item in response.json()]
@@ -153,7 +172,7 @@ class EntitySchemaService(BaseService):
         options: Optional[EntityCreateOptions] = None,
         use_v3: bool = False,
     ) -> str:
-        """Internal implementation; see :meth:`EntitiesService.create_entity`."""
+        """Internal implementation; see `EntitiesService.create_entity()`."""
         spec = self._create_entity_spec(name, fields, options, use_v3=use_v3)
         response = self.request(spec.method, spec.endpoint, json=spec.json)
         return self._extract_entity_id(response)
@@ -165,7 +184,7 @@ class EntitySchemaService(BaseService):
         options: Optional[EntityCreateOptions] = None,
         use_v3: bool = False,
     ) -> str:
-        """Async variant of :meth:`create_entity`."""
+        """Async variant of `create_entity()`."""
         spec = self._create_entity_spec(name, fields, options, use_v3=use_v3)
         response = await self.request_async(spec.method, spec.endpoint, json=spec.json)
         return self._extract_entity_id(response)
@@ -176,7 +195,7 @@ class EntitySchemaService(BaseService):
         self.request(spec.method, spec.endpoint)
 
     async def delete_entity_async(self, entity_id: str, use_v3: bool = False) -> None:
-        """Async variant of :meth:`delete_entity`."""
+        """Async variant of `delete_entity()`."""
         spec = self._delete_entity_spec(entity_id, use_v3=use_v3)
         await self.request_async(spec.method, spec.endpoint)
 
@@ -186,7 +205,7 @@ class EntitySchemaService(BaseService):
         metadata: EntityMetadataUpdateOptions | Dict[str, Any],
         use_v3: bool = False,
     ) -> None:
-        """Internal implementation; see :meth:`EntitiesService.update_entity_metadata`."""
+        """Internal implementation; see `EntitiesService.update_entity_metadata()`."""
         spec = self._update_entity_metadata_spec(entity_id, metadata, use_v3=use_v3)
         self.request(spec.method, spec.endpoint, json=spec.json)
 
@@ -196,7 +215,7 @@ class EntitySchemaService(BaseService):
         metadata: EntityMetadataUpdateOptions | Dict[str, Any],
         use_v3: bool = False,
     ) -> None:
-        """Async variant of :meth:`update_entity_metadata`."""
+        """Async variant of `update_entity_metadata()`."""
         spec = self._update_entity_metadata_spec(entity_id, metadata, use_v3=use_v3)
         await self.request_async(spec.method, spec.endpoint, json=spec.json)
 
@@ -233,6 +252,34 @@ class EntitySchemaService(BaseService):
         return RequestSpec(
             method="GET",
             endpoint=Endpoint(_schema_base(use_v3)),
+        )
+
+    @staticmethod
+    def _list_entities_paginated_v3_spec(skip: int, top: int) -> RequestSpec:
+        """Build the GET spec for one page of entities without their fields.
+
+        The v3 `paginated` route lists the same entities as `GET /v3/entities`
+        but never loads the field schemas.
+        """
+        validate_pagination_params(skip=skip, top=top, max_top=_MAX_ENTITIES_PAGE)
+        return RequestSpec(
+            method="GET",
+            endpoint=Endpoint(f"{_V3_ENTITIES}/paginated"),
+            params={"skip": skip, "top": top},
+        )
+
+    @staticmethod
+    def _entities_paginated_v3_page(
+        response: Response, skip: int, top: int
+    ) -> PagedResult[Entity]:
+        """Parse one `paginated` response into a `PagedResult`."""
+        body = response.json()
+        entities = [Entity.model_validate(entity) for entity in body["results"]]
+        return PagedResult(
+            items=entities,
+            has_more=skip + len(entities) < body["totalCount"],
+            skip=skip,
+            top=top,
         )
 
     @staticmethod
@@ -357,7 +404,7 @@ class EntitySchemaService(BaseService):
         Each source's internal columns run through the same field pipeline as
         native fields (so ``fieldDefinition`` is identical to a native field),
         paired with its external mapping and source connection/object details.
-        Dict inputs are validated through :class:`EntityCreateExternalSource`.
+        Dict inputs are validated through `EntityCreateExternalSource`.
         """
         if not sources:
             return []
@@ -395,7 +442,7 @@ class EntitySchemaService(BaseService):
 
         Produces ``{fieldDefinition, externalFieldMappingDetail}`` per field —
         ``fieldDefinition`` is the native field payload, ``externalFieldMappingDetail``
-        the source mapping (``directionType`` numeric, per :class:`DataDirectionType`).
+        the source mapping (``directionType`` numeric, per `DataDirectionType`).
         """
         if not fields:
             return []
@@ -425,7 +472,7 @@ class EntitySchemaService(BaseService):
     ) -> RequestSpec:
         """Build the PATCH spec for updating entity metadata.
 
-        Dict inputs are validated through :class:`EntityMetadataUpdateOptions`
+        Dict inputs are validated through `EntityMetadataUpdateOptions`
         so snake_case keys (``display_name``) and camelCase keys
         (``displayName``) both serialise to the API field names the backend
         expects.
@@ -445,11 +492,11 @@ class EntitySchemaService(BaseService):
     ) -> Dict[str, Any]:
         """Build the API field payload for a single field on create-entity.
 
-        Maps :class:`EntityFieldDataType` to the backend's ``sqlType.name`` and
+        Maps `EntityFieldDataType` to the backend's ``sqlType.name`` and
         ``fieldDisplayType`` (e.g. ``STRING`` becomes ``NVARCHAR`` / ``Basic``).
         Caller-supplied constraints are validated against
-        :data:`ENTITY_FIELD_CONSTRAINT_SPEC`; unsupplied per-type constraints
-        fall back to :data:`ENTITY_FIELD_CONSTRAINT_DEFAULTS` so the field is
+        `ENTITY_FIELD_CONSTRAINT_SPEC`; unsupplied per-type constraints
+        fall back to `ENTITY_FIELD_CONSTRAINT_DEFAULTS` so the field is
         persisted fully and remains editable later.
         """
         ftype = field.type or EntityFieldDataType.STRING
@@ -572,7 +619,7 @@ class EntitySchemaService(BaseService):
         stay consistent with the UI's entity / field creation forms).
 
         Field names additionally cannot collide with the system-reserved field
-        names in :data:`RESERVED_FIELD_NAMES`; the reserved-name check runs
+        names in `RESERVED_FIELD_NAMES`; the reserved-name check runs
         first so that short reserved names produce a more informative error.
         """
         if context == "field":
@@ -600,7 +647,7 @@ class EntitySchemaService(BaseService):
 
         Rejects constraints that ``ftype`` does not accept (e.g.
         ``decimal_precision`` on ``STRING``), values outside the inclusive
-        range declared in :data:`ENTITY_FIELD_CONSTRAINT_SPEC`, and
+        range declared in `ENTITY_FIELD_CONSTRAINT_SPEC`, and
         ``min_value`` greater than or equal to ``max_value`` when both are
         supplied. Also enforces type-dependent required references:
         ``CHOICE_SET_SINGLE`` and ``CHOICE_SET_MULTIPLE`` need

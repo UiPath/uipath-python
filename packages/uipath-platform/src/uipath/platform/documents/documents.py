@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import IO, Any, List, Optional, Union
+from typing import IO, Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 FileContent = Union[IO[bytes], bytes, str]
+
+# DU Framework API version: `DocumentsService` calls 1.1, `DocumentsServiceV2` calls 2.0.
+DocumentsApiVersion = Literal["1.1", "2.0"]
 
 
 class FieldType(str, Enum):
@@ -23,6 +26,8 @@ class FieldType(str, Enum):
     BOOLEAN = "Boolean"
     TABLE = "Table"
     INTERNAL = "Internal"
+    FIELD_GROUP = "FieldGroup"
+    MONETARY_QUANTITY = "MonetaryQuantity"
 
 
 class ActionPriority(str, Enum):
@@ -60,7 +65,12 @@ class ProjectType(str, Enum):
 
 
 class FieldValueProjection(BaseModel):
-    """A model representing a projection of a field value in a document extraction result."""
+    """A model representing a projection of a field value in a document extraction result.
+
+    Attributes:
+        id (str): The field ID. In API v1.1 it is the plain field ID (e.g. `Total`). In API v2 it is prefixed by its document type and field group, if any (e.g. `Default.Invoice.Total`).
+        name (str): The field display name.
+    """
 
     model_config = ConfigDict(
         serialize_by_alias=True,
@@ -118,6 +128,7 @@ class ExtractionResponse(BaseModel):
         project_id (str): The ID of the project associated with the extraction.
         tag (str): The tag associated with the published model version.
         document_type_id (str): The ID of the document type associated with the extraction.
+        api_version (str): The DU Framework API version that produced the result, `1.1` or `2.0`.
     """
 
     model_config = ConfigDict(
@@ -132,13 +143,14 @@ class ExtractionResponse(BaseModel):
     extractor_id: Optional[str] = Field(alias="extractorId", default=None)
     tag: Optional[str]
     document_type_id: str = Field(alias="documentTypeId")
+    api_version: DocumentsApiVersion = Field(alias="apiVersion", default="1.1")
 
 
 class ExtractionResponseIXP(ExtractionResponse):
     """A model representing the response from a document extraction process for IXP projects.
 
     Attributes:
-        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data.
+        data_projection (List[FieldGroupValueProjection]): A simplified projection of the extracted data, with one entry per row of each table (API v1.1) or field group (API v2).
     """
 
     data_projection: Optional[List[FieldGroupValueProjection]] = Field(
@@ -276,6 +288,7 @@ class StartOperationResponse(BaseModel):
         document_id (str): The ID of the digitized document.
         project_id (str): The ID of the project.
         tag (str): The tag of the published project version.
+        api_version (str): The DU Framework API version that started the operation, `1.1` or `2.0`.
     """
 
     model_config = ConfigDict(
@@ -288,6 +301,7 @@ class StartOperationResponse(BaseModel):
     document_id: str = Field(alias="documentId")
     project_id: str = Field(alias="projectId")
     tag: str | None = Field(default=None)
+    api_version: DocumentsApiVersion = Field(alias="apiVersion", default="1.1")
 
 
 class StartExtractionResponse(StartOperationResponse):

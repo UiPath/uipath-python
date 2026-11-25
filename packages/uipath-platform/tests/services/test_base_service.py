@@ -1,9 +1,11 @@
 import pytest
+from opentelemetry import trace
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common._base_service import BaseService
-from uipath.platform.constants import HEADER_USER_AGENT
+from uipath.platform.common._base_service import BaseService, _inject_trace_context
+from uipath.platform.constants import HEADER_TRACEPARENT_ID, HEADER_USER_AGENT
 from uipath.platform.errors import EnrichedException
 
 
@@ -389,3 +391,34 @@ class TestServiceUrlOverrideAsync:
         assert sent_request.headers["X-UiPath-Internal-TenantId"] == "tenant-123"
         assert sent_request.headers["X-UiPath-Internal-AccountId"] == "org-456"
         assert response.status_code == 200
+
+
+class TestInjectTraceContext:
+    _SPAN = NonRecordingSpan(
+        SpanContext(
+            trace_id=0x4BF92F3577B34DA6A3CE929D0E0E4736,
+            span_id=0x00F067AA0BA902B7,
+            is_remote=False,
+            trace_flags=TraceFlags(TraceFlags.SAMPLED),
+        )
+    )
+
+    def test_adds_the_current_span(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("UIPATH_TRACE_ID", raising=False)
+        headers: dict[str, str] = {}
+
+        with trace.use_span(self._SPAN):
+            _inject_trace_context(headers)
+
+        assert headers[HEADER_TRACEPARENT_ID] == (
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        )
+
+    def test_keeps_a_trace_header_already_set(self) -> None:
+        explicit = "00-11111111111111111111111111111111-2222222222222222-01"
+        headers = {HEADER_TRACEPARENT_ID: explicit}
+
+        with trace.use_span(self._SPAN):
+            _inject_trace_context(headers)
+
+        assert headers == {HEADER_TRACEPARENT_ID: explicit}

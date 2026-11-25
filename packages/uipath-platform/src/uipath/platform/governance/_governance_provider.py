@@ -1,11 +1,11 @@
 """Platform-backed implementation of the core governance provider protocols.
 
-Thin adapter around :class:`GovernanceService` that exposes only the
+Thin adapter around `GovernanceService` that exposes only the
 methods required by
-:class:`uipath.core.governance.GovernancePolicyProvider` and
-:class:`uipath.core.governance.GovernanceCompensationProvider`.
+`uipath.core.governance.GovernancePolicyProvider` and
+`uipath.core.governance.GovernanceCompensationProvider`.
 
-Wrap an existing :class:`GovernanceService` (e.g.
+Wrap an existing `GovernanceService` (e.g.
 ``UiPathPlatformGovernanceProvider(service=UiPath().governance)``) or
 pass ``config``/``execution_context`` to construct one inline.
 """
@@ -25,12 +25,12 @@ class UiPathPlatformGovernanceProvider:
     """Platform-backed governance provider.
 
     Implements both
-    :class:`uipath.core.governance.GovernancePolicyProvider` and
-    :class:`uipath.core.governance.GovernanceCompensationProvider` by
-    delegating to :class:`GovernanceService`.
+    `uipath.core.governance.GovernancePolicyProvider` and
+    `uipath.core.governance.GovernanceCompensationProvider` by
+    delegating to `GovernanceService`.
 
     Args:
-        service: Existing :class:`GovernanceService` to delegate to.
+        service: Existing `GovernanceService` to delegate to.
             Useful for tests and for sharing an SDK service across
             consumers. When omitted, a fresh service is built from the
             ``config`` and ``execution_context`` kwargs.
@@ -59,7 +59,7 @@ class UiPathPlatformGovernanceProvider:
 
     @property
     def service(self) -> GovernanceService:
-        """The underlying :class:`GovernanceService` instance."""
+        """The underlying `GovernanceService` instance."""
         return self._service
 
     # ── GovernancePolicyProvider ─────────────────────────────────────
@@ -69,7 +69,7 @@ class UiPathPlatformGovernanceProvider:
         return self._service.get_policy(context)
 
     async def get_policy_async(self, context: PolicyContext) -> PolicyResponse:
-        """Async variant of :meth:`get_policy`."""
+        """Async variant of `get_policy()`."""
         return await self._service.get_policy_async(context)
 
     # ── GovernanceCompensationProvider ───────────────────────────────
@@ -79,7 +79,7 @@ class UiPathPlatformGovernanceProvider:
         self._service._compensate(request)
 
     async def compensate_async(self, request: GovernRequest) -> None:
-        """Async variant of :meth:`compensate`."""
+        """Async variant of `compensate()`."""
         await self._service._compensate_async(request)
 
     # ── Custom telemetry events ──────────────────────────────────────
@@ -93,7 +93,7 @@ class UiPathPlatformGovernanceProvider:
     ) -> None:
         """Record a custom telemetry event — delegates to ``GovernanceService``.
 
-        See :meth:`GovernanceService._track_event` for parameter
+        See `GovernanceService._track_event()` for parameter
         semantics — in particular, the ``operation_id`` → trace-id
         fallback.
         """
@@ -108,7 +108,7 @@ class UiPathPlatformGovernanceProvider:
         data: dict[str, Any] | None = None,
         operation_id: str | None = None,
     ) -> None:
-        """Async variant of :meth:`track_event`."""
+        """Async variant of `track_event()`."""
         await self._service._track_event_async(
             event_name=event_name, data=data, operation_id=operation_id
         )

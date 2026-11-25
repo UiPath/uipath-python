@@ -1,7 +1,10 @@
+import contextlib
+import importlib.metadata
 import json
 import os
 import shutil
 import uuid
+from collections.abc import Iterator
 
 import click
 
@@ -9,16 +12,22 @@ from uipath.platform.constants import PYTHON_CONFIGURATION_FILE, UIPATH_CONFIG_F
 
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
+from ._utils._constants import AGENT_FRAMEWORKS_DOCS_URL
 from ._utils._project_files import resolve_existing_project_id
-from .middlewares import Middlewares
+from .middlewares import MiddlewareResult, Middlewares
+from .models.agent_frameworks import AgentFramework
+from .models.project_types import ProjectType
 
 console = ConsoleLogger()
 
-# The `uipath` minor release that scaffolded projects are pinned to.
+# The `uipath` minor release that scaffolded projects are capped to.
 # Deliberately a constant: the guard test in tests/cli/test_new.py fails on
 # every minor bump so the scaffold (pin, template, hints) gets reviewed
-# alongside the release rather than drifting silently.
-UIPATH_SCAFFOLD_MINOR = "2.14"
+# alongside the release rather than drifting silently. The floor is the
+# installed release itself: a Robot refuses a project on an older `uipath`
+# than it supports, so a scaffold must never ask for less than the CLI that
+# wrote it.
+UIPATH_SCAFFOLD_MINOR = "2.15"
 
 
 def generate_script(target_directory):
@@ -33,13 +42,14 @@ def generate_script(target_directory):
 def generate_pyproject(target_directory, project_name):
     project_toml_path = os.path.join(target_directory, PYTHON_CONFIGURATION_FILE)
     major, minor = (int(part) for part in UIPATH_SCAFFOLD_MINOR.split("."))
+    floor = importlib.metadata.version("uipath")
     toml_content = f"""[project]
 name = "{project_name}"
 version = "0.0.1"
 description = "{project_name}"
 authors = [{{ name = "John Doe", email = "john.doe@myemail.com" }}]
 dependencies = [
-    "uipath>={major}.{minor}.0, <{major}.{minor + 1}.0"
+    "uipath>={floor}, <{major}.{minor + 1}.0"
 ]
 requires-python = ">=3.11"
 """
@@ -57,40 +67,176 @@ def generate_uipath_json(target_directory):
         json.dump(uipath_config, f, indent=2)
 
 
+def installed_agent_frameworks() -> list[AgentFramework]:
+    """Agent frameworks that can scaffold a project, in discovery order."""
+    packages: dict[str, str] = {}
+    for entry_point in importlib.metadata.entry_points(group="uipath.middlewares"):
+        if entry_point.dist is not None:
+            packages.setdefault(entry_point.module.split(".")[0], entry_point.dist.name)
+
+    frameworks = []
+    for middleware in Middlewares.get("new"):
+        package = packages.get(middleware.__module__.split(".")[0])
+        if package is not None:
+            frameworks.append(AgentFramework(package=package, scaffold=middleware))
+    return frameworks
+
+
+def _select_agent_framework(
+    frameworks: list[AgentFramework], requested: str
+) -> AgentFramework:
+    """Resolve `--agent-framework` against what is installed."""
+    for framework in frameworks:
+        if requested == framework.package:
+            return framework
+
+    installed = (
+        "Installed: "
+        + ", ".join(sorted(framework.package for framework in frameworks))
+        + "."
+        if frameworks
+        else "No agent framework is installed."
+    )
+    console.error(
+        f"No installed agent framework matches '{requested}'.\n"
+        f"{installed}\n"
+        f"See {AGENT_FRAMEWORKS_DOCS_URL} for the supported frameworks and "
+        "their packages."
+    )
+
+
+@contextlib.contextmanager
+def _working_directory(directory: str) -> Iterator[None]:
+    """Run the enclosed block with `directory` as the current directory.
+
+    The agent frameworks' `new` middlewares scaffold into the current
+    directory, and they live in their own packages (uipath-langchain,
+    uipath-llamaindex, uipath-openai-agents), so `--dir` reaches them through
+    the cwd rather than through a signature every one of them would have to
+    grow first.
+    """
+    previous = os.getcwd()
+    os.chdir(directory)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
+
+
+def _scaffold_agent(name: str, agent_framework: str | None) -> MiddlewareResult:
+    """Offer the scaffold to the installed agent frameworks."""
+    Middlewares.load_plugins()
+    installed = installed_agent_frameworks()
+
+    if agent_framework:
+        # Dispatch to the chosen framework alone, so that another one cannot
+        # claim the scaffold ahead of it.
+        return _select_agent_framework(installed, agent_framework).scaffold(name)
+
+    if len(installed) > 1:
+        first = installed[0]
+        console.warning(
+            "Multiple agent frameworks are installed: "
+            + ", ".join(framework.package for framework in installed)
+            + f".\nScaffolding with the first one discovered: '{first.package}'. "
+            f"To pick a different one, run `uipath new {name} --type agent "
+            "--agent-framework <framework>`."
+        )
+        return first.scaffold(name)
+
+    return Middlewares.next("new", name)
+
+
 @click.command()
 @click.argument("name", type=str, default="")
+@click.option(
+    "--type",
+    "project_type",
+    type=click.Choice([t.value for t in ProjectType]),
+    default=ProjectType.AUTO.value,
+    show_default=True,
+    help="Project type to scaffold. 'auto' scaffolds an agent when an agent "
+    "framework package (e.g. uipath-langchain) is installed and a function "
+    "otherwise; 'function' always scaffolds a function; 'agent' scaffolds an "
+    "agent and fails when no agent framework is installed.",
+)
+@click.option(
+    "--agent-framework",
+    "agent_framework",
+    default=None,
+    help="Agent framework to scaffold with, named by its package (e.g. "
+    "`uipath-langchain`). Only valid together with `--type agent`; picks "
+    "which framework scaffolds when several are installed.",
+)
+@click.option(
+    "--dir",
+    "target_dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Directory to scaffold the project into, created when missing. "
+    "Defaults to the current directory.",
+)
 @track_command("new")
-def new(name: str):
+def new(
+    name: str, project_type: str, agent_framework: str | None, target_dir: str | None
+):
     """Generate a quick-start project."""
-    directory = os.getcwd()
+    directory = os.path.abspath(target_dir) if target_dir else os.getcwd()
 
     if not name:
         console.error(
             "Please specify a name for your project:\n`uipath new hello-world`"
         )
 
-    result = Middlewares.next("new", name)
+    scaffold_type = ProjectType(project_type)
 
-    if result.error_message:
+    if agent_framework and scaffold_type is not ProjectType.AGENT:
         console.error(
-            result.error_message, include_traceback=result.should_include_stacktrace
+            "`--agent-framework` can only be used together with `--type agent`."
         )
 
-    if result.info_message:
-        console.info(result.info_message)
+    if target_dir:
+        os.makedirs(directory, exist_ok=True)
 
-    if not result.should_continue:
-        return
+    # Agent frameworks scaffold through the `new` middleware chain. A function
+    # project never consults them.
+    if scaffold_type is not ProjectType.FUNCTION:
+        with _working_directory(directory):
+            result = _scaffold_agent(name, agent_framework)
 
-    with console.spinner(f"Creating new project {name} in current directory ..."):
+        if result.error_message:
+            console.error(
+                result.error_message, include_traceback=result.should_include_stacktrace
+            )
+
+        if result.info_message:
+            console.info(result.info_message)
+
+        if not result.should_continue:
+            return  # an agent framework scaffolded the project
+
+        if scaffold_type is ProjectType.AGENT:
+            console.error(
+                "No agent framework is installed, so there is nothing to "
+                "scaffold an agent with.\n"
+                "Install the framework you want to use and run this command "
+                f"again — see {AGENT_FRAMEWORKS_DOCS_URL} for the supported "
+                "frameworks and their packages.\n"
+                f"Or run `uipath new {name} --type function` to create a "
+                "function project."
+            )
+
+    location = f"in '{target_dir}'" if target_dir else "in current directory"
+    with console.spinner(f"Creating new project {name} {location} ..."):
         generate_script(directory)
         console.success("Created 'main.py' file.")
         generate_pyproject(directory, name)
         console.success(f"Created '{PYTHON_CONFIGURATION_FILE}' file.")
         generate_uipath_json(directory)
         console.success(f"Created '{UIPATH_CONFIG_FILE}' file.")
-        init_command = """uipath init"""
-        run_command = """uipath run main '{"message": "Hello World!"}'"""
+        prefix = f"cd {target_dir} && " if target_dir else ""
+        init_command = f"{prefix}uipath init"
+        run_command = f"""{prefix}uipath run main '{{"message": "Hello World!"}}'"""
         console.hint(f"""Initialize project: {click.style(init_command, fg="cyan")}""")
         console.hint(f"""Run project: {click.style(run_command, fg="cyan")}""")
 

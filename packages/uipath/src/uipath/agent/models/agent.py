@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from typing import (
     Annotated,
     Any,
+    ClassVar,
     Dict,
     Iterable,
     List,
@@ -22,7 +24,10 @@ from pydantic import (
     ConfigDict,
     Discriminator,
     Field,
+    StrictBool,
     Tag,
+    ValidationError,
+    field_validator,
     model_validator,
 )
 
@@ -39,6 +44,8 @@ from uipath.platform.entities import DataFabricEntityItem, DataFabricOntologyIte
 from uipath.platform.guardrails import (
     BuiltInValidatorGuardrail,
 )
+
+logger = logging.getLogger(__name__)
 
 EMPTY_SCHEMA = {"type": "object", "properties": {}}
 
@@ -114,6 +121,7 @@ class AgentToolType(str, CaseInsensitiveEnum):
     PROCESS_ORCHESTRATION = "ProcessOrchestration"
     FLOW = "Flow"
     FUNCTION = "Function"
+    CONVERSATIONAL_AGENT = "ConversationalAgent"
     INTEGRATION = "Integration"
     INTERNAL = "Internal"
     IXP = "Ixp"
@@ -128,6 +136,8 @@ class AgentInternalToolType(str, CaseInsensitiveEnum):
     DEEP_RAG = "deep-rag"
     BATCH_TRANSFORM = "batch-transform"
     HTTP_REQUEST = "http-request"
+    CREATE_FILE = "create-file"
+    CLASSIFIER = "classifier"
 
 
 class AgentEscalationRecipientType(str, CaseInsensitiveEnum):
@@ -205,6 +215,7 @@ class AgentToolArgumentPropertiesVariant(str, CaseInsensitiveEnum):
     STATIC = "static"
     TEXT_BUILDER = "textBuilder"
     ARRAY_BUILDER = "arrayBuilder"
+    OBJECT_BUILDER = "objectBuilder"
 
 
 class TextTokenType(str, CaseInsensitiveEnum):
@@ -302,12 +313,26 @@ class AgentToolArrayBuilderArgumentProperties(BaseCfg):
     )
 
 
+class AgentToolObjectBuilderArgumentProperties(BaseCfg):
+    """Agent object builder argument properties model.
+
+    A marker on an object argument: each of its properties carries its own
+    argument properties.
+    """
+
+    variant: Literal[AgentToolArgumentPropertiesVariant.OBJECT_BUILDER] = Field(
+        default=AgentToolArgumentPropertiesVariant.OBJECT_BUILDER,
+        frozen=True,
+    )
+
+
 AgentToolArgumentProperties = Annotated[
     Union[
         AgentToolStaticArgumentProperties,
         AgentToolArgumentArgumentProperties,
         AgentToolTextBuilderArgumentProperties,
         AgentToolArrayBuilderArgumentProperties,
+        AgentToolObjectBuilderArgumentProperties,
     ],
     Field(discriminator="variant"),
     _case_insensitive_enum_validator("variant", AgentToolArgumentPropertiesVariant),
@@ -428,6 +453,15 @@ class AgentContextSettings(BaseCfg):
     output_columns: Optional[List[AgentContextOutputColumn]] = Field(
         None, alias="outputColumns"
     )
+    search_during_ingestion: bool = Field(
+        default=False,
+        alias="searchDuringIngestion",
+        description=(
+            "Allow the agent to query this index while an ingestion is still in "
+            "progress, returning results from the documents indexed so far. When "
+            "False, a search against an ingesting index fails instead."
+        ),
+    )
 
 
 class AgentContextResourceConfig(BaseAgentResourceConfig):
@@ -485,7 +519,7 @@ class DynamicToolsMode(str, CaseInsensitiveEnum):
 
     Deprecated: kept for backwards compatibility with older ``agent.json`` files
     that still serialize the ``dynamicTools`` field. New code should use
-    :class:`ToolsConfiguration` (see ``AgentMcpResourceConfig.tools_configuration``).
+    `ToolsConfiguration` (see ``AgentMcpResourceConfig.tools_configuration``).
     """
 
     NONE = "none"
@@ -972,6 +1006,49 @@ class AgentProcessToolResourceConfig(BaseAgentToolResourceConfig):
     )
 
 
+class AgentConversationalAgentToolProperties(BaseResourceProperties):
+    """Conversational agent tool properties model."""
+
+    # Optional so a record missing it loads; the runtime reports it at call time.
+    process_name: Optional[str] = Field(None, alias="processName")
+    folder_path: Optional[str] = Field(None, alias="folderPath")
+    cached_agent_card: Optional[Dict[str, Any]] = Field(None, alias="cachedAgentCard")
+
+
+class AgentConversationalAgentToolSettings(AgentToolSettings):
+    """Conversational agent tool settings model."""
+
+    # Absent (None) means "single": the tool keeps one ongoing conversation.
+    conversation_mode: Literal["single", "multiple"] | None = Field(
+        None, alias="conversationMode"
+    )
+    run_in_background: bool | None = Field(None, alias="runInBackground")
+
+    @field_validator("conversation_mode", mode="before")
+    @classmethod
+    def _ignore_unknown_conversation_mode(cls, value: Any) -> Any:
+        """Read a mode this version does not know as absent, like an unknown tool type."""
+        if isinstance(value, str) and value not in ("single", "multiple"):
+            logger.warning("Ignoring unknown conversationMode %r", value)
+            return None
+        return value
+
+
+class AgentConversationalAgentToolResourceConfig(BaseAgentToolResourceConfig):
+    """Conversational agent tool resource configuration model.
+
+    Kept separate from ``AgentProcessToolResourceConfig`` so it is never routed to
+    the job-start path; the runtime calls it as an A2A agent.
+    """
+
+    type: Literal[AgentToolType.CONVERSATIONAL_AGENT]
+    output_schema: Dict[str, Any] = Field(EMPTY_SCHEMA, alias="outputSchema")
+    properties: AgentConversationalAgentToolProperties
+    settings: AgentConversationalAgentToolSettings = Field(
+        default_factory=AgentConversationalAgentToolSettings
+    )
+
+
 class AgentIxpExtractionToolProperties(BaseResourceProperties):
     """Agent process tool properties model."""
 
@@ -1057,12 +1134,31 @@ class AgentInternalHttpRequestToolProperties(BaseResourceProperties):
     )
 
 
+class AgentInternalCreateFileToolProperties(BaseResourceProperties):
+    """Agent internal create file tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.CREATE_FILE] = Field(
+        alias="toolType", default=AgentInternalToolType.CREATE_FILE, frozen=True
+    )
+
+
+class AgentInternalClassifierToolProperties(BaseResourceProperties):
+    """Agent internal classifier tool properties model."""
+
+    tool_type: Literal[AgentInternalToolType.CLASSIFIER] = Field(
+        alias="toolType", default=AgentInternalToolType.CLASSIFIER, frozen=True
+    )
+    settings: AgentInternalClassifierSettings = Field(..., alias="settings")
+
+
 AgentInternalToolProperties = Annotated[
     Union[
         AgentInternalAnalyzeFilesToolProperties,
         AgentInternalDeepRagToolProperties,
         AgentInternalBatchTransformToolProperties,
         AgentInternalHttpRequestToolProperties,
+        AgentInternalCreateFileToolProperties,
+        AgentInternalClassifierToolProperties,
     ],
     Field(discriminator="tool_type"),
     _case_insensitive_enum_validator("tool_type", AgentInternalToolType, "toolType"),
@@ -1096,6 +1192,195 @@ class AgentInternalBatchTransformSettings(BaseCfg):
     web_search_grounding: BatchTransformWebSearchGroundingSetting = Field(
         ..., alias="webSearchGrounding"
     )
+
+
+# Question names are the keys of the answers in the tool output, for every provider.
+CLASSIFIER_QUESTION_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+
+
+class ClassifierProvider(str, CaseInsensitiveEnum):
+    """The classification API a classifier tool calls, implied by its model."""
+
+    TYPESAFE = "typesafe"  # TypeSafe AI's Jev models
+    OPENAI = "openai"  # OpenAI's Decisions API
+
+
+class BaseClassifierQuestion(BaseCfg):
+    """Common fields of a classifier question.
+
+    A question carries only the fields of its provider and type: ``foreign_fields``
+    lists the fields of the other types (and of the other provider) it rejects.
+    """
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ()
+
+    name: str = Field(..., pattern=CLASSIFIER_QUESTION_NAME_PATTERN)
+    instructions: str = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def _only_own_fields(self) -> "BaseClassifierQuestion":
+        extra = self.model_extra or {}
+        present = [f for f in self.foreign_fields if extra.get(f) is not None]
+        if present:
+            raise ValueError(
+                f"Question '{self.name}' cannot have {' or '.join(present)}"
+            )
+        return self
+
+
+# --- Jev (TypeSafe) questions ---
+
+
+class JevQuestionType(str, CaseInsensitiveEnum):
+    """Jev question type enumeration (matches TypeSafe's question types)."""
+
+    CHOICE = "choice"
+    SCORE = "score"
+    NOUL = "noul"
+
+
+class JevChoiceOption(BaseCfg):
+    """An option of a Jev choice question."""
+
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class JevChoiceQuestion(BaseClassifierQuestion):
+    """Jev question selecting one of a set of options."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("levels", "criteria", "choices")
+
+    type: Literal[JevQuestionType.CHOICE] = JevQuestionType.CHOICE
+    options: List[JevChoiceOption] = Field(..., min_length=2, max_length=255)
+
+    @model_validator(mode="after")
+    def _unique_option_names(self) -> "JevChoiceQuestion":
+        names = [option.name for option in self.options]
+        if len(names) != len(set(names)):
+            raise ValueError(f"Question '{self.name}' has duplicate option names")
+        return self
+
+
+class JevScoreQuestion(BaseClassifierQuestion):
+    """Jev question placing the input on an ordered scale of levels."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "criteria", "choices")
+
+    type: Literal[JevQuestionType.SCORE] = JevQuestionType.SCORE
+    levels: List[Annotated[str, Field(min_length=1)]] = Field(
+        ..., min_length=2, max_length=10
+    )
+
+
+class JevNoulCriteria(BaseModel):
+    """What counts as a true and as a false answer to a Jev noul question."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    true: Optional[str] = Field(None)
+    false: Optional[str] = Field(None)
+
+
+class JevNoulQuestion(BaseClassifierQuestion):
+    """Jev yes/no question answered with a probability."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("options", "levels", "choices")
+
+    type: Literal[JevQuestionType.NOUL] = JevQuestionType.NOUL
+    criteria: Optional[JevNoulCriteria] = Field(None)
+
+
+JevQuestion = Annotated[
+    Union[JevChoiceQuestion, JevScoreQuestion, JevNoulQuestion],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", JevQuestionType),
+]
+
+
+# --- OpenAI Decisions questions (matches the Decisions API request) ---
+
+
+class DecisionsQuestionType(str, CaseInsensitiveEnum):
+    """OpenAI Decisions question type enumeration."""
+
+    CHOICE = "choice"
+    SCORE = "score"
+    PREDICATE = "predicate"
+
+
+class DecisionsChoice(BaseCfg):
+    """A choice of a Decisions choice question."""
+
+    value: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class DecisionsScoreLevel(BaseCfg):
+    """A level of a Decisions score question."""
+
+    label: str = Field(..., min_length=1)
+    description: Optional[str] = Field(None)
+
+
+class DecisionsChoiceQuestion(BaseClassifierQuestion):
+    """Decisions question selecting one of a set of choices."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("levels", "options", "criteria")
+
+    type: Literal[DecisionsQuestionType.CHOICE] = DecisionsQuestionType.CHOICE
+    choices: List[DecisionsChoice] = Field(..., min_length=2)
+
+    @model_validator(mode="after")
+    def _unique_choice_values(self) -> "DecisionsChoiceQuestion":
+        values = [choice.value for choice in self.choices]
+        if len(values) != len(set(values)):
+            raise ValueError(f"Question '{self.name}' has duplicate choice values")
+        return self
+
+
+class DecisionsScoreQuestion(BaseClassifierQuestion):
+    """Decisions question placing the input on levels ordered lowest to highest."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = ("choices", "options", "criteria")
+
+    type: Literal[DecisionsQuestionType.SCORE] = DecisionsQuestionType.SCORE
+    levels: List[DecisionsScoreLevel] = Field(..., min_length=2)
+
+
+class DecisionsPredicateQuestion(BaseClassifierQuestion):
+    """Decisions question estimating the probability that a condition is true."""
+
+    foreign_fields: ClassVar[tuple[str, ...]] = (
+        "choices",
+        "levels",
+        "options",
+        "criteria",
+    )
+
+    type: Literal[DecisionsQuestionType.PREDICATE] = DecisionsQuestionType.PREDICATE
+
+
+DecisionsQuestion = Annotated[
+    Union[DecisionsChoiceQuestion, DecisionsScoreQuestion, DecisionsPredicateQuestion],
+    Field(discriminator="type"),
+    _case_insensitive_enum_validator("type", DecisionsQuestionType),
+]
+
+ClassifierQuestion = Union[JevQuestion, DecisionsQuestion]
+
+
+class AgentInternalClassifierSettings(BaseCfg):
+    """Agent internal classifier tool settings model.
+
+    Only the configuration that is never a call argument: the input and the
+    ``questions`` the tool sends are declared in the resource's ``inputSchema``
+    and supplied through its ``argumentProperties``, in the shapes of the
+    provider. The provider and the model are required: there is no default.
+    """
+
+    provider: ClassifierProvider = Field(...)
+    model: str = Field(..., min_length=1)
 
 
 class AgentIntegrationToolResourceConfig(BaseAgentToolResourceConfig):
@@ -1141,6 +1426,7 @@ class AgentUnknownToolResourceConfig(BaseAgentToolResourceConfig):
 ToolResourceConfig = Annotated[
     Union[
         AgentProcessToolResourceConfig,
+        AgentConversationalAgentToolResourceConfig,
         AgentIntegrationToolResourceConfig,
         AgentInternalToolResourceConfig,
         AgentIxpExtractionResourceConfig,
@@ -1427,6 +1713,71 @@ class ModelSettings(BaseCfg):
     """
 
 
+class AdvancedAgentBuiltInToolSettings(BaseCfg):
+    """One built-in tool's entry in ``settings.advancedAgent.builtInTools``.
+
+    ``enabled`` must be a real boolean; anything else fails this entry, and the
+    caller drops it, which leaves the tool off. ``config`` is kept as a plain
+    mapping, as written: no built-in tool takes settings yet, and the runtime
+    logs and ignores them.
+    """
+
+    enabled: StrictBool = False
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("config", mode="before")
+    @classmethod
+    def _ignore_malformed_config(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return value
+        logger.warning(
+            "Ignoring built-in tool config: expected an object, got %s",
+            type(value).__name__,
+        )
+        return {}
+
+
+class AdvancedAgentSettings(BaseCfg):
+    """Advanced-agent settings model (``settings.advancedAgent``).
+
+    ``built_in_tools`` holds the raw entries from agent.json; uipath-langchain
+    resolves them into the tools to build. It is None when ``builtInTools`` is
+    absent, null or not an object, which the runtime reads as the tool set from
+    before the entries existed. An empty ``builtInTools`` is kept as an empty
+    mapping, which turns every tool off except ``read_file``. Nothing here fails
+    parsing of the agent definition: a malformed part
+    is logged and ignored, and a tool entry that doesn't parse is dropped, which
+    leaves that tool off.
+    """
+
+    built_in_tools: Optional[Dict[str, AdvancedAgentBuiltInToolSettings]] = Field(
+        None, alias="builtInTools"
+    )
+
+    @field_validator("built_in_tools", mode="before")
+    @classmethod
+    def _drop_malformed_tools(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            logger.warning(
+                "Ignoring settings.advancedAgent.builtInTools: expected an object, got %s",
+                type(value).__name__,
+            )
+            return None
+        tools: Dict[str, AdvancedAgentBuiltInToolSettings] = {}
+        for name, entry in value.items():
+            try:
+                tools[name] = AdvancedAgentBuiltInToolSettings.model_validate(entry)
+            except ValidationError as exc:
+                logger.warning(
+                    "Ignoring built-in tool %r in settings.advancedAgent.builtInTools: %s",
+                    name,
+                    exc.errors(include_url=False),
+                )
+        return tools
+
+
 class AgentSettings(BaseCfg):
     """Agent settings model."""
 
@@ -1438,6 +1789,18 @@ class AgentSettings(BaseCfg):
     max_iterations: Optional[int] = Field(None, alias="maxIterations")
     persona: Optional[str] = Field(None, alias="persona")
     model_settings: Optional[ModelSettings] = Field(None, alias="modelSettings")
+    advanced_agent: Optional[AdvancedAgentSettings] = Field(None, alias="advancedAgent")
+
+    @field_validator("advanced_agent", mode="before")
+    @classmethod
+    def _ignore_malformed_advanced_agent(cls, value: Any) -> Any:
+        if value is None or isinstance(value, (dict, AdvancedAgentSettings)):
+            return value
+        logger.warning(
+            "Ignoring settings.advancedAgent: expected an object, got %s",
+            type(value).__name__,
+        )
+        return None
 
 
 class AgentDefinition(BaseModel):
@@ -1536,6 +1899,7 @@ class AgentDefinition(BaseModel):
             "processorchestration": "ProcessOrchestration",
             "flow": "Flow",
             "function": "Function",
+            "conversationalagent": "ConversationalAgent",
             "integration": "Integration",
             "internal": "Internal",
             "ixp": "Ixp",

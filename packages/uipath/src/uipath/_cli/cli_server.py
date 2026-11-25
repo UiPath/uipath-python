@@ -17,6 +17,7 @@ from ._server_core import (
     _run_command_isolated,
     _state,
     parse_args,
+    stop_execution,
 )
 from ._telemetry import track_command
 from ._utils._console import ConsoleLogger
@@ -105,6 +106,11 @@ def get_field(message: dict[str, Any], *keys: str) -> Any:
     return None
 
 
+def _is_int(value: Any) -> bool:
+    # A JSON true would otherwise pass as 1.
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 # --------------------------------------------------------------------------- #
 # HTTP transport (default) — aiohttp over a Unix socket / TCP, with ready-ACK  #
 # --------------------------------------------------------------------------- #
@@ -184,28 +190,108 @@ async def handle_start(request: web.Request) -> web.Response:
             status=400,
         )
 
+    resume_version = get_field(message, "resumeVersion", "ResumeVersion")
+    if resume_version is not None and not _is_int(resume_version):
+        return web.json_response(
+            {
+                "success": False,
+                "error": "Invalid field: 'resumeVersion' must be an int",
+            },
+            status=400,
+        )
+
     console.info(f"Starting job {job_key}: {command_name} {args}")
 
-    result = await _run_command_isolated(cmd, args, env_vars, working_dir)
+    result = await _run_command_isolated(
+        cmd,
+        args,
+        env_vars,
+        working_dir,
+        job_key=job_key,
+        resume_version=resume_version,
+    )
 
+    # The .NET peer decides success from ``exitCode`` alone and defaults a missing one to 0.
+    exit_code = result["ExitCode"]
     if result["Unexpected"]:
         return web.json_response(
-            {"success": False, "job_key": job_key, "error": result["Error"]},
+            {
+                "success": False,
+                "job_key": job_key,
+                "exitCode": exit_code,
+                "error": result["Error"],
+            },
             status=500,
         )
     if result.get("ClientError"):
         # Request-shaped failure (e.g. bad working directory) — 4xx, not 200.
         return web.json_response(
-            {"success": False, "job_key": job_key, "error": result["Error"]},
+            {
+                "success": False,
+                "job_key": job_key,
+                "exitCode": exit_code,
+                "error": result["Error"],
+            },
             status=400,
         )
-    if result["ExitCode"] == 0:
+    if exit_code == 0:
         return web.json_response(
-            {"success": True, "job_key": job_key, "result": result["Result"]}
+            {
+                "success": True,
+                "job_key": job_key,
+                "exitCode": exit_code,
+                "result": result["Result"],
+            }
         )
     return web.json_response(
-        {"success": False, "job_key": job_key, "error": result["Error"]}
+        {
+            "success": False,
+            "job_key": job_key,
+            "exitCode": exit_code,
+            "error": result["Error"],
+        }
     )
+
+
+async def handle_stop(request: web.Request) -> web.Response:
+    """Handle POST /jobs/{job_key}/stop — 200 with whether it no longer runs."""
+    job_key = request.match_info.get("job_key")
+    if not job_key:
+        return web.json_response(
+            {"success": False, "error": "Missing job_key"}, status=400
+        )
+
+    message: Any = {}
+    if request.can_read_body:
+        try:
+            message = await request.json()
+        except json.JSONDecodeError:
+            message = None
+    if not isinstance(message, dict):
+        return web.json_response(
+            {"success": False, "error": "Invalid JSON"}, status=400
+        )
+
+    resume_version = get_field(message, "resumeVersion", "ResumeVersion")
+    if resume_version is not None and not _is_int(resume_version):
+        return web.json_response(
+            {
+                "success": False,
+                "error": "Invalid field: 'resumeVersion' must be an int",
+            },
+            status=400,
+        )
+    force = get_field(message, "forceStop", "ForceStop")
+    if force is not None and not isinstance(force, bool):
+        return web.json_response(
+            {"success": False, "error": "Invalid field: 'forceStop' must be a bool"},
+            status=400,
+        )
+    force = force is True
+
+    console.info(f"StopJob requested for {job_key} (force={force})")
+    stopped = await stop_execution(job_key, resume_version, force=force)
+    return web.json_response({"success": True, "job_key": job_key, "stopped": stopped})
 
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -242,6 +328,7 @@ def create_app() -> web.Application:
     app = web.Application(middlewares=[host_validation_middleware])
     app.router.add_get("/health", handle_health)
     app.router.add_post("/jobs/{job_key}/start", handle_start)
+    app.router.add_post("/jobs/{job_key}/stop", handle_stop)
     return app
 
 
@@ -297,8 +384,8 @@ async def start_tcp_server(host: str, port: int) -> None:
 
 
 # The uipath-ipc transport (contract, DTOs, service, ``start_ipc_server``) lives
-# in ``cli_server_ipc`` and is served alongside HTTP when ``--ipc-pipe`` is given.
-# Older servers served HTTP only; the .NET Handler copes.
+# in ``cli_server_ipc``. ``--ipc-pipe`` alone serves it alone; with any HTTP option it
+# is served alongside HTTP. Older servers served HTTP only; the .NET Handler copes.
 
 
 # --------------------------------------------------------------------------- #
@@ -324,8 +411,9 @@ async def start_tcp_server(host: str, port: int) -> None:
     "--ipc-pipe",
     type=str,
     default=None,
-    help="Named pipe for the uipath-ipc channel. IPC is served only when this is "
-    "given; omit it for HTTP-only.",
+    help="Named pipe for the uipath-ipc channel. Given alone, only uipath-ipc is "
+    "served: no HTTP listener and no ready ACK. Given with any HTTP option, HTTP is "
+    "served as well.",
 )
 @click.option(
     "--port",
@@ -346,7 +434,7 @@ def server(
     port: int | None,
     tcp: bool,
 ) -> None:
-    """Serve run/debug/eval over HTTP, plus uipath-ipc when --ipc-pipe is given."""
+    """Serve run/debug/eval over HTTP, uipath-ipc (--ipc-pipe alone), or both."""
     preload_modules()
     _run_server(client_socket, server_socket, ipc_pipe, port, tcp)
 
@@ -357,15 +445,18 @@ async def _serve(
     ipc_pipe: str | None,
     port: int,
     use_tcp: bool,
+    serve_http: bool = True,
 ) -> None:
-    """Run the HTTP channel, plus the uipath-ipc channel when a pipe name is given."""
+    """Run the HTTP channel unless told not to, plus uipath-ipc when a pipe is named."""
     _state.init()
 
     tasks: list[Any] = []
-    if use_tcp:
-        tasks.append(start_tcp_server("127.0.0.1", port))
-    else:
-        tasks.append(start_unix_server(ack_socket_path, server_socket))
+    if serve_http:
+        tasks.append(
+            start_tcp_server("127.0.0.1", port)
+            if use_tcp
+            else start_unix_server(ack_socket_path, server_socket)
+        )
 
     # IPC is opt-in and independent of the HTTP socket: it is served only when an
     # explicit pipe name is given, which both sides agree on out of band (the .NET
@@ -384,12 +475,21 @@ def _run_server(
     tcp: bool,
 ) -> None:
     """Drive ``_serve`` on the right event loop for the platform."""
+    # Any HTTP option means the caller expects the HTTP channel (and, on Unix, its ACK).
+    serve_http = not ipc_pipe or any(
+        (client_socket is not None, server_socket is not None, port is not None, tcp)
+    )
     use_tcp = IS_WINDOWS or tcp
     ack_socket_path = (
         client_socket or os.environ.get(SOCKET_ENV_VAR) or DEFAULT_SOCKET_PATH
     )
     coro = _serve(
-        ack_socket_path, server_socket, ipc_pipe, port or DEFAULT_PORT, use_tcp
+        ack_socket_path,
+        server_socket,
+        ipc_pipe,
+        port or DEFAULT_PORT,
+        use_tcp,
+        serve_http,
     )
     try:
         if sys.platform == "win32":

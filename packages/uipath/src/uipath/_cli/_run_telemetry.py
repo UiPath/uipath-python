@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 from enum import Enum
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from uipath.platform.common import UiPathConfig, resolve_trace_id
@@ -48,6 +48,16 @@ def classify_run(agent_type: str | None, agent_framework: str | None) -> RunKind
     if agent_framework and agent_framework.strip().lower() == _FUNCTION_FRAMEWORK:
         return RunKind.CODED_FUNCTION
     return RunKind.CODED_AGENT
+
+
+def _integration_version(factory: object | None) -> str | None:
+    """Installed version of the package the factory class ships in."""
+    if factory is None:
+        return None
+    try:
+        return version(type(factory).__module__.split(".")[0])
+    except PackageNotFoundError:
+        return None
 
 
 def _cloud_user_id() -> str | None:
@@ -112,12 +122,16 @@ class RunTelemetry:
         self,
         *,
         kind: RunKind,
+        agent_framework: str | None,
+        integration_version: str | None,
         entrypoint: str | None,
         execution_source: str | None,
         is_conversational: bool,
     ) -> None:
         """Key the run on its job so a suspend/resume pair stays one run."""
         self._kind = kind
+        self._agent_framework = agent_framework
+        self._integration_version = integration_version
         self._entrypoint = entrypoint
         self._execution_source = execution_source
         self._is_conversational = is_conversational
@@ -133,6 +147,7 @@ class RunTelemetry:
         entrypoint: str | None,
         execution_source: str | None = None,
         is_conversational: bool = False,
+        factory: object | None = None,
     ) -> "RunTelemetry | None":
         """Emit Start and return a handle, or ``None`` when not reporting.
 
@@ -147,6 +162,8 @@ class RunTelemetry:
 
         instance = cls(
             kind=kind,
+            agent_framework=agent_framework,
+            integration_version=_integration_version(factory),
             entrypoint=entrypoint,
             execution_source=execution_source,
             is_conversational=is_conversational,
@@ -194,6 +211,8 @@ class RunTelemetry:
             properties: dict[str, Any] = {
                 "AgentRunId": self._run_id,
                 "AgentType": "Coded",
+                "AgentFramework": self._agent_framework,
+                "IntegrationVersion": self._integration_version,
                 "AgentRunSource": self._execution_source,
                 "Entrypoint": self._entrypoint,
                 "IsConversational": self._is_conversational,

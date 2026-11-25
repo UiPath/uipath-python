@@ -21,7 +21,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from uipath.platform.constants import HEADER_USER_AGENT
+from uipath.platform.constants import HEADER_TRACEPARENT_ID, HEADER_USER_AGENT
 
 from ..errors import EnrichedException
 from ._config import UiPathApiConfig
@@ -65,13 +65,10 @@ def _get_caller_component() -> str:
     return ""
 
 
-_TRACE_PARENT_HEADER = "x-uipath-traceparent-id"
-
-
 def resolve_trace_id(fallback: str | None = None) -> str | None:
     """Resolve the current UiPath trace id as a 32-char hex string.
 
-    Same lookup chain :func:`_inject_trace_context` uses to compose the
+    Same lookup chain `_inject_trace_context()` uses to compose the
     ``x-uipath-traceparent-id`` header, exposed as a public helper so
     callers can capture the value when they need it in a request body
     (e.g. governance compensation) or before hopping to a background
@@ -79,11 +76,11 @@ def resolve_trace_id(fallback: str | None = None) -> str | None:
 
     Resolution order (first hit wins):
 
-    1. :attr:`UiPathConfig.trace_id` (``UIPATH_TRACE_ID`` env var),
-       normalized via :meth:`_SpanUtils.normalize_trace_id`. This is the
+    1. `UiPathConfig.trace_id` (``UIPATH_TRACE_ID`` env var),
+       normalized via `_SpanUtils.normalize_trace_id()`. This is the
        canonical agent trace id the LLMOps exporter binds spans to.
     2. The LLMOps external span trace id, when a provider is registered
-       via :meth:`UiPathSpanUtils.register_current_span_provider`.
+       via `UiPathSpanUtils.register_current_span_provider()`.
     3. The current OpenTelemetry span trace id.
     4. The caller-supplied ``fallback``.
 
@@ -129,15 +126,16 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
     remapping the LLMOps exporter applies), falling back to the OTEL trace ID.
     Span ID: uses the LLMOps tool span (via external span provider) so the
     span ID matches what's visible in the LLMOps trace UI.
+
+    A trace header already in ``headers`` is left as is: the caller chose it.
     """
-    from uipath.core.tracing.span_utils import UiPathSpanUtils
+    if HEADER_TRACEPARENT_ID in headers:
+        return
 
     from ._config import UiPathConfig
     from ._span_utils import _SpanUtils
 
-    llmops_span = UiPathSpanUtils.get_external_current_span()
-    span = llmops_span or trace.get_current_span()
-    ctx = span.get_span_context()
+    ctx = _SpanUtils.current_span().get_span_context()
     if not (ctx.trace_id and ctx.span_id):
         return
 
@@ -148,7 +146,7 @@ def _inject_trace_context(headers: dict[str, str]) -> None:
         else format_trace_id(ctx.trace_id)
     )
     span_id = format_span_id(ctx.span_id)
-    headers[_TRACE_PARENT_HEADER] = f"00-{trace_id}-{span_id}-01"
+    headers[HEADER_TRACEPARENT_ID] = f"00-{trace_id}-{span_id}-01"
 
 
 class BaseService:

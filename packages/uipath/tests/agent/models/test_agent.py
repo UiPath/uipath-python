@@ -1,9 +1,12 @@
+import json
+import logging
 from typing import Any
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
+    AdvancedAgentSettings,
     AgentA2aResourceConfig,
     AgentBooleanOperator,
     AgentBooleanRule,
@@ -11,7 +14,10 @@ from uipath.agent.models.agent import (
     AgentClientSideToolResourceConfig,
     AgentContextResourceConfig,
     AgentContextRetrievalMode,
+    AgentContextSettings,
     AgentContextType,
+    AgentConversationalAgentToolResourceConfig,
+    AgentConversationalAgentToolSettings,
     AgentCustomGuardrail,
     AgentDefinition,
     AgentEscalationChannel,
@@ -26,6 +32,7 @@ from uipath.agent.models.agent import (
     AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
     AgentInternalBatchTransformToolProperties,
+    AgentInternalCreateFileToolProperties,
     AgentInternalDeepRagToolProperties,
     AgentInternalHttpRequestToolProperties,
     AgentInternalToolResourceConfig,
@@ -1755,6 +1762,53 @@ class TestAgentBuilderConfig:
         assert unknown_resource.resource_type == AgentResourceType.UNKNOWN
         assert unknown_resource.name == "Future Resource"
         assert unknown_resource.description == "A resource type that doesn't exist yet"
+
+    def test_agent_with_create_file_tool(self):
+        json_data = {
+            "id": "test-create-file",
+            "name": "Agent with Create File",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [
+                {
+                    "$resourceType": "tool",
+                    "type": "internal",
+                    "referenceKey": None,
+                    "name": "Create File",
+                    "isEnabled": True,
+                    "description": "Create a file and attach it to the job.",
+                    "properties": {"toolType": "create-file"},
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"file_name": {"type": "string"}},
+                        "required": ["file_name"],
+                    },
+                    "outputSchema": {"type": "object", "properties": {}},
+                    "settings": {},
+                    "argumentProperties": {},
+                    "guardrail": {"policies": []},
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        tool_resource = config.resources[0]
+        assert isinstance(tool_resource, AgentInternalToolResourceConfig)
+        assert isinstance(
+            tool_resource.properties, AgentInternalCreateFileToolProperties
+        )
+        assert tool_resource.properties.tool_type == AgentInternalToolType.CREATE_FILE
 
     def test_agent_with_unknown_tool_type(self):
         """Test that AgentDefinition handles unknown tool types gracefully"""
@@ -4811,3 +4865,513 @@ class TestAgentModelSettings:
             self._agent_settings(modelSettings=native)
         )
         assert settings.model_dump(by_alias=True)["modelSettings"] == native
+
+
+class TestAdvancedAgentSettings:
+    """settings.advancedAgent carries the advanced harness's built-in tool choices."""
+
+    def _agent_settings(self, **extra: Any) -> dict[str, Any]:
+        return {
+            "engine": "basic-v2",
+            "model": "anthropic.claude-opus-4-6-v1",
+            "maxTokens": 49047,
+            "temperature": 0.63,
+            "mode": "advanced",
+            **extra,
+        }
+
+    def _built_in_tools(self, built_in_tools: Any) -> Any:
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent={"builtInTools": built_in_tools})
+        )
+        assert settings.advanced_agent is not None
+        return settings.advanced_agent.built_in_tools
+
+    def test_absent_advanced_agent_is_none(self):
+        settings = AgentSettings.model_validate(self._agent_settings())
+        assert settings.advanced_agent is None
+
+    @pytest.mark.parametrize(
+        "advanced_agent",
+        [{}, {"builtInTools": None}, {"builtInTools": ["task", "ls"]}],
+        ids=["absent", "null", "not-an-object"],
+    )
+    def test_built_in_tools_without_a_map_is_none(self, advanced_agent: Any):
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
+        assert settings.advanced_agent is not None
+        assert settings.advanced_agent.built_in_tools is None
+
+    def test_empty_built_in_tools_is_kept_empty(self):
+        assert self._built_in_tools({}) == {}
+
+    def test_contract_round_trips_by_alias(self):
+        advanced_agent = {
+            "builtInTools": {
+                "read_file": {"enabled": True, "config": {}},
+                "delete": {"enabled": False, "config": {}},
+                "eval": {"enabled": True, "config": {"timeoutSeconds": 5}},
+                "move_file": {"enabled": True, "config": {}},
+            },
+        }
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
+        assert settings.advanced_agent is not None
+        tools = settings.advanced_agent.built_in_tools
+        assert tools is not None
+        assert tools["eval"].enabled is True
+        assert tools["eval"].config == {"timeoutSeconds": 5}
+        assert tools["delete"].enabled is False
+        dumped = settings.model_dump(by_alias=True)["advancedAgent"]
+        assert dumped == advanced_agent
+
+    def test_tool_without_enabled_is_off(self):
+        tools = self._built_in_tools({"write_file": {}})
+        assert tools["write_file"].enabled is False
+        assert tools["write_file"].config == {}
+
+    def test_malformed_tool_entry_is_dropped_and_others_kept(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING):
+            tools = self._built_in_tools(
+                {
+                    "task": True,
+                    "grep": {"enabled": "maybe"},
+                    "ls": {"enabled": True},
+                }
+            )
+        assert set(tools) == {"ls"}
+        assert "task" in caplog.text
+        assert "grep" in caplog.text
+
+    @pytest.mark.parametrize("advanced_agent", ["x", ["task"], 5])
+    def test_malformed_advanced_agent_is_ignored(
+        self, advanced_agent: Any, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING):
+            settings = AgentSettings.model_validate(
+                self._agent_settings(advancedAgent=advanced_agent)
+            )
+        assert settings.advanced_agent is None
+        assert "advancedAgent" in caplog.text
+
+    @pytest.mark.parametrize("config", [None, "fork", ["mode"]])
+    def test_malformed_config_keeps_the_tool(
+        self, config: Any, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING):
+            tools = self._built_in_tools({"task": {"enabled": True, "config": config}})
+        assert tools["task"].enabled is True
+        assert tools["task"].config == {}
+        assert "config" in caplog.text
+
+    @pytest.mark.parametrize("enabled", ["yes", "true", 1])
+    def test_a_non_boolean_enabled_drops_the_tool(self, enabled: Any):
+        tools = self._built_in_tools({"task": {"enabled": enabled}})
+        assert "task" not in tools
+
+    def test_a_settings_object_is_kept(self):
+        advanced_agent = AdvancedAgentSettings.model_validate(
+            {"builtInTools": {"ls": {"enabled": True}}}
+        )
+        settings = AgentSettings.model_validate(
+            self._agent_settings(advancedAgent=advanced_agent)
+        )
+        assert settings.advanced_agent is not None
+        tools = settings.advanced_agent.built_in_tools
+        assert tools is not None
+        assert tools["ls"].enabled is True
+
+
+class TestSearchDuringIngestion:
+    """settings.searchDuringIngestion opts a context resource into mid-ingestion search."""
+
+    def _context_settings(self, **extra: Any) -> dict[str, Any]:
+        return {
+            "threshold": 0,
+            "resultCount": 3,
+            "retrievalMode": "Semantic",
+            "query": {"description": "The query.", "variant": "Dynamic"},
+            **extra,
+        }
+
+    def test_defaults_to_false_when_absent(self):
+        settings = AgentContextSettings.model_validate(self._context_settings())
+        assert settings.search_during_ingestion is False
+
+    @pytest.mark.parametrize(
+        "key", ["searchDuringIngestion", "search_during_ingestion"]
+    )
+    def test_opt_in_parsed_from_alias_and_field_name(self, key: str):
+        settings = AgentContextSettings.model_validate(
+            self._context_settings(**{key: True})
+        )
+        assert settings.search_during_ingestion is True
+
+    def test_round_trips_by_alias(self):
+        settings = AgentContextSettings.model_validate(
+            self._context_settings(searchDuringIngestion=True)
+        )
+        assert settings.model_dump(by_alias=True)["searchDuringIngestion"] is True
+
+    def test_reaches_the_resource_config(self):
+        resource = AgentContextResourceConfig.model_validate(
+            {
+                "$resourceType": "context",
+                "folderPath": "TestFolder",
+                "indexName": "Test Index",
+                "name": "Test Context",
+                "description": "Context that may be searched mid-ingestion",
+                "settings": self._context_settings(searchDuringIngestion=True),
+            }
+        )
+        assert resource.settings is not None
+        assert resource.settings.search_during_ingestion is True
+
+
+def _conversational_agent_json(*resources: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "version": "1.0.0",
+        "id": "test-conversational-agent-tool",
+        "name": "Agent with conversational agent tool",
+        "metadata": {"isConversational": False, "storageVersion": "50.0.0"},
+        "messages": [{"role": "System", "content": "You are an assistant."}],
+        "inputSchema": {"type": "object", "properties": {}},
+        "outputSchema": {"type": "object", "properties": {}},
+        "settings": {
+            "model": "gpt-4o-2024-11-20",
+            "maxTokens": 16384,
+            "temperature": 0,
+            "engine": "basic-v2",
+        },
+        "resources": list(resources),
+        "features": [],
+        "guardrails": [],
+    }
+
+
+_AGENT_TOOL = {
+    "$resourceType": "tool",
+    "type": "agent",
+    "id": "agent-1",
+    "name": "Child Agent",
+    "description": "A child agent",
+    "inputSchema": {"type": "object", "properties": {}},
+    "outputSchema": {"type": "object", "properties": {}},
+    "settings": {},
+    "properties": {"processName": "Child", "folderPath": "Shared"},
+    "argumentProperties": {},
+}
+
+_REMOTE_A2A_RESOURCE = {
+    "$resourceType": "a2a",
+    "id": "remote-1",
+    "name": "Remote Agent",
+    "description": "A remote A2A agent",
+    "folderPath": "shared",
+    "slug": "remote-agent",
+    "solutionProperties": {"resourceKey": "key-remote"},
+}
+
+_CONVERSATIONAL_AGENT_TOOL = {
+    "$resourceType": "tool",
+    "type": "conversationalAgent",
+    "id": "conv-1",
+    "name": "Conversational Agent",
+    "description": "A conversational agent",
+    "location": "solution",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "message": {"type": "string", "description": "The message to send."}
+        },
+        "required": ["message"],
+    },
+    "outputSchema": {"type": "object", "properties": {}},
+    "settings": {},
+    "properties": {
+        "processName": "My Conversational Agent",
+        "folderPath": "Shared/Agents",
+        "cachedAgentCard": {"name": "Conversational Agent"},
+        "requireConversationalConfirmation": True,
+    },
+}
+
+
+_CONTRACT_FIXTURE = (
+    '{"$resourceType":"tool","type":"conversationalAgent","id":"conv-1",'
+    '"name":"Support agent","description":"Answers support questions",'
+    '"location":"solution","isEnabled":true,"inputSchema":{"type":"object",'
+    '"properties":{"message":{"type":"string","description":"The message to send '
+    'to the agent."}},"required":["message"]},"outputSchema":{"type":"object",'
+    '"properties":{}},"settings":{},"properties":{"processName":"SupportAgent",'
+    '"folderPath":"Shared/Support","cachedAgentCard":null,'
+    '"requireConversationalConfirmation":false},"canvasNodeId":"node-1"}'
+)
+
+
+class TestConversationalAgentTool:
+    """Conversational agent resources (tool type 'conversationalAgent')."""
+
+    def test_mixed_agent_json_parses_into_right_classes(self):
+        config = AgentDefinition.model_validate(
+            _conversational_agent_json(
+                _AGENT_TOOL, _REMOTE_A2A_RESOURCE, _CONVERSATIONAL_AGENT_TOOL
+            )
+        )
+
+        agent_tool, remote, conversational = config.resources
+        assert type(agent_tool) is AgentProcessToolResourceConfig
+        assert type(remote) is AgentA2aResourceConfig
+        assert remote.slug == "remote-agent"
+        assert type(conversational) is AgentConversationalAgentToolResourceConfig
+        assert conversational.resource_type == AgentResourceType.TOOL
+        assert conversational.type == AgentToolType.CONVERSATIONAL_AGENT
+        assert conversational.name == "Conversational Agent"
+        assert conversational.properties.process_name == "My Conversational Agent"
+        assert conversational.properties.folder_path == "Shared/Agents"
+        assert conversational.properties.cached_agent_card == {
+            "name": "Conversational Agent"
+        }
+        assert conversational.properties.require_conversational_confirmation is True
+        assert conversational.input_schema["required"] == ["message"]
+
+    @pytest.mark.parametrize(
+        "type_value",
+        ["conversationalAgent", "ConversationalAgent", "conversationalagent"],
+    )
+    def test_type_casing_is_normalized(self, type_value: str):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "type": type_value}
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert type(resource) is AgentConversationalAgentToolResourceConfig
+        assert resource.type == AgentToolType.CONVERSATIONAL_AGENT
+
+    def test_optional_properties_may_be_missing_or_null(self):
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "properties": {"processName": "p", "cachedAgentCard": None},
+        }
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        assert resource.properties.folder_path is None
+        assert resource.properties.cached_agent_card is None
+
+    def test_missing_process_name_still_loads_the_agent(self):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "properties": {"folderPath": "x"}}
+
+        config = AgentDefinition.model_validate(
+            _conversational_agent_json(_AGENT_TOOL, record)
+        )
+
+        agent_tool, conversational = config.resources
+        assert type(agent_tool) is AgentProcessToolResourceConfig
+        assert type(conversational) is AgentConversationalAgentToolResourceConfig
+        assert conversational.properties.process_name is None
+
+    def test_contract_fixture_parses_with_every_field_preserved(self):
+        record = json.loads(_CONTRACT_FIXTURE)
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert type(resource) is AgentConversationalAgentToolResourceConfig
+        assert resource.resource_type == AgentResourceType.TOOL
+        assert resource.type == AgentToolType.CONVERSATIONAL_AGENT
+        assert resource.name == "Support agent"
+        assert resource.description == "Answers support questions"
+        assert resource.is_enabled is True
+        assert resource.input_schema == record["inputSchema"]
+        assert resource.output_schema == record["outputSchema"]
+        assert resource.properties.process_name == "SupportAgent"
+        assert resource.properties.folder_path == "Shared/Support"
+        assert resource.properties.cached_agent_card is None
+        assert resource.properties.require_conversational_confirmation is False
+        extras = resource.model_extra or {}
+        assert extras["id"] == "conv-1"
+        assert extras["location"] == "solution"
+        assert extras["canvasNodeId"] == "node-1"
+
+    def test_legacy_argument_properties_record_still_parses(self):
+        legacy_properties = {"message": {"variant": "static"}}
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "argumentProperties": legacy_properties,
+        }
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert type(resource) is AgentConversationalAgentToolResourceConfig
+        assert not hasattr(resource, "argument_properties")
+        assert (resource.model_extra or {})["argumentProperties"] == legacy_properties
+
+    def test_unknown_tool_type_still_goes_to_unknown(self):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "type": "futureKind"}
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentUnknownToolResourceConfig)
+
+    def test_round_trip_by_alias_keeps_type(self):
+        config = AgentDefinition.model_validate(
+            _conversational_agent_json(_CONVERSATIONAL_AGENT_TOOL)
+        )
+
+        dumped = config.model_dump(by_alias=True, mode="json")
+        (resource,) = dumped["resources"]
+        assert resource["$resourceType"] == "tool"
+        assert resource["type"] == "ConversationalAgent"
+        assert resource["properties"]["processName"] == "My Conversational Agent"
+        assert resource["properties"]["folderPath"] == "Shared/Agents"
+
+        reparsed = AgentDefinition.model_validate(dumped)
+        assert isinstance(
+            reparsed.resources[0], AgentConversationalAgentToolResourceConfig
+        )
+
+
+class TestConversationalAgentToolSettings:
+    """Settings of the conversational agent tool: conversation mode, background."""
+
+    @staticmethod
+    def _parse_settings(settings: dict[str, Any]):
+        record = {**_CONVERSATIONAL_AGENT_TOOL, "settings": settings}
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        return resource.settings
+
+    @pytest.mark.parametrize("mode", ["single", "multiple"])
+    def test_conversation_mode_parses(self, mode: str):
+        settings = self._parse_settings({"conversationMode": mode})
+
+        assert isinstance(settings, AgentConversationalAgentToolSettings)
+        assert settings.conversation_mode == mode
+
+    def test_conversation_mode_absent_is_none(self):
+        settings = self._parse_settings({})
+
+        assert settings.conversation_mode is None
+        assert settings.run_in_background is None
+
+    def test_conversation_mode_null_is_none(self):
+        settings = self._parse_settings({"conversationMode": None})
+
+        assert settings.conversation_mode is None
+
+    @pytest.mark.parametrize("unknown", ["Single", "both", "", "parallel"])
+    def test_unknown_conversation_mode_becomes_none_with_a_warning(
+        self, unknown: str, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING, logger="uipath.agent.models.agent"):
+            settings = AgentConversationalAgentToolSettings.model_validate(
+                {"conversationMode": unknown}
+            )
+
+        assert settings.conversation_mode is None
+        assert [r.levelno for r in caplog.records] == [logging.WARNING]
+        assert repr(unknown) in caplog.records[0].getMessage()
+
+    @pytest.mark.parametrize("mode", ["single", "multiple", None])
+    def test_known_or_null_conversation_mode_does_not_warn(
+        self, mode: str | None, caplog: pytest.LogCaptureFixture
+    ):
+        with caplog.at_level(logging.WARNING, logger="uipath.agent.models.agent"):
+            AgentConversationalAgentToolSettings.model_validate(
+                {"conversationMode": mode}
+            )
+
+        assert caplog.records == []
+
+    @pytest.mark.parametrize("bad", [1, True, ["single"], {"mode": "single"}])
+    def test_non_string_conversation_mode_is_still_rejected(self, bad: Any):
+        with pytest.raises(ValidationError):
+            AgentConversationalAgentToolSettings.model_validate(
+                {"conversationMode": bad}
+            )
+
+    def test_unknown_conversation_mode_does_not_fail_the_agent_definition(self):
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "settings": {
+                "conversationMode": "bogus",
+                "runInBackground": True,
+                "timeout": 30,
+            },
+        }
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        assert resource.settings.conversation_mode is None
+        assert resource.settings.run_in_background is True
+        assert resource.settings.timeout == 30
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_run_in_background_parses(self, value: bool):
+        settings = self._parse_settings({"runInBackground": value})
+
+        assert settings.run_in_background is value
+
+    def test_both_settings_together_keep_base_settings_and_extras(self):
+        settings = self._parse_settings(
+            {
+                "conversationMode": "multiple",
+                "runInBackground": True,
+                "timeout": 30,
+                "maxAttempts": 2,
+                "futureSetting": "x",
+            }
+        )
+
+        assert settings.conversation_mode == "multiple"
+        assert settings.run_in_background is True
+        assert settings.timeout == 30
+        assert settings.max_attempts == 2
+        assert (settings.model_extra or {})["futureSetting"] == "x"
+
+    def test_record_without_settings_key_still_parses(self):
+        record = {
+            k: v for k, v in _CONVERSATIONAL_AGENT_TOOL.items() if k != "settings"
+        }
+
+        (resource,) = AgentDefinition.model_validate(
+            _conversational_agent_json(record)
+        ).resources
+
+        assert isinstance(resource, AgentConversationalAgentToolResourceConfig)
+        assert resource.settings.conversation_mode is None
+
+    def test_round_trip_by_alias_keeps_conversation_mode(self):
+        record = {
+            **_CONVERSATIONAL_AGENT_TOOL,
+            "settings": {"conversationMode": "multiple", "runInBackground": False},
+        }
+        config = AgentDefinition.model_validate(_conversational_agent_json(record))
+
+        dumped = config.model_dump(by_alias=True, mode="json")
+        (resource,) = dumped["resources"]
+        assert resource["settings"]["conversationMode"] == "multiple"
+        assert resource["settings"]["runInBackground"] is False
+
+        (reparsed,) = AgentDefinition.model_validate(dumped).resources
+        assert isinstance(reparsed, AgentConversationalAgentToolResourceConfig)
+        assert reparsed.settings.conversation_mode == "multiple"

@@ -1,6 +1,6 @@
 """Models for Remote A2A Agents in UiPath AgentHub.
 
-.. warning::
+Warning:
     This module is experimental and subject to change.
     The Remote A2A feature is in preview and its API may change in future releases.
 """
@@ -31,7 +31,7 @@ class RemoteA2aAgentFolder(BaseModel):
 class RemoteA2aAgent(BaseModel):
     """Model representing a Remote A2A agent in UiPath AgentHub.
 
-    .. warning::
+    Warning:
         This model is experimental and subject to change.
     """
 

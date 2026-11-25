@@ -25,7 +25,7 @@ from opentelemetry.trace import (
     TraceFlags,
     use_span,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from uipath.core.events import EventBus
 from uipath.core.tracing import UiPathTraceManager
@@ -64,7 +64,12 @@ from ..mocks._input_mocker import (
 )
 from ..mocks._mock_context import cache_manager_context
 from ..mocks._mock_runtime import UiPathMockRuntime
-from ..mocks._types import LLMMockingStrategy, MockingContext, ModelSettings
+from ..mocks._mocker import UiPathInputMockingError, format_exception_message
+from ..mocks._simulation_model import (
+    get_agent_max_tokens,
+    simulation_model_settings,
+)
+from ..mocks._types import LLMMockingStrategy, MockingContext
 from ..models import EvaluationResult
 from ..models.evaluation_set import (
     EvaluationItem,
@@ -242,7 +247,7 @@ def compute_dataset_evaluator_results(
             set. Their configs may carry ``aggregators`` lists.
 
     Returns:
-        Dict keyed by :func:`dataset_result_key` (same scheme as the platform
+        Dict keyed by `dataset_result_key()` (same scheme as the platform
         worker), with each value's ``details`` dumped to the camelCase wire
         shape. Exact-duplicate specs are deduped; aggregators whose source
         produced no results still emit a zeroed result.
@@ -661,7 +666,14 @@ class UiPathEvalRuntime:
                         mocking_model = get_agent_model(self.context.runtime_schema)
                         if mocking_model:
                             mocking_strategy = mocking_strategy.model_copy(
-                                update={"model": ModelSettings(model=mocking_model)}
+                                update={
+                                    "model": simulation_model_settings(
+                                        mocking_model,
+                                        get_agent_max_tokens(
+                                            self.context.runtime_schema
+                                        ),
+                                    )
+                                }
                             )
 
                     agent_execution_output = await self.execute_runtime(
@@ -954,7 +966,12 @@ class UiPathEvalRuntime:
             input_generation_model = get_agent_model(self.context.runtime_schema)
             if input_generation_model:
                 input_strategy = input_strategy.model_copy(
-                    update={"model": ModelSettings(model=input_generation_model)}
+                    update={
+                        "model": simulation_model_settings(
+                            input_generation_model,
+                            get_agent_max_tokens(self.context.runtime_schema),
+                        )
+                    }
                 )
 
         generated_input = await generate_llm_input(
@@ -963,7 +980,18 @@ class UiPathEvalRuntime:
             expected_behavior=eval_item.expected_agent_behavior or "",
             expected_output=expected_output,
         )
-        updated_eval_item = eval_item.model_copy(update={"inputs": generated_input})
+        # model_copy(update=...) skips validation, so a malformed generated input
+        # would only surface later as an opaque MockingContext error. Re-validate
+        # through the model instead and report it as an input-mocking failure.
+        try:
+            updated_eval_item = type(eval_item).model_validate(
+                {**eval_item.model_dump(by_alias=True), "inputs": generated_input}
+            )
+        except ValidationError as e:
+            raise UiPathInputMockingError(
+                "Simulated input does not match the evaluation item schema: "
+                f"{format_exception_message(e)}"
+            ) from e
         return updated_eval_item
 
     def _get_and_clear_execution_data(

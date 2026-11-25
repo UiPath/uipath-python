@@ -9,7 +9,7 @@ defines the protocol an evaluator must satisfy.
 
 Public surface:
 
-- :class:`EvaluatorProtocol` – structural protocol the framework
+- `EvaluatorProtocol` – structural protocol the framework
   plugin expects from any policy evaluator.
 """
 

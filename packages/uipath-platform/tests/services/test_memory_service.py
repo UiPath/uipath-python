@@ -3,12 +3,14 @@
 import json
 
 import pytest
+from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
 from uipath.platform.memory import (
     EscalationMemoryIngestRequest,
     EscalationMemorySearchResponse,
+    FieldMatching,
     MemoryMatch,
     MemoryMatchField,
     MemorySearchRequest,
@@ -74,6 +76,7 @@ SAMPLE_SEARCH_RESPONSE = {
                     "value": "What is the capital of France?",
                     "weight": 1.0,
                     "score": 0.95,
+                    "semanticScore": 0.91,
                     "weightedScore": 0.95,
                 }
             ],
@@ -282,6 +285,7 @@ class TestMemoryService:
             assert result.results[0].memory_item_id == "item-001"
             assert result.results[0].score == 0.95
             assert isinstance(result.results[0].fields[0], MemoryMatchField)
+            assert result.results[0].fields[0].semantic_score == 0.91
             assert (
                 result.system_prompt_injection
                 == "Based on past interactions: Paris is the capital."
@@ -293,7 +297,99 @@ class TestMemoryService:
             body = json.loads(sent.content)
             assert body["fields"][0]["keyPath"] == ["input"]
             assert body["settings"]["searchMode"] == "Hybrid"
+            assert body["settings"]["fieldMatching"] == "Or"
             assert body["definitionSystemPrompt"] == "You are a helpful assistant."
+
+        def test_search_response_keeps_field_semantic_score_in_dump(self) -> None:
+            response = MemorySearchResponse.model_validate(SAMPLE_SEARCH_RESPONSE)
+
+            dumped = response.model_dump(by_alias=True, exclude_none=True)
+
+            field = dumped["results"][0]["fields"][0]
+            assert field["semanticScore"] == 0.91
+            assert field["score"] == 0.95
+
+        def test_search_response_field_semantic_score_is_optional(self) -> None:
+            field = MemoryMatchField.model_validate(
+                {
+                    "keyPath": ["agent-input", "topic"],
+                    "value": "python",
+                    "weight": 1.0,
+                    "score": 0.5,
+                    "weightedScore": 0.5,
+                }
+            )
+
+            assert field.semantic_score is None
+            assert "semanticScore" not in field.model_dump(
+                by_alias=True, exclude_none=True
+            )
+
+        @pytest.mark.parametrize(
+            ("raw", "expected"),
+            [
+                ("or", FieldMatching.Or),
+                ("and", FieldMatching.And),
+                ("Or", FieldMatching.Or),
+                ("And", FieldMatching.And),
+                ("AND", FieldMatching.And),
+                (FieldMatching.And, FieldMatching.And),
+            ],
+        )
+        def test_search_settings_parse_field_matching_case_insensitively(
+            self, raw: str | FieldMatching, expected: FieldMatching
+        ) -> None:
+            settings = SearchSettings.model_validate(
+                {"searchMode": "Hybrid", "fieldMatching": raw}
+            )
+
+            assert settings.field_matching is expected
+
+        def test_search_settings_default_field_matching_is_or(self) -> None:
+            settings = SearchSettings.model_validate({"searchMode": "Hybrid"})
+
+            assert settings.field_matching is FieldMatching.Or
+
+        @pytest.mark.parametrize("raw", ["xor", "", 1, None])
+        def test_search_settings_reject_unknown_field_matching(
+            self, raw: object
+        ) -> None:
+            with pytest.raises(ValidationError):
+                SearchSettings.model_validate(
+                    {"searchMode": "Hybrid", "fieldMatching": raw}
+                )
+
+        def test_search_sends_configured_field_matching(
+            self,
+            httpx_mock: HTTPXMock,
+            service: MemoryService,
+            base_url: str,
+            org: str,
+            tenant: str,
+        ) -> None:
+            memory_space_id = "aaaa-bbbb-cccc-dddd"
+            httpx_mock.add_response(
+                url=f"{base_url}{org}{tenant}/llmopstenant_/api/Agent/memory/{memory_space_id}/search",
+                status_code=200,
+                json=SAMPLE_SEARCH_RESPONSE,
+            )
+
+            request = MemorySearchRequest(
+                fields=[SearchField(key_path=["input"], value="Northwind")],
+                settings=SearchSettings(
+                    threshold=0.8,
+                    result_count=1,
+                    search_mode=SearchMode.Hybrid,
+                    field_matching=FieldMatching.And,
+                ),
+            )
+
+            service.search(memory_space_id=memory_space_id, request=request)
+
+            sent = httpx_mock.get_request()
+            assert sent is not None
+            body = json.loads(sent.content)
+            assert body["settings"]["fieldMatching"] == "And"
 
         def test_search_sends_folder_header(
             self,

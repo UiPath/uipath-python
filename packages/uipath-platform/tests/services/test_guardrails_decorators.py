@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from collections.abc import Iterator
 from typing import Annotated, Any
 from unittest.mock import MagicMock, patch
 
@@ -1317,3 +1318,106 @@ class TestByoValidator:
         assert data == "some input"
         assert g.validator_type == "byo"
         assert g.byo_validator_name == "my-harmful-content-guardrail"
+
+
+# ---------------------------------------------------------------------------
+# PRE runs only when the callable receives a non-excluded argument
+# ---------------------------------------------------------------------------
+
+_GUARDRAIL_LOGGER = "uipath.platform.guardrails.decorators._guardrail"
+
+
+@pytest.fixture
+def evaluate() -> Iterator[MagicMock]:
+    """Patch the UiPath client and yield its ``guardrails.evaluate_guardrail``."""
+    uipath = MagicMock()
+    uipath.guardrails.evaluate_guardrail.return_value = _PASSED
+    with patch("uipath.platform.UiPath", return_value=uipath):
+        yield uipath.guardrails.evaluate_guardrail
+
+
+def _pii() -> PIIValidator:
+    return PIIValidator(entities=[PIIDetectionEntity(PIIDetectionEntityType.EMAIL)])
+
+
+class TestPreWithoutArguments:
+    def test_sync_factory_without_arguments_sends_no_pre_call(
+        self, evaluate: MagicMock, caplog: pytest.LogCaptureFixture
+    ):
+        register_guardrail_adapter(_DummyAdapter())
+
+        @guardrail(validator=_pii(), action=LogAction(), name="Model guard")
+        def make_llm() -> _DummyTarget:
+            return _DummyTarget()
+
+        with caplog.at_level(logging.DEBUG, logger=_GUARDRAIL_LOGGER):
+            llm = make_llm()
+
+        assert isinstance(llm, _WrappedDummyTarget)
+        evaluate.assert_not_called()
+        assert any(
+            r.levelno == logging.DEBUG and "Model guard" in r.getMessage()
+            for r in caplog.records
+        )
+
+    async def test_async_factory_without_arguments_sends_no_pre_call(
+        self, evaluate: MagicMock
+    ):
+        register_guardrail_adapter(_DummyAdapter())
+
+        @guardrail(validator=_pii(), action=LogAction())
+        async def make_llm() -> _DummyTarget:
+            return _DummyTarget()
+
+        assert isinstance(await make_llm(), _WrappedDummyTarget)
+        evaluate.assert_not_called()
+
+    def test_function_with_an_argument_keeps_its_pre_call(self, evaluate: MagicMock):
+        @guardrail(
+            validator=_pii(), action=LogAction(), stage=GuardrailExecutionStage.PRE
+        )
+        def screen(topic: str) -> str:
+            return topic
+
+        assert screen("cats") == "cats"
+        evaluate.assert_called_once()
+        assert evaluate.call_args.args[0] == {"topic": "cats"}
+
+    def test_function_whose_only_argument_is_excluded_sends_no_pre_call(
+        self, evaluate: MagicMock
+    ):
+        @guardrail(
+            validator=_pii(), action=LogAction(), stage=GuardrailExecutionStage.PRE
+        )
+        def screen(config: Annotated[dict[str, Any], GuardrailExclude()]) -> str:
+            return "screened"
+
+        assert screen({"debug": True}) == "screened"
+        evaluate.assert_not_called()
+
+    def test_post_still_checks_the_plain_return_value_of_a_zero_argument_function(
+        self, evaluate: MagicMock
+    ):
+        @guardrail(validator=_pii(), action=LogAction())
+        def report() -> dict[str, str]:
+            return {"verdict": "fit"}
+
+        assert report() == {"verdict": "fit"}
+        evaluate.assert_called_once()
+        assert evaluate.call_args.args[0] == {"verdict": "fit"}
+
+    def test_custom_rule_on_a_zero_argument_function_gets_no_pre_call(self):
+        seen: list[Any] = []
+
+        @guardrail(
+            validator=CustomValidator(
+                lambda args: seen.append(args) or False  # type: ignore[func-returns-value]
+            ),
+            action=LogAction(),
+            stage=GuardrailExecutionStage.PRE,
+        )
+        def tick() -> str:
+            return "ticked"
+
+        assert tick() == "ticked"
+        assert seen == []

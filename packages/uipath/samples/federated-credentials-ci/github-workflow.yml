@@ -1,0 +1,25 @@
+name: orchestrator-tests
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      UIPATH_URL: https://cloud.uipath.com/<organization>/<tenant>
+      UIPATH_CLIENT_ID: <external-app-client-id>
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Get OIDC token
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b  # v7.1.0
+        with:
+          script: core.exportVariable('UIPATH_CLIENT_ASSERTION', await core.getIDToken(`https://uipath/${process.env.UIPATH_CLIENT_ID}`))
+      - run: uv sync
+      - run: uv run pytest

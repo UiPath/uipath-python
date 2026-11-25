@@ -4,8 +4,16 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
+from uipath.platform.common._bindings import (
+    GenericResourceOverwrite,
+    _resource_overwrites,
+)
 from uipath.platform.common.paging import PagedResult
-from uipath.platform.constants import HEADER_USER_AGENT
+from uipath.platform.constants import (
+    HEADER_FOLDER_KEY,
+    HEADER_FOLDER_PATH,
+    HEADER_USER_AGENT,
+)
 from uipath.platform.orchestrator import Asset, UserAsset
 from uipath.platform.orchestrator._assets_service import AssetsService
 
@@ -937,3 +945,35 @@ class TestAssetsService:
 
                 # Verify positional arg (method)
                 assert call_kwargs.args[0] == "POST"
+
+
+class TestResourceOverride:
+    def test_bound_folder_replaces_callers_folder_key(
+        self,
+        httpx_mock: HTTPXMock,
+        service: AssetsService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        import json
+
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Assets/UiPath.Server.Configuration.OData.GetRobotAssetByNameForRobotKey",
+            status_code=200,
+            json={"id": 1, "name": "ApiKey EU", "value": "eu-value"},
+        )
+        overwrite = GenericResourceOverwrite(
+            resource_type="asset", name="ApiKey EU", folder_path="Finance/EU"
+        )
+        token = _resource_overwrites.set({"asset.ApiKey": overwrite})
+        try:
+            service.retrieve(name="ApiKey", folder_key="callers-folder-key")
+        finally:
+            _resource_overwrites.reset(token)
+
+        sent_request = httpx_mock.get_request()
+        assert sent_request is not None
+        assert json.loads(sent_request.content)["assetName"] == "ApiKey EU"
+        assert sent_request.headers[HEADER_FOLDER_PATH] == "Finance/EU"
+        assert HEADER_FOLDER_KEY not in sent_request.headers

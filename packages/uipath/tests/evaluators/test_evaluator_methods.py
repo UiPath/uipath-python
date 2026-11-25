@@ -1179,6 +1179,45 @@ class TestToolCallCountEvaluator:
     """Test ToolCallCountEvaluator.evaluate() method."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("with_model_span", [False, True])
+    @pytest.mark.parametrize(
+        ("strict", "expected_counts", "expected_score"),
+        [
+            (False, {"schedule": ("=", 0)}, 1.0),
+            (True, {"schedule": ("=", 0)}, 1.0),
+            (False, {"schedule": ("=", 1)}, 0.0),
+            (True, {"schedule": ("=", 1)}, 0.0),
+            (False, {"schedule": ("=", 0), "lookup": ("=", 1)}, 0.5),
+            (True, {"schedule": ("=", 0), "lookup": ("=", 1)}, 0.0),
+        ],
+    )
+    async def test_tool_call_count_without_tools(
+        self,
+        sample_agent_execution: WorkloadExecution,
+        strict: bool,
+        expected_counts: dict[str, tuple[str, int]],
+        expected_score: float,
+        with_model_span: bool,
+    ) -> None:
+        """Evaluate missing tools as zero calls through criteria validation."""
+        if with_model_span:
+            sample_agent_execution.workload_trace = [
+                ReadableSpan(
+                    name="model", attributes={"openinference.span.kind": "LLM"}
+                )
+            ]
+        evaluator = ToolCallCountEvaluator.model_validate(
+            {"evaluatorConfig": {"strict": strict}, "id": str(uuid.uuid4())}
+        )
+
+        result = await evaluator.validate_and_evaluate_criteria(
+            sample_agent_execution, {"toolCallsCount": expected_counts}
+        )
+
+        assert isinstance(result, NumericEvaluationResult)
+        assert result.score == expected_score
+
+    @pytest.mark.asyncio
     async def test_tool_call_count_exact_match(
         self, sample_agent_execution_with_trace: WorkloadExecution
     ) -> None:
