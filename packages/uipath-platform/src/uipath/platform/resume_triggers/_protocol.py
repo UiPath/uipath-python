@@ -713,10 +713,11 @@ class UiPathResumeTriggerCreator:
                     source_name=value.source_name,
                 )
             except AppNotFoundError as e:
+                # Only the message reaches the job error, so it names the app.
                 raise UiPathFaultedTriggerError(
                     ErrorCategory.DEPLOYMENT,
-                    "Action app not found. Check that the app is deployed and "
-                    "available in the configured folder.",
+                    f"{e}. Check that the app is deployed and available in "
+                    "the configured folder.",
                     str(e),
                 ) from e
             if not action:

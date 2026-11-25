@@ -1317,8 +1317,9 @@ class TestHitlProcessor:
         error = exc_info.value
         assert error.category == ErrorCategory.DEPLOYMENT
         assert error.message == (
-            "Action app not found. Check that the app is deployed and available in "
-            "the configured folder."
+            "App 'TestApp' was not found in folder with fully qualified name "
+            "'/test/path'. Check that the app is deployed and available in the "
+            "configured folder."
         )
         assert error.detail == str(missing_app)
         assert error.__cause__ is missing_app
