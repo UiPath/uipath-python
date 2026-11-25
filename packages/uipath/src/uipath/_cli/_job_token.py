@@ -24,9 +24,10 @@ from ._job_api import PythonUserAccessTokenRequestDto
 logger = logging.getLogger(__name__)
 
 _TOKEN_REQUEST_TIMEOUT_S = 30.0
-# Renew when this share of the lifetime is left, at least this many seconds before expiry.
+# Renew when this share of the lifetime is left, between these many seconds before expiry.
 _REFRESH_MARGIN_FRACTION = 0.2
 _MIN_REFRESH_MARGIN_S = 120.0
+_MAX_REFRESH_MARGIN_S = 420.0
 _RETRY_AFTER_FAILURE_S = 30.0
 # Longest single wait, so a suspended machine or a clock change cannot delay a renewal for long.
 _MAX_SLEEP_S = 60.0
@@ -77,7 +78,10 @@ class _TokenState:
         if self.expires_at is None:
             return None
         lifetime = max(self.expires_at - self.issued_at, 0.0)
-        margin = max(_MIN_REFRESH_MARGIN_S, _REFRESH_MARGIN_FRACTION * lifetime)
+        margin = min(
+            _MAX_REFRESH_MARGIN_S,
+            max(_MIN_REFRESH_MARGIN_S, _REFRESH_MARGIN_FRACTION * lifetime),
+        )
         return self.expires_at - margin
 
     def is_fresh(self, now: float) -> bool:

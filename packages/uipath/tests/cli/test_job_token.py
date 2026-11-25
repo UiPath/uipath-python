@@ -160,9 +160,15 @@ class TestTokenState:
         assert not ten_min.is_fresh(now + 480)
         # Short-lived: the floor wins over 20 percent.
         assert state(jwt(iat=now, exp=now + 300), now).refresh_at == now + 180
-        # Long-lived: 20 percent wins (8 h: renew after 6.4 h).
+        # 30 min lifetime: 20 percent (6 min) is within the bounds.
+        assert state(jwt(iat=now, exp=now + 1800), now).refresh_at == now + 1440
+        # 35 min lifetime: 20 percent is exactly the seven-minute cap.
+        assert state(jwt(iat=now, exp=now + 2100), now).refresh_at == now + 1680
+        # Long-lived: the cap wins over 20 percent (1 h: renew 7 min before expiry).
+        one_h = state(jwt(iat=now, exp=now + 3600), now)
+        assert one_h.refresh_at == now + 3600 - 420
         eight_h = state(jwt(iat=now, exp=now + 8 * 3600), now)
-        assert eight_h.refresh_at == now + 8 * 3600 * 0.8
+        assert eight_h.refresh_at == now + 8 * 3600 - 420
         # No iat: the lifetime is measured from when the token arrived.
         no_iat = state(jwt(exp=now + 600), now)
         assert no_iat.issued_at == now
@@ -323,7 +329,7 @@ class TestRenewal:
         refresher = _refresher(
             api,
             ipc_loop,
-            token_with_lifetime(3600, remaining=3000),  # renewal is ~38 minutes away
+            token_with_lifetime(3600, remaining=3000),  # renewal is ~43 minutes away
             clock=lambda: time.time() + jump[0],
         )
 
@@ -331,7 +337,7 @@ class TestRenewal:
         time.sleep(0.3)
         assert api.requests == []
 
-        jump[0] = 2400.0  # the wall clock moves past the renewal point mid-wait
+        jump[0] = 2700.0  # the wall clock moves past the renewal point mid-wait
         assert api.called.wait(timeout=5)
         refresher.stop()
 
