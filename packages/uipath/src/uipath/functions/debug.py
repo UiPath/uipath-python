@@ -24,6 +24,7 @@ import os
 import queue
 import sys
 import threading
+from contextlib import aclosing
 from pathlib import Path
 from types import FrameType
 from typing import Any, AsyncGenerator, Literal
@@ -78,6 +79,11 @@ def _format_location(filepath: str, line: int) -> str:
     return f"{relative}:{line}"
 
 
+def _stopped_error() -> asyncio.CancelledError:
+    """The error that ends a stopped function; an ``except Exception`` lets it through."""
+    return asyncio.CancelledError("Debug session stopped")
+
+
 def _is_debugger_tracer(tracer: object) -> bool:
     """Return True if *tracer* is the trace function of a pydevd-based debugger.
 
@@ -106,7 +112,8 @@ class BreakpointController:
        UiPathBreakpointResult.
     5. resume() unblocks the thread so it continues to the next
        breakpoint or completion.
-    6. stop() terminates the thread gracefully.
+    6. request_stop() ends the execution where it is, and join() waits
+       for its thread; stop() does both.
     """
 
     def __init__(
@@ -140,6 +147,9 @@ class BreakpointController:
         self._resume_event = threading.Event()
         self._stopped = False
         self._thread: threading.Thread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._task: asyncio.Task[Any] | None = None
+        self._lock = threading.Lock()
         self._abspath_cache: dict[str, str] = {}
         # Track which breakpoints already fired per frame so that
         # multiline expressions (where the bytecodes bounce back to the
@@ -211,7 +221,7 @@ class BreakpointController:
     def _trace_callback(self, frame: FrameType, event: str, arg: Any) -> Any:
         """sys.settrace callback — dispatched for every frame event."""
         if self._stopped:
-            return None
+            return self._stop_in(frame)
 
         try:
             co_filename = frame.f_code.co_filename
@@ -294,7 +304,7 @@ class BreakpointController:
                     self._resume_event.clear()
 
                     if self._stopped:
-                        return None
+                        raise _stopped_error()
 
             elif event == "return":
                 # Emit a "completed" state event for tracked functions
@@ -331,6 +341,19 @@ class BreakpointController:
             # Never let our own errors propagate — that would disable tracing.
             return self._trace_callback
 
+    def _stop_in(self, frame: FrameType) -> None:
+        """Raise the stop in the user's code; let library and interpreter frames run.
+
+        Raising in the event loop's own frames would break the loop instead of
+        ending the function.
+        """
+        filename = frame.f_code.co_filename
+        if not filename.startswith("<") and self._is_project_file(
+            self._abspath(filename)
+        ):
+            raise _stopped_error()
+        return None
+
     # Thread lifecycle
 
     def start(
@@ -361,17 +384,34 @@ class BreakpointController:
     ) -> None:
         """Thread entry-point: install the trace, execute, report result."""
         try:
-            sys.settrace(self._trace_callback)
-            loop = asyncio.new_event_loop()
-            try:
-                result = loop.run_until_complete(delegate.execute(input, options))
-            finally:
-                loop.close()
-            sys.settrace(None)
-            self._events.put(("completed", result))
-        except Exception as exc:
-            sys.settrace(None)
+            result = self._execute_traced(delegate, input, options)
+        except (Exception, asyncio.CancelledError) as exc:
+            # Also after a stop: a stream that stopped waiting still has a
+            # wait_for_event() call blocked on the queue.
             self._events.put(("error", exc))
+        else:
+            self._events.put(("completed", result))
+
+    def _execute_traced(
+        self,
+        delegate: UiPathRuntimeProtocol,
+        input: dict[str, Any] | None,
+        options: UiPathExecuteOptions | None,
+    ) -> UiPathRuntimeResult:
+        sys.settrace(self._trace_callback)
+        loop = asyncio.new_event_loop()
+        try:
+            task = loop.create_task(delegate.execute(input, options))
+            with self._lock:
+                self._loop, self._task = loop, task
+                if self._stopped:
+                    task.cancel()
+            return loop.run_until_complete(task)
+        finally:
+            sys.settrace(None)
+            with self._lock:
+                self._loop = self._task = None
+            loop.close()
 
     # Inter-thread communication
 
@@ -383,12 +423,28 @@ class BreakpointController:
         """Unblock the trace thread so it continues past the current breakpoint."""
         self._resume_event.set()
 
-    def stop(self) -> None:
-        """Terminate the controller and join the background thread."""
-        self._stopped = True
-        self._resume_event.set()  # unblock if paused at a breakpoint
+    def request_stop(self) -> None:
+        """End the execution where it is, without waiting for it.
+
+        A function paused at a breakpoint stops there. A running one stops at
+        its next line or call in the project's files, or at the await it is
+        waiting in. Code blocked outside Python stops once it returns.
+        """
+        with self._lock:
+            self._stopped = True
+            if self._loop is not None and self._task is not None:
+                self._loop.call_soon_threadsafe(self._task.cancel)
+        self._resume_event.set()
+
+    def join(self, timeout: float | None = None) -> None:
+        """Wait for the execution's thread to end."""
         if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=5.0)
+            self._thread.join(timeout)
+
+    def stop(self) -> None:
+        """End the execution and wait up to 5 seconds for its thread."""
+        self.request_stop()
+        self.join(timeout=5.0)
 
 
 class UiPathDebugFunctionsRuntime:
@@ -466,8 +522,9 @@ class UiPathDebugFunctionsRuntime:
             self._controller.update_breakpoints(breakpoints)
             self._controller.resume()
 
-            async for event in self._drain_events():
-                yield event
+            async with aclosing(self._drain_events()) as events:
+                async for event in events:
+                    yield event
             return
 
         # Build the set of tracked functions from the call graph so we
@@ -517,8 +574,9 @@ class UiPathDebugFunctionsRuntime:
         )
         controller.start(self.delegate, input, delegate_options)
 
-        async for event in self._drain_events():
-            yield event
+        async with aclosing(self._drain_events()) as events:
+            async for event in events:
+                yield event
 
     async def get_schema(self) -> UiPathRuntimeSchema:
         """Pass-through to delegate."""
@@ -562,14 +620,34 @@ class UiPathDebugFunctionsRuntime:
             return None
 
     async def _drain_events(self) -> AsyncGenerator[UiPathRuntimeEvent, None]:
-        """Drain events from the controller, yielding state events and stopping at a terminal event."""
-        while self._controller is not None:
-            event_type, data = await asyncio.to_thread(self._controller.wait_for_event)
-            if event_type == "state":
-                yield self._to_state_event(data)
-            else:
+        """Drain events from the controller, yielding state events and stopping at a terminal event.
+
+        Closed or cancelled before it gets that far, it ends the execution and
+        waits for its thread, so a caller that stops consuming the stream knows
+        the function no longer runs.
+        """
+        controller = self._controller
+        if controller is None:
+            return
+        drained = False
+        try:
+            while True:
+                event_type, data = await asyncio.to_thread(controller.wait_for_event)
+                if event_type == "state":
+                    yield self._to_state_event(data)
+                    continue
                 yield self._to_runtime_event(event_type, data)
+                drained = True
                 return
+        finally:
+            if not drained:
+                await self._stop_execution(controller)
+
+    async def _stop_execution(self, controller: BreakpointController) -> None:
+        controller.request_stop()
+        await asyncio.to_thread(controller.join)
+        if self._controller is controller:
+            self._controller = None
 
     @staticmethod
     def _to_state_event(data: dict[str, Any]) -> UiPathRuntimeStateEvent:

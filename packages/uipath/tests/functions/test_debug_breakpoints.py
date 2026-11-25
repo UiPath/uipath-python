@@ -36,6 +36,7 @@ from uipath.runtime import (
     UiPathBreakpointResult,
     UiPathRuntimeResult,
     UiPathRuntimeStatus,
+    UiPathStreamOptions,
 )
 from uipath.runtime.debug import UiPathDebugRuntime
 from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePhase
@@ -1062,3 +1063,169 @@ class TestAttachedDebugger:
 
         assert not _is_debugger_tracer(None)
         assert not _is_debugger_tracer(coverage_tracer)
+
+
+def _functions_runtime(script: Path) -> UiPathDebugFunctionsRuntime:
+    inner = UiPathFunctionsRuntime(str(script), "main", script.name)
+    return UiPathDebugFunctionsRuntime(
+        inner, entrypoint_path=str(script), function_name="main"
+    )
+
+
+async def _wait_until(path: Path, timeout: float = 5.0) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not path.exists():
+        assert loop.time() < deadline, f"{path.name} never appeared"
+        await asyncio.sleep(0.01)
+
+
+async def _assert_no_more_writes(path: Path) -> None:
+    before = path.read_text()
+    await asyncio.sleep(0.1)
+    assert path.read_text() == before
+
+
+class TestStoppingTheExecution:
+    """Stopping the stream ends the function before the stream is done closing."""
+
+    async def test_closing_the_stream_stops_a_running_function(self, script_dir: Path):
+        script = _write_script(
+            script_dir,
+            "ticker.py",
+            "import time\n"
+            "from pathlib import Path\n"
+            "\n"
+            "def tick(n):\n"
+            '    Path("ticks.txt").write_text(str(n))\n'
+            "\n"
+            "def main(input):\n"
+            "    n = 0\n"
+            "    while True:\n"
+            "        n += 1\n"
+            "        tick(n)\n"
+            "        time.sleep(0.01)\n",
+        )
+        debug_fn = _functions_runtime(script)
+        events = debug_fn.stream({})
+        try:
+            ticks = 0
+            async for event in events:
+                if (
+                    isinstance(event, UiPathRuntimeStateEvent)
+                    and event.node_name == "tick"
+                ):
+                    ticks += 1
+                    if ticks == 3:
+                        break
+            controller = debug_fn._controller
+            assert controller is not None
+
+            await asyncio.wait_for(events.aclose(), timeout=5)
+
+            assert controller._thread is not None
+            assert not controller._thread.is_alive()
+            await _assert_no_more_writes(script_dir / "ticks.txt")
+        finally:
+            await debug_fn.dispose()
+
+    async def test_cancelling_the_consumer_stops_a_running_function(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "loop.py",
+            "import time\n"
+            "from pathlib import Path\n"
+            "\n"
+            "def main(input):\n"
+            "    n = 0\n"
+            "    while True:\n"
+            "        n += 1\n"
+            '        Path("ticks.txt").write_text(str(n))\n'
+            "        time.sleep(0.01)\n",
+        )
+        debug_fn = _functions_runtime(script)
+
+        async def consume() -> None:
+            async for _event in debug_fn.stream({}):
+                pass
+
+        consumer = asyncio.create_task(consume())
+        try:
+            await _wait_until(script_dir / "ticks.txt")
+            controller = debug_fn._controller
+            assert controller is not None
+
+            consumer.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(consumer, timeout=5)
+
+            assert controller._thread is not None
+            assert not controller._thread.is_alive()
+            await _assert_no_more_writes(script_dir / "ticks.txt")
+        finally:
+            await debug_fn.dispose()
+
+    async def test_closing_the_stream_stops_an_async_function_where_it_awaits(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "waiter.py",
+            "import asyncio\n"
+            "from pathlib import Path\n"
+            "\n"
+            "async def main(input):\n"
+            '    Path("started.txt").write_text("1")\n'
+            "    await asyncio.sleep(30)\n"
+            '    Path("finished.txt").write_text("1")\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = debug_fn.stream({})
+        try:
+            async for _event in events:
+                break
+            await _wait_until(script_dir / "started.txt")
+            controller = debug_fn._controller
+            assert controller is not None
+
+            await asyncio.wait_for(events.aclose(), timeout=5)
+
+            assert controller._thread is not None
+            assert not controller._thread.is_alive()
+            assert not (script_dir / "finished.txt").exists()
+        finally:
+            await debug_fn.dispose()
+
+    async def test_dispose_stops_a_function_paused_at_a_breakpoint(
+        self, script_dir: Path
+    ):
+        # Line 4: x = 1
+        # Line 5: Path("after.txt").write_text("ran")   <- breakpoint
+        script = _write_script(
+            script_dir,
+            "paused.py",
+            "from pathlib import Path\n"
+            "\n"
+            "def main(input):\n"
+            "    x = 1\n"
+            '    Path("after.txt").write_text("ran")\n'
+            '    return {"x": x}\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = [
+            event
+            async for event in debug_fn.stream(
+                {}, UiPathStreamOptions(breakpoints=["5"])
+            )
+        ]
+        assert isinstance(events[-1], UiPathBreakpointResult)
+        controller = debug_fn._controller
+        assert controller is not None
+
+        await debug_fn.dispose()
+
+        assert controller._thread is not None
+        assert not controller._thread.is_alive()
+        assert not (script_dir / "after.txt").exists()
