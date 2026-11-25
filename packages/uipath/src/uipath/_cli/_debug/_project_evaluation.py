@@ -2,8 +2,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic.alias_generators import to_camel
+from pydantic import BaseModel, Field
 
 from uipath.core.tracing import UiPathTraceManager
 from uipath.eval._execution_context import (
@@ -26,13 +25,15 @@ from uipath.runtime import (
 class ProjectEvaluationPlan(BaseModel):
     """Inputs for scoring one debug execution inside its project."""
 
-    model_config = ConfigDict(alias_generator=to_camel)
-
-    evaluation_item_id: str
-    evaluator_configs: list[dict[str, Any]] = Field(min_length=1)
-    evaluation_criterias: dict[str, dict[str, Any] | None] | None = None
-    expected_output: Any = None
-    expected_behavior: str | None = None
+    evaluation_item_id: str = Field(alias="evaluationItemId")
+    evaluator_configs: list[dict[str, Any]] = Field(
+        alias="evaluatorConfigs", min_length=1
+    )
+    evaluation_criterias: dict[str, dict[str, Any] | None] | None = Field(
+        default=None, alias="evaluationCriterias"
+    )
+    expected_output: Any = Field(default=None, alias="expectedOutput")
+    expected_behavior: str | None = Field(default=None, alias="expectedBehavior")
 
 
 def _resolve_schema(schema: str) -> str:

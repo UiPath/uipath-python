@@ -51,9 +51,11 @@ async def test_project_evaluator_can_score_the_agent_trace(
     finally:
         manager.shutdown()
 
-    assert result.output["executionOutput"] == {"value": 42}
-    assert result.output["evaluationItemId"] == "calculator-item"
-    [evaluator_run] = result.output["evaluatorResults"]
+    output = result.output
+    assert isinstance(output, dict)
+    assert output["executionOutput"] == {"value": 42}
+    assert output["evaluationItemId"] == "calculator-item"
+    [evaluator_run] = output["evaluatorResults"]
     assert evaluator_run["evaluatorId"] == config["id"]
     assert evaluator_run["score"] == score
     assert "error" not in evaluator_run
@@ -83,6 +85,8 @@ async def test_a_reference_outside_the_project_is_an_evaluator_error(
     finally:
         manager.shutdown()
 
-    assert result.output["executionOutput"] == {"answer": "Paris"}
-    [evaluator_run] = result.output["evaluatorResults"]
+    output = result.output
+    assert isinstance(output, dict)
+    assert output["executionOutput"] == {"answer": "Paris"}
+    [evaluator_run] = output["evaluatorResults"]
     assert evaluator_run["error"]["code"] == "ProjectEvaluatorFailed"
