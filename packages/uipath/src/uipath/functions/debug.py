@@ -398,6 +398,7 @@ class BreakpointController:
         input: dict[str, Any] | None,
         options: UiPathExecuteOptions | None,
     ) -> UiPathRuntimeResult:
+        previous_tracer = sys.gettrace()
         sys.settrace(self._trace_callback)
         loop = asyncio.new_event_loop()
         try:
@@ -408,7 +409,7 @@ class BreakpointController:
                     task.cancel()
             return loop.run_until_complete(task)
         finally:
-            sys.settrace(None)
+            sys.settrace(previous_tracer)
             with self._lock:
                 self._loop = self._task = None
             loop.close()
@@ -522,7 +523,7 @@ class UiPathDebugFunctionsRuntime:
             self._controller.update_breakpoints(breakpoints)
             self._controller.resume()
 
-            async with aclosing(self._drain_events()) as events:
+            async with aclosing(self._drain_events(self._controller)) as events:
                 async for event in events:
                     yield event
             return
@@ -574,7 +575,7 @@ class UiPathDebugFunctionsRuntime:
         )
         controller.start(self.delegate, input, delegate_options)
 
-        async with aclosing(self._drain_events()) as events:
+        async with aclosing(self._drain_events(controller)) as events:
             async for event in events:
                 yield event
 
@@ -619,16 +620,15 @@ class UiPathDebugFunctionsRuntime:
             logger.debug("Failed to build call graph for state tracking", exc_info=True)
             return None
 
-    async def _drain_events(self) -> AsyncGenerator[UiPathRuntimeEvent, None]:
+    async def _drain_events(
+        self, controller: BreakpointController
+    ) -> AsyncGenerator[UiPathRuntimeEvent, None]:
         """Drain events from the controller, yielding state events and stopping at a terminal event.
 
         Closed or cancelled before it gets that far, it ends the execution and
         waits for its thread, so a caller that stops consuming the stream knows
         the function no longer runs.
         """
-        controller = self._controller
-        if controller is None:
-            return
         drained = False
         try:
             while True:

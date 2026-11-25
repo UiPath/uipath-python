@@ -474,7 +474,48 @@ class TestBreakpointE2E:
             await runtime.dispose()
 
 
+def _frame_in(path: Path) -> FrameType:
+    """A frame of code compiled from *path*, paused at its return line (4)."""
+    path.write_text("import sys\n\ndef capture():\n    return sys._getframe()\n")
+    namespace: dict[str, Any] = {}
+    exec(compile(path.read_text(), str(path), "exec"), namespace)
+    return namespace["capture"]()
+
+
 class TestBreakpointController:
+    def test_a_stopped_trace_raises_in_project_code_only(self, script_dir: Path):
+        controller = BreakpointController(project_dir=str(script_dir), breakpoints=[])
+        project_frame = _frame_in(script_dir / "project.py")
+        controller.request_stop()
+
+        with pytest.raises(asyncio.CancelledError):
+            controller._trace_callback(project_frame, "line", None)
+        assert controller._trace_callback(sys._getframe(), "call", None) is None
+
+    def test_a_stop_while_paused_raises_at_the_breakpoint(
+        self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        frame = _frame_in(script_dir / "paused.py")
+        controller = BreakpointController(
+            project_dir=str(script_dir), breakpoints=[f"paused.py:{frame.f_lineno}"]
+        )
+
+        class _StoppedWhilePaused:
+            def wait(self) -> None:
+                controller._stopped = True
+
+            def clear(self) -> None:
+                pass
+
+            def set(self) -> None:
+                pass
+
+        monkeypatch.setattr(controller, "_resume_event", _StoppedWhilePaused())
+
+        with pytest.raises(asyncio.CancelledError):
+            controller._trace_callback(frame, "line", None)
+        assert controller._events.get_nowait()[0] == "breakpoint"
+
     def test_parse_bare_line_numbers(self, script_dir: Path):
         script = script_dir / "entry.py"
         script.write_text("x = 1\n")
