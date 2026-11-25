@@ -161,10 +161,12 @@ def version_for_mode(mode: VersionMode, version: Optional[str]) -> Optional[str]
 class SkillBundleResourceOverwrite(ResourceOverwrite):
     """A deploy-time override of an agent's skill bundle binding.
 
-    Like the other bindings, an entry replaces the whole binding: it carries
-    ``name``, ``folderPath`` and ``versionMode``, plus ``version`` when pinned.
-    Its ``name`` retargets the bundle that is looked up; the agent-side name of
-    the binding stays what the agent declared. Apply it with
+    An entry carries ``name``, ``folderPath`` and an optional ``version``:
+    ``latest`` (any case) or the pinned version, a version number, a tag or a
+    ``sha256:`` digest. An entry without ``version``, which is what a debug run
+    inside a solution receives, keeps the version the agent declared. Its
+    ``name`` retargets the bundle that is looked up; the agent-side name of the
+    binding stays what the agent declared. Apply it with
     ``uipath.platform.skills._overwrites.apply_skill_bundle_overwrite``.
 
     ``ResourceOverwriteParser.parse`` keeps an entry that is not a valid
@@ -176,7 +178,6 @@ class SkillBundleResourceOverwrite(ResourceOverwrite):
     resource_type: Literal["skillBundle"]
     name: str = Field(alias="name")
     folder_path: str = Field(alias="folderPath")
-    version_mode: VersionMode = Field(alias="versionMode")
     version: Optional[str] = Field(default=None, alias="version")
     problem: Optional[str] = Field(default=None, exclude=True)
     """Why the entry is not a valid binding; ``None`` when it is."""
@@ -200,11 +201,6 @@ class SkillBundleResourceOverwrite(ResourceOverwrite):
             return None
         return value
 
-    @model_validator(mode="after")
-    def _version_matches_mode(self) -> "SkillBundleResourceOverwrite":
-        self.version = version_for_mode(self.version_mode, self.version)
-        return self
-
     @classmethod
     def invalid(cls, problem: str) -> "SkillBundleResourceOverwrite":
         """An entry that is not a valid binding, kept so its bundle can fail.
@@ -219,7 +215,6 @@ class SkillBundleResourceOverwrite(ResourceOverwrite):
             resource_type="skillBundle",
             name="",
             folder_path="",
-            version_mode=VersionMode.LATEST,
             version=None,
             problem=problem,
         )

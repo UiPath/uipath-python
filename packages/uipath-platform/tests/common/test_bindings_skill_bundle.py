@@ -28,15 +28,13 @@ def test_a_full_entry_parses_with_its_identifiers() -> None:
         {
             "name": "finance-eu",
             "folderPath": "Prod/Skills",
-            "versionMode": "pinned",
             "version": "7",
             "isEnabled": True,
         },
     )
-    assert (ow.name, ow.folder_path, ow.version_mode, ow.version) == (
+    assert (ow.name, ow.folder_path, ow.version) == (
         "finance-eu",
         "Prod/Skills",
-        "pinned",
         "7",
     )
     assert (ow.resource_identifier, ow.folder_identifier) == (
@@ -49,14 +47,34 @@ def test_a_full_entry_parses_with_its_identifiers() -> None:
     assert "problem" not in dumped
 
 
-@pytest.mark.parametrize("version", [None, "4", ""])
-def test_latest_carries_no_version(version: str | None) -> None:
-    entry = {"name": "finance", "folderPath": "F", "versionMode": "latest"}
-    ow = _parse("skillBundle.finance", {**entry, "version": version})
-    assert (ow.version_mode, ow.version) == ("latest", None)
+_DIGEST = "sha256:" + "c0" * 32
 
 
-_FULL = {"name": "finance", "folderPath": "F", "versionMode": "pinned", "version": "7"}
+@pytest.mark.parametrize("version", ["latest", "LATEST", "7", "reviewed", _DIGEST])
+def test_the_version_is_kept_as_sent(version: str) -> None:
+    entry = {"name": "finance", "folderPath": "F", "version": version}
+    ow = _parse("skillBundle.finance", entry)
+    assert (ow.version, ow.problem) == (version, None)
+
+
+@pytest.mark.parametrize("version", [None, "", " "], ids=["missing", "empty", "blank"])
+def test_an_entry_without_a_version_is_valid(version: str | None) -> None:
+    # The shape of a debug overwrite inside a solution: name and folder only.
+    entry = {"name": "finance", "folderPath": "F"}
+    if version is not None:
+        entry["version"] = version
+    ow = _parse("skillBundle.finance", entry)
+    assert (ow.version, ow.problem) == (None, None)
+
+
+def test_a_version_mode_field_is_ignored() -> None:
+    entry = {"name": "finance", "folderPath": "F", "versionMode": "pinned"}
+    ow = _parse("skillBundle.finance", entry)
+    assert (ow.version, ow.problem) == (None, None)
+    assert "versionMode" not in ow.model_dump(by_alias=True)
+
+
+_FULL = {"name": "finance", "folderPath": "F", "version": "7"}
 
 
 @pytest.mark.parametrize(
@@ -64,25 +82,10 @@ _FULL = {"name": "finance", "folderPath": "F", "versionMode": "pinned", "version
     [
         {"name": None},
         {"folderPath": None},
-        {"versionMode": None},
-        {"version": None},
         {"name": ""},
         {"folderPath": "  "},
-        {"versionMode": ""},
-        {"version": " "},
-        {"versionMode": "cached"},
     ],
-    ids=[
-        "no-name",
-        "no-folder",
-        "no-version-mode",
-        "pinned-without-version",
-        "blank-name",
-        "blank-folder",
-        "blank-version-mode",
-        "pinned-with-blank-version",
-        "unknown-version-mode",
-    ],
+    ids=["no-name", "no-folder", "blank-name", "blank-folder"],
 )
 def test_an_incomplete_entry_parses_with_its_problem(
     missing_or_blank: dict[str, Any],
@@ -100,14 +103,14 @@ def test_an_incomplete_entry_parses_with_its_problem(
 @pytest.mark.parametrize(
     ("change", "problem"),
     [
-        ({"version": None}, "Value error, a pinned skill bundle needs a version"),
         ({"folderPath": None}, "folderPath: Field required"),
         (
-            {"versionMode": "cached"},
-            "versionMode: Input should be 'pinned' or 'latest'",
+            {"name": " "},
+            "name: Value error, a skillBundle overwrite needs a non-blank name "
+            "and folderPath",
         ),
     ],
-    ids=["pinned-without-version", "no-folder", "unknown-version-mode"],
+    ids=["no-folder", "blank-name"],
 )
 def test_the_problem_names_the_field_and_the_rule(
     change: dict[str, Any], problem: str
@@ -121,11 +124,8 @@ def test_a_malformed_entry_of_another_kind_is_still_rejected() -> None:
         ResourceOverwriteParser.parse("asset.A", {"name": "B"})
 
 
-def test_overwrites_and_references_share_one_version_mode() -> None:
-    annotation = SkillBundleResourceOverwrite.model_fields["version_mode"].annotation
-    assert annotation is VersionMode
+def test_skills_and_common_export_one_version_mode() -> None:
     assert skills.VersionMode is VersionMode
-    assert _parse("skillBundle.finance", _FULL).version_mode is VersionMode.PINNED
 
 
 @pytest.mark.parametrize(
@@ -163,19 +163,16 @@ def test_the_parser_knows_the_kinds_it_has_a_model_for(key: str, known: bool) ->
 
 
 def test_constructing_an_invalid_entry_directly_raises() -> None:
-    with pytest.raises(ValidationError, match="needs a version"):
+    with pytest.raises(ValidationError, match="non-blank name"):
         SkillBundleResourceOverwrite(
-            resource_type="skillBundle",
-            name="finance",
-            folder_path="Shared/Skills",
-            version_mode=VersionMode.PINNED,
+            resource_type="skillBundle", name=" ", folder_path="Shared/Skills"
         )
 
 
 def test_an_invalid_entry_keeps_only_its_problem() -> None:
-    ow = SkillBundleResourceOverwrite.invalid("versionMode: bad")
+    ow = SkillBundleResourceOverwrite.invalid("folderPath: bad")
     assert (ow.problem, ow.name, ow.folder_path, ow.version) == (
-        "versionMode: bad",
+        "folderPath: bad",
         "",
         "",
         None,
