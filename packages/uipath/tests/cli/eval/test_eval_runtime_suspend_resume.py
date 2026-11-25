@@ -285,7 +285,9 @@ class TestResumeFlowSkipsCreateEvalRun:
         assert len(update_calls) > 0, (
             "UPDATE_EVAL_RUN should still be published on resume"
         )
-        assert all(call.kwargs.get("wait_for_completion", True) for call in update_calls)
+        assert all(
+            call.kwargs.get("wait_for_completion", True) for call in update_calls
+        )
 
     async def test_resume_flag_false_by_default(self, context):
         """Test that resume flag is False by default in context."""
