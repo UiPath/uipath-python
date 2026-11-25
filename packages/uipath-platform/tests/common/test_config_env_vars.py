@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -316,3 +317,115 @@ class TestConversationId:
         assert UiPathConfig.licensing_context == "ctx"
         assert UiPathConfig.is_rooted_to_debug_job is True
         assert UiPathConfig.conversation_id == "conv-1"
+
+
+class TestDebugResourceOverwrites:
+    _PROJECT_ID = "11111111-1111-1111-1111-111111111111"
+    _OVERWRITES = {"asset.A": {"name": "B", "folderPath": "F"}}
+
+    @pytest.fixture(autouse=True)
+    def _isolated_config(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv(ENV_UIPATH_PROJECT_ID, self._PROJECT_ID)
+        UiPathConfig.reset()
+        yield
+        UiPathConfig.reset()
+
+    @staticmethod
+    def _write_fps_properties(tmp_path: Path, fps_properties: object) -> None:
+        (tmp_path / UIPATH_CONFIG_FILE).write_text(
+            json.dumps({"fpsProperties": fps_properties})
+        )
+        UiPathConfig.reset()
+
+    @staticmethod
+    def _master(*executor_infos: dict[str, object]) -> str:
+        return json.dumps(
+            {
+                "processes": [
+                    {"name": "P", "executorInfo": json.dumps(executor_info)}
+                    for executor_info in executor_infos
+                ]
+            }
+        )
+
+    def test_reads_them_from_the_debug_executor_of_the_job(self, tmp_path):
+        self._write_fps_properties(
+            tmp_path,
+            {"debug.executor": json.dumps({"resourceOverwrites": self._OVERWRITES})},
+        )
+        assert UiPathConfig.debug_resource_overwrites == self._OVERWRITES
+
+    def test_reads_them_from_the_entry_of_this_project_in_the_debug_master(
+        self, tmp_path
+    ):
+        self._write_fps_properties(
+            tmp_path,
+            {
+                # The job a debug starts itself has an executor info of its own.
+                "debug.executor": json.dumps(
+                    {"projectId": self._PROJECT_ID, "command": "debug"}
+                ),
+                "debug.master": self._master(
+                    {
+                        "projectId": "another-project",
+                        "resourceOverwrites": {"asset.Other": {"name": "Other"}},
+                    },
+                    {
+                        "projectId": self._PROJECT_ID.upper(),
+                        "resourceOverwrites": self._OVERWRITES,
+                    },
+                ),
+            },
+        )
+        assert UiPathConfig.debug_resource_overwrites == self._OVERWRITES
+
+    def test_returns_none_without_config_file(self):
+        assert UiPathConfig.debug_resource_overwrites is None
+
+    @pytest.mark.parametrize(
+        "fps_properties",
+        [
+            [],
+            {},
+            {"debug.executor": "not json"},
+            {"debug.executor": "[]"},
+            {"debug.executor": '{"resourceOverwrites": {}}'},
+            {"debug.executor": '{"resourceOverwrites": []}'},
+            {"debug.master": "not json"},
+            {"debug.master": '{"processes": {}}'},
+            {"debug.master": '{"processes": ["x", {"executorInfo": "not json"}]}'},
+        ],
+    )
+    def test_returns_none_when_the_job_carries_none(self, tmp_path, fps_properties):
+        self._write_fps_properties(tmp_path, fps_properties)
+        assert UiPathConfig.debug_resource_overwrites is None
+
+    def test_ignores_the_entries_of_other_projects_in_the_debug_master(self, tmp_path):
+        self._write_fps_properties(
+            tmp_path,
+            {
+                "debug.master": self._master(
+                    {
+                        "projectId": "another-project",
+                        "resourceOverwrites": self._OVERWRITES,
+                    }
+                )
+            },
+        )
+        assert UiPathConfig.debug_resource_overwrites is None
+
+    def test_ignores_the_debug_master_without_a_project_id(self, monkeypatch, tmp_path):
+        monkeypatch.delenv(ENV_UIPATH_PROJECT_ID)
+        self._write_fps_properties(
+            tmp_path,
+            {
+                "debug.master": self._master(
+                    {
+                        "projectId": self._PROJECT_ID,
+                        "resourceOverwrites": self._OVERWRITES,
+                    }
+                )
+            },
+        )
+        assert UiPathConfig.debug_resource_overwrites is None

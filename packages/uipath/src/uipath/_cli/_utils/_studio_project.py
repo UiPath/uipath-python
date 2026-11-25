@@ -612,9 +612,21 @@ class StudioClient:
         a kind added later does not fail a debug or eval run. A malformed entry
         of a known kind still raises.
 
+        A debug job that carries its overwrites is not asked of Studio at all: the
+        ones in the job are what Studio would answer with.
+
         Returns:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
+        carried = UiPathConfig.debug_resource_overwrites
+        if carried is not None:
+            logger.info(
+                "Resource overwrites carried by the debug job (%d entries):\n%s",
+                len(carried),
+                json.dumps(carried, indent=2),
+            )
+            return self._parse_resource_overwrites(carried, origin="the debug job")
+
         if not os.path.exists(UiPathConfig.bindings_file_path):
             logger.warning(
                 "Bindings file not found at %s, no overwrites to fetch from Studio",
@@ -661,12 +673,19 @@ class StudioClient:
             json.dumps(data, indent=2),
         )
 
+        return self._parse_resource_overwrites(data, origin="Studio")
+
+    @staticmethod
+    def _parse_resource_overwrites(
+        data: dict[str, Any], origin: str
+    ) -> dict[str, ResourceOverwrite]:
         overwrites: dict[str, ResourceOverwrite] = {}
         for key, value in data.items():
             if not ResourceOverwriteParser.knows(key):
                 logger.warning(
-                    "Skipping resource overwrite '%s' from Studio: unknown kind '%s'",
+                    "Skipping resource overwrite '%s' from %s: unknown kind '%s'",
                     key,
+                    origin,
                     key.split(".")[0],
                 )
                 continue

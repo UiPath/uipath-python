@@ -214,6 +214,40 @@ class ConfigurationManager:
         )
 
     @property
+    def debug_resource_overwrites(self) -> dict[str, Any] | None:
+        """The resource overwrites a debug job carries, or None when it carries none.
+
+        Studio Web resolves them before it starts a debug and can put them in the
+        job, so the run has no need to ask Studio for them. They are read from the
+        ``fpsProperties`` of the config file: the job's own ``debug.executor`` when
+        that has them, which is how a job started by another job of the debug gets
+        them, otherwise the entry of this project in ``debug.master``.
+        """
+        fps_properties = self._config_data.get("fpsProperties")
+        if not isinstance(fps_properties, dict):
+            return None
+
+        carried = _resource_overwrites_of(
+            _json_object(fps_properties.get("debug.executor"))
+        )
+        if carried is not None:
+            return carried
+
+        project_id = self.project_id
+        master = _json_object(fps_properties.get("debug.master"))
+        processes = master.get("processes") if master else None
+        if not project_id or not isinstance(processes, list):
+            return None
+
+        for process in processes:
+            if not isinstance(process, dict):
+                continue
+            executor_info = _json_object(process.get("executorInfo"))
+            if executor_info and _same_id(executor_info.get("projectId"), project_id):
+                return _resource_overwrites_of(executor_info)
+        return None
+
+    @property
     def is_tracing_enabled(self) -> bool:
         from uipath.platform.constants import ENV_TRACING_ENABLED
 
@@ -243,6 +277,29 @@ class ConfigurationManager:
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
         return data if isinstance(data, dict) else {}
+
+
+def _json_object(value: Any) -> dict[str, Any] | None:
+    """The JSON object a job property holds, which a job keeps as text."""
+    import json
+
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value if isinstance(value, dict) else None
+
+
+def _resource_overwrites_of(
+    executor_info: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    overwrites = executor_info.get("resourceOverwrites") if executor_info else None
+    return overwrites if isinstance(overwrites, dict) and overwrites else None
+
+
+def _same_id(value: Any, project_id: str) -> bool:
+    return isinstance(value, str) and value.lower() == project_id.lower()
 
 
 UiPathConfig = ConfigurationManager()
