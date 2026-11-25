@@ -151,7 +151,8 @@ class BreakpointController:
         self._resume_event = threading.Event()
         self._stopped = False
         # Touched only on the execution's thread: by the trace and by the loop.
-        self._stop_delivered = False
+        self._stopped_tasks: set[asyncio.Task[Any]] = set()
+        self._unwinding_tasks: set[asyncio.Task[Any]] = set()
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: asyncio.Task[Any] | None = None
@@ -227,7 +228,7 @@ class BreakpointController:
     def _trace_callback(self, frame: FrameType, event: str, arg: Any) -> Any:
         """sys.settrace callback — dispatched for every frame event."""
         if self._stopped:
-            return self._stop_in(frame)
+            return self._stop_in(frame, event, arg)
 
         try:
             co_filename = frame.f_code.co_filename
@@ -306,7 +307,7 @@ class BreakpointController:
                     self._resume_event.clear()
 
                     if self._stopped:
-                        raise self._deliver_stop()
+                        return self._stop_in(frame, event, arg)
 
             elif event == "return":
                 # Emit a "completed" state event for tracked functions
@@ -343,31 +344,62 @@ class BreakpointController:
             # Never let our own errors propagate — that would disable tracing.
             return self._trace_callback
 
-    def _stop_in(self, frame: FrameType) -> None:
-        """Raise the stop in the user's code; let library and interpreter frames run.
+    def _stop_in(self, frame: FrameType, event: str, arg: Any) -> Any:
+        """Stop the task running the user's code; let library and interpreter frames run.
 
         Raising in the event loop's own frames would break the loop instead of
-        ending the function. Once the stop is delivered, the function's cleanup
-        runs undisturbed.
+        ending the function. Each task gets the stop once, so its cleanup runs
+        as after an ordinary cancellation.
         """
-        if self._stop_delivered:
-            return None
         filename = frame.f_code.co_filename
-        if not filename.startswith("<") and self._is_project_file(
-            self._abspath(filename)
+        loop = self._loop
+        if (
+            loop is None
+            or filename.startswith("<")
+            or not self._is_project_file(self._abspath(filename))
         ):
-            raise self._deliver_stop()
-        return None
+            return None
+        task = asyncio.current_task(loop)
+        if task is None or task in self._stopped_tasks:
+            return None
+        if task.cancelling():
+            # Its cancellation stops it; look again if it swallows that one.
+            return self._trace_callback
+        if event == "exception" and issubclass(arg[0], asyncio.CancelledError):
+            # It is unwinding the stop of a task it awaits.
+            self._mark_stopped(task)
+            return None
+        if event != "line":
+            # A coroutine's resumption is a "call" event, and raising there
+            # would skip its exception handlers.
+            return self._trace_callback
+        self._mark_stopped(task)
+        # A trace function that raises is unset, and the function's other
+        # tasks still need it to stop where they run.
+        loop.call_soon(sys.settrace, self._trace_callback)
+        raise asyncio.CancelledError("Debug session stopped")
 
-    def _deliver_stop(self) -> asyncio.CancelledError:
-        self._stop_delivered = True
-        return asyncio.CancelledError("Debug session stopped")
+    def _mark_stopped(self, task: asyncio.Task[Any]) -> None:
+        self._stopped_tasks.add(task)
+        if task is not self._task:
+            self._unwinding_tasks.add(task)
+            task.add_done_callback(self._on_stopped_task_done)
+
+    def _on_stopped_task_done(self, task: asyncio.Task[Any]) -> None:
+        self._unwinding_tasks.discard(task)
+        self._cancel_task()
 
     def _cancel_task(self) -> None:
-        """Deliver the stop through the task, unless the trace already raised it."""
-        if not self._stop_delivered and self._task is not None:
-            self._stop_delivered = True
-            self._task.cancel()
+        """Stop the function's own task, unless the stop already reached it.
+
+        Waits for the tasks that got the stop to finish: the task groups and
+        awaits they belong to would cancel them again during their cleanup.
+        """
+        task = self._task
+        if task is None or task in self._stopped_tasks or self._unwinding_tasks:
+            return
+        self._stopped_tasks.add(task)
+        task.cancel()
 
     # Thread lifecycle
 
@@ -427,6 +459,8 @@ class BreakpointController:
             sys.settrace(previous_tracer)
             with self._lock:
                 self._loop = self._task = None
+            self._stopped_tasks.clear()
+            self._unwinding_tasks.clear()
             loop.close()
 
     # Inter-thread communication
@@ -443,9 +477,10 @@ class BreakpointController:
         """End the execution where it is, without waiting for it.
 
         A function paused at a breakpoint stops there. A running one stops at
-        its next line or call in the project's files, or at the await it is
-        waiting in, whichever comes first; it gets the stop once. Code blocked
-        outside Python stops once it returns.
+        its next line in the project's files, or at the await it is waiting
+        in, whichever comes first. Each of its tasks gets the stop once, and
+        the function's own task gets it after the others have finished. Code
+        blocked outside Python stops once it returns.
         """
         with self._lock:
             self._stopped = True
