@@ -79,9 +79,13 @@ def _format_location(filepath: str, line: int) -> str:
     return f"{relative}:{line}"
 
 
-def _stopped_error() -> asyncio.CancelledError:
-    """The error that ends a stopped function; an ``except Exception`` lets it through."""
-    return asyncio.CancelledError("Debug session stopped")
+async def _wait_out(future: asyncio.Future[Any]) -> None:
+    """Wait until ``future`` is done, through cancellations of the caller, then re-raise the last."""
+    try:
+        await asyncio.wait({future})
+    except asyncio.CancelledError:
+        await _wait_out(future)
+        raise
 
 
 def _is_debugger_tracer(tracer: object) -> bool:
@@ -146,6 +150,8 @@ class BreakpointController:
         self._events: queue.Queue[tuple[str, Any]] = queue.Queue()
         self._resume_event = threading.Event()
         self._stopped = False
+        # Touched only on the execution's thread: by the trace and by the loop.
+        self._stop_delivered = False
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: asyncio.Task[Any] | None = None
@@ -254,13 +260,9 @@ class BreakpointController:
                 # Reset per-frame hit tracking so each call starts fresh.
                 self._hit_lines[id(frame)] = set()
 
-                # Decide whether to trace *into* this function's frame.
-                if self._step_mode:
-                    return self._trace_callback if is_project else None
-                if filepath in self._file_breakpoints:
-                    return self._trace_callback
-                # Also trace project files that contain tracked functions
-                if is_project and filepath in (self._state_tracked or {}):
+                # Trace into every project frame, also those outside the call
+                # graph, so that a stop reaches a loop running in any of them.
+                if is_project or filepath in self._file_breakpoints:
                     return self._trace_callback
                 return None
 
@@ -304,7 +306,7 @@ class BreakpointController:
                     self._resume_event.clear()
 
                     if self._stopped:
-                        raise _stopped_error()
+                        raise self._deliver_stop()
 
             elif event == "return":
                 # Emit a "completed" state event for tracked functions
@@ -345,14 +347,27 @@ class BreakpointController:
         """Raise the stop in the user's code; let library and interpreter frames run.
 
         Raising in the event loop's own frames would break the loop instead of
-        ending the function.
+        ending the function. Once the stop is delivered, the function's cleanup
+        runs undisturbed.
         """
+        if self._stop_delivered:
+            return None
         filename = frame.f_code.co_filename
         if not filename.startswith("<") and self._is_project_file(
             self._abspath(filename)
         ):
-            raise _stopped_error()
+            raise self._deliver_stop()
         return None
+
+    def _deliver_stop(self) -> asyncio.CancelledError:
+        self._stop_delivered = True
+        return asyncio.CancelledError("Debug session stopped")
+
+    def _cancel_task(self) -> None:
+        """Deliver the stop through the task, unless the trace already raised it."""
+        if not self._stop_delivered and self._task is not None:
+            self._stop_delivered = True
+            self._task.cancel()
 
     # Thread lifecycle
 
@@ -406,7 +421,7 @@ class BreakpointController:
             with self._lock:
                 self._loop, self._task = loop, task
                 if self._stopped:
-                    task.cancel()
+                    self._cancel_task()
             return loop.run_until_complete(task)
         finally:
             sys.settrace(previous_tracer)
@@ -429,12 +444,13 @@ class BreakpointController:
 
         A function paused at a breakpoint stops there. A running one stops at
         its next line or call in the project's files, or at the await it is
-        waiting in. Code blocked outside Python stops once it returns.
+        waiting in, whichever comes first; it gets the stop once. Code blocked
+        outside Python stops once it returns.
         """
         with self._lock:
             self._stopped = True
-            if self._loop is not None and self._task is not None:
-                self._loop.call_soon_threadsafe(self._task.cancel)
+            if self._loop is not None:
+                self._loop.call_soon_threadsafe(self._cancel_task)
         self._resume_event.set()
 
     def join(self, timeout: float | None = None) -> None:
@@ -645,9 +661,11 @@ class UiPathDebugFunctionsRuntime:
 
     async def _stop_execution(self, controller: BreakpointController) -> None:
         controller.request_stop()
-        await asyncio.to_thread(controller.join)
-        if self._controller is controller:
-            self._controller = None
+        try:
+            await _wait_out(asyncio.ensure_future(asyncio.to_thread(controller.join)))
+        finally:
+            if self._controller is controller:
+                self._controller = None
 
     @staticmethod
     def _to_state_event(data: dict[str, Any]) -> UiPathRuntimeStateEvent:

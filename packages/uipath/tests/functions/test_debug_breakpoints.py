@@ -22,7 +22,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from types import FrameType
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import pytest
 
@@ -483,14 +483,41 @@ def _frame_in(path: Path) -> FrameType:
 
 
 class TestBreakpointController:
-    def test_a_stopped_trace_raises_in_project_code_only(self, script_dir: Path):
+    def test_a_stopped_trace_raises_once_and_in_project_code_only(
+        self, script_dir: Path
+    ):
         controller = BreakpointController(project_dir=str(script_dir), breakpoints=[])
         project_frame = _frame_in(script_dir / "project.py")
         controller.request_stop()
 
+        assert controller._trace_callback(sys._getframe(), "call", None) is None
         with pytest.raises(asyncio.CancelledError):
             controller._trace_callback(project_frame, "line", None)
-        assert controller._trace_callback(sys._getframe(), "call", None) is None
+        assert controller._trace_callback(project_frame, "line", None) is None
+
+    def test_the_task_gets_the_stop_only_if_the_trace_has_not(self, script_dir: Path):
+        class _Task:
+            cancels = 0
+
+            def cancel(self) -> None:
+                self.cancels += 1
+
+        controller = BreakpointController(project_dir=str(script_dir), breakpoints=[])
+        task = _Task()
+        controller._task = cast(Any, task)
+
+        controller._cancel_task()
+        controller._cancel_task()
+        assert task.cancels == 1
+
+        stopped_by_the_trace = BreakpointController(
+            project_dir=str(script_dir), breakpoints=[]
+        )
+        untouched = _Task()
+        stopped_by_the_trace._task = cast(Any, untouched)
+        stopped_by_the_trace._deliver_stop()
+        stopped_by_the_trace._cancel_task()
+        assert untouched.cancels == 0
 
     def test_a_stop_while_paused_raises_at_the_breakpoint(
         self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
@@ -1270,3 +1297,145 @@ class TestStoppingTheExecution:
         assert controller._thread is not None
         assert not controller._thread.is_alive()
         assert not (script_dir / "after.txt").exists()
+
+
+class TestStopEdgeCases:
+    """A stop reaches all of the project's code, is delivered once, and is waited out."""
+
+    async def test_closing_the_stream_stops_a_loop_outside_the_call_graph(
+        self, script_dir: Path
+    ):
+        _write_script(
+            script_dir,
+            "spin_helper.py",
+            "def spin():\n    n = 0\n    while True:\n        n += 1\n",
+        )
+        script = _write_script(
+            script_dir,
+            "dynamic.py",
+            "from pathlib import Path\n"
+            "import spin_helper\n"
+            "\n"
+            "def main(input):\n"
+            '    Path("started.txt").write_text("1")\n'
+            '    getattr(spin_helper, "spin")()\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = debug_fn.stream({})
+        try:
+            async for _event in events:
+                break
+            await _wait_until(script_dir / "started.txt")
+            controller = debug_fn._controller
+            assert controller is not None
+
+            await asyncio.wait_for(events.aclose(), timeout=5)
+
+            assert controller._thread is not None
+            assert not controller._thread.is_alive()
+        finally:
+            await debug_fn.dispose()
+
+    async def test_closing_the_stream_lets_an_awaiting_function_finish_its_cleanup(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "awaiting_cleanup.py",
+            "import asyncio\n"
+            "from pathlib import Path\n"
+            "\n"
+            "async def main(input):\n"
+            "    try:\n"
+            '        Path("started.txt").write_text("1")\n'
+            "        await asyncio.sleep(30)\n"
+            "    finally:\n"
+            '        Path("cleanup_started.txt").write_text("1")\n'
+            "        await asyncio.sleep(0.01)\n"
+            '        Path("cleanup_done.txt").write_text("1")\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = debug_fn.stream({})
+        try:
+            async for _event in events:
+                break
+            await _wait_until(script_dir / "started.txt")
+
+            await asyncio.wait_for(events.aclose(), timeout=5)
+
+            assert (script_dir / "cleanup_started.txt").exists()
+            assert (script_dir / "cleanup_done.txt").exists()
+        finally:
+            await debug_fn.dispose()
+
+    async def test_a_stop_in_running_code_lets_its_async_cleanup_finish(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "running_cleanup.py",
+            "import asyncio\n"
+            "import time\n"
+            "from pathlib import Path\n"
+            "\n"
+            "async def main(input):\n"
+            "    try:\n"
+            '        Path("started.txt").write_text("1")\n'
+            "        while True:\n"
+            "            time.sleep(0.01)\n"
+            "    finally:\n"
+            '        Path("cleanup_started.txt").write_text("1")\n'
+            "        await asyncio.sleep(0.01)\n"
+            '        Path("cleanup_done.txt").write_text("1")\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = debug_fn.stream({})
+        try:
+            async for _event in events:
+                break
+            await _wait_until(script_dir / "started.txt")
+
+            await asyncio.wait_for(events.aclose(), timeout=5)
+
+            assert (script_dir / "cleanup_started.txt").exists()
+            assert (script_dir / "cleanup_done.txt").exists()
+        finally:
+            await debug_fn.dispose()
+
+    async def test_cancelling_the_close_still_waits_for_the_function(
+        self, script_dir: Path
+    ):
+        script = _write_script(
+            script_dir,
+            "blocking.py",
+            "import time\n"
+            "from pathlib import Path\n"
+            "\n"
+            "def main(input):\n"
+            '    Path("started.txt").write_text("1")\n'
+            "    time.sleep(1.0)\n"
+            '    Path("finished.txt").write_text("1")\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = debug_fn.stream({})
+        try:
+            async for _event in events:
+                break
+            await _wait_until(script_dir / "started.txt")
+            controller = debug_fn._controller
+            assert controller is not None
+            # Let it get past its marker and into the blocking call.
+            await asyncio.sleep(0.2)
+
+            closer = asyncio.create_task(events.aclose())
+            await asyncio.sleep(0.05)
+            closer.cancel()
+            done, _ = await asyncio.wait({closer}, timeout=5)
+            assert closer in done
+            assert closer.cancelled()
+
+            assert controller._thread is not None
+            assert not controller._thread.is_alive()
+            assert not (script_dir / "finished.txt").exists()
+        finally:
+            await debug_fn.dispose()
