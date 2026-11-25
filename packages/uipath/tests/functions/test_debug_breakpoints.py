@@ -30,6 +30,7 @@ from uipath.functions.debug import (
     BreakpointController,
     UiPathDebugFunctionsRuntime,
     _is_debugger_tracer,
+    _new_stop_once_task,
 )
 from uipath.functions.runtime import UiPathFunctionsRuntime
 from uipath.runtime import (
@@ -486,9 +487,6 @@ class _Loop:
     def __init__(self) -> None:
         self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
 
-    def call_soon(self, callback: Any, *args: Any) -> None:
-        self.scheduled.append((callback, args))
-
     def call_soon_threadsafe(self, callback: Any, *args: Any) -> None:
         self.scheduled.append((callback, args))
 
@@ -496,7 +494,6 @@ class _Loop:
 class _Task:
     def __init__(self, cancelling: int = 0) -> None:
         self.cancels = 0
-        self.done_callbacks: list[Any] = []
         self._cancelling = cancelling
 
     def cancelling(self) -> int:
@@ -505,13 +502,6 @@ class _Task:
     def cancel(self) -> bool:
         self.cancels += 1
         return True
-
-    def add_done_callback(self, callback: Any) -> None:
-        self.done_callbacks.append(callback)
-
-    def finish(self) -> None:
-        for callback in self.done_callbacks:
-            callback(self)
 
 
 class _Stopped:
@@ -529,6 +519,9 @@ class _Stopped:
         self.controller._loop = cast(Any, self.loop)
         self.controller._task = cast(Any, self.function_task)
         monkeypatch.setattr(asyncio, "current_task", lambda loop=None: self.current)
+        # The trace is called directly here, so it stays set when it raises.
+        self.retraces: list[Any] = []
+        monkeypatch.setattr(sys, "setprofile", self.retraces.append)
         self.controller.request_stop()
 
     def trace(self, frame: FrameType, event: str = "line", arg: Any = None) -> Any:
@@ -558,8 +551,24 @@ class TestBreakpointController:
             stopped.trace(project_frame)
         assert stopped.trace(project_frame) is None
 
-        retrace = (sys.settrace, (stopped.controller._trace_callback,))
-        assert stopped.loop.scheduled.count(retrace) == 2
+        assert len(stopped.retraces) == 2
+
+    def test_the_trace_is_set_again_at_the_next_call_after_it_raises(
+        self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        stopped = _Stopped(script_dir, monkeypatch)
+        previous_profiler = object()
+        monkeypatch.setattr(sys, "getprofile", lambda: previous_profiler)
+        traces: list[Any] = []
+        monkeypatch.setattr(sys, "settrace", traces.append)
+        with pytest.raises(asyncio.CancelledError):
+            stopped.trace(_frame_in(script_dir / "project.py"))
+        [retrace] = stopped.retraces
+
+        retrace(sys._getframe(), "call", None)
+
+        assert traces == [stopped.controller._trace_callback]
+        assert stopped.retraces == [retrace, previous_profiler]
 
     def test_a_stop_leaves_code_outside_the_execution_alone(
         self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
@@ -599,21 +608,35 @@ class TestBreakpointController:
         stopped.controller._cancel_task()
         assert stopped.function_task.cancels == 0
 
-    def test_the_function_task_is_cancelled_once_its_stopped_tasks_are_done(
+    def test_the_function_task_is_cancelled_once(
         self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
     ):
         stopped = _Stopped(script_dir, monkeypatch)
-        child = _Task()
-        stopped.current = child
+        stopped.current = _Task()
         with pytest.raises(asyncio.CancelledError):
             stopped.trace(_frame_in(script_dir / "project.py"))
 
         stopped.controller._cancel_task()
-        assert stopped.function_task.cancels == 0
-
-        child.finish()
         stopped.controller._cancel_task()
+
         assert stopped.function_task.cancels == 1
+
+    def test_a_task_the_stop_reached_ignores_cancellation(self, script_dir: Path):
+        controller = BreakpointController(project_dir=str(script_dir), breakpoints=[])
+        loop = asyncio.new_event_loop()
+        try:
+            loop.set_task_factory(_new_stop_once_task)
+            stopped = loop.create_task(asyncio.sleep(0, "done"))
+            running = loop.create_task(asyncio.sleep(1))
+            controller._mark_stopped(stopped)
+
+            assert not stopped.cancel()
+            assert running.cancel()
+            assert loop.run_until_complete(stopped) == "done"
+            with pytest.raises(asyncio.CancelledError):
+                loop.run_until_complete(running)
+        finally:
+            loop.close()
 
     def test_a_stop_while_paused_raises_at_the_breakpoint(
         self, script_dir: Path, monkeypatch: pytest.MonkeyPatch
@@ -1616,6 +1639,51 @@ class TestStoppingConcurrentCode:
         assert (script_dir / "cleanup_started.txt").exists()
         assert (script_dir / "cleanup_done.txt").exists()
         assert not (script_dir / "after.txt").exists()
+
+    async def test_a_parent_resuming_during_a_stopped_childs_cleanup_waits_for_it(
+        self, script_dir: Path
+    ):
+        # Line 6: x = 1   <- breakpoint, in the child task. The parent's next
+        # step is already queued, so it resumes while the child cleans up.
+        script = _write_script(
+            script_dir,
+            "group_parent_resumes.py",
+            "import asyncio\n"
+            "from pathlib import Path\n"
+            "\n"
+            "async def child():\n"
+            "    try:\n"
+            "        x = 1\n"
+            "        return x\n"
+            "    finally:\n"
+            '        Path("cleanup_started.txt").write_text("1")\n'
+            "        await asyncio.sleep(0.2)\n"
+            '        Path("cleanup_done.txt").write_text("1")\n'
+            "\n"
+            "async def main(input):\n"
+            "    try:\n"
+            "        async with asyncio.TaskGroup() as tg:\n"
+            "            tg.create_task(child())\n"
+            "            await asyncio.sleep(0)\n"
+            '            Path("parent_body.txt").write_text("1")\n'
+            "    finally:\n"
+            '        Path("parent_cleanup.txt").write_text("1")\n',
+        )
+        debug_fn = _functions_runtime(script)
+        events = [
+            event
+            async for event in debug_fn.stream(
+                {}, UiPathStreamOptions(breakpoints=["6"])
+            )
+        ]
+        assert isinstance(events[-1], UiPathBreakpointResult)
+
+        await debug_fn.dispose()
+
+        assert (script_dir / "cleanup_started.txt").exists()
+        assert (script_dir / "cleanup_done.txt").exists()
+        assert not (script_dir / "parent_body.txt").exists()
+        assert (script_dir / "parent_cleanup.txt").exists()
 
     async def test_a_parent_awaiting_a_stopped_child_gets_the_stop_once(
         self, script_dir: Path

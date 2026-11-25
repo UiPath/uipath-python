@@ -88,6 +88,28 @@ async def _wait_out(future: asyncio.Future[Any]) -> None:
         raise
 
 
+class _StopOnceTask(asyncio.Task[Any]):
+    """A task that ignores cancellation once the debug stop has reached it.
+
+    The stop ends it like a cancellation. The task groups and awaits it belongs
+    to would cancel it again when the stop reaches them, cutting its cleanup
+    short.
+    """
+
+    stopped = False
+
+    def cancel(self, msg: Any | None = None) -> bool:
+        if self.stopped:
+            return False
+        return super().cancel(msg)
+
+
+def _new_stop_once_task(
+    loop: asyncio.AbstractEventLoop, coro: Any, **kwargs: Any
+) -> asyncio.Task[Any]:
+    return _StopOnceTask(coro, loop=loop, **kwargs)
+
+
 def _is_debugger_tracer(tracer: object) -> bool:
     """Return True if *tracer* is the trace function of a pydevd-based debugger.
 
@@ -152,7 +174,6 @@ class BreakpointController:
         self._stopped = False
         # Touched only on the execution's thread: by the trace and by the loop.
         self._stopped_tasks: set[asyncio.Task[Any]] = set()
-        self._unwinding_tasks: set[asyncio.Task[Any]] = set()
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: asyncio.Task[Any] | None = None
@@ -374,32 +395,36 @@ class BreakpointController:
             # would skip its exception handlers.
             return self._trace_callback
         self._mark_stopped(task)
-        # A trace function that raises is unset, and the function's other
-        # tasks still need it to stop where they run.
-        loop.call_soon(sys.settrace, self._trace_callback)
+        self._retrace_at_next_call()
         raise asyncio.CancelledError("Debug session stopped")
+
+    def _retrace_at_next_call(self) -> None:
+        """Set the trace again at the thread's next call or return.
+
+        A trace function that raises is unset for the whole thread, and the
+        function's other tasks still need it to stop where they run. The task
+        that raised calls or returns before the loop runs any other.
+        """
+        previous = sys.getprofile()
+
+        def retrace(frame: FrameType, event: str, arg: Any) -> None:
+            sys.setprofile(previous)
+            sys.settrace(self._trace_callback)
+
+        sys.setprofile(retrace)
 
     def _mark_stopped(self, task: asyncio.Task[Any]) -> None:
         self._stopped_tasks.add(task)
-        if task is not self._task:
-            self._unwinding_tasks.add(task)
-            task.add_done_callback(self._on_stopped_task_done)
-
-    def _on_stopped_task_done(self, task: asyncio.Task[Any]) -> None:
-        self._unwinding_tasks.discard(task)
-        self._cancel_task()
+        if isinstance(task, _StopOnceTask):
+            task.stopped = True
 
     def _cancel_task(self) -> None:
-        """Stop the function's own task, unless the stop already reached it.
-
-        Waits for the tasks that got the stop to finish: the task groups and
-        awaits they belong to would cancel them again during their cleanup.
-        """
+        """Stop the function's own task, unless the stop already reached it."""
         task = self._task
-        if task is None or task in self._stopped_tasks or self._unwinding_tasks:
+        if task is None or task in self._stopped_tasks:
             return
-        self._stopped_tasks.add(task)
         task.cancel()
+        self._mark_stopped(task)
 
     # Thread lifecycle
 
@@ -448,6 +473,7 @@ class BreakpointController:
         previous_tracer = sys.gettrace()
         sys.settrace(self._trace_callback)
         loop = asyncio.new_event_loop()
+        loop.set_task_factory(_new_stop_once_task)
         try:
             task = loop.create_task(delegate.execute(input, options))
             with self._lock:
@@ -460,7 +486,6 @@ class BreakpointController:
             with self._lock:
                 self._loop = self._task = None
             self._stopped_tasks.clear()
-            self._unwinding_tasks.clear()
             loop.close()
 
     # Inter-thread communication
@@ -478,9 +503,9 @@ class BreakpointController:
 
         A function paused at a breakpoint stops there. A running one stops at
         its next line in the project's files, or at the await it is waiting
-        in, whichever comes first. Each of its tasks gets the stop once, and
-        the function's own task gets it after the others have finished. Code
-        blocked outside Python stops once it returns.
+        in, whichever comes first. Each of its tasks gets the stop once, so
+        the task groups and awaits a stopped task belongs to wait for its
+        cleanup. Code blocked outside Python stops once it returns.
         """
         with self._lock:
             self._stopped = True
