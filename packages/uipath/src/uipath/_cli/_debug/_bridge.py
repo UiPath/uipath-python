@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+from collections.abc import Awaitable
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Any, Literal
@@ -37,6 +38,8 @@ from uipath.runtime.events import UiPathRuntimeStateEvent, UiPathRuntimeStatePha
 DebugAttachMode = Literal["signalr", "console", "none"]
 
 logger = logging.getLogger(__name__)
+
+SEND_ACKNOWLEDGEMENT_TIMEOUT_SECONDS = 15.0
 
 
 class DebugCommand(str, Enum):
@@ -506,6 +509,7 @@ class SignalRDebugBridge:
         self._connected_event = asyncio.Event()
         self._resume_event: asyncio.Event | None = None
         self._terminate_event = asyncio.Event()
+        self._unacknowledged_sends: set[asyncio.Future[None]] = set()
 
     async def connect(self) -> None:
         """Establish SignalR connection."""
@@ -530,6 +534,9 @@ class SignalRDebugBridge:
         self._client.on_error(self._handle_error)
 
         self._run_task = asyncio.create_task(self._client.run())
+        self._run_task.add_done_callback(
+            lambda _: self._cancel_pending_acknowledgements()
+        )
 
         async def cleanup_run_task() -> str:
             error_message = (
@@ -572,8 +579,10 @@ class SignalRDebugBridge:
         if not self._client:
             return
 
+        await self._wait_for_acknowledgements()
+
         # Cancel the run task first
-        if self._run_task and not self._run_task.done():
+        if self._run_task:
             self._run_task.cancel()
             try:
                 await self._run_task
@@ -753,6 +762,15 @@ class SignalRDebugBridge:
         """
         if not self._client:
             raise RuntimeError("SignalR client not connected")
+        acknowledged: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._unacknowledged_sends.add(acknowledged)
+        acknowledged.add_done_callback(self._unacknowledged_sends.discard)
+
+        def acknowledge(_completion: Any) -> Awaitable[None]:
+            if not acknowledged.done():
+                acknowledged.set_result(None)
+            return asyncio.sleep(0)
+
         try:
             # Wrap the event in SendCommand protocol
             # Server expects: SendCommand(event_name, json_string_of_data)
@@ -763,11 +781,34 @@ class SignalRDebugBridge:
             await self._client.send(
                 method="SendCommand",
                 arguments=arguments,
-                on_invocation=self._handle_send_completion,
+                on_invocation=acknowledge,
             )
             logger.debug(f"Sent command: {event_name}")
+        except asyncio.CancelledError:
+            acknowledged.cancel()
+            raise
         except Exception as e:
+            acknowledged.cancel()
             logger.error(f"Error sending command {event_name} to SignalR hub: {e}")
+
+    async def _wait_for_acknowledgements(self) -> None:
+        """Wait for the hub to acknowledge the commands sent so far."""
+        if not self._unacknowledged_sends:
+            return
+        _, unacknowledged = await asyncio.wait(
+            set(self._unacknowledged_sends),
+            timeout=SEND_ACKNOWLEDGEMENT_TIMEOUT_SECONDS,
+        )
+        if unacknowledged:
+            logger.warning(
+                f"Closing the SignalR connection before the hub acknowledged "
+                f"{len(unacknowledged)} command(s)"
+            )
+
+    def _cancel_pending_acknowledgements(self) -> None:
+        """Stop waiting for acknowledgements a closed connection can no longer get."""
+        for acknowledged in tuple(self._unacknowledged_sends):
+            acknowledged.cancel()
 
     async def _handle_start(self, args: list[Any]) -> None:
         """Handle Start command from SignalR server.
@@ -892,13 +933,11 @@ class SignalRDebugBridge:
         """Handle SignalR connection close."""
         logger.info("SignalR connection closed")
         self._connected_event.clear()
+        self._cancel_pending_acknowledgements()
 
     async def _handle_error(self, error: Any) -> None:
         """Handle SignalR error."""
         logger.error(f"SignalR error: {error}")
-
-    async def _handle_send_completion(self, message: Any) -> None:
-        """Receive the hub's completion for SendCommand; errors go to _handle_error."""
 
 
 def get_remote_debug_bridge(context: UiPathRuntimeContext) -> UiPathDebugProtocol:
