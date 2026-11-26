@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-11-24T09:19:03.0927496Z"
 exclude-newer-span = "P2D"
 
 [options.exclude-newer-package]
@@ -2720,7 +2720,7 @@ wheels = [
 
 [[package]]
 name = "uipath"
-version = "2.15.12"
+version = "2.15.13"
 source = { editable = "." }
 dependencies = [
     { name = "applicationinsights" },
@@ -2805,7 +2805,7 @@ requires-dist = [
     { name = "uipath-ipc", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-ipc", marker = "extra == 'ipc'", specifier = ">=2.5.1,<2.6.0" },
     { name = "uipath-platform", editable = "../uipath-platform" },
-    { name = "uipath-runtime", specifier = ">=0.13.5,<0.14.0" },
+    { name = "uipath-runtime", specifier = ">=0.13.7,<0.14.0" },
 ]
 provides-extras = ["ipc"]
 
@@ -2926,16 +2926,16 @@ dev = [
 
 [[package]]
 name = "uipath-runtime"
-version = "0.13.5"
+version = "0.13.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chardet" },
     { name = "uipath-core" },
     { name = "vadersentiment" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/8f/14ff9ccf152b6d97c0881f6b40d3e01037045ee52c467ed00dbb2319a0cb/uipath_runtime-0.13.5.tar.gz", hash = "sha256:923e4514f3d868f3711211fee6e2dd39f76c6aaf7354fec9e80cdc5e6fad5d80", size = 250415, upload-time = "2026-09-10T09:32:53.126Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/15/df/1d4134ed12459b3ad78626901044a191e377050a98de2535a21d591a571b/uipath_runtime-0.13.7.tar.gz", hash = "sha256:d7a65f72dcb5cede4f9d6fce9a639be8ce8cbfb1785046b6c9518b7a4179e46c", size = 256483, upload-time = "2026-11-26T09:18:16.87Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/88/b851e75b3c70bbedde1e24d5b5f38035863ed3d50e8facb75ac7d2db40b8/uipath_runtime-0.13.5-py3-none-any.whl", hash = "sha256:d5eb7d578689f67d5dd631d28a092954c9a8797e130e16fe46e2895e4b0656ac", size = 98513, upload-time = "2026-09-10T09:32:51.404Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/db/138573ca0f1b58084d5c82ac9a8280d37227f70d8e779454129ab676f67f/uipath_runtime-0.13.7-py3-none-any.whl", hash = "sha256:7ff61c6d1a879c970916307be6de983f341dbe45d44688cafa8685bdc4e8c6a5", size = 100415, upload-time = "2026-11-26T09:18:15.374Z" },
 ]
 
 [[package]]
