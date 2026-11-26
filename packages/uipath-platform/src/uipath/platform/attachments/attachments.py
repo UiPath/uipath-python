@@ -1,7 +1,7 @@
 """Module defining the attachment model for attachments."""
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
@@ -37,8 +37,11 @@ class BlobFileAccessInfo:
         id: The unique identifier (UUID) of the attachment.
         uri: The blob storage URI for accessing the file.
         name: The name of the attachment file.
+        headers: The headers to send with a request to ``uri``. They include the
+            SDK's authorization when Orchestrator requires it.
     """
 
     id: uuid.UUID
     uri: str
     name: str
+    headers: dict[str, str] = field(default_factory=dict, repr=False)

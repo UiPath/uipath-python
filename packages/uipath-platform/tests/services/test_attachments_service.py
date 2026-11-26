@@ -1207,3 +1207,63 @@ def test_attachments_service_conforms_to_attachments_protocol(
 
     conforming: AttachmentsProtocol = service
     assert isinstance(conforming, AttachmentsProtocol)
+
+
+@pytest.mark.parametrize(
+    ("requires_auth", "expected_auth"),
+    [(False, None), (True, "Bearer {secret}")],
+)
+async def test_blob_file_access_info_has_the_download_headers(
+    httpx_mock: HTTPXMock,
+    service: AttachmentsService,
+    base_url: str,
+    org: str,
+    tenant: str,
+    secret: str,
+    blob_uri_response: dict[str, Any],
+    requires_auth: bool,
+    expected_auth: str | None,
+) -> None:
+    attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    blob_uri_response["BlobFileAccess"]["RequiresAuth"] = requires_auth
+    for _ in range(2):
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})",
+            method="GET",
+            json=blob_uri_response,
+        )
+
+    infos = [
+        service.get_blob_file_access_uri(key=attachment_key),
+        await service.get_blob_file_access_uri_async(key=attachment_key),
+    ]
+
+    for info in infos:
+        assert info.uri == blob_uri_response["BlobFileAccess"]["Uri"]
+        assert info.headers["x-ms-blob-type"] == "BlockBlob"
+        assert info.headers.get("Authorization") == (
+            expected_auth.format(secret=secret) if expected_auth else None
+        )
+        assert secret not in repr(info)
+
+
+async def test_blob_file_access_info_without_headers(
+    httpx_mock: HTTPXMock,
+    service: AttachmentsService,
+    base_url: str,
+    org: str,
+    tenant: str,
+) -> None:
+    attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    httpx_mock.add_response(
+        url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})",
+        method="GET",
+        json={
+            "Name": "scan.pdf",
+            "BlobFileAccess": {"Uri": "https://orchestrator.example/offload"},
+        },
+    )
+
+    info = await service.get_blob_file_access_uri_async(key=attachment_key)
+
+    assert info.headers == {}
