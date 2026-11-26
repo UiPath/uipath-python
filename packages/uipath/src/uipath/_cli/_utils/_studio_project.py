@@ -612,9 +612,23 @@ class StudioClient:
         a kind added later does not fail a debug or eval run. A malformed entry
         of a known kind still raises.
 
+        A debug job that carries its overwrites is not asked of Studio at all: the
+        ones in the job are what Studio would answer with.
+
         Returns:
             dict[str, ResourceOverwrite]: Dict of resource overwrites
         """
+        carried = UiPathConfig.debug_resource_overwrites
+        if carried is not None:
+            logger.info(
+                "Resource overwrites carried by the debug job (%d entries):\n%s",
+                len(carried),
+                json.dumps(carried, indent=2),
+            )
+            return self._parse_resource_overwrites(
+                self._in_this_sdks_spelling(carried), origin="the debug job"
+            )
+
         if not os.path.exists(UiPathConfig.bindings_file_path):
             logger.warning(
                 "Bindings file not found at %s, no overwrites to fetch from Studio",
@@ -661,12 +675,34 @@ class StudioClient:
             json.dumps(data, indent=2),
         )
 
+        return self._parse_resource_overwrites(data, origin="Studio")
+
+    @staticmethod
+    def _in_this_sdks_spelling(carried: dict[str, Any]) -> dict[str, Any]:
+        """Respell the resource types of the overwrites a debug job carries.
+
+        Studio resolves them for every runtime of the solution, so a type can
+        come in another runtime's case ("Connection.<key>"). An entry already in
+        this SDK's spelling wins over a respelled one with the same key.
+        """
+        respelled: dict[str, Any] = {}
+        for key, value in carried.items():
+            own_spelling = ResourceOverwriteParser.in_this_sdks_spelling(key)
+            if own_spelling == key or own_spelling not in carried:
+                respelled[own_spelling] = value
+        return respelled
+
+    @staticmethod
+    def _parse_resource_overwrites(
+        data: dict[str, Any], origin: str
+    ) -> dict[str, ResourceOverwrite]:
         overwrites: dict[str, ResourceOverwrite] = {}
         for key, value in data.items():
             if not ResourceOverwriteParser.knows(key):
                 logger.warning(
-                    "Skipping resource overwrite '%s' from Studio: unknown kind '%s'",
+                    "Skipping resource overwrite '%s' from %s: unknown kind '%s'",
                     key,
+                    origin,
                     key.split(".")[0],
                 )
                 continue

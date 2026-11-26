@@ -15,7 +15,11 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath._cli._utils._studio_project import StudioClient
-from uipath.platform.common import GenericResourceOverwrite, UiPathConfig
+from uipath.platform.common import (
+    ConnectionResourceOverwrite,
+    GenericResourceOverwrite,
+    UiPathConfig,
+)
 
 _ORG_URL = "https://cloud.uipath.com/organization"
 _PROJECT_ID = "test-project-id"
@@ -104,3 +108,119 @@ async def test_get_resource_overwrites_raises_for_a_malformed_known_kind(
 
     with pytest.raises(ValidationError):
         await studio_client.get_resource_overwrites()
+
+
+@pytest.fixture
+def debug_job_config(tmp_path: Path, studio_client: StudioClient):
+    """Writes the config file of a debug job, read from the working directory."""
+
+    def write(fps_properties: dict[str, str]) -> None:
+        (tmp_path / UiPathConfig.config_file_name).write_text(
+            json.dumps({"fpsProperties": fps_properties})
+        )
+        UiPathConfig.reset()
+
+    yield write
+    UiPathConfig.reset()
+
+
+async def test_get_resource_overwrites_uses_the_ones_the_debug_job_carries(
+    studio_client: StudioClient, debug_job_config, httpx_mock: HTTPXMock
+) -> None:
+    debug_job_config(
+        {
+            "debug.executor": json.dumps(
+                {
+                    "projectId": _PROJECT_ID,
+                    "resourceOverwrites": {
+                        "asset.A": {"name": "B", "folderPath": "F"},
+                    },
+                }
+            )
+        }
+    )
+
+    overwrites = await studio_client.get_resource_overwrites()
+
+    asset = overwrites["asset.A"]
+    assert isinstance(asset, GenericResourceOverwrite)
+    assert asset.resource_identifier == "B"
+    assert asset.folder_identifier == "F"
+    # Studio is not asked: neither for the overwrites nor for the solution id.
+    assert httpx_mock.get_requests() == []
+
+
+async def test_get_resource_overwrites_respells_the_kinds_the_debug_job_carries(
+    studio_client: StudioClient, debug_job_config, httpx_mock: HTTPXMock
+) -> None:
+    debug_job_config(
+        {
+            "debug.executor": json.dumps(
+                {
+                    "projectId": _PROJECT_ID,
+                    "resourceOverwrites": {
+                        "Connection.c-1": {"ConnectionId": "robot", "folderKey": "k"},
+                        "Connection.c-2": {"ConnectionId": "other", "folderKey": "k"},
+                        "connection.c-2": {"connectionId": "own", "folderKey": "k"},
+                        "Asset.A": {"name": "B", "folderPath": "F"},
+                    },
+                }
+            )
+        }
+    )
+
+    overwrites = await studio_client.get_resource_overwrites()
+
+    assert sorted(overwrites) == ["asset.A", "connection.c-1", "connection.c-2"]
+    respelled = overwrites["connection.c-1"]
+    assert isinstance(respelled, ConnectionResourceOverwrite)
+    assert respelled.resource_identifier == "robot"
+    # The entry already in this SDK's spelling wins, wherever it sits in the job.
+    assert overwrites["connection.c-2"].resource_identifier == "own"
+    assert httpx_mock.get_requests() == []
+
+
+async def test_get_resource_overwrites_skips_unknown_entries_the_debug_job_carries(
+    studio_client: StudioClient,
+    debug_job_config,
+    studio_logs: pytest.LogCaptureFixture,
+) -> None:
+    debug_job_config(
+        {
+            "debug.executor": json.dumps(
+                {
+                    "resourceOverwrites": {
+                        "asset.A": {"name": "B", "folderPath": "F"},
+                        "weird.X": {"foo": 1},
+                    }
+                }
+            )
+        }
+    )
+
+    overwrites = await studio_client.get_resource_overwrites()
+
+    assert set(overwrites) == {"asset.A"}
+    warnings = [
+        r.getMessage() for r in studio_logs.records if r.levelno == logging.WARNING
+    ]
+    assert [message for message in warnings if "weird.X" in message] == [
+        "Skipping resource overwrite 'weird.X' from the debug job: unknown kind 'weird'"
+    ]
+
+
+async def test_get_resource_overwrites_asks_studio_when_the_debug_job_carries_none(
+    studio_client: StudioClient, debug_job_config, httpx_mock: HTTPXMock
+) -> None:
+    debug_job_config({"debug.executor": json.dumps({"projectId": _PROJECT_ID})})
+    # The fixture's reset dropped the cached solution id the client asks under.
+    UiPathConfig.studio_solution_id = _SOLUTION_ID
+    httpx_mock.add_response(
+        method="POST",
+        url=_OVERWRITES_URL,
+        json={"asset.A": {"name": "B", "folderPath": "F"}},
+    )
+
+    overwrites = await studio_client.get_resource_overwrites()
+
+    assert set(overwrites) == {"asset.A"}

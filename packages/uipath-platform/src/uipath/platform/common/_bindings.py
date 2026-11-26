@@ -249,6 +249,10 @@ _KNOWN_RESOURCE_TYPES: frozenset[str] = frozenset(
     for resource_type in get_args(model.model_fields["resource_type"].annotation)
 )
 
+_KNOWN_RESOURCE_TYPES_IN_LOWER_CASE: dict[str, str] = {
+    resource_type.lower(): resource_type for resource_type in _KNOWN_RESOURCE_TYPES
+}
+
 
 class ResourceOverwriteParser:
     """Parser for resource overwrite configurations.
@@ -271,6 +275,24 @@ class ResourceOverwriteParser:
             would reject.
         """
         return key.split(".")[0] in _KNOWN_RESOURCE_TYPES
+
+    @classmethod
+    def in_this_sdks_spelling(cls, key: str) -> str:
+        """Spell the resource type of ``key`` the way this SDK looks it up.
+
+        Other runtimes write some types in another case ("Connection" where this
+        SDK has "connection"), and lookups here match the key exactly.
+
+        Args:
+            key: The resource key (e.g., "Connection.abc-123").
+
+        Returns:
+            The key with its type respelled (e.g., "connection.abc-123"), or the
+            key unchanged when the type is unknown in any case.
+        """
+        resource_type, separator, name = key.partition(".")
+        known = _KNOWN_RESOURCE_TYPES_IN_LOWER_CASE.get(resource_type.lower())
+        return f"{known}{separator}{name}" if known else key
 
     @classmethod
     def parse(cls, key: str, value: dict[str, Any]) -> ResourceOverwrite:
