@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace.export import (
 from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common import _SpanUtils
 from uipath.platform.common._span_utils import SpanSource, SpanStatus
+from uipath.platform.common._token_renewal import token_renewal_running
 from uipath.platform.common.retry import NON_RETRYABLE_STATUS_CODES
 from uipath.platform.constants import (
     ENV_BASE_URL,
@@ -395,10 +396,23 @@ class LlmOpsHttpExporter(SpanExporter):
         source = str(span_list[0].get("Source") or SpanSource.CODED_AGENTS)
         return f"{self.base_url}/api/Traces/v3/spans?traceId={trace_id}&source={source}"
 
+    def _refresh_auth_token(self) -> None:
+        """Pick up the renewed token from the environment while the token is renewed."""
+        if not token_renewal_running():
+            return
+        token = os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
+        if not token or token == self.auth_token:
+            return
+
+        self.auth_token = token
+        self.headers["Authorization"] = f"Bearer {token}"
+        self.http_client.headers["Authorization"] = f"Bearer {token}"
+
     def _send_with_retries(
         self, url: str, payload: list[Dict[str, Any]], max_retries: int = 4
     ) -> SpanExportResult:
         """Send the HTTP request with retry logic."""
+        self._refresh_auth_token()
         for attempt in range(max_retries):
             try:
                 response = self.http_client.post(url, json=payload)

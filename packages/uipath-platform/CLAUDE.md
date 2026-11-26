@@ -59,6 +59,7 @@ Credentials can be provided via constructor parameters or environment variables 
 
 - **User authentication** — provide `base_url` and `secret` (access token), or set them via env vars
 - **S2S (service-to-service)** — provide `client_id` with either `client_secret` or `client_assertion` (an OIDC token for federated credentials), optionally with `scope`; uses `ExternalApplicationService` internally to exchange for an access token
+- **Token renewal** — a `UiPath()` whose secret came from the environment (`UiPathApiConfig.secret_from_environment`) re-reads `UNATTENDED_USER_ACCESS_TOKEN` / `UIPATH_ACCESS_TOKEN` on every request, but only while the job's token is renewed (`common/_token_renewal.py`). An explicit `secret=` is sent as is.
 
 Configuration is validated with Pydantic; missing `base_url` raises `BaseUrlMissingError`, missing `secret` raises `SecretMissingError`.
 

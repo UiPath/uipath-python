@@ -1200,3 +1200,49 @@ class TestWaitForResumeEdgeCases:
         assert len(bridge._tool_resume_results) == 0
         assert len(bridge._tool_resume_pending) == 0
         assert len(bridge._expected_tool_call_ids) == 0
+
+
+class TestConnectUsesTheCurrentToken:
+    """The bearer sent on connect is the token in the environment at that moment."""
+
+    @pytest.mark.anyio
+    async def test_connect_sends_the_renewed_token(
+        self, monkeypatch: pytest.MonkeyPatch, token_renewal_running: None
+    ) -> None:
+        from unittest.mock import patch
+
+        monkeypatch.delenv("CAS_WEBSOCKET_DISABLED", raising=False)
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "renewed-token")
+        bridge = SocketIOChatBridge(
+            websocket_url="wss://test.example.com",
+            websocket_path="/socket.io",
+            conversation_id="conv-123",
+            exchange_id="exch-456",
+            headers={"Authorization": "Bearer startup-token", "X-Keep": "yes"},
+        )
+        seen: dict[str, Any] = {}
+
+        class FakeClient:
+            def __init__(self, **_: Any) -> None:
+                self.handlers: dict[str, Any] = {}
+
+            def on(self, event: str, handler: Any) -> None:
+                self.handlers[event] = handler
+
+            async def connect(self, **kwargs: Any) -> None:
+                seen.update(kwargs)
+                await self.handlers["connect"]()
+
+            async def disconnect(self) -> None:
+                pass
+
+        with patch("socketio.AsyncClient", FakeClient):
+            await bridge.connect(timeout=1.0)
+
+        headers = seen["headers"]()
+        assert headers["Authorization"] == "Bearer renewed-token"
+        assert headers["X-Keep"] == "yes"
+        assert bridge.headers["Authorization"] == "Bearer startup-token"
+        # Asked again, as on a reconnect, it carries the token of that moment.
+        monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "newer-token")
+        assert seen["headers"]()["Authorization"] == "Bearer newer-token"

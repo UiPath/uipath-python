@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -235,7 +236,7 @@ class TestRun:
             monkeypatch.setenv("UIPATH_JOB_KEY", job_key)
 
             events: list[str] = []
-            seen: list[tuple[str, str, int | None]] = []
+            seen: list[tuple[str | None, str | None, int | None]] = []
             snapshots: list[object] = []
 
             from uipath.runtime import context as runtime_context
@@ -244,7 +245,11 @@ class TestRun:
             sentinel = logging.Handler()
 
             @asynccontextmanager
-            async def _fake_connection(pipe, job_key, resume_version):
+            async def _fake_connection(
+                pipe: str | None,
+                job_key: str | None,
+                resume_version: int | None,
+            ) -> AsyncIterator[None]:
                 seen.append((pipe, job_key, resume_version))
                 events.append("open")
                 # Install for real: the ordering that matters is against the runtime context's

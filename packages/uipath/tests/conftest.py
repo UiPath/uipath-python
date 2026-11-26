@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from uipath.platform import UiPathExecutionContext
+from uipath.platform.common import _token_renewal
 
 # Ensure local source package (src/uipath) is importable before tests collect
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
@@ -34,6 +35,18 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clean environment variables before each test."""
     monkeypatch.delenv("UIPATH_URL", raising=False)
     monkeypatch.delenv("UIPATH_ACCESS_TOKEN", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def no_token_renewal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start each test with no token renewal running, and undo any a test starts."""
+    monkeypatch.setattr(_token_renewal, "_running", 0)
+
+
+@pytest.fixture
+def token_renewal_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Act as if the job's token is being renewed."""
+    monkeypatch.setattr(_token_renewal, "_running", 1)
 
 
 @pytest.fixture

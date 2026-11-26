@@ -233,3 +233,39 @@ class TestGetVoiceBridge:
         bridge = get_voice_bridge(ctx, AsyncMock())
 
         assert "X-UiPath-Internal-ConversationalUserId" not in bridge._headers
+
+
+async def test_run_connects_with_the_token_currently_in_the_environment(
+    monkeypatch: pytest.MonkeyPatch, token_renewal_running: None
+) -> None:
+    from unittest.mock import patch
+
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "renewed-token")
+    session = _make_session()
+    session._headers = {"Authorization": "Bearer startup-token", "X-Keep": "yes"}
+    seen: dict[str, Any] = {}
+
+    class FakeClient:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        def on(self, event: str, handler: Any) -> None:
+            pass
+
+        async def connect(self, **kwargs: Any) -> None:
+            seen.update(kwargs)
+            session._end_session(VoiceSessionEndReason.COMPLETED)
+
+        async def disconnect(self) -> None:
+            pass
+
+    with patch("socketio.AsyncClient", FakeClient):
+        reason = await session.run()
+
+    assert reason == VoiceSessionEndReason.COMPLETED
+    headers = seen["headers"]()
+    assert headers["Authorization"] == "Bearer renewed-token"
+    assert headers["X-Keep"] == "yes"
+    # Asked again, as on a reconnect, it carries the token of that moment.
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "newer-token")
+    assert seen["headers"]()["Authorization"] == "Bearer newer-token"

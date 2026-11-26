@@ -1,3 +1,4 @@
+import os
 from functools import cached_property
 from typing import Optional
 
@@ -18,6 +19,7 @@ from .common import (
 )
 from .common.auth import resolve_config_from_env
 from .connections import ConnectionsService
+from .constants import ENV_JOB_KEY
 from .context_grounding import ContextGroundingService
 from .documents import DocumentsService, DocumentsServiceV2
 from .entities import EntitiesService
@@ -68,6 +70,8 @@ class UiPath:
         scope: Optional[str] = None,
         debug: bool = False,
     ) -> None:
+        # A secret read from the environment is re-read on every request.
+        secret_from_environment = False
         try:
             if _has_valid_client_credentials(
                 client_id, client_secret, client_assertion
@@ -79,11 +83,14 @@ class UiPath:
                 )
                 base_url, secret = service._base_url, token_data.access_token
             else:
+                secret_from_environment = not secret
                 base_url, secret = resolve_config_from_env(base_url, secret)
 
             self._config = UiPathApiConfig(
                 base_url=base_url,
                 secret=secret,
+                secret_from_environment=secret_from_environment,
+                environment_job_key=os.environ.get(ENV_JOB_KEY),
             )
         except ValidationError as e:
             for error in e.errors():

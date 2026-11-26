@@ -109,7 +109,10 @@ class PythonRuntimeService(IPythonRuntimeServer):
         on_run_start: "Any" = None
         on_run_end: "Any" = None
         installed: "list[Any]" = []
-        if request.streamOutputOverIpc:
+        token_refreshers: "list[Any]" = []
+        stream_output = request.streamOutputOverIpc
+        client = message.client if message is not None else None
+        if stream_output or client is not None:
             # Never stored: a captured callback goes stale on reconnect/restart.
             from ._job_api import (
                 IPythonJobApi,
@@ -118,33 +121,52 @@ class PythonRuntimeService(IPythonRuntimeServer):
                 is_wire_job_key,
             )
 
+            problem: str | None = None
             if not is_wire_job_key(request.jobKey):
+                problem = (
+                    f"needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}"
+                )
+            elif client is None:
+                problem = "is only available when RunJob is invoked over IPC"
+
+            if problem is not None and stream_output:
                 return PythonServerRunJobResult(
-                    exitCode=1,
-                    error=f"streamOutputOverIpc needs a 'jobKey' that is a job key (Guid); got {request.jobKey!r}",
+                    exitCode=1, error=f"streamOutputOverIpc {problem}"
                 )
+            # Token renewal rides along; a host that cannot renew ends it.
+            if client is not None and problem is None:
+                # get_callback only wraps the connection, so this cannot tell us whether the peer
+                # actually hosts the contract; a peer that doesn't shows up as a failing send.
+                callback = client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
 
-            if message is None or message.client is None:
-                return PythonServerRunJobResult(
-                    exitCode=1,
-                    error="streamOutputOverIpc is only available when RunJob is invoked over IPC",
-                )
+                loop = asyncio.get_running_loop()
+                job_key = request.jobKey
+                resume_version = request.resumeVersion
 
-            # get_callback only wraps the connection, so this cannot tell us whether the peer
-            # actually hosts the contract; a peer that doesn't shows up as a failing send.
-            callback = message.client.get_callback(IPythonJobApi)  # type: ignore[type-abstract]
+                def _install() -> None:
+                    if stream_output:
+                        installed.append(
+                            install_runtime_sinks(
+                                job_key, resume_version, callback, loop
+                            )
+                        )
+                    # The job's environment is applied by now; jobs run one at a time.
+                    from ._job_token import install_job_token_refresher
 
-            loop = asyncio.get_running_loop()
-            job_key = request.jobKey
-            resume_version = request.resumeVersion
+                    token_refreshers.append(
+                        install_job_token_refresher(
+                            job_key, resume_version, callback, loop
+                        )
+                    )
 
-            def _install() -> None:
-                installed.append(
-                    install_runtime_sinks(job_key, resume_version, callback, loop)
-                )
+                def _uninstall() -> None:
+                    if stream_output:
+                        clear_runtime_sinks()
+                    for refresher in token_refreshers:
+                        refresher.stop()
 
-            on_run_start = _install
-            on_run_end = clear_runtime_sinks
+                on_run_start = _install
+                on_run_end = _uninstall
 
         result = await _run_command_isolated(
             cmd,

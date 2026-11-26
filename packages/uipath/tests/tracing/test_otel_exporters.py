@@ -3,10 +3,12 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExportResult
 
+from uipath._utils._ssl_context import get_httpx_client_kwargs
 from uipath.platform.common._span_utils import SpanSource, SpanStatus
 from uipath.platform.constants import (
     HEADER_INTERNAL_ACCOUNT_ID,
@@ -159,6 +161,53 @@ def test_export_exception(exporter, mock_span):
 def test_force_flush(exporter):
     """Test force_flush returns True."""
     assert exporter.force_flush() is True
+
+
+def _exporter_seeing_auth(seen: list[str | None]) -> LlmOpsHttpExporter:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("Authorization"))
+        return httpx.Response(200)
+
+    exporter = LlmOpsHttpExporter()
+    exporter.http_client.close()
+    exporter.http_client = httpx.Client(
+        **get_httpx_client_kwargs(headers=exporter.headers),
+        transport=httpx.MockTransport(handler),
+    )
+    return exporter
+
+
+def test_send_ignores_a_changed_token_when_no_renewal_runs(
+    mock_env_vars: None,
+) -> None:
+    seen: list[str | None] = []
+    exporter = _exporter_seeing_auth(seen)
+    url = "https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/v3/spans"
+
+    os.environ["UIPATH_ACCESS_TOKEN"] = "changed-token"
+    exporter._send_with_retries(url, [])
+
+    assert seen == ["Bearer test-token"]
+    assert exporter.auth_token == "test-token"
+
+
+def test_send_uses_the_token_currently_in_the_environment(
+    mock_env_vars: None, token_renewal_running: None
+) -> None:
+    """A token renewed in the environment after construction goes out on the next upload."""
+    seen: list[str | None] = []
+    exporter = _exporter_seeing_auth(seen)
+    url = "https://test.uipath.com/org/tenant/llmopstenant_/api/Traces/v3/spans"
+
+    exporter._send_with_retries(url, [])
+    os.environ["UIPATH_ACCESS_TOKEN"] = "renewed-token"
+    exporter._send_with_retries(url, [])
+    del os.environ["UIPATH_ACCESS_TOKEN"]
+    exporter._send_with_retries(url, [])
+
+    assert seen == ["Bearer test-token", "Bearer renewed-token", "Bearer renewed-token"]
+    assert exporter.auth_token == "renewed-token"
+    assert exporter.headers["Authorization"] == "Bearer renewed-token"
 
 
 def test_shutdown_closes_http_client(mock_env_vars):

@@ -1,5 +1,7 @@
+import os
 import sys
 import types
+from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import Any, Literal, Union
 
@@ -21,13 +23,20 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from uipath.platform.constants import HEADER_TRACEPARENT_ID, HEADER_USER_AGENT
+from uipath.platform.constants import (
+    ENV_JOB_KEY,
+    ENV_UIPATH_ACCESS_TOKEN,
+    ENV_UNATTENDED_USER_ACCESS_TOKEN,
+    HEADER_TRACEPARENT_ID,
+    HEADER_USER_AGENT,
+)
 
 from ..errors import EnrichedException
 from ._config import UiPathApiConfig
 from ._execution_context import UiPathExecutionContext
 from ._http_config import get_httpx_client_kwargs
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
+from ._token_renewal import token_renewal_running
 from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .retry import (
@@ -39,6 +48,10 @@ from .retry import (
 
 _THIS_FILE = __file__
 _MAX_CALLER_FRAMES = 5
+
+
+def _has_authorization_header(headers: Mapping[str, Any]) -> bool:
+    return any(str(name).lower() == "authorization" for name in headers)
 
 
 def _get_caller_component() -> str:
@@ -204,9 +217,11 @@ class BaseService:
 
         specific_component = _get_caller_component()
 
-        kwargs.setdefault("headers", {})
+        # Copy: never write into the caller's dict.
+        kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(specific_component)
         _inject_trace_context(kwargs["headers"])
+        self._add_authorization(kwargs["headers"])
 
         override = resolve_service_url(str(url))
         if override:
@@ -247,11 +262,13 @@ class BaseService:
             f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
         )
 
-        kwargs.setdefault("headers", {})
+        # Copy: never write into the caller's dict.
+        kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
             self._specific_component
         )
         _inject_trace_context(kwargs["headers"])
+        self._add_authorization(kwargs["headers"])
 
         override = resolve_service_url(str(url))
         if override:
@@ -279,8 +296,30 @@ class BaseService:
 
     @property
     def auth_headers(self) -> dict[str, str]:
-        header = f"Bearer {self._config.secret}"
+        header = f"Bearer {self._current_secret()}"
         return {"Authorization": header}
+
+    def _current_secret(self) -> str:
+        """The bearer token to send now; one from the environment is re-read while renewed."""
+        config = self._config
+        # Follow the environment only while the token is renewed, for the job this config was built in.
+        same_job = os.environ.get(ENV_JOB_KEY) == config.environment_job_key
+        if config.secret_from_environment and same_job and token_renewal_running():
+            renewed = os.environ.get(
+                ENV_UNATTENDED_USER_ACCESS_TOKEN
+            ) or os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
+            if renewed:
+                self._config.secret = renewed
+                return renewed
+        return self._config.secret
+
+    def _add_authorization(self, headers: MutableMapping[str, Any]) -> None:
+        """Send the current token, unless the caller set a header."""
+        from_environment = self._config.secret_from_environment
+        if not from_environment or _has_authorization_header(headers):
+            return
+
+        headers["Authorization"] = f"Bearer {self._current_secret()}"
 
     @property
     def custom_headers(self) -> dict[str, str]:

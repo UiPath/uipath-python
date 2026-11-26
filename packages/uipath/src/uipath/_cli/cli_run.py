@@ -125,7 +125,7 @@ class _RunDiscoveryError(EntrypointDiscoveryException):
     help="Named pipe to stream this job's logs and result over uipath-ipc instead of writing them to files.",
 )
 @track_command("run")
-def run(
+def run(  # NOSONAR: one parameter per click option
     entrypoint: str | None,
     input: str | None,
     resume: bool,

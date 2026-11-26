@@ -28,6 +28,8 @@ from uipath.platform.constants import (
 )
 from uipath.runtime.context import UiPathRuntimeContext
 
+from .._utils._auth_header import with_current_access_token
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,7 +111,8 @@ class VoiceToolCallSession:
                 self._client.connect(
                     url=self._url,
                     socketio_path=self._socketio_path,
-                    headers=self._headers,
+                    # A callable: the library asks again on every reconnect.
+                    headers=lambda: with_current_access_token(self._headers),
                     transports=["websocket"],
                 ),
                 timeout=_ATTEMPT_CAS_SOCKET_CONNECTION_TIMEOUT_SECONDS,

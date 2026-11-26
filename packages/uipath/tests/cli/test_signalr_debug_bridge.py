@@ -139,3 +139,45 @@ async def test_a_completion_for_a_cancelled_send_is_ignored() -> None:
         await bridge.emit_execution_completed(_completed())
 
     assert await completion_handlers[0](CompletionMessage(invocation_id="1")) is None
+
+
+async def test_connect_sends_the_token_currently_in_the_environment(
+    monkeypatch: pytest.MonkeyPatch, token_renewal_running: None
+) -> None:
+    from unittest.mock import patch
+
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "renewed-token")
+    bridge = SignalRDebugBridge(
+        hub_url="https://hub.example/signalr/robotdebug",
+        access_token="startup-token",
+        headers={"X-Keep": "yes"},
+    )
+    seen: dict[str, Any] = {}
+
+    class FakeSignalRClient:
+        def __init__(self, url: str, headers: dict[str, str]) -> None:
+            seen["url"] = url
+            seen["headers"] = headers
+            self._on_open: Any = None
+
+        def on(self, event: str, handler: Any) -> None:
+            pass
+
+        def on_open(self, handler: Any) -> None:
+            self._on_open = handler
+
+        def on_close(self, handler: Any) -> None:
+            pass
+
+        def on_error(self, handler: Any) -> None:
+            pass
+
+        async def run(self) -> None:
+            await self._on_open()
+
+    with patch("pysignalr.client.SignalRClient", FakeSignalRClient):
+        await bridge.connect()
+
+    assert seen["headers"]["Authorization"] == "Bearer renewed-token"
+    assert seen["headers"]["X-Keep"] == "yes"
+    assert bridge.access_token == "startup-token"

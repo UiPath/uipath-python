@@ -652,3 +652,221 @@ class TestPooledSinks:
 
         asyncio.run(scenario())
         assert events == [("run",)]
+
+
+class TestPooledTokenRefresh:
+    """Every job run over IPC with a real job key renews its token, unasked."""
+
+    @staticmethod
+    def _fake_run(events: list[Any]) -> Any:
+        async def run(
+            cmd: Any,
+            args: Any,
+            env: Any,
+            wd: Any,
+            on_run_start: Any = None,
+            on_run_end: Any = None,
+            **_: Any,
+        ) -> dict[str, Any]:
+            if on_run_start:
+                on_run_start()
+            events.append(("run",))
+            if on_run_end:
+                on_run_end()
+            return {"ExitCode": 0, "Error": None}
+
+        return run
+
+    @staticmethod
+    def _spy_token_refresher(
+        monkeypatch: pytest.MonkeyPatch, events: list[Any]
+    ) -> None:
+        from uipath._cli import _job_token
+
+        class _Refresher:
+            def stop(self) -> None:
+                events.append(("stop-token",))
+
+        def install(jid: str, rv: int | None, cb: Any, loop: Any) -> _Refresher:
+            events.append(("install-token", jid, rv, cb))
+            return _Refresher()
+
+        monkeypatch.setattr(_job_token, "install_job_token_refresher", install)
+
+    def test_runjob_installs_the_refresher_inside_the_run_and_removes_it_after(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda *a: events.append(("install-sinks",)),
+        )
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
+        )
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey=JOB_ID,
+            resumeVersion=4,
+            command="run",
+            args=[],
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(
+                request, message=Message(client=cast(Any, _Client()))
+            )
+
+        result = asyncio.run(scenario())
+        assert result.exitCode == 0, result.error
+        # No sinks without streamOutputOverIpc; the refresher lives exactly as long as the run.
+        assert events == [
+            ("install-token", JOB_ID, 4, "CALLBACK"),
+            ("run",),
+            ("stop-token",),
+        ]
+
+    def test_both_opt_ins_install_both(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from uipath._cli import _job_api, cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            _job_api,
+            "install_runtime_sinks",
+            lambda *a: events.append(("install-sinks",)),
+        )
+        monkeypatch.setattr(
+            _job_api, "clear_runtime_sinks", lambda: events.append(("clear",))
+        )
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
+        )
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey=JOB_ID,
+            command="run",
+            args=[],
+            streamOutputOverIpc=True,
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(
+                request, message=Message(client=cast(Any, _Client()))
+            )
+
+        result = asyncio.run(scenario())
+        assert result.exitCode == 0, result.error
+        assert events == [
+            ("install-sinks",),
+            ("install-token", JOB_ID, None, "CALLBACK"),
+            ("run",),
+            ("clear",),
+            ("stop-token",),
+        ]
+
+    @pytest.mark.parametrize(
+        "job_key", ["", "job-9", "00000000-0000-0000-0000-000000000000"]
+    )
+    def test_a_bad_job_key_runs_the_job_without_renewal(
+        self, monkeypatch: pytest.MonkeyPatch, job_key: str
+    ) -> None:
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
+        )
+
+        class _Client:
+            def get_callback(self, contract: Any) -> Any:
+                return "CALLBACK"
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey=job_key,
+            command="run",
+            args=[],
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(
+                request, message=Message(client=cast(Any, _Client()))
+            )
+
+        result = asyncio.run(scenario())
+        # Renewal is optional: the job runs, without a refresher.
+        assert result.exitCode == 0, result.error
+        assert events == [("run",)]
+
+    def test_without_ipc_the_job_runs_without_renewal(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
+        )
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey=JOB_ID,
+            command="run",
+            args=[],
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(request, message=Message())
+
+        result = asyncio.run(scenario())
+        assert result.exitCode == 0, result.error
+        assert events == [("run",)]
+
+    def test_stream_output_still_needs_a_real_job_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from uipath._cli import cli_server_ipc
+        from uipath._cli.cli_server_ipc import PythonServerRunRequest
+
+        events: list[Any] = []
+        self._spy_token_refresher(monkeypatch, events)
+        monkeypatch.setattr(
+            cli_server_ipc, "_run_command_isolated", self._fake_run(events)
+        )
+
+        service = PythonRuntimeService()
+        request = PythonServerRunRequest(
+            jobKey="job-9",
+            command="run",
+            args=[],
+            streamOutputOverIpc=True,
+        )
+
+        async def scenario() -> Any:
+            return await service.RunJob(request, message=Message())
+
+        result = asyncio.run(scenario())
+        assert result.exitCode == 1
+        assert (result.error or "").startswith("streamOutputOverIpc needs a 'jobKey'")
+        assert events == []
