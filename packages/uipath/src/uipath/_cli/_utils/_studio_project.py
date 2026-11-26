@@ -625,7 +625,9 @@ class StudioClient:
                 len(carried),
                 json.dumps(carried, indent=2),
             )
-            return self._parse_resource_overwrites(carried, origin="the debug job")
+            return self._parse_resource_overwrites(
+                self._in_this_sdks_spelling(carried), origin="the debug job"
+            )
 
         if not os.path.exists(UiPathConfig.bindings_file_path):
             logger.warning(
@@ -674,6 +676,21 @@ class StudioClient:
         )
 
         return self._parse_resource_overwrites(data, origin="Studio")
+
+    @staticmethod
+    def _in_this_sdks_spelling(carried: dict[str, Any]) -> dict[str, Any]:
+        """Respell the resource types of the overwrites a debug job carries.
+
+        Studio resolves them for every runtime of the solution, so a type can
+        come in another runtime's case ("Connection.<key>"). An entry already in
+        this SDK's spelling wins over a respelled one with the same key.
+        """
+        respelled: dict[str, Any] = {}
+        for key, value in carried.items():
+            own_spelling = ResourceOverwriteParser.in_this_sdks_spelling(key)
+            if own_spelling == key or own_spelling not in carried:
+                respelled[own_spelling] = value
+        return respelled
 
     @staticmethod
     def _parse_resource_overwrites(

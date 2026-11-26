@@ -15,7 +15,11 @@ from pydantic import ValidationError
 from pytest_httpx import HTTPXMock
 
 from uipath._cli._utils._studio_project import StudioClient
-from uipath.platform.common import GenericResourceOverwrite, UiPathConfig
+from uipath.platform.common import (
+    ConnectionResourceOverwrite,
+    GenericResourceOverwrite,
+    UiPathConfig,
+)
 
 _ORG_URL = "https://cloud.uipath.com/organization"
 _PROJECT_ID = "test-project-id"
@@ -143,6 +147,36 @@ async def test_get_resource_overwrites_uses_the_ones_the_debug_job_carries(
     assert asset.resource_identifier == "B"
     assert asset.folder_identifier == "F"
     # Studio is not asked: neither for the overwrites nor for the solution id.
+    assert httpx_mock.get_requests() == []
+
+
+async def test_get_resource_overwrites_respells_the_kinds_the_debug_job_carries(
+    studio_client: StudioClient, debug_job_config, httpx_mock: HTTPXMock
+) -> None:
+    debug_job_config(
+        {
+            "debug.executor": json.dumps(
+                {
+                    "projectId": _PROJECT_ID,
+                    "resourceOverwrites": {
+                        "Connection.c-1": {"ConnectionId": "robot", "folderKey": "k"},
+                        "Connection.c-2": {"ConnectionId": "other", "folderKey": "k"},
+                        "connection.c-2": {"connectionId": "own", "folderKey": "k"},
+                        "Asset.A": {"name": "B", "folderPath": "F"},
+                    },
+                }
+            )
+        }
+    )
+
+    overwrites = await studio_client.get_resource_overwrites()
+
+    assert sorted(overwrites) == ["asset.A", "connection.c-1", "connection.c-2"]
+    respelled = overwrites["connection.c-1"]
+    assert isinstance(respelled, ConnectionResourceOverwrite)
+    assert respelled.resource_identifier == "robot"
+    # The entry already in this SDK's spelling wins, wherever it sits in the job.
+    assert overwrites["connection.c-2"].resource_identifier == "own"
     assert httpx_mock.get_requests() == []
 
 

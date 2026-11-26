@@ -119,3 +119,21 @@ def test_ontology_binding_parses_as_a_generic_name_and_folder_override() -> None
     assert overwrite.resource_type == "ontology"
     assert overwrite.resource_identifier == "nxorders"
     assert overwrite.folder_identifier == "Shared/NxOrdersSolution"
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("Connection.abc-123", "connection.abc-123"),
+        ("connection.abc-123", "connection.abc-123"),
+        ("MCPSERVER.Name.With.Dots", "mcpServer.Name.With.Dots"),
+        ("asset", "asset"),
+        ("Weird.X", "Weird.X"),
+    ],
+)
+def test_the_parser_respells_a_known_kind_written_in_another_case(
+    key: str, expected: str
+) -> None:
+    from uipath.platform.common._bindings import ResourceOverwriteParser
+
+    assert ResourceOverwriteParser.in_this_sdks_spelling(key) == expected
