@@ -67,6 +67,33 @@ def _damage_entry(archive: bytes, name: str) -> bytes:
     return bytes(data)
 
 
+NON_ASCII = "invoice-triage/reference/café.md"
+
+
+def _require_zip_version(archive: bytes, version: int) -> bytes:
+    """Set the zip version that each central directory record says it needs."""
+    data = bytearray(archive)
+    start = data.find(b"PK\x01\x02")
+    while start != -1:
+        struct.pack_into("<H", data, start + 6, version)
+        start = data.find(b"PK\x01\x02", start + 4)
+    return bytes(data)
+
+
+def _break_utf8_name(archive: bytes, *, central: bool) -> bytes:
+    """Make ``NON_ASCII`` invalid UTF-8 in its local header, and in the central directory when ``central``."""
+    return archive.replace("é".encode(), b"\xff\xfe", -1 if central else 1)
+
+
+def _shift_central_directory(archive: bytes, by: int) -> bytes:
+    """Move the central directory offset in the end record by ``by`` bytes."""
+    data = bytearray(archive)
+    end = data.rfind(b"PK\x05\x06")
+    (offset,) = struct.unpack_from("<I", data, end + 16)
+    struct.pack_into("<I", data, end + 16, offset + by)
+    return bytes(data)
+
+
 def _manifest(
     files: dict[str, bytes], version: int = 3, digest: str = DIGEST
 ) -> dict[str, object]:
@@ -527,6 +554,42 @@ async def test_a_damaged_archive_entry_is_invalid(
     _mock_bundle(httpx_mock, archive=archive)
 
     with pytest.raises(BundleSourceError, match="is damaged") as info:
+        await source.materialize(_ref(), tmp_path / "finance")
+
+    assert info.value.reason == "invalid"
+
+
+@pytest.mark.parametrize(
+    ("archive", "detail"),
+    [
+        (_require_zip_version(_zip(FILES), 100), "cannot be read as a zip file"),
+        (
+            _break_utf8_name(_zip({**FILES, NON_ASCII: b"x"}), central=True),
+            "cannot be read as a zip file",
+        ),
+        (
+            _break_utf8_name(_zip({**FILES, NON_ASCII: b"x"}), central=False),
+            "is damaged",
+        ),
+        (_shift_central_directory(_zip(FILES), 1000), "is damaged"),
+    ],
+    ids=[
+        "needs-zip-version-10",
+        "name-not-utf-8",
+        "local-header-name-not-utf-8",
+        "central-directory-offset-too-large",
+    ],
+)
+async def test_an_archive_zipfile_cannot_read_is_invalid(
+    source: OrchestratorBundleSource,
+    httpx_mock: HTTPXMock,
+    tmp_path: Path,
+    archive: bytes,
+    detail: str,
+) -> None:
+    _mock_bundle(httpx_mock, archive=archive)
+
+    with pytest.raises(BundleSourceError, match=detail) as info:
         await source.materialize(_ref(), tmp_path / "finance")
 
     assert info.value.reason == "invalid"

@@ -10,7 +10,6 @@ import shutil
 import tempfile
 import uuid
 import zipfile
-import zlib
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote
@@ -323,7 +322,6 @@ _FILE_TYPE_MASK = 0o170000
 _SYMLINK = 0o120000
 _ENCRYPTED_FLAG = 0x1
 _READABLE_COMPRESSION = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
-_DAMAGED_ENTRY_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError)
 
 
 class _ManifestEntry(BaseModel):
@@ -636,10 +634,12 @@ def _unpack_and_copy(bundle: str, archive: bytes, dest: Path) -> list[Skill]:
 def _unpack(bundle: str, archive: bytes, staging: Path) -> None:
     """Write the archive's files under ``staging``, refusing anything outside it.
 
-    The archive is ``invalid`` when an entry is not a relative path inside the
-    bundle, is encrypted, uses a compression other than stored or deflated, is
-    damaged, or conflicts with another entry (one path used as both a file and
-    a folder, or used twice).
+    The archive is ``invalid`` when it cannot be read as a zip file, or when an
+    entry is not a relative path inside the bundle, is encrypted, uses a
+    compression other than stored or deflated, is damaged, or conflicts with
+    another entry (one path used as both a file and a folder, or used twice).
+    The archive is in memory, so any error while opening it or reading an entry
+    comes from its bytes, whatever exception ``zipfile`` raises for it.
     Hidden files and symbolic links are left out. Each file is cut at one byte
     over ``MAX_FILE_BYTES``, so the copy step still sees it as too large and
     skips it with its usual warning; the bytes written in all stay within
@@ -647,9 +647,11 @@ def _unpack(bundle: str, archive: bytes, staging: Path) -> None:
     """
     try:
         zf = zipfile.ZipFile(io.BytesIO(archive))
-    except zipfile.BadZipFile as e:
+    except Exception as e:
         raise BundleSourceError(
-            f"skill bundle '{bundle}' archive is not a zip file", reason="invalid"
+            f"skill bundle '{bundle}' archive cannot be read as a zip file: "
+            f"{_zip_error(e)}",
+            reason="invalid",
         ) from e
     with zf:
         infos = zf.infolist()
@@ -712,19 +714,26 @@ def _write_capped(
 ) -> int:
     """Write at most ``limit`` bytes of ``info`` to ``target``; returns the bytes written.
 
-    A damaged entry (bad CRC, broken deflate stream, cut short) makes the archive
-    ``invalid``; a disk error is left to the caller.
+    Any error while reading the entry (bad CRC, broken deflate stream, data cut
+    short, a bad header or offset) makes the archive ``invalid``; a disk error
+    while writing is left to the caller.
     """
     try:
         with zf.open(info) as source:
             data = source.read(limit)
-    except _DAMAGED_ENTRY_ERRORS as e:
+    except Exception as e:
         raise BundleSourceError(
-            f"skill bundle '{bundle}' archive entry {info.filename!r} is damaged: {e}",
+            f"skill bundle '{bundle}' archive entry {info.filename!r} is damaged: "
+            f"{_zip_error(e)}",
             reason="invalid",
         ) from e
     target.write_bytes(data)
     return len(data)
+
+
+def _zip_error(error: Exception) -> str:
+    """The text of a ``zipfile`` error, or its type when it has none."""
+    return str(error) or type(error).__name__
 
 
 def _path_conflict(bundle: str, name: str) -> BundleSourceError:
