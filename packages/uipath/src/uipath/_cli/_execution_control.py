@@ -10,7 +10,6 @@ Kept import-light: ``_cli/__init__.py`` defers heavy imports.
 import asyncio
 import concurrent.futures
 import contextvars
-import importlib
 import threading
 from typing import Any
 
@@ -120,8 +119,6 @@ def run_execution_loop(coro: Any) -> Any:
 
 def _report_stops_as_stopped(control: ExecutionControl) -> None:
     """Let the runtime tell a cancellation this control delivered from a failure."""
-    try:
-        stop = importlib.import_module("uipath.runtime.stop")
-    except ImportError:  # uipath-runtime before 0.13.6 reports a stop as a fault
-        return
-    stop.set_stop_requested_probe(lambda: control.delivered)
+    from uipath.runtime.stop import set_stop_requested_probe
+
+    set_stop_requested_probe(lambda: control.delivered)

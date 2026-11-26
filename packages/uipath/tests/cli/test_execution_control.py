@@ -1,18 +1,14 @@
 """What an execution's loop tells the runtime about the stops it delivers."""
 
 import asyncio
-import contextvars
-import sys
-import types
 from typing import Any
-
-import pytest
 
 from uipath._cli._execution_control import (
     CURRENT_EXECUTION_CONTROL,
     ExecutionControl,
     run_execution_loop,
 )
+from uipath.runtime.stop import get_stop_requested_probe
 
 
 def _run_controlled(control: ExecutionControl, coro: Any) -> Any:
@@ -23,22 +19,12 @@ def _run_controlled(control: ExecutionControl, coro: Any) -> Any:
         CURRENT_EXECUTION_CONTROL.reset(token)
 
 
-@pytest.fixture
-def stop_module(monkeypatch: pytest.MonkeyPatch) -> contextvars.ContextVar[Any]:
-    probe: contextvars.ContextVar[Any] = contextvars.ContextVar("probe", default=None)
-    module = types.ModuleType("uipath.runtime.stop")
-    module.set_stop_requested_probe = probe.set  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "uipath.runtime.stop", module)
-    return probe
-
-
-def test_the_runtime_learns_a_stop_reached_the_execution(
-    stop_module: contextvars.ContextVar[Any],
-) -> None:
+def test_the_runtime_learns_a_stop_reached_the_execution() -> None:
     control = ExecutionControl()
 
     async def body() -> tuple[bool, bool]:
-        probe = stop_module.get()
+        probe = get_stop_requested_probe()
+        assert probe is not None
         before = probe()
         control.cancel()
         try:
@@ -66,32 +52,17 @@ def test_a_stop_that_reaches_a_finished_execution_is_not_delivered() -> None:
     assert control.delivered is False
 
 
-def test_the_probe_stays_inside_the_execution(
-    stop_module: contextvars.ContextVar[Any],
-) -> None:
+def test_the_probe_stays_inside_the_execution() -> None:
     async def body() -> None:
         return None
 
     _run_controlled(ExecutionControl(), body())
 
-    assert stop_module.get() is None
+    assert get_stop_requested_probe() is None
 
 
-def test_an_uncontrolled_run_installs_no_probe(
-    stop_module: contextvars.ContextVar[Any],
-) -> None:
+def test_an_uncontrolled_run_installs_no_probe() -> None:
     async def body() -> Any:
-        return stop_module.get()
+        return get_stop_requested_probe()
 
     assert run_execution_loop(body()) is None
-
-
-def test_a_runtime_without_the_probe_still_runs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setitem(sys.modules, "uipath.runtime.stop", None)
-
-    async def body() -> str:
-        return "ran"
-
-    assert _run_controlled(ExecutionControl(), body()) == "ran"
