@@ -283,6 +283,24 @@ class TestRenewal:
         refresher.stop()
         assert token_renewal_running() is False
 
+    def test_one_renewal_stopping_leaves_another_running(
+        self, ipc_loop: asyncio.AbstractEventLoop
+    ) -> None:
+        token = token_with_lifetime(3600, remaining=3000)
+        first = _refresher(FakeJobApi(), ipc_loop, token)
+        second = _refresher(FakeJobApi(), ipc_loop, token)
+        never_started = _refresher(FakeJobApi(), ipc_loop, token)
+
+        first.start()
+        second.start()
+        first.stop()
+        first.stop()
+        never_started.stop()
+        assert token_renewal_running() is True
+
+        second.stop()
+        assert token_renewal_running() is False
+
     def test_a_late_answer_after_stop_is_dropped(
         self, ipc_loop: asyncio.AbstractEventLoop, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -397,7 +415,11 @@ class TestFailures:
 
     @pytest.mark.parametrize(
         "type_name",
-        ["UiPath.Ipc.MethodNotFoundException", "System.NotSupportedException"],
+        [
+            "UiPath.Ipc.MethodNotFoundException",
+            "UiPath.Ipc.EndpointNotFoundException",
+            "System.NotSupportedException",
+        ],
     )
     def test_a_host_that_cannot_renew_ends_the_renewal_quietly(
         self,
@@ -427,7 +449,7 @@ class TestFailures:
         records: list[logging.LogRecord],
     ) -> None:
         monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
-        api = FakeJobApi(error=RemoteError("UiPath.Ipc.EndpointNotFoundException"))
+        api = FakeJobApi(error=RemoteError("System.NullReferenceException"))
         token = token_with_lifetime(600, remaining=60)  # due now
         refresher = _refresher(api, ipc_loop, token)
 
@@ -439,7 +461,7 @@ class TestFailures:
         assert _token(refresher) == token
         warnings = _warnings(records)
         assert len(warnings) == 1
-        assert "EndpointNotFoundException" in warnings[0]
+        assert "NullReferenceException" in warnings[0]
 
     def test_a_new_failure_after_a_recovery_warns_again(
         self,
@@ -501,9 +523,10 @@ class TestFailures:
     ) -> None:
         """An answer that is already due waits the backoff instead of spinning."""
         monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
-        api = FakeJobApi(
-            *[token_with_lifetime(600, remaining=60, tag=str(i)) for i in range(50)]
-        )
+        answers = [
+            token_with_lifetime(600, remaining=60, tag=str(i)) for i in range(50)
+        ]
+        api = FakeJobApi(*answers)
         refresher = _refresher(api, ipc_loop, token_with_lifetime(600, remaining=60))
 
         refresher.start()
@@ -512,7 +535,8 @@ class TestFailures:
         refresher.stop()
 
         assert 2 <= len(api.requests) <= 8  # once per backoff period, not a spin
-        assert _token(refresher) in api.tokens or _token(refresher) != ""
+        # The due answer was kept: the token is one the host handed out.
+        assert _token(refresher) in answers[: len(api.requests)]
         assert _warnings(records) == []
 
     def test_an_expired_answer_ends_the_renewal_with_one_warning(

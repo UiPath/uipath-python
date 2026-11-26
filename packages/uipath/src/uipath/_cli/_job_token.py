@@ -34,9 +34,13 @@ _RETRY_AFTER_FAILURE_S = 30.0
 # Longest single wait, so a suspended machine or a clock change cannot delay a renewal for long.
 _MAX_SLEEP_S = 60.0
 _TOKEN_ENV_VARS = (ENV_UNATTENDED_USER_ACCESS_TOKEN, ENV_UIPATH_ACCESS_TOKEN)
-# Errors meaning the host cannot renew: it predates the call, or it cannot mint tokens.
+# Errors meaning the host cannot renew: it predates the call or the API, or it cannot mint tokens.
 _HOST_CANNOT_RENEW = frozenset(
-    {"UiPath.Ipc.MethodNotFoundException", "System.NotSupportedException"}
+    {
+        "UiPath.Ipc.MethodNotFoundException",
+        "UiPath.Ipc.EndpointNotFoundException",
+        "System.NotSupportedException",
+    }
 )
 
 
@@ -143,10 +147,13 @@ class JobTokenRefresher:
         self._retry_not_before = 0.0
         self._stopped = False
         self._reported_failure = False
+        # Whether this refresher counts as a running renewal (see start and stop).
+        self._counted = False
 
     def start(self) -> None:
         """Start renewing (once)."""
         if self._task is None and not self._stopped:
+            self._counted = True
             set_token_renewal_running(True)
             self._task = asyncio.run_coroutine_threadsafe(self._run(), self._loop)
 
@@ -154,7 +161,9 @@ class JobTokenRefresher:
         """Stop renewing; nothing is published after this."""
         with self._lock:
             self._stopped = True
-        set_token_renewal_running(False)
+            counted, self._counted = self._counted, False
+        if counted:
+            set_token_renewal_running(False)
         task = self._task
         if task is not None:
             task.cancel()

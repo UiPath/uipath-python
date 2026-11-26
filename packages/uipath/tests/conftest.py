@@ -40,13 +40,13 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def no_token_renewal(monkeypatch: pytest.MonkeyPatch) -> None:
     """Start each test with no token renewal running, and undo any a test starts."""
-    monkeypatch.setattr(_token_renewal, "_running", False)
+    monkeypatch.setattr(_token_renewal, "_running", 0)
 
 
 @pytest.fixture
 def token_renewal_running(monkeypatch: pytest.MonkeyPatch) -> None:
     """Act as if the job's token is being renewed."""
-    monkeypatch.setattr(_token_renewal, "_running", True)
+    monkeypatch.setattr(_token_renewal, "_running", 1)
 
 
 @pytest.fixture

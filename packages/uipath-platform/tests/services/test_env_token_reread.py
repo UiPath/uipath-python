@@ -24,7 +24,7 @@ def url(base_url: str, org: str, tenant: str) -> str:
 @pytest.fixture
 def renewal_running(monkeypatch: pytest.MonkeyPatch) -> None:
     """Act as if the job's token is being renewed."""
-    monkeypatch.setattr(_token_renewal, "_running", True)
+    monkeypatch.setattr(_token_renewal, "_running", 1)
 
 
 @pytest.fixture
