@@ -108,12 +108,13 @@ The default is `orchestrator`. An unknown value falls back to the default with a
   "value": {
     "name":        { "defaultValue": "finance",       "isExpression": false, "displayName": "Name" },
     "folderPath":  { "defaultValue": "Shared/Skills", "isExpression": false, "displayName": "Folder Path" },
-    "versionMode": { "defaultValue": "pinned",        "isExpression": false, "displayName": "Version Mode" },
     "version":     { "defaultValue": "3",             "isExpression": false, "displayName": "Version" }
   },
   "metadata": { "ActivityName": "load_all_async", "BindingsVersion": "2.2", "DisplayLabel": "FullName" }
 }
 ```
+
+`version` is `latest`, or the pinned version: a version number, a tag or a `sha256:` digest. Always write it, as `"latest"` for a `version_mode="latest"` reference. A version number counts publishes of the bundle in one tenant, while a digest names the same files in every tenant, so pin by digest when the agent is deployed to more than one tenant.
 
 `ActivityName` names the SDK method that declares the reference, `load_all_async`.
 
@@ -127,14 +128,14 @@ At deploy time the binding can be overridden per environment. The job receives t
 
 ```json
 { "runtime": { "internalArguments": { "resourceOverwrites": {
-  "skillBundle.finance": { "name": "finance", "folderPath": "Prod/Skills", "versionMode": "pinned", "version": "7" }
+  "skillBundle.finance": { "name": "finance", "folderPath": "Prod/Skills", "version": "7" }
 } } } }
 ```
 
-- An override replaces the whole binding, as for the other bindings: it must give `name`, `folderPath` and `versionMode`, plus `version` when `versionMode` is `pinned`. Nothing is taken from the declared binding.
+- An override gives `name` and `folderPath`, and optionally `version`. `latest` (in any case) takes the newest version; any other value pins that version. Without `version`, the declared version is kept: a debug run inside a solution receives only `name` and `folderPath`.
 - A key qualified with the design-time folder, `skillBundle.finance.Shared/Skills`, wins over the bare key `skillBundle.finance`.
 - An override's `name` only changes which bundle is fetched. The agent still sees the bundle as `finance`: in `names()`, in the prompt section and on disk.
-- An incomplete or invalid override (for instance `pinned` without a `version`) fails that bundle as `invalid`, with the reason in the failure's `detail`; the agent runs without it. The declared binding is not used instead, so a broken pin never loads a different version.
+- An incomplete or invalid override (for instance one without a `folderPath`) fails that bundle as `invalid`, with the reason in the failure's `detail`; the agent runs without it. The declared binding is not used instead, so a broken pin never loads a different version.
 
 Locally, put the same object into `__uipath/uipath.json` (the file `uipath run` reads runtime arguments from; create it if it does not exist) and run `uipath run` to test an override.
 

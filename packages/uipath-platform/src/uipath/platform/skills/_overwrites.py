@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from ..common._bindings import (
     ResourceOverwrite,
     SkillBundleResourceOverwrite,
+    VersionMode,
     _resource_overwrites,
 )
 from ._constants import OVERWRITE_TYPE
@@ -38,10 +39,12 @@ def apply_skill_bundle_overwrite(
     """The reference with its ``skillBundle.<name>[.<folder>]`` override applied.
 
     ``skillBundle.<name>.<folder>`` wins over ``skillBundle.<name>``. The
-    override replaces the folder and version of the declared reference; its
-    ``name`` only changes the lookup target (``source_name``), so ``ref.name``
-    stays the agent-side identity. An invalid override is never replaced by the
-    declared reference: a broken pin must not load another version.
+    override replaces the folder of the declared reference, and its version
+    when the override has one: ``latest`` takes the newest version, any other
+    value pins it. Without a version the declared one is kept. Its ``name``
+    only changes the lookup target (``source_name``), so ``ref.name`` stays the
+    agent-side identity. An invalid override is never replaced by the declared
+    reference: a broken pin must not load another version.
 
     Args:
         ref: The bound bundle as the agent declares it.
@@ -67,13 +70,14 @@ def apply_skill_bundle_overwrite(
             continue
         problem = overwrite.problem
         if problem is None:
+            version_mode, version = _mode_and_version(ref, overwrite.version)
             try:
                 return SkillBundleRef(
                     name=ref.name,
                     source_name=None if overwrite.name == ref.name else overwrite.name,
                     folder_path=overwrite.folder_path,
-                    version_mode=overwrite.version_mode,
-                    version=overwrite.version,
+                    version_mode=version_mode,
+                    version=version,
                 )
             except ValidationError as e:
                 problem = _first_error(e)
@@ -82,6 +86,17 @@ def apply_skill_bundle_overwrite(
             problem += f"; the less specific key '{bare_key}' was not tried"
         raise InvalidSkillBundleOverwrite(f"invalid overwrite '{key}': {problem}")
     return ref
+
+
+def _mode_and_version(
+    ref: SkillBundleRef, version: str | None
+) -> tuple[VersionMode, str | None]:
+    """The mode and version an override's ``version`` selects for ``ref``."""
+    if version is None:
+        return ref.version_mode, ref.version
+    if version.isascii() and version.casefold() == VersionMode.LATEST.value:
+        return VersionMode.LATEST, None
+    return VersionMode.PINNED, version
 
 
 def _first_error(error: ValidationError) -> str:

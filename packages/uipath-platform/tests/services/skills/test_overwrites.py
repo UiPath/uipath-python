@@ -19,13 +19,7 @@ def _ctx(entries: dict[str, dict[str, Any]]) -> dict[str, ResourceOverwrite]:
 
 def _entry(**fields: Any) -> dict[str, Any]:
     """A full overwrite entry: ``finance`` pinned to v3 in ``Shared/Skills``."""
-    return {
-        "name": "finance",
-        "folderPath": "Shared/Skills",
-        "versionMode": "pinned",
-        "version": "3",
-        **fields,
-    }
+    return {"name": "finance", "folderPath": "Shared/Skills", "version": "3", **fields}
 
 
 def _pinned(**overrides: Any) -> SkillBundleRef:
@@ -84,7 +78,7 @@ def test_an_overwrite_replaces_everything_but_the_name() -> None:
                 "skillBundle.finance": {
                     "name": "finance-eu",
                     "folderPath": "Prod",
-                    "versionMode": "latest",
+                    "version": "latest",
                 },
                 "process.Other": {"name": "x", "folderPath": "y"},
             }
@@ -97,6 +91,62 @@ def test_an_overwrite_replaces_everything_but_the_name() -> None:
         None,
     )
     assert ref == _pinned()
+
+
+_DIGEST = "sha256:" + "c0" * 32
+
+
+@pytest.mark.parametrize(
+    ("version", "mode", "kept"),
+    [
+        ("latest", VersionMode.LATEST, None),
+        ("Latest", VersionMode.LATEST, None),
+        ("lateſt", VersionMode.PINNED, "lateſt"),
+        ("7", VersionMode.PINNED, "7"),
+        ("reviewed", VersionMode.PINNED, "reviewed"),
+        (_DIGEST, VersionMode.PINNED, _DIGEST),
+    ],
+    ids=["latest", "latest-any-case", "non-ascii-latest", "number", "tag", "digest"],
+)
+@pytest.mark.parametrize(
+    "declared",
+    [_pinned(), SkillBundleRef(name="finance", folder_path="Shared/Skills")],
+    ids=["declared-pinned", "declared-latest"],
+)
+def test_the_version_selects_the_mode(
+    declared: SkillBundleRef, version: str, mode: VersionMode, kept: str | None
+) -> None:
+    out = apply_skill_bundle_overwrite(
+        declared, _ctx({"skillBundle.finance": _entry(version=version)})
+    )
+    assert (out.version_mode, out.version) == (mode, kept)
+
+
+@pytest.mark.parametrize("version", [None, ""], ids=["missing", "empty"])
+@pytest.mark.parametrize(
+    "declared",
+    [
+        _pinned(version=_DIGEST),
+        SkillBundleRef(name="finance", folder_path="Shared/Skills"),
+    ],
+    ids=["declared-pinned", "declared-latest"],
+)
+def test_an_overwrite_without_a_version_keeps_the_declared_one(
+    declared: SkillBundleRef, version: str | None
+) -> None:
+    # A debug run inside a solution receives name and folder only.
+    entry: dict[str, Any] = {"name": "finance-dev", "folderPath": "Solution/Skills"}
+    if version is not None:
+        entry["version"] = version
+    out = apply_skill_bundle_overwrite(declared, _ctx({"skillBundle.finance": entry}))
+    assert (out.lookup_name, out.folder_path) == ("finance-dev", "Solution/Skills")
+    assert (out.version_mode, out.version) == (declared.version_mode, declared.version)
+
+
+def test_a_version_mode_field_does_not_change_the_version() -> None:
+    entry = {"name": "finance", "folderPath": "Prod", "versionMode": "latest"}
+    out = apply_skill_bundle_overwrite(_pinned(), _ctx({"skillBundle.finance": entry}))
+    assert (out.version_mode, out.version) == (VersionMode.PINNED, "3")
 
 
 def test_an_overwrite_matching_the_declared_ref_changes_nothing() -> None:
@@ -152,14 +202,8 @@ def test_a_folder_key_is_not_tried_for_a_ref_without_a_folder() -> None:
             "name must be a single folder name",
         ),
         (
-            {"skillBundle.finance": _entry(version=None)},
-            "invalid overwrite 'skillBundle.finance': Value error, a pinned skill "
-            "bundle needs a version",
-        ),
-        (
-            {"skillBundle.finance": _entry(versionMode="")},
-            "invalid overwrite 'skillBundle.finance': versionMode: Input should be "
-            "'pinned' or 'latest'",
+            {"skillBundle.finance": _entry(folderPath=None)},
+            "invalid overwrite 'skillBundle.finance': folderPath: Field required",
         ),
         (
             {
@@ -171,7 +215,7 @@ def test_a_folder_key_is_not_tried_for_a_ref_without_a_folder() -> None:
             "'skillBundle.finance' was not tried",
         ),
     ],
-    ids=["unsafe-name", "pinned-without-version", "blank-version-mode", "folder-key"],
+    ids=["unsafe-name", "no-folder", "folder-key"],
 )
 def test_an_invalid_overwrite_raises_instead_of_falling_back(
     entries: dict[str, dict[str, Any]], message: str

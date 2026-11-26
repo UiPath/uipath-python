@@ -175,7 +175,7 @@ async def test_the_context_overwrite_is_applied(service: SkillsService) -> None:
                 "skillBundle.finance": {
                     "name": "ops",
                     "folderPath": "Shared/Skills",
-                    "versionMode": "latest",
+                    "version": "latest",
                 }
             }
         )
@@ -198,15 +198,7 @@ async def test_an_invalid_overwrite_fails_its_bundle_and_the_rest_continue(
     service: SkillsService, exporter: InMemorySpanExporter
 ) -> None:
     token = _resource_overwrites.set(
-        _ctx(
-            {
-                "skillBundle.finance": {
-                    "name": "finance",
-                    "folderPath": "Prod/Skills",
-                    "versionMode": "pinned",
-                }
-            }
-        )
+        _ctx({"skillBundle.finance": {"name": "finance", "version": "7"}})
     )
     try:
         result = await service.load_all_async([_ref("finance"), _ref("ops")])
@@ -219,8 +211,7 @@ async def test_an_invalid_overwrite_fails_its_bundle_and_the_rest_continue(
             (
                 "finance",
                 "invalid",
-                "invalid overwrite 'skillBundle.finance': Value error, a pinned "
-                "skill bundle needs a version",
+                "invalid overwrite 'skillBundle.finance': folderPath: Field required",
             )
         ]
     finally:
@@ -794,7 +785,7 @@ async def test_load_all_from_a_running_loop_sees_the_context_overwrite(
                 "skillBundle.finance": {
                     "name": "ops",
                     "folderPath": "Shared/Skills",
-                    "versionMode": "latest",
+                    "version": "latest",
                 }
             }
         )
