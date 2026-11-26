@@ -13,6 +13,7 @@ from .guardrails import (
     FieldReference,
     FieldSelector,
     FieldSource,
+    GuardrailDetection,
     GuardrailScope,
     GuardrailSelector,
     GuardrailValidationErrorType,
@@ -47,4 +48,5 @@ __all__ = [
     "GuardrailValidationResult",
     "GuardrailValidationResultType",
     "GuardrailValidationErrorType",
+    "GuardrailDetection",
 ]

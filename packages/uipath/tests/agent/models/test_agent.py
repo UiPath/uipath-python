@@ -28,6 +28,7 @@ from uipath.agent.models.agent import (
     AgentGuardrailBlockAction,
     AgentGuardrailEscalateAction,
     AgentGuardrailLogAction,
+    AgentGuardrailMaskAction,
     AgentGuardrailSeverityLevel,
     AgentGuardrailUnknownAction,
     AgentIntegrationToolResourceConfig,
@@ -1618,6 +1619,56 @@ class TestAgentBuilderConfig:
         assert action.details["$actionType"] == "futureActionType"
         assert action.details["someParameter"] == "someValue"
         assert action.details["anotherParameter"] == 123
+
+    @pytest.mark.parametrize("action_type", ["mask", "Mask", "MASK"])
+    def test_agent_with_mask_action(self, action_type: str):
+        """A mask action parses to its own model, not the unknown fallback."""
+
+        json_data = {
+            "id": "test-mask-action",
+            "name": "Agent with Mask Action",
+            "version": "1.0.0",
+            "settings": {
+                "model": "gpt-4o-2024-11-20",
+                "maxTokens": 16384,
+                "temperature": 0,
+                "engine": "basic-v1",
+            },
+            "inputSchema": {"type": "object", "properties": {}},
+            "outputSchema": {"type": "object", "properties": {}},
+            "resources": [],
+            "guardrails": [
+                {
+                    "$guardrailType": "builtInValidator",
+                    "id": "pii-mask",
+                    "name": "Mask PII",
+                    "description": "Masks PII in the tool input",
+                    "validatorType": "pii_detection",
+                    "validatorParameters": [
+                        {
+                            "$parameterType": "enum-list",
+                            "id": "entities",
+                            "value": ["Email", "Person"],
+                        }
+                    ],
+                    "action": {"$actionType": action_type},
+                    "enabledForEvals": True,
+                    "selector": {"scopes": ["Tool"], "matchNames": ["SendEmail"]},
+                }
+            ],
+            "messages": [{"role": "system", "content": "Test system message"}],
+        }
+
+        config: AgentDefinition = TypeAdapter(AgentDefinition).validate_python(
+            json_data
+        )
+
+        assert config.guardrails is not None
+        guardrail = config.guardrails[0]
+        assert isinstance(guardrail, AgentBuiltInValidatorGuardrail)
+        assert isinstance(guardrail.action, AgentGuardrailMaskAction)
+        assert guardrail.action.action_type == AgentGuardrailActionType.MASK
+        assert guardrail.action.model_dump(by_alias=True) == {"$actionType": "mask"}
 
     def test_agent_with_unknown_context_retrieval_mode(self):
         """Test that AgentDefinition handles unknown context retrieval modes gracefully"""

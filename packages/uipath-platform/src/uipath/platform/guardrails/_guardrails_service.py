@@ -4,7 +4,9 @@ import re
 from typing import Any, Optional
 
 from httpx import HTTPStatusError
+from pydantic import ValidationError
 from uipath.core.guardrails import (
+    GuardrailDetection,
     GuardrailScope,
     GuardrailValidationErrorType,
     GuardrailValidationResult,
@@ -160,7 +162,7 @@ class GuardrailsService(BaseService):
             execution_stage: ``preExecution`` or ``postExecution``: whether the
                 check runs before or after what it guards.
             action_type: What the caller does when the check fails: ``Block``,
-                ``Filter``, ``Log`` or ``Escalate``.
+                ``Filter``, ``Log``, ``Escalate`` or ``Mask``.
 
         Returns:
             GuardrailValidationResult: The outcome of the guardrail evaluation.
@@ -352,5 +354,24 @@ class GuardrailsService(BaseService):
             model_data["flaggedAttachmentIds"] = [
                 str(attachment_id) for attachment_id in flagged_attachment_ids
             ]
+        detections = response_data.get("detections")
+        if isinstance(detections, list):
+            model_data["detections"] = self._parse_detections(detections)
 
         return GuardrailValidationResult.model_validate(model_data)
+
+    @staticmethod
+    def _parse_detections(detections: list[Any]) -> list[GuardrailDetection]:
+        """Parse the detections of a validate response, skipping malformed ones."""
+        parsed: list[GuardrailDetection] = []
+        for detection in detections:
+            if not isinstance(detection, dict):
+                continue
+            try:
+                parsed.append(GuardrailDetection.model_validate(detection))
+            except ValidationError:
+                logger.warning(
+                    "Ignoring a malformed guardrail detection with keys %s.",
+                    sorted(detection),
+                )
+        return parsed

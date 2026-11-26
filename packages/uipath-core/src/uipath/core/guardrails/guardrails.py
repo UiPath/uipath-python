@@ -32,6 +32,42 @@ class GuardrailValidationErrorType(str, Enum):
     RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
 
 
+class GuardrailDetection(BaseModel):
+    """One finding behind a failed validation, such as a PII entity.
+
+    Attributes:
+        category: What was found, e.g. ``Email`` or ``Person``.
+        text: The flagged text itself.
+        offset: Where ``text`` starts in the validated input. None when the
+            finding comes from an attachment rather than the input.
+        length: The length of ``text`` in the validated input. None when the
+            finding comes from an attachment rather than the input.
+        confidence_score: How confident the provider is in the finding.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    category: str = Field(alias="category", description="What was found.")
+    text: Optional[str] = Field(
+        default=None, alias="text", description="The flagged text."
+    )
+    offset: Optional[int] = Field(
+        default=None,
+        alias="offset",
+        description="Where the text starts in the validated input.",
+    )
+    length: Optional[int] = Field(
+        default=None,
+        alias="length",
+        description="The length of the text in the validated input.",
+    )
+    confidence_score: Optional[float] = Field(
+        default=None,
+        alias="confidenceScore",
+        description="The provider's confidence in the finding.",
+    )
+
+
 class GuardrailValidationResult(BaseModel):
     """Result returned from validating input with a given guardrail.
 
@@ -48,6 +84,9 @@ class GuardrailValidationResult(BaseModel):
             flagged as causing the violation. None when the response omits them.
         error_type: Why the guardrail service could not complete the validation.
             None for every other result, including an unrecognised one.
+        detections: What the guardrail service found, for validators that locate
+            their findings (such as PII detection). None when the response
+            omits them.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -72,6 +111,11 @@ class GuardrailValidationResult(BaseModel):
         default=None,
         alias="errorType",
         description="Why the guardrail service could not complete the validation.",
+    )
+    detections: Optional[list[GuardrailDetection]] = Field(
+        default=None,
+        alias="detections",
+        description="What the guardrail service found.",
     )
 
 
