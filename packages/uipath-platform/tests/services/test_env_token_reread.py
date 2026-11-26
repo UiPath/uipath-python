@@ -1,4 +1,4 @@
-"""A UiPath() configured from the environment re-reads the token on every request."""
+"""While the job's token is renewed, a UiPath() configured from the environment re-reads it."""
 
 from unittest.mock import patch
 
@@ -6,7 +6,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPath, UiPathApiConfig, UiPathExecutionContext
-from uipath.platform.common import ApiClient
+from uipath.platform.common import ApiClient, _token_renewal
 from uipath.platform.common._base_service import BaseService
 from uipath.platform.common.auth import TokenData
 
@@ -19,6 +19,12 @@ URL = "https://cloud.uipath.com/org/tenant"
 @pytest.fixture
 def url(base_url: str, org: str, tenant: str) -> str:
     return f"{base_url}{org}{tenant}/endpoint"
+
+
+@pytest.fixture
+def renewal_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Act as if the job's token is being renewed."""
+    monkeypatch.setattr(_token_renewal, "_running", True)
 
 
 @pytest.fixture
@@ -37,6 +43,7 @@ def _sent_auth(httpx_mock: HTTPXMock) -> list[str]:
     return [request.headers["Authorization"] for request in httpx_mock.get_requests()]
 
 
+@pytest.mark.usefixtures("renewal_running")
 class TestEnvironmentSecret:
     def test_each_request_reads_the_current_environment_token(
         self,
@@ -167,6 +174,7 @@ class TestEnvironmentSecret:
         assert sent.headers["Accept"] == "application/json"
 
 
+@pytest.mark.usefixtures("renewal_running")
 class TestAnotherJobsEnvironment:
     def test_a_client_keeps_its_token_once_the_environment_belongs_to_another_job(
         self,
@@ -210,6 +218,7 @@ class TestAnotherJobsEnvironment:
         assert _sent_auth(httpx_mock) == ["Bearer renewed"]
 
 
+@pytest.mark.usefixtures("renewal_running")
 class TestStaticSecret:
     def test_an_explicit_secret_ignores_the_environment(
         self,
@@ -243,6 +252,42 @@ class TestStaticSecret:
         )
 
 
+class TestWithoutRenewal:
+    def test_a_client_keeps_its_token_when_no_renewal_runs(
+        self,
+        httpx_mock: HTTPXMock,
+        env_config: UiPathApiConfig,
+        execution_context: UiPathExecutionContext,
+        url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        secret: str,
+    ) -> None:
+        httpx_mock.add_response(url=url, status_code=200, json={})
+        service = BaseService(config=env_config, execution_context=execution_context)
+
+        monkeypatch.setenv(ACCESS, "changed")
+        service.request("GET", "/endpoint")
+
+        assert _sent_auth(httpx_mock) == [f"Bearer {secret}"]
+        assert env_config.secret == secret
+
+    def test_outside_a_job_an_earlier_client_ignores_a_later_tenants_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv(UNATTENDED, raising=False)
+        monkeypatch.delenv(JOB_KEY, raising=False)
+        monkeypatch.setenv("UIPATH_URL", URL)
+        monkeypatch.setenv(ACCESS, "token-a")
+        first = UiPath()
+
+        monkeypatch.setenv("UIPATH_URL", "https://cloud.uipath.com/other/tenant")
+        monkeypatch.setenv(ACCESS, "token-b")
+        UiPath()
+
+        assert first.api_client.default_headers["Authorization"] == "Bearer token-a"
+
+
+@pytest.mark.usefixtures("renewal_running")
 class TestUiPathFactory:
     def test_a_client_built_from_the_environment_follows_it(
         self, monkeypatch: pytest.MonkeyPatch

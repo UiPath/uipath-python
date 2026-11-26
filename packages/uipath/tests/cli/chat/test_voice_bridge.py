@@ -236,7 +236,7 @@ class TestGetVoiceBridge:
 
 
 async def test_run_connects_with_the_token_currently_in_the_environment(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, token_renewal_running: None
 ) -> None:
     from unittest.mock import patch
 

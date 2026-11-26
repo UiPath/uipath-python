@@ -36,6 +36,7 @@ from ._config import UiPathApiConfig
 from ._execution_context import UiPathExecutionContext
 from ._http_config import get_httpx_client_kwargs
 from ._service_url_overrides import inject_routing_headers, resolve_service_url
+from ._token_renewal import token_renewal_running
 from ._url import UiPathUrl
 from ._user_agent import user_agent_value
 from .retry import (
@@ -299,11 +300,11 @@ class BaseService:
         return {"Authorization": header}
 
     def _current_secret(self) -> str:
-        """The bearer token to send now; one from the environment is re-read."""
+        """The bearer token to send now; one from the environment is re-read while renewed."""
         config = self._config
-        # Follow the environment only while it belongs to the job this config was built in.
+        # Follow the environment only while the token is renewed, for the job this config was built in.
         same_job = os.environ.get(ENV_JOB_KEY) == config.environment_job_key
-        if config.secret_from_environment and same_job:
+        if config.secret_from_environment and same_job and token_renewal_running():
             renewed = os.environ.get(
                 ENV_UNATTENDED_USER_ACCESS_TOKEN
             ) or os.environ.get(ENV_UIPATH_ACCESS_TOKEN)
@@ -313,7 +314,7 @@ class BaseService:
         return self._config.secret
 
     def _add_authorization(self, headers: MutableMapping[str, Any]) -> None:
-        """Send the environment's current token, unless the caller set a header."""
+        """Send the current token, unless the caller set a header."""
         from_environment = self._config.secret_from_environment
         if not from_environment or _has_authorization_header(headers):
             return

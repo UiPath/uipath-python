@@ -127,6 +127,6 @@ The default value is `INFORMATION`
 The runtime environment automatically includes certain variables (such as `UIPATH_FOLDER_KEY`, `UIPATH_ROBOT_KEY`), eliminating the need for manual configuration.
 
 ### Access Token Renewal
-In a long-running job, the access token in `UNATTENDED_USER_ACCESS_TOKEN` / `UIPATH_ACCESS_TOKEN` can be renewed while the job runs. `UiPath()` clients configured from the environment read the variable on every request, so they always send the current token. A client created with an explicit `secret=` keeps that secret.
+In a long-running job, the access token in `UNATTENDED_USER_ACCESS_TOKEN` / `UIPATH_ACCESS_TOKEN` can be renewed while the job runs. While that renewal runs, `UiPath()` clients configured from the environment read the variable on every request, so they send the current token. Otherwise a client keeps the token it has, and a client created with an explicit `secret=` keeps that secret.
 
 If your code reads these variables itself, read them when you need the token instead of keeping a copy.

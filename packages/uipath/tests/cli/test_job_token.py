@@ -20,6 +20,7 @@ from uipath._cli._job_token import (
     install_job_token_refresher,
     publish_token_to_environ,
 )
+from uipath.platform.common._token_renewal import token_renewal_running
 
 JOB_ID = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
 UNATTENDED = "UNATTENDED_USER_ACCESS_TOKEN"
@@ -254,6 +255,20 @@ class TestRenewal:
         # Idempotent, and the token is still there to read.
         refresher.stop()
         assert _token(refresher) is not None
+
+    def test_start_and_stop_switch_following_the_renewed_token(
+        self, ipc_loop: asyncio.AbstractEventLoop
+    ) -> None:
+        refresher = _refresher(
+            FakeJobApi(), ipc_loop, token_with_lifetime(3600, remaining=3000)
+        )
+        assert token_renewal_running() is False
+
+        refresher.start()
+        assert token_renewal_running() is True
+
+        refresher.stop()
+        assert token_renewal_running() is False
 
     def test_a_late_answer_after_stop_is_dropped(
         self, ipc_loop: asyncio.AbstractEventLoop, monkeypatch: pytest.MonkeyPatch
@@ -760,8 +775,9 @@ def test_connecting_renews_over_the_wire(
                 assert await asyncio.to_thread(
                     _wait, lambda: os.environ[ACCESS] == "wire-token-1"
                 )
-            # Teardown cancelled the task on the connection's loop.
-            assert _task(conn._token_refresher).done()
+                assert token_renewal_running() is True
+            # Teardown stops the renewal.
+            assert token_renewal_running() is False
 
         asyncio.run(scenario())
     finally:

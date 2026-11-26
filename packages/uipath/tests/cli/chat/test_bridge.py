@@ -1207,7 +1207,7 @@ class TestConnectUsesTheCurrentToken:
 
     @pytest.mark.anyio
     async def test_connect_sends_the_renewed_token(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, token_renewal_running: None
     ) -> None:
         from unittest.mock import patch
 

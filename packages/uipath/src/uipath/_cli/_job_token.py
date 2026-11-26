@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from uipath._utils._auth import parse_access_token
+from uipath.platform.common._token_renewal import set_token_renewal_running
 from uipath.platform.constants import (
     ENV_UIPATH_ACCESS_TOKEN,
     ENV_UNATTENDED_USER_ACCESS_TOKEN,
@@ -140,12 +141,14 @@ class JobTokenRefresher:
     def start(self) -> None:
         """Start renewing (once)."""
         if self._task is None and not self._stopped:
+            set_token_renewal_running(True)
             self._task = asyncio.run_coroutine_threadsafe(self._run(), self._loop)
 
     def stop(self) -> None:
         """Stop renewing; nothing is published after this."""
         with self._lock:
             self._stopped = True
+        set_token_renewal_running(False)
         task = self._task
         if task is not None:
             task.cancel()

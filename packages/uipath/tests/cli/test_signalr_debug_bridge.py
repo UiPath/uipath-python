@@ -142,7 +142,7 @@ async def test_a_completion_for_a_cancelled_send_is_ignored() -> None:
 
 
 async def test_connect_sends_the_token_currently_in_the_environment(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, token_renewal_running: None
 ) -> None:
     from unittest.mock import patch
 
