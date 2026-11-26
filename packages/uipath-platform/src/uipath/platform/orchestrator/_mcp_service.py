@@ -30,6 +30,8 @@ from .mcp_tasks import (
     MCP_TASK_RESULT_TYPE,
     MCP_TASKS_EXTENSION_ID,
     MCP_TASKS_PROTOCOL_VERSION,
+    MCP_UIPATH_TASKS_CAPABILITY,
+    MCP_UIPATH_TASKS_EXTENSION_ID,
     McpTask,
     McpTaskCancelledError,
     McpTaskFailedError,
@@ -972,7 +974,15 @@ class McpService(FolderContext, BaseService):
                     "version": _sdk_version(),
                 },
                 "io.modelcontextprotocol/clientCapabilities": {
-                    "extensions": {MCP_TASKS_EXTENSION_ID: {}},
+                    # Both names of the one protocol. The UiPath one asks
+                    # the server to also name the job behind a task
+                    # (McpTask.job), and says which resume triggers this
+                    # client can suspend on; a server without it ignores
+                    # the entry.
+                    "extensions": {
+                        MCP_TASKS_EXTENSION_ID: {},
+                        MCP_UIPATH_TASKS_EXTENSION_ID: MCP_UIPATH_TASKS_CAPABILITY,
+                    },
                 },
             },
         }

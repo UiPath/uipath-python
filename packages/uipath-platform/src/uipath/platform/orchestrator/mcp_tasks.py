@@ -8,6 +8,7 @@ until the task is terminal. UiPath MCP servers serve the extension on the
 initialize handshake, no session, every request self-contained.
 """
 
+import uuid
 from enum import Enum
 from typing import Any, Optional, Union
 
@@ -37,6 +38,22 @@ def task_ref(task_id: str) -> str:
 
 
 MCP_TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks"
+
+# The UiPath flavour of the same protocol. A server that honours it answers
+# exactly as it does for the standard extension, and additionally says which
+# Orchestrator job is behind the task -- see ``McpTaskJob``.
+MCP_UIPATH_TASKS_EXTENSION_ID = "com.uipath/tasks"
+MCP_UIPATH_TASK_META_KEY = "com.uipath/task"
+
+#: The version of the ``com.uipath/task`` annotation this client reads.
+MCP_UIPATH_TASK_ANNOTATION_VERSION = 1
+#: The resume-trigger kind this client can suspend on. The server may name
+#: other kinds later; a task annotated with one of those is polled.
+MCP_UIPATH_TASK_JOB_TRIGGER = "Job"
+#: This client's ``com.uipath/tasks`` declaration: the trigger kinds it handles.
+MCP_UIPATH_TASKS_CAPABILITY: dict[str, Any] = {
+    "resumeTriggerTypes": [MCP_UIPATH_TASK_JOB_TRIGGER]
+}
 MCP_TASKS_PROTOCOL_VERSION = "2026-07-28"
 MCP_TASK_RESULT_TYPE = "task"
 
@@ -58,6 +75,66 @@ class McpTaskStatus(str, Enum):
             McpTaskStatus.FAILED,
             McpTaskStatus.CANCELLED,
         )
+
+
+class McpTaskJob(BaseModel):
+    """The Orchestrator job behind a task, from its ``com.uipath/task`` annotation.
+
+    A UiPath MCP server adds the annotation for a caller that declared
+    ``com.uipath/tasks``. It is what lets a caller that is itself an
+    Orchestrator job stop holding compute while the task runs: instead of
+    polling, it suspends on a Job-type resume trigger for ``job_key`` and reads
+    the task with ``tasks/get`` once Orchestrator resumes it.
+
+    Attributes:
+        job_key: The job to suspend on.
+        folder_key: The folder that job runs in.
+        suspend_after_ms: How long the server suggests polling the task before
+            suspending, in milliseconds from when the call was sent. ``None``
+            when the server sent none, or one this client cannot use; the
+            caller then falls back to its own default. Like ``poll_interval_ms``
+            it is a suggestion, and a caller's own setting takes precedence.
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        extra="ignore",
+    )
+
+    job_key: str
+    folder_key: Optional[str] = None
+    suspend_after_ms: Optional[int] = None
+
+    @field_validator("suspend_after_ms", mode="before")
+    @classmethod
+    def _is_a_duration(cls, value: Any) -> Optional[int]:
+        """Keep a whole, non-negative number of milliseconds; drop anything else.
+
+        It is only a hint, so a value that cannot be used does not cost the
+        caller the job it could still suspend on.
+        """
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        # An int is whole and finite whatever its size; asking ``math`` about
+        # a very large one would overflow instead of answering.
+        if isinstance(value, float) and not value.is_integer():
+            return None
+        if value < 0:
+            return None
+        return int(value)
+
+    @field_validator("job_key", "folder_key")
+    @classmethod
+    def _is_a_key(cls, value: Optional[str]) -> Optional[str]:
+        """Accept only a GUID.
+
+        These values go into a resume trigger and an Orchestrator request, so a
+        server answer that is not a key is refused here rather than passed on.
+        """
+        if value is None:
+            return None
+        return str(uuid.UUID(value))
 
 
 class McpTask(BaseModel):
@@ -112,6 +189,44 @@ class McpTask(BaseModel):
         if isinstance(data, dict) and "serverUrl" in data:
             return {key: value for key, value in data.items() if key != "serverUrl"}
         return data
+
+    @property
+    def job(self) -> Optional[McpTaskJob]:
+        """The Orchestrator job behind this task, when the server named one.
+
+        ``None`` for a server that does not serve ``com.uipath/tasks`` (a
+        tenant without it, a non-UiPath server), for a terminal task, and for
+        an annotation this client cannot read -- in every such case the task is
+        still pollable, there is just no job to suspend on.
+
+        An annotation is read only at the version this client knows, and only
+        when the trigger it names is a Job one. Anything else is a kind of
+        resume this client does not implement, so the task is polled rather
+        than suspended on by a guess.
+        """
+        if isinstance(self.status, McpTaskStatus) and self.status.is_terminal:
+            # Whatever the server sent with it: a task that is over has no
+            # running job, and a caller must not suspend on one that has ended.
+            return None
+        meta = (self.model_extra or {}).get("_meta")
+        annotation = (
+            meta.get(MCP_UIPATH_TASK_META_KEY) if isinstance(meta, dict) else None
+        )
+        if not isinstance(annotation, dict):
+            return None
+        version = annotation.get("version")
+        if type(version) is not int or version != MCP_UIPATH_TASK_ANNOTATION_VERSION:
+            return None
+        trigger = annotation.get("resumeTrigger")
+        if (
+            not isinstance(trigger, dict)
+            or trigger.get("triggerType") != MCP_UIPATH_TASK_JOB_TRIGGER
+        ):
+            return None
+        try:
+            return McpTaskJob.model_validate(annotation)
+        except ValueError:
+            return None
 
     @field_validator("status", mode="before")
     @classmethod

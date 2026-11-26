@@ -16,6 +16,7 @@ from uipath.platform.orchestrator.mcp_tasks import (
     McpTaskCancelledError,
     McpTaskFailedError,
     McpTaskInputRequiredError,
+    McpTaskJob,
     McpTaskStatus,
     McpToolCallError,
     McpToolCallOutcome,
@@ -176,6 +177,11 @@ class TestMcpTasks:
         assert meta["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
         capabilities = meta["io.modelcontextprotocol/clientCapabilities"]
         assert "io.modelcontextprotocol/tasks" in capabilities["extensions"]
+        # The UiPath name of the same protocol rides along, so a server that
+        # serves it also names the job behind the task.
+        assert capabilities["extensions"]["com.uipath/tasks"] == {
+            "resumeTriggerTypes": ["Job"]
+        }
 
     @pytest.mark.parametrize(
         "tool_name",
@@ -1169,3 +1175,209 @@ class TestMcpEnvelopeParsing:
 
         with pytest.raises(McpToolCallError, match="carried no result object"):
             McpService._parse_mcp_envelope(response, "tools/call")
+
+
+JOB_KEY = "2be27a69-7a29-4793-b4d7-d50b740a4efa"
+FOLDER_KEY = "c13c726f-24c2-47a4-a4b1-a6b9273afe36"
+
+
+def job_annotation(fields: Any) -> Any:
+    """``fields`` on the version and Job trigger a server always sends."""
+    if not isinstance(fields, dict):
+        return fields
+    return {
+        "version": 1,
+        "resumeTrigger": {"triggerType": "Job", "itemKey": JOB_KEY},
+        **fields,
+    }
+
+
+def annotated(annotation: Any) -> dict[str, Any]:
+    """A working task as a com.uipath/tasks server answers it."""
+    payload = task_result("working", result_type="task")
+    payload["_meta"] = {"com.uipath/task": job_annotation(annotation)}
+    return payload
+
+
+class TestMcpTaskJob:
+    """The ``com.uipath/task`` annotation: the job a suspend-capable caller parks on."""
+
+    def test_an_annotated_task_names_its_job(
+        self,
+        httpx_mock: HTTPXMock,
+        service: McpService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        mock_retrieve(httpx_mock, base_url, org, tenant)
+        httpx_mock.add_response(
+            url=MCP_URL,
+            json=rpc_result(
+                annotated(
+                    {
+                        "version": 1,
+                        "jobKey": JOB_KEY,
+                        "folderKey": FOLDER_KEY,
+                        "resumeTrigger": {"triggerType": "Job", "itemKey": JOB_KEY},
+                    }
+                )
+            ),
+        )
+
+        outcome = service.call_tool("test-mcp-server", "long-process")
+
+        assert outcome.task is not None
+        assert outcome.task.job == McpTaskJob(job_key=JOB_KEY, folder_key=FOLDER_KEY)
+
+    def test_the_job_carries_the_servers_polling_time_before_suspension(self) -> None:
+        task = McpTask.model_validate(
+            annotated({"jobKey": JOB_KEY, "suspendAfterMs": 45000})
+        )
+
+        assert task.job is not None
+        assert task.job.suspend_after_ms == 45000
+
+    def test_a_job_named_without_a_polling_time_has_none(self) -> None:
+        task = McpTask.model_validate(annotated({"jobKey": JOB_KEY}))
+
+        assert task.job is not None
+        assert task.job.suspend_after_ms is None
+
+    @pytest.mark.parametrize(
+        "value",
+        [-1, "45000", 1.5, 0.5, True, None, [45000], float("nan"), float("inf")],
+    )
+    def test_an_unusable_polling_time_is_dropped_and_the_job_kept(
+        self, value: Any
+    ) -> None:
+        """It is a hint: a bad one must not cost the caller the suspend."""
+        task = McpTask.model_validate(
+            annotated({"jobKey": JOB_KEY, "suspendAfterMs": value})
+        )
+
+        assert task.job is not None
+        assert task.job.job_key == JOB_KEY
+        assert task.job.suspend_after_ms is None
+
+    def test_a_polling_time_too_large_for_a_float_is_still_read(self) -> None:
+        """A JSON integer has no upper bound; reading one must not raise."""
+        task = McpTask.model_validate(
+            annotated({"jobKey": JOB_KEY, "suspendAfterMs": 10**309})
+        )
+
+        assert task.job is not None
+        assert task.job.suspend_after_ms == 10**309
+
+    def test_a_whole_polling_time_sent_as_a_float_is_read(self) -> None:
+        task = McpTask.model_validate(
+            annotated({"jobKey": JOB_KEY, "suspendAfterMs": 45000.0})
+        )
+
+        assert task.job is not None
+        assert task.job.suspend_after_ms == 45000
+
+    def test_zero_is_a_polling_time_of_its_own(self) -> None:
+        """Zero means suspend at once, which is not the same as no value."""
+        task = McpTask.model_validate(
+            annotated({"jobKey": JOB_KEY, "suspendAfterMs": 0})
+        )
+
+        assert task.job is not None
+        assert task.job.suspend_after_ms == 0
+
+    def test_a_job_named_without_a_folder_is_still_a_job(self) -> None:
+        task = McpTask.model_validate(annotated({"jobKey": JOB_KEY}))
+
+        assert task.job is not None
+        assert task.job.folder_key is None
+
+    def test_a_task_from_a_server_without_the_extension_has_no_job(self) -> None:
+        task = McpTask.model_validate(task_result("working", result_type="task"))
+
+        assert task.job is None
+
+    @pytest.mark.parametrize(
+        "annotation",
+        [
+            "not-an-object",
+            {},
+            {"jobKey": "not-a-guid"},
+            {"jobKey": JOB_KEY, "folderKey": "../../elsewhere"},
+        ],
+        ids=[
+            "not-an-object",
+            "no-job-key",
+            "job-key-not-a-guid",
+            "folder-key-not-a-guid",
+        ],
+    )
+    def test_an_unreadable_annotation_leaves_a_pollable_task_with_no_job(
+        self, annotation: Any
+    ) -> None:
+        """A bad annotation must cost the suspend, never the task."""
+        task = McpTask.model_validate(annotated(annotation))
+
+        assert task.task_id == "task-1"
+        assert task.status == McpTaskStatus.WORKING
+        assert task.job is None
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"resumeTrigger": {"triggerType": "Api", "inboxId": JOB_KEY}},
+            {"resumeTrigger": {"triggerType": "job"}},
+            {"resumeTrigger": {}},
+            {"resumeTrigger": "Job"},
+            {"resumeTrigger": None},
+            {"version": 2},
+            {"version": "1"},
+            {"version": True},
+            {"version": None},
+        ],
+        ids=[
+            "another-trigger-kind",
+            "trigger-kind-in-another-case",
+            "no-trigger-kind",
+            "trigger-not-an-object",
+            "no-trigger",
+            "a-later-version",
+            "version-a-string",
+            "version-a-boolean",
+            "no-version",
+        ],
+    )
+    def test_a_job_is_named_only_by_a_known_version_and_a_job_trigger(
+        self, overrides: dict[str, Any]
+    ) -> None:
+        """A resume this client does not implement is polled, never guessed at."""
+        task = McpTask.model_validate(annotated({"jobKey": JOB_KEY, **overrides}))
+
+        assert task.status == McpTaskStatus.WORKING
+        assert task.job is None
+
+    @pytest.mark.parametrize("status", ["completed", "failed", "cancelled"])
+    def test_a_terminal_task_names_no_job_even_when_it_is_annotated(
+        self, status: str
+    ) -> None:
+        """Nothing to suspend on: the job behind a finished task has ended."""
+        payload = task_result(status)
+        payload["_meta"] = {"com.uipath/task": job_annotation({"jobKey": JOB_KEY})}
+
+        task = McpTask.model_validate(payload)
+
+        assert task.status == McpTaskStatus(status)
+        assert task.job is None
+
+    def test_the_annotation_survives_a_poll(
+        self, httpx_mock: HTTPXMock, service: McpService
+    ) -> None:
+        """A caller resumed with only the task id can still learn the job."""
+        payload = task_result("working")
+        payload["_meta"] = {"com.uipath/task": job_annotation({"jobKey": JOB_KEY})}
+        httpx_mock.add_response(url=MCP_URL, json=rpc_result(payload))
+
+        snapshot = service.get_task(known_task())
+
+        assert snapshot.job is not None
+        assert snapshot.job.job_key == JOB_KEY
