@@ -91,7 +91,7 @@ def record_bundles_resolved(span: trace.Span, result: SkillSet) -> None:
         span.add_event(
             "skill.bundle.resolved",
             {
-                **_ref_attributes(bundle.ref, bundle.version),
+                **_ref_attributes(bundle.ref, bundle.version, bundle.digest),
                 "skill.bundle.skill_count": len(bundle.skills),
             },
         )
@@ -116,7 +116,7 @@ def record_bundle_failed(span: trace.Span, failure: BundleFailure) -> None:
     span.add_event(
         "skill.bundle.failed",
         {
-            **_ref_attributes(failure.ref, failure.ref.version or ""),
+            **_ref_attributes(failure.ref, failure.ref.version),
             "skill.reason": failure.reason,
             "skill.detail": failure.detail,
         },
@@ -194,7 +194,7 @@ def skill_load_span(
         context=UiPathSpanUtils.get_parent_context(),
         attributes={
             **_llmops_attributes(SPAN_TYPE_SKILL_LOAD),
-            **_ref_attributes(bundle.ref, bundle.version),
+            **_ref_attributes(bundle.ref, bundle.version, bundle.digest),
             "skill.name": skill.name,
             "skill.invoked_by": invoked_by,
         },
@@ -215,12 +215,19 @@ def _llmops_attributes(span_type: str) -> dict[str, str | bool]:
     }
 
 
-def _ref_attributes(ref: SkillBundleRef, version: str) -> dict[str, str]:
-    """The bundle identity shared by every skill span and event."""
-    return {
+def _ref_attributes(
+    ref: SkillBundleRef, version: str | None, digest: str | None = None
+) -> dict[str, str]:
+    """The bundle identity shared by every skill span and event.
+
+    An attribute without a value (no folder, no version, no digest) is left out.
+    """
+    attributes = {
         "skill.bundle.name": ref.name,
         "skill.bundle.lookup_name": ref.lookup_name,
-        "skill.folder": ref.folder_path or "",
+        "skill.folder": ref.folder_path,
         "skill.version": version,
         "skill.version_mode": ref.version_mode.value,
+        "skill.digest": digest,
     }
+    return {key: value for key, value in attributes.items() if value}

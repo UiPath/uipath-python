@@ -6,7 +6,7 @@ A skill bundle is a versioned group of skills. Each skill is a folder with a `SK
 `sdk.skills` resolves the bundles an agent declares, downloads them at run start and exposes their skills to the agent's code: the skill descriptions go into the system prompt, and the full `SKILL.md` is read on demand.
 
 !!! warning "Preview Feature"
-    The Orchestrator Skills API is not available yet. Until it ships, `UIPATH_SKILLS_SOURCE` defaults to `local` and bundles are read from `./skills` in the project; see [Local development](#local-development). `orchestrator` is a placeholder today: it skips every bundle as `source_unavailable`. It becomes the default once the API is live.
+    Skill bundles are a preview feature, and Orchestrator skill bundles are not generally available yet. By default bundles are fetched from Orchestrator; to work with a copy in the project, set `UIPATH_SKILLS_SOURCE=local` (see [Local development](#local-development)).
 
 ---
 
@@ -38,11 +38,11 @@ async def make_graph():
     ...
 ```
 
-- `version_mode="pinned"` fixes a version; `version` is then required. `version_mode="latest"` takes the newest published version at each call and ignores `version`.
+- `version_mode="pinned"` fixes a version; `version` is then required. It is a version number (`"3"`), a tag or a content digest (`"sha256:..."`). `version_mode="latest"` takes the newest published version at each call and ignores `version`.
 - `folder_path` is optional. Without it the bundle is looked up in the job's folder, taken from `UIPATH_FOLDER_PATH` or `UIPATH_FOLDER_KEY`.
 - A bundle that cannot be resolved never fails the run. It is reported in `skills.failures` (a `BundleFailure` with the `ref`, a `reason` and a `detail`) and as an event on the `Skill bundles resolved` trace span, and the agent continues with the bundles that did resolve.
 - `skills.names()` lists the resolved skills as `<bundle>/<skill>`. Names are qualified because two bundles may contain a skill with the same name; both stay available.
-- `skills.bundles[i].version` is the resolved version; `prompt_section()` also shows it as `(bundle vN)`.
+- `skills.bundles[i].version` is the resolved version number and `skills.bundles[i].digest` its content digest (`None` for a local folder); `prompt_section()` also shows the version as `(bundle vN)`.
 - `skills.prompt_section()` is a `## Skills` markdown section with one line per skill and its description, or an empty string when no bundle has a skill.
 - `skills.read(name, path="SKILL.md")` returns a skill file as text. `path` is any file the skill lists (`Skill.files`), relative to the skill folder. Reading a `SKILL.md` records a `Skill load` span; pass `invoked_by="user"` when your own code reads it rather than a tool call made by the model.
 
@@ -91,9 +91,9 @@ uipath run agent '{"message": "triage invoice 4711"}'
 | Value | Behaviour |
 |-------|-----------|
 | `local` | Copies `./skills/<bundle>/` (or `UIPATH_SKILLS_LOCAL_ROOT`); a folder holds one version, the one in `bundle.json` or `local` without it. |
-| `orchestrator` | The Orchestrator Skills API. A placeholder until the API ships: every bundle is skipped as `source_unavailable` and the agent runs without skills. |
+| `orchestrator` | Looks the bundle up by name in its folder in Orchestrator (or in the job's folder) and downloads the pinned or latest version, within the same limits as `local`. |
 
-Today the default is `local`; `orchestrator` becomes the default once the Skills API ships. An unknown value falls back to `local` with a warning. A `pinned` reference to a version other than the folder's is loaded anyway, with a warning. The canonical description of the two variables is in [Environment Variables](./environment_variables.md#skill-bundles).
+The default is `orchestrator`. An unknown value falls back to the default with a warning. With `local`, a `pinned` reference to a version other than the folder's is loaded anyway, with a warning. The canonical description of the two variables is in [Environment Variables](./environment_variables.md#skill-bundles).
 
 ---
 
@@ -157,7 +157,7 @@ Locally, `uipath run agent '{...}' --trace-file trace.jsonl` writes the spans to
 |-------|-------|
 | File size | 512 KiB per file |
 | Bundle size | 24 MiB per bundle |
-| Time budget | 20 s per bundle; after the first timeout the remaining bundles are skipped. The `local` source is not stopped by it |
+| Time budget | 20 s per bundle; after the first timeout the remaining bundles are skipped. It covers the calls to Orchestrator, not the copy to disk, which the size limits bound |
 | Description | 1024 characters; a longer `description` is cut, one that is not a string is left empty |
 
 - A file over the size limit is skipped with a warning. A skill is skipped with a warning when its `SKILL.md` is over the size limit or not valid UTF-8.

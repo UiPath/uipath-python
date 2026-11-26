@@ -121,7 +121,8 @@ def test_the_resolution_span_describes_every_bundle_and_failure(
         "skill.version_mode": "latest",
         "skill.bundle.skill_count": 2,
     }
-    assert (ops["skill.bundle.lookup_name"], ops["skill.folder"]) == ("ops-prod", "")
+    assert ops["skill.bundle.lookup_name"] == "ops-prod"
+    assert "skill.folder" not in ops
     assert "Skill bundle 'ghost' skipped (not_found): no such bundle" in caplog.text
     assert "finance@3 (2 skills), ops@1 (1 skills)" in caplog.text
 
@@ -137,6 +138,21 @@ def test_the_resolution_span_with_nothing_resolved(
     assert "Resolved 0 skill bundle(s) from local: none" in caplog.text
 
 
+def test_a_failure_without_a_folder_or_a_version_leaves_them_out(
+    exporter: InMemorySpanExporter,
+) -> None:
+    failure = BundleFailure(
+        ref=SkillBundleRef(name="ops"), reason="source_unavailable", detail="down"
+    )
+    with bundles_resolved_span() as span:
+        record_bundle_failed(span, failure)
+
+    [event] = _only_span(exporter).events
+    attributes = dict(event.attributes or {})
+    assert attributes["skill.version_mode"] == "latest"
+    assert not {"skill.folder", "skill.version", "skill.digest"} & attributes.keys()
+
+
 def test_the_skill_load_span(exporter: InMemorySpanExporter) -> None:
     with skill_load_span(OPS, OPS.skills[0], invoked_by="user") as load:
         load.loaded(7)
@@ -150,7 +166,6 @@ def test_the_skill_load_span(exporter: InMemorySpanExporter) -> None:
         "uipath.custom_instrumentation": True,
         "skill.bundle.name": "ops",
         "skill.bundle.lookup_name": "ops-prod",
-        "skill.folder": "",
         "skill.version": "1",
         "skill.version_mode": "latest",
         "skill.name": "vendor-lookup",
@@ -236,3 +251,20 @@ def test_both_spans_attach_under_the_external_framework_span(
         assert span.parent is not None
         assert span.parent.span_id == run.context.span_id
         assert span.context.trace_id == run.context.trace_id
+
+
+def test_a_digest_is_recorded_on_the_resolution_event_and_the_skill_load_span(
+    exporter: InMemorySpanExporter,
+) -> None:
+    pinned = FINANCE.model_copy(update={"digest": "sha256:" + "a" * 64})
+    with bundles_resolved_span() as span:
+        record_bundles_resolved(
+            span, SkillSet(source="orchestrator", bundles=[pinned], failures=[])
+        )
+    with skill_load_span(pinned, pinned.skills[0]) as load:
+        load.loaded(3)
+
+    resolved, loaded = exporter.get_finished_spans()
+    [event] = resolved.events
+    assert (event.attributes or {})["skill.digest"] == "sha256:" + "a" * 64
+    assert (loaded.attributes or {})["skill.digest"] == "sha256:" + "a" * 64
