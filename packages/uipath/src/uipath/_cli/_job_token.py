@@ -9,7 +9,7 @@ import math
 import os
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
 from typing import Any
@@ -131,6 +131,7 @@ class JobTokenRefresher:
         timeout: float = _TOKEN_REQUEST_TIMEOUT_S,
         publish: Callable[[str], None] | None = publish_token_to_environ,
         clock: Callable[[], float] = time.time,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._proxy = proxy
         self._loop = loop
@@ -139,6 +140,7 @@ class JobTokenRefresher:
         self._timeout = timeout
         self._publish = publish
         self._clock = clock
+        self._sleep = sleep
         self._lock = threading.Lock()
         self._state: _TokenState | None = (
             _TokenState.from_token(initial_token, clock()) if initial_token else None
@@ -180,7 +182,7 @@ class JobTokenRefresher:
             now = self._clock()
             due_at = max(state.refresh_at, self._retry_not_before)
             if now < due_at:
-                await asyncio.sleep(min(due_at - now, _MAX_SLEEP_S))
+                await self._sleep(min(due_at - now, _MAX_SLEEP_S))
                 continue
             await self._refresh_once()
 

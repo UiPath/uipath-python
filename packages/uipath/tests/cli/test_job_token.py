@@ -149,6 +149,35 @@ def _task(refresher: JobTokenRefresher) -> Future[None]:
     return task
 
 
+class VirtualTime:
+    """A clock that moves only when the refresher sleeps, so timing tests need no real waits.
+
+    A sleep that would pass ``horizon`` parks until the refresher is stopped.
+    """
+
+    def __init__(self, start: float = 1_000_000.0, horizon: float = float("inf")):
+        self.now = start
+        self.horizon = start + horizon
+        self.sleeps: list[float] = []
+        self.parked = threading.Event()
+
+    def clock(self) -> float:
+        return self.now
+
+    async def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        if self.now + seconds > self.horizon:
+            self.parked.set()
+            await asyncio.Event().wait()
+        self.now += seconds
+        await asyncio.sleep(0)
+
+    def token(self, *, remaining: float, lifetime: float = 600, tag: str = "t") -> str:
+        """A JWT expiring ``remaining`` virtual seconds from now."""
+        exp = self.now + remaining
+        return jwt(iat=exp - lifetime, exp=exp, tag=tag)
+
+
 class TestTokenState:
     def test_exp_and_iat_drive_the_renewal_point(self) -> None:
         now = 1_000_000.0
@@ -392,20 +421,22 @@ class TestFailures:
     def test_a_failed_renewal_warns_once_and_retries_after_the_backoff(
         self,
         ipc_loop: asyncio.AbstractEventLoop,
-        monkeypatch: pytest.MonkeyPatch,
         records: list[logging.LogRecord],
     ) -> None:
-        monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
+        time_ = VirtualTime(horizon=100)
         api = FakeJobApi(error=RuntimeError("pipe down"))
-        token = token_with_lifetime(600, remaining=120.2)
-        refresher = _refresher(api, ipc_loop, token)
+        token = time_.token(remaining=110)  # due now
+        refresher = _refresher(
+            api, ipc_loop, token, clock=time_.clock, sleep=time_.sleep
+        )
 
         refresher.start()
 
-        assert api.called.wait(timeout=5)
-        assert _wait(lambda: len(api.requests) >= 2)  # retried, after the backoff
+        assert time_.parked.wait(timeout=5)
         refresher.stop()
-        assert len(api.requests) < 10  # ... not hammered
+        # Asked at 0, 30, 60 and 90 seconds: once per backoff period, not hammered.
+        assert len(api.requests) == 4
+        assert time_.sleeps == [30.0] * 4
         assert _token(refresher) == token
         warnings = _warnings(records)
         assert len(warnings) == 1
@@ -518,25 +549,30 @@ class TestFailures:
     def test_a_token_already_due_is_kept_but_not_refetched_at_once(
         self,
         ipc_loop: asyncio.AbstractEventLoop,
-        monkeypatch: pytest.MonkeyPatch,
         records: list[logging.LogRecord],
     ) -> None:
         """An answer that is already due waits the backoff instead of spinning."""
-        monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.3)
-        answers = [
-            token_with_lifetime(600, remaining=60, tag=str(i)) for i in range(50)
-        ]
+        time_ = VirtualTime(horizon=100)
+        # Due as soon as they arrive, but still valid for the whole test.
+        answers = [time_.token(remaining=110, tag=str(i)) for i in range(10)]
         api = FakeJobApi(*answers)
-        refresher = _refresher(api, ipc_loop, token_with_lifetime(600, remaining=60))
+        refresher = _refresher(
+            api,
+            ipc_loop,
+            time_.token(remaining=110),
+            clock=time_.clock,
+            sleep=time_.sleep,
+        )
 
         refresher.start()
-        assert api.called.wait(timeout=5)
-        time.sleep(1.0)
+        assert time_.parked.wait(timeout=5)
         refresher.stop()
 
-        assert 2 <= len(api.requests) <= 8  # once per backoff period, not a spin
-        # The due answer was kept: the token is one the host handed out.
-        assert _token(refresher) in answers[: len(api.requests)]
+        # Asked at 0, 30, 60 and 90 seconds: once per backoff period, not a spin.
+        assert len(api.requests) == 4
+        assert time_.sleeps == [30.0] * 4
+        # Each due answer was kept.
+        assert _token(refresher) == answers[3]
         assert _warnings(records) == []
 
     def test_an_expired_answer_ends_the_renewal_with_one_warning(
@@ -562,19 +598,22 @@ class TestFailures:
     def test_the_same_token_handed_back_until_it_expires_ends_the_renewal(
         self,
         ipc_loop: asyncio.AbstractEventLoop,
-        monkeypatch: pytest.MonkeyPatch,
         records: list[logging.LogRecord],
     ) -> None:
         """A host that does not renew keeps answering with the token the job holds."""
-        monkeypatch.setattr(_job_token, "_RETRY_AFTER_FAILURE_S", 0.1)
-        token = token_with_lifetime(600, remaining=1.0)  # due now, expires soon
-        api = FakeJobApi(*[token] * 100)
-        refresher = _refresher(api, ipc_loop, token)
+        time_ = VirtualTime()
+        token = time_.token(remaining=100)  # due now, expires in 100 seconds
+        api = FakeJobApi(*[token] * 10)
+        refresher = _refresher(
+            api, ipc_loop, token, clock=time_.clock, sleep=time_.sleep
+        )
 
         refresher.start()
 
         _task(refresher).result(timeout=5)  # the loop ends once the token expired
-        assert 2 <= len(api.requests) <= 25  # asked while there was hope, then stopped
+        # Asked at 0, 30, 60 and 90 seconds while it was valid, then once it had expired.
+        assert len(api.requests) == 5
+        assert time_.sleeps == [30.0] * 4
         warnings = _warnings(records)
         assert len(warnings) == 1
         assert "already expired" in warnings[0]
