@@ -206,7 +206,9 @@ async def test_a_pinned_version_is_asked_for_as_given(
     assert bundle.version == "3"
 
 
-@pytest.mark.parametrize("version", ["../x", "latest", "a b", "x/y", "-1", ".hidden"])
+@pytest.mark.parametrize(
+    "version", ["../x", "latest", "lateſt", "a b", "x/y", "-1", ".hidden"]
+)
 async def test_an_unsafe_pinned_version_is_refused_before_any_request(
     source: OrchestratorBundleSource, tmp_path: Path, version: str
 ) -> None:

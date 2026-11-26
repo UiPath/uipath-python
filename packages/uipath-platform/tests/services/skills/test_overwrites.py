@@ -101,11 +101,12 @@ _DIGEST = "sha256:" + "c0" * 32
     [
         ("latest", VersionMode.LATEST, None),
         ("Latest", VersionMode.LATEST, None),
+        ("lateſt", VersionMode.PINNED, "lateſt"),
         ("7", VersionMode.PINNED, "7"),
         ("reviewed", VersionMode.PINNED, "reviewed"),
         (_DIGEST, VersionMode.PINNED, _DIGEST),
     ],
-    ids=["latest", "latest-any-case", "number", "tag", "digest"],
+    ids=["latest", "latest-any-case", "non-ascii-latest", "number", "tag", "digest"],
 )
 @pytest.mark.parametrize(
     "declared",

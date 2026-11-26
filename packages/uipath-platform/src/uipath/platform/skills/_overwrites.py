@@ -94,7 +94,7 @@ def _mode_and_version(
     """The mode and version an override's ``version`` selects for ``ref``."""
     if version is None:
         return ref.version_mode, ref.version
-    if version.casefold() == VersionMode.LATEST.value:
+    if version.isascii() and version.casefold() == VersionMode.LATEST.value:
         return VersionMode.LATEST, None
     return VersionMode.PINNED, version
 
