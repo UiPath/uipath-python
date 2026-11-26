@@ -5,6 +5,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from uipath.agent.models.agent import (
+    AdvancedSubagent,
     AgentA2aResourceConfig,
     AgentBooleanOperator,
     AgentBooleanRule,
@@ -5121,3 +5122,68 @@ class TestConversationalAgentTool:
         assert isinstance(
             reparsed.resources[0], AgentConversationalAgentToolResourceConfig
         )
+
+
+class TestAdvancedSubagents:
+    """``settings.mode`` and ``settings.subagents`` as written by Agent Builder."""
+
+    base = {"engine": "basic-v1", "model": "gpt-4o", "maxTokens": 100, "temperature": 0}
+
+    def test_absent_mode_and_subagents_are_none(self):
+        settings = AgentSettings.model_validate(self.base)
+        assert settings.mode is None
+        assert settings.subagents is None
+
+    def test_empty_list_is_kept_distinct_from_absent(self):
+        settings = AgentSettings.model_validate(
+            {**self.base, "mode": "advanced", "subagents": []}
+        )
+        assert settings.mode == "advanced"
+        assert settings.subagents == []
+
+    def test_parses_a_subagent_by_alias_with_defaults(self):
+        settings = AgentSettings.model_validate(
+            {
+                **self.base,
+                "mode": "advanced",
+                "subagents": [
+                    {"id": "s1", "name": "general-purpose", "description": "Anything"}
+                ],
+            }
+        )
+        assert settings.subagents is not None
+        (subagent,) = settings.subagents
+        assert isinstance(subagent, AdvancedSubagent)
+        assert subagent.mode == "isolated"
+        assert subagent.tools is None
+        assert subagent.model is None
+        assert subagent.system_prompt is None
+        assert subagent.byom_properties is None
+
+    def test_parses_a_fully_configured_subagent(self):
+        subagent = AdvancedSubagent.model_validate(
+            {
+                "id": "s2",
+                "name": "researcher",
+                "description": "Reads files",
+                "systemPrompt": "Be brief",
+                "model": "gpt-4o-mini",
+                "byomProperties": {
+                    "connectionId": "c1",
+                    "connectorKey": "uipath-openai",
+                },
+                "mode": "fork",
+                "tools": ["tool-1"],
+            }
+        )
+        assert subagent.system_prompt == "Be brief"
+        assert subagent.mode == "fork"
+        assert subagent.tools == ["tool-1"]
+        assert subagent.byom_properties is not None
+        assert subagent.byom_properties.connection_id == "c1"
+
+    def test_rejects_an_unknown_mode(self):
+        with pytest.raises(ValidationError):
+            AdvancedSubagent.model_validate(
+                {"name": "x", "description": "y", "mode": "handoff"}
+            )

@@ -1686,6 +1686,23 @@ class ModelSettings(BaseCfg):
     """
 
 
+class AdvancedSubagent(BaseCfg):
+    """A subagent of an advanced-mode agent (``settings.subagents[]``).
+
+    ``model`` absent means the parent agent's model; ``tools`` absent means every
+    parent tool, while an explicit list names parent tool resource ids.
+    """
+
+    id: str | None = None
+    name: str
+    description: str
+    system_prompt: str | None = Field(None, alias="systemPrompt")
+    model: str | None = None
+    byom_properties: AgentByomProperties | None = Field(None, alias="byomProperties")
+    mode: Literal["isolated", "fork"] = "isolated"
+    tools: list[str] | None = None
+
+
 class AgentSettings(BaseCfg):
     """Agent settings model."""
 
@@ -1697,6 +1714,8 @@ class AgentSettings(BaseCfg):
     max_iterations: Optional[int] = Field(None, alias="maxIterations")
     persona: Optional[str] = Field(None, alias="persona")
     model_settings: Optional[ModelSettings] = Field(None, alias="modelSettings")
+    mode: str | None = None
+    subagents: list[AdvancedSubagent] | None = None
 
 
 class AgentDefinition(BaseModel):

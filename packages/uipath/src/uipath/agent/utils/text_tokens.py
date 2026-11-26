@@ -12,6 +12,7 @@ def build_string_from_tokens(
     tool_names: list[str] | None = None,
     escalation_names: list[str] | None = None,
     context_names: list[str] | None = None,
+    subagent_names: list[str] | None = None,
 ) -> str:
     """Build a string from text tokens with variable replacement.
 
@@ -21,6 +22,7 @@ def build_string_from_tokens(
         tool_names: Optional list of tool names for tool.* variable resolution
         escalation_names: Optional list of escalation names for escalation.* variable resolution
         context_names: Optional list of context names for context.* variable resolution
+        subagent_names: Optional list of subagent names for subagents.* variable resolution
     """
     parts: list[str] = []
 
@@ -36,6 +38,7 @@ def build_string_from_tokens(
                 tool_names,
                 escalation_names,
                 context_names,
+                subagent_names,
             )
             parts.append(resolved_value)
         else:
@@ -50,6 +53,7 @@ def _process_variable_token(
     tool_names: list[str] | None = None,
     escalation_names: list[str] | None = None,
     context_names: list[str] | None = None,
+    subagent_names: list[str] | None = None,
 ) -> str:
     """Process a variable token and return its resolved value.
 
@@ -82,6 +86,9 @@ def _process_variable_token(
         return found_name if found_name else raw_string
     elif prefix == "contexts":
         found_name = _find_resource_name(path, context_names)
+        return found_name if found_name else raw_string
+    elif prefix == "subagents":
+        found_name = _find_resource_name(path, subagent_names)
         return found_name if found_name else raw_string
 
     return raw_string

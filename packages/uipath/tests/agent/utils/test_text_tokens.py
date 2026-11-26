@@ -288,3 +288,25 @@ class TestSerializeValue:
     def test_string_enum_uses_underlying_value(self):
         """Test string enums serialize to their values for prompt interpolation."""
         assert serialize_argument(self.RiskTolerance.LOW) == "low"
+
+
+class TestSubagentTokens:
+    """``subagents.*`` variables resolve like the other resource categories."""
+
+    def test_resolves_to_the_configured_subagent_name(self):
+        tokens = [
+            TextToken(type=TextTokenType.SIMPLE_TEXT, raw_string="Delegate to "),
+            TextToken(type=TextTokenType.VARIABLE, raw_string="subagents.Researcher"),
+        ]
+        result = build_string_from_tokens(
+            tokens, {}, subagent_names=["researcher", "general-purpose"]
+        )
+        assert result == "Delegate to researcher"
+
+    def test_keeps_the_raw_string_when_unknown(self):
+        tokens = [TextToken(type=TextTokenType.VARIABLE, raw_string="subagents.ghost")]
+        assert (
+            build_string_from_tokens(tokens, {}, subagent_names=["researcher"])
+            == "subagents.ghost"
+        )
+        assert build_string_from_tokens(tokens, {}) == "subagents.ghost"
