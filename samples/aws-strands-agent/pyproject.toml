@@ -1,0 +1,18 @@
+[project]
+name = "uipath-strands-agent"
+version = "0.0.8"
+description = "UiPath strands coded agent"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "John Doe" }]
+dependencies = [
+    "strands-agents[openai]>=1.19.0",
+    "strands-agents-builder>=0.1.10",
+    "strands-agents-tools>=0.2.17",
+    "uipath>=2.2.28",
+]
+
+[dependency-groups]
+dev = [
+    "uipath-dev>=0.0.12",
+]
