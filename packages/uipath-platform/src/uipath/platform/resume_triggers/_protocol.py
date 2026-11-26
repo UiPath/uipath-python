@@ -59,6 +59,7 @@ from uipath.platform.context_grounding.context_grounding_index import (
 )
 from uipath.platform.documents import DocumentsService, DocumentsServiceV2
 from uipath.platform.errors import (
+    AppNotFoundError,
     BatchTransformFailedException,
     BatchTransformNotCompleteException,
     ContextGroundingIndexNotFoundError,
@@ -694,22 +695,31 @@ class UiPathResumeTriggerCreator:
             resume_trigger.item_key = value.action.key
         elif isinstance(value, (CreateTask, CreateEscalation)):
             uipath = UiPath()
-            action = await uipath.tasks.create_async(
-                title=value.title,
-                app_name=value.app_name if value.app_name else "",
-                app_folder_path=value.app_folder_path or None,
-                app_folder_key=value.app_folder_key or None,
-                app_key=value.app_key if value.app_key else "",
-                assignee=value.assignee if value.assignee else "",
-                recipient=value.recipient if value.recipient else "",
-                data=value.data,
-                priority=value.priority,
-                labels=value.labels,
-                is_actionable_message_enabled=value.is_actionable_message_enabled,
-                actionable_message_metadata=value.actionable_message_metadata,
-                task_source_metadata=value.task_source_metadata,
-                source_name=value.source_name,
-            )
+            try:
+                action = await uipath.tasks.create_async(
+                    title=value.title,
+                    app_name=value.app_name if value.app_name else "",
+                    app_folder_path=value.app_folder_path or None,
+                    app_folder_key=value.app_folder_key or None,
+                    app_key=value.app_key if value.app_key else "",
+                    assignee=value.assignee if value.assignee else "",
+                    recipient=value.recipient if value.recipient else "",
+                    data=value.data,
+                    priority=value.priority,
+                    labels=value.labels,
+                    is_actionable_message_enabled=value.is_actionable_message_enabled,
+                    actionable_message_metadata=value.actionable_message_metadata,
+                    task_source_metadata=value.task_source_metadata,
+                    source_name=value.source_name,
+                )
+            except AppNotFoundError as e:
+                # Only the message reaches the job error, so it names the app.
+                raise UiPathFaultedTriggerError(
+                    ErrorCategory.DEPLOYMENT,
+                    f"{e}. Check that the app is deployed and available in "
+                    "the configured folder.",
+                    str(e),
+                ) from e
             if not action:
                 raise Exception("Failed to create action")
             resume_trigger.item_key = action.key
