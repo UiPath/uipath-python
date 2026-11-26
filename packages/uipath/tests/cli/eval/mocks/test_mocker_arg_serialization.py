@@ -153,7 +153,7 @@ class TestSimulateComponentPayloadSerialization:
         monkeypatch.setenv("UIPATH_URL", "https://example.com/myorg/mytenant")
         monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "token")
         httpx_mock.add_response(
-            url="https://example.com/myorg/mytenant/agentsruntime_/api/execution/simulations/simulate-component",
+            url="https://example.com/myorg/mytenant/agentsruntime_/api/unifiedEvals/simulations/simulate-component",
             method="POST",
             json={"status": 1, "simulatedOutput": "result"},
         )
@@ -232,7 +232,7 @@ class TestSimulateComponentServiceUnchangedBehaviour:
         monkeypatch.setenv("UIPATH_URL", "https://example.com/myorg/mytenant")
         monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "token")
         httpx_mock.add_response(
-            url="https://example.com/myorg/mytenant/agentsruntime_/api/execution/simulations/simulate-component",
+            url="https://example.com/myorg/mytenant/agentsruntime_/api/unifiedEvals/simulations/simulate-component",
             method="POST",
             json={"status": 1, "simulatedOutput": "result"},
         )

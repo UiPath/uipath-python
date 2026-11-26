@@ -2,6 +2,7 @@
 
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -27,10 +28,16 @@ from uipath.eval.mocks._types import (
     UnknownMockingStrategy,
 )
 from uipath.eval.mocks.mockable import mockable
+from uipath.platform.errors import EnrichedException
 
 _mock_span_collector = MagicMock()
 
 BASE_URL = "https://example.com"
+_RUNTIME_URL = f"{BASE_URL}/myorg/mytenant/agentsruntime_"
+_UNIFIED_SIMULATION_URL = (
+    f"{_RUNTIME_URL}/api/unifiedEvals/simulations/simulate-component"
+)
+_LEGACY_SIMULATION_URL = f"{_RUNTIME_URL}/api/execution/simulations/simulate-component"
 _SIMULATE_PATH = (
     "uipath.eval.mocks._simulate_component_mocker._create_simulate_component_service"
 )
@@ -143,6 +150,52 @@ class TestFindComponent:
 
 
 class TestSimulateComponentMockerResponse:
+    @pytest.mark.asyncio
+    async def test_sends_authored_rules_with_named_tool_arguments(self):
+        ctx = MockingContext.model_validate(
+            {
+                "strategy": None,
+                "workload_id": "wl-123",
+                "components": [
+                    {
+                        "componentId": "get_weather",
+                        "simulationStrategy": "Mockito",
+                        "behaviors": [
+                            {
+                                "when": [
+                                    {"field": "city", "op": "Eq", "value": "Paris"}
+                                ],
+                                "answers": [{"type": "Return", "value": "sunny"}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        service = _make_service_mock({"status": 1, "simulatedOutput": "sunny"})
+
+        @mockable()
+        async def get_weather(city: str, unit: str = "C", **options: Any) -> str:
+            raise NotImplementedError()
+
+        execution_id = str(uuid4())
+        set_execution_context(ctx, _mock_span_collector, execution_id)
+        try:
+            with patch(_SIMULATE_PATH, return_value=service):
+                assert await get_weather("Paris", source="lab") == "sunny"
+        finally:
+            clear_execution_context()
+
+        payload = service.simulate.await_args.args[0]
+        assert payload["input"] == {"city": "Paris", "unit": "C", "source": "lab"}
+        assert payload["runId"] == execution_id
+        assert payload["behaviors"] == [
+            {
+                "when": [{"field": "city", "op": 0, "value": "Paris"}],
+                "then": [{"type": 0, "value": "sunny"}],
+            }
+        ]
+
     @pytest.mark.asyncio
     async def test_returns_simulated_output_on_status_1(self):
         ctx = _make_context("my_tool")
@@ -506,7 +559,7 @@ async def test_simulate_component_service_http_call(
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "token")
 
     httpx_mock.add_response(
-        url="https://example.com/myorg/mytenant/agentsruntime_/api/execution/simulations/simulate-component",
+        url=_UNIFIED_SIMULATION_URL,
         method="POST",
         json={"status": 1, "simulatedOutput": "result"},
     )
@@ -527,7 +580,7 @@ async def test_simulate_component_service_no_headers(
     monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "token")
 
     httpx_mock.add_response(
-        url="https://example.com/myorg/mytenant/agentsruntime_/api/execution/simulations/simulate-component",
+        url=_UNIFIED_SIMULATION_URL,
         method="POST",
         json={"status": 0, "error": {"message": "boom"}},
     )
@@ -535,3 +588,46 @@ async def test_simulate_component_service_no_headers(
     service = _create_simulate_component_service()
     result = await service.simulate({"componentId": "my_tool"})
     assert result["status"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing_status", [404, 405])
+async def test_simulation_service_supports_older_servers(
+    httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch, missing_status: int
+):
+    monkeypatch.setenv("UIPATH_URL", f"{BASE_URL}/myorg/mytenant")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "token")
+    httpx_mock.add_response(
+        url=_UNIFIED_SIMULATION_URL, method="POST", status_code=missing_status
+    )
+    httpx_mock.add_response(
+        url=_LEGACY_SIMULATION_URL,
+        method="POST",
+        json={"status": 1, "simulatedOutput": "result"},
+    )
+
+    result = await _create_simulate_component_service().simulate(
+        {"componentId": "my_tool"}
+    )
+
+    assert result["simulatedOutput"] == "result"
+    primary, fallback = httpx_mock.get_requests()
+    assert primary.content == fallback.content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 403])
+async def test_simulation_service_does_not_retry_application_errors_on_legacy_route(
+    httpx_mock: HTTPXMock, monkeypatch: MonkeyPatch, status: int
+):
+    monkeypatch.setenv("UIPATH_URL", f"{BASE_URL}/myorg/mytenant")
+    monkeypatch.setenv("UIPATH_ACCESS_TOKEN", "token")
+    httpx_mock.add_response(
+        url=_UNIFIED_SIMULATION_URL, method="POST", status_code=status
+    )
+
+    with pytest.raises(EnrichedException) as raised:
+        await _create_simulate_component_service().simulate({"componentId": "my_tool"})
+
+    assert raised.value.status_code == status
+    assert len(httpx_mock.get_requests()) == 1

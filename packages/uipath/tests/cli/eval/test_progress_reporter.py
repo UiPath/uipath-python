@@ -239,7 +239,10 @@ class TestRequestSpecGeneration:
         )
 
         assert spec.method == "POST"
-        assert "coded/" in spec.endpoint
+        assert (
+            spec.endpoint
+            == "/agentsruntime_/api/unifiedEvals/workloads/test-project-id/evalSetRuns"
+        )
         assert spec.json["evalSetId"] == "test-eval-set"
         assert spec.json["source"] == 0
         assert spec.json["numberOfEvalsExecuted"] == 5
@@ -288,11 +291,13 @@ class TestRequestSpecGeneration:
             actual_output={"result": "success"},
             execution_time=5.5,
             success=True,
-            is_coded=True,
         )
 
         assert spec.method == "PUT"
-        assert "coded/" in spec.endpoint
+        assert (
+            spec.endpoint
+            == "/agentsruntime_/api/unifiedEvals/workloads/test-project-id/evalRuns/test-run-id"
+        )
         assert spec.json["evalRunId"] == "test-run-id"
         assert spec.json["evaluatorRuns"] == evaluator_runs
         assert spec.json["result"]["scores"] == evaluator_scores
@@ -315,7 +320,6 @@ class TestRequestSpecGeneration:
             actual_output={"result": "success"},
             execution_time=5.5,
             success=True,
-            is_coded=False,
         )
 
         assert spec.method == "PUT"
@@ -343,11 +347,13 @@ class TestRequestSpecGeneration:
             actual_output={},
             execution_time=0.0,
             success=False,
-            is_coded=True,
         )
 
         assert spec.method == "PUT"
-        assert "coded/" in spec.endpoint
+        assert (
+            spec.endpoint
+            == "/agentsruntime_/api/unifiedEvals/workloads/test-project-id/evalRuns/test-run-id"
+        )
         assert spec.json["evalRunId"] == "test-run-id"
         assert spec.json["status"] == 3  # FAILED
 
@@ -363,7 +369,6 @@ class TestRequestSpecGeneration:
             actual_output={},
             execution_time=0.0,
             success=False,
-            is_coded=False,
         )
 
         assert spec.method == "PUT"
@@ -603,7 +608,10 @@ class TestEvalSetRunStatusUpdates:
         )
 
         assert spec.method == "PUT"
-        assert "coded/" in spec.endpoint
+        assert (
+            spec.endpoint
+            == "/agentsruntime_/api/unifiedEvals/workloads/test-project-id/evalSetRuns/test-run-id"
+        )
         assert spec.json["evalSetRunId"] == "test-run-id"
         assert spec.json["status"] == 2  # COMPLETED = 2
 
@@ -619,7 +627,10 @@ class TestEvalSetRunStatusUpdates:
         )
 
         assert spec.method == "PUT"
-        assert "coded/" in spec.endpoint
+        assert (
+            spec.endpoint
+            == "/agentsruntime_/api/unifiedEvals/workloads/test-project-id/evalSetRuns/test-run-id"
+        )
         assert spec.json["evalSetRunId"] == "test-run-id"
         assert spec.json["status"] == 3  # FAILED = 3
 
@@ -1081,7 +1092,6 @@ class TestProjectFilesSourcePropagation:
             actual_output={},
             execution_time=1.0,
             success=True,
-            is_coded=False,
         )
         assert spec.json["projectFilesSource"] == 1
 
@@ -1094,7 +1104,6 @@ class TestProjectFilesSourcePropagation:
             actual_output={},
             execution_time=1.0,
             success=True,
-            is_coded=True,
         )
         assert spec.json["projectFilesSource"] == 1
 
@@ -1117,6 +1126,30 @@ class TestProjectFilesSourcePropagation:
             is_coded=False,
         )
         assert spec.params == {"projectFilesSource": 1}
+
+    def test_coded_row_reporting_and_resume_use_the_same_shared_route(
+        self, monkeypatch
+    ):
+        from uipath.eval.models.evaluation_set import EvaluationItem
+
+        monkeypatch.setenv("UIPATH_EVAL_BACKEND_URL", "http://localhost:5002")
+        reporter = self._make_reporter(monkeypatch, "Local")
+        item = EvaluationItem(
+            id="weather-row", name="Weather", inputs={}, evaluation_criterias={}
+        )
+        create = reporter._create_eval_run_spec(item, "run-1", is_coded=True)
+        resume = reporter._get_eval_runs_spec("set-1", "run-1", None, is_coded=True)
+
+        assert create.endpoint == resume.endpoint
+        assert (
+            create.endpoint
+            == "/api/unifiedEvals/workloads/test-project-id/evalSetRuns/run-1/evalRuns"
+        )
+        assert (
+            create.json["projectFilesSource"]
+            == resume.params["projectFilesSource"]
+            == 1
+        )
 
     def test_unset_source_omits_field_from_payloads(self, monkeypatch):
         from uipath._cli._evals._progress_reporter import StudioWebAgentSnapshot

@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class MockingStrategyType(str, Enum):
@@ -126,7 +126,15 @@ MockingStrategy = Union[KnownMockingStrategy, UnknownMockingStrategy]
 # ---------------------------------------------------------------------------
 
 
-class SimulationStrategy(int, Enum):
+class _SimulationEnum(int, Enum):
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            return cls.__members__.get(value.upper())
+        return None
+
+
+class SimulationStrategy(_SimulationEnum):
     """Simulation strategy matching the simulate-component API.
 
     Integer values are part of the cross-language API contract — do not reorder.
@@ -137,7 +145,7 @@ class SimulationStrategy(int, Enum):
     STATIC = 2
 
 
-class RuleOperator(int, Enum):
+class RuleOperator(_SimulationEnum):
     """Comparison operator for Mockito condition matching.
 
     Integer values are part of the cross-language API contract — do not reorder.
@@ -152,7 +160,7 @@ class RuleOperator(int, Enum):
     CONTAINS = 6
 
 
-class SimulationAnswerType(int, Enum):
+class SimulationAnswerType(_SimulationEnum):
     """Answer type for a Mockito simulation behavior.
 
     Integer values are part of the cross-language API contract — do not reorder.
@@ -179,7 +187,9 @@ class SimulationCondition(BaseModel):
 
 class SimulationBehavior(BaseModel):
     when: list[SimulationCondition] | None = None
-    then: list[SimulationAnswer]
+    then: list[SimulationAnswer] = Field(
+        validation_alias=AliasChoices("then", "answers")
+    )
 
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 

@@ -883,6 +883,7 @@ class UiPathEvalRuntime:
                         )
                         agent_output = error.model_dump()
 
+                # Set completion counts persisted rows.
                 await self.event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
                     EvalRunUpdatedEvent(
@@ -896,7 +897,6 @@ class UiPathEvalRuntime:
                         logs=agent_execution_output.logs,
                         exception_details=exception_details,
                     ),
-                    wait_for_completion=False,
                 )
 
             except Exception as e:
@@ -935,7 +935,6 @@ class UiPathEvalRuntime:
                 await self.event_bus.publish(
                     EvaluationEvents.UPDATE_EVAL_RUN,
                     eval_run_updated_event,
-                    wait_for_completion=False,
                 )
             # Configure span with output and metadata
             await configure_evaluation_span(

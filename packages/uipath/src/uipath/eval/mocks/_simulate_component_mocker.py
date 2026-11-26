@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from inspect import Parameter, signature
 from typing import Any, Callable, cast
+from uuid import UUID
 
 from pydantic import TypeAdapter
 
@@ -20,9 +22,22 @@ from ._mocker import (
     UiPathNoMockFoundError,
 )
 from ._simulate_component_service import _create_simulate_component_service
-from ._types import ComponentSimulationConfig, MockingContext
+from ._types import ComponentSimulationConfig, MockingContext, SimulationStrategy
 
 logger = logging.getLogger(__name__)
+
+
+def _bind_rule_inputs(
+    func: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> dict[str, Any]:
+    tool_signature = signature(func)
+    bound = tool_signature.bind(*args, **kwargs)
+    bound.apply_defaults()
+    arguments = dict(bound.arguments)
+    for parameter in tool_signature.parameters.values():
+        if parameter.kind == Parameter.VAR_KEYWORD:
+            return {**arguments.pop(parameter.name), **arguments}
+    return arguments
 
 
 class SimulateComponentMocker(Mocker):
@@ -90,7 +105,7 @@ class SimulateComponentMocker(Mocker):
             "simulationStrategy": int(component.simulation_strategy),
             "mockValue": component.mock_value,
             "behaviors": (
-                [b.model_dump() for b in component.behaviors]
+                [b.model_dump(mode="json") for b in component.behaviors]
                 if component.behaviors
                 else None
             ),
@@ -101,6 +116,14 @@ class SimulateComponentMocker(Mocker):
             "parentSpanId": parent_span_id,
             "folderKey": UiPathConfig.folder_key,
         }
+        if component.simulation_strategy == SimulationStrategy.MOCKITO:
+            payload["input"] = _bind_rule_inputs(func, args, kwargs)
+            execution_id = execution_id_context.get()
+            if execution_id:
+                try:
+                    payload["runId"] = str(UUID(execution_id))
+                except ValueError:
+                    pass
 
         logger.info(
             "simulate-component: calling API for '%s' "
