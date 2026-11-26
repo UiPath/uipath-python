@@ -13,6 +13,7 @@ Available exceptions:
 - BatchTransformNotCompleteException: Raised when attempting to get results from an incomplete batch transform
 - OperationNotCompleteException: Raised when attempting to get results from an incomplete operation
 - OperationFailedException: Raised when an operation has failed
+- GuardrailValidationTimeoutError: Raised when the guardrails service does not answer a validation in time
 - EnrichedException: Enriched HTTP error with detailed request/response information
 """
 
@@ -25,6 +26,7 @@ from ._context_grounding_index_not_found_exception import (
 from ._datafabric_error import DataFabricError
 from ._enriched_exception import EnrichedException, ExtractedErrorInfo
 from ._folder_not_found_exception import FolderNotFoundException
+from ._guardrail_validation_timeout_error import GuardrailValidationTimeoutError
 from ._ingestion_in_progress_exception import IngestionInProgressException
 from ._operation_failed_exception import OperationFailedException
 from ._operation_not_complete_exception import OperationNotCompleteException
@@ -42,6 +44,7 @@ __all__ = [
     "EnrichedException",
     "ExtractedErrorInfo",
     "FolderNotFoundException",
+    "GuardrailValidationTimeoutError",
     "IngestionInProgressException",
     "OperationFailedException",
     "OperationNotCompleteException",
