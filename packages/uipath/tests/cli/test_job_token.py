@@ -185,6 +185,19 @@ class TestTokenState:
         assert none.is_fresh(now + 10**9)
         assert not none.is_expired(now + 10**9)
 
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), 10**400])
+    def test_an_unusable_exp_or_iat_is_ignored(self, bad: float) -> None:
+        now = 1_000_000.0
+        state = _job_token._TokenState.from_token
+
+        no_exp = state(jwt(iat=now, exp=bad), now)
+        assert no_exp.expires_at is None
+        assert no_exp.refresh_at is None
+        # A bad iat counts the lifetime from now instead.
+        no_iat = state(jwt(iat=bad, exp=now + 600), now)
+        assert no_iat.issued_at == now
+        assert no_iat.refresh_at == now + 480
+
     def test_a_token_is_expired_from_its_exp_on(self) -> None:
         now = 1_000_000.0
         state = _job_token._TokenState.from_token(jwt(iat=now, exp=now + 600), now)

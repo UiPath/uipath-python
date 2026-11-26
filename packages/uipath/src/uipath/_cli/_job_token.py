@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import math
 import os
 import threading
 import time
@@ -51,7 +52,12 @@ def _claim_seconds(claims: dict[str, Any], name: str) -> float | None:
     value = claims.get(name)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    try:
+        seconds = float(value)
+    except OverflowError:
+        return None
+    # NaN or infinity would break the schedule.
+    return seconds if math.isfinite(seconds) else None
 
 
 @dataclass(frozen=True)
