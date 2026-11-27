@@ -151,6 +151,38 @@ class TestRetryBehavior:
         assert response.status_code == 200
         assert len(httpx_mock.get_requests()) == 2
 
+    def test_request_once_does_not_retry(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        url = self._url(base_url, org, tenant)
+        httpx_mock.add_response(url=url, status_code=503)
+
+        with pytest.raises(EnrichedException) as exc_info:
+            service._request_once("GET", "/endpoint")
+        assert exc_info.value.status_code == 503
+        assert len(httpx_mock.get_requests()) == 1
+
+    async def test_request_once_async_does_not_retry(
+        self,
+        httpx_mock: HTTPXMock,
+        service: BaseService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ):
+        url = self._url(base_url, org, tenant)
+        httpx_mock.add_response(url=url, status_code=503)
+
+        with pytest.raises(EnrichedException) as exc_info:
+            await service._request_once_async("GET", "/endpoint")
+        assert exc_info.value.status_code == 503
+        assert len(httpx_mock.get_requests()) == 1
+
     def test_400_not_retried(
         self,
         httpx_mock: HTTPXMock,

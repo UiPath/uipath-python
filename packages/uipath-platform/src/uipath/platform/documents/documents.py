@@ -3,11 +3,70 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import IO, Any, List, Literal, Optional, Union
+from typing import (
+    IO,
+    Any,
+    AsyncIterable,
+    Callable,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Union,
+)
 
 from pydantic import BaseModel, ConfigDict, Field
 
 FileContent = Union[IO[bytes], bytes, str]
+
+FileChunks = Union[Iterable[bytes], AsyncIterable[bytes]]
+
+
+class StreamingFile(BaseModel):
+    """A document that is uploaded while it is read, with no local copy.
+
+    Use it to send a document from another service, such as an Orchestrator
+    bucket, straight to Document Understanding. Nothing holds the whole file in
+    memory or on disk.
+
+    `open` is called once for each upload attempt, and each call must start the
+    document from its first byte. A retry therefore reads the source again
+    instead of sending a stream that is already partly read.
+
+    `size` is sent as the Content-Length of the file part, so it must be the
+    exact byte count. A source that yields more or fewer bytes fails the upload.
+
+    The synchronous methods accept only an `Iterable[bytes]`. The asynchronous
+    methods accept an `Iterable[bytes]` or an `AsyncIterable[bytes]`. A
+    synchronous source blocks the event loop while it waits for each chunk.
+
+    Examples:
+        ```python
+        async def read_blob():
+            async with client.stream("GET", read_uri) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes(1024 * 1024):
+                    yield chunk
+
+        source = StreamingFile(name="appraisal.pdf", size=57_671_680, open=read_blob)
+        await uipath.documents.start_ixp_extraction_async(
+            project_name="MyIXPProjectName", tag="live", file_stream=source
+        )
+        ```
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(min_length=1, description="File name sent to the service.")
+    size: int = Field(ge=0, description="Exact number of bytes `open` yields.")
+    open: Callable[[], FileChunks] = Field(
+        description="Returns the document's bytes from the start, once per attempt."
+    )
+    content_type: str = Field(
+        default="application/octet-stream",
+        description="Media type of the file part, for example application/pdf.",
+    )
+
 
 # DU Framework API version: `DocumentsService` calls 1.1, `DocumentsServiceV2` calls 2.0.
 DocumentsApiVersion = Literal["1.1", "2.0"]
