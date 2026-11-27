@@ -50,6 +50,11 @@ MCP_UIPATH_TASK_ANNOTATION_VERSION = 1
 #: The resume-trigger kind this client can suspend on. The server may name
 #: other kinds later; a task annotated with one of those is polled.
 MCP_UIPATH_TASK_JOB_TRIGGER = "Job"
+#: The resume-trigger kind for a task the server does not run itself (a Remote
+#: MCP server's own task): the caller suspends on an API trigger, which the
+#: server fires once the task has ended. Declared only by a caller that asks
+#: for it (``call_tool(resume_trigger_types=...)``, ``watch_task``).
+MCP_UIPATH_TASK_API_TRIGGER = "Api"
 #: This client's ``com.uipath/tasks`` declaration: the trigger kinds it handles.
 MCP_UIPATH_TASKS_CAPABILITY: dict[str, Any] = {
     "resumeTriggerTypes": [MCP_UIPATH_TASK_JOB_TRIGGER]
@@ -75,6 +80,66 @@ class McpTaskStatus(str, Enum):
             McpTaskStatus.FAILED,
             McpTaskStatus.CANCELLED,
         )
+
+
+class McpTaskApiTrigger(BaseModel):
+    """That a task can be suspended on through a watch (``McpTask.api_trigger``).
+
+    A task a Remote MCP server runs has no Orchestrator job behind it. The
+    server (AgentHub) annotates it with an ``Api`` resume trigger instead: a
+    caller that is itself a job can ask for a watch (``McpService.watch_task``)
+    and suspend on an API trigger the server fires when the task has ended.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    suspend_after_ms: Optional[int] = Field(default=None, alias="suspendAfterMs")
+
+    @field_validator("suspend_after_ms", mode="before")
+    @classmethod
+    def _is_a_duration(cls, value: Any) -> Optional[int]:
+        return _whole_milliseconds(value)
+
+
+class McpTaskWatch(BaseModel):
+    """A watch the server started on a task (``McpTask.watch``).
+
+    Attributes:
+        watch_id: Names the watch. The caller suspends on an API trigger whose
+            request is ``{"com.uipath/task": {"watchId": watch_id}}``; the
+            server delivers only to a trigger that carries it.
+        expires_in_ms: How long the watch runs. The caller should also suspend
+            on a timer for this long, so it wakes whether or not it is woken.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    watch_id: str = Field(alias="id")
+    expires_in_ms: int = Field(alias="expiresInMs")
+
+    @field_validator("watch_id")
+    @classmethod
+    def _is_a_guid(cls, value: str) -> str:
+        return str(uuid.UUID(value))
+
+    @field_validator("expires_in_ms", mode="before")
+    @classmethod
+    def _is_a_positive_duration(cls, value: Any) -> int:
+        milliseconds = _whole_milliseconds(value)
+        if milliseconds is None or milliseconds <= 0:
+            raise ValueError("expiresInMs must be a positive number of milliseconds")
+        return milliseconds
+
+
+def _whole_milliseconds(value: Any) -> Optional[int]:
+    """A whole, non-negative number of milliseconds, else ``None``."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(value, float) and not value.is_integer():
+        return None
+    if value < 0:
+        return None
+    return int(value)
 
 
 class McpTaskJob(BaseModel):
@@ -225,6 +290,55 @@ class McpTask(BaseModel):
             return None
         try:
             return McpTaskJob.model_validate(annotation)
+        except ValueError:
+            return None
+
+    def _annotation(self, trigger_type: str) -> Optional[dict[str, Any]]:
+        """The ``com.uipath/task`` annotation of a working task, at this version."""
+        if isinstance(self.status, McpTaskStatus) and self.status.is_terminal:
+            return None
+        meta = (self.model_extra or {}).get("_meta")
+        annotation = (
+            meta.get(MCP_UIPATH_TASK_META_KEY) if isinstance(meta, dict) else None
+        )
+        if not isinstance(annotation, dict):
+            return None
+        version = annotation.get("version")
+        if type(version) is not int or version != MCP_UIPATH_TASK_ANNOTATION_VERSION:
+            return None
+        trigger = annotation.get("resumeTrigger")
+        if not isinstance(trigger, dict) or trigger.get("triggerType") != trigger_type:
+            return None
+        return annotation
+
+    @property
+    def api_trigger(self) -> Optional[McpTaskApiTrigger]:
+        """That this task can be suspended on through a watch, when it can.
+
+        ``None`` for a task the server names a job for (``job``), for one with
+        no annotation, for a terminal one, and for an annotation this client
+        cannot read. The task is still pollable in every such case.
+        """
+        annotation = self._annotation(MCP_UIPATH_TASK_API_TRIGGER)
+        if annotation is None:
+            return None
+        return McpTaskApiTrigger.model_validate(annotation)
+
+    @property
+    def watch(self) -> Optional[McpTaskWatch]:
+        """The watch the server started on this task, from a ``watch_task`` reply.
+
+        ``None`` when the reply names no watch, or one that cannot be used (an
+        id that is not a GUID, a lifetime that is not a positive number): the
+        caller keeps polling rather than suspend on a watch it cannot name or
+        time.
+        """
+        annotation = self._annotation(MCP_UIPATH_TASK_API_TRIGGER)
+        watch = annotation.get("watch") if annotation is not None else None
+        if not isinstance(watch, dict):
+            return None
+        try:
+            return McpTaskWatch.model_validate(watch)
         except ValueError:
             return None
 

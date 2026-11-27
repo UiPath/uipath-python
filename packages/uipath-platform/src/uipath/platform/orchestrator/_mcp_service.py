@@ -4,7 +4,7 @@ import importlib.metadata
 import json
 import random
 import time
-from typing import Any, Callable, List, Literal, Optional, cast
+from typing import Any, Callable, List, Literal, Optional, Sequence, cast
 from urllib.parse import quote
 
 import httpx
@@ -30,6 +30,9 @@ from .mcp_tasks import (
     MCP_TASK_RESULT_TYPE,
     MCP_TASKS_EXTENSION_ID,
     MCP_TASKS_PROTOCOL_VERSION,
+    MCP_UIPATH_TASK_API_TRIGGER,
+    MCP_UIPATH_TASK_JOB_TRIGGER,
+    MCP_UIPATH_TASK_META_KEY,
     MCP_UIPATH_TASKS_CAPABILITY,
     MCP_UIPATH_TASKS_EXTENSION_ID,
     McpTask,
@@ -130,6 +133,9 @@ _MAX_POLL_FAILURES = MAX_RETRY_ATTEMPTS
 #: never left the client, and nothing else is re-sent. ``never`` is for a poll,
 #: whose retry is the poll loop itself.
 ResendPolicy = Literal["platform", "connect-only", "never"]
+
+# What a request that asks for a watch declares: it can suspend on either kind.
+_WATCH_TRIGGER_TYPES = (MCP_UIPATH_TASK_JOB_TRIGGER, MCP_UIPATH_TASK_API_TRIGGER)
 
 
 class McpService(FolderContext, BaseService):
@@ -383,6 +389,7 @@ class McpService(FolderContext, BaseService):
         arguments: Optional[dict[str, Any]] = None,
         *,
         folder_path: str | None = None,
+        resume_trigger_types: Optional[Sequence[str]] = None,
     ) -> McpToolCallOutcome:
         """Call a tool on an MCP server, accepting a task handle for long-running calls.
 
@@ -394,6 +401,11 @@ class McpService(FolderContext, BaseService):
             tool_name (str): The MCP tool to invoke.
             arguments (Optional[dict[str, Any]]): The tool arguments.
             folder_path (Optional[str]): The folder the server lives in.
+            resume_trigger_types (Optional[Sequence[str]]): The resume-trigger
+                kinds the caller can suspend on, declared to the server.
+                Defaults to ``["Job"]``. A caller that can also suspend through
+                a watch (``watch_task``) passes ``["Job", "Api"]``, and a task a
+                Remote server runs then carries ``api_trigger``.
 
         Returns:
             McpToolCallOutcome: Either the plain CallToolResult (``result``)
@@ -409,6 +421,7 @@ class McpService(FolderContext, BaseService):
             {"name": tool_name, "arguments": arguments or {}},
             routing_name=tool_name,
             resend="connect-only",
+            resume_trigger_types=resume_trigger_types,
         )
         return self._outcome_from_result(result, server_url)
 
@@ -420,6 +433,7 @@ class McpService(FolderContext, BaseService):
         arguments: Optional[dict[str, Any]] = None,
         *,
         folder_path: str | None = None,
+        resume_trigger_types: Optional[Sequence[str]] = None,
     ) -> McpToolCallOutcome:
         """Asynchronously call a tool on an MCP server, accepting a task handle.
 
@@ -428,6 +442,11 @@ class McpService(FolderContext, BaseService):
             tool_name (str): The MCP tool to invoke.
             arguments (Optional[dict[str, Any]]): The tool arguments.
             folder_path (Optional[str]): The folder the server lives in.
+            resume_trigger_types (Optional[Sequence[str]]): The resume-trigger
+                kinds the caller can suspend on, declared to the server.
+                Defaults to ``["Job"]``. A caller that can also suspend through
+                a watch (``watch_task``) passes ``["Job", "Api"]``, and a task a
+                Remote server runs then carries ``api_trigger``.
 
         Returns:
             McpToolCallOutcome: Either the plain CallToolResult (``result``)
@@ -443,6 +462,7 @@ class McpService(FolderContext, BaseService):
             {"name": tool_name, "arguments": arguments or {}},
             routing_name=tool_name,
             resend="connect-only",
+            resume_trigger_types=resume_trigger_types,
         )
         return self._outcome_from_result(result, server_url)
 
@@ -479,6 +499,74 @@ class McpService(FolderContext, BaseService):
         server_url = self._require_server_url(task)
         result = await self._send_mcp_async(
             server_url, "tasks/get", {"taskId": task.task_id}
+        )
+        return self._task_from_result(result, server_url)
+
+    @staticmethod
+    def _watch_request(job_key: str, folder_key: str) -> dict[str, Any]:
+        return {
+            MCP_UIPATH_TASK_META_KEY: {
+                "watch": {"jobKey": job_key, "folderKey": folder_key}
+            }
+        }
+
+    @traced(name="mcp_watch_task", run_type="uipath")
+    def watch_task(self, task: McpTask, *, job_key: str, folder_key: str) -> McpTask:
+        """Poll an MCP task once and ask the server to watch it for a job.
+
+        For a task a Remote MCP server runs (``task.api_trigger``): the server
+        watches the task and wakes the Orchestrator job named here through the
+        API trigger it suspended on. The reply is the task as ``get_task``
+        returns it; when the task is still working and a watch was started,
+        ``watch`` on it names the watch and how long it runs.
+
+        Args:
+            task (McpTask): A handle returned by ``call_tool`` (or an earlier poll).
+            job_key (str): The caller's own job, the one to wake.
+            folder_key (str): The folder that job runs in.
+
+        Returns:
+            McpTask: The fresh task snapshot.
+
+        Raises:
+            McpToolCallError: If the task id is unknown or expired.
+        """
+        server_url = self._require_server_url(task)
+        result = self._send_mcp(
+            server_url,
+            "tasks/get",
+            {"taskId": task.task_id},
+            resume_trigger_types=_WATCH_TRIGGER_TYPES,
+            request_meta=self._watch_request(job_key, folder_key),
+        )
+        return self._task_from_result(result, server_url)
+
+    @traced(name="mcp_watch_task", run_type="uipath")
+    async def watch_task_async(
+        self, task: McpTask, *, job_key: str, folder_key: str
+    ) -> McpTask:
+        """Asynchronously poll an MCP task once and ask the server to watch it.
+
+        See ``watch_task``.
+
+        Args:
+            task (McpTask): A handle returned by ``call_tool_async`` (or an earlier poll).
+            job_key (str): The caller's own job, the one to wake.
+            folder_key (str): The folder that job runs in.
+
+        Returns:
+            McpTask: The fresh task snapshot.
+
+        Raises:
+            McpToolCallError: If the task id is unknown or expired.
+        """
+        server_url = self._require_server_url(task)
+        result = await self._send_mcp_async(
+            server_url,
+            "tasks/get",
+            {"taskId": task.task_id},
+            resume_trigger_types=_WATCH_TRIGGER_TYPES,
+            request_meta=self._watch_request(job_key, folder_key),
         )
         return self._task_from_result(result, server_url)
 
@@ -962,12 +1050,23 @@ class McpService(FolderContext, BaseService):
         return self._task_from_result(result, server_url)
 
     def _mcp_rpc_envelope(
-        self, method: str, params: dict[str, Any], routing_name: Optional[str]
+        self,
+        method: str,
+        params: dict[str, Any],
+        routing_name: Optional[str],
+        resume_trigger_types: Optional[Sequence[str]] = None,
+        request_meta: Optional[dict[str, Any]] = None,
     ) -> tuple[dict[str, Any], dict[str, str]]:
         self._mcp_request_id = getattr(self, "_mcp_request_id", 0) + 1
+        uipath_tasks: dict[str, Any] = (
+            MCP_UIPATH_TASKS_CAPABILITY
+            if resume_trigger_types is None
+            else {"resumeTriggerTypes": list(resume_trigger_types)}
+        )
         params = {
             **params,
             "_meta": {
+                **(request_meta or {}),
                 "io.modelcontextprotocol/protocolVersion": MCP_TASKS_PROTOCOL_VERSION,
                 "io.modelcontextprotocol/clientInfo": {
                     "name": "UiPath.Python.Sdk",
@@ -981,7 +1080,7 @@ class McpService(FolderContext, BaseService):
                     # the entry.
                     "extensions": {
                         MCP_TASKS_EXTENSION_ID: {},
-                        MCP_UIPATH_TASKS_EXTENSION_ID: MCP_UIPATH_TASKS_CAPABILITY,
+                        MCP_UIPATH_TASKS_EXTENSION_ID: uipath_tasks,
                     },
                 },
             },
@@ -1012,8 +1111,12 @@ class McpService(FolderContext, BaseService):
         routing_name: Optional[str] = None,
         request_timeout: Optional[float] = None,
         resend: ResendPolicy = "platform",
+        resume_trigger_types: Optional[Sequence[str]] = None,
+        request_meta: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        body, headers = self._mcp_rpc_envelope(method, params, routing_name)
+        body, headers = self._mcp_rpc_envelope(
+            method, params, routing_name, resume_trigger_types, request_meta
+        )
         extra: dict[str, Any] = (
             {} if request_timeout is None else {"timeout": request_timeout}
         )
@@ -1039,8 +1142,12 @@ class McpService(FolderContext, BaseService):
         routing_name: Optional[str] = None,
         request_timeout: Optional[float] = None,
         resend: ResendPolicy = "platform",
+        resume_trigger_types: Optional[Sequence[str]] = None,
+        request_meta: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
-        body, headers = self._mcp_rpc_envelope(method, params, routing_name)
+        body, headers = self._mcp_rpc_envelope(
+            method, params, routing_name, resume_trigger_types, request_meta
+        )
         extra: dict[str, Any] = (
             {} if request_timeout is None else {"timeout": request_timeout}
         )
