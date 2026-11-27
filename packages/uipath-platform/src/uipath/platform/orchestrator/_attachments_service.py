@@ -731,7 +731,7 @@ class AttachmentsService(FolderContext, BaseService):
             id=key, uri=access["Uri"], name=result["Name"], headers=headers
         )
 
-    @traced(name="attachments_get_blob_uri", run_type="uipath")
+    @traced(name="attachments_get_blob_uri", run_type="uipath", hide_output=True)
     def get_blob_file_access_uri(
         self,
         *,
@@ -785,7 +785,7 @@ class AttachmentsService(FolderContext, BaseService):
 
         return self._blob_file_access_info(key, result)
 
-    @traced(name="attachments_get_blob_uri", run_type="uipath")
+    @traced(name="attachments_get_blob_uri", run_type="uipath", hide_output=True)
     async def get_blob_file_access_uri_async(
         self,
         *,
