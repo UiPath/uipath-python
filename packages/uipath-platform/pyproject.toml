@@ -148,7 +148,7 @@ unmatched_ignore_imports_alerting = "error"
 layers = [
   "guardrails",
   "_uipath : resume_triggers",
-  "_guardrails_service | agenthub | automation_ops | automation_tracker | connections | context_grounding | entities | external_applications | governance | memory | pii_detection | portal | resource_catalog | semantic_proxy",
+  "_guardrails_service | agenthub | automation_ops | automation_tracker | business_rules | connections | context_grounding | entities | external_applications | governance | memory | ontology | pii_detection | portal | resource_catalog | semantic_proxy | skills",
   "orchestrator",
   "action_center | attachments | chat | documents | identity",
   "common",
