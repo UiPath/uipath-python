@@ -28,6 +28,7 @@ wheels/
 
 .cache/*
 .cache
+.import_linter_cache/
 site
 
 

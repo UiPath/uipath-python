@@ -11,13 +11,14 @@ from uipath.core.guardrails import (
     GuardrailValidationResult,
 )
 
+from uipath.platform._guardrails_service import GuardrailAttachment
+
 from ..attachments import (
     DetectionScope,
     detection_scope_includes_files,
     discover_attachments,
     with_detection_scope,
 )
-from ..guardrails import GuardrailAttachment
 from ._enums import GuardrailExecutionStage
 from .validators._base import BuiltInGuardrailValidator
 

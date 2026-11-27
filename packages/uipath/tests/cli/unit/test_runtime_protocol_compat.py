@@ -9,8 +9,7 @@ from uipath.core.triggers import (
     UiPathResumeTriggerName,
     UiPathResumeTriggerType,
 )
-from uipath.platform.common import WaitUntil
-from uipath.platform.resume_triggers import UiPathResumeTriggerHandler
+from uipath.platform.resume_triggers import UiPathResumeTriggerHandler, WaitUntil
 from uipath.runtime import (
     UiPathExecuteOptions,
     UiPathResumableRuntime,

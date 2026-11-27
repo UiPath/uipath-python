@@ -993,10 +993,12 @@ class TestMakeEvaluator:
 
     def test_built_in_validator_path_lazy_initializes_uipath(self):
         """BuiltInGuardrailValidator.run() lazily creates UiPath() and calls API."""
+        from uipath.platform._guardrails_service import (
+            BuiltInValidatorGuardrail,
+        )
         from uipath.platform.guardrails.decorators.validators import (
             BuiltInGuardrailValidator,
         )
-        from uipath.platform.guardrails.guardrails import BuiltInValidatorGuardrail
 
         mock_built_in = MagicMock(spec=BuiltInValidatorGuardrail)
 
