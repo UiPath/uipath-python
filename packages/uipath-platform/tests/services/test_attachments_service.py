@@ -2,9 +2,15 @@ import json
 import os
 import shutil
 import uuid
-from typing import TYPE_CHECKING, Any, Generator, Tuple
+from typing import TYPE_CHECKING, Any, Generator, Iterator, Tuple
 
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from pytest_httpx import HTTPXMock
 
 from uipath.platform import UiPathApiConfig, UiPathExecutionContext
@@ -15,6 +21,16 @@ from uipath.platform.orchestrator._attachments_service import AttachmentsService
 
 if TYPE_CHECKING:
     from _pytest.monkeypatch import MonkeyPatch
+
+
+@pytest.fixture
+def recorded_spans(monkeypatch: pytest.MonkeyPatch) -> Iterator[InMemorySpanExporter]:
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(trace, "get_tracer", provider.get_tracer)
+    yield exporter
+    provider.shutdown()
 
 
 @pytest.fixture
@@ -1207,3 +1223,99 @@ def test_attachments_service_conforms_to_attachments_protocol(
 
     conforming: AttachmentsProtocol = service
     assert isinstance(conforming, AttachmentsProtocol)
+
+
+@pytest.mark.parametrize(
+    ("requires_auth", "expected_auth"),
+    [(False, None), (True, "Bearer {secret}")],
+)
+async def test_blob_file_access_info_has_the_download_headers(
+    httpx_mock: HTTPXMock,
+    service: AttachmentsService,
+    base_url: str,
+    org: str,
+    tenant: str,
+    secret: str,
+    blob_uri_response: dict[str, Any],
+    requires_auth: bool,
+    expected_auth: str | None,
+) -> None:
+    attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    blob_uri_response["BlobFileAccess"]["RequiresAuth"] = requires_auth
+    for _ in range(2):
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})",
+            method="GET",
+            json=blob_uri_response,
+        )
+
+    infos = [
+        service.get_blob_file_access_uri(key=attachment_key),
+        await service.get_blob_file_access_uri_async(key=attachment_key),
+    ]
+
+    for info in infos:
+        assert info.uri == blob_uri_response["BlobFileAccess"]["Uri"]
+        assert info.headers["x-ms-blob-type"] == "BlockBlob"
+        assert info.headers.get("Authorization") == (
+            expected_auth.format(secret=secret) if expected_auth else None
+        )
+        assert secret not in repr(info)
+
+
+async def test_blob_file_access_spans_do_not_expose_the_auth_headers(
+    httpx_mock: HTTPXMock,
+    recorded_spans: InMemorySpanExporter,
+    service: AttachmentsService,
+    base_url: str,
+    org: str,
+    tenant: str,
+    secret: str,
+    blob_uri_response: dict[str, Any],
+) -> None:
+    attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    blob_uri_response["BlobFileAccess"]["RequiresAuth"] = True
+    for _ in range(2):
+        httpx_mock.add_response(
+            url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})",
+            method="GET",
+            json=blob_uri_response,
+        )
+
+    service.get_blob_file_access_uri(key=attachment_key)
+    await service.get_blob_file_access_uri_async(key=attachment_key)
+
+    spans = [
+        span
+        for span in recorded_spans.get_finished_spans()
+        if span.name == "attachments_get_blob_uri"
+    ]
+    assert len(spans) == 2
+    for span in spans:
+        output = span.attributes["output.value"]
+        assert secret not in output
+        assert json.loads(output) == {
+            "redacted": "Output data not logged for privacy/security"
+        }
+
+
+async def test_blob_file_access_info_without_headers(
+    httpx_mock: HTTPXMock,
+    service: AttachmentsService,
+    base_url: str,
+    org: str,
+    tenant: str,
+) -> None:
+    attachment_key = uuid.UUID("12345678-1234-1234-1234-123456789012")
+    httpx_mock.add_response(
+        url=f"{base_url}{org}{tenant}/orchestrator_/odata/Attachments({attachment_key})",
+        method="GET",
+        json={
+            "Name": "scan.pdf",
+            "BlobFileAccess": {"Uri": "https://orchestrator.example/offload"},
+        },
+    )
+
+    info = await service.get_blob_file_access_uri_async(key=attachment_key)
+
+    assert info.headers == {}

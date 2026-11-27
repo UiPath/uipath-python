@@ -713,7 +713,25 @@ class AttachmentsService(FolderContext, BaseService):
 
         return attachment_key
 
-    @traced(name="attachments_get_blob_uri", run_type="uipath")
+    def _blob_file_access_info(
+        self, key: uuid.UUID, result: dict[str, Any]
+    ) -> BlobFileAccessInfo:
+        access = result["BlobFileAccess"]
+        orchestrator_headers = access.get("Headers") or {}
+        headers = dict(
+            zip(
+                orchestrator_headers.get("Keys") or [],
+                orchestrator_headers.get("Values") or [],
+                strict=False,
+            )
+        )
+        if access.get("RequiresAuth"):
+            headers.update(self.auth_headers)
+        return BlobFileAccessInfo(
+            id=key, uri=access["Uri"], name=result["Name"], headers=headers
+        )
+
+    @traced(name="attachments_get_blob_uri", run_type="uipath", hide_output=True)
     def get_blob_file_access_uri(
         self,
         *,
@@ -732,7 +750,8 @@ class AttachmentsService(FolderContext, BaseService):
             folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
-            BlobFileAccessInfo: Object containing the blob storage URI and attachment name.
+            BlobFileAccessInfo: Object containing the blob storage URI, the
+                headers to send with a request to it, and the attachment name.
 
         Raises:
             Exception: If the attachment is not found or the request fails.
@@ -764,13 +783,9 @@ class AttachmentsService(FolderContext, BaseService):
             headers=spec.headers,
         ).json()
 
-        return BlobFileAccessInfo(
-            id=key,
-            uri=result["BlobFileAccess"]["Uri"],
-            name=result["Name"],
-        )
+        return self._blob_file_access_info(key, result)
 
-    @traced(name="attachments_get_blob_uri", run_type="uipath")
+    @traced(name="attachments_get_blob_uri", run_type="uipath", hide_output=True)
     async def get_blob_file_access_uri_async(
         self,
         *,
@@ -789,7 +804,8 @@ class AttachmentsService(FolderContext, BaseService):
             folder_path (str | None): The path of the folder. Override the default one set in the SDK config.
 
         Returns:
-            BlobFileAccessInfo: Object containing the blob storage URI and attachment name.
+            BlobFileAccessInfo: Object containing the blob storage URI, the
+                headers to send with a request to it, and the attachment name.
 
         Raises:
             Exception: If the attachment is not found or the request fails.
@@ -825,11 +841,7 @@ class AttachmentsService(FolderContext, BaseService):
             )
         ).json()
 
-        return BlobFileAccessInfo(
-            id=key,
-            uri=result["BlobFileAccess"]["Uri"],
-            name=result["Name"],
-        )
+        return self._blob_file_access_info(key, result)
 
     @traced(name="attachments_delete", run_type="uipath")
     def delete(
