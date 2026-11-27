@@ -7,6 +7,12 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, U
 from urllib.parse import quote
 from uuid import UUID
 
+from tenacity import (
+    AsyncRetrying,
+    Retrying,
+    retry_if_exception,
+    stop_after_attempt,
+)
 from uipath.core.tracing import traced
 
 from ..common._base_service import BaseService
@@ -15,7 +21,13 @@ from ..common._config import UiPathApiConfig
 from ..common._execution_context import UiPathExecutionContext
 from ..common._folder_context import FolderContext
 from ..common._models import Endpoint
+from ..common.retry import (
+    MAX_RETRY_ATTEMPTS,
+    is_retryable_platform_exception,
+    platform_wait_strategy,
+)
 from ..errors import OperationFailedException, OperationNotCompleteException
+from ._streaming_upload import MultipartLayout, aiter_body, iter_body, multipart_layout
 from .documents import (
     ActionPriority,
     ClassificationResponse,
@@ -26,9 +38,19 @@ from .documents import (
     ProjectType,
     StartExtractionResponse,
     StartExtractionValidationResponse,
+    StreamingFile,
     ValidateClassificationAction,
     ValidateExtractionAction,
 )
+
+# Same rules as BaseService.request, applied to the whole upload so that every
+# attempt reads the StreamingFile again from its first byte.
+_STREAMING_UPLOAD_RETRY: Dict[str, Any] = {
+    "retry": retry_if_exception(is_retryable_platform_exception),
+    "wait": platform_wait_strategy,
+    "stop": stop_after_attempt(MAX_RETRY_ATTEMPTS),
+    "reraise": True,
+}
 
 POLLING_INTERVAL = 2  # seconds
 POLLING_TIMEOUT = 300  # seconds
@@ -124,8 +146,11 @@ def _validate_classify_params(
     project_name: Optional[str],
     file: Optional[FileContent],
     file_path: Optional[str],
+    file_stream: Optional[StreamingFile] = None,
 ) -> None:
-    _exactly_one_must_be_provided(file=file, file_path=file_path)
+    _exactly_one_must_be_provided(
+        file=file, file_path=file_path, file_stream=file_stream
+    )
     if project_type == ProjectType.PRETRAINED:
         _must_not_be_provided(
             project_name=project_name,
@@ -148,9 +173,12 @@ def _validate_extract_params_and_get_project_type(
     classification_result: Optional[ClassificationResult],
     project_type: Optional[ProjectType],
     document_type_name: Optional[str],
+    file_stream: Optional[StreamingFile] = None,
 ) -> ProjectType:
-    if file or file_path:
-        _exactly_one_must_be_provided(file=file, file_path=file_path)
+    if file or file_path or file_stream is not None:
+        _exactly_one_must_be_provided(
+            file=file, file_path=file_path, file_stream=file_stream
+        )
         _must_be_provided(project_type=project_type)
         _must_not_be_provided(
             classification_result=classification_result,
@@ -178,6 +206,7 @@ def _validate_extract_params_and_get_project_type(
             project_type=project_type,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
             document_type_name=document_type_name,
         )
         project_type = classification_result.project_type
@@ -463,6 +492,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         file: Optional[FileContent],
         file_path: Optional[str],
         classification_result: Optional[ClassificationResult],
+        file_stream: Optional[StreamingFile] = None,
     ) -> str:
         if classification_result is not None:
             return classification_result.document_id
@@ -471,6 +501,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
         )
         self._wait_for_digitization(
             project_id=project_id,
@@ -485,6 +516,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         file: Optional[FileContent],
         file_path: Optional[str],
         classification_result: Optional[ClassificationResult],
+        file_stream: Optional[StreamingFile] = None,
     ) -> str:
         if classification_result is not None:
             return classification_result.document_id
@@ -493,6 +525,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
         )
         await self._wait_for_digitization_async(
             project_id=project_id,
@@ -607,12 +640,61 @@ class _DocumentsServiceBase(FolderContext, BaseService):
 
         return tag
 
+    def _digitization_stream_headers(self, layout: MultipartLayout) -> Dict[str, str]:
+        # An explicit Content-Length keeps httpx from switching to chunked encoding.
+        return {
+            **self._get_common_headers(),
+            "Content-Type": layout.content_type,
+            "Content-Length": str(layout.content_length),
+        }
+
+    def _start_digitization_stream(
+        self, project_id: str, file_stream: StreamingFile
+    ) -> str:
+        layout = multipart_layout(file_stream, field_name="File")
+        for attempt in Retrying(**_STREAMING_UPLOAD_RETRY):
+            with attempt:
+                body = iter_body(layout, file_stream)
+                try:
+                    response = self._request_once(
+                        "POST",
+                        url=_framework_url(project_id, "digitization", "start"),
+                        params={"api-version": self._api_version},
+                        headers=self._digitization_stream_headers(layout),
+                        content=body,
+                    )
+                finally:
+                    body.close()
+        return _camel_case_keys(response.json())["documentId"]
+
+    async def _start_digitization_stream_async(
+        self, project_id: str, file_stream: StreamingFile
+    ) -> str:
+        layout = multipart_layout(file_stream, field_name="File")
+        async for attempt in AsyncRetrying(**_STREAMING_UPLOAD_RETRY):
+            with attempt:
+                body = aiter_body(layout, file_stream)
+                try:
+                    response = await self._request_once_async(
+                        "POST",
+                        url=_framework_url(project_id, "digitization", "start"),
+                        params={"api-version": self._api_version},
+                        headers=self._digitization_stream_headers(layout),
+                        content=body,
+                    )
+                finally:
+                    await body.aclose()
+        return _camel_case_keys(response.json())["documentId"]
+
     def _start_digitization(
         self,
         project_id: str,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> str:
+        if file_stream is not None:
+            return self._start_digitization_stream(project_id, file_stream)
         with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
             return self._request_json(
                 "POST",
@@ -627,7 +709,10 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         project_id: str,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> str:
+        if file_stream is not None:
+            return await self._start_digitization_stream_async(project_id, file_stream)
         with open(Path(file_path), "rb") if file_path else nullcontext(file) as handle:
             return (
                 await self._request_json_async(
@@ -1084,6 +1169,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> List[ClassificationResult]:
         """Classify a document using a DU Modern project.
 
@@ -1094,9 +1180,11 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             version (int, optional): Version of the published project. It can be used instead of `tag`.
             file (FileContent, optional): The document file to be classified.
             file_path (str, optional): Path to the document file to be classified.
+            file_stream (StreamingFile, optional): A document uploaded while it is
+                read from its source, with no local copy. See `StreamingFile`.
 
         Note:
-            Either `file` or `file_path` must be provided, but not both.
+            Exactly one of `file`, `file_path` or `file_stream` must be provided.
 
         Returns:
             List[ClassificationResult]: A list of classification results.
@@ -1126,6 +1214,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             project_name=project_name,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
         )
 
         project_id = self._get_project_id(
@@ -1139,6 +1228,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             file=file,
             file_path=file_path,
             classification_result=None,
+            file_stream=file_stream,
         )
 
         classifier_id = self._get_classifier_id(
@@ -1177,6 +1267,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         project_name: Optional[str] = None,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> List[ClassificationResult]:
         """Asynchronously version of the [`classify`][uipath.platform.documents._documents_service.DocumentsService.classify] method."""
         _validate_classify_params(
@@ -1186,6 +1277,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             project_name=project_name,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
         )
 
         project_id = await self._get_project_id_async(
@@ -1199,6 +1291,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             file=file,
             file_path=file_path,
             classification_result=None,
+            file_stream=file_stream,
         )
 
         classifier_id = await self._get_classifier_id_async(
@@ -1235,6 +1328,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         tag: str,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> StartExtractionResponse:
         """Start an IXP extraction process without waiting for results (non-blocking).
 
@@ -1247,9 +1341,13 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             tag (str): Tag of the published project version (e.g., "staging").
             file (FileContent, optional): The document file to be processed.
             file_path (str, optional): Path to the document file to be processed.
+            file_stream (StreamingFile, optional): A document uploaded while it is
+                read from its source, with no local copy. Its `open` must return an
+                `Iterable[bytes]` here; the async method also accepts an
+                `AsyncIterable[bytes]`. Each upload attempt calls `open` again.
 
         Note:
-            Either `file` or `file_path` must be provided, but not both.
+            Exactly one of `file`, `file_path` or `file_stream` must be provided.
 
         Returns:
             ExtractionStartResponse: Contains the operation_id, document_id, project_id, and tag
@@ -1264,7 +1362,9 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             # start_response.operation_id can be used to poll for results later
             ```
         """
-        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        _exactly_one_must_be_provided(
+            file=file, file_path=file_path, file_stream=file_stream
+        )
 
         project_id = self._get_project_id(
             project_type=ProjectType.IXP,
@@ -1276,6 +1376,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
         )
 
         return self._start_extraction(
@@ -1293,9 +1394,12 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         tag: str,
         file: Optional[FileContent] = None,
         file_path: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> StartExtractionResponse:
         """Asynchronous version of the [`start_ixp_extraction`][uipath.platform.documents._documents_service.DocumentsService.start_ixp_extraction] method."""
-        _exactly_one_must_be_provided(file=file, file_path=file_path)
+        _exactly_one_must_be_provided(
+            file=file, file_path=file_path, file_stream=file_stream
+        )
 
         project_id = await self._get_project_id_async(
             project_type=ProjectType.IXP,
@@ -1307,6 +1411,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             project_id=project_id,
             file=file,
             file_path=file_path,
+            file_stream=file_stream,
         )
 
         return await self._start_extraction_async(
@@ -1453,6 +1558,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         classification_result: Optional[ClassificationResult] = None,
         project_type: Optional[ProjectType] = None,
         document_type_name: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Extract predicted data from a document using an DU Modern/IXP project.
 
@@ -1462,12 +1568,13 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             version (int, optional): Version of the published project. It can be used instead of `tag`.
             file (FileContent, optional): The document file to be processed. Must be provided if `classification_result` is not provided.
             file_path (str, optional): Path to the document file to be processed. Must be provided if `classification_result` is not provided.
+            file_stream (StreamingFile, optional): A document uploaded while it is read from its source, with no local copy. It can be used instead of `file` or `file_path`. See `StreamingFile`.
             project_type (ProjectType, optional): Type of the project. Must be provided if `project_name` is provided.
             document_type_name (str, optional): Document type name associated with the extractor to be used for extraction. Required if `project_type` is `ProjectType.MODERN` and `project_name` is provided.
-            classification_result (ClassificationResult, optional): The classification result obtained from a previous classification step. If provided, `project_name`, `project_type`, `file`, `file_path`, and `document_type_name` must not be provided.
+            classification_result (ClassificationResult, optional): The classification result obtained from a previous classification step. If provided, `project_name`, `project_type`, `file`, `file_path`, `file_stream`, and `document_type_name` must not be provided.
 
         Note:
-            Either `file` or `file_path` must be provided, but not both.
+            Exactly one of `file`, `file_path` or `file_stream` must be provided, unless `classification_result` is provided.
 
         Returns:
             Union[ExtractionResponse, ExtractionResponseIXP]: The extraction response containing the extracted data.
@@ -1518,6 +1625,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             classification_result=classification_result,
             project_type=project_type,
             document_type_name=document_type_name,
+            file_stream=file_stream,
         )
 
         project_id = self._get_project_id(
@@ -1546,6 +1654,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             file=file,
             file_path=file_path,
             classification_result=classification_result,
+            file_stream=file_stream,
         )
 
         document_type_id = self._get_document_type_id(
@@ -1590,6 +1699,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
         classification_result: Optional[ClassificationResult] = None,
         project_type: Optional[ProjectType] = None,
         document_type_name: Optional[str] = None,
+        file_stream: Optional[StreamingFile] = None,
     ) -> Union[ExtractionResponse, ExtractionResponseIXP]:
         """Asynchronously version of the [`extract`][uipath.platform.documents._documents_service.DocumentsService.extract] method."""
         project_type = _validate_extract_params_and_get_project_type(
@@ -1601,6 +1711,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             classification_result=classification_result,
             project_type=project_type,
             document_type_name=document_type_name,
+            file_stream=file_stream,
         )
 
         project_id = await self._get_project_id_async(
@@ -1629,6 +1740,7 @@ class _DocumentsServiceBase(FolderContext, BaseService):
             file=file,
             file_path=file_path,
             classification_result=classification_result,
+            file_stream=file_stream,
         )
 
         document_type_id = await self._get_document_type_id_async(

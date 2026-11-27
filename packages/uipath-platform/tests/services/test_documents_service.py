@@ -93,7 +93,7 @@ class TestDocumentsService:
                 ProjectType.MODERN,
                 None,
                 None,
-                "Exactly one of `file, file_path` must be provided",
+                "Exactly one of `file, file_path, file_stream` must be provided",
             ),
             (
                 "Production",
@@ -111,7 +111,7 @@ class TestDocumentsService:
                 ProjectType.MODERN,
                 b"something",
                 "something",
-                "Exactly one of `file, file_path` must be provided",
+                "Exactly one of `file, file_path, file_stream` must be provided",
             ),
             (
                 "Production",
@@ -138,7 +138,7 @@ class TestDocumentsService:
                 ProjectType.PRETRAINED,
                 b"something",
                 "pathto/file.pdf",
-                "Exactly one of `file, file_path` must be provided",
+                "Exactly one of `file, file_path, file_stream` must be provided",
             ),
         ],
     )
@@ -899,7 +899,7 @@ class TestDocumentsService:
                 None,
                 ProjectType.MODERN,
                 "dummy doctype",
-                "Exactly one of `file, file_path` must be provided",
+                "Exactly one of `file, file_path, file_stream` must be provided",
             ),
             (
                 "live",
@@ -1776,7 +1776,7 @@ class TestDocumentsService:
         # ACT & ASSERT
         with pytest.raises(
             ValueError,
-            match="Exactly one of `file, file_path` must be provided",
+            match="Exactly one of `file, file_path, file_stream` must be provided",
         ):
             if mode == "async":
                 await service.extract_async(
@@ -3183,7 +3183,7 @@ class TestDocumentsService:
         # ACT & ASSERT
         with pytest.raises(
             ValueError,
-            match="Exactly one of `file, file_path` must be provided",
+            match="Exactly one of `file, file_path, file_stream` must be provided",
         ):
             if mode == "async":
                 await service.start_ixp_extraction_async(

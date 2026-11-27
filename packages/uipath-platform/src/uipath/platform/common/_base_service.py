@@ -212,10 +212,36 @@ class BaseService:
         scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
+        # Resolved here, not in `_request_once`: the caller lookup walks only a
+        # few frames, and the extra method would use one of them.
+        return self._request_once(
+            method,
+            url,
+            scoped=scoped,
+            caller_component=_get_caller_component(),
+            **kwargs,
+        )
+
+    def _request_once(
+        self,
+        method: str,
+        url: URL | str,
+        *,
+        scoped: Literal["org", "tenant"] = "tenant",
+        caller_component: str | None = None,
+        **kwargs: Any,
+    ) -> Response:
+        """Send one request, with no retry.
+
+        For a body that cannot be sent twice, such as a generator: the caller
+        retries and builds a new body for each attempt.
+        """
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(f"HEADERS: {kwargs.get('headers', self._client.headers)}")
 
-        specific_component = _get_caller_component()
+        specific_component = (
+            _get_caller_component() if caller_component is None else caller_component
+        )
 
         # Copy: never write into the caller's dict.
         kwargs["headers"] = dict(kwargs.get("headers") or {})
@@ -257,6 +283,24 @@ class BaseService:
         scoped: Literal["org", "tenant"] = "tenant",
         **kwargs: Any,
     ) -> Response:
+        return await self._request_once_async(
+            method,
+            url,
+            scoped=scoped,
+            caller_component=self._specific_component,
+            **kwargs,
+        )
+
+    async def _request_once_async(
+        self,
+        method: str,
+        url: URL | str,
+        *,
+        scoped: Literal["org", "tenant"] = "tenant",
+        caller_component: str | None = None,
+        **kwargs: Any,
+    ) -> Response:
+        """Asynchronous version of `_request_once`: one request, with no retry."""
         self._logger.debug(f"Request: {method} {url}")
         self._logger.debug(
             f"HEADERS: {kwargs.get('headers', self._client_async.headers)}"
@@ -265,7 +309,7 @@ class BaseService:
         # Copy: never write into the caller's dict.
         kwargs["headers"] = dict(kwargs.get("headers") or {})
         kwargs["headers"][HEADER_USER_AGENT] = user_agent_value(
-            self._specific_component
+            self._specific_component if caller_component is None else caller_component
         )
         _inject_trace_context(kwargs["headers"])
         self._add_authorization(kwargs["headers"])
