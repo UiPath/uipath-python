@@ -1381,3 +1381,181 @@ class TestMcpTaskJob:
 
         assert snapshot.job is not None
         assert snapshot.job.job_key == JOB_KEY
+
+
+WATCH_ID = "3f2e1d0c-9b8a-4c7d-8e6f-5a4b3c2d1e0f"
+
+
+def api_annotated(status: str = "working", **annotation: Any) -> dict[str, Any]:
+    """A task as AgentHub annotates one a Remote server runs."""
+    payload = task_result(status, result_type="complete")
+    payload["_meta"] = {
+        "com.uipath/task": {
+            "version": 1,
+            "suspendAfterMs": 60000,
+            "resumeTrigger": {"triggerType": "Api"},
+            **annotation,
+        }
+    }
+    return payload
+
+
+class TestMcpTaskWatch:
+    """``com.uipath/tasks`` on a Remote server's task: suspend through a watch."""
+
+    def test_an_api_annotation_says_the_task_can_be_watched(self) -> None:
+        task = McpTask.model_validate(api_annotated())
+
+        assert task.api_trigger is not None
+        assert task.api_trigger.suspend_after_ms == 60000
+        # No job is behind it, so there is none to suspend on.
+        assert task.job is None
+        assert task.watch is None
+
+    def test_a_job_annotation_is_not_an_api_one(self) -> None:
+        task = McpTask.model_validate(
+            annotated({"jobKey": JOB_KEY, "folderKey": FOLDER_KEY})
+        )
+
+        assert task.job is not None
+        assert task.api_trigger is None
+        assert task.watch is None
+
+    def test_the_watch_on_a_reply_is_read_with_its_lifetime(self) -> None:
+        task = McpTask.model_validate(
+            api_annotated(watch={"id": WATCH_ID, "expiresInMs": 600000})
+        )
+
+        assert task.watch is not None
+        assert task.watch.watch_id == WATCH_ID
+        assert task.watch.expires_in_ms == 600000
+
+    @pytest.mark.parametrize(
+        "watch",
+        [
+            None,
+            "yes",
+            {},
+            {"id": WATCH_ID},
+            {"id": "not-a-guid", "expiresInMs": 600000},
+            {"id": WATCH_ID, "expiresInMs": 0},
+            {"id": WATCH_ID, "expiresInMs": -5},
+            {"id": WATCH_ID, "expiresInMs": "soon"},
+            {"id": WATCH_ID, "expiresInMs": True},
+        ],
+    )
+    def test_a_watch_that_cannot_be_named_or_timed_is_none(self, watch: Any) -> None:
+        task = McpTask.model_validate(api_annotated(watch=watch))
+
+        assert task.watch is None
+        # The task itself is still watchable; only this watch is unusable.
+        assert task.api_trigger is not None
+
+    def test_a_finished_task_has_nothing_to_suspend_on(self) -> None:
+        task = McpTask.model_validate(
+            api_annotated("completed", watch={"id": WATCH_ID, "expiresInMs": 600000})
+        )
+
+        assert task.api_trigger is None
+        assert task.watch is None
+
+    @pytest.mark.parametrize("version", [2, "1", True, None])
+    def test_an_annotation_at_another_version_is_not_read(self, version: Any) -> None:
+        task = McpTask.model_validate(api_annotated(version=version))
+
+        assert task.api_trigger is None
+
+    def test_call_tool_can_declare_the_api_trigger_kind(
+        self,
+        httpx_mock: HTTPXMock,
+        service: McpService,
+        base_url: str,
+        org: str,
+        tenant: str,
+    ) -> None:
+        mock_retrieve(httpx_mock, base_url, org, tenant)
+        httpx_mock.add_response(
+            url=MCP_URL,
+            status_code=200,
+            json=rpc_result(task_result("working", result_type="task")),
+        )
+
+        service.call_tool(
+            "test-mcp-server", "research", resume_trigger_types=["Job", "Api"]
+        )
+
+        body = json.loads(httpx_mock.get_requests()[1].content)
+        extensions = body["params"]["_meta"][
+            "io.modelcontextprotocol/clientCapabilities"
+        ]["extensions"]
+        assert extensions["com.uipath/tasks"] == {"resumeTriggerTypes": ["Job", "Api"]}
+
+    def test_watch_task_asks_for_a_watch_on_the_callers_job(
+        self,
+        httpx_mock: HTTPXMock,
+        service: McpService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=MCP_URL,
+            status_code=200,
+            json=rpc_result(
+                api_annotated(watch={"id": WATCH_ID, "expiresInMs": 600000})
+            ),
+        )
+        handle = known_task()
+
+        watched = service.watch_task(handle, job_key=JOB_KEY, folder_key=FOLDER_KEY)
+
+        assert watched.watch is not None
+        assert watched.watch.watch_id == WATCH_ID
+        request = httpx_mock.get_requests()[0]
+        assert request.headers["Mcp-Method"] == "tasks/get"
+        body = json.loads(request.content)
+        assert body["method"] == "tasks/get"
+        assert body["params"]["taskId"] == "task-1"
+        meta = body["params"]["_meta"]
+        assert meta["com.uipath/task"] == {
+            "watch": {"jobKey": JOB_KEY, "folderKey": FOLDER_KEY}
+        }
+        # The ask rides on an ordinary request: protocol metadata is all there.
+        assert meta["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
+        declared = meta["io.modelcontextprotocol/clientCapabilities"]["extensions"]
+        assert declared["com.uipath/tasks"] == {"resumeTriggerTypes": ["Job", "Api"]}
+
+    async def test_watch_task_async_sends_the_same_request(
+        self,
+        httpx_mock: HTTPXMock,
+        service: McpService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=MCP_URL, status_code=200, json=rpc_result(api_annotated())
+        )
+        handle = known_task()
+
+        watched = await service.watch_task_async(
+            handle, job_key=JOB_KEY, folder_key=FOLDER_KEY
+        )
+
+        # Still working, and the server started no watch: the caller polls on.
+        assert watched.watch is None
+        body = json.loads(httpx_mock.get_requests()[0].content)
+        assert body["params"]["_meta"]["com.uipath/task"]["watch"]["jobKey"] == JOB_KEY
+
+    def test_an_ordinary_poll_asks_for_nothing(
+        self,
+        httpx_mock: HTTPXMock,
+        service: McpService,
+    ) -> None:
+        httpx_mock.add_response(
+            url=MCP_URL,
+            status_code=200,
+            json=rpc_result(task_result("working", result_type="complete")),
+        )
+        handle = known_task()
+
+        service.get_task(handle)
+
+        meta = json.loads(httpx_mock.get_requests()[0].content)["params"]["_meta"]
+        assert "com.uipath/task" not in meta
+        declared = meta["io.modelcontextprotocol/clientCapabilities"]["extensions"]
+        assert declared["com.uipath/tasks"] == {"resumeTriggerTypes": ["Job"]}

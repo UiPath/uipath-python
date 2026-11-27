@@ -24,11 +24,13 @@ from .job import Job, JobErrorInfo, JobState
 from .mcp import McpServer, McpServerStatus, McpServerType
 from .mcp_tasks import (
     McpTask,
+    McpTaskApiTrigger,
     McpTaskCancelledError,
     McpTaskFailedError,
     McpTaskInputRequiredError,
     McpTaskJob,
     McpTaskStatus,
+    McpTaskWatch,
     McpToolCallError,
     McpToolCallOutcome,
 )
@@ -75,7 +77,9 @@ __all__ = [
     "McpTaskCancelledError",
     "McpTaskFailedError",
     "McpTaskInputRequiredError",
+    "McpTaskApiTrigger",
     "McpTaskJob",
+    "McpTaskWatch",
     "McpTaskStatus",
     "McpToolCallError",
     "McpToolCallOutcome",
